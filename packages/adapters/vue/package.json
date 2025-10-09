@@ -1,6 +1,6 @@
 {
   "name": "@notectl/vue",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "type": "module",
   "main": "./dist/vue.umd.cjs",
   "module": "./dist/vue.js",
@@ -49,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Samyssmile/notectl",
+    "url": "git+https://github.com/Samyssmile/notectl.git",
     "directory": "packages/adapters/vue"
   }
 }

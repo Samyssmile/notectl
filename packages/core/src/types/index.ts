@@ -175,6 +175,7 @@ export interface EditorConfig {
   autofocus?: boolean;
   sanitizeHTML?: boolean;
   maxHistoryDepth?: number;
+  content?: string | Document;
   [key: string]: unknown;
 }
 
@@ -196,5 +197,117 @@ export interface ErrorEnvelope {
     code: string;
     message: string;
     details?: unknown;
+  };
+}
+
+/**
+ * Command handler function signature
+ */
+export type CommandHandler<TArgs extends unknown[] = unknown[], TReturn = unknown> = (
+  ...args: TArgs
+) => TReturn | Promise<TReturn>;
+
+/**
+ * Command definition with type safety
+ */
+export interface CommandDefinition<TArgs extends unknown[] = unknown[], TReturn = unknown> {
+  name: string;
+  description?: string;
+  handler: CommandHandler<TArgs, TReturn>;
+}
+
+/**
+ * Built-in command registry
+ * Maps command names to their handlers
+ */
+export interface CommandRegistry {
+  [key: string]: CommandHandler<unknown[], unknown>;
+}
+
+/**
+ * Selection helper utilities
+ */
+export interface SelectionHelpers {
+  /**
+   * Check if selection is collapsed (cursor)
+   */
+  isCollapsed(selection: Selection): boolean;
+
+  /**
+   * Check if selection spans multiple blocks
+   */
+  isMultiBlock(selection: Selection): boolean;
+
+  /**
+   * Get the direction of selection (forward/backward)
+   */
+  getDirection(selection: Selection): 'forward' | 'backward' | 'none';
+
+  /**
+   * Create a collapsed selection at a position
+   */
+  createCollapsed(position: Position): Selection;
+
+  /**
+   * Create a selection range
+   */
+  createRange(start: Position, end: Position): Selection;
+}
+
+/**
+ * Block type utilities
+ */
+export interface BlockHelpers {
+  /**
+   * Check if a node is a text node
+   */
+  isTextNode(node: Node): node is TextNode;
+
+  /**
+   * Check if a node is a block node
+   */
+  isBlockNode(node: Node): node is BlockNode;
+
+  /**
+   * Get all text content from a block
+   */
+  getTextContent(block: BlockNode): string;
+
+  /**
+   * Check if block is empty
+   */
+  isEmpty(block: BlockNode): boolean;
+}
+
+/**
+ * Table structure for attributes
+ */
+export interface TableData {
+  rows: TableRow[];
+}
+
+/**
+ * Table row structure
+ */
+export interface TableRow {
+  id?: string;
+  cells: TableCell[];
+  attrs?: {
+    style?: Record<string, string | number>;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Table cell structure
+ */
+export interface TableCell {
+  id?: string;
+  content: string;
+  rowSpan?: number;
+  colSpan?: number;
+  attrs?: {
+    style?: Record<string, string | number>;
+    [key: string]: unknown;
   };
 }

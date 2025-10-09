@@ -177,6 +177,13 @@ export class TablePlugin implements Plugin {
         return;
       }
 
+      const tableId = this.getTableId(event);
+      const position = this.getCellPosition(event);
+      if (tableId && position) {
+        this.currentTable = tableId;
+        this.currentCell = position;
+      }
+
       const key = this.getKeyString(event);
 
       switch (key) {
@@ -250,6 +257,8 @@ export class TablePlugin implements Plugin {
         const position = this.getCellPosition(event);
 
         if (tableId && position) {
+          this.currentTable = tableId;
+          this.currentCell = position;
           this.showContextMenu(tableId, position, event.clientX, event.clientY);
         }
       }
@@ -292,6 +301,9 @@ export class TablePlugin implements Plugin {
     if (this.currentMenu) {
       this.currentMenu.close();
     }
+
+    this.currentTable = tableId;
+    this.currentCell = position;
 
     // Create new menu
     this.currentMenu = new TableMenu(

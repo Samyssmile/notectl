@@ -1,6 +1,6 @@
 {
   "name": "@notectl/react",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "type": "module",
   "main": "./dist/react.umd.cjs",
   "module": "./dist/react.js",
@@ -51,7 +51,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Samyssmile/notectl",
+    "url": "git+https://github.com/Samyssmile/notectl.git",
     "directory": "packages/adapters/react"
   }
 }

@@ -80,8 +80,30 @@ export type {
   EditorAPI,
   ValidationConstraint,
   ErrorEnvelope,
+  CommandRegistry,
+  CommandDefinition,
+  SelectionHelpers,
+  BlockHelpers,
+  TableData,
+  TableRow,
+  TableCell,
 } from './types/index.js';
 import type { EditorConfig } from './types/index.js';
+
+// Utility helpers
+export { selectionHelpers, blockHelpers } from './utils/helpers.js';
+
+// Constants and error handling
+export {
+  EDITOR_READY_TIMEOUT,
+  ARIA_ANNOUNCEMENT_DELAY,
+  DEFAULT_MAX_HISTORY_DEPTH,
+  DEFAULT_MIN_HEIGHT,
+  ErrorCodes,
+  ValidationConstraints,
+  NotectlError,
+} from './constants.js';
+export type { ErrorCode } from './constants.js';
 
 // Utility function to initialize editor
 export function createEditor(container: HTMLElement, config?: EditorConfig) {

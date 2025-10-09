@@ -1,0 +1,20 @@
+{
+  "name": "@notectl/example-vanillajs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@notectl/core": "^0.0.2",
+    "@notectl/plugin-table": "^0.0.2",
+    "@notectl/plugin-toolbar": "^0.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

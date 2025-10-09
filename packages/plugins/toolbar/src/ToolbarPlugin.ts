@@ -399,12 +399,24 @@ export class ToolbarPlugin implements Plugin {
     });
 
     context.registerCommand('insert.table', (...args: unknown[]) => {
-      // If called programmatically with args, insert directly
-      if (args.length >= 2) {
-        const rows = args[0] as number;
-        const cols = args[1] as number;
-        this.insertTableAtCursor(rows, cols);
-        return;
+      const rows = typeof args[0] === 'number' ? (args[0] as number) : undefined;
+      const cols = typeof args[1] === 'number' ? (args[1] as number) : undefined;
+
+      // If called programmatically with specific dimensions, insert directly
+      if (typeof rows === 'number' && typeof cols === 'number') {
+        try {
+          context.executeCommand('table.insert', rows, cols);
+          return;
+        } catch (error) {
+          // Fall back to DOM insertion if table plugin is not available
+          if (error instanceof Error && error.message.includes('Command not found: table.insert')) {
+            this.insertTableAtCursor(rows, cols);
+            return;
+          } else {
+            console.error('Failed to insert table:', error);
+            return;
+          }
+        }
       }
 
       // Otherwise show the table picker
@@ -412,8 +424,16 @@ export class ToolbarPlugin implements Plugin {
         this.tablePicker = new TablePickerComponent();
         document.body.appendChild(this.tablePicker);
 
-        this.tablePicker.setSelectHandler((rows: number, cols: number) => {
-          this.insertTableAtCursor(rows, cols);
+        this.tablePicker.setSelectHandler((pickedRows: number, pickedCols: number) => {
+          try {
+            context.executeCommand('table.insert', pickedRows, pickedCols);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('Command not found: table.insert')) {
+              this.insertTableAtCursor(pickedRows, pickedCols);
+            } else {
+              console.error('Failed to insert table via plugin command.', error);
+            }
+          }
         });
       }
 

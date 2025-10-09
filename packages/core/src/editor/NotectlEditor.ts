@@ -32,6 +32,12 @@ export class NotectlEditor extends HTMLElement {
   private keyboardShortcutCleanup?: () => void;
   private ariaLiveRegion: HTMLDivElement | null = null;
 
+  // Plugin queue system for pre-mount registration
+  private pendingPlugins: Plugin[] = [];
+  private readyPromise: Promise<void>;
+  private readyResolve?: () => void;
+  private isReady: boolean = false;
+
   constructor() {
     super();
 
@@ -53,6 +59,11 @@ export class NotectlEditor extends HTMLElement {
     // Initialize plugin manager
     this.pluginManager = new PluginManager();
 
+    // Initialize ready promise
+    this.readyPromise = new Promise((resolve) => {
+      this.readyResolve = resolve;
+    });
+
     // Attach shadow DOM
     this.attachShadow({ mode: 'open' });
   }
@@ -67,11 +78,36 @@ export class NotectlEditor extends HTMLElement {
   /**
    * Called when element is connected to DOM
    */
-  connectedCallback(): void {
+  async connectedCallback(): Promise<void> {
     this.render();
     this.attachEventListeners();
     this.setupAccessibility();
     this.setupKeyboardShortcuts();
+
+    // Mark editor as ready
+    this.isReady = true;
+
+    // Process pending plugins that were registered before mounting
+    if (this.pendingPlugins.length > 0) {
+      const plugins = [...this.pendingPlugins];
+      this.pendingPlugins = [];
+
+      for (const plugin of plugins) {
+        try {
+          await this.pluginManager.register(plugin, this.createPluginContext());
+        } catch (error) {
+          console.error(`Failed to register pending plugin ${plugin.id}:`, error);
+        }
+      }
+    }
+
+    // Resolve the ready promise
+    if (this.readyResolve) {
+      this.readyResolve();
+    }
+
+    // Emit ready event
+    this.emit('ready', { editor: this });
 
     if (this.config.autofocus) {
       this.focus();
@@ -90,6 +126,12 @@ export class NotectlEditor extends HTMLElement {
     if (this.ariaLiveRegion && this.ariaLiveRegion.parentNode) {
       this.ariaLiveRegion.parentNode.removeChild(this.ariaLiveRegion);
     }
+
+    // Reset ready state for potential re-mounting
+    this.isReady = false;
+    this.readyPromise = new Promise((resolve) => {
+      this.readyResolve = resolve;
+    });
   }
 
   /**
@@ -270,6 +312,8 @@ export class NotectlEditor extends HTMLElement {
       case 'heading':
         const level = block.attrs?.level || 1;
         return `<h${level}>${this.childrenToHTML(block.children || [])}</h${level}>`;
+      case 'table':
+        return this.tableToHTML(block);
       default:
         return `<div>${this.childrenToHTML(block.children || [])}</div>`;
     }
@@ -324,6 +368,109 @@ export class NotectlEditor extends HTMLElement {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  private tableToHTML(block: any): string {
+    const tableData = block.attrs?.table;
+    const tableId = block.id || crypto.randomUUID();
+    const attrParts: string[] = [
+      'data-node-type="table"',
+      `data-block-id="${tableId}"`,
+    ];
+
+    if (block.attrs?.style) {
+      const styleString = this.styleObjectToString(block.attrs.style);
+      if (styleString) {
+        attrParts.push(`style="${styleString}"`);
+      }
+    }
+
+    let bodyHTML = '';
+    const rows = Array.isArray(tableData?.rows) ? tableData.rows : [];
+
+    if (rows.length === 0) {
+      const fallbackCellId = crypto.randomUUID();
+      const fallbackRowId = crypto.randomUUID();
+      bodyHTML = `
+        <tr data-node-type="table_row" data-row="0" data-block-id="${fallbackRowId}">
+          <td data-node-type="table_cell" data-row="0" data-col="0" data-block-id="${fallbackCellId}"><br></td>
+        </tr>
+      `;
+    } else {
+      bodyHTML = rows
+        .map((row: any, rowIndex: number) => this.tableRowToHTML(row, rowIndex))
+        .join('');
+    }
+
+    return `<table ${attrParts.join(' ')}><tbody>${bodyHTML}</tbody></table>`;
+  }
+
+  private tableRowToHTML(row: any, rowIndex: number): string {
+    const rowId = row.id || crypto.randomUUID();
+    const attrs: string[] = [
+      'data-node-type="table_row"',
+      `data-row="${rowIndex}"`,
+      `data-block-id="${rowId}"`,
+    ];
+
+    if (row.attrs?.style) {
+      const style = this.styleObjectToString(row.attrs.style);
+      if (style) {
+        attrs.push(`style="${style}"`);
+      }
+    }
+
+    const cells = Array.isArray(row.cells) ? row.cells : [];
+
+    const cellsHTML = cells
+      .map((cell: any, colIndex: number) => this.tableCellToHTML(cell, rowIndex, colIndex))
+      .join('');
+
+    return `<tr ${attrs.join(' ')}>${cellsHTML}</tr>`;
+  }
+
+  private tableCellToHTML(cell: any, rowIndex: number, colIndex: number): string {
+    const cellId = cell.id || crypto.randomUUID();
+    const attrs: string[] = [
+      'data-node-type="table_cell"',
+      `data-row="${rowIndex}"`,
+      `data-col="${colIndex}"`,
+      `data-block-id="${cellId}"`,
+    ];
+
+    const rowSpan = Number(cell.rowSpan) || 1;
+    const colSpan = Number(cell.colSpan) || 1;
+    if (rowSpan > 1) {
+      attrs.push(`rowspan="${rowSpan}"`);
+    }
+    if (colSpan > 1) {
+      attrs.push(`colspan="${colSpan}"`);
+    }
+
+    if (cell.attrs?.style) {
+      const style = this.styleObjectToString(cell.attrs.style);
+      if (style) {
+        attrs.push(`style="${style}"`);
+      }
+    }
+
+    const content = typeof cell.content === 'string' ? this.escapeHTML(cell.content) : '';
+    const inner = content || '<br>';
+
+    return `<td ${attrs.join(' ')}>${inner}</td>`;
+  }
+
+  private styleObjectToString(style: Record<string, unknown>): string {
+    return Object.entries(style)
+      .map(([key, value]) => {
+        if (value === undefined || value === null || value === '') {
+          return null;
+        }
+        const cssKey = key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+        return `${cssKey}: ${String(value)}`;
+      })
+      .filter(Boolean)
+      .join('; ');
   }
 
   /**
@@ -557,10 +704,11 @@ export class NotectlEditor extends HTMLElement {
   private attachEventListeners(): void {
     if (!this.contentElement) return;
 
-    this.contentElement.addEventListener('input', this.handleInput.bind(this));
-    this.contentElement.addEventListener('keydown', this.handleKeydown.bind(this));
-    this.contentElement.addEventListener('focus', this.handleFocus.bind(this));
-    this.contentElement.addEventListener('blur', this.handleBlur.bind(this));
+    this.contentElement.addEventListener('input', this.handleInput);
+    this.contentElement.addEventListener('keydown', this.handleKeydown);
+    this.contentElement.addEventListener('focus', this.handleFocus);
+    this.contentElement.addEventListener('blur', this.handleBlur);
+    this.contentElement.addEventListener('contextmenu', this.handleContextMenu);
   }
 
   /**
@@ -569,28 +717,39 @@ export class NotectlEditor extends HTMLElement {
   private detachEventListeners(): void {
     if (!this.contentElement) return;
 
-    this.contentElement.removeEventListener('input', this.handleInput.bind(this));
-    this.contentElement.removeEventListener('keydown', this.handleKeydown.bind(this));
-    this.contentElement.removeEventListener('focus', this.handleFocus.bind(this));
-    this.contentElement.removeEventListener('blur', this.handleBlur.bind(this));
+    this.contentElement.removeEventListener('input', this.handleInput);
+    this.contentElement.removeEventListener('keydown', this.handleKeydown);
+    this.contentElement.removeEventListener('focus', this.handleFocus);
+    this.contentElement.removeEventListener('blur', this.handleBlur);
+    this.contentElement.removeEventListener('contextmenu', this.handleContextMenu);
   }
 
   /**
    * Handle input event
    */
-  private handleInput(_event: Event): void {
+  private handleInput = (event: Event): void => {
     this.updatePlaceholder();
 
-    // Sync content back to state
-    this.syncContentToState();
+    // Skip syncing if input originates inside a managed table to avoid
+    // clobbering the plugin-driven document state until table syncing is
+    // fully implemented.
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest('[data-node-type="table"]')) {
+      this.syncContentToState();
+    }
 
     this.emit('change', { state: this.state });
-  }
+  };
 
   /**
    * Handle keydown event
    */
-  private handleKeydown(event: KeyboardEvent): void {
+  private handleKeydown = (event: KeyboardEvent): void => {
+    this.emit('keydown', event);
+    if (event.defaultPrevented) {
+      return;
+    }
+
     // Handle undo/redo
     if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
       event.preventDefault();
@@ -609,21 +768,25 @@ export class NotectlEditor extends HTMLElement {
         this.announceToScreenReader(`Navigating ${event.key.replace('Arrow', '').toLowerCase()}`);
       }
     }
-  }
+  };
 
   /**
    * Handle focus event
    */
-  private handleFocus(): void {
+  private handleFocus = (): void => {
     this.emit('focus', { state: this.state });
-  }
+  };
 
   /**
    * Handle blur event
    */
-  private handleBlur(): void {
+  private handleBlur = (): void => {
     this.emit('blur', { state: this.state });
-  }
+  };
+
+  private handleContextMenu = (event: MouseEvent): void => {
+    this.emit('contextmenu', event);
+  };
 
   /**
    * Update placeholder visibility
@@ -830,8 +993,22 @@ export class NotectlEditor extends HTMLElement {
 
   /**
    * Register a plugin
+   *
+   * Plugins can be registered before or after the editor is mounted.
+   * If registered before mounting, they will be queued and initialized
+   * automatically when the editor connects to the DOM.
+   *
+   * @param plugin - The plugin to register
+   * @returns Promise that resolves when the plugin is registered
    */
   async registerPlugin(plugin: Plugin): Promise<void> {
+    // If editor is not yet connected to DOM, queue the plugin
+    if (!this.isReady) {
+      this.pendingPlugins.push(plugin);
+      return;
+    }
+
+    // Editor is ready, register immediately
     const context = this.createPluginContext();
     await this.pluginManager.register(plugin, context);
   }
@@ -845,17 +1022,363 @@ export class NotectlEditor extends HTMLElement {
   }
 
   /**
+   * Wait for the editor to be ready
+   *
+   * Returns a Promise that resolves when the editor has been mounted
+   * and all pending plugins have been initialized. This is useful when
+   * you need to ensure the editor is fully initialized before performing
+   * operations that depend on the editor being mounted.
+   *
+   * @returns Promise that resolves when the editor is ready
+   * @example
+   * ```typescript
+   * const editor = document.createElement('notectl-editor');
+   * container.appendChild(editor);
+   * await editor.whenReady();
+   * // Editor is now fully initialized
+   * ```
+   */
+  async whenReady(): Promise<void> {
+    return this.readyPromise;
+  }
+
+  // ===== Plugin Context Helper Methods =====
+
+  /**
+   * Get the block containing the current selection
+   */
+  private getSelectedBlock(): import('../types/index.js').BlockNode | null {
+    const selection = this.state.getSelection();
+    if (!selection) return null;
+
+    return this.state.findBlock(selection.anchor.blockId) || null;
+  }
+
+  /**
+   * Find all blocks of a specific type
+   */
+  private findBlocksByType(type: string): import('../types/index.js').BlockNode[] {
+    const results: import('../types/index.js').BlockNode[] = [];
+    const doc = this.state.getDocument();
+
+    const search = (nodes: import('../types/index.js').BlockNode[]): void => {
+      for (const node of nodes) {
+        if (node.type === type) {
+          results.push(node);
+        }
+        if (node.children) {
+          const blockChildren = node.children.filter(
+            (n): n is import('../types/index.js').BlockNode => 'id' in n
+          );
+          search(blockChildren);
+        }
+      }
+    };
+
+    search(doc.children);
+    return results;
+  }
+
+  /**
+   * Find parent block of a given block
+   */
+  private findParentBlock(block: import('../types/index.js').BlockNode): import('../types/index.js').BlockNode | null {
+    const doc = this.state.getDocument();
+
+    const search = (
+      nodes: import('../types/index.js').BlockNode[],
+      parent: import('../types/index.js').BlockNode | null = null
+    ): import('../types/index.js').BlockNode | null => {
+      for (const node of nodes) {
+        if (node.id === block.id) {
+          return parent;
+        }
+        if (node.children) {
+          const blockChildren = node.children.filter(
+            (n): n is import('../types/index.js').BlockNode => 'id' in n
+          );
+          const found = search(blockChildren, node);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    return search(doc.children);
+  }
+
+  /**
+   * Get block at current cursor position
+   */
+  private getBlockAtCursor(): import('../types/index.js').BlockNode | null {
+    return this.getSelectedBlock();
+  }
+
+  /**
+   * Insert a block after another block (Delta-based)
+   */
+  private insertBlockAfter(block: import('../types/index.js').BlockNode, afterId?: import('../types/index.js').BlockId): void {
+    const doc = this.state.getDocument();
+    const targetId = afterId || (doc.children[doc.children.length - 1]?.id);
+
+    if (!targetId) {
+      // Document is empty, just add the block
+      const delta: Delta = {
+        txnId: crypto.randomUUID(),
+        clientId: 'editor',
+        timestamp: new Date().toISOString(),
+        baseVersion: this.state.getVersion(),
+        ltime: Date.now(),
+        intent: 'edit',
+        ops: [
+          {
+            op: 'insert_block_after',
+            after: '',
+            block,
+          },
+        ],
+      };
+      this.applyDelta(delta);
+      return;
+    }
+
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'edit',
+      ops: [
+        {
+          op: 'insert_block_after',
+          after: targetId,
+          block,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Insert a block before another block (Delta-based)
+   */
+  private insertBlockBefore(block: import('../types/index.js').BlockNode, beforeId?: import('../types/index.js').BlockId): void {
+    const doc = this.state.getDocument();
+    const targetId = beforeId || doc.children[0]?.id;
+
+    if (!targetId) {
+      // Document is empty, just add the block
+      this.insertBlockAfter(block);
+      return;
+    }
+
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'edit',
+      ops: [
+        {
+          op: 'insert_block_before',
+          before: targetId,
+          block,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Update block attributes (Delta-based)
+   */
+  private updateBlockAttrs(blockId: import('../types/index.js').BlockId, attrs: Record<string, unknown>): void {
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'edit',
+      ops: [
+        {
+          op: 'set_attrs',
+          target: { blockId },
+          attrs,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Delete a block (Delta-based)
+   */
+  private deleteBlockById(blockId: import('../types/index.js').BlockId): void {
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'edit',
+      ops: [
+        {
+          op: 'delete_block',
+          target: { blockId },
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Add mark to current selection (Delta-based)
+   */
+  private addMarkToSelection(mark: import('../types/index.js').Mark): void {
+    const selection = this.state.getSelection();
+    if (!selection) return;
+
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'format',
+      ops: [
+        {
+          op: 'apply_mark',
+          range: {
+            start: selection.anchor,
+            end: selection.head,
+          },
+          mark,
+          add: true,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Remove mark from current selection (Delta-based)
+   */
+  private removeMarkFromSelection(markType: string): void {
+    const selection = this.state.getSelection();
+    if (!selection) return;
+
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'format',
+      ops: [
+        {
+          op: 'apply_mark',
+          range: {
+            start: selection.anchor,
+            end: selection.head,
+          },
+          mark: { type: markType },
+          add: false,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
+   * Toggle mark on current selection (Delta-based)
+   */
+  private toggleMarkOnSelection(markType: string): void {
+    const selection = this.state.getSelection();
+    if (!selection) return;
+
+    const block = this.state.findBlock(selection.anchor.blockId);
+    if (!block || !block.children) return;
+
+    // Check if mark already exists in selection
+    const textNode = block.children.find((n): n is import('../types/index.js').TextNode => 'text' in n);
+    const hasMark = textNode?.marks?.some((m) => m.type === markType) || false;
+
+    const delta: Delta = {
+      txnId: crypto.randomUUID(),
+      clientId: 'editor',
+      timestamp: new Date().toISOString(),
+      baseVersion: this.state.getVersion(),
+      ltime: Date.now(),
+      intent: 'format',
+      ops: [
+        {
+          op: 'apply_mark',
+          range: {
+            start: selection.anchor,
+            end: selection.head,
+          },
+          mark: { type: markType },
+          add: !hasMark,
+        },
+      ],
+    };
+
+    this.applyDelta(delta);
+  }
+
+  /**
    * Create plugin context
    */
   private createPluginContext(): PluginContext {
     return {
+      // Core state and delta operations
       getState: () => this.state,
       applyDelta: (delta: Delta) => this.applyDelta(delta),
+
+      // Selection helpers
+      getSelection: () => this.state.getSelection(),
+      setSelection: (selection) => {
+        this.state.setSelection(selection);
+        this.emit('selection-change', { selection });
+      },
+      getSelectedBlock: () => this.getSelectedBlock(),
+
+      // Node queries
+      findBlocksByType: (type: string) => this.findBlocksByType(type),
+      findBlockById: (blockId) => this.state.findBlock(blockId),
+      findParentBlock: (block) => this.findParentBlock(block),
+      getBlockAtCursor: () => this.getBlockAtCursor(),
+
+      // Block mutations
+      insertBlockAfter: (block, afterId) => this.insertBlockAfter(block, afterId),
+      insertBlockBefore: (block, beforeId) => this.insertBlockBefore(block, beforeId),
+      updateBlockAttrs: (blockId, attrs) => this.updateBlockAttrs(blockId, attrs),
+      deleteBlock: (blockId) => this.deleteBlockById(blockId),
+
+      // Mark utilities
+      addMark: (mark) => this.addMarkToSelection(mark),
+      removeMark: (markType) => this.removeMarkFromSelection(markType),
+      toggleMark: (markType) => this.toggleMarkOnSelection(markType),
+
+      // Events
       on: (event: string, callback: (data: unknown) => void) => this.on(event as EditorEvent, callback),
       off: (event: string, callback: (data: unknown) => void) => this.off(event as EditorEvent, callback),
       emit: (event: string, data?: unknown) => this.emit(event, data),
+
+      // Commands
       registerCommand: (name: string, handler: CommandHandler) => this.registerCommand(name, handler),
       executeCommand: (name: string, ...args: unknown[]) => this.executeCommand(name, ...args),
+
+      // DOM access (deprecated)
       getContainer: () => this.contentElement!,
       getPluginContainer: (position: 'top' | 'bottom') => {
         if (position === 'top') {
