@@ -1,0 +1,50 @@
+{
+  "name": "@notectl/monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "packages/plugins/*",
+    "packages/adapters/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "docs": "typedoc --entryPointStrategy packages \"packages/*\" --out docs/api"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typedoc": "^0.27.6",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-dts": "^4.4.1",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "npm@11.5.2",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "@notectl/angular": "^0.0.2",
+    "@notectl/core": "^0.0.2",
+    "@notectl/plugin-table": "^0.0.2",
+    "@notectl/plugin-toolbar": "^0.0.2",
+    "@notectl/react": "^0.0.2",
+    "@notectl/svelte": "^0.0.2",
+    "@notectl/vue": "^0.0.2"
+  }
+}

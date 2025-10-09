@@ -1,0 +1,57 @@
+{
+  "name": "@notectl/core",
+  "version": "0.0.2",
+  "description": "Framework-agnostic rich text editor core for Notectl",
+  "type": "module",
+  "main": "./dist/notectl-core.umd.cjs",
+  "module": "./dist/notectl-core.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/notectl-core.js",
+      "require": "./dist/notectl-core.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc && vite build",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "keywords": [
+    "editor",
+    "rich-text",
+    "web-component",
+    "notectl",
+    "wysiwyg"
+  ],
+  "author": "Samuel Abramov",
+  "license": "MIT",
+  "dependencies": {
+    "dompurify": "^3.2.3",
+    "uuid": "^11.0.6"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.2.0",
+    "@types/node": "^22.10.7",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-dts": "^4.4.1",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Samyssmile/notectl",
+    "directory": "packages/core"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "name": "@notectl/angular",
+  "version": "0.0.2",
+  "description": "Angular adapter for NotectlEditor",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "ng-packagr -p ng-package.json",
+    "test": "echo \"No tests yet\"",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "notectl",
+    "editor",
+    "angular",
+    "rich-text",
+    "wysiwyg"
+  ],
+  "author": "Samuel Abramov",
+  "license": "MIT",
+  "peerDependencies": {
+    "@angular/common": ">=14.0.0",
+    "@angular/core": ">=14.0.0",
+    "@angular/forms": ">=14.0.0",
+    "@notectl/core": "*"
+  },
+  "devDependencies": {
+    "@angular/common": "^17.0.0",
+    "@angular/compiler": "^17.0.0",
+    "@angular/compiler-cli": "^17.0.0",
+    "@angular/core": "^17.0.0",
+    "@angular/forms": "^17.0.0",
+    "ng-packagr": "^17.0.0",
+    "typescript": "^5.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Samyssmile/notectl",
+    "directory": "packages/adapters/angular"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

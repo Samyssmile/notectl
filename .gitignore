@@ -1,0 +1,102 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.lcov
+
+# Production builds
+dist/
+build/
+*.tsbuildinfo
+.svelte-kit/
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# Claude Flow generated files
+.claude/settings.local.json
+.mcp.json
+claude-flow.config.json
+.swarm/
+.hive-mind/
+.claude-flow/
+memory/
+coordination/
+memory/claude-flow-data.json
+memory/sessions/*
+!memory/sessions/README.md
+memory/agents/*
+!memory/agents/README.md
+coordination/memory_bank/*
+coordination/subtasks/*
+coordination/orchestration/*
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+claude-flow
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+# Lock files (use only package-lock.json)
+yarn.lock
+pnpm-lock.yaml
+
+# Test files in root (not needed in git)
+test*.html
+test-react/
+serve.sh
+
+# Documentation files (generated/temporary)
+CLAUDE.md
+HIVE_MIND_REPORT.md
+PROJECT_STRUCTURE.md
+QUICKSTART.md
+TESTING.md
+TEST_RESULTS.md
+TODO.md
+docs/
+
+# Standalone test files (not needed in git)
+table-picker-standalone.js
+test-formatting.html
+test-table-debug.html
+test.html
+
+# Claude Code configuration (keep only committed config)
+.claude/
+AGENTS.md
+# OS specific
+Thumbs.db
