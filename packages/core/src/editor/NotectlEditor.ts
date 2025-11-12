@@ -7,7 +7,14 @@ import { EditorState } from '../state/EditorState.js';
 import { PluginManager } from '../plugins/PluginManager.js';
 import type { Plugin, PluginContext, CommandHandler } from '../plugins/Plugin.js';
 import type { Delta } from '../delta/Delta.js';
-import type { EditorConfig, EditorEvent, EditorEventCallback, Document } from '../types/index.js';
+import type {
+  EditorConfig,
+  EditorEventCallback,
+  Document,
+  EditorEventMap,
+  EditorEventKey,
+  EditorEventPayload
+} from '../types/index.js';
 import { createDefaultSchema } from '../schema/Schema.js';
 import { sanitizeHTML, sanitizeContent, validateDelta } from '../utils/security.js';
 import {
@@ -16,6 +23,7 @@ import {
   setAriaAttributes,
   type KeyboardShortcut
 } from '../utils/accessibility.js';
+import { EventEmitter } from '../utils/EventEmitter.js';
 
 /**
  * NotectlEditor custom element
@@ -23,7 +31,7 @@ import {
 export class NotectlEditor extends HTMLElement {
   private state: EditorState;
   private pluginManager: PluginManager;
-  private eventListeners: Map<string, Set<EditorEventCallback>> = new Map();
+  private events: EventEmitter<EditorEventMap>;
   private commands: Map<string, CommandHandler> = new Map();
   private contentElement: HTMLDivElement | null = null;
   private pluginContainerTop: HTMLDivElement | null = null;
@@ -58,6 +66,9 @@ export class NotectlEditor extends HTMLElement {
 
     // Initialize plugin manager
     this.pluginManager = new PluginManager();
+
+    // Initialize type-safe event emitter
+    this.events = new EventEmitter<EditorEventMap>();
 
     // Initialize ready promise
     this.readyPromise = new Promise((resolve) => {
@@ -825,14 +836,38 @@ export class NotectlEditor extends HTMLElement {
     const body = doc.body;
 
     const children: any[] = [];
+    const orphanedTextNodes: any[] = [];
 
     // Parse child nodes
     Array.from(body.childNodes).forEach((node) => {
       const block = this.nodeToBlock(node);
       if (block) {
-        children.push(block);
+        // If we have orphaned text nodes, wrap them in a paragraph first
+        if (orphanedTextNodes.length > 0 && block.type !== 'text') {
+          children.push({
+            id: crypto.randomUUID(),
+            type: 'paragraph',
+            children: orphanedTextNodes.splice(0),
+          });
+        }
+
+        // If it's a text node (not a block), collect it
+        if (block.type === 'text') {
+          orphanedTextNodes.push(block);
+        } else {
+          children.push(block);
+        }
       }
     });
+
+    // Wrap any remaining orphaned text nodes
+    if (orphanedTextNodes.length > 0) {
+      children.push({
+        id: crypto.randomUUID(),
+        type: 'paragraph',
+        children: orphanedTextNodes,
+      });
+    }
 
     // If no children, create empty paragraph
     if (children.length === 0) {
@@ -1369,10 +1404,13 @@ export class NotectlEditor extends HTMLElement {
       removeMark: (markType) => this.removeMarkFromSelection(markType),
       toggleMark: (markType) => this.toggleMarkOnSelection(markType),
 
-      // Events
-      on: (event: string, callback: (data: unknown) => void) => this.on(event as EditorEvent, callback),
-      off: (event: string, callback: (data: unknown) => void) => this.off(event as EditorEvent, callback),
-      emit: (event: string, data?: unknown) => this.emit(event, data),
+      // Events - Type-safe event handling for plugins
+      on: <K extends EditorEventKey>(event: K, callback: EditorEventCallback<EditorEventPayload<K>>) =>
+        this.on(event, callback),
+      off: <K extends EditorEventKey>(event: K, callback: EditorEventCallback<EditorEventPayload<K>>) =>
+        this.off(event, callback),
+      emit: <K extends EditorEventKey>(event: K, data?: EditorEventPayload<K>) =>
+        this.emit(event, data as EditorEventPayload<K>),
 
       // Commands
       registerCommand: (name: string, handler: CommandHandler) => this.registerCommand(name, handler),
@@ -1407,33 +1445,41 @@ export class NotectlEditor extends HTMLElement {
   }
 
   /**
-   * Register event listener
+   * Register event listener with type-safe payload inference
+   * @param event - Event name (autocomplete for known events)
+   * @param callback - Callback function with typed payload
    */
-  on(event: EditorEvent, callback: EditorEventCallback): void {
-    if (!this.eventListeners.has(event)) {
-      this.eventListeners.set(event, new Set());
-    }
-    this.eventListeners.get(event)!.add(callback);
+  on<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void {
+    // Type assertion is safe here because EventEmitter accepts any callback signature
+    this.events.on(event as keyof EditorEventMap, callback as never);
   }
 
   /**
    * Unregister event listener
+   * @param event - Event name
+   * @param callback - Callback function to remove
    */
-  off(event: EditorEvent, callback: EditorEventCallback): void {
-    this.eventListeners.get(event)?.delete(callback);
+  off<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void {
+    // Type assertion is safe here because EventEmitter accepts any callback signature
+    this.events.off(event as keyof EditorEventMap, callback as never);
   }
 
   /**
-   * Emit event
+   * Emit event (internal use)
+   * @param event - Event name
+   * @param data - Event payload
    */
-  private emit(event: string, data?: unknown): void {
-    this.eventListeners.get(event)?.forEach((callback) => {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error(`Error in event listener for ${event}:`, error);
-      }
-    });
+  private emit<K extends EditorEventKey>(
+    event: K,
+    data: EditorEventPayload<K>
+  ): void {
+    this.events.emit(event, data);
   }
 
   /**
@@ -1531,7 +1577,7 @@ export class NotectlEditor extends HTMLElement {
       this.ariaLiveRegion.parentNode.removeChild(this.ariaLiveRegion);
     }
 
-    this.eventListeners.clear();
+    this.events.removeAllListeners();
     this.commands.clear();
   }
 

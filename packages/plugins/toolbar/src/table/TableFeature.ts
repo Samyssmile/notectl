@@ -352,7 +352,7 @@ export class TableFeature {
       console.error(`Failed to execute table command: ${command}`, error);
       this.context?.emit('table:command-error', {
         command,
-        error,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
