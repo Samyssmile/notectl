@@ -1,7 +1,13 @@
+@import '../Fira_Code_v6.2/fira_code.css';
+
+:root {
+  --demo-editor-font: 'Fira Code', 'Fira Code VF', monospace;
+}
+
 body {
   margin: 0;
   padding: 2rem;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--demo-editor-font);
   background: #f5f7fb;
 }
 
@@ -9,4 +15,9 @@ body {
   max-width: 900px;
   margin: 0 auto;
   min-height: 400px;
+  font-family: var(--demo-editor-font);
+}
+
+#editor-host notectl-editor {
+  font-family: var(--demo-editor-font);
 }
