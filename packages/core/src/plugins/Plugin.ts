@@ -4,7 +4,15 @@
 
 import type { EditorState } from '../state/EditorState.js';
 import type { Delta } from '../delta/Delta.js';
-import type { Selection, BlockNode, Mark, BlockId } from '../types/index.js';
+import type {
+  Selection,
+  BlockNode,
+  Mark,
+  BlockId,
+  EditorEventKey,
+  EditorEventPayload,
+  EditorEventCallback
+} from '../types/index.js';
 
 /**
  * Plugin context provided to plugins
@@ -119,19 +127,54 @@ export interface PluginContext {
   // === Events ===
 
   /**
-   * Register event listener
+   * Register event listener with type-safe payload
+   * @param event - Event name (autocomplete for known core + plugin events)
+   * @param callback - Callback function with typed payload
+   * @example
+   * ```typescript
+   * context.on('change', (data) => {
+   *   // data is typed as { state: EditorState; delta?: Delta }
+   *   console.log(data.state);
+   * });
+   *
+   * context.on('table:inserted', (data) => {
+   *   // data is typed based on plugin's event declaration
+   *   console.log(data.tableId);
+   * });
+   * ```
    */
-  on(event: string, callback: (data: unknown) => void): void;
+  on<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void;
 
   /**
    * Unregister event listener
+   * @param event - Event name
+   * @param callback - Callback function to remove
    */
-  off(event: string, callback: (data: unknown) => void): void;
+  off<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void;
 
   /**
-   * Emit an event
+   * Emit an event with typed payload
+   * @param event - Event name
+   * @param data - Event payload (typed based on event)
+   * @example
+   * ```typescript
+   * context.emit('table:inserted', {
+   *   tableId: 'table-123',
+   *   rows: 3,
+   *   cols: 4
+   * });
+   * ```
    */
-  emit(event: string, data?: unknown): void;
+  emit<K extends EditorEventKey>(
+    event: K,
+    data?: EditorEventPayload<K>
+  ): void;
 
   // === Commands ===
 

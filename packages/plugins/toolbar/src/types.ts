@@ -5,6 +5,67 @@
 import type { TableConfig, TableMenuConfig } from './table/types.js';
 
 /**
+ * Extend the core editor event map with toolbar plugin events
+ * This uses TypeScript declaration merging to add plugin-specific events
+ */
+declare module '@notectl/core' {
+  interface PluginEventMap {
+    /**
+     * Fired when a table is inserted into the document
+     */
+    'table:inserted': {
+      tableId: string;
+      rows: number;
+      cols: number;
+      position?: { blockId: string };
+    };
+
+    /**
+     * Fired when a row is inserted into a table
+     */
+    'table:row-inserted': {
+      tableId: string;
+      rowIndex: number;
+      position: 'before' | 'after';
+    };
+
+    /**
+     * Fired when a column is inserted into a table
+     */
+    'table:column-inserted': {
+      tableId: string;
+      colIndex: number;
+      position: 'before' | 'after';
+    };
+
+    /**
+     * Fired when a row is deleted from a table
+     */
+    'table:row-deleted': {
+      tableId: string;
+      rowIndex: number;
+    };
+
+    /**
+     * Fired when a column is deleted from a table
+     */
+    'table:column-deleted': {
+      tableId: string;
+      colIndex: number;
+    };
+
+    /**
+     * Fired when a table command fails
+     */
+    'table:command-error': {
+      command: string;
+      error: string;
+      tableId?: string;
+    };
+  }
+}
+
+/**
  * Toolbar button configuration
  */
 export interface ToolbarButton {

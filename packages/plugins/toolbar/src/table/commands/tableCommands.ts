@@ -85,6 +85,7 @@ export class TableCommands {
     this.context.emit('table:row-inserted', {
       tableId,
       rowIndex: after ? rowIndex + 1 : rowIndex,
+      position: after ? 'after' : 'before',
     });
   }
 
@@ -145,6 +146,7 @@ export class TableCommands {
     this.context.emit('table:column-inserted', {
       tableId,
       colIndex: after ? colIndex + 1 : colIndex,
+      position: after ? 'after' : 'before',
     });
   }
 

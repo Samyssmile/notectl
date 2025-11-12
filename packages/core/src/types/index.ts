@@ -103,21 +103,105 @@ export interface Selection {
 }
 
 /**
- * Editor event types
+ * Core editor event map with typed payloads
+ * Maps event names to their payload types for type safety
  */
-export type EditorEvent =
-  | 'change'
-  | 'selection-change'
-  | 'content-change'
-  | 'focus'
-  | 'blur'
-  | 'ready'
-  | 'error'
-  | 'plugin-registered'
-  | 'plugin-unregistered';
+export interface CoreEditorEventMap {
+  /**
+   * Fired when editor content or state changes
+   */
+  'change': { state: unknown; delta?: unknown };
+
+  /**
+   * Fired when selection changes
+   */
+  'selection-change': { selection: Selection };
+
+  /**
+   * Fired when content changes (deprecated, use 'change')
+   */
+  'content-change': { state: unknown };
+
+  /**
+   * Fired when editor gains focus
+   */
+  'focus': { state: unknown };
+
+  /**
+   * Fired when editor loses focus
+   */
+  'blur': { state: unknown };
+
+  /**
+   * Fired when editor is ready and mounted
+   */
+  'ready': { editor: unknown };
+
+  /**
+   * Fired when an error occurs
+   */
+  'error': { error: Error; code?: string; message: string };
+
+  /**
+   * Fired when a plugin is registered
+   */
+  'plugin-registered': { pluginId: string; plugin: unknown };
+
+  /**
+   * Fired when a plugin is unregistered
+   */
+  'plugin-unregistered': { pluginId: string };
+
+  /**
+   * Fired on keydown events (internal)
+   */
+  'keydown': KeyboardEvent;
+
+  /**
+   * Fired on context menu events (internal)
+   */
+  'contextmenu': MouseEvent;
+}
 
 /**
- * Editor event callback
+ * Plugin event map (empty interface for declaration merging)
+ * Plugins can extend this interface to add their own typed events
+ *
+ * @example
+ * ```typescript
+ * declare module '@notectl/core' {
+ *   interface PluginEventMap {
+ *     'table:inserted': { tableId: string; rows: number; cols: number };
+ *     'table:row-inserted': { tableId: string; rowIndex: number };
+ *   }
+ * }
+ * ```
+ */
+export interface PluginEventMap {}
+
+/**
+ * Complete editor event map (core + plugin events)
+ * Supports arbitrary string events for maximum plugin flexibility
+ */
+export type EditorEventMap = CoreEditorEventMap & PluginEventMap & Record<string, unknown>;
+
+/**
+ * Union of all known event keys plus string for plugin events
+ * The `(string & {})` pattern preserves autocomplete for known events
+ * while allowing arbitrary string events from plugins
+ */
+export type EditorEventKey = keyof EditorEventMap | (string & {});
+
+/**
+ * Extract payload type for a given event key
+ * Known events return their specific payload type
+ * Unknown events return unknown (requiring manual type narrowing)
+ */
+export type EditorEventPayload<K extends EditorEventKey> =
+  K extends keyof EditorEventMap ? EditorEventMap[K] : unknown;
+
+/**
+ * Editor event callback with typed payload
  */
 export type EditorEventCallback<T = unknown> = (data: T) => void;
 
@@ -145,9 +229,38 @@ export interface EditorAPI {
   undo(): void;
   redo(): void;
 
-  // Events
-  on(event: EditorEvent, callback: EditorEventCallback): void;
-  off(event: EditorEvent, callback: EditorEventCallback): void;
+  // Events - Type-safe event system with payload inference
+  /**
+   * Register an event listener with type-safe payload
+   * @param event - Event name (autocomplete for known events)
+   * @param callback - Callback function with typed payload
+   * @example
+   * ```typescript
+   * editor.on('change', (data) => {
+   *   // data is typed as { state: EditorState; delta?: Delta }
+   *   console.log(data.state);
+   * });
+   *
+   * editor.on('table:inserted', (data) => {
+   *   // data is typed based on plugin's event declaration
+   *   console.log(data.tableId);
+   * });
+   * ```
+   */
+  on<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void;
+
+  /**
+   * Unregister an event listener
+   * @param event - Event name
+   * @param callback - Callback function to remove
+   */
+  off<K extends EditorEventKey>(
+    event: K,
+    callback: EditorEventCallback<EditorEventPayload<K>>
+  ): void;
 
   // Commands
   registerCommand(name: string, handler: (...args: unknown[]) => unknown): void;

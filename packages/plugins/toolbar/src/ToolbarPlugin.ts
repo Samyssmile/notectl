@@ -368,7 +368,7 @@ export class ToolbarPlugin implements Plugin {
       // Alignment formatting (will be implemented with proper Delta operations)
       try {
         document.execCommand('justify' + alignment.charAt(0).toUpperCase() + alignment.slice(1), false);
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to apply alignment:`, error);
       }
@@ -378,7 +378,7 @@ export class ToolbarPlugin implements Plugin {
       const size = args[0] as number;
       try {
         document.execCommand('fontSize', false, String(size));
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to set font size:`, error);
       }
@@ -388,7 +388,7 @@ export class ToolbarPlugin implements Plugin {
       const family = args[0] as string;
       try {
         document.execCommand('fontName', false, family);
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to set font family:`, error);
       }
@@ -397,7 +397,7 @@ export class ToolbarPlugin implements Plugin {
     context.registerCommand('list.ordered', () => {
       try {
         document.execCommand('insertOrderedList', false);
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to insert ordered list:`, error);
       }
@@ -406,7 +406,7 @@ export class ToolbarPlugin implements Plugin {
     context.registerCommand('list.unordered', () => {
       try {
         document.execCommand('insertUnorderedList', false);
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to insert unordered list:`, error);
       }
@@ -417,7 +417,7 @@ export class ToolbarPlugin implements Plugin {
       if (url) {
         try {
           document.execCommand('createLink', false, url);
-          this.context?.emit('change', {});
+          this.emitChange();
         } catch (error) {
           console.error(`Failed to insert link:`, error);
         }
@@ -429,7 +429,7 @@ export class ToolbarPlugin implements Plugin {
       if (src) {
         try {
           document.execCommand('insertImage', false, src);
-          this.context?.emit('change', {});
+          this.emitChange();
         } catch (error) {
           console.error(`Failed to insert image:`, error);
         }
@@ -439,7 +439,7 @@ export class ToolbarPlugin implements Plugin {
     context.registerCommand('insert.code', () => {
       try {
         document.execCommand('formatBlock', false, 'pre');
-        this.context?.emit('change', {});
+        this.emitChange();
       } catch (error) {
         console.error(`Failed to insert code block:`, error);
       }
@@ -598,6 +598,15 @@ export class ToolbarPlugin implements Plugin {
   }
 
   /**
+   * Emit change event with current state
+   */
+  private emitChange(): void {
+    if (this.context) {
+      this.context.emit('change', { state: this.context.getState() });
+    }
+  }
+
+  /**
    * Apply formatting using execCommand
    */
   private applyFormatting(format: string): void {
@@ -616,7 +625,7 @@ export class ToolbarPlugin implements Plugin {
           document.execCommand('strikeThrough', false);
           break;
       }
-      this.context?.emit('change', {});
+      this.emitChange();
     } catch (error) {
       console.error(`Failed to apply ${format}:`, error);
     }
@@ -628,7 +637,7 @@ export class ToolbarPlugin implements Plugin {
   private applyHeading(level: number): void {
     try {
       document.execCommand('formatBlock', false, `h${level}`);
-      this.context?.emit('change', {});
+      this.emitChange();
     } catch (error) {
       console.error(`Failed to apply heading:`, error);
     }
@@ -640,7 +649,7 @@ export class ToolbarPlugin implements Plugin {
   private applyParagraph(): void {
     try {
       document.execCommand('formatBlock', false, 'p');
-      this.context?.emit('change', {});
+      this.emitChange();
     } catch (error) {
       console.error(`Failed to apply paragraph:`, error);
     }

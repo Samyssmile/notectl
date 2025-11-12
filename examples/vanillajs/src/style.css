@@ -1,62 +1,12 @@
-:root {
-  color-scheme: light;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f5f7fb;
-  padding: 0;
-  margin: 0;
-}
-
 body {
   margin: 0;
-}
-
-.app {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-header h1 {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
-}
-
-.editor-container {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  overflow: hidden;
+  padding: 2rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f5f7fb;
 }
 
 #editor-host {
-  min-height: 360px;
-}
-
-.inspector {
-  background: #0f172a;
-  color: #e2e8f0;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
-  font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
-}
-
-.inspector h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #38bdf8;
-}
-
-#event-log {
-  margin: 0;
-  font-size: 0.875rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 180px;
-  overflow-y: auto;
+  max-width: 900px;
+  margin: 0 auto;
+  min-height: 400px;
 }
