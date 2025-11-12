@@ -30,7 +30,7 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vite-plugin-dts": "^4.4.1",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.8"
   },
   "packageManager": "npm@11.5.2",
   "engines": {
