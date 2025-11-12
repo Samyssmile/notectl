@@ -11,6 +11,9 @@ import type {
   EditorConfig,
   EditorEventCallback,
   Document,
+  BlockNode,
+  TextNode,
+  Mark,
   EditorEventMap,
   EditorEventKey,
   EditorEventPayload
@@ -24,6 +27,10 @@ import {
   type KeyboardShortcut
 } from '../utils/accessibility.js';
 import { EventEmitter } from '../utils/EventEmitter.js';
+
+type ParsedNode =
+  | { kind: 'block'; node: BlockNode }
+  | { kind: 'inline'; nodes: TextNode[] };
 
 /**
  * NotectlEditor custom element
@@ -323,6 +330,10 @@ export class NotectlEditor extends HTMLElement {
       case 'heading':
         const level = block.attrs?.level || 1;
         return `<h${level}>${this.childrenToHTML(block.children || [])}</h${level}>`;
+      case 'list':
+        return this.listToHTML(block);
+      case 'list_item':
+        return this.listItemToHTML(block);
       case 'table':
         return this.tableToHTML(block);
       default:
@@ -379,6 +390,17 @@ export class NotectlEditor extends HTMLElement {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  private listToHTML(block: BlockNode): string {
+    const tag = block.attrs?.listType === 'ordered' ? 'ol' : 'ul';
+    const items = Array.isArray(block.children) ? block.children : [];
+    const content = items.map((child) => this.blockToHTML(child)).join('');
+    return `<${tag}>${content}</${tag}>`;
+  }
+
+  private listItemToHTML(block: BlockNode): string {
+    return `<li>${this.childrenToHTML(block.children || [])}</li>`;
   }
 
   private tableToHTML(block: any): string {
@@ -835,47 +857,10 @@ export class NotectlEditor extends HTMLElement {
     const doc = parser.parseFromString(html, 'text/html');
     const body = doc.body;
 
-    const children: any[] = [];
-    const orphanedTextNodes: any[] = [];
+    const children = this.parseBlockNodes(body.childNodes);
 
-    // Parse child nodes
-    Array.from(body.childNodes).forEach((node) => {
-      const block = this.nodeToBlock(node);
-      if (block) {
-        // If we have orphaned text nodes, wrap them in a paragraph first
-        if (orphanedTextNodes.length > 0 && block.type !== 'text') {
-          children.push({
-            id: crypto.randomUUID(),
-            type: 'paragraph',
-            children: orphanedTextNodes.splice(0),
-          });
-        }
-
-        // If it's a text node (not a block), collect it
-        if (block.type === 'text') {
-          orphanedTextNodes.push(block);
-        } else {
-          children.push(block);
-        }
-      }
-    });
-
-    // Wrap any remaining orphaned text nodes
-    if (orphanedTextNodes.length > 0) {
-      children.push({
-        id: crypto.randomUUID(),
-        type: 'paragraph',
-        children: orphanedTextNodes,
-      });
-    }
-
-    // If no children, create empty paragraph
     if (children.length === 0) {
-      children.push({
-        id: crypto.randomUUID(),
-        type: 'paragraph',
-        children: [],
-      });
+      children.push(this.createParagraphNode());
     }
 
     return {
@@ -886,16 +871,86 @@ export class NotectlEditor extends HTMLElement {
   }
 
   /**
+   * Convert a list of DOM nodes into block nodes while preserving inline runs.
+   */
+  private parseBlockNodes(nodes: NodeListOf<ChildNode> | ChildNode[]): BlockNode[] {
+    const blocks: BlockNode[] = [];
+    let inlineBuffer: TextNode[] = [];
+
+    const flushInlineBuffer = (): void => {
+      if (inlineBuffer.length === 0) return;
+      const content = inlineBuffer;
+      inlineBuffer = [];
+      blocks.push(this.createParagraphNode(content));
+    };
+
+    Array.from(nodes).forEach((node) => {
+      if (this.shouldExtractBlockChildren(node)) {
+        flushInlineBuffer();
+        const element = node as Element;
+        const nestedBlocks = this.parseBlockNodes(element.childNodes);
+        if (nestedBlocks.length > 0) {
+          blocks.push(...nestedBlocks);
+        }
+        return;
+      }
+
+      const parsed = this.nodeToBlock(node);
+      if (!parsed) {
+        return;
+      }
+
+      if (parsed.kind === 'inline') {
+        inlineBuffer.push(...parsed.nodes);
+        return;
+      }
+
+      flushInlineBuffer();
+      blocks.push(parsed.node);
+    });
+
+    flushInlineBuffer();
+    return blocks;
+  }
+
+  /**
+   * Create a paragraph node with generated ID
+   */
+  private createParagraphNode(children: TextNode[] = []): BlockNode {
+    return {
+      id: crypto.randomUUID(),
+      type: 'paragraph',
+      children,
+    };
+  }
+
+  /**
+   * Create a list item node with generated ID
+   */
+  private createListItemNode(children: BlockNode[]): BlockNode {
+    return {
+      id: crypto.randomUUID(),
+      type: 'list_item',
+      children,
+    };
+  }
+
+  /**
    * Convert DOM node to block
    */
-  private nodeToBlock(node: Node): any {
+  private nodeToBlock(node: Node): ParsedNode | null {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || '';
       if (!text.trim()) return null;
       return {
-        type: 'text',
-        text,
-        marks: [],
+        kind: 'inline',
+        nodes: [
+          {
+            type: 'text',
+            text,
+            marks: [],
+          },
+        ],
       };
     }
 
@@ -904,57 +959,110 @@ export class NotectlEditor extends HTMLElement {
       const tagName = element.tagName.toLowerCase();
 
       // Block elements
-      if (tagName === 'p') {
+      if (tagName === 'p' || tagName === 'div') {
         return {
-          id: crypto.randomUUID(),
-          type: 'paragraph',
-          children: this.parseChildren(element),
+          kind: 'block',
+          node: this.createParagraphNode(this.parseInlineNodes(element.childNodes)),
         };
       }
 
       if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
         const level = parseInt(tagName.charAt(1), 10);
         return {
-          id: crypto.randomUUID(),
-          type: 'heading',
-          attrs: { level },
-          children: this.parseChildren(element),
+          kind: 'block',
+          node: {
+            id: crypto.randomUUID(),
+            type: 'heading',
+            attrs: { level },
+            children: this.parseInlineNodes(element.childNodes),
+          },
         };
       }
 
+      if (tagName === 'ul' || tagName === 'ol') {
+        const listNode = this.parseList(element, tagName === 'ol');
+        if (listNode) {
+          return { kind: 'block', node: listNode };
+        }
+        return null;
+      }
+
       // Inline elements - extract text with marks
-      return this.parseInlineElement(element);
+      const inlineNodes = this.parseInlineElement(element);
+      if (inlineNodes.length === 0) {
+        return null;
+      }
+      return { kind: 'inline', nodes: inlineNodes };
     }
 
     return null;
   }
 
   /**
-   * Parse children nodes
+   * Parse <ul>/<ol> elements into structured list nodes
    */
-  private parseChildren(element: Element): any[] {
-    const children: any[] = [];
+  private parseList(element: Element, ordered: boolean): BlockNode | null {
+    const items: BlockNode[] = [];
 
-    Array.from(element.childNodes).forEach((node) => {
+    Array.from(element.children).forEach((child) => {
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+      if (child.tagName.toLowerCase() !== 'li') {
+        return;
+      }
+
+      const listItem = this.parseListItem(child as Element);
+      if (listItem) {
+        items.push(listItem);
+      }
+    });
+
+    if (items.length === 0) {
+      items.push(this.createListItemNode([this.createParagraphNode()]));
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      type: 'list',
+      attrs: { listType: ordered ? 'ordered' : 'bullet' },
+      children: items,
+    };
+  }
+
+  /**
+   * Parse <li> elements into list_item nodes
+   */
+  private parseListItem(element: Element): BlockNode | null {
+    const children = this.parseBlockNodes(element.childNodes);
+
+    if (children.length === 0 || children[0].type !== 'paragraph') {
+      children.unshift(this.createParagraphNode());
+    }
+
+    return this.createListItemNode(children);
+  }
+
+  /**
+   * Parse inline nodes within a block context
+   */
+  private parseInlineNodes(nodes: NodeListOf<ChildNode> | ChildNode[], marks: Mark[] = []): TextNode[] {
+    const children: TextNode[] = [];
+    const iterable = Array.isArray(nodes) ? nodes : Array.from(nodes);
+
+    iterable.forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || '';
-        if (text) {
-          children.push({
-            type: 'text',
-            text,
-            marks: [],
-          });
+        if (!text) {
+          return;
         }
+        children.push({
+          type: 'text',
+          text,
+          marks: marks.length > 0 ? this.cloneMarks(marks) : [],
+        });
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const childElement = node as Element;
-        const result = this.parseInlineElement(childElement);
-        if (result) {
-          if (Array.isArray(result)) {
-            children.push(...result);
-          } else {
-            children.push(result);
-          }
-        }
+        children.push(...this.parseInlineElement(node as Element, marks));
       }
     });
 
@@ -962,58 +1070,119 @@ export class NotectlEditor extends HTMLElement {
   }
 
   /**
-   * Parse inline element with marks
+   * Parse inline element with mark inheritance
    */
-  private parseInlineElement(element: Element): any {
+  private parseInlineElement(element: Element, inheritedMarks: Mark[] = []): TextNode[] {
     const tagName = element.tagName.toLowerCase();
-    const marks: any[] = [];
 
-    // Determine mark type
-    if (tagName === 'strong' || tagName === 'b') {
-      marks.push({ type: 'bold' });
-    } else if (tagName === 'em' || tagName === 'i') {
-      marks.push({ type: 'italic' });
-    } else if (tagName === 'u') {
-      marks.push({ type: 'underline' });
-    } else if (tagName === 's' || tagName === 'strike') {
-      marks.push({ type: 'strikethrough' });
-    } else if (tagName === 'code') {
-      marks.push({ type: 'code' });
+    if (tagName === 'br') {
+      return [
+        {
+          type: 'text',
+          text: '\n',
+          marks: inheritedMarks.length > 0 ? this.cloneMarks(inheritedMarks) : [],
+        },
+      ];
     }
 
-    // Get text content and nested marks
-    const children: any[] = [];
-    Array.from(element.childNodes).forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent || '';
-        if (text) {
-          children.push({
-            type: 'text',
-            text,
-            marks,
-          });
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const childElement = node as Element;
-        const childResult = this.parseInlineElement(childElement);
-        if (childResult) {
-          // Merge marks
-          if (childResult.type === 'text') {
-            childResult.marks = [...marks, ...(childResult.marks || [])];
-            children.push(childResult);
-          } else if (Array.isArray(childResult)) {
-            childResult.forEach((item: any) => {
-              if (item.type === 'text') {
-                item.marks = [...marks, ...(item.marks || [])];
-              }
-              children.push(item);
-            });
-          }
-        }
-      }
-    });
+    const marks = [...inheritedMarks, ...this.getMarksForElement(element)];
+    return this.parseInlineNodes(element.childNodes, marks);
+  }
 
-    return children.length === 1 ? children[0] : children;
+  /**
+   * Map HTML elements to editor marks
+   */
+  private getMarksForElement(element: Element): Mark[] {
+    const tagName = element.tagName.toLowerCase();
+
+    switch (tagName) {
+      case 'strong':
+      case 'b':
+        return [{ type: 'bold' }];
+      case 'em':
+      case 'i':
+        return [{ type: 'italic' }];
+      case 'u':
+        return [{ type: 'underline' }];
+      case 's':
+      case 'strike':
+        return [{ type: 'strikethrough' }];
+      case 'code':
+        return [{ type: 'code' }];
+      case 'a':
+        return [
+          {
+            type: 'link',
+            attrs: {
+              href: element.getAttribute('href') || '',
+              title: element.getAttribute('title') || '',
+            },
+          },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Deep clone marks to avoid accidental mutations across nodes
+   */
+  private cloneMarks(marks: Mark[]): Mark[] {
+    return marks.map((mark) => ({
+      type: mark.type,
+      attrs: mark.attrs ? { ...mark.attrs } : undefined,
+    }));
+  }
+
+  /**
+   * Determine if an element should be treated as a structural container whose
+   * children need to be parsed as separate blocks (e.g., a div wrapping an <ol>).
+   */
+  private shouldExtractBlockChildren(node: ChildNode): node is Element {
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+
+    const element = node as Element;
+    const tagName = element.tagName.toLowerCase();
+    const containerTags = new Set(['div', 'section', 'article', 'blockquote']);
+    if (!containerTags.has(tagName)) {
+      return false;
+    }
+
+    return Array.from(element.childNodes).some((child) => this.isBlockElement(child));
+  }
+
+  /**
+   * Check whether a child node represents a structural block element.
+   */
+  private isBlockElement(node: ChildNode): boolean {
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+
+    const blockTags = new Set([
+      'p',
+      'div',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'ul',
+      'ol',
+      'li',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'td',
+      'pre',
+      'blockquote',
+    ]);
+
+    return blockTags.has((node as Element).tagName.toLowerCase());
   }
 
   /**

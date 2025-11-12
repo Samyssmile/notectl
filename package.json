@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@notectl/core": "^0.0.2",
-    "@notectl/plugin-toolbar": "^0.0.2"
+    "@notectl/plugin-toolbar": "^0.0.2",
+    "jsdom": "^27.2.0"
   }
 }
