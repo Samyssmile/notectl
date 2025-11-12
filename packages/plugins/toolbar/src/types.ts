@@ -2,6 +2,8 @@
  * Type definitions for toolbar plugin
  */
 
+import type { TableConfig, TableMenuConfig } from './table/types.js';
+
 /**
  * Toolbar button configuration
  */
@@ -50,6 +52,7 @@ export interface ToolbarConfig {
   theme?: 'light' | 'dark' | 'auto';
   sticky?: boolean;
   showLabels?: boolean;
+  table?: ToolbarTableConfig;
 }
 
 /**
@@ -72,4 +75,13 @@ export function isToolbarButton(item: ToolbarItem): item is ToolbarButton {
  */
 export function isToolbarDropdown(item: ToolbarItem): item is ToolbarDropdown {
   return 'options' in item;
+}
+
+/**
+ * Toolbar table configuration
+ */
+export interface ToolbarTableConfig {
+  enabled?: boolean;
+  config?: TableConfig;
+  menu?: Partial<TableMenuConfig>;
 }

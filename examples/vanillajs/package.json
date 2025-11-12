@@ -9,9 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@notectl/core": "^0.0.2",
-    "@notectl/plugin-table": "^0.0.2",
-    "@notectl/plugin-toolbar": "^0.0.2"
+    "@notectl/core": "file:../../packages/core",
+    "@notectl/plugin-toolbar": "file:../../packages/plugins/toolbar"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
