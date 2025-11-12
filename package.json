@@ -6,8 +6,7 @@
   "workspaces": [
     "packages/*",
     "packages/plugins/*",
-    "packages/adapters/*",
-    "examples/*"
+    "examples/vanillajs"
   ],
   "scripts": {
     "dev": "turbo run dev",
@@ -39,12 +38,7 @@
     "npm": ">=9.0.0"
   },
   "dependencies": {
-    "@notectl/angular": "^0.0.2",
     "@notectl/core": "^0.0.2",
-    "@notectl/plugin-table": "^0.0.2",
-    "@notectl/plugin-toolbar": "^0.0.2",
-    "@notectl/react": "^0.0.2",
-    "@notectl/svelte": "^0.0.2",
-    "@notectl/vue": "^0.0.2"
+    "@notectl/plugin-toolbar": "^0.0.2"
   }
 }

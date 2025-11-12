@@ -2,7 +2,6 @@ import './style.css';
 import type { EditorEventCallback, EditorConfig } from '@notectl/core';
 import { createEditor, NotectlEditor } from '@notectl/core';
 import { createToolbarPlugin } from '@notectl/plugin-toolbar';
-import { createTablePlugin } from '@notectl/plugin-table';
 
 const host = document.querySelector<HTMLDivElement>('#editor-host');
 const logOutput = document.querySelector<HTMLPreElement>('#event-log');
@@ -38,7 +37,7 @@ editor.setJSON({
       children: [
         {
           type: 'text',
-          text: 'This vanilla setup wires the toolbar and table plugins together. Try formatting text, insert a table, or right-click a cell to inspect the context menu.',
+          text: 'This vanilla setup wires the toolbar plugin (with its built-in table tools) together. Try formatting text, insert a table, or right-click a cell to inspect the context menu.',
           marks: [],
         },
       ],
@@ -49,18 +48,19 @@ editor.setJSON({
 const toolbarPlugin = createToolbarPlugin({
   position: 'top',
   sticky: true,
-});
-
-const tablePlugin = createTablePlugin({
-  defaultRows: 3,
-  defaultCols: 4,
-  allowMerge: true,
-  allowSplit: true,
+  table: {
+    enabled: true,
+    config: {
+      defaultRows: 3,
+      defaultCols: 4,
+      allowMerge: true,
+      allowSplit: true,
+    },
+  },
 });
 
 async function bootstrap() {
   await editor.registerPlugin(toolbarPlugin);
-  await editor.registerPlugin(tablePlugin);
 
   // Log interesting editor + plugin events so developers can see the integration points.
   const log = (event: string, payload?: unknown) => {
@@ -97,7 +97,7 @@ async function bootstrap() {
     },
   });
 
-  log('ready', { version: editor.constructor.name, plugins: ['@notectl/plugin-toolbar', '@notectl/plugin-table'] });
+  log('ready', { version: editor.constructor.name, plugins: ['@notectl/plugin-toolbar'] });
 }
 
 bootstrap().catch(error => {

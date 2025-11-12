@@ -13,6 +13,8 @@ export class TableMenu extends HTMLElement {
   private tableId: string;
   private menu: HTMLDivElement;
   private onCommand: (command: string, ...args: any[]) => void;
+  private outsideClickHandler: (event: MouseEvent) => void;
+  private keydownHandler: (event: KeyboardEvent) => void;
 
   constructor(
     tableId: string,
@@ -27,6 +29,8 @@ export class TableMenu extends HTMLElement {
     this.onCommand = onCommand;
 
     this.menu = document.createElement('div');
+    this.outsideClickHandler = this.handleOutsideClick.bind(this);
+    this.keydownHandler = this.handleKeyDown.bind(this);
     this.setupMenu();
   }
 
@@ -174,10 +178,10 @@ export class TableMenu extends HTMLElement {
    */
   private setupEventListeners(): void {
     // Close menu on outside click
-    document.addEventListener('click', this.handleOutsideClick.bind(this));
+    document.addEventListener('click', this.outsideClickHandler);
 
     // Keyboard navigation
-    this.menu.addEventListener('keydown', this.handleKeyDown.bind(this));
+    this.menu.addEventListener('keydown', this.keydownHandler);
   }
 
   /**
@@ -295,8 +299,8 @@ export class TableMenu extends HTMLElement {
    * Cleanup
    */
   private cleanup(): void {
-    document.removeEventListener('click', this.handleOutsideClick.bind(this));
-    this.menu.removeEventListener('keydown', this.handleKeyDown.bind(this));
+    document.removeEventListener('click', this.outsideClickHandler);
+    this.menu.removeEventListener('keydown', this.keydownHandler);
   }
 
   /**

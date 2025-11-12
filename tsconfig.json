@@ -20,10 +20,7 @@
   },
   "references": [
     { "path": "./packages/core" },
-    { "path": "./packages/plugins/toolbar" },
-    { "path": "./packages/plugins/table" },
-    { "path": "./packages/adapters/react" },
-    { "path": "./packages/adapters/vue" }
+    { "path": "./packages/plugins/toolbar" }
   ],
   "files": [],
   "include": []

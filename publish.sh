@@ -2,12 +2,8 @@
 set -euo pipefail
 
 PACKAGES=(
-  "packages/adapters/angular"
-  "packages/adapters/react"
-  "packages/adapters/vue"
-  "packages/adapters/svelte"
+  "packages/core"
   "packages/plugins/toolbar"
-  "packages/plugins/table"
 )
 
 ROOT_DIR="$(pwd)"

@@ -6,8 +6,7 @@ Notectl is a powerful and flexible rich text editor designed to provide an intui
 the capabilities of modern web technologies. It is built with a focus on extensibility, allowing developers to easily
 integrate it into their applications and customize its functionality to meet specific needs.
 
-**Main Goal:** Provide a rich text editor for Angular, React, Svelte, Vue.js and Vanilla JavaScript applications with
-full TypeScript support.
+**Main Goal:** Provide a type-safe, extensible Web Component that delivers a modern rich text editor experience without depending on framework-specific wrappers.
 
 ![img.png](img.png)
 
@@ -19,15 +18,10 @@ full TypeScript support.
 # Core editor (Web Component)
 npm install @notectl/core
 
-# Framework adapters
-npm install @notectl/react      # React 18+
-npm install @notectl/vue        # Vue 3+
-npm install @notectl/angular    # Angular 15+
-npm install @notectl/svelte     # Svelte 4+
-
-# Plugins
+# Toolbar plugin (formatting, tables, history, etc.)
 npm install @notectl/plugin-toolbar
-npm install @notectl/plugin-table
+
+> Table creation, keyboard navigation, and the contextual menu now live inside the toolbar plugin. Use `createToolbarPlugin({ table: { enabled: boolean, config } })` to turn them on/off or override defaults.
 ```
 
 ### Basic Usage
@@ -67,113 +61,26 @@ npm install @notectl/plugin-table
 </html>
 ```
 
-#### React
+> ⚠️ Framework-specific adapters have been removed for now. Wrap the Web Component manually (e.g., via custom elements support) until official packages return.
 
-```tsx
-import { NotectlEditor } from '@notectl/react';
-import { useState } from 'react';
+### Examples
 
-function App() {
-  const [content, setContent] = useState('');
-
-  return (
-    <NotectlEditor
-      content={content}
-      placeholder="Start writing..."
-      onChange={(newContent) => setContent(newContent)}
-      onReady={(editor) => console.log('Editor ready', editor)}
-    />
-  );
-}
-```
-
-#### Vue 3
-
-```vue
-
-<template>
-  <NotectlEditor
-    :content="content"
-    placeholder="Start writing..."
-    @change="onContentChange"
-  />
-</template>
-
-<script setup lang="ts">
-  import { ref } from 'vue';
-  import { NotectlEditor } from '@notectl/vue';
-
-  const content = ref('');
-
-  const onContentChange = (newContent: string) => {
-    content.value = newContent;
-  };
-</script>
-```
-
-#### Angular
-
-```typescript
-import { Component } from '@angular/core';
-import { NotectlEditorModule } from '@notectl/angular';
-
-@Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [NotectlEditorModule],
-  template: `
-    <notectl-editor
-      [content]="content"
-      placeholder="Start writing..."
-      (contentChange)="onContentChange($event)"
-    />
-  `
-})
-export class AppComponent {
-  content = { type: 'doc', content: [] };
-
-  onContentChange(content: unknown): void {
-    console.log('Content changed:', content);
-  }
-}
-```
-
-#### Svelte
-
-```svelte
-<script lang="ts">
-  import { NotectlEditor } from '@notectl/svelte';
-
-  let content = '';
-
-  function handleChange(event: CustomEvent) {
-    content = event.detail;
-  }
-</script>
-
-<NotectlEditor
-  {content}
-  placeholder="Start writing..."
-  on:change={handleChange}
-/>
-```
+- `examples/vanillajs` – Vite-based demo that hot-reloads the editor during development.
+- `examples/vanillajs-local` – static HTML example that reads the freshly built local bundles (no npm install required).
 
 ## 📦 Monorepo Structure
 
 ```
 notectl/
 ├── packages/
-│   ├── core/              # Framework-agnostic Web Component
-│   ├── adapters/
-│   │   ├── react/         # React adapter
-│   │   ├── vue/           # Vue 3 adapter
-│   │   ├── angular/       # Angular adapter
-│   │   └── svelte/        # Svelte adapter
+│   ├── core/              # Framework-agnostic Web Component + state
 │   ├── plugins/
-│   │   ├── toolbar/       # Toolbar plugin
-│   │   └── table/         # Table plugin
-│   └── shared/            # Shared utilities
-└── examples/              # Usage examples
+│   │   └── toolbar/       # Toolbar plugin (includes table tools)
+│   └── shared/            # Shared configuration/utilities
+├── examples/
+│   ├── vanillajs/         # Vite demo using workspace packages
+│   └── vanillajs-local/   # Zero-registry example bootstrapped from local dist
+└── …                      # Specs, design notes, tooling
 ```
 
 ## 🛠️ Development
@@ -277,12 +184,11 @@ extension.
 
 #### Table
 
-Table support is a must-have feature for Notectl. And it should be implemented as a plugin to allow for easy
-customization and extension.
+Table support ships with the toolbar plugin. Configure it through `createToolbarPlugin({ table: { enabled, config } })`
+to toggle availability or override defaults (rows, columns, merge/split permissions, menu visibility).
 
-- The editor should support table creation and editing, including adding/removing rows and columns, merging cells, and
-  applying styles to tables.
--
+- The editor supports table creation and editing, including adding/removing rows and columns, merging cells, and styling.
+- Context menus and keyboard navigation can be enabled/disabled per action via the toolbar `table.menu` configuration.
 
 #### Smart Delta Management
 
@@ -315,13 +221,10 @@ customization and extension.
 
 ### Framework Agnostic
 
-To achieve seamless integration across all major frontend frameworks, Notectl will be implemented as a
-framework-agnostic Web Component written in TypeScript. This approach ensures that the core editor logic is shared
-across all platforms while providing lightweight framework-specific wrappers (e.g., React component, Angular directive,
-Vue/Svelte adapter) for native integration. The Web Component exposes a consistent API and event model, allowing
-developers to initialize, configure, and interact with the editor in a uniform way, regardless of the framework used.
-This architecture guarantees maintainability, reduces code duplication, and enables future compatibility with emerging
-JavaScript frameworks.
+Notectl ships purely as a standards-based Web Component written in TypeScript. Every integration talks to the same DOM
+element, regardless of whether you mount it in plain HTML, Astro, Next.js, or a home-grown stack. Lightweight wrappers
+can still be authored per project, but they no longer live in this repository—keeping the core lean, predictable, and
+100% framework-neutral.
 
 ### Non-Functional Requirements
 
@@ -335,8 +238,8 @@ Notectl consists of three layers:
 1. **Core Engine** – a framework-agnostic Web Component written in TypeScript, handling the document model, command
    execution, and rendering.
 2. **Plugin System** – enables custom extensions such as toolbars, content filters, or converters.
-3. **Framework Wrappers** – lightweight adapters (React, Angular, Vue, Svelte) providing idiomatic bindings for each
-   ecosystem.
+3. **Integration Layer** – optional wrappers/helpers you can build inside your product to better align with its
+   framework or state management choices.
 
 # Notectl Delta Design
 
@@ -359,7 +262,7 @@ snapshot. Benefits:
 
 ## 2) Design Goals
 
-* **Framework-agnostic:** Works equally with React, Angular, Vue, Svelte, and Vanilla JS wrappers.
+* **Framework-agnostic:** Works in every environment that can host Web Components (Vanilla JS, Astro, Next.js, etc.).
 * **Deterministic & Composable:** Applying the same ordered deltas on the same base produces identical state.
 * **Merge-friendly:** Supports operational transformation (OT) *and* CRDT causal ordering.
 * **Accessible by design:** Operations can target ARIA/alt attributes and preserve WCAG constraints.

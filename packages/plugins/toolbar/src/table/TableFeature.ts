@@ -1,9 +1,9 @@
 /**
- * Table Plugin Implementation
+ * Table feature implementation embedded into the toolbar plugin
  */
 
-import type { Plugin, PluginContext } from '@notectl/core';
-import type { TableConfig, TableMenuConfig, CellPosition } from './types.js';
+import type { PluginContext } from '@notectl/core';
+import type { CellPosition, TableConfig, TableMenuConfig } from './types.js';
 import { DEFAULT_TABLE_KEYMAP } from './types.js';
 import { TableCommands } from './commands/tableCommands.js';
 import { TableMenu } from './components/TableMenu.js';
@@ -25,7 +25,6 @@ export const DEFAULT_TABLE_CONFIG: TableConfig = {
     borderColor: '#ddd',
     cellPadding: '8px',
     cellSpacing: '0',
-    // No header styles - user can style cells themselves
     oddRowBg: '#fff',
     evenRowBg: '#fafafa',
   },
@@ -46,14 +45,15 @@ export const DEFAULT_MENU_CONFIG: TableMenuConfig = {
   deleteTable: true,
 };
 
-/**
- * Table Plugin
- */
-export class TablePlugin implements Plugin {
-  id = '@notectl/plugin-table';
-  name = 'Table Plugin';
-  version = '0.0.1';
+export interface TableFeatureOptions {
+  config?: TableConfig;
+  menuConfig?: TableMenuConfig;
+}
 
+/**
+ * Table feature used by the toolbar plugin
+ */
+export class TableFeature {
   private context?: PluginContext;
   private commands?: TableCommands;
   private config: TableConfig;
@@ -61,35 +61,56 @@ export class TablePlugin implements Plugin {
   private currentMenu?: TableMenu;
   private currentTable?: string;
   private currentCell?: CellPosition;
+  private keyboardHandler?: (event: any) => void;
+  private contextMenuHandler?: (event: any) => void;
 
-  constructor(config: TableConfig = {}) {
-    this.config = { ...DEFAULT_TABLE_CONFIG, ...config };
-    this.menuConfig = DEFAULT_MENU_CONFIG;
+  constructor(options: TableFeatureOptions = {}) {
+    this.config = { ...DEFAULT_TABLE_CONFIG, ...(options.config ?? {}) };
+    this.menuConfig = { ...DEFAULT_MENU_CONFIG, ...(options.menuConfig ?? {}) };
   }
 
-  async init(context: PluginContext): Promise<void> {
+  init(context: PluginContext): void {
+    if (this.context) {
+      return;
+    }
+
     this.context = context;
     this.commands = new TableCommands(context, this.config);
 
-    // Register table commands
     this.registerCommands(context);
-
-    // Setup keyboard navigation
-    this.setupKeyboardNavigation(context);
-
-    // Setup context menu
-    this.setupContextMenu(context);
-
-    console.log('Table plugin initialized', this.config);
+    this.setupKeyboardNavigation();
+    this.setupContextMenu();
   }
 
-  async destroy(): Promise<void> {
+  updateConfig(options: TableFeatureOptions): void {
+    this.config = { ...DEFAULT_TABLE_CONFIG, ...(options.config ?? {}) };
+    this.menuConfig = { ...DEFAULT_MENU_CONFIG, ...(options.menuConfig ?? {}) };
+
+    if (this.context) {
+      this.commands = new TableCommands(this.context, this.config);
+    }
+  }
+
+  destroy(): void {
     if (this.currentMenu) {
       this.currentMenu.close();
+      this.currentMenu = undefined;
+    }
+
+    if (this.context && this.keyboardHandler) {
+      this.context.off('keydown', this.keyboardHandler);
+      this.keyboardHandler = undefined;
+    }
+
+    if (this.context && this.contextMenuHandler) {
+      this.context.off('contextmenu', this.contextMenuHandler);
+      this.contextMenuHandler = undefined;
     }
 
     this.commands = undefined;
     this.context = undefined;
+    this.currentTable = undefined;
+    this.currentCell = undefined;
   }
 
   /**
@@ -99,57 +120,57 @@ export class TablePlugin implements Plugin {
     context.registerCommand('table.insert', (...args: unknown[]) => {
       const rows = args[0] as number | undefined;
       const cols = args[1] as number | undefined;
-      this.commands!.insertTable(rows, cols);
+      this.commands?.insertTable(rows, cols);
     });
 
     context.registerCommand('table.insertRow', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const rowIndex = args[1] as number;
       const after = (args[2] as boolean | undefined) ?? true;
-      this.commands!.insertRowAt(tableId, rowIndex, after);
+      this.commands?.insertRowAt(tableId, rowIndex, after);
     });
 
     context.registerCommand('table.deleteRow', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const rowIndex = args[1] as number;
-      this.commands!.deleteRowAt(tableId, rowIndex);
+      this.commands?.deleteRowAt(tableId, rowIndex);
     });
 
     context.registerCommand('table.insertCol', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const colIndex = args[1] as number;
       const after = (args[2] as boolean | undefined) ?? true;
-      this.commands!.insertColumnAt(tableId, colIndex, after);
+      this.commands?.insertColumnAt(tableId, colIndex, after);
     });
 
     context.registerCommand('table.deleteCol', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const colIndex = args[1] as number;
-      this.commands!.deleteColumnAt(tableId, colIndex);
+      this.commands?.deleteColumnAt(tableId, colIndex);
     });
 
     context.registerCommand('table.mergeCells', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const start = args[1] as CellPosition;
       const end = (args[2] as CellPosition | undefined) || start;
-      this.commands!.mergeCellsInRange(tableId, start, end);
+      this.commands?.mergeCellsInRange(tableId, start, end);
     });
 
     context.registerCommand('table.splitCell', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const position = args[1] as CellPosition;
-      this.commands!.splitCellAt(tableId, position);
+      this.commands?.splitCellAt(tableId, position);
     });
 
     context.registerCommand('table.delete', (...args: unknown[]) => {
       const tableId = args[0] as string;
-      this.commands!.deleteTable(tableId);
+      this.commands?.deleteTable(tableId);
     });
 
     context.registerCommand('table.setStyle', (...args: unknown[]) => {
       const tableId = args[0] as string;
       const style = args[1] as Record<string, unknown>;
-      this.commands!.setTableStyle(tableId, style);
+      this.commands?.setTableStyle(tableId, style);
     });
 
     context.registerCommand('table.navigate', (...args: unknown[]) => {
@@ -169,10 +190,14 @@ export class TablePlugin implements Plugin {
   /**
    * Setup keyboard navigation for tables
    */
-  private setupKeyboardNavigation(context: PluginContext): void {
+  private setupKeyboardNavigation(): void {
+    if (!this.context) {
+      return;
+    }
+
     const keymap = DEFAULT_TABLE_KEYMAP;
 
-    context.on('keydown', (event: any) => {
+    this.keyboardHandler = (event: any) => {
       if (!this.isInsideTable(event)) {
         return;
       }
@@ -210,83 +235,91 @@ export class TablePlugin implements Plugin {
         case keymap.addRowAfter:
           event.preventDefault();
           if (this.currentTable && this.currentCell) {
-            this.commands!.insertRowAt(this.currentTable, this.currentCell.row, true);
+            this.commands?.insertRowAt(this.currentTable, this.currentCell.row, true);
           }
           break;
 
         case keymap.addColAfter:
           event.preventDefault();
           if (this.currentTable && this.currentCell) {
-            this.commands!.insertColumnAt(this.currentTable, this.currentCell.col, true);
+            this.commands?.insertColumnAt(this.currentTable, this.currentCell.col, true);
           }
           break;
 
         case keymap.deleteRow:
           event.preventDefault();
           if (this.currentTable && this.currentCell) {
-            this.commands!.deleteRowAt(this.currentTable, this.currentCell.row);
+            this.commands?.deleteRowAt(this.currentTable, this.currentCell.row);
           }
           break;
 
         case keymap.deleteCol:
           event.preventDefault();
           if (this.currentTable && this.currentCell) {
-            this.commands!.deleteColumnAt(this.currentTable, this.currentCell.col);
+            this.commands?.deleteColumnAt(this.currentTable, this.currentCell.col);
           }
           break;
 
         case keymap.deleteTable:
           event.preventDefault();
           if (this.currentTable) {
-            this.commands!.deleteTable(this.currentTable);
+            this.commands?.deleteTable(this.currentTable);
           }
           break;
       }
-    });
+    };
+
+    this.context.on('keydown', this.keyboardHandler);
   }
 
   /**
    * Setup context menu for tables
    */
-  private setupContextMenu(context: PluginContext): void {
-    context.on('contextmenu', (event: any) => {
-      if (this.isInsideTable(event)) {
-        event.preventDefault();
+  private setupContextMenu(): void {
+    if (!this.context) {
+      return;
+    }
 
-        const tableId = this.getTableId(event);
-        const position = this.getCellPosition(event);
-
-        if (tableId && position) {
-          this.currentTable = tableId;
-          this.currentCell = position;
-          this.showContextMenu(tableId, position, event.clientX, event.clientY);
-        }
+    this.contextMenuHandler = (event: any) => {
+      if (!this.isInsideTable(event)) {
+        return;
       }
-    });
+
+      event.preventDefault();
+
+      const tableId = this.getTableId(event);
+      const position = this.getCellPosition(event);
+
+      if (tableId && position) {
+        this.currentTable = tableId;
+        this.currentCell = position;
+        this.showContextMenu(tableId, position, event.clientX, event.clientY);
+      }
+    };
+
+    this.context.on('contextmenu', this.contextMenuHandler);
   }
 
   /**
    * Navigate table cells
    */
   private navigateTable(direction: 'up' | 'down' | 'left' | 'right'): void {
-    if (!this.currentTable || !this.currentCell) {
+    if (!this.currentTable || !this.currentCell || !this.context) {
       return;
     }
 
-    const state = this.context!.getState();
+    const state = this.context.getState();
     const tableNode = this.findTableNode(state, this.currentTable);
 
-    if (!tableNode) {
+    if (!tableNode?.attrs?.table) {
       return;
     }
 
-    const table = tableNode.attrs?.table;
-    const nextPos = getNextCell(table, this.currentCell, direction);
+    const nextPos = getNextCell(tableNode.attrs.table, this.currentCell, direction);
 
     if (nextPos) {
       this.currentCell = nextPos;
-      // Move cursor to next cell
-      this.context!.emit('table:navigate', {
+      this.context.emit('table:navigate', {
         tableId: this.currentTable,
         position: nextPos,
       });
@@ -297,7 +330,6 @@ export class TablePlugin implements Plugin {
    * Show context menu
    */
   private showContextMenu(tableId: string, position: CellPosition, x: number, y: number): void {
-    // Close existing menu
     if (this.currentMenu) {
       this.currentMenu.close();
     }
@@ -305,14 +337,7 @@ export class TablePlugin implements Plugin {
     this.currentTable = tableId;
     this.currentCell = position;
 
-    // Create new menu
-    this.currentMenu = new TableMenu(
-      tableId,
-      position,
-      this.menuConfig,
-      this.handleMenuCommand.bind(this)
-    );
-
+    this.currentMenu = new TableMenu(tableId, position, this.menuConfig, this.handleMenuCommand.bind(this));
     this.currentMenu.positionAt(x, y);
     document.body.appendChild(this.currentMenu);
   }
@@ -322,39 +347,30 @@ export class TablePlugin implements Plugin {
    */
   private handleMenuCommand(command: string, ...args: any[]): void {
     try {
-      this.context!.executeCommand(command, ...args);
+      this.context?.executeCommand(command, ...args);
     } catch (error) {
       console.error(`Failed to execute table command: ${command}`, error);
-      this.context!.emit('table:command-error', {
+      this.context?.emit('table:command-error', {
         command,
         error,
       });
     }
   }
 
-  /**
-   * Check if event is inside a table
-   */
   private isInsideTable(event: any): boolean {
     const target = event.target as HTMLElement;
-    return !!target.closest('[data-node-type="table"]');
+    return !!target?.closest('[data-node-type="table"]');
   }
 
-  /**
-   * Get table ID from event
-   */
   private getTableId(event: any): string | null {
     const target = event.target as HTMLElement;
-    const table = target.closest('[data-node-type="table"]');
+    const table = target?.closest('[data-node-type="table"]');
     return table?.getAttribute('data-block-id') || null;
   }
 
-  /**
-   * Get cell position from event
-   */
   private getCellPosition(event: any): CellPosition | null {
     const target = event.target as HTMLElement;
-    const cell = target.closest('[data-node-type="table_cell"]');
+    const cell = target?.closest('[data-node-type="table_cell"]');
 
     if (!cell) {
       return null;
@@ -366,9 +382,6 @@ export class TablePlugin implements Plugin {
     return { row, col };
   }
 
-  /**
-   * Get keyboard key string
-   */
   private getKeyString(event: any): string {
     const parts: string[] = [];
 
@@ -382,19 +395,16 @@ export class TablePlugin implements Plugin {
     return parts.join('+');
   }
 
-  /**
-   * Find table node in editor state
-   */
   private findTableNode(state: any, tableId: string): any {
-    // This would traverse the document to find the table node
-    // For now, return a placeholder
-    return state.document?.children?.find((node: any) => node.id === tableId);
-  }
-}
+    if (typeof state.findBlock === 'function') {
+      return state.findBlock(tableId);
+    }
 
-/**
- * Factory function to create table plugin
- */
-export function createTablePlugin(config?: TableConfig): Plugin {
-  return new TablePlugin(config);
+    const doc = typeof state.getDocument === 'function' ? state.getDocument() : state.document;
+    if (!doc?.children) {
+      return undefined;
+    }
+
+    return doc.children.find((node: any) => node.id === tableId);
+  }
 }

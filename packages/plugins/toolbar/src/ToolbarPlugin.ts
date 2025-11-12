@@ -3,9 +3,21 @@
  */
 
 import type { Plugin, PluginContext } from '@notectl/core';
-import type { ToolbarConfig } from './types.js';
+import type { ToolbarConfig, ToolbarItem, ToolbarTableConfig } from './types.js';
+import type { TableConfig, TableMenuConfig } from './table/types.js';
 import { Toolbar } from './components/Toolbar.js';
 import { TablePickerComponent } from './components/TablePicker.js';
+import {
+  TableFeature,
+  DEFAULT_TABLE_CONFIG as DEFAULT_TABLE_FEATURE_CONFIG,
+  DEFAULT_MENU_CONFIG as DEFAULT_TABLE_MENU_CONFIG,
+} from './table/index.js';
+
+type ResolvedTableOptions = {
+  enabled: boolean;
+  config: TableConfig;
+  menu: TableMenuConfig;
+};
 
 /**
  * Default toolbar configuration with comprehensive formatting options
@@ -15,6 +27,11 @@ export const DEFAULT_TOOLBAR_CONFIG: ToolbarConfig = {
   theme: 'light',
   sticky: true,
   showLabels: false,
+  table: {
+    enabled: true,
+    config: DEFAULT_TABLE_FEATURE_CONFIG,
+    menu: DEFAULT_TABLE_MENU_CONFIG,
+  },
   items: [
     // Basic formatting group
     {
@@ -244,9 +261,28 @@ export class ToolbarPlugin implements Plugin {
   private config: ToolbarConfig;
   private isVisible = true;
   private tablePicker?: TablePickerComponent;
+  private tableFeature?: TableFeature;
+  private tableOptions: ResolvedTableOptions;
+  private baseItems?: ToolbarItem[];
 
   constructor(config: ToolbarConfig = {}) {
-    this.config = { ...DEFAULT_TOOLBAR_CONFIG, ...config };
+    this.tableOptions = this.resolveTableOptions(config.table);
+    const mergedConfig: ToolbarConfig = {
+      ...DEFAULT_TOOLBAR_CONFIG,
+      ...config,
+      table: {
+        ...DEFAULT_TOOLBAR_CONFIG.table,
+        ...config.table,
+      },
+    };
+
+    this.baseItems = mergedConfig.items ? [...mergedConfig.items] : undefined;
+
+    this.config = {
+      ...mergedConfig,
+      items: this.applyTableItemVisibility(this.baseItems, this.tableOptions.enabled),
+      table: this.materializeTableConfig(),
+    };
   }
 
   async init(context: PluginContext): Promise<void> {
@@ -257,6 +293,10 @@ export class ToolbarPlugin implements Plugin {
 
     // Create and render toolbar
     this.renderToolbar(context);
+
+    if (this.tableOptions.enabled) {
+      this.ensureTableFeature(context);
+    }
   }
 
   async destroy(): Promise<void> {
@@ -265,6 +305,13 @@ export class ToolbarPlugin implements Plugin {
       this.toolbar.parentElement.removeChild(this.toolbar);
     }
 
+    if (this.tablePicker && this.tablePicker.parentElement) {
+      this.tablePicker.parentElement.removeChild(this.tablePicker);
+    }
+
+    this.disposeTableFeature();
+
+    this.tablePicker = undefined;
     this.toolbar = undefined;
     this.context = undefined;
   }
@@ -399,6 +446,11 @@ export class ToolbarPlugin implements Plugin {
     });
 
     context.registerCommand('insert.table', (...args: unknown[]) => {
+      if (!this.tableOptions.enabled) {
+        console.warn('Table functionality is disabled in the current toolbar configuration.');
+        return;
+      }
+
       const rows = typeof args[0] === 'number' ? (args[0] as number) : undefined;
       const cols = typeof args[1] === 'number' ? (args[1] as number) : undefined;
 
@@ -439,7 +491,7 @@ export class ToolbarPlugin implements Plugin {
 
       // Find the table button to position the picker
       const tableButton = this.toolbar?.shadowRoot?.querySelector('[data-command="insert.table"]');
-      if (tableButton) {
+      if (tableButton && this.tablePicker) {
         const rect = tableButton.getBoundingClientRect();
         this.tablePicker.show(rect.left, rect.bottom + 5);
       }
@@ -515,7 +567,31 @@ export class ToolbarPlugin implements Plugin {
    * Update toolbar configuration
    */
   private updateConfig(newConfig: Partial<ToolbarConfig>): void {
-    this.config = { ...this.config, ...newConfig };
+    if (newConfig.table) {
+      this.tableOptions = this.resolveTableOptions(newConfig.table);
+    }
+
+    if (newConfig.items) {
+      this.baseItems = [...newConfig.items];
+    }
+
+    const items = this.applyTableItemVisibility(this.baseItems, this.tableOptions.enabled);
+
+    this.config = {
+      ...this.config,
+      ...newConfig,
+      items,
+      table: this.materializeTableConfig(),
+    };
+
+    if (this.tableOptions.enabled) {
+      if (this.context) {
+        this.ensureTableFeature(this.context);
+      }
+    } else {
+      this.disposeTableFeature();
+    }
+
     if (this.toolbar) {
       this.toolbar.updateConfig(this.config);
     }
@@ -588,6 +664,82 @@ export class ToolbarPlugin implements Plugin {
     } catch (error) {
       console.error(`Failed to insert table:`, error);
     }
+  }
+
+  /**
+   * Resolve toolbar table options with defaults
+   */
+  private resolveTableOptions(table?: ToolbarTableConfig): ResolvedTableOptions {
+    const defaultOptions = DEFAULT_TOOLBAR_CONFIG.table ?? { enabled: true };
+    return {
+      enabled: table?.enabled ?? defaultOptions.enabled ?? true,
+      config: {
+        ...DEFAULT_TABLE_FEATURE_CONFIG,
+        ...(table?.config ?? {}),
+      },
+      menu: {
+        ...DEFAULT_TABLE_MENU_CONFIG,
+        ...(table?.menu ?? {}),
+      },
+    };
+  }
+
+  /**
+   * Enable/disable table button in toolbar items
+   */
+  private applyTableItemVisibility(
+    items: ToolbarItem[] | undefined,
+    enabled: boolean
+  ): ToolbarItem[] | undefined {
+    if (!items) {
+      return items;
+    }
+
+    if (enabled) {
+      return [...items];
+    }
+
+    return items.filter(item => item.id !== 'table');
+  }
+
+  /**
+   * Ensure table feature is active with current config
+   */
+  private ensureTableFeature(context: PluginContext): void {
+    if (!this.tableFeature) {
+      this.tableFeature = new TableFeature({
+        config: this.tableOptions.config,
+        menuConfig: this.tableOptions.menu,
+      });
+      this.tableFeature.init(context);
+      return;
+    }
+
+    this.tableFeature.updateConfig({
+      config: this.tableOptions.config,
+      menuConfig: this.tableOptions.menu,
+    });
+  }
+
+  /**
+   * Dispose table feature resources
+   */
+  private disposeTableFeature(): void {
+    if (this.tableFeature) {
+      this.tableFeature.destroy();
+      this.tableFeature = undefined;
+    }
+  }
+
+  /**
+   * Provide current table configuration snapshot
+   */
+  private materializeTableConfig(): ToolbarTableConfig {
+    return {
+      enabled: this.tableOptions.enabled,
+      config: { ...this.tableOptions.config },
+      menu: { ...this.tableOptions.menu },
+    };
   }
 }
 

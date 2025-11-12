@@ -39,13 +39,6 @@ tests/
 - Command execution
 - Error handling
 
-### Adapter Tests (React/Vue/Svelte)
-- Component mounting/unmounting
-- Props handling
-- Event emissions
-- API exposure
-- Dynamic updates
-- Accessibility
 
 ## Test Categories
 
@@ -170,7 +163,6 @@ it('should create block with attributes', () => {
 
 ### Target Coverage
 - Core modules: >95%
-- Adapters: >90%
 - Plugins: >85%
 
 ## Continuous Integration
@@ -223,5 +215,3 @@ Tests run on:
 
 - [Vitest Documentation](https://vitest.dev)
 - [Testing Library](https://testing-library.com)
-- [Vue Test Utils](https://test-utils.vuejs.org)
-- [React Testing Library](https://testing-library.com/react)

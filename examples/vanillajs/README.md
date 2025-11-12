@@ -1,6 +1,6 @@
 # Notectl Vanilla Demo
 
-A minimal Vite-powered example that shows how to wire `@notectl/core` together with the official toolbar and table plugins in a framework-agnostic setup.
+A minimal Vite-powered example that shows how to wire `@notectl/core` together with the official toolbar plugin (including the integrated table tools) in a framework-agnostic setup.
 
 ## Getting started
 
@@ -14,8 +14,8 @@ Then open the printed Vite dev server URL (defaults to http://localhost:5173) to
 ## What this demo covers
 
 - Creates a `NotectlEditor` instance via `createEditor` and mounts it into the DOM.
-- Registers `@notectl/plugin-toolbar` using the default toolbar layout so it matches the official Notectl look & feel.
-- Registers `@notectl/plugin-table` so you can insert tables, navigate with the keyboard, and open the contextual menu.
+- Registers `@notectl/plugin-toolbar` using the default layout so it matches the official Notectl look & feel.
+- Enables the toolbar's built-in table tools so you can insert tables, navigate with the keyboard, and open the contextual menu.
 - Logs emitted editor and table events to the inspector panel so you can see how to integrate with your own app state.
 
 ## Production build
