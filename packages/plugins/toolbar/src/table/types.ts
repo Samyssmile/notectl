@@ -2,7 +2,7 @@
  * Type definitions for table plugin
  */
 
-import type { BlockId } from '@notectl/core';
+import type { BlockId, BlockNode } from '@notectl/core';
 
 /**
  * Table cell position
@@ -19,7 +19,7 @@ export interface TableCell {
   id: BlockId;
   rowSpan: number;
   colSpan: number;
-  content?: string;
+  content?: BlockNode[];
   attrs?: Record<string, unknown>;
 }
 

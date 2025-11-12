@@ -41,6 +41,7 @@ export function createCell(rowSpan = 1, colSpan = 1): TableCell {
     id: generateBlockId(),
     rowSpan,
     colSpan,
+    content: [],
   };
 }
 
@@ -188,16 +189,16 @@ export function mergeCells(
   const mergedCell = createCell(rowSpan, colSpan);
 
   // Collect content from all cells being merged
-  const content: string[] = [];
+  const content: TableCell['content'] = [];
   for (let r = rowStart; r <= rowEnd; r++) {
     for (let c = colStart; c <= colEnd; c++) {
       const cell = getCellAt(table, { row: r, col: c });
-      if (cell?.content) {
-        content.push(cell.content);
+      if (cell?.content && cell.content.length > 0) {
+        content.push(...cell.content);
       }
     }
   }
-  mergedCell.content = content.join(' ');
+  mergedCell.content = content;
 
   // Update table structure
   let newTable = { ...table };

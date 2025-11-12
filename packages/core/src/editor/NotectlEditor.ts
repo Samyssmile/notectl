@@ -12,6 +12,7 @@ import type {
   EditorEventCallback,
   Document,
   BlockNode,
+  BlockAttrs,
   TextNode,
   Mark,
   EditorEventMap,
@@ -31,6 +32,20 @@ import { EventEmitter } from '../utils/EventEmitter.js';
 type ParsedNode =
   | { kind: 'block'; node: BlockNode }
   | { kind: 'inline'; nodes: TextNode[] };
+
+type TableRowData = {
+  id: string;
+  cells: TableCellData[];
+  attrs?: Record<string, unknown>;
+};
+
+type TableCellData = {
+  id: string;
+  rowSpan?: number;
+  colSpan?: number;
+  attrs?: Record<string, unknown>;
+  content?: BlockNode[];
+};
 
 /**
  * NotectlEditor custom element
@@ -487,8 +502,7 @@ export class NotectlEditor extends HTMLElement {
       }
     }
 
-    const content = typeof cell.content === 'string' ? this.escapeHTML(cell.content) : '';
-    const inner = content || '<br>';
+    const inner = this.renderCellContent(cell);
 
     return `<td ${attrs.join(' ')}>${inner}</td>`;
   }
@@ -504,6 +518,56 @@ export class NotectlEditor extends HTMLElement {
       })
       .filter(Boolean)
       .join('; ');
+  }
+
+  private styleStringToObject(style: string | null): Record<string, string> | undefined {
+    if (!style) {
+      return undefined;
+    }
+
+    const entries = style
+      .split(';')
+      .map((declaration) => declaration.trim())
+      .filter(Boolean)
+      .map((declaration) => {
+        const [property, ...valueParts] = declaration.split(':');
+        if (!property || valueParts.length === 0) {
+          return null;
+        }
+        const value = valueParts.join(':').trim();
+        if (!value) {
+          return null;
+        }
+        const camelKey = property
+          .trim()
+          .toLowerCase()
+          .replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
+        return [camelKey, value] as [string, string];
+      })
+      .filter(Boolean) as [string, string][];
+
+    if (entries.length === 0) {
+      return undefined;
+    }
+
+    return Object.fromEntries(entries);
+  }
+
+  private renderCellContent(cell: { content?: unknown }): string {
+    if (Array.isArray(cell.content) && cell.content.length > 0) {
+      return cell.content
+        .map((block: BlockNode) => this.blockToHTML(block))
+        .join('');
+    }
+
+    if (typeof cell.content === 'string') {
+      const text = cell.content.trim();
+      if (text.length > 0) {
+        return this.escapeHTML(text);
+      }
+    }
+
+    return '<br>';
   }
 
   /**
@@ -760,17 +824,9 @@ export class NotectlEditor extends HTMLElement {
   /**
    * Handle input event
    */
-  private handleInput = (event: Event): void => {
+  private handleInput = (_event: Event): void => {
     this.updatePlaceholder();
-
-    // Skip syncing if input originates inside a managed table to avoid
-    // clobbering the plugin-driven document state until table syncing is
-    // fully implemented.
-    const target = event.target as HTMLElement | null;
-    if (!target?.closest('[data-node-type="table"]')) {
-      this.syncContentToState();
-    }
-
+    this.syncContentToState();
     this.emit('change', { state: this.state });
   };
 
@@ -987,6 +1043,14 @@ export class NotectlEditor extends HTMLElement {
         return null;
       }
 
+      if (tagName === 'table') {
+        const tableNode = this.parseTable(element);
+        if (tableNode) {
+          return { kind: 'block', node: tableNode };
+        }
+        return null;
+      }
+
       // Inline elements - extract text with marks
       const inlineNodes = this.parseInlineElement(element);
       if (inlineNodes.length === 0) {
@@ -1041,6 +1105,135 @@ export class NotectlEditor extends HTMLElement {
     }
 
     return this.createListItemNode(children);
+  }
+
+  /**
+   * Parse <table> elements into structured table blocks
+   */
+  private parseTable(element: Element): BlockNode | null {
+    const rows = this.parseTableRows(element);
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const tableId = element.getAttribute('data-block-id') || crypto.randomUUID();
+    const attrs: BlockAttrs = {
+      table: {
+        id: tableId,
+        rows,
+      },
+    };
+
+    const style = this.styleStringToObject(element.getAttribute('style'));
+    if (style) {
+      attrs.style = style;
+    }
+
+    return {
+      id: tableId,
+      type: 'table',
+      attrs,
+      children: [],
+    };
+  }
+
+  private parseTableRows(tableElement: Element): TableRowData[] {
+    const rows: TableRowData[] = [];
+    const rowElements = this.collectTableRowElements(tableElement);
+
+    rowElements.forEach((rowElement) => {
+      const row = this.parseTableRow(rowElement);
+      if (row && row.cells.length > 0) {
+        rows.push(row);
+      }
+    });
+
+    return rows;
+  }
+
+  private collectTableRowElements(tableElement: Element): Element[] {
+    const rowElements: Element[] = [];
+
+    const pushRow = (row: Element): void => {
+      if (!rowElements.includes(row)) {
+        rowElements.push(row);
+      }
+    };
+
+    Array.from(tableElement.children).forEach((child) => {
+      const tagName = child.tagName.toLowerCase();
+      if (tagName === 'tr') {
+        pushRow(child as Element);
+      } else if (['tbody', 'thead', 'tfoot'].includes(tagName)) {
+        Array.from(child.children).forEach((row) => {
+          if (row.tagName.toLowerCase() === 'tr') {
+            pushRow(row as Element);
+          }
+        });
+      }
+    });
+
+    if (rowElements.length === 0) {
+      tableElement.querySelectorAll('tr').forEach((row) => pushRow(row));
+    }
+
+    return rowElements;
+  }
+
+  private parseTableRow(rowElement: Element): TableRowData | null {
+    const rowId = rowElement.getAttribute('data-block-id') || crypto.randomUUID();
+    const cells: TableCellData[] = [];
+
+    Array.from(rowElement.children).forEach((child) => {
+      const tagName = child.tagName.toLowerCase();
+      if (tagName === 'td' || tagName === 'th') {
+        const cell = this.parseTableCell(child as Element);
+        if (cell) {
+          cells.push(cell);
+        }
+      }
+    });
+
+    const style = this.styleStringToObject(rowElement.getAttribute('style'));
+    const attrs = style ? { style } : undefined;
+
+    return {
+      id: rowId,
+      cells,
+      ...(attrs ? { attrs } : {}),
+    };
+  }
+
+  private parseTableCell(cellElement: Element): TableCellData | null {
+    const cellId = cellElement.getAttribute('data-block-id') || crypto.randomUUID();
+    const rowSpanAttr = parseInt(cellElement.getAttribute('rowspan') || '1', 10);
+    const colSpanAttr = parseInt(cellElement.getAttribute('colspan') || '1', 10);
+    const style = this.styleStringToObject(cellElement.getAttribute('style'));
+    const contentBlocks = this.parseCellContent(cellElement);
+
+    const cell: TableCellData = { id: cellId };
+    if (rowSpanAttr > 1) {
+      cell.rowSpan = rowSpanAttr;
+    }
+    if (colSpanAttr > 1) {
+      cell.colSpan = colSpanAttr;
+    }
+    if (style) {
+      cell.attrs = { style };
+    }
+    if (contentBlocks.length > 0) {
+      cell.content = contentBlocks;
+    }
+
+    return cell;
+  }
+
+  private parseCellContent(element: Element): BlockNode[] {
+    const blocks = this.parseBlockNodes(element.childNodes);
+    if (blocks.length === 0) {
+      return [];
+    }
+    return blocks;
   }
 
   /**

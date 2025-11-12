@@ -416,7 +416,7 @@ export interface TableRow {
  */
 export interface TableCell {
   id?: string;
-  content: string;
+  content?: BlockNode[];
   rowSpan?: number;
   colSpan?: number;
   attrs?: {
