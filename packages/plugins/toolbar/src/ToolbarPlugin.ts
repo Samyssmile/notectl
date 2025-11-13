@@ -3,7 +3,14 @@
  */
 
 import type { Plugin, PluginContext } from '@notectl/core';
-import type { ToolbarConfig, ToolbarItem, ToolbarTableConfig } from './types.js';
+import type {
+  ToolbarConfig,
+  ToolbarItem,
+  ToolbarTableConfig,
+  ToolbarFontsConfig,
+  ToolbarFontFamilyOptionInput,
+  DropdownOption,
+} from './types.js';
 import type { TableConfig, TableMenuConfig } from './table/types.js';
 import { Toolbar } from './components/Toolbar.js';
 import { TablePickerComponent } from './components/TablePicker.js';
@@ -263,7 +270,9 @@ export class ToolbarPlugin implements Plugin {
   private tablePicker?: TablePickerComponent;
   private tableFeature?: TableFeature;
   private tableOptions: ResolvedTableOptions;
+  private rawItems?: ToolbarItem[];
   private baseItems?: ToolbarItem[];
+  private fontOptions?: ToolbarFontsConfig;
 
   constructor(config: ToolbarConfig = {}) {
     this.tableOptions = this.resolveTableOptions(config.table);
@@ -276,12 +285,15 @@ export class ToolbarPlugin implements Plugin {
       },
     };
 
-    this.baseItems = mergedConfig.items ? [...mergedConfig.items] : undefined;
+    this.fontOptions = mergedConfig.fonts;
+    this.rawItems = mergedConfig.items ? [...mergedConfig.items] : undefined;
+    this.baseItems = this.applyFontOptions(this.rawItems, this.fontOptions);
 
     this.config = {
       ...mergedConfig,
       items: this.applyTableItemVisibility(this.baseItems, this.tableOptions.enabled),
       table: this.materializeTableConfig(),
+      fonts: this.fontOptions,
     };
   }
 
@@ -571,9 +583,22 @@ export class ToolbarPlugin implements Plugin {
       this.tableOptions = this.resolveTableOptions(newConfig.table);
     }
 
-    if (newConfig.items) {
-      this.baseItems = [...newConfig.items];
+    if (!this.rawItems && this.baseItems) {
+      this.rawItems = [...this.baseItems];
     }
+
+    if (newConfig.items) {
+      this.rawItems = [...newConfig.items];
+    }
+
+    if (newConfig.fonts) {
+      this.fontOptions = {
+        ...this.fontOptions,
+        ...newConfig.fonts,
+      };
+    }
+
+    this.baseItems = this.applyFontOptions(this.rawItems, this.fontOptions);
 
     const items = this.applyTableItemVisibility(this.baseItems, this.tableOptions.enabled);
 
@@ -582,6 +607,7 @@ export class ToolbarPlugin implements Plugin {
       ...newConfig,
       items,
       table: this.materializeTableConfig(),
+      fonts: this.fontOptions,
     };
 
     if (this.tableOptions.enabled) {
@@ -709,6 +735,98 @@ export class ToolbarPlugin implements Plugin {
     }
 
     return items.filter(item => item.id !== 'table');
+  }
+
+  /**
+   * Extend or replace the font dropdown options.
+   */
+  private applyFontOptions(
+    items: ToolbarItem[] | undefined,
+    fonts?: ToolbarFontsConfig
+  ): ToolbarItem[] | undefined {
+    if (!items) {
+      return items;
+    }
+
+    const fontFamilies = fonts?.families ?? [];
+    if (fontFamilies.length === 0) {
+      return [...items];
+    }
+
+    const normalized = this.normalizeFontFamilies(fontFamilies);
+    if (normalized.length === 0) {
+      return [...items];
+    }
+
+    const extendDefaults = fonts?.extendDefaults !== false;
+
+    return items.map((item) => {
+      if (item.id !== 'font-family' || !('options' in item)) {
+        return item;
+      }
+
+      const baseOptions = extendDefaults ? [...item.options] : [];
+      const mergedOptions = extendDefaults
+        ? this.mergeFontDropdownOptions(baseOptions, normalized)
+        : this.mergeFontDropdownOptions([], normalized);
+
+      return {
+        ...item,
+        options: mergedOptions,
+      };
+    });
+  }
+
+  private normalizeFontFamilies(families: ToolbarFontFamilyOptionInput[]): DropdownOption[] {
+    const normalized: DropdownOption[] = [];
+
+    for (const entry of families) {
+      if (typeof entry === 'string') {
+        const value = entry.trim();
+        if (!value) continue;
+        normalized.push({
+          label: value,
+          value,
+          command: 'format.fontFamily',
+          args: [value],
+        });
+        continue;
+      }
+
+      const value = entry.value?.trim();
+      if (!value) {
+        continue;
+      }
+
+      const rawLabel = entry.label ?? value;
+      const label = rawLabel.trim().length > 0 ? rawLabel.trim() : value;
+
+      normalized.push({
+        label,
+        value,
+        command: 'format.fontFamily',
+        args: [value],
+      });
+    }
+
+    return normalized;
+  }
+
+  private mergeFontDropdownOptions(base: DropdownOption[], extras: DropdownOption[]): DropdownOption[] {
+    const merged = [...base];
+    const seen = new Set<string>(base.map(option => String(option.value)));
+
+    for (const option of extras) {
+      const key = String(option.value);
+      if (seen.has(key)) {
+        continue;
+      }
+
+      merged.push(option);
+      seen.add(key);
+    }
+
+    return merged;
   }
 
   /**

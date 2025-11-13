@@ -105,6 +105,25 @@ export interface ToolbarDropdown {
 export type ToolbarItem = ToolbarButton | ToolbarDropdown;
 
 /**
+ * Toolbar font configuration
+ */
+export type ToolbarFontFamilyOptionInput = string | ToolbarFontFamilyOption;
+
+export interface ToolbarFontFamilyOption {
+  label: string;
+  value: string;
+}
+
+export interface ToolbarFontsConfig {
+  families?: ToolbarFontFamilyOptionInput[];
+  /**
+   * When false the dropdown will only show the provided values.
+   * Defaults to true to append custom fonts to the built-in set.
+   */
+  extendDefaults?: boolean;
+}
+
+/**
  * Toolbar configuration
  */
 export interface ToolbarConfig {
@@ -114,6 +133,7 @@ export interface ToolbarConfig {
   sticky?: boolean;
   showLabels?: boolean;
   table?: ToolbarTableConfig;
+  fonts?: ToolbarFontsConfig;
 }
 
 /**

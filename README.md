@@ -25,3 +25,22 @@ npm install @notectl/plugin-toolbar
 > Table creation, keyboard navigation, and the contextual menu now live inside the toolbar plugin. Use `createToolbarPlugin({ table: { enabled: boolean, config } })` to turn them on/off or override defaults.
 ```
 
+## Fonts
+
+Configure project-specific fonts without poking the Shadow DOM:
+
+```typescript
+const editor = createEditor(container, {
+  appearance: {
+    fontFamily: `'Brand Sans', system-ui, sans-serif`,
+  },
+});
+
+const toolbar = createToolbarPlugin({
+  fonts: {
+    families: ['Brand Sans'],
+  },
+});
+```
+
+Load the actual `@font-face` declarations via CSS (import, stylesheet, CSS-in-JS, etc.) and Notectl propagates the configured font to the Web Component host as well as the toolbar dropdown.

@@ -115,7 +115,7 @@ export function createEditor(container: HTMLElement, config?: EditorConfig) {
 
   // Apply configuration if provided
   if (config) {
-    // Config would be applied here
+    editor.configure(config);
   }
 
   container.appendChild(editor);
