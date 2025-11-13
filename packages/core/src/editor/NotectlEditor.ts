@@ -17,7 +17,8 @@ import type {
   Mark,
   EditorEventMap,
   EditorEventKey,
-  EditorEventPayload
+  EditorEventPayload,
+  EditorAppearance,
 } from '../types/index.js';
 import { createDefaultSchema } from '../schema/Schema.js';
 import { sanitizeHTML, sanitizeContent, validateDelta } from '../utils/security.js';
@@ -78,6 +79,7 @@ export class NotectlEditor extends HTMLElement {
       autofocus: false,
       sanitizeHTML: true,
       maxHistoryDepth: 100,
+      appearance: undefined,
     };
 
     // Initialize state
@@ -113,6 +115,7 @@ export class NotectlEditor extends HTMLElement {
    */
   async connectedCallback(): Promise<void> {
     this.render();
+    this.applyAppearance();
     this.attachEventListeners();
     this.setupAccessibility();
     this.setupKeyboardShortcuts();
@@ -199,8 +202,8 @@ export class NotectlEditor extends HTMLElement {
         :host {
           display: block;
           position: relative;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 16px;
+          font-family: var(--notectl-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+          font-size: var(--notectl-font-size, 16px);
           line-height: 1.5;
         }
 
@@ -1894,8 +1897,15 @@ export class NotectlEditor extends HTMLElement {
    * Configure editor options
    * @param config - Configuration options to apply
    */
-  configure(config: EditorConfig): void {
-    this.config = { ...this.config, ...config };
+  configure(config: Partial<EditorConfig>): void {
+    const mergedAppearance = this.mergeAppearance(config.appearance);
+    this.config = {
+      ...this.config,
+      ...config,
+      appearance: mergedAppearance,
+    };
+
+    this.applyAppearance();
 
     // Apply configuration changes
     if (config.readonly !== undefined) {
@@ -1922,6 +1932,61 @@ export class NotectlEditor extends HTMLElement {
         this.setJSON(config.content as Document);
       }
     }
+  }
+
+  private mergeAppearance(next?: Partial<EditorAppearance>): EditorAppearance | undefined {
+    if (!next) {
+      return this.config.appearance;
+    }
+
+    const current = this.config.appearance ?? {};
+    const merged: EditorAppearance = {
+      ...current,
+      ...next,
+    };
+
+    return this.hasAppearanceValue(merged) ? merged : undefined;
+  }
+
+  private applyAppearance(): void {
+    const appearance = this.config.appearance;
+    this.setAppearanceProperty('--notectl-font-family', appearance?.fontFamily ?? undefined);
+    this.setAppearanceProperty('--notectl-font-size', this.normalizeFontSize(appearance?.fontSize));
+  }
+
+  private setAppearanceProperty(name: string, value?: string): void {
+    if (value && value.trim().length > 0) {
+      this.style.setProperty(name, value);
+      return;
+    }
+
+    this.style.removeProperty(name);
+  }
+
+  private normalizeFontSize(fontSize?: string | number | null): string | undefined {
+    if (fontSize === undefined || fontSize === null) {
+      return undefined;
+    }
+
+    if (typeof fontSize === 'number' && !Number.isNaN(fontSize)) {
+      return `${fontSize}px`;
+    }
+
+    const value = fontSize.toString().trim();
+    return value.length > 0 ? value : undefined;
+  }
+
+  private hasAppearanceValue(appearance?: EditorAppearance | null): boolean {
+    if (!appearance) {
+      return false;
+    }
+
+    const hasFontFamily =
+      appearance.fontFamily !== undefined && appearance.fontFamily !== null && appearance.fontFamily !== '';
+    const hasFontSize =
+      appearance.fontSize !== undefined && appearance.fontSize !== null && appearance.fontSize !== '';
+
+    return hasFontFamily || hasFontSize;
   }
 
   /**

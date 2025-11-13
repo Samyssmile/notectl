@@ -211,7 +211,7 @@ export type EditorEventCallback<T = unknown> = (data: T) => void;
  */
 export interface EditorAPI {
   // Configuration
-  configure(config: EditorConfig): void;
+  configure(config: Partial<EditorConfig>): void;
 
   // Content management
   getContent(): Document | string;
@@ -279,6 +279,14 @@ export interface EditorAPI {
 }
 
 /**
+ * Visual customization options for the editor host
+ */
+export interface EditorAppearance {
+  fontFamily?: string | null;
+  fontSize?: string | number | null;
+}
+
+/**
  * Editor configuration options
  */
 export interface EditorConfig {
@@ -289,6 +297,7 @@ export interface EditorConfig {
   sanitizeHTML?: boolean;
   maxHistoryDepth?: number;
   content?: string | Document;
+  appearance?: EditorAppearance;
   [key: string]: unknown;
 }
 

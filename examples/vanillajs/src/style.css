@@ -17,7 +17,3 @@ body {
   min-height: 400px;
   font-family: var(--demo-editor-font);
 }
-
-#editor-host notectl-editor {
-  font-family: var(--demo-editor-font);
-}

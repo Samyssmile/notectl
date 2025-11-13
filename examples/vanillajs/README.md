@@ -42,6 +42,29 @@ editor.on('table:inserted', (data) => {
 });
 ```
 
+## Custom Fonts
+
+Notectl kann Fonts jetzt direkt ueber die Editor-Konfiguration und das Toolbar-Plugin nutzen:
+
+```typescript
+import { createEditor } from '@notectl/core';
+import { createToolbarPlugin } from '@notectl/plugin-toolbar';
+
+const editor = createEditor(host, {
+  appearance: {
+    fontFamily: `'Fira Code', 'Fira Code VF', monospace`,
+  },
+});
+
+const toolbar = createToolbarPlugin({
+  fonts: {
+    families: ['Fira Code'],
+  },
+});
+```
+
+Stelle weiterhin sicher, dass dein Font (z. B. per CSS `@font-face`) im Projekt geladen wird - Notectl uebernimmt dann die Verteilung auf Shadow-DOM und Toolbar.
+
 ## HTML (11 lines!)
 
 ```html
