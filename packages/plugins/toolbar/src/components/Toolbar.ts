@@ -66,6 +66,7 @@ export class Toolbar extends HTMLElement {
             this.buttons.set(item.id, button);
           } else if (isToolbarDropdown(item)) {
             const dropdown = new ToolbarDropdownComponent(item, this.context);
+            dropdown.setAttribute('data-dropdown-id', item.id);
             group.appendChild(dropdown);
             this.dropdowns.set(item.id, dropdown);
           }
@@ -333,6 +334,11 @@ export class Toolbar extends HTMLElement {
   public updateConfig(newConfig: Partial<ToolbarConfig>): void {
     this.config = { ...this.config, ...newConfig };
     this.render();
+  }
+
+  public setDropdownValue(dropdownId: string, value?: string | number | null, label?: string): void {
+    const dropdown = this.dropdowns.get(dropdownId);
+    dropdown?.setSelectedValue(value ?? undefined, label);
   }
 }
 

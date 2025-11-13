@@ -16,6 +16,7 @@ export class ToolbarDropdownComponent extends HTMLElement {
   private menu: HTMLDivElement;
   private isOpen = false;
   private selectedValue?: string | number;
+  private labelElement!: HTMLSpanElement;
 
   constructor(config: ToolbarDropdown, context: PluginContext) {
     super();
@@ -58,10 +59,10 @@ export class ToolbarDropdownComponent extends HTMLElement {
       this.trigger.title = this.config.tooltip;
     }
 
-    const label = document.createElement('span');
-    label.className = 'notectl-toolbar-dropdown-label';
-    label.textContent = this.config.label;
-    this.trigger.appendChild(label);
+    this.labelElement = document.createElement('span');
+    this.labelElement.className = 'notectl-toolbar-dropdown-label';
+    this.labelElement.textContent = this.config.label;
+    this.trigger.appendChild(this.labelElement);
 
     const arrow = document.createElement('span');
     arrow.className = 'notectl-toolbar-dropdown-arrow';
@@ -136,16 +137,7 @@ export class ToolbarDropdownComponent extends HTMLElement {
    * Handle option click
    */
   private handleOptionClick(option: DropdownOption): void {
-    this.selectedValue = option.value;
-
-    // Update selected state
-    this.menu.querySelectorAll('.notectl-toolbar-dropdown-option').forEach(el => {
-      if (el.getAttribute('data-value') === String(option.value)) {
-        el.setAttribute('aria-selected', 'true');
-      } else {
-        el.setAttribute('aria-selected', 'false');
-      }
-    });
+    this.setSelectedValue(option.value, option.label);
 
     // Execute command if provided
     if (option.command) {
@@ -168,6 +160,33 @@ export class ToolbarDropdownComponent extends HTMLElement {
 
     // Close menu
     this.toggleMenu();
+  }
+
+  public setSelectedValue(value?: string | number | null, label?: string): void {
+    this.selectedValue = value ?? undefined;
+    this.updateTriggerLabel(label);
+    this.updateOptionSelection();
+  }
+
+  private updateTriggerLabel(label?: string): void {
+    if (!this.labelElement) {
+      return;
+    }
+
+    const text = label && label.trim().length > 0 ? label : this.config.label;
+    this.labelElement.textContent = text;
+  }
+
+  private updateOptionSelection(): void {
+    this.menu.querySelectorAll('.notectl-toolbar-dropdown-option').forEach(el => {
+      if (this.selectedValue === undefined) {
+        el.setAttribute('aria-selected', 'false');
+        return;
+      }
+
+      const isActive = el.getAttribute('data-value') === String(this.selectedValue);
+      el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
   }
 
   /**
@@ -233,28 +252,6 @@ export class ToolbarDropdownComponent extends HTMLElement {
         }
         break;
     }
-  }
-
-  /**
-   * Get selected value
-   */
-  public getSelectedValue(): string | number | undefined {
-    return this.selectedValue;
-  }
-
-  /**
-   * Set selected value
-   */
-  public setSelectedValue(value: string | number): void {
-    this.selectedValue = value;
-
-    this.menu.querySelectorAll('.notectl-toolbar-dropdown-option').forEach(el => {
-      if (el.getAttribute('data-value') === String(value)) {
-        el.setAttribute('aria-selected', 'true');
-      } else {
-        el.setAttribute('aria-selected', 'false');
-      }
-    });
   }
 
   /**

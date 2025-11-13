@@ -93,6 +93,16 @@ export type {
   TableCell,
 } from './types/index.js';
 import type { EditorConfig } from './types/index.js';
+export type {
+  FontManifest,
+  FontDefinition,
+  FontVariantDefinition,
+  FontSource,
+  FontFormat,
+  FontConfigInput,
+  RegisteredFontSummary,
+} from './fonts/types.js';
+export { fontRegistry, registerFonts } from './fonts/FontRegistry.js';
 
 // Utility helpers
 export { selectionHelpers, blockHelpers } from './utils/helpers.js';
