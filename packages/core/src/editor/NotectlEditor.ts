@@ -331,6 +331,8 @@ export class NotectlEditor extends HTMLElement {
     this.contentElement.innerHTML = this.config.sanitizeHTML
       ? sanitizeHTML(html)
       : html;
+
+    this.updatePlaceholder();
   }
 
   /**
@@ -886,14 +888,54 @@ export class NotectlEditor extends HTMLElement {
    * Update placeholder visibility
    */
   private updatePlaceholder(): void {
-    if (!this.shadowRoot) return;
+    if (!this.shadowRoot || !this.contentElement) {
+      return;
+    }
 
     const placeholder = this.shadowRoot.querySelector('.notectl-placeholder');
-    const isEmpty = !this.contentElement?.textContent?.trim();
-
-    if (placeholder) {
-      placeholder.classList.toggle('hidden', !isEmpty);
+    if (!placeholder) {
+      return;
     }
+
+    const hasTextContent = Boolean(this.contentElement.textContent?.trim());
+    const onlyEmptyParagraphs = this.hasOnlyEmptyParagraphs(this.contentElement);
+    const isEmpty = !hasTextContent && onlyEmptyParagraphs;
+
+    placeholder.classList.toggle('hidden', !isEmpty);
+  }
+
+  /**
+   * Determine if the editor surface only contains empty paragraphs.
+   * Empty paragraphs are <p> elements that contain no text nor child elements
+   * other than <br>, which is how execCommand represents blank blocks.
+   */
+  private hasOnlyEmptyParagraphs(root: HTMLElement): boolean {
+    const elements = Array.from(root.children);
+
+    if (elements.length === 0) {
+      return true;
+    }
+
+    return elements.every((element) => {
+      if (element.tagName !== 'P') {
+        return false;
+      }
+
+      return this.isParagraphEmpty(element);
+    });
+  }
+
+  private isParagraphEmpty(paragraph: Element): boolean {
+    const hasText = Boolean(paragraph.textContent?.trim());
+    if (hasText) {
+      return false;
+    }
+
+    const hasNonBreakChild = Array.from(paragraph.children).some(
+      (child) => child.tagName !== 'BR'
+    );
+
+    return !hasNonBreakChild;
   }
 
   /**
@@ -2060,6 +2102,7 @@ export class NotectlEditor extends HTMLElement {
     const sanitized = this.config.sanitizeHTML ? sanitizeHTML(html) : html;
     if (this.contentElement) {
       this.contentElement.innerHTML = sanitized;
+      this.updatePlaceholder();
       this.announceToScreenReader('Content updated');
     }
   }
@@ -2076,6 +2119,7 @@ export class NotectlEditor extends HTMLElement {
 
     if (this.contentElement) {
       this.contentElement.innerHTML = sanitized;
+      this.updatePlaceholder();
       this.announceToScreenReader('Content updated');
     }
   }
