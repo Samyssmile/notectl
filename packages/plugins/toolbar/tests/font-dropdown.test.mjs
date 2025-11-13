@@ -149,6 +149,14 @@ test('font dropdown label reflects active selection', async () => {
     context.emit('change', {});
     assert.equal(getFontDropdownLabel(toolbarHost), 'Courier New');
 
+    // Simulate typing: command/query results and selection styles revert to defaults
+    currentCommandFont = '';
+    span.style.fontFamily = '';
+    editorContainer.style.fontFamily = 'monospace';
+    context.emit('selection-change', { selection: null });
+    context.emit('change', {});
+    assert.equal(getFontDropdownLabel(toolbarHost), 'Courier New', 'label sticks when detection falls back');
+
     const labelElements = toolbarHost.shadowRoot.querySelectorAll('.notectl-toolbar-dropdown-label');
     const labels = Array.from(labelElements).map((label) => label.textContent?.trim());
 
@@ -159,4 +167,41 @@ test('font dropdown label reflects active selection', async () => {
     console.error('Font dropdown test error:', error);
     throw error;
   }
+});
+
+test('font dropdown prioritizes primary font token order', async () => {
+  window.document.body.innerHTML = '';
+  currentCommandFont = '';
+
+  const editorContainer = window.document.createElement('div');
+  editorContainer.style.fontFamily = `'Fira Code', 'Fira Code VF', monospace`;
+  window.document.body.appendChild(editorContainer);
+
+  const context = new TestPluginContext(editorContainer);
+  const plugin = new ToolbarPlugin({
+    fonts: {
+      families: ['Fira Code'],
+    },
+  });
+
+  await plugin.init(context);
+
+  const span = window.document.createElement('span');
+  span.style.fontFamily = `'Fira Code', 'Fira Code VF', monospace`;
+  span.textContent = 'Sample';
+  editorContainer.appendChild(span);
+
+  selectNode(span.firstChild);
+  context.emit('selection-change', { selection: null });
+
+  const toolbarHost = context.getPluginContainer('top').querySelector('notectl-toolbar');
+  assert.ok(toolbarHost, 'toolbar host rendered');
+
+  assert.equal(
+    getFontDropdownLabel(toolbarHost),
+    'Fira Code',
+    'dropdown prefers the actual primary font token instead of fallbacks'
+  );
+
+  await plugin.destroy();
 });

@@ -27,6 +27,7 @@ const toolbar = createToolbarPlugin({
     position: 'top',
     table: {enabled: true},
     fonts: {
+        extendDefaults: true,
         families: fontManifest.fonts.map((font) => ({
             label: font.label ?? font.family,
             value: font.family,
@@ -40,3 +41,4 @@ editor.registerPlugin(toolbar);
 editor.on('change', (data) => {
     console.log('Content changed:', JSON.stringify(data));
 });
+
