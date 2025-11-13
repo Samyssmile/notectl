@@ -62,6 +62,11 @@ declare module '@notectl/core' {
       error: string;
       tableId?: string;
     };
+
+    /**
+     * Fired whenever a toolbar dropdown selection changes
+     */
+    'toolbar:dropdown-select': ToolbarDropdownSelectEvent;
   }
 }
 
@@ -103,6 +108,15 @@ export interface ToolbarDropdown {
  * Toolbar item union type
  */
 export type ToolbarItem = ToolbarButton | ToolbarDropdown;
+
+/**
+ * Payload emitted when a dropdown selection changes
+ */
+export interface ToolbarDropdownSelectEvent {
+  dropdownId: string;
+  value?: string | number;
+  label?: string;
+}
 
 /**
  * Toolbar font configuration

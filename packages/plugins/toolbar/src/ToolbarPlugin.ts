@@ -11,6 +11,7 @@ import type {
   ToolbarFontsConfig,
   ToolbarFontFamilyOptionInput,
   DropdownOption,
+  ToolbarDropdownSelectEvent,
 } from './types.js';
 import { isToolbarDropdown } from './types.js';
 import type { TableConfig, TableMenuConfig } from './table/types.js';
@@ -276,11 +277,11 @@ export class ToolbarPlugin implements Plugin {
   private baseItems?: ToolbarItem[];
   private fontOptions?: ToolbarFontsConfig;
   private readonly selectionListener = () => this.syncFontDropdownWithSelection();
-  private readonly dropdownSelectListener = (payload?: any) => {
+  private readonly dropdownSelectListener = (payload?: ToolbarDropdownSelectEvent) => {
     if (!payload || payload.dropdownId !== 'font-family') {
       return;
     }
-    this.currentFontValue = payload.value as string | number | undefined;
+    this.currentFontValue = payload.value;
     this.currentFontLabel = payload.label;
   };
   private currentFontLabel?: string;
@@ -905,7 +906,8 @@ export class ToolbarPlugin implements Plugin {
       return;
     }
 
-    const fontFamily = this.detectSelectionFontFamily();
+    const detected = this.detectSelectionFontFamily();
+    const fontFamily = detected.value;
     if (!fontFamily) {
       this.applyDropdownValue(this.currentFontValue, this.currentFontLabel);
       return;
@@ -917,22 +919,27 @@ export class ToolbarPlugin implements Plugin {
       return;
     }
 
+    if (detected.source === 'fallback' && this.currentFontLabel) {
+      this.applyDropdownValue(this.currentFontValue, this.currentFontLabel);
+      return;
+    }
+
     this.applyDropdownValue(undefined, this.extractPrimaryFont(fontFamily));
   }
 
-  private detectSelectionFontFamily(): string | null {
+  private detectSelectionFontFamily(): { value: string | null; source: 'command' | 'selection' | 'fallback' | null } {
     if (!this.context) {
-      return null;
+      return { value: null, source: null };
     }
 
     const container = this.context.getContainer();
     if (!container) {
-      return null;
+      return { value: null, source: null };
     }
 
     const documentFont = this.queryDocumentFontName(container.ownerDocument);
     if (documentFont) {
-      return documentFont;
+      return { value: documentFont, source: 'command' };
     }
 
     const selection = container.ownerDocument?.getSelection();
@@ -943,13 +950,13 @@ export class ToolbarPlugin implements Plugin {
         if (element && container.contains(element)) {
           const computed = element.ownerDocument?.defaultView?.getComputedStyle(element);
           if (computed?.fontFamily) {
-            return computed.fontFamily;
+            return { value: computed.fontFamily, source: 'selection' };
           }
         }
       }
     }
 
-    return this.getFallbackFontFamily(container);
+    return { value: this.getFallbackFontFamily(container), source: 'fallback' };
   }
 
   private findElementWithinContainer(node: Node, container: HTMLElement): HTMLElement | null {
@@ -976,20 +983,48 @@ export class ToolbarPlugin implements Plugin {
   }
 
   private findMatchingFontOption(fontFamily: string, options: DropdownOption[]): DropdownOption | undefined {
-    if (!fontFamily) {
+    const tokens = this.tokenizeFontFamily(fontFamily);
+    if (tokens.length === 0 || options.length === 0) {
       return undefined;
     }
 
-    const tokens = fontFamily
-      .split(',')
-      .map(token => this.normalizeFontToken(token))
-      .filter(Boolean);
+    const optionLookup = this.createFontOptionLookup(options);
+    for (const token of tokens) {
+      const match = optionLookup.get(token);
+      if (match) {
+        return match;
+      }
+    }
 
-    return options.find((option) => {
-      const value = typeof option.value === 'string' ? option.value : '';
-      const normalizedValue = this.normalizeFontToken(value);
-      return normalizedValue && tokens.includes(normalizedValue);
-    });
+    return undefined;
+  }
+
+  private tokenizeFontFamily(fontFamily: string): string[] {
+    if (!fontFamily) {
+      return [];
+    }
+
+    return fontFamily
+      .split(',')
+      .map((token) => this.normalizeFontToken(token))
+      .filter((token): token is string => Boolean(token));
+  }
+
+  private createFontOptionLookup(options: DropdownOption[]): Map<string, DropdownOption> {
+    const lookup = new Map<string, DropdownOption>();
+
+    for (const option of options) {
+      const normalizedValue = this.normalizeFontToken(
+        typeof option.value === 'string' ? option.value : String(option.value ?? '')
+      );
+      if (!normalizedValue || lookup.has(normalizedValue)) {
+        continue;
+      }
+
+      lookup.set(normalizedValue, option);
+    }
+
+    return lookup;
   }
 
   private extractPrimaryFont(fontFamily: string): string {
