@@ -44,26 +44,49 @@ editor.on('table:inserted', (data) => {
 
 ## Custom Fonts
 
-Notectl kann Fonts jetzt direkt ueber die Editor-Konfiguration und das Toolbar-Plugin nutzen:
+Das Beispiel lädt den Font jetzt deklarativ über `src/fonts.json`:
+
+```json
+{
+  "basePath": "/fonts/fira_code_v6_2",
+  "fonts": [
+    {
+      "family": "Fira Code",
+      "label": "Fira Code",
+      "variants": [
+        {
+          "weight": 400,
+          "sources": [
+            { "src": "woff2/FiraCode-Regular.woff2", "format": "woff2" },
+            { "src": "woff/FiraCode-Regular.woff", "format": "woff" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
 
 ```typescript
-import { createEditor } from '@notectl/core';
-import { createToolbarPlugin } from '@notectl/plugin-toolbar';
+import fontManifest from './fonts.json';
 
 const editor = createEditor(host, {
-  appearance: {
-    fontFamily: `'Fira Code', 'Fira Code VF', monospace`,
-  },
+  fonts: fontManifest,
+  appearance: { fontFamily: `'Fira Code', 'Fira Code VF', monospace` },
 });
 
 const toolbar = createToolbarPlugin({
+  position: 'top',
   fonts: {
-    families: ['Fira Code'],
+    families: fontManifest.fonts.map((font) => ({
+      label: font.label ?? font.family,
+      value: font.family,
+    })),
   },
 });
 ```
 
-Stelle weiterhin sicher, dass dein Font (z. B. per CSS `@font-face`) im Projekt geladen wird - Notectl uebernimmt dann die Verteilung auf Shadow-DOM und Toolbar.
+Alle @font-face-Regeln werden automatisch erstellt, der Font-Dropdown zeigt den aktiven Font, und zusätzliche Formate (TTF/OTF/WOFF/WOFF2) können jederzeit in der JSON-Datei ergänzt werden.
 
 ## HTML (11 lines!)
 

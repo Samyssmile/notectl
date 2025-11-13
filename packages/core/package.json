@@ -1,6 +1,6 @@
 {
   "name": "@notectl/core",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Framework-agnostic rich text editor core for Notectl",
   "type": "module",
   "main": "./dist/notectl-core.umd.cjs",
@@ -20,7 +20,7 @@
     "dev": "vite build --watch",
     "build": "tsc && vite build",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "node --test tests/**/*.test.mjs",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },

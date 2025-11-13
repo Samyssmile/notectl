@@ -1,6 +1,10 @@
 import './style.css';
+import type {FontManifest} from '@notectl/core';
 import {createEditor} from '@notectl/core';
 import {createToolbarPlugin} from '@notectl/plugin-toolbar';
+import fontManifestJson from './fonts.json';
+
+const fontManifest: FontManifest = fontManifestJson;
 
 const CUSTOM_FONT_NAME = 'Fira Code';
 const CUSTOM_FONT_STACK = `'${CUSTOM_FONT_NAME}', 'Fira Code VF', monospace`;
@@ -12,6 +16,7 @@ const host = document.querySelector<HTMLDivElement>('#editor-host')!;
 const editor = createEditor(host, {
     placeholder: 'Start typing...',
     autofocus: true,
+    fonts: fontManifest,
     appearance: {
         fontFamily: CUSTOM_FONT_STACK,
     },
@@ -22,12 +27,10 @@ const toolbar = createToolbarPlugin({
     position: 'top',
     table: {enabled: true},
     fonts: {
-        families: [
-            {
-                label: CUSTOM_FONT_NAME,
-                value: CUSTOM_FONT_NAME,
-            },
-        ],
+        families: fontManifest.fonts.map((font) => ({
+            label: font.label ?? font.family,
+            value: font.family,
+        })),
     },
 });
 

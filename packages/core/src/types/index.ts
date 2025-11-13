@@ -2,6 +2,8 @@
  * Core type definitions for Notectl editor
  */
 
+import type { FontConfigInput } from '../fonts/types.js';
+
 /**
  * Unique identifier for blocks (UUID/ULID)
  */
@@ -278,6 +280,16 @@ export interface EditorAPI {
   destroy(): void;
 }
 
+export type {
+  FontManifest,
+  FontDefinition,
+  FontVariantDefinition,
+  FontSource,
+  FontFormat,
+  FontConfigInput,
+  RegisteredFontSummary,
+} from '../fonts/types.js';
+
 /**
  * Visual customization options for the editor host
  */
@@ -297,6 +309,7 @@ export interface EditorConfig {
   sanitizeHTML?: boolean;
   maxHistoryDepth?: number;
   content?: string | Document;
+  fonts?: FontConfigInput;
   appearance?: EditorAppearance;
   [key: string]: unknown;
 }

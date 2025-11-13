@@ -2,15 +2,17 @@
  * Toolbar Plugin Implementation
  */
 
-import type { Plugin, PluginContext } from '@notectl/core';
+import { fontRegistry, type Plugin, type PluginContext } from '@notectl/core';
 import type {
   ToolbarConfig,
   ToolbarItem,
+  ToolbarDropdown,
   ToolbarTableConfig,
   ToolbarFontsConfig,
   ToolbarFontFamilyOptionInput,
   DropdownOption,
 } from './types.js';
+import { isToolbarDropdown } from './types.js';
 import type { TableConfig, TableMenuConfig } from './table/types.js';
 import { Toolbar } from './components/Toolbar.js';
 import { TablePickerComponent } from './components/TablePicker.js';
@@ -273,6 +275,16 @@ export class ToolbarPlugin implements Plugin {
   private rawItems?: ToolbarItem[];
   private baseItems?: ToolbarItem[];
   private fontOptions?: ToolbarFontsConfig;
+  private readonly selectionListener = () => this.syncFontDropdownWithSelection();
+  private readonly dropdownSelectListener = (payload?: any) => {
+    if (!payload || payload.dropdownId !== 'font-family') {
+      return;
+    }
+    this.currentFontValue = payload.value as string | number | undefined;
+    this.currentFontLabel = payload.label;
+  };
+  private currentFontLabel?: string;
+  private currentFontValue?: string | number;
 
   constructor(config: ToolbarConfig = {}) {
     this.tableOptions = this.resolveTableOptions(config.table);
@@ -285,7 +297,7 @@ export class ToolbarPlugin implements Plugin {
       },
     };
 
-    this.fontOptions = mergedConfig.fonts;
+    this.fontOptions = this.resolveFontOptions(mergedConfig.fonts);
     this.rawItems = mergedConfig.items ? [...mergedConfig.items] : undefined;
     this.baseItems = this.applyFontOptions(this.rawItems, this.fontOptions);
 
@@ -304,14 +316,26 @@ export class ToolbarPlugin implements Plugin {
     this.registerCommands(context);
 
     // Create and render toolbar
+    this.ensureFontOptionsFromRegistry();
     this.renderToolbar(context);
 
     if (this.tableOptions.enabled) {
       this.ensureTableFeature(context);
     }
+
+    context.on('selection-change', this.selectionListener);
+    context.on('change', this.selectionListener);
+    context.on('toolbar:dropdown-select', this.dropdownSelectListener);
+    this.syncFontDropdownWithSelection();
   }
 
   async destroy(): Promise<void> {
+    if (this.context) {
+      this.context.off('selection-change', this.selectionListener);
+      this.context.off('change', this.selectionListener);
+      this.context.off('toolbar:dropdown-select', this.dropdownSelectListener);
+    }
+
     // Remove toolbar from DOM
     if (this.toolbar && this.toolbar.parentElement) {
       this.toolbar.parentElement.removeChild(this.toolbar);
@@ -592,10 +616,10 @@ export class ToolbarPlugin implements Plugin {
     }
 
     if (newConfig.fonts) {
-      this.fontOptions = {
+      this.fontOptions = this.resolveFontOptions({
         ...this.fontOptions,
         ...newConfig.fonts,
-      };
+      });
     }
 
     this.baseItems = this.applyFontOptions(this.rawItems, this.fontOptions);
@@ -620,6 +644,7 @@ export class ToolbarPlugin implements Plugin {
 
     if (this.toolbar) {
       this.toolbar.updateConfig(this.config);
+      this.syncFontDropdownWithSelection();
     }
   }
 
@@ -737,6 +762,47 @@ export class ToolbarPlugin implements Plugin {
     return items.filter(item => item.id !== 'table');
   }
 
+  private resolveFontOptions(options?: ToolbarFontsConfig): ToolbarFontsConfig | undefined {
+    if (options?.families && options.families.length > 0) {
+      return {
+        ...options,
+        families: [...options.families],
+      };
+    }
+
+    const registeredFonts = fontRegistry.getRegisteredFonts();
+    if (registeredFonts.length === 0) {
+      return options;
+    }
+
+    return {
+      extendDefaults: options?.extendDefaults ?? true,
+      families: registeredFonts.map((font) => ({
+        label: font.label,
+        value: font.family,
+      })),
+    };
+  }
+
+  private ensureFontOptionsFromRegistry(): void {
+    if (this.fontOptions?.families && this.fontOptions.families.length > 0) {
+      return;
+    }
+
+    const resolved = this.resolveFontOptions(this.fontOptions);
+    if (!resolved || !resolved.families || resolved.families.length === 0) {
+      return;
+    }
+
+    this.fontOptions = resolved;
+    this.baseItems = this.applyFontOptions(this.rawItems, this.fontOptions);
+    this.config = {
+      ...this.config,
+      items: this.applyTableItemVisibility(this.baseItems, this.tableOptions.enabled),
+      fonts: this.fontOptions,
+    };
+  }
+
   /**
    * Extend or replace the font dropdown options.
    */
@@ -827,6 +893,152 @@ export class ToolbarPlugin implements Plugin {
     }
 
     return merged;
+  }
+
+  private syncFontDropdownWithSelection(): void {
+    if (!this.toolbar) {
+      return;
+    }
+
+    const dropdown = this.getFontDropdownConfig();
+    if (!dropdown) {
+      return;
+    }
+
+    const fontFamily = this.detectSelectionFontFamily();
+    if (!fontFamily) {
+      this.applyDropdownValue(this.currentFontValue, this.currentFontLabel);
+      return;
+    }
+
+    const match = this.findMatchingFontOption(fontFamily, dropdown.options);
+    if (match) {
+      this.applyDropdownValue(match.value, match.label);
+      return;
+    }
+
+    this.applyDropdownValue(undefined, this.extractPrimaryFont(fontFamily));
+  }
+
+  private detectSelectionFontFamily(): string | null {
+    if (!this.context) {
+      return null;
+    }
+
+    const container = this.context.getContainer();
+    if (!container) {
+      return null;
+    }
+
+    const documentFont = this.queryDocumentFontName(container.ownerDocument);
+    if (documentFont) {
+      return documentFont;
+    }
+
+    const selection = container.ownerDocument?.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const anchorNode = selection.anchorNode;
+      if (anchorNode) {
+        const element = this.findElementWithinContainer(anchorNode, container);
+        if (element && container.contains(element)) {
+          const computed = element.ownerDocument?.defaultView?.getComputedStyle(element);
+          if (computed?.fontFamily) {
+            return computed.fontFamily;
+          }
+        }
+      }
+    }
+
+    return this.getFallbackFontFamily(container);
+  }
+
+  private findElementWithinContainer(node: Node, container: HTMLElement): HTMLElement | null {
+    let current: Node | null = node;
+
+    while (current && current !== container) {
+      if (current instanceof HTMLElement) {
+        return current;
+      }
+      current = current.parentNode;
+    }
+
+    return container instanceof HTMLElement ? container : null;
+  }
+
+  private getFontDropdownConfig(): ToolbarDropdown | undefined {
+    if (!this.config.items) {
+      return undefined;
+    }
+
+    return this.config.items.find((item) => item.id === 'font-family' && isToolbarDropdown(item)) as
+      | ToolbarDropdown
+      | undefined;
+  }
+
+  private findMatchingFontOption(fontFamily: string, options: DropdownOption[]): DropdownOption | undefined {
+    if (!fontFamily) {
+      return undefined;
+    }
+
+    const tokens = fontFamily
+      .split(',')
+      .map(token => this.normalizeFontToken(token))
+      .filter(Boolean);
+
+    return options.find((option) => {
+      const value = typeof option.value === 'string' ? option.value : '';
+      const normalizedValue = this.normalizeFontToken(value);
+      return normalizedValue && tokens.includes(normalizedValue);
+    });
+  }
+
+  private extractPrimaryFont(fontFamily: string): string {
+    const first = fontFamily.split(',')[0] || fontFamily;
+    return first.replace(/['\"]/g, '').trim();
+  }
+
+  private normalizeFontToken(token: string): string {
+    return token.replace(/['\"]/g, '').trim().toLowerCase();
+  }
+
+  private getFallbackFontFamily(container: HTMLElement): string | null {
+    const ownerWindow = container.ownerDocument?.defaultView;
+    if (!ownerWindow) {
+      return null;
+    }
+
+    const computed = ownerWindow.getComputedStyle(container);
+    return computed?.fontFamily ?? null;
+  }
+
+  private queryDocumentFontName(doc?: Document | null): string | null {
+    if (!doc || typeof doc.queryCommandValue !== 'function') {
+      return null;
+    }
+
+    try {
+      const value = doc.queryCommandValue('fontName');
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    } catch {
+      // ignore
+    }
+
+    return null;
+  }
+
+  private applyDropdownValue(value?: string | number | null, label?: string | null | undefined): void {
+    if (!this.toolbar) {
+      return;
+    }
+
+    this.toolbar.setDropdownValue('font-family', value ?? undefined, label ?? undefined);
+
+    if (label) {
+      this.currentFontLabel = label;
+      this.currentFontValue = value ?? undefined;
+    }
   }
 
   /**

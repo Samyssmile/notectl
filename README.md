@@ -27,20 +27,46 @@ npm install @notectl/plugin-toolbar
 
 ## Fonts
 
-Configure project-specific fonts without poking the Shadow DOM:
+Schriften lassen sich jetzt vollständig deklarativ laden – keine manuellen `@font-face`-Snippets mehr nötig.
 
-```typescript
-const editor = createEditor(container, {
-  appearance: {
-    fontFamily: `'Brand Sans', system-ui, sans-serif`,
-  },
-});
+1. **Assets bereitstellen**: Lege deine TTF/OTF/WOFF/WOFF2-Dateien z. B. im `public/fonts` Ordner ab.
+2. **JSON-Manifest erzeugen** (Pfad ist relativ zu `basePath`):
 
-const toolbar = createToolbarPlugin({
-  fonts: {
-    families: ['Brand Sans'],
-  },
-});
+```json
+{
+  "basePath": "/fonts/fira_code",
+  "fonts": [
+    {
+      "family": "Fira Code",
+      "label": "Fira Code",
+      "variants": [
+        {
+          "weight": 400,
+          "style": "normal",
+          "sources": [
+            { "src": "woff2/FiraCode-Regular.woff2", "format": "woff2" },
+            { "src": "woff/FiraCode-Regular.woff", "format": "woff" }
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
 
-Load the actual `@font-face` declarations via CSS (import, stylesheet, CSS-in-JS, etc.) and Notectl propagates the configured font to the Web Component host as well as the toolbar dropdown.
+3. **Manifest an den Editor übergeben**:
+
+```typescript
+import fontManifest from './fonts.json';
+import { createEditor } from '@notectl/core';
+import { createToolbarPlugin } from '@notectl/plugin-toolbar';
+
+const editor = createEditor(container, {
+  fonts: fontManifest,
+  appearance: { fontFamily: `'Fira Code', monospace` },
+});
+
+const toolbar = createToolbarPlugin(); // Font-Dropdown wird automatisch erweitert
+```
+
+Notectl erzeugt daraus `@font-face`-Regeln, lädt die Dateien und synchronisiert die Toolbar: Der Font-Dropdown zeigt jederzeit den tatsächlich aktiven Font an.

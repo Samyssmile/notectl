@@ -29,6 +29,7 @@ import {
   type KeyboardShortcut
 } from '../utils/accessibility.js';
 import { EventEmitter } from '../utils/EventEmitter.js';
+import { fontRegistry } from '../fonts/FontRegistry.js';
 
 type ParsedNode =
   | { kind: 'block'; node: BlockNode }
@@ -80,6 +81,7 @@ export class NotectlEditor extends HTMLElement {
       sanitizeHTML: true,
       maxHistoryDepth: 100,
       appearance: undefined,
+      fonts: undefined,
     };
 
     // Initialize state
@@ -1904,6 +1906,10 @@ export class NotectlEditor extends HTMLElement {
       ...config,
       appearance: mergedAppearance,
     };
+
+    if (config.fonts) {
+      fontRegistry.register(config.fonts);
+    }
 
     this.applyAppearance();
 
