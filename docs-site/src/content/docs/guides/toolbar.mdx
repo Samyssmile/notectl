@@ -1,0 +1,151 @@
+---
+title: Toolbar Configuration
+description: Configure the notectl toolbar layout, groups, and appearance.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The notectl toolbar is fully declarative. You configure it by passing a `toolbar` option to `createEditor()` — an array of plugin groups that maps directly to the visual layout.
+
+![Toolbar close-up](../../../assets/screenshots/toolbar-closeup.png)
+
+## Basic Setup
+
+The `toolbar` option is an array of arrays. Each inner array represents a visual group of toolbar buttons, with separators rendered between groups:
+
+```ts
+import {
+  createEditor,
+  TextFormattingPlugin,
+  HeadingPlugin,
+  ListPlugin,
+} from '@notectl/core';
+
+const editor = await createEditor({
+  toolbar: [
+    [new TextFormattingPlugin()],   // Group 1: B, I, U
+    [new HeadingPlugin()],          // Group 2: Heading dropdown
+    [new ListPlugin()],             // Group 3: List buttons
+  ],
+});
+```
+
+The order of groups and plugins within groups determines their visual order in the toolbar.
+
+## How It Works
+
+When you provide a `toolbar` config:
+
+1. A `ToolbarPlugin` is automatically created with the group layout
+2. Each plugin in the toolbar arrays is registered with the editor
+3. Plugins register their toolbar items during `init()`
+4. The ToolbarPlugin renders buttons in the order defined by your groups
+
+<Aside type="caution">
+When using `toolbar`, do **not** also add those plugins to the `plugins` array — they are registered automatically.
+</Aside>
+
+## Without Toolbar
+
+If you don't need a toolbar (headless mode), use the `plugins` array directly:
+
+```ts
+const editor = await createEditor({
+  plugins: [
+    new TextFormattingPlugin(),
+    new HeadingPlugin(),
+    new ListPlugin(),
+  ],
+});
+```
+
+In this mode, no toolbar UI is rendered. You control formatting through the command API:
+
+```ts
+editor.executeCommand('toggleBold');
+editor.executeCommand('setHeading');
+```
+
+## Mixing Toolbar and Extra Plugins
+
+You can use `toolbar` for visible plugins and `plugins` for background plugins that don't need toolbar UI:
+
+```ts
+const editor = await createEditor({
+  toolbar: [
+    [new TextFormattingPlugin()],
+    [new HeadingPlugin()],
+  ],
+  plugins: [
+    myCustomMiddlewarePlugin,
+    myAnalyticsPlugin,
+  ],
+});
+```
+
+## Full Toolbar Example
+
+Here's a complete toolbar setup with all built-in plugins organized into logical groups:
+
+```ts
+import {
+  createEditor,
+  TextFormattingPlugin,
+  HeadingPlugin,
+  BlockquotePlugin,
+  LinkPlugin,
+  ListPlugin,
+  TablePlugin,
+  HorizontalRulePlugin,
+  StrikethroughPlugin,
+  TextColorPlugin,
+  TextAlignmentPlugin,
+  FontPlugin,
+  FontSizePlugin,
+  STARTER_FONTS,
+} from '@notectl/core';
+
+const editor = await createEditor({
+  toolbar: [
+    // Text formatting: Bold, Italic, Underline
+    [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
+    // Block types: Paragraph / Heading selector
+    [new HeadingPlugin()],
+    // Block elements
+    [new BlockquotePlugin(), new LinkPlugin()],
+    // Lists: Ordered and Unordered
+    [new ListPlugin()],
+    // Tables
+    [new TablePlugin()],
+    // Additional inline formatting
+    [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
+    // Typography: Alignment, Font, Size
+    [
+      new TextAlignmentPlugin(),
+      new FontPlugin({ fonts: [...STARTER_FONTS] }),
+      new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 16 }),
+    ],
+  ],
+  placeholder: 'Start typing...',
+  autofocus: true,
+});
+```
+
+## Plugin Priority
+
+Each plugin has a `priority` number that determines its rendering order within a toolbar group. Lower numbers render first. You generally don't need to worry about this — the defaults produce a natural ordering.
+
+| Plugin | Default Priority |
+|--------|-----------------|
+| TextFormattingPlugin | 10 |
+| HeadingPlugin | 15 |
+| FontSizePlugin | 21 |
+| FontPlugin | 22 |
+| BlockquotePlugin | 25 |
+| LinkPlugin | 30 |
+| ListPlugin | 35 |
+| TablePlugin | 40 |
+| HorizontalRulePlugin | 50 |
+| StrikethroughPlugin | 20 |
+| TextColorPlugin | 45 |
+| TextAlignmentPlugin | 55 |

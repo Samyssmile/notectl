@@ -1,336 +1,175 @@
 /**
- * Editor state management
- * Maintains the document state and provides methods for querying and updating
+ * Immutable editor state container.
+ * Every mutation produces a new EditorState instance.
  */
 
-import type { Document, Selection, BlockNode, BlockId, Node } from '../types/index.js';
-import { Schema, createDefaultSchema } from '../schema/Schema.js';
-import { NodeFactory, createNodeFactory } from '../schema/NodeFactory.js';
-import type { Delta } from '../delta/Delta.js';
-import type { Operation } from '../delta/Operations.js';
+import {
+	type BlockNode,
+	type Document,
+	type Mark,
+	createDocument,
+	getBlockLength,
+	isBlockNode,
+	isLeafBlock,
+} from '../model/Document.js';
+import { findNode, findNodePath } from '../model/NodeResolver.js';
+import type { Schema } from '../model/Schema.js';
+import { defaultSchema } from '../model/Schema.js';
+import type { Position, Selection } from '../model/Selection.js';
+import { createCollapsedSelection, createPosition, createSelection } from '../model/Selection.js';
+import { type BlockId, blockId } from '../model/TypeBrands.js';
+import { applyStep } from './StepApplication.js';
+import type { Transaction } from './Transaction.js';
+import { TransactionBuilder } from './Transaction.js';
 
-/**
- * History entry for undo/redo
- */
-interface HistoryEntry {
-  delta: Delta;
-  inverseOps: Operation[];
-  timestamp: number;
+export class EditorState {
+	readonly doc: Document;
+	readonly selection: Selection;
+	readonly storedMarks: readonly Mark[] | null;
+	readonly schema: Schema;
+
+	private _blockMap: Map<BlockId, BlockNode> | null = null;
+	private _blockOrder: readonly BlockId[] | null = null;
+
+	private constructor(
+		doc: Document,
+		selection: Selection,
+		storedMarks: readonly Mark[] | null,
+		schema: Schema,
+	) {
+		this.doc = doc;
+		this.selection = selection;
+		this.storedMarks = storedMarks;
+		this.schema = schema;
+	}
+
+	/** Creates a new EditorState with default document. */
+	static create(options?: {
+		doc?: Document;
+		selection?: Selection;
+		schema?: Schema;
+	}): EditorState {
+		const schema = options?.schema ?? defaultSchema();
+		const doc = options?.doc ?? createDocument();
+		const firstBlock = doc.children[0];
+		const selection =
+			options?.selection ?? createCollapsedSelection(firstBlock ? firstBlock.id : blockId(''), 0);
+
+		return new EditorState(doc, selection, null, schema);
+	}
+
+	/** Creates a TransactionBuilder from this state. */
+	transaction(
+		origin: 'input' | 'paste' | 'command' | 'history' | 'api' = 'api',
+	): TransactionBuilder {
+		return new TransactionBuilder(this.selection, this.storedMarks, origin, this.doc);
+	}
+
+	/** Applies a transaction and returns a new EditorState. */
+	apply(tr: Transaction): EditorState {
+		let doc = this.doc;
+
+		for (const step of tr.steps) {
+			doc = applyStep(doc, step);
+		}
+
+		const selection = validateSelection(doc, tr.selectionAfter);
+		return new EditorState(doc, selection, tr.storedMarksAfter, this.schema);
+	}
+
+	/** Finds a block by its ID anywhere in the tree. Uses a lazy-built Map for O(1) lookup. */
+	getBlock(blockId: BlockId): BlockNode | undefined {
+		this._blockMap ??= buildBlockMap(this.doc);
+		return this._blockMap.get(blockId);
+	}
+
+	/** Returns leaf-block IDs in depth-first order. Cached after first call. */
+	getBlockOrder(): readonly BlockId[] {
+		this._blockOrder ??= buildBlockOrder(this.doc);
+		return this._blockOrder;
+	}
+
+	/** Returns the path (array of block IDs) to a node. */
+	getNodePath(nodeId: BlockId): BlockId[] | undefined {
+		return findNodePath(this.doc, nodeId) as BlockId[] | undefined;
+	}
+
+	/** Returns the parent BlockNode of a node, or undefined for top-level blocks. */
+	getParent(nodeId: BlockId): BlockNode | undefined {
+		const path = findNodePath(this.doc, nodeId);
+		if (!path || path.length <= 1) return undefined;
+		const parentId = path[path.length - 2] as BlockId | undefined;
+		if (!parentId) return undefined;
+		return findNode(this.doc, parentId);
+	}
+
+	/** Serializes the state to JSON. */
+	toJSON(): object {
+		return {
+			doc: this.doc,
+			selection: this.selection,
+		};
+	}
+
+	/** Deserializes a state from JSON. */
+	static fromJSON(json: { doc: Document; selection: Selection }, schema?: Schema): EditorState {
+		return new EditorState(json.doc, json.selection, null, schema ?? defaultSchema());
+	}
 }
 
-/**
- * Editor state class
- */
-export class EditorState {
-  private document: Document;
-  private selection: Selection | null = null;
-  private history: HistoryEntry[] = [];
-  private historyIndex: number = -1;
-  private maxHistoryDepth: number;
-  
-  readonly schema: Schema;
-  readonly nodeFactory: NodeFactory;
+/** Validates a position against the document, clamping or falling back as needed. */
+function validatePosition(doc: Document, pos: Position): Position {
+	const block = findNode(doc, pos.blockId);
+	if (block) {
+		const length = getBlockLength(block);
+		if (pos.offset > length) {
+			return createPosition(pos.blockId, length, pos.path);
+		}
+		return pos;
+	}
 
-  constructor(
-    initialDoc?: Document,
-    schema?: Schema,
-    options?: { maxHistoryDepth?: number }
-  ) {
-    this.schema = schema || createDefaultSchema();
-    this.nodeFactory = createNodeFactory(this.schema);
-    this.maxHistoryDepth = options?.maxHistoryDepth || 100;
+	const firstBlock = doc.children[0];
+	if (!firstBlock) return pos;
+	return createPosition(firstBlock.id, 0);
+}
 
-    this.document = initialDoc || {
-      version: 0,
-      schemaVersion: '1.0.0',
-      children: [this.nodeFactory.paragraph()],
-    };
-  }
+/** Validates a selection against the document, ensuring blockIds exist and offsets are in bounds. */
+function validateSelection(doc: Document, sel: Selection): Selection {
+	const anchor = validatePosition(doc, sel.anchor);
+	const head = validatePosition(doc, sel.head);
+	if (anchor === sel.anchor && head === sel.head) return sel;
+	return createSelection(anchor, head);
+}
 
-  /**
-   * Get current document
-   */
-  getDocument(): Document {
-    return this.document;
-  }
+/** Recursively builds a Map of blockId → BlockNode for all nodes in the tree. */
+function buildBlockMap(doc: Document): Map<BlockId, BlockNode> {
+	const map = new Map<BlockId, BlockNode>();
+	function walk(blocks: readonly import('../model/Document.js').ChildNode[]): void {
+		for (const child of blocks) {
+			if (isBlockNode(child)) {
+				map.set(child.id, child);
+				walk(child.children);
+			}
+		}
+	}
+	walk(doc.children);
+	return map;
+}
 
-  /**
-   * Get document version
-   */
-  getVersion(): number {
-    return this.document.version;
-  }
-
-  /**
-   * Get current selection
-   */
-  getSelection(): Selection | null {
-    return this.selection;
-  }
-
-  /**
-   * Set selection
-   */
-  setSelection(selection: Selection | null): void {
-    this.selection = selection;
-  }
-
-  /**
-   * Apply a delta to the state
-   */
-  applyDelta(delta: Delta): void {
-    // Validate delta version
-    if (delta.baseVersion !== this.document.version) {
-      throw new Error(
-        `Delta version mismatch: expected ${this.document.version}, got ${delta.baseVersion}`
-      );
-    }
-
-    // Store in history (only if not a selection update)
-    const hasContentOps = delta.ops.some((op) => op.op !== 'update_selection');
-    if (hasContentOps) {
-      this.addToHistory(delta);
-    }
-
-    // Apply each operation
-    for (const op of delta.ops) {
-      this.applyOperation(op);
-    }
-
-    // Increment version
-    this.document.version++;
-  }
-
-  /**
-   * Apply a single operation
-   */
-  private applyOperation(op: Operation): void {
-    switch (op.op) {
-      case 'insert_text':
-        this.applyInsertText(op);
-        break;
-      case 'delete_range':
-        this.applyDeleteRange(op);
-        break;
-      case 'apply_mark':
-        this.applyMark(op);
-        break;
-      case 'insert_block_after':
-        this.applyInsertBlockAfter(op);
-        break;
-      case 'insert_block_before':
-        this.applyInsertBlockBefore(op);
-        break;
-      case 'delete_block':
-        this.applyDeleteBlock(op);
-        break;
-      case 'set_attrs':
-        this.applySetAttrs(op);
-        break;
-      case 'update_selection':
-        this.selection = {
-          anchor: op.selection.anchor,
-          head: op.selection.head,
-        };
-        break;
-      // Table operations would be implemented here
-      default:
-        console.warn('Unhandled operation type:', (op as Operation).op);
-    }
-  }
-
-  /**
-   * Apply insert text operation
-   */
-  private applyInsertText(op: Extract<Operation, { op: 'insert_text' }>): void {
-    const block = this.findBlock(op.target.blockId);
-    if (!block || !block.children) return;
-
-    // Find text node at offset and insert text
-    // Simplified implementation - would need proper offset handling
-    const textNode = block.children.find((n): n is Extract<Node, { type: 'text' }> => 'text' in n);
-    if (textNode) {
-      const before = textNode.text.slice(0, op.target.offset);
-      const after = textNode.text.slice(op.target.offset);
-      textNode.text = before + op.text + after;
-      if (op.marks && op.marks.length > 0) {
-        textNode.marks = op.marks;
-      }
-    }
-  }
-
-  /**
-   * Apply delete range operation
-   */
-  private applyDeleteRange(op: Extract<Operation, { op: 'delete_range' }>): void {
-    const block = this.findBlock(op.range.start.blockId);
-    if (!block || !block.children) return;
-
-    const textNode = block.children.find((n): n is Extract<Node, { type: 'text' }> => 'text' in n);
-    if (textNode) {
-      const before = textNode.text.slice(0, op.range.start.offset);
-      const after = textNode.text.slice(op.range.end.offset);
-      textNode.text = before + after;
-    }
-  }
-
-  /**
-   * Apply mark operation
-   */
-  private applyMark(op: Extract<Operation, { op: 'apply_mark' }>): void {
-    const block = this.findBlock(op.range.start.blockId);
-    if (!block || !block.children) return;
-
-    const textNode = block.children.find((n): n is Extract<Node, { type: 'text' }> => 'text' in n);
-    if (textNode) {
-      if (op.add) {
-        textNode.marks = textNode.marks || [];
-        if (!textNode.marks.some((m) => m.type === op.mark.type)) {
-          textNode.marks.push(op.mark);
-        }
-      } else {
-        textNode.marks = textNode.marks?.filter((m) => m.type !== op.mark.type);
-      }
-    }
-  }
-
-  /**
-   * Apply insert block after operation
-   */
-  private applyInsertBlockAfter(op: Extract<Operation, { op: 'insert_block_after' }>): void {
-    const index = this.document.children.findIndex((b) => b.id === op.after);
-    if (index !== -1) {
-      this.document.children.splice(index + 1, 0, op.block);
-    }
-  }
-
-  /**
-   * Apply insert block before operation
-   */
-  private applyInsertBlockBefore(op: Extract<Operation, { op: 'insert_block_before' }>): void {
-    const index = this.document.children.findIndex((b) => b.id === op.before);
-    if (index !== -1) {
-      this.document.children.splice(index, 0, op.block);
-    }
-  }
-
-  /**
-   * Apply delete block operation
-   */
-  private applyDeleteBlock(op: Extract<Operation, { op: 'delete_block' }>): void {
-    const index = this.document.children.findIndex((b) => b.id === op.target.blockId);
-    if (index !== -1) {
-      this.document.children.splice(index, 1);
-    }
-  }
-
-  /**
-   * Apply set attributes operation
-   */
-  private applySetAttrs(op: Extract<Operation, { op: 'set_attrs' }>): void {
-    const block = this.findBlock(op.target.blockId);
-    if (block) {
-      block.attrs = { ...block.attrs, ...op.attrs };
-    }
-  }
-
-  /**
-   * Find a block by ID
-   */
-  findBlock(blockId: BlockId): BlockNode | undefined {
-    const search = (nodes: BlockNode[]): BlockNode | undefined => {
-      for (const node of nodes) {
-        if (node.id === blockId) {
-          return node;
-        }
-        if (node.children) {
-          const blockChildren = node.children.filter((n): n is BlockNode => 'id' in n);
-          const found = search(blockChildren);
-          if (found) return found;
-        }
-      }
-      return undefined;
-    };
-
-    return search(this.document.children);
-  }
-
-  /**
-   * Add delta to history
-   */
-  private addToHistory(delta: Delta): void {
-    // Remove any redo entries
-    if (this.historyIndex < this.history.length - 1) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
-    }
-
-    // Add to history
-    this.history.push({
-      delta,
-      inverseOps: delta.inverseOps || [],
-      timestamp: Date.now(),
-    });
-
-    // Maintain max depth
-    if (this.history.length > this.maxHistoryDepth) {
-      this.history.shift();
-    } else {
-      this.historyIndex++;
-    }
-  }
-
-  /**
-   * Undo last change
-   */
-  canUndo(): boolean {
-    return this.historyIndex >= 0;
-  }
-
-  undo(): Delta | null {
-    if (!this.canUndo()) return null;
-
-    const entry = this.history[this.historyIndex];
-    this.historyIndex--;
-
-    // Create undo delta with inverse operations
-    return {
-      txnId: `undo-${entry.delta.txnId}`,
-      clientId: entry.delta.clientId,
-      timestamp: new Date().toISOString(),
-      baseVersion: this.document.version,
-      ltime: Date.now(),
-      intent: 'edit',
-      ops: entry.inverseOps,
-    };
-  }
-
-  /**
-   * Redo last undone change
-   */
-  canRedo(): boolean {
-    return this.historyIndex < this.history.length - 1;
-  }
-
-  redo(): Delta | null {
-    if (!this.canRedo()) return null;
-
-    this.historyIndex++;
-    const entry = this.history[this.historyIndex];
-
-    return entry.delta;
-  }
-
-  /**
-   * Export state as JSON
-   */
-  toJSON(): Document {
-    return this.document;
-  }
-
-  /**
-   * Create state from JSON
-   */
-  static fromJSON(json: Document, schema?: Schema): EditorState {
-    return new EditorState(json, schema);
-  }
+/** Returns leaf-block IDs in depth-first order. */
+function buildBlockOrder(doc: Document): BlockId[] {
+	const order: BlockId[] = [];
+	function walk(blocks: readonly import('../model/Document.js').ChildNode[]): void {
+		for (const child of blocks) {
+			if (isBlockNode(child)) {
+				if (isLeafBlock(child)) {
+					order.push(child.id);
+				} else {
+					walk(child.children);
+				}
+			}
+		}
+	}
+	walk(doc.children);
+	return order;
 }
