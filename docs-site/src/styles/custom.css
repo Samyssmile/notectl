@@ -1,0 +1,43 @@
+/* notectl docs — custom Starlight theme overrides */
+
+:root {
+	--sl-color-accent-low: #1a237e10;
+	--sl-color-accent: #1565c0;
+	--sl-color-accent-high: #e3f2fd;
+	--sl-font: "Inter", system-ui, -apple-system, sans-serif;
+	--sl-font-mono: "Fira Code", ui-monospace, monospace;
+}
+
+:root[data-theme="dark"] {
+	--sl-color-accent-low: #0d47a130;
+	--sl-color-accent: #42a5f5;
+	--sl-color-accent-high: #0d47a1;
+}
+
+/* Hero section adjustments */
+.hero-screenshot {
+	border-radius: 8px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+	border: 1px solid var(--sl-color-gray-5);
+	max-width: 100%;
+}
+
+/* Code block styling */
+.expressive-code pre {
+	border-radius: 8px !important;
+}
+
+/* Card grid adjustments */
+.sl-link-card {
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sl-link-card:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Badge styling for plugin pages */
+.sl-badge {
+	font-size: 0.75rem;
+}

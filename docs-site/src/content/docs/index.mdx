@@ -1,0 +1,46 @@
+---
+title: notectl
+description: A modern, extensible rich text editor shipped as a Web Component.
+template: splash
+hero:
+  tagline: A modern, extensible rich text editor shipped as a Web Component. Plugin-based architecture, immutable state, and zero framework dependencies.
+  image:
+    file: ../../assets/screenshots/hero-editor.png
+  actions:
+    - text: Get Started
+      link: /getting-started/introduction/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/nickhealme/notectl
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Why notectl?
+
+<CardGrid stagger>
+	<Card title="Web Component" icon="laptop">
+		Ships as a native `<notectl-editor>` custom element. Works with React, Vue, Angular, Svelte, or plain HTML — no framework lock-in.
+	</Card>
+	<Card title="Plugin Architecture" icon="puzzle">
+		Every feature is a plugin. Text formatting, headings, tables, fonts — compose exactly the editor you need. Build your own plugins with a clean API.
+	</Card>
+	<Card title="Immutable State" icon="approve-check">
+		All state changes go through transactions with invertible steps. Built-in undo/redo, predictable updates, and easy state inspection.
+	</Card>
+	<Card title="Declarative Toolbar" icon="setting">
+		Configure your toolbar layout with a simple array syntax. Group plugins visually, control ordering, and get automatic separator rendering.
+	</Card>
+</CardGrid>
+
+## Quick Links
+
+<CardGrid>
+	<LinkCard title="Installation" href="/getting-started/installation/" description="Install @notectl/core and set up your first editor in under 2 minutes." />
+	<LinkCard title="Plugin Reference" href="/plugins/overview/" description="Browse all 13 built-in plugins with their APIs, commands, and keyboard shortcuts." />
+	<LinkCard title="Custom Fonts" href="/guides/custom-fonts/" description="Load custom WOFF2/TTF fonts with automatic @font-face injection." />
+	<LinkCard title="Architecture" href="/architecture/overview/" description="Understand the layered architecture: model, state, view, input, commands, plugins." />
+</CardGrid>

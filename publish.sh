@@ -3,29 +3,47 @@ set -euo pipefail
 
 PACKAGES=(
   "packages/core"
-  "packages/plugins/toolbar"
 )
 
 ROOT_DIR="$(pwd)"
 trap 'cd "$ROOT_DIR"' EXIT
 
+# --- Pre-flight checks ---
+echo "🔍 Running pre-flight checks..."
+
+echo "  → Building all packages..."
+pnpm build
+
+echo "  → Running tests..."
+pnpm test
+
+echo "  → Type checking..."
+pnpm typecheck
+
+echo "  → Linting..."
+pnpm lint
+
+
+echo "✅ All checks passed."
+
+# --- Auth ---
 USE_TOKEN=false
 if [[ -n "${NPM_TOKEN:-}" ]]; then
   USE_TOKEN=true
-  # Token in npmrc setzen (nur lokal, nicht committen!)
   npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}" >/dev/null
-  echo "🔐 Verwende NPM_TOKEN für Publish (kein OTP erforderlich)."
+  echo "🔐 Using NPM_TOKEN for publish (no OTP required)."
 fi
 
 OTP=""
 
 prompt_otp() {
-  echo -n "Gib dein npm OTP ein: "
+  echo -n "Enter your npm OTP: "
   read -r OTP
   OTP="${OTP//[[:space:]]/}"
 }
 
-publish_one () {
+# --- Publish ---
+publish_one() {
   local pkg="$1"
   echo
   echo "==============================="
@@ -33,11 +51,16 @@ publish_one () {
   echo "==============================="
 
   cd "$ROOT_DIR/$pkg"
-  [[ -f package.json ]] || { echo "❌ package.json fehlt – überspringe."; return 1; }
+  [[ -f package.json ]] || { echo "❌ package.json missing — skipping."; return 1; }
+
+  local name version
+  name=$(node -p "require('./package.json').name")
+  version=$(node -p "require('./package.json').version")
+  echo "  → $name@$version"
 
   if $USE_TOKEN; then
-    npm publish --access public && { echo "✅ $pkg veröffentlicht"; return 0; }
-    echo "⚠️ Publish mit Token fehlgeschlagen. Versuche OTP-Fallback…"
+    npm publish --access public && { echo "✅ $name@$version published"; return 0; }
+    echo "⚠️ Token-based publish failed. Falling back to OTP..."
     USE_TOKEN=false
   fi
 
@@ -47,8 +70,8 @@ publish_one () {
     npm publish --access public --otp="$OTP"
     status=$?
     set -e
-    [[ $status -eq 0 ]] && { echo "✅ $pkg veröffentlicht"; break; }
-    echo -n "⚠️ Fehlgeschlagen (Exit $status). Neues OTP (Enter = erneut versuchen): "
+    [[ $status -eq 0 ]] && { echo "✅ $name@$version published"; break; }
+    echo -n "⚠️ Failed (exit $status). New OTP (Enter = retry): "
     read -r NEW_OTP
     NEW_OTP="${NEW_OTP//[[:space:]]/}"
     [[ -n "$NEW_OTP" ]] && OTP="$NEW_OTP"
@@ -56,6 +79,9 @@ publish_one () {
   done
 }
 
-echo "🚀 Starte Publish für ${#PACKAGES[@]} Pakete…"
+echo
+echo "🚀 Publishing ${#PACKAGES[@]} package(s)..."
 for p in "${PACKAGES[@]}"; do publish_one "$p"; done
-echo "🎉 Fertig."
+
+echo
+echo "🎉 Done."

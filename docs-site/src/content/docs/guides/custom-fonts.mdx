@@ -1,0 +1,243 @@
+---
+title: Custom Fonts
+description: Load and use custom fonts in the notectl editor with automatic @font-face injection.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+notectl's `FontPlugin` makes it easy to add custom fonts to your editor. It handles `@font-face` injection automatically — just provide font files and the plugin does the rest.
+
+## Quick Start
+
+<Steps>
+1. **Place your font files** in your project's public directory (e.g., `public/fonts/`)
+
+2. **Define a `FontDefinition`** with the font metadata and file sources:
+
+   ```ts
+   import type { FontDefinition } from '@notectl/core';
+
+   const MY_FONT: FontDefinition = {
+     name: 'Inter',
+     family: "'Inter', sans-serif",
+     category: 'sans-serif',
+     fontFaces: [
+       {
+         src: "url('/fonts/Inter-Variable.woff2') format('woff2')",
+         weight: '100 900',
+         style: 'normal',
+       },
+       {
+         src: "url('/fonts/Inter-Italic-Variable.woff2') format('woff2')",
+         weight: '100 900',
+         style: 'italic',
+       },
+     ],
+   };
+   ```
+
+3. **Pass it to the FontPlugin**:
+
+   ```ts
+   import { createEditor, FontPlugin, STARTER_FONTS } from '@notectl/core';
+
+   const editor = await createEditor({
+     toolbar: [
+       // ... other plugin groups
+       [new FontPlugin({ fonts: [...STARTER_FONTS, MY_FONT] })],
+     ],
+   });
+   ```
+</Steps>
+
+The plugin automatically injects `@font-face` CSS rules into the document head. No manual CSS needed.
+
+## FontDefinition API
+
+```ts
+interface FontDefinition {
+  /** Display name shown in the toolbar dropdown. */
+  name: string;
+  /** CSS font-family value, e.g. "'Fira Code', monospace". */
+  family: string;
+  /** Font category for grouping in the UI. */
+  category?: 'serif' | 'sans-serif' | 'monospace' | 'display' | 'handwriting';
+  /** @font-face descriptors. When provided, CSS rules are auto-injected. */
+  fontFaces?: FontFaceDescriptor[];
+}
+
+interface FontFaceDescriptor {
+  /** CSS src value, e.g. "url('/fonts/My.woff2') format('woff2')". */
+  src: string;
+  /** Font weight, e.g. '400' or '300 700' for variable fonts. */
+  weight?: string;
+  /** Font style, e.g. 'normal' or 'italic'. */
+  style?: string;
+  /** Font display strategy. Defaults to 'swap'. */
+  display?: string;
+}
+```
+
+## Using Starter Fonts
+
+notectl ships with two embedded fonts that work without any font files:
+
+```ts
+import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core';
+
+// Use both starter fonts
+new FontPlugin({ fonts: [...STARTER_FONTS] })
+
+// Or pick individually
+new FontPlugin({ fonts: [FIRA_SANS, FIRA_CODE] })
+```
+
+| Font | Family | Category | Description |
+|------|--------|----------|-------------|
+| Fira Sans | `'Fira Sans', sans-serif` | sans-serif | Clean sans-serif for body text |
+| Fira Code | `'Fira Code', monospace` | monospace | Monospace with programming ligatures |
+
+<Aside type="tip">
+Starter fonts use embedded base64 WOFF2 data. They add ~300KB to your bundle. For production, consider serving font files from your CDN and defining custom `FontDefinition` objects instead.
+</Aside>
+
+## System Fonts
+
+System fonts don't need `fontFaces` — just specify the `family`:
+
+```ts
+const SYSTEM_FONTS: FontDefinition[] = [
+  { name: 'Arial', family: 'Arial, sans-serif', category: 'sans-serif' },
+  { name: 'Georgia', family: 'Georgia, serif', category: 'serif' },
+  { name: 'Courier New', family: "'Courier New', monospace", category: 'monospace' },
+];
+
+new FontPlugin({ fonts: SYSTEM_FONTS });
+```
+
+## Variable Fonts
+
+Variable fonts use weight ranges in their descriptor:
+
+```ts
+const INTER: FontDefinition = {
+  name: 'Inter',
+  family: "'Inter', sans-serif",
+  category: 'sans-serif',
+  fontFaces: [
+    {
+      src: "url('/fonts/Inter-Variable.woff2') format('woff2')",
+      weight: '100 900',   // Variable weight range
+      style: 'normal',
+    },
+    {
+      src: "url('/fonts/Inter-Italic-Variable.woff2') format('woff2')",
+      weight: '100 900',
+      style: 'italic',
+    },
+  ],
+};
+```
+
+## Multiple Font Formats
+
+For maximum browser compatibility, provide multiple formats:
+
+```ts
+const MY_FONT: FontDefinition = {
+  name: 'My Font',
+  family: "'My Font', sans-serif",
+  fontFaces: [
+    {
+      src: [
+        "url('/fonts/MyFont.woff2') format('woff2')",
+        "url('/fonts/MyFont.woff') format('woff')",
+        "url('/fonts/MyFont.ttf') format('truetype')",
+      ].join(', '),
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      src: "url('/fonts/MyFont-Bold.woff2') format('woff2')",
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+};
+```
+
+## FontPlugin Configuration
+
+```ts
+interface FontConfig {
+  /** Fonts available in the editor. */
+  fonts: FontDefinition[];
+  /** Name of the default font. Selecting it removes the font mark. */
+  defaultFont?: string;
+  /** Render a separator after the font toolbar item. */
+  separatorAfter?: boolean;
+}
+```
+
+### Default Font
+
+The `defaultFont` option specifies which font is the editor's base font. When a user selects this font, the font mark is *removed* rather than applied (since the text already renders in that font):
+
+```ts
+new FontPlugin({
+  fonts: [INTER, ...STARTER_FONTS],
+  defaultFont: 'Inter', // Must match a FontDefinition.name
+});
+```
+
+If not specified, the first font in the list is treated as default.
+
+## Combining with FontSizePlugin
+
+Font and font size work independently but pair well in the toolbar:
+
+```ts
+const editor = await createEditor({
+  toolbar: [
+    [new TextFormattingPlugin()],
+    [
+      new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
+      new FontSizePlugin({ sizes: [12, 14, 16, 20, 24, 32, 48], defaultSize: 16 }),
+    ],
+  ],
+});
+```
+
+## Generated CSS
+
+When a font has `fontFaces`, the plugin injects a `<style>` tag into the document head:
+
+```css
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+```
+
+The style element is automatically cleaned up when the editor is destroyed.
+
+## Google Fonts
+
+You can use Google Fonts by loading the stylesheet separately and defining a system-style font:
+
+```html
+<!-- In your HTML head -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+```
+
+```ts
+const ROBOTO: FontDefinition = {
+  name: 'Roboto',
+  family: "'Roboto', sans-serif",
+  category: 'sans-serif',
+  // No fontFaces needed — Google Fonts handles @font-face
+};
+```

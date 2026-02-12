@@ -1,19 +1,17 @@
 {
-  "name": "@notectl/example-vanillajs",
-  "version": "0.0.1",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@notectl/core": "file:../../packages/core",
-    "@notectl/plugin-toolbar": "file:../../packages/plugins/toolbar"
-  },
-  "devDependencies": {
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7"
-  }
+	"name": "examples-vanillajs",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"@notectl/core": "workspace:*"
+	},
+	"devDependencies": {
+		"vite": "^6.0.0"
+	}
 }

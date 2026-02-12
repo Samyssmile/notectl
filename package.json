@@ -1,45 +1,21 @@
 {
-  "name": "@notectl/monorepo",
-  "version": "0.0.7",
-  "private": true,
-  "type": "module",
-  "workspaces": [
-    "packages/*",
-    "packages/plugins/*",
-    "examples/vanillajs"
-  ],
-  "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "type-check": "turbo run type-check",
-    "clean": "turbo run clean && rm -rf node_modules .turbo",
-    "docs": "typedoc --entryPointStrategy packages \"packages/*\" --out docs/api"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.7",
-    "@typescript-eslint/eslint-plugin": "^8.21.0",
-    "@typescript-eslint/parser": "^8.21.0",
-    "eslint": "^9.18.0",
-    "prettier": "^3.4.2",
-    "turbo": "^2.3.3",
-    "typedoc": "^0.27.6",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7",
-    "vite-plugin-dts": "^4.4.1",
-    "vitest": "^2.1.8"
-  },
-  "packageManager": "npm@11.5.2",
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "dependencies": {
-    "@notectl/core": "^0.0.2",
-    "@notectl/plugin-toolbar": "^0.0.2",
-    "jsdom": "^27.2.0"
-  }
+	"name": "notectl-monorepo",
+	"private": true,
+	"scripts": {
+		"build": "turbo run build",
+		"test": "turbo run test",
+		"test:e2e": "playwright test",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"typecheck": "turbo run typecheck",
+		"dev": "turbo run dev"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@playwright/test": "^1.58.2",
+		"turbo": "^2.3.0",
+		"typescript": "^5.7.0"
+	},
+	"packageManager": "pnpm@9.15.0"
 }
