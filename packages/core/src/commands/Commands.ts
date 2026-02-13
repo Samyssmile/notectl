@@ -14,6 +14,7 @@ import {
 	getContentAtOffset,
 	getInlineChildren,
 	hasMark,
+	isBlockNode,
 	isTextNode,
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
@@ -76,7 +77,6 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
 	if (index < 0) return null;
 
-	const blockOrder = state.getBlockOrder();
 	const builder = state.transaction('input');
 
 	// If this is the only block in the document, insert empty paragraph first
@@ -98,23 +98,51 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 
 	builder.removeNode(parentPath, index);
 
-	// Find where to place cursor: prefer previous block, else next
-	const nodeIdx = blockOrder.indexOf(sel.nodeId);
-	if (nodeIdx > 0) {
-		const prevId = blockOrder[nodeIdx - 1];
-		if (prevId) {
-			const prevBlock = state.getBlock(prevId);
-			const prevLen = prevBlock ? getBlockLength(prevBlock) : 0;
-			builder.setSelection(createCollapsedSelection(prevId, prevLen));
+	// Find where to place cursor: prefer previous sibling leaf, else next sibling leaf.
+	const prevSibling = siblings[index - 1];
+	if (prevSibling && isBlockNode(prevSibling)) {
+		const prevLeafId = findLastLeafBlockId(prevSibling);
+		if (prevLeafId) {
+			const prevLeaf = state.getBlock(prevLeafId);
+			const prevLen = prevLeaf ? getBlockLength(prevLeaf) : 0;
+			builder.setSelection(createCollapsedSelection(prevLeafId, prevLen));
 		}
-	} else if (nodeIdx < blockOrder.length - 1) {
-		const nextId = blockOrder[nodeIdx + 1];
-		if (nextId) {
-			builder.setSelection(createCollapsedSelection(nextId, 0));
+	} else {
+		const nextSibling = siblings[index + 1];
+		if (nextSibling && isBlockNode(nextSibling)) {
+			const nextLeafId = findFirstLeafBlockId(nextSibling);
+			if (nextLeafId) {
+				builder.setSelection(createCollapsedSelection(nextLeafId, 0));
+			}
 		}
 	}
 
 	return builder.build();
+}
+
+function findFirstLeafBlockId(node: BlockNode): BlockId {
+	let current: BlockNode = node;
+	while (true) {
+		const firstBlockChild = current.children.find((child): child is BlockNode => isBlockNode(child));
+		if (!firstBlockChild) return current.id;
+		current = firstBlockChild;
+	}
+}
+
+function findLastLeafBlockId(node: BlockNode): BlockId {
+	let current: BlockNode = node;
+	while (true) {
+		let lastBlockChild: BlockNode | undefined;
+		for (let i = current.children.length - 1; i >= 0; i--) {
+			const child = current.children[i];
+			if (child && isBlockNode(child)) {
+				lastBlockChild = child;
+				break;
+			}
+		}
+		if (!lastBlockChild) return current.id;
+		current = lastBlockChild;
+	}
 }
 
 // --- Mark Commands ---
@@ -524,6 +552,14 @@ export function isInsideIsolating(state: EditorState, blockId: BlockId): boolean
 	return false;
 }
 
+function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean {
+	const getNodeSpec = state.schema.getNodeSpec;
+	if (!getNodeSpec) return false;
+	const block = state.getBlock(blockId);
+	if (!block) return false;
+	return getNodeSpec(block.type)?.isolating === true;
+}
+
 /**
  * Merges the current block with the previous block, respecting
  * isolating boundaries and void blocks.
@@ -538,6 +574,11 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
 
 	const prevBlockId = blockOrder[blockIdx - 1];
 	if (!prevBlockId) return null;
+
+	// Never merge isolating blocks directly (e.g. table cells).
+	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, prevBlockId)) {
+		return null;
+	}
 
 	// Prevent merge across isolating boundaries
 	if (!sharesParent(state, sel.anchor.blockId, prevBlockId)) {
@@ -578,6 +619,11 @@ function mergeBlockForward(state: EditorState): Transaction | null {
 
 	const nextBlockId = blockOrder[blockIdx + 1];
 	if (!nextBlockId) return null;
+
+	// Never merge isolating blocks directly (e.g. table cells).
+	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, nextBlockId)) {
+		return null;
+	}
 
 	// Prevent merge across isolating boundaries
 	if (!sharesParent(state, sel.anchor.blockId, nextBlockId)) {
