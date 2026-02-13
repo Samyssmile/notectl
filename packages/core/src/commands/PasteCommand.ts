@@ -7,7 +7,12 @@ import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import { segmentsLength, segmentsToText } from '../model/ContentSlice.js';
 import { createBlockNode, createTextNode, generateBlockId } from '../model/Document.js';
 import type { TextSegment } from '../model/Document.js';
-import { createCollapsedSelection, isCollapsed, selectionRange } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isNodeSelection,
+	selectionRange,
+} from '../model/Selection.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
@@ -39,6 +44,9 @@ export function pasteSlice(state: EditorState, slice: ContentSlice): Transaction
 /** Case 1: single paragraph — insert segments into current block. */
 function pasteInline(state: EditorState, segments: readonly TextSegment[]): Transaction {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) {
+		return state.transaction('paste').setSelection(sel).build();
+	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
 	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
@@ -61,6 +69,9 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 /** Case 2: single non-paragraph block — change block type and insert segments. */
 function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) {
+		return state.transaction('paste').setSelection(sel).build();
+	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
 	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
@@ -84,6 +95,9 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 /** Case 3: multiple blocks — split-insert-merge strategy. */
 function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) {
+		return state.transaction('paste').setSelection(sel).build();
+	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
 	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());

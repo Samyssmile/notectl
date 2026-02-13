@@ -6,6 +6,7 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
+import { isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 
@@ -192,6 +193,7 @@ export class TextAlignmentPlugin implements Plugin {
 	private setAlignment(context: PluginContext, alignment: TextAlignment): boolean {
 		const state = context.getState();
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 
@@ -208,6 +210,7 @@ export class TextAlignmentPlugin implements Plugin {
 	}
 
 	private isNonDefaultAlignment(state: EditorState): boolean {
+		if (isNodeSelection(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 		const align = block.attrs?.textAlign;
@@ -215,6 +218,7 @@ export class TextAlignmentPlugin implements Plugin {
 	}
 
 	private isAlignable(state: EditorState): boolean {
+		if (isNodeSelection(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		return block != null && this.alignableTypes.has(block.type);
 	}

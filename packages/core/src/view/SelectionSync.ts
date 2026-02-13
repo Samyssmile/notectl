@@ -2,8 +2,8 @@
  * Selection synchronization between editor state and DOM.
  */
 
-import type { Position, Selection } from '../model/Selection.js';
-import { createPosition, createSelection } from '../model/Selection.js';
+import type { EditorSelection, Position, Selection } from '../model/Selection.js';
+import { createPosition, createSelection, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 
@@ -22,9 +22,24 @@ function getSelection(container: HTMLElement): globalThis.Selection | null {
 }
 
 /** Syncs the editor state selection to the DOM. */
-export function syncSelectionToDOM(container: HTMLElement, selection: Selection): void {
+export function syncSelectionToDOM(container: HTMLElement, selection: EditorSelection): void {
 	const domSel = getSelection(container);
 	if (!domSel) return;
+
+	// NodeSelection: select the entire block element
+	if (isNodeSelection(selection)) {
+		const blockEl = container.querySelector(`[data-block-id="${selection.nodeId}"]`);
+		if (!blockEl) return;
+		const parent = blockEl.parentNode;
+		if (!parent) return;
+		const childIdx = childIndexOf(parent, blockEl);
+		try {
+			domSel.setBaseAndExtent(parent, childIdx, parent, childIdx + 1);
+		} catch {
+			// Selection may fail if DOM is not yet rendered
+		}
+		return;
+	}
 
 	const anchorPos = statePositionToDOM(container, selection.anchor);
 	const headPos = statePositionToDOM(container, selection.head);

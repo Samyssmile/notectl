@@ -5,7 +5,7 @@
 
 import type { Keymap } from '../../input/Keymap.js';
 import { getBlockLength } from '../../model/Document.js';
-import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import { addRowBelow } from './TableCommands.js';
@@ -32,6 +32,7 @@ export function registerTableKeymaps(context: PluginContext): void {
 /** Tab: move to next cell. At end of table, add a new row. */
 function handleTab(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -53,6 +54,7 @@ function handleTab(context: PluginContext): boolean {
 /** Shift-Tab: move to previous cell. At start of table, return false. */
 function handleShiftTab(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -78,6 +80,7 @@ function handleShiftTab(context: PluginContext): boolean {
 /** Enter: move to same column in next row (spreadsheet behavior). */
 function handleEnter(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -94,6 +97,7 @@ function handleEnter(context: PluginContext): boolean {
 function handleBackspace(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 	if (sel.anchor.offset !== 0) return false;
 
@@ -104,6 +108,7 @@ function handleBackspace(context: PluginContext): boolean {
 function handleDelete(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 
 	const block = state.getBlock(sel.anchor.blockId);
@@ -118,6 +123,7 @@ function handleDelete(context: PluginContext): boolean {
 /** ArrowDown: move to same column in next row. */
 function handleArrowDown(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -132,6 +138,7 @@ function handleArrowDown(context: PluginContext): boolean {
 /** ArrowUp: move to same column in previous row. */
 function handleArrowUp(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -147,6 +154,7 @@ function handleArrowUp(context: PluginContext): boolean {
 function handleArrowRight(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 
 	const block = state.getBlock(sel.anchor.blockId);
@@ -175,6 +183,7 @@ function handleArrowRight(context: PluginContext): boolean {
 function handleArrowLeft(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 	if (sel.anchor.offset !== 0) return false;
 
@@ -202,6 +211,7 @@ function handleArrowLeft(context: PluginContext): boolean {
 /** Escape: move cursor to the paragraph after the table. */
 function handleEscape(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 

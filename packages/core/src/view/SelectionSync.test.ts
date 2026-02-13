@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createCollapsedSelection, createSelection } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	createSelection,
+} from '../model/Selection.js';
 import { readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
 
 describe('SelectionSync InlineNode support', () => {
@@ -312,6 +316,62 @@ describe('SelectionSync InlineNode support', () => {
 			// Note: happy-dom's setBaseAndExtent may not properly maintain
 			// non-collapsed selections for readback, so verify sync direction
 			// (state→DOM) directly rather than roundtrip for range selections.
+
+			document.body.removeChild(container);
+		});
+	});
+
+	describe('syncSelectionToDOM with NodeSelection', () => {
+		it('sets DOM selection around the block element', () => {
+			const container = document.createElement('div');
+			const block1 = makeBlockEl('b1');
+			block1.appendChild(document.createTextNode('first'));
+			const block2 = makeBlockEl('b2');
+			block2.setAttribute('data-void', 'true');
+			block2.appendChild(document.createTextNode('void'));
+			const block3 = makeBlockEl('b3');
+			block3.appendChild(document.createTextNode('third'));
+			container.appendChild(block1);
+			container.appendChild(block2);
+			container.appendChild(block3);
+			document.body.appendChild(container);
+
+			syncSelectionToDOM(container, createNodeSelection('b2' as never, ['b2' as never]));
+
+			const sel = window.getSelection();
+			expect(sel?.anchorNode).toBe(container);
+			expect(sel?.anchorOffset).toBe(1);
+
+			document.body.removeChild(container);
+		});
+
+		it('returns early if block not found', () => {
+			const container = document.createElement('div');
+			const block1 = makeBlockEl('b1');
+			block1.appendChild(document.createTextNode('hello'));
+			container.appendChild(block1);
+			document.body.appendChild(container);
+
+			// Record current selection state
+			const selBefore = window.getSelection();
+			const firstChild = block1.firstChild;
+			if (!firstChild) return;
+			selBefore?.collapse(firstChild, 2);
+			const anchorBefore = selBefore?.anchorNode;
+			const offsetBefore = selBefore?.anchorOffset;
+
+			// Call with a non-existent blockId — should not throw
+			expect(() => {
+				syncSelectionToDOM(
+					container,
+					createNodeSelection('nonexistent' as never, ['nonexistent' as never]),
+				);
+			}).not.toThrow();
+
+			// Selection should be unchanged
+			const selAfter = window.getSelection();
+			expect(selAfter?.anchorNode).toBe(anchorBefore);
+			expect(selAfter?.anchorOffset).toBe(offsetBefore);
 
 			document.body.removeChild(container);
 		});

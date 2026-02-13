@@ -6,6 +6,8 @@ import {
 	type BlockNode,
 	type Mark,
 	type MarkType,
+	createBlockNode,
+	createTextNode,
 	generateBlockId,
 	getBlockLength,
 	getBlockMarksAtOffset,
@@ -14,11 +16,15 @@ import {
 	hasMark,
 	isTextNode,
 } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
 import { isMarkAllowed } from '../model/Schema.js';
+import type { NodeSelection } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
+	createNodeSelection,
 	createSelection,
 	isCollapsed,
+	isNodeSelection,
 	selectionRange,
 } from '../model/Selection.js';
 import { type BlockId, markType as mkType } from '../model/TypeBrands.js';
@@ -36,6 +42,81 @@ export interface FeatureConfig {
 
 const defaultFeatures: FeatureConfig = { bold: true, italic: true, underline: true };
 
+// --- Void Block Helpers ---
+
+/** Returns true if the block with the given ID is a void block (e.g. image, HR). */
+export function isVoidBlock(state: EditorState, bid: BlockId): boolean {
+	const block = state.getBlock(bid);
+	if (!block) return false;
+	const getNodeSpec = state.schema.getNodeSpec;
+	if (!getNodeSpec) return false;
+	return getNodeSpec(block.type)?.isVoid === true;
+}
+
+/**
+ * Deletes the void block targeted by a NodeSelection and places cursor
+ * on the adjacent block. If it's the only block, replaces with empty paragraph.
+ */
+export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Transaction | null {
+	const path = findNodePath(state.doc, sel.nodeId);
+	if (!path) return null;
+
+	// Determine parent path (all elements except the last)
+	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	// Determine index among siblings
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
+	if (index < 0) return null;
+
+	const blockOrder = state.getBlockOrder();
+	const builder = state.transaction('input');
+
+	// If this is the only block in the document, insert empty paragraph first
+	if (siblings.length === 1 && parentPath.length === 0) {
+		const newId = generateBlockId();
+		builder.insertNode(
+			parentPath,
+			0,
+			createBlockNode(
+				'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
+				[createTextNode('')],
+				newId,
+			),
+		);
+		builder.removeNode(parentPath, 1);
+		builder.setSelection(createCollapsedSelection(newId, 0));
+		return builder.build();
+	}
+
+	builder.removeNode(parentPath, index);
+
+	// Find where to place cursor: prefer previous block, else next
+	const nodeIdx = blockOrder.indexOf(sel.nodeId);
+	if (nodeIdx > 0) {
+		const prevId = blockOrder[nodeIdx - 1];
+		if (prevId) {
+			const prevBlock = state.getBlock(prevId);
+			const prevLen = prevBlock ? getBlockLength(prevBlock) : 0;
+			builder.setSelection(createCollapsedSelection(prevId, prevLen));
+		}
+	} else if (nodeIdx < blockOrder.length - 1) {
+		const nextId = blockOrder[nodeIdx + 1];
+		if (nextId) {
+			builder.setSelection(createCollapsedSelection(nextId, 0));
+		}
+	}
+
+	return builder.build();
+}
+
 // --- Mark Commands ---
 
 /**
@@ -49,6 +130,7 @@ export function toggleMark(
 ): Transaction | null {
 	if (isFeatureGated(markType, features)) return null;
 	if (!isMarkAllowed(state.schema, markType)) return null;
+	if (isNodeSelection(state.selection)) return null;
 
 	const mark: Mark = { type: markType };
 	const sel = state.selection;
@@ -107,6 +189,7 @@ export function toggleMark(
 /** Checks if a mark is active across the entire selection range. */
 function isMarkActiveInRange(state: EditorState, markType: MarkType): boolean {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(sel, blockOrder);
 
@@ -172,6 +255,12 @@ export function insertTextCommand(
 	origin: 'input' | 'paste' = 'input',
 ): Transaction {
 	const sel = state.selection;
+
+	// NodeSelection: insert paragraph after void block with the text
+	if (isNodeSelection(sel)) {
+		return insertTextAfterNodeSelection(state, sel, text, origin);
+	}
+
 	const builder = state.transaction(origin);
 	const marks = resolveActiveMarks(state);
 
@@ -191,6 +280,9 @@ export function insertTextCommand(
 
 /** Deletes the current selection. */
 export function deleteSelectionCommand(state: EditorState): Transaction | null {
+	if (isNodeSelection(state.selection)) {
+		return deleteNodeSelection(state, state.selection);
+	}
 	if (isCollapsed(state.selection)) return null;
 
 	const builder = state.transaction('input');
@@ -205,6 +297,10 @@ export function deleteSelectionCommand(state: EditorState): Transaction | null {
 /** Handles backspace key. */
 export function deleteBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -228,6 +324,10 @@ export function deleteBackward(state: EditorState): Transaction | null {
 /** Handles delete key. */
 export function deleteForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -254,6 +354,10 @@ export function deleteForward(state: EditorState): Transaction | null {
 export function deleteWordBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
 
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
+
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
 	}
@@ -277,6 +381,10 @@ export function deleteWordBackward(state: EditorState): Transaction | null {
 /** Handles Ctrl+Delete: delete word forward. */
 export function deleteWordForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -303,6 +411,10 @@ export function deleteWordForward(state: EditorState): Transaction | null {
 export function deleteSoftLineBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
 
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
+
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
 	}
@@ -324,6 +436,10 @@ export function deleteSoftLineBackward(state: EditorState): Transaction | null {
 /** Handles Cmd+Delete: delete to end of line/block. */
 export function deleteSoftLineForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+
+	if (isNodeSelection(sel)) {
+		return deleteNodeSelection(state, sel);
+	}
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -347,6 +463,12 @@ export function deleteSoftLineForward(state: EditorState): Transaction | null {
 /** Splits the current block at the cursor position (Enter key). */
 export function splitBlockCommand(state: EditorState): Transaction | null {
 	const sel = state.selection;
+
+	// NodeSelection: insert empty paragraph after the void block
+	if (isNodeSelection(sel)) {
+		return insertParagraphAfterNodeSelection(state, sel);
+	}
+
 	const builder = state.transaction('input');
 
 	if (!isCollapsed(sel)) {
@@ -402,9 +524,13 @@ export function isInsideIsolating(state: EditorState, blockId: BlockId): boolean
 	return false;
 }
 
-/** Merges the current block with the previous block, respecting isolating boundaries. */
+/**
+ * Merges the current block with the previous block, respecting
+ * isolating boundaries and void blocks.
+ */
 export function mergeBlockBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return null;
 	const blockOrder = state.getBlockOrder();
 	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
 
@@ -418,6 +544,15 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
 		if (isInsideIsolating(state, sel.anchor.blockId)) return null;
 	}
 
+	// If previous block is void, select it instead of merging
+	if (isVoidBlock(state, prevBlockId)) {
+		const path = findNodePath(state.doc, prevBlockId) ?? [];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(prevBlockId, path as BlockId[]))
+			.build();
+	}
+
 	const prevBlock = state.getBlock(prevBlockId);
 	if (!prevBlock) return null;
 	const prevLen = getBlockLength(prevBlock);
@@ -429,9 +564,13 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
 		.build();
 }
 
-/** Merges the next block into the current block, respecting isolating boundaries. */
+/**
+ * Merges the next block into the current block, respecting
+ * isolating boundaries and void blocks.
+ */
 function mergeBlockForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return null;
 	const blockOrder = state.getBlockOrder();
 	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
 
@@ -443,6 +582,15 @@ function mergeBlockForward(state: EditorState): Transaction | null {
 	// Prevent merge across isolating boundaries
 	if (!sharesParent(state, sel.anchor.blockId, nextBlockId)) {
 		if (isInsideIsolating(state, sel.anchor.blockId)) return null;
+	}
+
+	// If next block is void, select it instead of merging
+	if (isVoidBlock(state, nextBlockId)) {
+		const path = findNodePath(state.doc, nextBlockId) ?? [];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(nextBlockId, path as BlockId[]))
+			.build();
 	}
 
 	return state
@@ -477,6 +625,7 @@ export function selectAll(state: EditorState): Transaction {
 /** Checks if a mark is active at the current selection. */
 export function isMarkActive(state: EditorState, markType: MarkType): boolean {
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 
 	if (isCollapsed(sel)) {
 		if (state.storedMarks) {
@@ -495,6 +644,7 @@ export function isMarkActive(state: EditorState, markType: MarkType): boolean {
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
+	if (isNodeSelection(state.selection)) return [];
 
 	const block = state.getBlock(state.selection.anchor.blockId);
 	if (!block) return [];
@@ -503,6 +653,7 @@ function resolveActiveMarks(state: EditorState): readonly Mark[] {
 }
 
 export function addDeleteSelectionSteps(state: EditorState, builder: TransactionBuilder): void {
+	if (isNodeSelection(state.selection)) return;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(state.selection, blockOrder);
 	const fromIdx = blockOrder.indexOf(range.from.blockId);
@@ -606,4 +757,166 @@ function isFeatureGated(type: MarkType, features: FeatureConfig): boolean {
 	if (key === 'italic') return !features.italic;
 	if (key === 'underline') return !features.underline;
 	return false;
+}
+
+/** Inserts a new paragraph after a NodeSelection-targeted void block. */
+function insertParagraphAfterNodeSelection(
+	state: EditorState,
+	sel: NodeSelection,
+): Transaction | null {
+	const path = findNodePath(state.doc, sel.nodeId);
+	if (!path) return null;
+
+	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
+	if (index < 0) return null;
+
+	const newId = generateBlockId();
+	const builder = state.transaction('input');
+	builder.insertNode(
+		parentPath,
+		index + 1,
+		createBlockNode(
+			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
+			[createTextNode('')],
+			newId,
+		),
+	);
+	builder.setSelection(createCollapsedSelection(newId, 0));
+	return builder.build();
+}
+
+/** Inserts text in a new paragraph after a NodeSelection-targeted void block. */
+function insertTextAfterNodeSelection(
+	state: EditorState,
+	sel: NodeSelection,
+	text: string,
+	origin: 'input' | 'paste',
+): Transaction {
+	const path = findNodePath(state.doc, sel.nodeId);
+	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
+
+	const newId = generateBlockId();
+	const builder = state.transaction(origin);
+
+	const insertIdx = index >= 0 ? index + 1 : siblings.length;
+	builder.insertNode(
+		parentPath,
+		insertIdx,
+		createBlockNode(
+			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
+			[createTextNode('')],
+			newId,
+		),
+	);
+	builder.insertText(newId, 0, text, []);
+	builder.setSelection(createCollapsedSelection(newId, text.length));
+	return builder.build();
+}
+
+/**
+ * Navigates arrow keys into/out of void blocks.
+ * Returns a transaction if navigation should create a NodeSelection, or null.
+ */
+export function navigateArrowIntoVoid(
+	state: EditorState,
+	direction: 'left' | 'right' | 'up' | 'down',
+): Transaction | null {
+	const sel = state.selection;
+	const blockOrder = state.getBlockOrder();
+
+	// If currently on a NodeSelection, navigate away from it
+	if (isNodeSelection(sel)) {
+		const nodeIdx = blockOrder.indexOf(sel.nodeId);
+		if (direction === 'left' || direction === 'up') {
+			// Move to end of previous block
+			if (nodeIdx > 0) {
+				const prevId = blockOrder[nodeIdx - 1];
+				if (!prevId) return null;
+				if (isVoidBlock(state, prevId)) {
+					const path = findNodePath(state.doc, prevId) ?? [];
+					return state
+						.transaction('input')
+						.setSelection(createNodeSelection(prevId, path as BlockId[]))
+						.build();
+				}
+				const prevBlock = state.getBlock(prevId);
+				const prevLen = prevBlock ? getBlockLength(prevBlock) : 0;
+				return state
+					.transaction('input')
+					.setSelection(createCollapsedSelection(prevId, prevLen))
+					.build();
+			}
+			return null;
+		}
+		// right or down
+		if (nodeIdx < blockOrder.length - 1) {
+			const nextId = blockOrder[nodeIdx + 1];
+			if (!nextId) return null;
+			if (isVoidBlock(state, nextId)) {
+				const path = findNodePath(state.doc, nextId) ?? [];
+				return state
+					.transaction('input')
+					.setSelection(createNodeSelection(nextId, path as BlockId[]))
+					.build();
+			}
+			return state.transaction('input').setSelection(createCollapsedSelection(nextId, 0)).build();
+		}
+		return null;
+	}
+
+	// Text selection: check if navigating into a void block
+	if (!isCollapsed(sel)) return null;
+
+	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
+	const block = state.getBlock(sel.anchor.blockId);
+	if (!block) return null;
+	const blockLen = getBlockLength(block);
+
+	if (direction === 'right' || direction === 'down') {
+		if (sel.anchor.offset === blockLen && blockIdx < blockOrder.length - 1) {
+			const nextId = blockOrder[blockIdx + 1];
+			if (nextId && isVoidBlock(state, nextId)) {
+				const path = findNodePath(state.doc, nextId) ?? [];
+				return state
+					.transaction('input')
+					.setSelection(createNodeSelection(nextId, path as BlockId[]))
+					.build();
+			}
+		}
+	}
+
+	if (direction === 'left' || direction === 'up') {
+		if (sel.anchor.offset === 0 && blockIdx > 0) {
+			const prevId = blockOrder[blockIdx - 1];
+			if (prevId && isVoidBlock(state, prevId)) {
+				const path = findNodePath(state.doc, prevId) ?? [];
+				return state
+					.transaction('input')
+					.setSelection(createNodeSelection(prevId, path as BlockId[]))
+					.build();
+			}
+		}
+	}
+
+	return null;
 }

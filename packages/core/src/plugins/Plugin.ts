@@ -8,6 +8,7 @@ import type { Keymap } from '../input/Keymap.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
+import type { FileHandler } from '../model/SchemaRegistry.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -84,6 +85,7 @@ export interface PluginContext {
 	registerInputRule(rule: InputRule): void;
 	registerToolbarItem(item: ToolbarItem): void;
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
+	registerFileHandler(pattern: string, handler: FileHandler): void;
 	getSchemaRegistry(): SchemaRegistry;
 }
 

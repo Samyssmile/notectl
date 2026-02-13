@@ -4,7 +4,7 @@
  */
 
 import { createBlockNode, getBlockChildren } from '../../model/Document.js';
-import { createCollapsedSelection } from '../../model/Selection.js';
+import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
@@ -25,6 +25,7 @@ import {
 export function insertTable(context: PluginContext, rows: number, cols: number): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isNodeSelection(sel)) return false;
 
 	const currentBlockId: BlockId = sel.anchor.blockId;
 
@@ -72,6 +73,7 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 /** Adds a row above the current row. */
 export function addRowAbove(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -94,6 +96,7 @@ export function addRowAbove(context: PluginContext): boolean {
 /** Adds a row below the current row. */
 export function addRowBelow(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -124,6 +127,7 @@ export function addColumnRight(context: PluginContext): boolean {
 
 function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -151,6 +155,7 @@ function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
  */
 export function deleteRow(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -182,6 +187,7 @@ export function deleteRow(context: PluginContext): boolean {
  */
 export function deleteColumn(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -222,6 +228,7 @@ export function deleteColumn(context: PluginContext): boolean {
 /** Deletes the entire table and moves cursor to surrounding block. */
 export function deleteTable(context: PluginContext): boolean {
 	const state = context.getState();
+	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 

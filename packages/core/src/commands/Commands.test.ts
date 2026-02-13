@@ -10,18 +10,27 @@ import {
 	getTextChildren,
 	isInlineNode,
 } from '../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../model/Selection.js';
+import type { Schema } from '../model/Schema.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	createSelection,
+	isNodeSelection,
+} from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import {
 	deleteBackward,
 	deleteForward,
+	deleteNodeSelection,
 	deleteSelectionCommand,
 	deleteWordBackward,
 	deleteWordForward,
 	insertTextCommand,
 	isMarkActive,
+	isVoidBlock,
 	mergeBlockBackward,
+	navigateArrowIntoVoid,
 	selectAll,
 	splitBlockCommand,
 	toggleBold,
@@ -469,6 +478,328 @@ describe('Commands', () => {
 
 			// Bold should be active (all text is bold, InlineNode skipped)
 			expect(isMarkActive(state, 'bold')).toBe(true);
+		});
+	});
+
+	// --- Void Block and NodeSelection Tests ---
+
+	function createVoidSchema(): Schema {
+		return {
+			nodeTypes: ['paragraph', 'horizontal_rule'],
+			markTypes: ['bold', 'italic', 'underline'],
+			getNodeSpec: (type: string) => {
+				if (type === 'horizontal_rule') {
+					return {
+						type: 'horizontal_rule',
+						isVoid: true,
+						toDOM: () => document.createElement('hr'),
+					} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+				}
+				return undefined;
+			},
+		};
+	}
+
+	describe('Void block: deleteNodeSelection', () => {
+		it('removes void block and places cursor on previous block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteNodeSelection(state, sel);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			expect(newState.doc.children[0]?.id).toBe('b1');
+			expect(isNodeSelection(newState.selection)).toBe(false);
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+				expect(newState.selection.anchor.offset).toBe(5);
+			}
+		});
+
+		it('removes void block and places cursor on next block when no previous', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteNodeSelection(state, sel);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			expect(newState.doc.children[0]?.id).toBe('b2');
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b2');
+				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+
+		it('replaces with empty paragraph when it is the only block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteNodeSelection(state, sel);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			expect(newState.doc.children[0]?.type).toBe('paragraph');
+			const firstBlock = newState.doc.children[0];
+			if (!firstBlock) return;
+			expect(getBlockText(firstBlock)).toBe('');
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+	});
+
+	describe('Void block: mergeBlockBackward', () => {
+		it('selects void block instead of merging when backspacing into void', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b2'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b2', 0),
+				schema,
+			});
+
+			const tr = mergeBlockBackward(state);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			// Should create a NodeSelection on the void block, not merge
+			expect(newState.doc.children).toHaveLength(2);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr1');
+			}
+		});
+	});
+
+	describe('Void block: deleteForward at end of block before void', () => {
+		it('selects void block instead of merging when deleting forward into void', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 5),
+				schema,
+			});
+
+			const tr = deleteForward(state);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			// Should create a NodeSelection on the void block, not merge
+			expect(newState.doc.children).toHaveLength(2);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr1');
+			}
+		});
+	});
+
+	describe('Void block: deleteBackward/deleteForward with NodeSelection', () => {
+		it('deleteBackward with NodeSelection removes the void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteBackward(state);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			expect(newState.doc.children[0]?.id).toBe('b1');
+		});
+
+		it('deleteForward with NodeSelection removes the void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteForward(state);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			expect(newState.doc.children[0]?.id).toBe('b2');
+		});
+	});
+
+	describe('Void block: insertTextCommand with NodeSelection', () => {
+		it('creates new paragraph after void block with the text', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = insertTextCommand(state, 'hello');
+			const newState = state.apply(tr);
+
+			// Void block should remain, new paragraph should be inserted after it
+			expect(newState.doc.children).toHaveLength(2);
+			expect(newState.doc.children[0]?.id).toBe('hr1');
+			expect(newState.doc.children[1]?.type).toBe('paragraph');
+			const newBlock = newState.doc.children[1];
+			if (!newBlock) return;
+			expect(getBlockText(newBlock)).toBe('hello');
+			// Cursor should be at end of newly inserted text
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.offset).toBe(5);
+			}
+		});
+	});
+
+	describe('Void block: splitBlockCommand with NodeSelection', () => {
+		it('creates empty paragraph after the void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = splitBlockCommand(state);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(2);
+			expect(newState.doc.children[0]?.id).toBe('hr1');
+			expect(newState.doc.children[1]?.type).toBe('paragraph');
+			const newBlock = newState.doc.children[1];
+			if (!newBlock) return;
+			expect(getBlockText(newBlock)).toBe('');
+			// Cursor should be in the new paragraph
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+	});
+
+	describe('Void block: navigateArrowIntoVoid', () => {
+		it('arrow right at end of block into void creates NodeSelection', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 5),
+				schema,
+			});
+
+			const tr = navigateArrowIntoVoid(state, 'right');
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr1');
+			}
+		});
+
+		it('arrow left at start of block into void creates NodeSelection', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b2'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b2', 0),
+				schema,
+			});
+
+			const tr = navigateArrowIntoVoid(state, 'left');
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr1');
+			}
+		});
+
+		it('arrow right from NodeSelection to next text block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = navigateArrowIntoVoid(state, 'right');
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(false);
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b2');
+				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+
+		it('arrow left from NodeSelection to previous text block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = navigateArrowIntoVoid(state, 'left');
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(false);
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+				expect(newState.selection.anchor.offset).toBe(5);
+			}
+		});
+
+		it('returns null when no adjacent void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 5),
+				schema,
+			});
+
+			const tr = navigateArrowIntoVoid(state, 'right');
+			expect(tr).toBeNull();
 		});
 	});
 });
