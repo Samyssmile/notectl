@@ -331,3 +331,22 @@ describe('Void block rendering', () => {
 		expect(renderedEl.getAttribute('data-void')).toBe('true');
 	});
 });
+
+describe('Selectable block rendering', () => {
+	it('renderBlock sets data-selectable when NodeSpec has selectable', () => {
+		const registry = new SchemaRegistry();
+		const tableSpec: NodeSpec = {
+			type: 'table',
+			selectable: true,
+			toDOM(node) {
+				return createBlockElement('div', node.id);
+			},
+		};
+		registry.registerNodeSpec(tableSpec);
+
+		const block = createBlockNode('table', [], blockId('t1'));
+		const el = renderBlock(block, registry);
+
+		expect(el.getAttribute('data-selectable')).toBe('true');
+	});
+});

@@ -38,4 +38,6 @@ export interface NodeSpec<T extends string = string> {
 	readonly group?: string;
 	/** If true, selection cannot cross this node's boundary (e.g. table_cell). */
 	readonly isolating?: boolean;
+	/** If true, node can be selected as an object via mouse interaction. */
+	readonly selectable?: boolean;
 }

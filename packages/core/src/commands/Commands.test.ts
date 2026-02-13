@@ -500,6 +500,23 @@ describe('Commands', () => {
 		};
 	}
 
+	function createTableCellSchema(): Schema {
+		return {
+			nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
+			markTypes: ['bold', 'italic', 'underline'],
+			getNodeSpec: (type: string) => {
+				if (type === 'table' || type === 'table_cell') {
+					return {
+						type,
+						isolating: true,
+						toDOM: () => document.createElement('div'),
+					} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+				}
+				return undefined;
+			},
+		};
+	}
+
 	describe('Void block: deleteNodeSelection', () => {
 		it('removes void block and places cursor on previous block', () => {
 			const schema = createVoidSchema();
@@ -561,6 +578,44 @@ describe('Commands', () => {
 			expect(getBlockText(firstBlock)).toBe('');
 			if (!isNodeSelection(newState.selection)) {
 				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+
+		it('removes a selected non-leaf table node and places cursor on previous block', () => {
+			const schema: Schema = {
+				nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
+				markTypes: ['bold', 'italic', 'underline'],
+			};
+			const table = createBlockNode(
+				'table',
+				[
+					createBlockNode(
+						'table_row',
+						[createBlockNode('table_cell', [createTextNode('')], 'c1')],
+						'r1',
+					),
+				],
+				't1',
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				table,
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createNodeSelection('t1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteNodeSelection(state, sel);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(2);
+			expect(newState.doc.children[0]?.id).toBe('b1');
+			expect(newState.doc.children[1]?.id).toBe('b2');
+			expect(isNodeSelection(newState.selection)).toBe(false);
+			if (!isNodeSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+				expect(newState.selection.anchor.offset).toBe(5);
 			}
 		});
 	});
@@ -800,6 +855,62 @@ describe('Commands', () => {
 
 			const tr = navigateArrowIntoVoid(state, 'right');
 			expect(tr).toBeNull();
+		});
+	});
+
+	describe('Table cell isolation guards', () => {
+		it('mergeBlockBackward does not merge adjacent table cells', () => {
+			const schema = createTableCellSchema();
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode('table_cell', [createTextNode('A')], 'c1'),
+								createBlockNode('table_cell', [createTextNode('B')], 'c2'),
+							],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('c2', 0),
+				schema,
+			});
+
+			expect(mergeBlockBackward(state)).toBeNull();
+		});
+
+		it('deleteForward does not merge adjacent table cells at end-of-cell', () => {
+			const schema = createTableCellSchema();
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode('table_cell', [createTextNode('A')], 'c1'),
+								createBlockNode('table_cell', [createTextNode('B')], 'c2'),
+							],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('c1', 1),
+				schema,
+			});
+
+			expect(deleteForward(state)).toBeNull();
 		});
 	});
 });

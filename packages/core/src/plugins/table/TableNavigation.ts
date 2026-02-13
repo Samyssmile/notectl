@@ -5,11 +5,16 @@
 
 import type { Keymap } from '../../input/Keymap.js';
 import { getBlockLength } from '../../model/Document.js';
-import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	isCollapsed,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import { addRowBelow } from './TableCommands.js';
-import { type TableContext, findTableContext, getCellAt, isInsideTable } from './TableHelpers.js';
+import { type TableContext, findTableContext, getCellAt } from './TableHelpers.js';
 
 /** Registers all table navigation keymaps. */
 export function registerTableKeymaps(context: PluginContext): void {
@@ -93,7 +98,7 @@ function handleEnter(context: PluginContext): boolean {
 	return true;
 }
 
-/** Backspace at cell start: block to prevent mergeBlockBackward. */
+/** Backspace at deletion-boundary: select table node (first step of 2-step delete). */
 function handleBackspace(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
@@ -101,10 +106,16 @@ function handleBackspace(context: PluginContext): boolean {
 	if (!isCollapsed(sel)) return false;
 	if (sel.anchor.offset !== 0) return false;
 
-	return isInsideTable(state, sel.anchor.blockId);
+	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
+	if (!tableCtx) return false;
+
+	const isAtDeletionBoundary = tableCtx.rowIndex === 0 && tableCtx.colIndex === 0;
+	if (!isAtDeletionBoundary) return false;
+
+	return selectTableNode(context, tableCtx.tableId);
 }
 
-/** Delete at cell end: block to prevent mergeBlockForward. */
+/** Delete at deletion-boundary: select table node (first step of 2-step delete). */
 function handleDelete(context: PluginContext): boolean {
 	const state = context.getState();
 	const sel = state.selection;
@@ -117,7 +128,14 @@ function handleDelete(context: PluginContext): boolean {
 	const blockLen: number = getBlockLength(block);
 	if (sel.anchor.offset !== blockLen) return false;
 
-	return isInsideTable(state, sel.anchor.blockId);
+	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
+	if (!tableCtx) return false;
+
+	const isAtDeletionBoundary =
+		tableCtx.rowIndex === tableCtx.totalRows - 1 && tableCtx.colIndex === tableCtx.totalCols - 1;
+	if (!isAtDeletionBoundary) return false;
+
+	return selectTableNode(context, tableCtx.tableId);
 }
 
 /** ArrowDown: move to same column in next row. */
@@ -265,6 +283,20 @@ function moveToCellAtEnd(
 	const tr = state
 		.transaction('command')
 		.setSelection(createCollapsedSelection(cellId, cellLen))
+		.build();
+	context.dispatch(tr);
+	return true;
+}
+
+/** Switches current selection to a table NodeSelection. */
+function selectTableNode(context: PluginContext, tableId: BlockId): boolean {
+	const state = context.getState();
+	const path = state.getNodePath(tableId);
+	if (!path) return false;
+
+	const tr = state
+		.transaction('input')
+		.setSelection(createNodeSelection(tableId, path))
 		.build();
 	context.dispatch(tr);
 	return true;

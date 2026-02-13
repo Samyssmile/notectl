@@ -7,7 +7,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DecorationSet } from '../decorations/Decoration.js';
 import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
-import { createCollapsedSelection } from '../model/Selection.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { TransactionBuilder } from '../state/Transaction.js';
@@ -298,6 +299,122 @@ describe('EditorView.applyUpdate()', () => {
 			expect(view.getState().selection.anchor.offset).toBe(4);
 
 			readSpy.mockRestore();
+			view.destroy();
+			document.body.removeChild(container);
+		});
+	});
+
+	describe('selectable node mousedown behavior', () => {
+		it('creates NodeSelection when mousedown happens on selectable block root', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			document.body.appendChild(container);
+
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('before')], 'b1'),
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[createBlockNode('table_cell', [createTextNode('')], 'c1')],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('c1', 0),
+				schema: {
+					nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
+					markTypes: ['bold', 'italic', 'underline'],
+				},
+			});
+
+			const registry = new SchemaRegistry();
+			for (const type of ['paragraph', 'table', 'table_row', 'table_cell']) {
+				registry.registerNodeSpec({
+					type,
+					toDOM(node) {
+						const el = document.createElement('div');
+						el.setAttribute('data-block-id', node.id);
+						return el;
+					},
+				});
+			}
+
+			const view = new EditorView(container, { state, schemaRegistry: registry });
+			const tableEl = container.querySelector('[data-block-id="t1"]');
+			if (!(tableEl instanceof HTMLElement)) {
+				throw new Error('Table element not rendered');
+			}
+			tableEl.setAttribute('data-selectable', 'true');
+
+			tableEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+			const nextState = view.getState();
+			expect(isNodeSelection(nextState.selection)).toBe(true);
+			if (isNodeSelection(nextState.selection)) {
+				expect(nextState.selection.nodeId).toBe('t1');
+			}
+
+			view.destroy();
+			document.body.removeChild(container);
+		});
+
+		it('does not select selectable ancestor when nearest block is not selectable', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			document.body.appendChild(container);
+
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[createBlockNode('table_cell', [createTextNode('')], 'c1')],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('c1', 0),
+				schema: {
+					nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
+					markTypes: ['bold', 'italic', 'underline'],
+				},
+			});
+
+			const registry = new SchemaRegistry();
+			for (const type of ['paragraph', 'table', 'table_row', 'table_cell']) {
+				registry.registerNodeSpec({
+					type,
+					toDOM(node) {
+						const el = document.createElement('div');
+						el.setAttribute('data-block-id', node.id);
+						return el;
+					},
+				});
+			}
+
+			const view = new EditorView(container, { state, schemaRegistry: registry });
+			const tableEl = container.querySelector('[data-block-id="t1"]');
+			const cellEl = container.querySelector('[data-block-id="c1"]');
+			if (!(tableEl instanceof HTMLElement) || !(cellEl instanceof HTMLElement)) {
+				throw new Error('Table/cell element not rendered');
+			}
+			tableEl.setAttribute('data-selectable', 'true');
+
+			cellEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+			expect(isNodeSelection(view.getState().selection)).toBe(false);
+
 			view.destroy();
 			document.body.removeChild(container);
 		});

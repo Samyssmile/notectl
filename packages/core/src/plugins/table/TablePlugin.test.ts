@@ -142,6 +142,12 @@ describe('TablePlugin', () => {
 			expect(spec?.isolating).toBe(true);
 		});
 
+		it('table NodeSpec has selectable: true', async () => {
+			const { pm } = await initPlugin(new TablePlugin());
+			const spec = pm.schemaRegistry.getNodeSpec('table');
+			expect(spec?.selectable).toBe(true);
+		});
+
 		it('table_cell NodeSpec has isolating: true', async () => {
 			const { pm } = await initPlugin(new TablePlugin());
 			const spec = pm.schemaRegistry.getNodeSpec('table_cell');
@@ -224,6 +230,11 @@ describe('TablePlugin', () => {
 		it('registers deleteTable command', async () => {
 			const { pm } = await initPlugin(new TablePlugin());
 			expect(pm.executeCommand('deleteTable')).toBeDefined();
+		});
+
+		it('registers selectTable command', async () => {
+			const { pm } = await initPlugin(new TablePlugin());
+			expect(pm.executeCommand('selectTable')).toBeDefined();
 		});
 	});
 });
