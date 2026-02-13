@@ -4,7 +4,11 @@
  */
 
 import { createBlockNode, getBlockChildren } from '../../model/Document.js';
-import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
@@ -16,6 +20,10 @@ import {
 	findTableContext,
 	getCellAt,
 } from './TableHelpers.js';
+
+interface TableDeletionTarget {
+	readonly tableIndex: number;
+}
 
 /**
  * Inserts a table with the given dimensions at the current cursor position.
@@ -228,15 +236,14 @@ export function deleteColumn(context: PluginContext): boolean {
 /** Deletes the entire table and moves cursor to surrounding block. */
 export function deleteTable(context: PluginContext): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
-	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
-	if (!tableCtx) return false;
+	const target = resolveTableDeletionTarget(state);
+	if (!target) return false;
 
-	const tr = state.transaction('command').removeNode([], tableCtx.tableIndex);
+	const tr = state.transaction('command').removeNode([], target.tableIndex);
 
 	// Move cursor to block after the table, or before if none after
-	const blockAfterIndex: number = tableCtx.tableIndex;
-	const blockBeforeIndex: number = tableCtx.tableIndex - 1;
+	const blockAfterIndex: number = target.tableIndex;
+	const blockBeforeIndex: number = target.tableIndex - 1;
 
 	if (blockAfterIndex < state.doc.children.length - 1) {
 		const afterBlock = state.doc.children[blockAfterIndex + 1];
@@ -254,6 +261,30 @@ export function deleteTable(context: PluginContext): boolean {
 	return true;
 }
 
+/** Selects the surrounding table as a node object. */
+export function selectTable(context: PluginContext): boolean {
+	const state = context.getState();
+	const sel = state.selection;
+
+	if (isNodeSelection(sel)) {
+		const selectedNode = state.getBlock(sel.nodeId);
+		return selectedNode?.type === 'table';
+	}
+
+	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
+	if (!tableCtx) return false;
+
+	const path = state.getNodePath(tableCtx.tableId);
+	if (!path) return false;
+
+	const tr = state
+		.transaction('command')
+		.setSelection(createNodeSelection(tableCtx.tableId, path))
+		.build();
+	context.dispatch(tr);
+	return true;
+}
+
 /** Registers all table commands on the given plugin context. */
 export function registerTableCommands(context: PluginContext): void {
 	context.registerCommand('insertTable', () => insertTable(context, 3, 3));
@@ -263,5 +294,23 @@ export function registerTableCommands(context: PluginContext): void {
 	context.registerCommand('addColumnRight', () => addColumnRight(context));
 	context.registerCommand('deleteRow', () => deleteRow(context));
 	context.registerCommand('deleteColumn', () => deleteColumn(context));
+	context.registerCommand('selectTable', () => selectTable(context));
 	context.registerCommand('deleteTable', () => deleteTable(context));
+}
+
+function resolveTableDeletionTarget(state: ReturnType<PluginContext['getState']>): TableDeletionTarget | null {
+	if (isNodeSelection(state.selection)) {
+		const selectedNode = state.getBlock(state.selection.nodeId);
+		if (selectedNode?.type !== 'table') return null;
+
+		const tableIndex: number = state.doc.children.findIndex((b) => b.id === selectedNode.id);
+		if (tableIndex === -1) return null;
+
+		return { tableIndex };
+	}
+
+	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
+	if (!tableCtx) return null;
+
+	return { tableIndex: tableCtx.tableIndex };
 }

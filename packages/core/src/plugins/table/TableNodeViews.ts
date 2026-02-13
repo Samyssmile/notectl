@@ -27,6 +27,7 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 		const container: HTMLDivElement = document.createElement('div');
 		container.className = 'ntbl-container';
 		container.setAttribute('data-block-id', node.id);
+		container.setAttribute('data-selectable', 'true');
 
 		// Table wrapper: provides overflow scrolling
 		const wrapper: HTMLDivElement = document.createElement('div');
@@ -68,6 +69,7 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 			update(updatedNode: BlockNode): boolean {
 				if (updatedNode.type !== 'table') return false;
 				container.setAttribute('data-block-id', updatedNode.id);
+				container.setAttribute('data-selectable', 'true');
 				const updatedRows: readonly BlockNode[] = getBlockChildren(updatedNode);
 				const newTotalRows: number = updatedRows.length;
 				const newTotalCols: number = updatedRows[0] ? getBlockChildren(updatedRows[0]).length : 0;
@@ -83,6 +85,12 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 			},
 			destroy(): void {
 				controls.destroy();
+			},
+			selectNode(): void {
+				container.classList.add('notectl-table--selected');
+			},
+			deselectNode(): void {
+				container.classList.remove('notectl-table--selected');
 			},
 		};
 	};

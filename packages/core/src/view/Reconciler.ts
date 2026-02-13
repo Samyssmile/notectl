@@ -226,6 +226,9 @@ export function renderBlock(
 			if (nvSpec?.isVoid) {
 				nv.dom.setAttribute('data-void', 'true');
 			}
+			if (nvSpec?.selectable) {
+				nv.dom.setAttribute('data-selectable', 'true');
+			}
 
 			// Recursively render block children into NodeView content areas
 			const blockChildren = getBlockChildren(block);
@@ -251,6 +254,9 @@ export function renderBlock(
 			);
 			if (spec.isVoid) {
 				el.setAttribute('data-void', 'true');
+			}
+			if (spec.selectable) {
+				el.setAttribute('data-selectable', 'true');
 			}
 			if (!spec.isVoid) {
 				if (isLeafBlock(block)) {

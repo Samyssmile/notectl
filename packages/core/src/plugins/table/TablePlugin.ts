@@ -111,6 +111,7 @@ export class TablePlugin implements Plugin {
 			group: 'block',
 			content: { allow: ['table_row'], min: 1 },
 			isolating: true,
+			selectable: true,
 			toDOM(node) {
 				const wrapper: HTMLDivElement = document.createElement('div');
 				wrapper.className = 'notectl-table-wrapper';
