@@ -13,13 +13,7 @@ function createTableNode(tableId = 't1', rowId = 'r1', cellId = 'c1') {
 		[
 			createBlockNode(
 				'table_row' as NodeTypeName,
-				[
-					createBlockNode(
-						'table_cell' as NodeTypeName,
-						[createTextNode('')],
-						cellId as BlockId,
-					),
-				],
+				[createBlockNode('table_cell' as NodeTypeName, [createTextNode('')], cellId as BlockId)],
 				rowId as BlockId,
 			),
 		],
@@ -96,11 +90,7 @@ describe('TableCommands.deleteTable', () => {
 	it('deletes surrounding table from text selection', () => {
 		let currentState = EditorState.create({
 			doc: createDocument([
-				createBlockNode(
-					'paragraph' as NodeTypeName,
-					[createTextNode('before')],
-					'b1' as BlockId,
-				),
+				createBlockNode('paragraph' as NodeTypeName, [createTextNode('before')], 'b1' as BlockId),
 				createTableNode('t1', 'r1', 'c1'),
 				createBlockNode('paragraph' as NodeTypeName, [createTextNode('after')], 'b2' as BlockId),
 			]),
@@ -122,11 +112,7 @@ describe('TableCommands.deleteTable', () => {
 	it('deletes selected table from node selection', () => {
 		let currentState = EditorState.create({
 			doc: createDocument([
-				createBlockNode(
-					'paragraph' as NodeTypeName,
-					[createTextNode('before')],
-					'b1' as BlockId,
-				),
+				createBlockNode('paragraph' as NodeTypeName, [createTextNode('before')], 'b1' as BlockId),
 				createTableNode('t1', 'r1', 'c1'),
 			]),
 			selection: createNodeSelection('t1' as BlockId, ['t1' as BlockId]),

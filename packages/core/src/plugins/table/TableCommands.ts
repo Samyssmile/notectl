@@ -311,7 +311,9 @@ export function createDeleteTableTransaction(
 	return tr.build();
 }
 
-function resolveTableDeletionTarget(state: ReturnType<PluginContext['getState']>): TableDeletionTarget | null {
+function resolveTableDeletionTarget(
+	state: ReturnType<PluginContext['getState']>,
+): TableDeletionTarget | null {
 	if (isNodeSelection(state.selection)) {
 		const selectedNode = state.getBlock(state.selection.nodeId);
 		if (selectedNode?.type !== 'table') return null;
