@@ -42,14 +42,24 @@ export {
 } from './model/Document.js';
 
 // --- Selection ---
-export type { Position, Selection, SelectionRange, NodeSelection } from './model/Selection.js';
+export type {
+	Position,
+	Selection,
+	SelectionRange,
+	NodeSelection,
+	EditorSelection,
+} from './model/Selection.js';
 export {
 	createPosition,
 	createSelection,
 	createCollapsedSelection,
+	createNodeSelection,
 	isCollapsed,
 	isForward,
 	selectionRange,
+	isNodeSelection,
+	isTextSelection,
+	selectionsEqual,
 } from './model/Selection.js';
 
 // --- Schema ---
@@ -92,6 +102,7 @@ export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 
 // --- SchemaRegistry ---
+export type { FileHandler, FileHandlerEntry } from './model/SchemaRegistry.js';
 export { SchemaRegistry } from './model/SchemaRegistry.js';
 
 // --- NodeResolver ---
@@ -157,6 +168,9 @@ export {
 	isMarkActive,
 	sharesParent,
 	isInsideIsolating,
+	isVoidBlock,
+	deleteNodeSelection,
+	navigateArrowIntoVoid,
 } from './commands/Commands.js';
 
 // --- Input ---

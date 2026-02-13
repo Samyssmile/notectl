@@ -83,7 +83,7 @@ const output = document.getElementById('output') as HTMLElement;
 		toolbar: [
 			[
 				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
-				new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 12 }),
+				new FontSizePlugin(),
 			],
 			[
 				new TextFormattingPlugin({ bold: true, italic: true, underline: true }),

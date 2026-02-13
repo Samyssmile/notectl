@@ -4,6 +4,7 @@
  * grid picker, multi-cell selection, and context menu.
  */
 
+import { isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -98,7 +99,7 @@ export class TablePlugin implements Plugin {
 		// Clear multi-cell selection when cursor moves outside table
 		if (this.selectionService?.getSelectedRange()) {
 			const sel = newState.selection;
-			if (!isInsideTable(newState, sel.anchor.blockId)) {
+			if (isNodeSelection(sel) || !isInsideTable(newState, sel.anchor.blockId)) {
 				this.selectionService.setSelectedRange(null);
 			}
 		}
@@ -174,6 +175,7 @@ export class TablePlugin implements Plugin {
 				},
 			},
 			isActive: (state: EditorState) => {
+				if (isNodeSelection(state.selection)) return false;
 				return isInsideTable(state, state.selection.anchor.blockId);
 			},
 		});

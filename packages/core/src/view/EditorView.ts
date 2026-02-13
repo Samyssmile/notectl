@@ -7,6 +7,9 @@ import { InputHandler } from '../input/InputHandler.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import { PasteHandler } from '../input/PasteHandler.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createNodeSelection, isNodeSelection, selectionsEqual } from '../model/Selection.js';
+import type { BlockId } from '../model/TypeBrands.js';
+import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -37,6 +40,9 @@ export class EditorView {
 	readonly history: HistoryManager;
 	private readonly stateChangeCallbacks: StateChangeCallback[] = [];
 	private readonly handleSelectionChange: () => void;
+	private readonly handleMousedown: (e: MouseEvent) => void;
+	private readonly handleDragover: (e: DragEvent) => void;
+	private readonly handleDrop: (e: DragEvent) => void;
 	private isUpdating = false;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly nodeViews = new Map<string, NodeView>();
@@ -79,6 +85,15 @@ export class EditorView {
 		this.handleSelectionChange = this.onSelectionChange.bind(this);
 		document.addEventListener('selectionchange', this.handleSelectionChange);
 
+		this.handleMousedown = this.onMousedown.bind(this);
+		contentElement.addEventListener('mousedown', this.handleMousedown);
+
+		this.handleDragover = this.onDragover.bind(this);
+		contentElement.addEventListener('dragover', this.handleDragover);
+
+		this.handleDrop = this.onDrop.bind(this);
+		contentElement.addEventListener('drop', this.handleDrop);
+
 		// Initial render
 		this.decorations = this.getDecorations?.(this.state) ?? DecorationSet.empty;
 		reconcile(contentElement, null, this.state, {
@@ -117,7 +132,7 @@ export class EditorView {
 			this.decorations = newDecorations;
 
 			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(),
+				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
 			});
@@ -178,7 +193,7 @@ export class EditorView {
 			this.decorations = newDecorations;
 
 			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(),
+				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
 			});
@@ -190,19 +205,14 @@ export class EditorView {
 
 	/** Syncs the DOM selection to the editor state. */
 	private syncSelectionFromDOM(): void {
+		// If NodeSelection is active, preserve it — DOM selectionchange should not override
+		if (isNodeSelection(this.state.selection)) return;
+
 		const sel = readSelectionFromDOM(this.contentElement);
 		if (!sel) return;
 
 		// Check if selection actually changed
-		const currentSel = this.state.selection;
-		if (
-			sel.anchor.blockId === currentSel.anchor.blockId &&
-			sel.anchor.offset === currentSel.anchor.offset &&
-			sel.head.blockId === currentSel.head.blockId &&
-			sel.head.offset === currentSel.head.offset
-		) {
-			return;
-		}
+		if (selectionsEqual(sel, this.state.selection)) return;
 
 		// Update state with new selection (clear stored marks on selection change)
 		const tr = this.state
@@ -213,6 +223,83 @@ export class EditorView {
 
 		const newState = this.state.apply(tr);
 		this.applyUpdate(newState, tr);
+	}
+
+	/** Handles mousedown on void blocks to create NodeSelection. */
+	private onMousedown(e: MouseEvent): void {
+		if (this.isUpdating) return;
+		const target = e.target;
+		if (!(target instanceof HTMLElement)) return;
+
+		// Walk up from target looking for [data-void][data-block-id]
+		let current: HTMLElement | null = target;
+		while (current && current !== this.contentElement) {
+			if (current.hasAttribute('data-void') && current.hasAttribute('data-block-id')) {
+				e.preventDefault();
+				this.contentElement.focus();
+
+				const bid = toBlockId(current.getAttribute('data-block-id') ?? '');
+				const path = this.buildBlockPath(current);
+				const sel = createNodeSelection(bid, path);
+
+				const tr = this.state
+					.transaction('input')
+					.setSelection(sel)
+					.setStoredMarks(null, this.state.storedMarks)
+					.build();
+
+				const newState = this.state.apply(tr);
+				this.applyUpdate(newState, tr);
+				return;
+			}
+			current = current.parentElement;
+		}
+	}
+
+	/** Builds an array of block IDs from root to leaf. */
+	private buildBlockPath(leafBlockEl: HTMLElement): BlockId[] {
+		const path: BlockId[] = [];
+		let current: HTMLElement | null = leafBlockEl;
+		while (current && current !== this.contentElement) {
+			if (current.hasAttribute('data-block-id')) {
+				path.unshift(toBlockId(current.getAttribute('data-block-id') ?? ''));
+			}
+			current = current.parentElement;
+		}
+		return path;
+	}
+
+	/** Allows file drop by preventing default on dragover when files are present. */
+	private onDragover(e: DragEvent): void {
+		if (!this.schemaRegistry) return;
+		if (!e.dataTransfer) return;
+		if (e.dataTransfer.types.includes('Files')) {
+			e.preventDefault();
+		}
+	}
+
+	/** Handles file drop by delegating to registered file handlers. */
+	private onDrop(e: DragEvent): void {
+		if (!this.schemaRegistry) return;
+		if (!e.dataTransfer) return;
+
+		const files: File[] = Array.from(e.dataTransfer.files);
+		if (files.length === 0) return;
+
+		for (const file of files) {
+			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
+			for (const handler of handlers) {
+				const result = handler(files, null);
+				if (result === true) {
+					e.preventDefault();
+					return;
+				}
+				if (result instanceof Promise) {
+					e.preventDefault();
+					return;
+				}
+			}
+		}
 	}
 
 	/** Handles DOM selection changes (clicks, arrow keys). */
@@ -228,12 +315,19 @@ export class EditorView {
 		this.syncSelectionFromDOM();
 	}
 
-	private reconcileOptions() {
+	private reconcileOptions(oldSelection?: import('../model/Selection.js').EditorSelection) {
+		const selectedNodeId = isNodeSelection(this.state.selection)
+			? this.state.selection.nodeId
+			: undefined;
+		const previousSelectedNodeId =
+			oldSelection && isNodeSelection(oldSelection) ? oldSelection.nodeId : undefined;
 		return {
 			registry: this.schemaRegistry,
 			nodeViews: this.nodeViews,
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
+			selectedNodeId,
+			previousSelectedNodeId,
 		};
 	}
 
@@ -243,6 +337,9 @@ export class EditorView {
 		this.keyboardHandler.destroy();
 		this.pasteHandler.destroy();
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
+		this.contentElement.removeEventListener('mousedown', this.handleMousedown);
+		this.contentElement.removeEventListener('dragover', this.handleDragover);
+		this.contentElement.removeEventListener('drop', this.handleDrop);
 		// Destroy all NodeViews
 		for (const nv of this.nodeViews.values()) {
 			nv.destroy?.();

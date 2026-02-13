@@ -30,6 +30,8 @@ export interface ReconcileOptions {
 	dispatch?: (tr: import('../state/Transaction.js').Transaction) => void;
 	decorations?: DecorationSet;
 	oldDecorations?: DecorationSet;
+	selectedNodeId?: BlockId;
+	previousSelectedNodeId?: BlockId;
 }
 
 /** Reconciles the DOM container to match the new state. */
@@ -79,6 +81,9 @@ export function reconcile(
 	// Insert/update blocks in order
 	let previousSibling: Element | null = null;
 
+	const selectedNodeId = options?.selectedNodeId;
+	const previousSelectedNodeId = options?.previousSelectedNodeId;
+
 	for (const block of newBlocks) {
 		const existingEl = oldBlockMap.get(block.id);
 		const oldBlock = oldBlockById.get(block.id);
@@ -117,6 +122,29 @@ export function reconcile(
 				container.appendChild(newEl);
 			}
 			previousSibling = newEl;
+		}
+
+		// Handle NodeSelection visual state
+		if (selectedNodeId === block.id) {
+			const nv = nodeViews?.get(block.id);
+			if (nv) {
+				nv.selectNode?.();
+			} else {
+				const el = oldBlockMap.get(block.id) ?? previousSibling;
+				if (el instanceof HTMLElement) {
+					el.classList.add('notectl-node-selected');
+				}
+			}
+		} else if (previousSelectedNodeId === block.id) {
+			const nv = nodeViews?.get(block.id);
+			if (nv) {
+				nv.deselectNode?.();
+			} else {
+				const el = oldBlockMap.get(block.id) ?? previousSibling;
+				if (el instanceof HTMLElement) {
+					el.classList.remove('notectl-node-selected');
+				}
+			}
 		}
 	}
 }
@@ -193,6 +221,12 @@ export function renderBlock(
 			const nv = factory(block, options.getState, options.dispatch);
 			nodeViews.set(block.id, nv);
 
+			// Mark void blocks
+			const nvSpec = registry.getNodeSpec(block.type);
+			if (nvSpec?.isVoid) {
+				nv.dom.setAttribute('data-void', 'true');
+			}
+
 			// Recursively render block children into NodeView content areas
 			const blockChildren = getBlockChildren(block);
 			for (const child of blockChildren) {
@@ -215,6 +249,9 @@ export function renderBlock(
 			const el = spec.toDOM(
 				block as Omit<BlockNode, 'attrs'> & { readonly attrs: NodeAttrsFor<string> },
 			);
+			if (spec.isVoid) {
+				el.setAttribute('data-void', 'true');
+			}
 			if (!spec.isVoid) {
 				if (isLeafBlock(block)) {
 					renderBlockContent(el, block, registry, inlineDecos);

@@ -5,7 +5,7 @@
 
 import { createBlockNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
-import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 
@@ -68,6 +68,7 @@ export class HorizontalRulePlugin implements Plugin {
 			pattern: /^-{3,} $/,
 			handler(state, _match, _start, end) {
 				const sel = state.selection;
+				if (isNodeSelection(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block = state.getBlock(sel.anchor.blockId);
@@ -112,6 +113,7 @@ export class HorizontalRulePlugin implements Plugin {
 	private insertHorizontalRule(context: PluginContext): boolean {
 		const state = context.getState();
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block) return false;
 

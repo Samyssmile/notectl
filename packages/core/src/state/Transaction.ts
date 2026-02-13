@@ -22,7 +22,8 @@ import {
 	isInlineNode,
 } from '../model/Document.js';
 import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
-import type { Selection } from '../model/Selection.js';
+import type { EditorSelection } from '../model/Selection.js';
+import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { applyStep } from './StepApplication.js';
 
@@ -176,8 +177,8 @@ export interface TransactionMetadata {
 
 export interface Transaction {
 	readonly steps: readonly Step[];
-	readonly selectionBefore: Selection;
-	readonly selectionAfter: Selection;
+	readonly selectionBefore: EditorSelection;
+	readonly selectionAfter: EditorSelection;
 	readonly storedMarksAfter: readonly Mark[] | null;
 	readonly metadata: TransactionMetadata;
 }
@@ -326,14 +327,14 @@ export function invertTransaction(tr: Transaction): Transaction {
 /** Fluent API for building transactions. */
 export class TransactionBuilder {
 	private readonly steps: Step[] = [];
-	private selection: Selection;
+	private selection: EditorSelection;
 	private storedMarks: readonly Mark[] | null;
-	private readonly selectionBefore: Selection;
+	private readonly selectionBefore: EditorSelection;
 	private readonly origin: TransactionOrigin;
 	private workingDoc: Document | null;
 
 	constructor(
-		currentSelection: Selection,
+		currentSelection: EditorSelection,
 		currentStoredMarks: readonly Mark[] | null,
 		origin: TransactionOrigin = 'api',
 		doc?: Document,
@@ -640,8 +641,14 @@ export class TransactionBuilder {
 	}
 
 	/** Sets the selection for the resulting state. */
-	setSelection(selection: Selection): this {
+	setSelection(selection: EditorSelection): this {
 		this.selection = selection;
+		return this;
+	}
+
+	/** Sets a NodeSelection for the resulting state. */
+	setNodeSelection(nodeId: BlockId, path: readonly BlockId[]): this {
+		this.selection = createNodeSelection(nodeId, path);
 		return this;
 	}
 
@@ -676,7 +683,7 @@ export class TransactionBuilder {
 
 /** Helper to create a TransactionBuilder with input origin. */
 export function inputTransaction(
-	selection: Selection,
+	selection: EditorSelection,
 	storedMarks: readonly Mark[] | null,
 ): TransactionBuilder {
 	return new TransactionBuilder(selection, storedMarks, 'input');
@@ -684,7 +691,7 @@ export function inputTransaction(
 
 /** Helper to create a TransactionBuilder with command origin. */
 export function commandTransaction(
-	selection: Selection,
+	selection: EditorSelection,
 	storedMarks: readonly Mark[] | null,
 ): TransactionBuilder {
 	return new TransactionBuilder(selection, storedMarks, 'command');

@@ -7,7 +7,7 @@
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
-import { isCollapsed, selectionRange } from '../../model/Selection.js';
+import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -208,6 +208,7 @@ export class FontPlugin implements Plugin {
 
 	getActiveFont(state: EditorState): string | null {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return null;
 
 		if (isCollapsed(sel)) {
 			if (state.storedMarks) {
@@ -232,6 +233,7 @@ export class FontPlugin implements Plugin {
 
 	applyFont(context: PluginContext, state: EditorState, family: string): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);
@@ -288,6 +290,7 @@ export class FontPlugin implements Plugin {
 
 	private removeFont(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);

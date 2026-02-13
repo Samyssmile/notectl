@@ -11,6 +11,17 @@ import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 
+/** Handler for files pasted or dropped into the editor. */
+export type FileHandler = (
+	files: readonly File[],
+	position: import('./Selection.js').Position | null,
+) => boolean | Promise<boolean>;
+
+export interface FileHandlerEntry {
+	readonly pattern: string;
+	readonly handler: FileHandler;
+}
+
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
 	private readonly _markSpecs = new Map<string, MarkSpec>();
@@ -20,6 +31,7 @@ export class SchemaRegistry {
 	private readonly _inputRules: InputRule[] = [];
 	private readonly _toolbarItems = new Map<string, ToolbarItem>();
 	private readonly _toolbarItemPluginMap = new Map<string, string[]>();
+	private readonly _fileHandlers: FileHandlerEntry[] = [];
 
 	// --- NodeSpec ---
 
@@ -185,6 +197,31 @@ export class SchemaRegistry {
 		}
 	}
 
+	// --- FileHandler ---
+
+	registerFileHandler(pattern: string, handler: FileHandler): void {
+		this._fileHandlers.push({ pattern, handler });
+	}
+
+	getFileHandlers(): readonly FileHandlerEntry[] {
+		return this._fileHandlers;
+	}
+
+	matchFileHandlers(mimeType: string): FileHandler[] {
+		const handlers: FileHandler[] = [];
+		for (const entry of this._fileHandlers) {
+			if (matchMimePattern(entry.pattern, mimeType)) {
+				handlers.push(entry.handler);
+			}
+		}
+		return handlers;
+	}
+
+	removeFileHandler(handler: FileHandler): void {
+		const idx = this._fileHandlers.findIndex((e) => e.handler === handler);
+		if (idx !== -1) this._fileHandlers.splice(idx, 1);
+	}
+
 	// --- Bulk ---
 
 	clear(): void {
@@ -196,5 +233,17 @@ export class SchemaRegistry {
 		this._inputRules.length = 0;
 		this._toolbarItems.clear();
 		this._toolbarItemPluginMap.clear();
+		this._fileHandlers.length = 0;
 	}
+}
+
+/** Matches a MIME pattern (e.g. 'image/*') against a concrete MIME type. */
+function matchMimePattern(pattern: string, mimeType: string): boolean {
+	if (pattern === '*' || pattern === '*/*') return true;
+	if (pattern === mimeType) return true;
+	if (pattern.endsWith('/*')) {
+		const prefix = pattern.slice(0, -1);
+		return mimeType.startsWith(prefix);
+	}
+	return false;
 }
