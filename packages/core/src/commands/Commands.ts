@@ -123,7 +123,9 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 function findFirstLeafBlockId(node: BlockNode): BlockId {
 	let current: BlockNode = node;
 	while (true) {
-		const firstBlockChild = current.children.find((child): child is BlockNode => isBlockNode(child));
+		const firstBlockChild = current.children.find((child): child is BlockNode =>
+			isBlockNode(child),
+		);
 		if (!firstBlockChild) return current.id;
 		current = firstBlockChild;
 	}

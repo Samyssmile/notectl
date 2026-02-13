@@ -294,10 +294,7 @@ function selectTableNode(context: PluginContext, tableId: BlockId): boolean {
 	const path = state.getNodePath(tableId);
 	if (!path) return false;
 
-	const tr = state
-		.transaction('input')
-		.setSelection(createNodeSelection(tableId, path))
-		.build();
+	const tr = state.transaction('input').setSelection(createNodeSelection(tableId, path)).build();
 	context.dispatch(tr);
 	return true;
 }

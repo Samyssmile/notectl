@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { type BlockNode, createBlockNode, createDocument, createTextNode, getBlockChildren } from '../../model/Document.js';
 import type { Keymap } from '../../input/Keymap.js';
+import {
+	type BlockNode,
+	createBlockNode,
+	createDocument,
+	createTextNode,
+	getBlockChildren,
+} from '../../model/Document.js';
 import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
 import type { NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
