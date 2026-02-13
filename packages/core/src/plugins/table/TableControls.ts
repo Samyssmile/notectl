@@ -10,6 +10,7 @@ import { createCollapsedSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { createDeleteTableTransaction } from './TableCommands.js';
 import { createTableCell, createTableRow, getCellAt } from './TableHelpers.js';
 
 // --- SVG Icons ---
@@ -111,7 +112,7 @@ function deleteRowAtIndex(
 
 	const rows: readonly BlockNode[] = getBlockChildren(table);
 	if (rows.length <= 1) {
-		deleteEntireTable(getState, dispatch, tableId);
+		deleteTableAtRoot(getState, dispatch, tableId);
 		return;
 	}
 
@@ -140,7 +141,7 @@ function deleteColumnAtIndex(
 	const numCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
 
 	if (numCols <= 1) {
-		deleteEntireTable(getState, dispatch, tableId);
+		deleteTableAtRoot(getState, dispatch, tableId);
 		return;
 	}
 
@@ -161,30 +162,14 @@ function deleteColumnAtIndex(
 	dispatch(tr.build());
 }
 
-function deleteEntireTable(
+function deleteTableAtRoot(
 	getState: () => EditorState,
 	dispatch: (tr: Transaction) => void,
 	tableId: BlockId,
 ): void {
-	const state: EditorState = getState();
-	const tableIndex: number = state.doc.children.findIndex((b) => b.id === tableId);
-	if (tableIndex === -1) return;
-
-	const tr = state.transaction('command').removeNode([], tableIndex);
-
-	if (tableIndex < state.doc.children.length - 1) {
-		const after: BlockNode | undefined = state.doc.children[tableIndex + 1];
-		if (after) {
-			tr.setSelection(createCollapsedSelection(after.id, 0));
-		}
-	} else if (tableIndex > 0) {
-		const before: BlockNode | undefined = state.doc.children[tableIndex - 1];
-		if (before) {
-			tr.setSelection(createCollapsedSelection(before.id, 0));
-		}
-	}
-
-	dispatch(tr.build());
+	const tr = createDeleteTableTransaction(getState(), tableId);
+	if (!tr) return;
+	dispatch(tr);
 }
 
 // --- DOM Builders ---
@@ -336,7 +321,7 @@ export function createTableControls(
 	});
 
 	deleteTableBtn.addEventListener('click', () => {
-		deleteEntireTable(getState, dispatch, tableId);
+		deleteTableAtRoot(getState, dispatch, tableId);
 	});
 
 	container.addEventListener('mousemove', onMouseMove);
