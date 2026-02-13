@@ -8,6 +8,8 @@ import {
 	createTextNode,
 } from '../model/Document.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
+import { createBlockElement } from '../model/NodeSpec.js';
+import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId, inlineType } from '../model/TypeBrands.js';
@@ -265,5 +267,67 @@ describe('Reconciler InlineNode support', () => {
 			expect(el.querySelector('[data-inline-type="widget"]')).not.toBeNull();
 			expect(el.textContent).toContain('text');
 		});
+	});
+});
+
+describe('Void block rendering', () => {
+	it('renderBlock sets data-void on void blocks when NodeSpec has isVoid', () => {
+		const registry = new SchemaRegistry();
+		const hrSpec: NodeSpec = {
+			type: 'horizontal_rule',
+			isVoid: true,
+			toDOM(node) {
+				const el = createBlockElement('hr', node.id);
+				return el;
+			},
+		};
+		registry.registerNodeSpec(hrSpec);
+
+		const block = createBlockNode('horizontal_rule', [createTextNode('')], blockId('hr1'));
+		const el = renderBlock(block, registry);
+
+		expect(el.getAttribute('data-void')).toBe('true');
+	});
+
+	it('renderBlock does NOT set data-void on regular blocks', () => {
+		const registry = new SchemaRegistry();
+		const pSpec: NodeSpec = {
+			type: 'paragraph',
+			toDOM(node) {
+				const el = createBlockElement('p', node.id);
+				return el;
+			},
+		};
+		registry.registerNodeSpec(pSpec);
+
+		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const el = renderBlock(block, registry);
+
+		expect(el.getAttribute('data-void')).toBeNull();
+	});
+
+	it('reconcile applies data-void during full reconciliation', () => {
+		const registry = new SchemaRegistry();
+		const hrSpec: NodeSpec = {
+			type: 'horizontal_rule',
+			isVoid: true,
+			toDOM(node) {
+				const el = createBlockElement('hr', node.id);
+				return el;
+			},
+		};
+		registry.registerNodeSpec(hrSpec);
+
+		const block = createBlockNode('horizontal_rule', [createTextNode('')], blockId('hr1'));
+		const state = EditorState.create({
+			doc: createDocument([block]),
+			selection: createCollapsedSelection('hr1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const renderedEl = container.firstChild as HTMLElement;
+		expect(renderedEl.getAttribute('data-void')).toBe('true');
 	});
 });

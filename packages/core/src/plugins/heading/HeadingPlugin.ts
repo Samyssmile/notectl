@@ -5,7 +5,7 @@
  */
 
 import { createBlockElement } from '../../model/NodeSpec.js';
-import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -193,6 +193,7 @@ export class HeadingPlugin implements Plugin {
 				pattern,
 				handler(state, _match, start, _end) {
 					const sel = state.selection;
+					if (isNodeSelection(sel)) return null;
 					if (!isCollapsed(sel)) return null;
 
 					const block = state.getBlock(sel.anchor.blockId);
@@ -226,6 +227,7 @@ export class HeadingPlugin implements Plugin {
 				this.renderHeadingPopup(container, ctx);
 			},
 			isActive: (state) => {
+				if (isNodeSelection(state.selection)) return false;
 				const block = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'heading' || block?.type === 'title' || block?.type === 'subtitle';
 			},
@@ -246,6 +248,7 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	private getActiveLabel(state: EditorState): string {
+		if (isNodeSelection(state.selection)) return PARAGRAPH_LABEL;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block) return PARAGRAPH_LABEL;
 
@@ -273,6 +276,7 @@ export class HeadingPlugin implements Plugin {
 		container.classList.add('notectl-heading-picker');
 
 		const state: EditorState = context.getState();
+		if (isNodeSelection(state.selection)) return;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		const currentType: string = block?.type ?? 'paragraph';
 		const activeLevel: HeadingLevel | null =
@@ -369,6 +373,7 @@ export class HeadingPlugin implements Plugin {
 	 */
 	private toggleSpecialBlock(context: PluginContext, type: string): boolean {
 		const state = context.getState();
+		if (isNodeSelection(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block) return false;
 
@@ -386,6 +391,7 @@ export class HeadingPlugin implements Plugin {
 	private toggleHeading(context: PluginContext, level: HeadingLevel): boolean {
 		const state = context.getState();
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block) return false;
 
@@ -403,6 +409,7 @@ export class HeadingPlugin implements Plugin {
 	): boolean {
 		const state = context.getState();
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		const tr = state
 			.transaction('command')

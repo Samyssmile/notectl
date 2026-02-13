@@ -10,7 +10,7 @@
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { InputRule } from '../input/InputRule.js';
 import type { Keymap } from '../input/Keymap.js';
-import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { type FileHandler, SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { EventBus } from './EventBus.js';
@@ -45,6 +45,7 @@ interface PluginRegistrations {
 	keymaps: Keymap[];
 	inputRules: InputRule[];
 	toolbarItems: string[];
+	fileHandlers: FileHandler[];
 }
 
 export interface PluginManagerInitOptions {
@@ -288,6 +289,9 @@ export class PluginManager {
 		for (const keymap of reg.keymaps) this.schemaRegistry.removeKeymap(keymap);
 		for (const rule of reg.inputRules) this.schemaRegistry.removeInputRule(rule);
 		for (const itemId of reg.toolbarItems) this.schemaRegistry.removeToolbarItem(itemId);
+		for (const handler of reg.fileHandlers) {
+			this.schemaRegistry.removeFileHandler(handler);
+		}
 
 		this.middlewareSorted = null;
 		this.registrations.delete(id);
@@ -313,6 +317,7 @@ export class PluginManager {
 			keymaps: [],
 			inputRules: [],
 			toolbarItems: [],
+			fileHandlers: [],
 		};
 		this.registrations.set(pluginId, reg);
 
@@ -410,6 +415,11 @@ export class PluginManager {
 			registerInlineNodeSpec: (spec) => {
 				this.schemaRegistry.registerInlineNodeSpec(spec);
 				reg.inlineNodeSpecs.push(spec.type);
+			},
+
+			registerFileHandler: (pattern, handler) => {
+				this.schemaRegistry.registerFileHandler(pattern, handler);
+				reg.fileHandlers.push(handler);
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,

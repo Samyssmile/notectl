@@ -4,7 +4,7 @@
  */
 
 import { createBlockElement } from '../../model/NodeSpec.js';
-import { isCollapsed } from '../../model/Selection.js';
+import { isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
@@ -79,6 +79,7 @@ export class BlockquotePlugin implements Plugin {
 			pattern: /^> $/,
 			handler(state, _match, start, _end) {
 				const sel = state.selection;
+				if (isNodeSelection(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block = state.getBlock(sel.anchor.blockId);
@@ -108,6 +109,7 @@ export class BlockquotePlugin implements Plugin {
 			priority: 55,
 			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => {
+				if (isNodeSelection(state.selection)) return false;
 				const block = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'blockquote';
 			},
@@ -120,6 +122,7 @@ export class BlockquotePlugin implements Plugin {
 	 */
 	private toggleBlockquote(context: PluginContext): boolean {
 		const state = context.getState();
+		if (isNodeSelection(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block) return false;
 
@@ -137,6 +140,7 @@ export class BlockquotePlugin implements Plugin {
 	): boolean {
 		const state = context.getState();
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		const tr = state
 			.transaction('command')

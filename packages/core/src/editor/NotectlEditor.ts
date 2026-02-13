@@ -20,7 +20,7 @@ import {
 } from '../model/Document.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { isMarkAllowed } from '../model/Schema.js';
-import { createCollapsedSelection } from '../model/Selection.js';
+import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId, nodeType, markType as toMarkType } from '../model/TypeBrands.js';
 import type { Plugin, PluginConfig } from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
@@ -61,7 +61,7 @@ export interface StateChangeEvent {
 
 type EventMap = {
 	stateChange: StateChangeEvent;
-	selectionChange: { selection: import('../model/Selection.js').Selection };
+	selectionChange: { selection: import('../model/Selection.js').EditorSelection };
 	focus: undefined;
 	blur: undefined;
 	ready: undefined;
@@ -540,12 +540,7 @@ export class NotectlEditor extends HTMLElement {
 		// Emit events
 		this.emit('stateChange', { oldState, newState, transaction: tr });
 
-		if (
-			oldState.selection.anchor.blockId !== newState.selection.anchor.blockId ||
-			oldState.selection.anchor.offset !== newState.selection.anchor.offset ||
-			oldState.selection.head.blockId !== newState.selection.head.blockId ||
-			oldState.selection.head.offset !== newState.selection.head.offset
-		) {
+		if (!selectionsEqual(oldState.selection, newState.selection)) {
 			this.emit('selectionChange', { selection: newState.selection });
 		}
 
