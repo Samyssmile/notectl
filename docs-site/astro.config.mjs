@@ -3,6 +3,8 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
+	site: 'https://samyssmile.github.io',
+	base: '/notectl',
 	integrations: [
 		starlight({
 			title: 'notectl',
@@ -27,7 +29,7 @@ export default defineConfig({
 					tag: 'meta',
 					attrs: {
 						property: 'og:image',
-						content: '/og-image.png',
+						content: '/notectl/og-image.png',
 					},
 				},
 			],
