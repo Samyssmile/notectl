@@ -81,10 +81,8 @@ const output = document.getElementById('output') as HTMLElement;
 (async () => {
 	const editor = await createEditor({
 		toolbar: [
-			[
-				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
-				new FontSizePlugin(),
-			],
+			[new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
+				new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 12 })],
 			[
 				new TextFormattingPlugin({ bold: true, italic: true, underline: true }),
 				new StrikethroughPlugin(),
