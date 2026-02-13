@@ -1,5 +1,6 @@
 /**
  * Paste handler: intercepts paste events and converts clipboard content to transactions.
+ * Supports file paste via registered FileHandlers, plain text, and HTML.
  */
 
 import DOMPurify from 'dompurify';
@@ -16,6 +17,7 @@ export interface PasteHandlerOptions {
 export class PasteHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
+	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 
 	constructor(
@@ -24,6 +26,7 @@ export class PasteHandler {
 	) {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
+		this.schemaRegistry = options.schemaRegistry;
 
 		this.handlePaste = this.onPaste.bind(this);
 		element.addEventListener('paste', this.handlePaste);
@@ -34,6 +37,9 @@ export class PasteHandler {
 
 		const clipboardData = e.clipboardData;
 		if (!clipboardData) return;
+
+		// Check for file paste first
+		if (this.handleFilePaste(clipboardData)) return;
 
 		const state = this.getState();
 
@@ -59,6 +65,42 @@ export class PasteHandler {
 			const tr = insertTextCommand(state, text, 'paste');
 			this.dispatch(tr);
 		}
+	}
+
+	/** Checks for files in clipboard data and delegates to registered handlers. */
+	private handleFilePaste(clipboardData: DataTransfer): boolean {
+		if (!this.schemaRegistry) return false;
+
+		// Check clipboardData.files first
+		const files: File[] = Array.from(clipboardData.files);
+
+		// Also check items for file entries (some browsers use items instead)
+		if (files.length === 0) {
+			for (let i = 0; i < clipboardData.items.length; i++) {
+				const item = clipboardData.items[i];
+				if (item && item.kind === 'file') {
+					const file = item.getAsFile();
+					if (file) files.push(file);
+				}
+			}
+		}
+
+		if (files.length === 0) return false;
+
+		for (const file of files) {
+			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
+			for (const handler of handlers) {
+				const result = handler(files, null);
+				if (result === true) return true;
+				// If handler returns a Promise, treat as handled
+				if (result instanceof Promise) {
+					// Fire-and-forget for async handlers
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private extractTextFromHTML(html: string): string {

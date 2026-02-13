@@ -6,7 +6,7 @@
 
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, selectionRange } from '../../model/Selection.js';
+import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -189,6 +189,7 @@ export class FontSizePlugin implements Plugin {
 
 	private getActiveSize(state: EditorState): string | null {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return null;
 
 		if (isCollapsed(sel)) {
 			if (state.storedMarks) {
@@ -220,6 +221,7 @@ export class FontSizePlugin implements Plugin {
 
 	private applyFontSize(context: PluginContext, state: EditorState, size: string): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);
@@ -275,6 +277,7 @@ export class FontSizePlugin implements Plugin {
 
 	private removeFontSize(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);

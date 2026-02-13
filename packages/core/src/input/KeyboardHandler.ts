@@ -1,14 +1,20 @@
 /**
  * Keyboard handler: intercepts keydown events for shortcuts.
  * Checks plugin-registered keymaps first, then falls back to built-in
- * structural shortcuts (undo, redo, select all).
+ * structural shortcuts (undo, redo, select all) and NodeSelection navigation.
  *
  * Mark-specific shortcuts (Mod-B, Mod-I, Mod-U) are registered by
  * their respective plugins via keymaps, not hardcoded here.
  */
 
-import { selectAll } from '../commands/Commands.js';
+import {
+	deleteNodeSelection,
+	navigateArrowIntoVoid,
+	selectAll,
+	splitBlockCommand,
+} from '../commands/Commands.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
 
@@ -43,6 +49,12 @@ export class KeyboardHandler {
 	}
 
 	private onKeydown(e: KeyboardEvent): void {
+		// Handle NodeSelection keys before plugin keymaps
+		if (this.handleNodeSelectionKeys(e)) return;
+
+		// Handle arrow key navigation into void blocks
+		if (this.handleArrowIntoVoid(e)) return;
+
 		// Try plugin keymaps first (last registered has highest precedence)
 		if (this.schemaRegistry) {
 			const descriptor = normalizeKeyDescriptor(e);
@@ -85,6 +97,89 @@ export class KeyboardHandler {
 		if (tr) {
 			this.dispatch(tr);
 		}
+	}
+
+	/** Handles arrow keys, Enter, Backspace, Delete, Escape when a NodeSelection is active. */
+	private handleNodeSelectionKeys(e: KeyboardEvent): boolean {
+		const state = this.getState();
+		const sel = state.selection;
+		if (!isNodeSelection(sel)) return false;
+
+		const key = e.key;
+
+		// Arrow keys: navigate away from NodeSelection
+		if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'ArrowRight' || key === 'ArrowDown') {
+			const direction =
+				key === 'ArrowLeft'
+					? 'left'
+					: key === 'ArrowRight'
+						? 'right'
+						: key === 'ArrowUp'
+							? 'up'
+							: 'down';
+			const tr = navigateArrowIntoVoid(state, direction);
+			if (tr) {
+				e.preventDefault();
+				this.dispatch(tr);
+				return true;
+			}
+			return false;
+		}
+
+		// Backspace / Delete: remove the selected void block
+		if (key === 'Backspace' || key === 'Delete') {
+			e.preventDefault();
+			const tr = deleteNodeSelection(state, sel);
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		// Enter: insert paragraph after
+		if (key === 'Enter') {
+			e.preventDefault();
+			const tr = splitBlockCommand(state);
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		// Escape: move to start of next block
+		if (key === 'Escape') {
+			e.preventDefault();
+			const tr = navigateArrowIntoVoid(state, 'right');
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		return false;
+	}
+
+	/** Handles arrow key navigation from text blocks into adjacent void blocks. */
+	private handleArrowIntoVoid(e: KeyboardEvent): boolean {
+		const key = e.key;
+		if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'ArrowUp' && key !== 'ArrowDown') {
+			return false;
+		}
+
+		// Don't intercept modified arrows (selection extension, word jump)
+		if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return false;
+
+		const state = this.getState();
+		const direction =
+			key === 'ArrowLeft'
+				? 'left'
+				: key === 'ArrowRight'
+					? 'right'
+					: key === 'ArrowUp'
+						? 'up'
+						: 'down';
+
+		const tr = navigateArrowIntoVoid(state, direction);
+		if (tr) {
+			e.preventDefault();
+			this.dispatch(tr);
+			return true;
+		}
+		return false;
 	}
 
 	destroy(): void {

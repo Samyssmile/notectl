@@ -5,7 +5,7 @@
 
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, selectionRange } from '../../model/Selection.js';
+import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -215,6 +215,7 @@ export class HighlightPlugin implements Plugin {
 
 	private getActiveColor(state: EditorState): string | null {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return null;
 
 		if (isCollapsed(sel)) {
 			if (state.storedMarks) {
@@ -239,6 +240,7 @@ export class HighlightPlugin implements Plugin {
 
 	private applyHighlight(context: PluginContext, state: EditorState, color: string): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);
@@ -294,6 +296,7 @@ export class HighlightPlugin implements Plugin {
 
 	private removeHighlight(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			const anchorBlock = state.getBlock(sel.anchor.blockId);

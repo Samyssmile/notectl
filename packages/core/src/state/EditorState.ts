@@ -15,8 +15,13 @@ import {
 import { findNode, findNodePath } from '../model/NodeResolver.js';
 import type { Schema } from '../model/Schema.js';
 import { defaultSchema } from '../model/Schema.js';
-import type { Position, Selection } from '../model/Selection.js';
-import { createCollapsedSelection, createPosition, createSelection } from '../model/Selection.js';
+import type { EditorSelection, Position } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createPosition,
+	createSelection,
+	isNodeSelection,
+} from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
 import { applyStep } from './StepApplication.js';
 import type { Transaction } from './Transaction.js';
@@ -24,7 +29,7 @@ import { TransactionBuilder } from './Transaction.js';
 
 export class EditorState {
 	readonly doc: Document;
-	readonly selection: Selection;
+	readonly selection: EditorSelection;
 	readonly storedMarks: readonly Mark[] | null;
 	readonly schema: Schema;
 
@@ -33,7 +38,7 @@ export class EditorState {
 
 	private constructor(
 		doc: Document,
-		selection: Selection,
+		selection: EditorSelection,
 		storedMarks: readonly Mark[] | null,
 		schema: Schema,
 	) {
@@ -46,7 +51,7 @@ export class EditorState {
 	/** Creates a new EditorState with default document. */
 	static create(options?: {
 		doc?: Document;
-		selection?: Selection;
+		selection?: EditorSelection;
 		schema?: Schema;
 	}): EditorState {
 		const schema = options?.schema ?? defaultSchema();
@@ -112,7 +117,10 @@ export class EditorState {
 	}
 
 	/** Deserializes a state from JSON. */
-	static fromJSON(json: { doc: Document; selection: Selection }, schema?: Schema): EditorState {
+	static fromJSON(
+		json: { doc: Document; selection: EditorSelection },
+		schema?: Schema,
+	): EditorState {
 		return new EditorState(json.doc, json.selection, null, schema ?? defaultSchema());
 	}
 }
@@ -134,7 +142,15 @@ function validatePosition(doc: Document, pos: Position): Position {
 }
 
 /** Validates a selection against the document, ensuring blockIds exist and offsets are in bounds. */
-function validateSelection(doc: Document, sel: Selection): Selection {
+function validateSelection(doc: Document, sel: EditorSelection): EditorSelection {
+	if (isNodeSelection(sel)) {
+		const node = findNode(doc, sel.nodeId);
+		if (node) return sel;
+		// Node was deleted — fall back to first block
+		const firstBlock = doc.children[0];
+		if (!firstBlock) return sel;
+		return createCollapsedSelection(firstBlock.id, 0);
+	}
 	const anchor = validatePosition(doc, sel.anchor);
 	const head = validatePosition(doc, sel.head);
 	if (anchor === sel.anchor && head === sel.head) return sel;

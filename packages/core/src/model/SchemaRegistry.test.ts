@@ -6,6 +6,7 @@ import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import { createBlockElement } from './NodeSpec.js';
+import type { FileHandler } from './SchemaRegistry.js';
 import { SchemaRegistry } from './SchemaRegistry.js';
 
 function makeNodeSpec(type: string): NodeSpec {
@@ -272,6 +273,64 @@ describe('SchemaRegistry', () => {
 		});
 	});
 
+	describe('FileHandler', () => {
+		it('registers and retrieves file handlers', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('image/png', handler);
+
+			const entries = registry.getFileHandlers();
+			expect(entries).toHaveLength(1);
+			expect(entries[0]?.pattern).toBe('image/png');
+			expect(entries[0]?.handler).toBe(handler);
+		});
+
+		it('matches handlers by exact MIME type', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('image/png', handler);
+
+			const matched = registry.matchFileHandlers('image/png');
+			expect(matched).toEqual([handler]);
+		});
+
+		it('matches handlers by wildcard pattern image/*', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('image/*', handler);
+
+			expect(registry.matchFileHandlers('image/png')).toEqual([handler]);
+			expect(registry.matchFileHandlers('image/jpeg')).toEqual([handler]);
+		});
+
+		it('matches handlers by universal wildcard */*', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('*/*', handler);
+
+			expect(registry.matchFileHandlers('image/png')).toEqual([handler]);
+			expect(registry.matchFileHandlers('application/pdf')).toEqual([handler]);
+		});
+
+		it('returns empty array for unmatched MIME type', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('image/png', handler);
+
+			expect(registry.matchFileHandlers('text/plain')).toEqual([]);
+		});
+
+		it('removes a file handler', () => {
+			const registry = new SchemaRegistry();
+			const handler: FileHandler = vi.fn();
+			registry.registerFileHandler('image/png', handler);
+			registry.removeFileHandler(handler);
+
+			expect(registry.getFileHandlers()).toHaveLength(0);
+			expect(registry.matchFileHandlers('image/png')).toEqual([]);
+		});
+	});
+
 	describe('clear', () => {
 		it('clears all registrations', () => {
 			const registry = new SchemaRegistry();
@@ -290,6 +349,7 @@ describe('SchemaRegistry', () => {
 				label: 'H',
 				command: 'h',
 			});
+			registry.registerFileHandler('image/*', vi.fn());
 
 			registry.clear();
 
@@ -299,6 +359,7 @@ describe('SchemaRegistry', () => {
 			expect(registry.getKeymaps()).toEqual([]);
 			expect(registry.getInputRules()).toEqual([]);
 			expect(registry.getToolbarItems()).toEqual([]);
+			expect(registry.getFileHandlers()).toEqual([]);
 		});
 	});
 });

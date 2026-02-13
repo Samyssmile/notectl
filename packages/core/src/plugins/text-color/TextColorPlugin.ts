@@ -5,7 +5,7 @@
 
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, selectionRange } from '../../model/Selection.js';
+import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -233,6 +233,7 @@ export class TextColorPlugin implements Plugin {
 
 	private getActiveColor(state: EditorState): string | null {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return null;
 
 		if (isCollapsed(sel)) {
 			if (state.storedMarks) {
@@ -257,6 +258,7 @@ export class TextColorPlugin implements Plugin {
 
 	private applyColor(context: PluginContext, state: EditorState, color: string): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			// Set stored marks with the new color
@@ -313,6 +315,7 @@ export class TextColorPlugin implements Plugin {
 
 	private removeColor(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			// Remove textColor from stored marks
