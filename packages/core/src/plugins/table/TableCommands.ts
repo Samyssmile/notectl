@@ -11,6 +11,8 @@ import {
 } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
+import type { EditorState } from '../../state/EditorState.js';
+import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import {
 	type TableContext,
@@ -22,7 +24,7 @@ import {
 } from './TableHelpers.js';
 
 interface TableDeletionTarget {
-	readonly tableIndex: number;
+	readonly tableId: BlockId;
 }
 
 /**
@@ -239,25 +241,9 @@ export function deleteTable(context: PluginContext): boolean {
 	const target = resolveTableDeletionTarget(state);
 	if (!target) return false;
 
-	const tr = state.transaction('command').removeNode([], target.tableIndex);
-
-	// Move cursor to block after the table, or before if none after
-	const blockAfterIndex: number = target.tableIndex;
-	const blockBeforeIndex: number = target.tableIndex - 1;
-
-	if (blockAfterIndex < state.doc.children.length - 1) {
-		const afterBlock = state.doc.children[blockAfterIndex + 1];
-		if (afterBlock) {
-			tr.setSelection(createCollapsedSelection(afterBlock.id, 0));
-		}
-	} else if (blockBeforeIndex >= 0) {
-		const beforeBlock = state.doc.children[blockBeforeIndex];
-		if (beforeBlock) {
-			tr.setSelection(createCollapsedSelection(beforeBlock.id, 0));
-		}
-	}
-
-	context.dispatch(tr.build());
+	const tr = createDeleteTableTransaction(state, target.tableId);
+	if (!tr) return false;
+	context.dispatch(tr);
 	return true;
 }
 
@@ -298,19 +284,42 @@ export function registerTableCommands(context: PluginContext): void {
 	context.registerCommand('deleteTable', () => deleteTable(context));
 }
 
+/**
+ * Creates a transaction that removes the given root-level table node.
+ * Cursor placement prefers the next root block, then previous.
+ */
+export function createDeleteTableTransaction(
+	state: EditorState,
+	tableId: BlockId,
+): Transaction | null {
+	const tableIndex: number = state.doc.children.findIndex((block) => block.id === tableId);
+	if (tableIndex === -1) return null;
+
+	const tr = state.transaction('command').removeNode([], tableIndex);
+
+	const nextRoot = state.doc.children[tableIndex + 1];
+	if (nextRoot) {
+		tr.setSelection(createCollapsedSelection(nextRoot.id, 0));
+		return tr.build();
+	}
+
+	const prevRoot = state.doc.children[tableIndex - 1];
+	if (prevRoot) {
+		tr.setSelection(createCollapsedSelection(prevRoot.id, 0));
+	}
+
+	return tr.build();
+}
+
 function resolveTableDeletionTarget(state: ReturnType<PluginContext['getState']>): TableDeletionTarget | null {
 	if (isNodeSelection(state.selection)) {
 		const selectedNode = state.getBlock(state.selection.nodeId);
 		if (selectedNode?.type !== 'table') return null;
-
-		const tableIndex: number = state.doc.children.findIndex((b) => b.id === selectedNode.id);
-		if (tableIndex === -1) return null;
-
-		return { tableIndex };
+		return { tableId: selectedNode.id };
 	}
 
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return null;
 
-	return { tableIndex: tableCtx.tableIndex };
+	return { tableId: tableCtx.tableId };
 }
