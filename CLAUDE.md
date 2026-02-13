@@ -96,3 +96,8 @@ Enforced via `biome.json` and `code-style-requirements.md`:
 After code changes, always run unit tests, e2e tests and biom linting.
 After writing new features or fixing bugs, please add tests to cover the new code paths. Aim for high coverage, but prioritize meaningful tests over 100% coverage.
 Never do bad workarounds or hacks. If something is hard to implement, it's likely a sign of a design issue. Refactor the architecture or data structures as needed to support the feature cleanly.
+
+
+
+## Git
+- git commit messages  should follow conventional commits format: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, etc.
