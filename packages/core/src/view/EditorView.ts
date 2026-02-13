@@ -225,35 +225,35 @@ export class EditorView {
 		this.applyUpdate(newState, tr);
 	}
 
-	/** Handles mousedown on void blocks to create NodeSelection. */
+	/** Handles mousedown on selectable/void blocks to create NodeSelection. */
 	private onMousedown(e: MouseEvent): void {
 		if (this.isUpdating) return;
 		const target = e.target;
 		if (!(target instanceof HTMLElement)) return;
 
-		// Walk up from target looking for [data-void][data-block-id]
-		let current: HTMLElement | null = target;
-		while (current && current !== this.contentElement) {
-			if (current.hasAttribute('data-void') && current.hasAttribute('data-block-id')) {
-				e.preventDefault();
-				this.contentElement.focus();
+		const nearestBlockEl = target.closest('[data-block-id]');
+		if (!(nearestBlockEl instanceof HTMLElement)) return;
+		if (!this.contentElement.contains(nearestBlockEl)) return;
 
-				const bid = toBlockId(current.getAttribute('data-block-id') ?? '');
-				const path = this.buildBlockPath(current);
-				const sel = createNodeSelection(bid, path);
+		const isNodeSelectable =
+			nearestBlockEl.hasAttribute('data-void') || nearestBlockEl.hasAttribute('data-selectable');
+		if (!isNodeSelectable) return;
 
-				const tr = this.state
-					.transaction('input')
-					.setSelection(sel)
-					.setStoredMarks(null, this.state.storedMarks)
-					.build();
+		e.preventDefault();
+		this.contentElement.focus();
 
-				const newState = this.state.apply(tr);
-				this.applyUpdate(newState, tr);
-				return;
-			}
-			current = current.parentElement;
-		}
+		const bid = toBlockId(nearestBlockEl.getAttribute('data-block-id') ?? '');
+		const path = this.buildBlockPath(nearestBlockEl);
+		const sel = createNodeSelection(bid, path);
+
+		const tr = this.state
+			.transaction('input')
+			.setSelection(sel)
+			.setStoredMarks(null, this.state.storedMarks)
+			.build();
+
+		const newState = this.state.apply(tr);
+		this.applyUpdate(newState, tr);
 	}
 
 	/** Builds an array of block IDs from root to leaf. */

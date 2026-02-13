@@ -654,6 +654,12 @@ const EDITOR_CSS = `
 	margin: 0;
 }
 
+.ntbl-container.notectl-table--selected .notectl-table-wrapper {
+	outline: 2px solid #1d4ed8;
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
 /* --- Column Handle Bar --- */
 .ntbl-col-bar {
 	position: absolute;
@@ -668,6 +674,11 @@ const EDITOR_CSS = `
 }
 
 .ntbl-container:hover .ntbl-col-bar {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.ntbl-container.notectl-table--selected .ntbl-col-bar {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -687,6 +698,11 @@ const EDITOR_CSS = `
 }
 
 .ntbl-container:hover .ntbl-row-bar {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.ntbl-container.notectl-table--selected .ntbl-row-bar {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -850,6 +866,38 @@ const EDITOR_CSS = `
 
 .ntbl-container:hover .ntbl-add-zone {
 	opacity: 1;
+}
+
+.ntbl-container.notectl-table--selected .ntbl-add-zone {
+	opacity: 1;
+}
+
+.ntbl-delete-table-btn {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 20px;
+	height: 20px;
+	border: 1px solid #fca5a5;
+	border-radius: 4px;
+	background: #fff;
+	color: #b91c1c;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.2s ease, background 0.15s, border-color 0.15s;
+	z-index: 7;
+}
+
+.ntbl-container:hover .ntbl-delete-table-btn,
+.ntbl-container.notectl-table--selected .ntbl-delete-table-btn {
+	opacity: 1;
+}
+
+.ntbl-delete-table-btn:hover {
+	background: #fee2e2;
+	border-color: #f87171;
 }
 
 .ntbl-add-row {

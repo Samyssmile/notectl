@@ -26,6 +26,13 @@ const DELETE_SVG: string =
 	'<path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" ' +
 	'stroke-width="1.5" stroke-linecap="round"/></svg>';
 
+const TABLE_DELETE_SVG: string =
+	'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" ' +
+	'viewBox="0 0 24 24" fill="none">' +
+	'<path d="M9 3h6m-9 4h12M10 11v6m4-6v6m-9 3h14l-1-13H6L5 20z" ' +
+	'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
+	'stroke-linejoin="round"/></svg>';
+
 // --- Constants ---
 
 const BORDER_THRESHOLD: number = 10;
@@ -279,6 +286,11 @@ export function createTableControls(
 	const insertLineV: HTMLDivElement = buildInsertLine('vertical');
 	const addRowZone: HTMLDivElement = buildAddButton('ntbl-add-row', 'Add row');
 	const addColZone: HTMLDivElement = buildAddButton('ntbl-add-col', 'Add column');
+	const deleteTableBtn: HTMLButtonElement = createButton(
+		'ntbl-delete-table-btn',
+		TABLE_DELETE_SVG,
+		'Delete table',
+	);
 
 	// --- Insert line state ---
 
@@ -287,7 +299,7 @@ export function createTableControls(
 
 	// --- Append to container ---
 
-	container.append(colBar, rowBar, insertLineH, insertLineV, addRowZone, addColZone);
+	container.append(colBar, rowBar, insertLineH, insertLineV, addRowZone, addColZone, deleteTableBtn);
 
 	// --- Build handles ---
 
@@ -321,6 +333,10 @@ export function createTableControls(
 
 	addColZone.addEventListener('click', () => {
 		insertColumnAtIndex(getState, dispatch, tableId, numCols);
+	});
+
+	deleteTableBtn.addEventListener('click', () => {
+		deleteEntireTable(getState, dispatch, tableId);
 	});
 
 	container.addEventListener('mousemove', onMouseMove);
@@ -589,6 +605,7 @@ export function createTableControls(
 			insertLineV.remove();
 			addRowZone.remove();
 			addColZone.remove();
+			deleteTableBtn.remove();
 		},
 	};
 }
