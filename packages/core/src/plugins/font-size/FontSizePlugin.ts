@@ -78,6 +78,7 @@ export class FontSizePlugin implements Plugin {
 		this.registerCommands(context);
 		this.registerKeymaps(context);
 		this.registerToolbarItem(context);
+		this.applyDefaultSizeToContainer(context);
 	}
 
 	destroy(): void {
@@ -167,6 +168,16 @@ export class FontSizePlugin implements Plugin {
 			},
 			isActive: (state) => this.isFontSizeActive(state),
 		});
+	}
+
+	/**
+	 * Sets the configured default font size on the editor content container
+	 * so that unformatted text renders at the correct size instead of the
+	 * browser default (16px).
+	 */
+	private applyDefaultSizeToContainer(context: PluginContext): void {
+		const container: HTMLElement = context.getContainer();
+		container.style.fontSize = `${this.defaultSize}px`;
 	}
 
 	private updateComboLabel(state: EditorState): void {
