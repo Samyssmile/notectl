@@ -284,7 +284,15 @@ export function createTableControls(
 
 	// --- Append to container ---
 
-	container.append(colBar, rowBar, insertLineH, insertLineV, addRowZone, addColZone, deleteTableBtn);
+	container.append(
+		colBar,
+		rowBar,
+		insertLineH,
+		insertLineV,
+		addRowZone,
+		addColZone,
+		deleteTableBtn,
+	);
 
 	// --- Build handles ---
 
