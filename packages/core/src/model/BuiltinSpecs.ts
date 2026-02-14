@@ -18,5 +18,10 @@ export function registerBuiltinSpecs(registry: SchemaRegistry): void {
 		toDOM(node) {
 			return createBlockElement('p', node.id);
 		},
+		toHTML(_node, content) {
+			return `<p>${content || '<br>'}</p>`;
+		},
+		parseHTML: [{ tag: 'p' }, { tag: 'div', priority: 10 }],
+		sanitize: { tags: ['p'] },
 	});
 }

@@ -107,6 +107,22 @@ export class FontSizePlugin implements Plugin {
 				}
 				return span;
 			},
+			toHTMLString: (mark, content) => {
+				const size: string = String(mark.attrs?.size ?? '');
+				if (!size) return content;
+				return `<span style="font-size: ${size}">${content}</span>`;
+			},
+			parseHTML: [
+				{
+					tag: 'span',
+					getAttrs: (el) => {
+						const size: string = el.style.fontSize;
+						if (!size) return false;
+						return { size };
+					},
+				},
+			],
+			sanitize: { tags: ['span'] },
 		});
 	}
 

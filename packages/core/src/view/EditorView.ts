@@ -7,6 +7,7 @@ import { InputHandler } from '../input/InputHandler.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import { PasteHandler } from '../input/PasteHandler.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { Position } from '../model/Selection.js';
 import { createNodeSelection, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
@@ -15,7 +16,7 @@ import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeView } from './NodeView.js';
 import { reconcile } from './Reconciler.js';
-import { readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
+import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
 	oldState: EditorState,
@@ -286,10 +287,12 @@ export class EditorView {
 		const files: File[] = Array.from(e.dataTransfer.files);
 		if (files.length === 0) return;
 
+		const position: Position | null = this.getPositionFromPoint(e.clientX, e.clientY);
+
 		for (const file of files) {
 			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
 			for (const handler of handlers) {
-				const result = handler(files, null);
+				const result = handler(files, position);
 				if (result === true) {
 					e.preventDefault();
 					return;
@@ -300,6 +303,37 @@ export class EditorView {
 				}
 			}
 		}
+	}
+
+	/** Converts screen coordinates to an editor Position. */
+	private getPositionFromPoint(x: number, y: number): Position | null {
+		const root = this.contentElement.getRootNode() as Document | ShadowRoot;
+
+		let domNode: Node | null = null;
+		let domOffset = 0;
+
+		// Standard API (caretPositionFromPoint)
+		if ('caretPositionFromPoint' in root) {
+			const cp = (root as Document).caretPositionFromPoint(x, y);
+			if (cp) {
+				domNode = cp.offsetNode;
+				domOffset = cp.offset;
+			}
+		}
+
+		// Fallback (caretRangeFromPoint)
+		if (!domNode && 'caretRangeFromPoint' in root) {
+			const range = (root as Document).caretRangeFromPoint(x, y);
+			if (range) {
+				domNode = range.startContainer;
+				domOffset = range.startOffset;
+			}
+		}
+
+		if (!domNode) return null;
+		if (!this.contentElement.contains(domNode)) return null;
+
+		return domPositionToState(this.contentElement, domNode, domOffset);
 	}
 
 	/** Handles DOM selection changes (clicks, arrow keys). */

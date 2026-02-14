@@ -14,6 +14,8 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
+import type { ParseRule } from '../../model/ParseRule.js';
+import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
@@ -53,6 +55,9 @@ interface MarkDefinition {
 	readonly label: string;
 	readonly icon: string;
 	readonly keyBinding: string;
+	readonly toHTMLString: (content: string) => string;
+	readonly parseHTML: readonly ParseRule[];
+	readonly sanitize: SanitizeConfig;
 }
 
 const BOLD_ICON =
@@ -71,6 +76,9 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		label: 'Bold',
 		icon: BOLD_ICON,
 		keyBinding: 'Mod-B',
+		toHTMLString: (content) => `<strong>${content}</strong>`,
+		parseHTML: [{ tag: 'strong' }, { tag: 'b' }],
+		sanitize: { tags: ['strong', 'b'] },
 	},
 	{
 		type: 'italic',
@@ -80,6 +88,9 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		label: 'Italic',
 		icon: ITALIC_ICON,
 		keyBinding: 'Mod-I',
+		toHTMLString: (content) => `<em>${content}</em>`,
+		parseHTML: [{ tag: 'em' }, { tag: 'i' }],
+		sanitize: { tags: ['em', 'i'] },
 	},
 	{
 		type: 'underline',
@@ -89,6 +100,9 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		label: 'Underline',
 		icon: UNDERLINE_ICON,
 		keyBinding: 'Mod-U',
+		toHTMLString: (content) => `<u>${content}</u>`,
+		parseHTML: [{ tag: 'u' }],
+		sanitize: { tags: ['u'] },
 	},
 ];
 
@@ -138,6 +152,9 @@ export class TextFormattingPlugin implements Plugin {
 			toDOM() {
 				return document.createElement(def.tag);
 			},
+			toHTMLString: (_mark, content) => def.toHTMLString(content),
+			parseHTML: def.parseHTML,
+			sanitize: def.sanitize,
 		});
 
 		context.registerCommand(commandName, () => {
