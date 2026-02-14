@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'docs-site/**'
+      - 'packages/core/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
@@ -35,11 +36,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: docs-site
+
+      - name: Build core package
+        run: pnpm --filter @notectl/core build
 
       - name: Build docs
-        run: pnpm build
-        working-directory: docs-site
+        run: pnpm --filter docs-site build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
