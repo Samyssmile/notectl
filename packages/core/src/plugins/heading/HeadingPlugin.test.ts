@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	type Mark,
 	createBlockNode,
 	createDocument,
 	createTextNode,
 	getBlockText,
+	getInlineChildren,
+	isTextNode,
 } from '../../model/Document.js';
 import { createCollapsedSelection } from '../../model/Selection.js';
+import { markType } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin } from '../Plugin.js';
@@ -14,18 +18,24 @@ import { HeadingPlugin } from './HeadingPlugin.js';
 
 // --- Helpers ---
 
+const BOLD_MARK: Mark = { type: markType('bold') };
+const ITALIC_MARK: Mark = { type: markType('italic') };
+const FONT_SIZE_12: Mark = { type: markType('fontSize'), attrs: { size: '12px' } };
+const FONT_SIZE_24: Mark = { type: markType('fontSize'), attrs: { size: '24px' } };
+
 function makeState(
 	blocks?: {
 		type: string;
 		text: string;
 		id: string;
 		attrs?: Record<string, string | number | boolean>;
+		marks?: readonly Mark[];
 	}[],
 	cursorBlockId?: string,
 	cursorOffset?: number,
 ): EditorState {
 	const blockNodes = (blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]).map((b) =>
-		createBlockNode(b.type, [createTextNode(b.text)], b.id, b.attrs),
+		createBlockNode(b.type, [createTextNode(b.text, b.marks)], b.id, b.attrs),
 	);
 	const doc = createDocument(blockNodes);
 	return EditorState.create({
@@ -36,7 +46,7 @@ function makeState(
 		),
 		schema: {
 			nodeTypes: ['paragraph', 'heading', 'title', 'subtitle'],
-			markTypes: ['bold', 'italic', 'underline'],
+			markTypes: ['bold', 'italic', 'underline', 'fontSize'],
 		},
 	});
 }
@@ -446,6 +456,180 @@ describe('HeadingPlugin', () => {
 
 			const item = pm.schemaRegistry.getToolbarItem('heading');
 			expect(item?.isActive?.(state)).toBe(false);
+		});
+	});
+
+	describe('excludeMarks', () => {
+		it('NodeSpecs declare excludeMarks for fontSize', async () => {
+			const plugin = new HeadingPlugin();
+			const { pm } = await initPlugin(plugin);
+
+			const titleSpec = pm.schemaRegistry.getNodeSpec('title');
+			const subtitleSpec = pm.schemaRegistry.getNodeSpec('subtitle');
+			const headingSpec = pm.schemaRegistry.getNodeSpec('heading');
+
+			expect(titleSpec?.excludeMarks).toContain('fontSize');
+			expect(subtitleSpec?.excludeMarks).toContain('fontSize');
+			expect(headingSpec?.excludeMarks).toContain('fontSize');
+		});
+
+		it('setTitle strips fontSize marks from text', async () => {
+			const state = makeState([
+				{ type: 'paragraph', text: 'Hello World', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setTitle');
+
+			const block = getState().doc.children[0];
+			expect(block?.type).toBe('title');
+
+			const inlineChildren = getInlineChildren(block);
+			for (const child of inlineChildren) {
+				if (isTextNode(child)) {
+					const hasFontSize = child.marks.some((m) => m.type === 'fontSize');
+					expect(hasFontSize).toBe(false);
+				}
+			}
+		});
+
+		it('setTitle preserves bold marks', async () => {
+			const state = makeState([
+				{ type: 'paragraph', text: 'Hello', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setTitle');
+
+			const block = getState().doc.children[0];
+			const inlineChildren = getInlineChildren(block);
+			const hasBold = inlineChildren.some(
+				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
+			);
+			expect(hasBold).toBe(true);
+		});
+
+		it('setSubtitle strips fontSize marks', async () => {
+			const state = makeState([
+				{ type: 'paragraph', text: 'Subtitle', id: 'b1', marks: [FONT_SIZE_24] },
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setSubtitle');
+
+			const block = getState().doc.children[0];
+			expect(block?.type).toBe('subtitle');
+
+			const inlineChildren = getInlineChildren(block);
+			for (const child of inlineChildren) {
+				if (isTextNode(child)) {
+					expect(child.marks.some((m) => m.type === 'fontSize')).toBe(false);
+				}
+			}
+		});
+
+		it('setHeading1 strips fontSize marks', async () => {
+			const state = makeState([
+				{ type: 'paragraph', text: 'Heading', id: 'b1', marks: [FONT_SIZE_12] },
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setHeading1');
+
+			const block = getState().doc.children[0];
+			expect(block?.type).toBe('heading');
+
+			const inlineChildren = getInlineChildren(block);
+			for (const child of inlineChildren) {
+				if (isTextNode(child)) {
+					expect(child.marks.some((m) => m.type === 'fontSize')).toBe(false);
+				}
+			}
+		});
+
+		it('preserves text content when stripping marks', async () => {
+			const state = makeState([
+				{ type: 'paragraph', text: 'Hello World', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setTitle');
+			expect(getBlockText(getState().doc.children[0])).toBe('Hello World');
+		});
+
+		it('preserves italic marks when stripping fontSize', async () => {
+			const state = makeState([
+				{
+					type: 'paragraph',
+					text: 'Styled',
+					id: 'b1',
+					marks: [BOLD_MARK, ITALIC_MARK, FONT_SIZE_24],
+				},
+			]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setHeading2');
+
+			const block = getState().doc.children[0];
+			const inlineChildren = getInlineChildren(block);
+			const markTypes: string[] = [];
+			for (const child of inlineChildren) {
+				if (isTextNode(child)) {
+					for (const m of child.marks) {
+						markTypes.push(m.type);
+					}
+				}
+			}
+			expect(markTypes).toContain('bold');
+			expect(markTypes).toContain('italic');
+			expect(markTypes).not.toContain('fontSize');
+		});
+
+		it('no-op when block has no excluded marks', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'Plain', id: 'b1', marks: [BOLD_MARK] }]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setTitle');
+
+			const block = getState().doc.children[0];
+			expect(block?.type).toBe('title');
+			const inlineChildren = getInlineChildren(block);
+			const hasBold = inlineChildren.some(
+				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
+			);
+			expect(hasBold).toBe(true);
+		});
+
+		it('handles empty block without crashing', async () => {
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setTitle');
+			expect(getState().doc.children[0]?.type).toBe('title');
+		});
+
+		it('setParagraph does not strip marks (no excludeMarks on paragraph)', async () => {
+			const state = makeState([{ type: 'title', text: 'Title', id: 'b1', marks: [BOLD_MARK] }]);
+			const plugin = new HeadingPlugin();
+			const { pm, getState } = await initPlugin(plugin, state);
+
+			pm.executeCommand('setParagraph');
+
+			const block = getState().doc.children[0];
+			expect(block?.type).toBe('paragraph');
+			const inlineChildren = getInlineChildren(block);
+			const hasBold = inlineChildren.some(
+				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
+			);
+			expect(hasBold).toBe(true);
 		});
 	});
 });
