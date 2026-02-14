@@ -5,6 +5,8 @@
 import type { MarkAttrsFor } from './AttrRegistry.js';
 import type { Mark } from './Document.js';
 import type { AttrSpec } from './NodeSpec.js';
+import type { ParseRule } from './ParseRule.js';
+import type { SanitizeConfig } from './SanitizeConfig.js';
 
 export interface MarkSpec<T extends string = string> {
 	readonly type: T;
@@ -13,4 +15,10 @@ export interface MarkSpec<T extends string = string> {
 	/** Nesting priority — lower rank renders closer to the text content. */
 	readonly rank?: number;
 	readonly attrs?: Readonly<Record<string, AttrSpec>>;
+	/** Serializes the mark as an HTML wrapper. `content` is the pre-serialized inner HTML. */
+	readonly toHTMLString?: (mark: Mark, content: string) => string;
+	/** Rules for matching HTML elements to this mark type during parsing. */
+	readonly parseHTML?: readonly ParseRule[];
+	/** Tags and attributes this spec needs through DOMPurify sanitization. */
+	readonly sanitize?: SanitizeConfig;
 }

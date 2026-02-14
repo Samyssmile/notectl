@@ -114,6 +114,10 @@ export class HeadingPlugin implements Plugin {
 				el.classList.add('notectl-title');
 				return el;
 			},
+			toHTML(_node, content) {
+				return `<h1>${content || '<br>'}</h1>`;
+			},
+			sanitize: { tags: ['h1'] },
 		});
 
 		context.registerNodeSpec({
@@ -125,6 +129,10 @@ export class HeadingPlugin implements Plugin {
 				el.classList.add('notectl-subtitle');
 				return el;
 			},
+			toHTML(_node, content) {
+				return `<h2>${content || '<br>'}</h2>`;
+			},
+			sanitize: { tags: ['h2'] },
 		});
 
 		context.registerNodeSpec({
@@ -139,6 +147,20 @@ export class HeadingPlugin implements Plugin {
 				const tag = HEADING_TAGS[level] ?? 'h1';
 				return createBlockElement(tag, node.id);
 			},
+			toHTML(node, content) {
+				const level = (node.attrs?.level ?? 1) as HeadingLevel;
+				const tag: string = HEADING_TAGS[level] ?? 'h1';
+				return `<${tag}>${content || '<br>'}</${tag}>`;
+			},
+			parseHTML: [
+				{ tag: 'h1', getAttrs: () => ({ level: 1 }) },
+				{ tag: 'h2', getAttrs: () => ({ level: 2 }) },
+				{ tag: 'h3', getAttrs: () => ({ level: 3 }) },
+				{ tag: 'h4', getAttrs: () => ({ level: 4 }) },
+				{ tag: 'h5', getAttrs: () => ({ level: 5 }) },
+				{ tag: 'h6', getAttrs: () => ({ level: 6 }) },
+			],
+			sanitize: { tags: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] },
 		});
 	}
 

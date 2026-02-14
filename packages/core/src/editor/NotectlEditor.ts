@@ -5,21 +5,26 @@
 import DOMPurify from 'dompurify';
 import { isMarkActive, selectAll } from '../commands/Commands.js';
 import { DecorationSet } from '../decorations/Decoration.js';
-import { isMarkOfType, isNodeOfType } from '../model/AttrRegistry.js';
+import { isNodeOfType } from '../model/AttrRegistry.js';
 import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
 import {
 	type BlockNode,
 	type Document,
+	type InlineNode,
 	type Mark,
 	type TextNode,
 	createBlockNode,
 	createDocument,
 	createTextNode,
 	getBlockText,
-	getTextChildren,
+	getInlineChildren,
+	isInlineNode,
 } from '../model/Document.js';
+import { escapeHTML } from '../model/HTMLUtils.js';
+import type { ParseRule } from '../model/ParseRule.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { isMarkAllowed } from '../model/Schema.js';
+import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId, nodeType, markType as toMarkType } from '../model/TypeBrands.js';
 import type { Plugin, PluginConfig } from '../plugins/Plugin.js';
@@ -265,6 +270,7 @@ export class NotectlEditor extends HTMLElement {
 	getHTML(): string {
 		if (!this.view) throw new Error('Editor not initialized');
 		const doc = this.view.getState().doc;
+		const registry = this.pluginManager?.schemaRegistry;
 		const parts: string[] = [];
 		let currentListTag: string | null = null;
 
@@ -279,78 +285,36 @@ export class NotectlEditor extends HTMLElement {
 					currentListTag = tag;
 				}
 
-				const inner = getTextChildren(block)
-					.map((c) => this.textNodeToHTML(c))
-					.join('');
-				parts.push(`<li>${inner || '<br>'}</li>`);
+				parts.push(this.serializeBlock(block, registry));
 			} else {
 				if (currentListTag) {
 					parts.push(`</${currentListTag}>`);
 					currentListTag = null;
 				}
-				parts.push(this.blockToHTML(block));
+				parts.push(this.serializeBlock(block, registry));
 			}
 		}
 
 		if (currentListTag) parts.push(`</${currentListTag}>`);
 
+		const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
+		const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+
 		return DOMPurify.sanitize(parts.join(''), {
-			ALLOWED_TAGS: [
-				'p',
-				'strong',
-				'em',
-				'u',
-				'b',
-				'i',
-				'br',
-				'div',
-				'hr',
-				'h1',
-				'h2',
-				'h3',
-				'h4',
-				'h5',
-				'h6',
-				'ul',
-				'ol',
-				'li',
-				'a',
-				's',
-				'span',
-				'blockquote',
-			],
-			ALLOWED_ATTR: ['href', 'target', 'rel', 'style'],
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: allowedAttrs,
 		});
 	}
 
 	/** Sets content from HTML (sanitized). */
 	setHTML(html: string): void {
+		const registry = this.pluginManager?.schemaRegistry;
+		const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
+		const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+
 		const sanitized = DOMPurify.sanitize(html, {
-			ALLOWED_TAGS: [
-				'p',
-				'strong',
-				'em',
-				'u',
-				'b',
-				'i',
-				'br',
-				'div',
-				'hr',
-				'h1',
-				'h2',
-				'h3',
-				'h4',
-				'h5',
-				'h6',
-				'ul',
-				'ol',
-				'li',
-				'a',
-				's',
-				'span',
-				'blockquote',
-			],
-			ALLOWED_ATTR: ['href', 'target', 'rel', 'style'],
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: allowedAttrs,
 		});
 
 		const doc = this.parseHTMLToDocument(sanitized);
@@ -576,65 +540,63 @@ export class NotectlEditor extends HTMLElement {
 		this.updateEmptyState();
 	}
 
-	private blockToHTML(block: BlockNode): string {
-		if (block.type === 'horizontal_rule') {
-			return '<hr>';
+	// --- Spec-based HTML Serialization ---
+
+	private serializeBlock(block: BlockNode, registry?: SchemaRegistry): string {
+		const inlineContent: string = this.serializeInlineContent(block, registry);
+		const spec = registry?.getNodeSpec(block.type);
+
+		let html: string;
+		if (spec?.toHTML) {
+			html = spec.toHTML(block, inlineContent);
+		} else {
+			html = `<p>${inlineContent || '<br>'}</p>`;
 		}
 
-		const inner = getTextChildren(block)
-			.map((child) => this.textNodeToHTML(child))
-			.join('');
-		const content = inner || '<br>';
-
+		// Inject textAlign style into the first opening tag
 		const align: string | undefined = (block.attrs as Record<string, unknown>)?.textAlign as
 			| string
 			| undefined;
-		const style: string = align && align !== 'left' ? ` style="text-align: ${align}"` : '';
-
-		if (isNodeOfType(block, 'heading')) {
-			const level = block.attrs.level;
-			const tag: string = `h${Math.max(1, Math.min(6, level))}`;
-			return `<${tag}${style}>${content}</${tag}>`;
+		if (align && align !== 'left') {
+			html = html.replace(/>/, ` style="text-align: ${align}">`);
 		}
 
-		if (block.type === 'blockquote') {
-			return `<blockquote${style}>${content}</blockquote>`;
-		}
-
-		return `<p${style}>${content}</p>`;
+		return html;
 	}
 
-	private textNodeToHTML(node: TextNode): string {
+	private serializeInlineContent(block: BlockNode, registry?: SchemaRegistry): string {
+		const children: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
+		const parts: string[] = [];
+
+		for (const child of children) {
+			if (isInlineNode(child)) {
+				const inlineSpec = registry?.getInlineNodeSpec(child.inlineType);
+				if (inlineSpec?.toHTMLString) {
+					parts.push(inlineSpec.toHTMLString(child));
+				}
+			} else {
+				parts.push(this.serializeTextNode(child, registry));
+			}
+		}
+
+		return parts.join('');
+	}
+
+	private serializeTextNode(node: TextNode, registry?: SchemaRegistry): string {
 		if (node.text === '') return '';
 
-		let html = this.escapeHTML(node.text);
+		let html: string = escapeHTML(node.text);
 
 		// Sort marks by MarkSpec.rank from the schema registry (lower = closer to text)
-		const markOrder = this.getMarkOrder();
-		const sortedMarks = [...node.marks].sort(
+		const markOrder: Map<string, number> = this.getMarkOrder();
+		const sortedMarks: Mark[] = [...node.marks].sort(
 			(a, b) => (markOrder.get(a.type) ?? 99) - (markOrder.get(b.type) ?? 99),
 		);
 
 		for (const mark of sortedMarks) {
-			if (isMarkOfType(mark, 'bold')) {
-				html = `<strong>${html}</strong>`;
-			} else if (isMarkOfType(mark, 'italic')) {
-				html = `<em>${html}</em>`;
-			} else if (isMarkOfType(mark, 'underline')) {
-				html = `<u>${html}</u>`;
-			} else if (isMarkOfType(mark, 'strikethrough')) {
-				html = `<s>${html}</s>`;
-			} else if (isMarkOfType(mark, 'textColor')) {
-				const color = this.escapeHTML(mark.attrs.color);
-				html = `<span style="color: ${color}">${html}</span>`;
-			} else if (isMarkOfType(mark, 'font')) {
-				const family: string = mark.attrs?.family ?? '';
-				if (family) {
-					html = `<span style="font-family: ${this.escapeHTML(family)}">${html}</span>`;
-				}
-			} else if (isMarkOfType(mark, 'link')) {
-				const href = this.escapeHTML(mark.attrs.href);
-				html = `<a href="${href}">${html}</a>`;
+			const markSpec = registry?.getMarkSpec(mark.type);
+			if (markSpec?.toHTMLString) {
+				html = markSpec.toHTMLString(mark, html);
 			}
 		}
 
@@ -653,19 +615,21 @@ export class NotectlEditor extends HTMLElement {
 		return order;
 	}
 
-	private escapeHTML(text: string): string {
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
-	}
+	// --- Spec-based HTML Parsing ---
 
 	private parseHTMLToDocument(html: string): Document {
+		const registry = this.pluginManager?.schemaRegistry;
+		const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
+		const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+
 		const template = document.createElement('template');
-		template.innerHTML = DOMPurify.sanitize(html);
+		template.innerHTML = DOMPurify.sanitize(html, {
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: allowedAttrs,
+		});
 		const root = template.content;
 
+		const blockRules = registry?.getBlockParseRules() ?? [];
 		const blocks: BlockNode[] = [];
 
 		for (const child of Array.from(root.childNodes)) {
@@ -673,26 +637,11 @@ export class NotectlEditor extends HTMLElement {
 				const el = child as HTMLElement;
 				const tag = el.tagName.toLowerCase();
 
-				// Headings
-				const headingMatch = /^h([1-6])$/.exec(tag);
-				if (headingMatch) {
-					const level = Number(headingMatch[1]);
-					const textNodes = this.parseElementToTextNodes(el);
-					blocks.push(createBlockNode(nodeType('heading'), textNodes, undefined, { level }));
-					continue;
-				}
-
-				// Horizontal Rule
-				if (tag === 'hr') {
-					blocks.push(createBlockNode(nodeType('horizontal_rule')));
-					continue;
-				}
-
-				// Lists
+				// Lists need cross-element logic — handle before parse rules
 				if (tag === 'ul' || tag === 'ol') {
 					const listType = tag === 'ol' ? 'ordered' : 'bullet';
 					for (const li of Array.from(el.querySelectorAll('li'))) {
-						const textNodes = this.parseElementToTextNodes(li as HTMLElement);
+						const textNodes = this.parseElementToTextNodes(li as HTMLElement, registry);
 						blocks.push(
 							createBlockNode(nodeType('list_item'), textNodes, undefined, {
 								listType,
@@ -704,8 +653,23 @@ export class NotectlEditor extends HTMLElement {
 					continue;
 				}
 
-				// Regular blocks (p, div, etc.)
-				const textNodes = this.parseElementToTextNodes(el);
+				// Try block parse rules
+				const match = matchBlockParseRule(el, blockRules);
+				if (match) {
+					const textNodes = this.parseElementToTextNodes(el, registry);
+					blocks.push(
+						createBlockNode(
+							nodeType(match.type),
+							textNodes,
+							undefined,
+							match.attrs as Record<string, string | number | boolean> | undefined,
+						),
+					);
+					continue;
+				}
+
+				// Fallback to paragraph
+				const textNodes = this.parseElementToTextNodes(el, registry);
 				blocks.push(createBlockNode(nodeType('paragraph'), textNodes));
 			} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
 				blocks.push(
@@ -721,13 +685,19 @@ export class NotectlEditor extends HTMLElement {
 		return createDocument(blocks);
 	}
 
-	private parseElementToTextNodes(el: HTMLElement): TextNode[] {
+	private parseElementToTextNodes(el: HTMLElement, registry?: SchemaRegistry): TextNode[] {
 		const result: TextNode[] = [];
-		this.walkElement(el, [], result);
+		const markRules = registry?.getMarkParseRules() ?? [];
+		this.walkElement(el, [], result, markRules);
 		return result.length > 0 ? result : [createTextNode('')];
 	}
 
-	private walkElement(node: Node, currentMarks: Mark[], result: TextNode[]): void {
+	private walkElement(
+		node: Node,
+		currentMarks: Mark[],
+		result: TextNode[],
+		markRules: readonly { readonly rule: ParseRule; readonly type: string }[],
+	): void {
 		if (node.nodeType === Node.TEXT_NODE) {
 			const text = node.textContent ?? '';
 			if (text) {
@@ -740,41 +710,56 @@ export class NotectlEditor extends HTMLElement {
 
 		const el = node as HTMLElement;
 		const tag = el.tagName.toLowerCase();
-
 		const marks = [...currentMarks];
-		if (tag === 'strong' || tag === 'b') {
-			if (!marks.some((m) => m.type === 'bold')) marks.push({ type: toMarkType('bold') });
-		}
-		if (tag === 'em' || tag === 'i') {
-			if (!marks.some((m) => m.type === 'italic')) marks.push({ type: toMarkType('italic') });
-		}
-		if (tag === 'u') {
-			if (!marks.some((m) => m.type === 'underline')) marks.push({ type: toMarkType('underline') });
-		}
-		if (tag === 's') {
-			if (!marks.some((m) => m.type === 'strikethrough'))
-				marks.push({ type: toMarkType('strikethrough') });
-		}
-		if (tag === 'span') {
-			const color = el.style.color;
-			if (color && !marks.some((m) => m.type === 'textColor')) {
-				marks.push({ type: toMarkType('textColor'), attrs: { color } });
+
+		// Try mark parse rules — collect all matching marks for this element
+		const matchedTypes = new Set<string>();
+		for (const entry of markRules) {
+			if (entry.rule.tag !== tag) continue;
+			if (matchedTypes.has(entry.type)) continue;
+
+			if (entry.rule.getAttrs) {
+				const attrs = entry.rule.getAttrs(el);
+				if (attrs === false) continue;
+				if (!marks.some((m) => m.type === entry.type)) {
+					marks.push({
+						type: toMarkType(entry.type),
+						...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+					} as Mark);
+					matchedTypes.add(entry.type);
+				}
+			} else {
+				if (!marks.some((m) => m.type === entry.type)) {
+					marks.push({ type: toMarkType(entry.type) });
+					matchedTypes.add(entry.type);
+				}
 			}
-			const fontFamily = el.style.fontFamily;
-			if (fontFamily && !marks.some((m) => m.type === 'font')) {
-				marks.push({ type: toMarkType('font'), attrs: { family: fontFamily } });
-			}
-		}
-		if (tag === 'a') {
-			const href = (el as HTMLAnchorElement).getAttribute('href') ?? '';
-			if (!marks.some((m) => m.type === 'link'))
-				marks.push({ type: toMarkType('link'), attrs: { href } });
 		}
 
 		for (const child of Array.from(el.childNodes)) {
-			this.walkElement(child, marks, result);
+			this.walkElement(child, marks, result, markRules);
 		}
 	}
+}
+
+// --- Helpers ---
+
+/** Matches an element against block parse rules. Returns matched type and attrs. */
+function matchBlockParseRule(
+	el: HTMLElement,
+	rules: readonly { readonly rule: ParseRule; readonly type: string }[],
+): { readonly type: string; readonly attrs?: Record<string, unknown> } | null {
+	const tag: string = el.tagName.toLowerCase();
+	for (const entry of rules) {
+		if (entry.rule.tag !== tag) continue;
+		if (entry.rule.getAttrs) {
+			const attrs = entry.rule.getAttrs(el);
+			if (attrs === false) continue;
+			return { type: entry.type, attrs };
+		}
+		return { type: entry.type };
+	}
+	return null;
 }
 
 // Register custom element

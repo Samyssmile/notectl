@@ -4,6 +4,8 @@
 
 import type { NodeAttrsFor } from './AttrRegistry.js';
 import type { BlockNode } from './Document.js';
+import type { ParseRule } from './ParseRule.js';
+import type { SanitizeConfig } from './SanitizeConfig.js';
 import type { BlockId } from './TypeBrands.js';
 
 export interface AttrSpec {
@@ -40,4 +42,10 @@ export interface NodeSpec<T extends string = string> {
 	readonly isolating?: boolean;
 	/** If true, node can be selected as an object via mouse interaction. */
 	readonly selectable?: boolean;
+	/** Serializes the block to an HTML string. `content` is the pre-serialized inline children. */
+	readonly toHTML?: (node: BlockNode, content: string) => string;
+	/** Rules for matching HTML elements to this block type during parsing. */
+	readonly parseHTML?: readonly ParseRule[];
+	/** Tags and attributes this spec needs through DOMPurify sanitization. */
+	readonly sanitize?: SanitizeConfig;
 }

@@ -10,6 +10,7 @@ import type { NodeViewFactory } from '../view/NodeView.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
+import type { ParseRule } from './ParseRule.js';
 
 /** Handler for files pasted or dropped into the editor. */
 export type FileHandler = (
@@ -220,6 +221,89 @@ export class SchemaRegistry {
 	removeFileHandler(handler: FileHandler): void {
 		const idx = this._fileHandlers.findIndex((e) => e.handler === handler);
 		if (idx !== -1) this._fileHandlers.splice(idx, 1);
+	}
+
+	// --- Parse Rules & Sanitize Config ---
+
+	/** Returns all NodeSpec parseHTML rules, sorted by priority descending. */
+	getBlockParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
+		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
+		for (const [type, spec] of this._nodeSpecs) {
+			if (spec.parseHTML) {
+				for (const rule of spec.parseHTML) {
+					results.push({ rule, type });
+				}
+			}
+		}
+		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+	}
+
+	/** Returns all InlineNodeSpec parseHTML rules, sorted by priority descending. */
+	getInlineParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
+		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
+		for (const [type, spec] of this._inlineNodeSpecs) {
+			if (spec.parseHTML) {
+				for (const rule of spec.parseHTML) {
+					results.push({ rule, type });
+				}
+			}
+		}
+		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+	}
+
+	/** Returns all MarkSpec parseHTML rules, sorted by priority descending. */
+	getMarkParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
+		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
+		for (const [type, spec] of this._markSpecs) {
+			if (spec.parseHTML) {
+				for (const rule of spec.parseHTML) {
+					results.push({ rule, type });
+				}
+			}
+		}
+		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+	}
+
+	/** Returns all allowed HTML tags from base defaults + all spec sanitize configs. */
+	getAllowedTags(): string[] {
+		const tags = new Set<string>(['p', 'br', 'div', 'span']);
+		for (const spec of this._nodeSpecs.values()) {
+			if (spec.sanitize?.tags) {
+				for (const tag of spec.sanitize.tags) tags.add(tag);
+			}
+		}
+		for (const spec of this._inlineNodeSpecs.values()) {
+			if (spec.sanitize?.tags) {
+				for (const tag of spec.sanitize.tags) tags.add(tag);
+			}
+		}
+		for (const spec of this._markSpecs.values()) {
+			if (spec.sanitize?.tags) {
+				for (const tag of spec.sanitize.tags) tags.add(tag);
+			}
+		}
+		return [...tags];
+	}
+
+	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
+	getAllowedAttrs(): string[] {
+		const attrs = new Set<string>(['style']);
+		for (const spec of this._nodeSpecs.values()) {
+			if (spec.sanitize?.attrs) {
+				for (const attr of spec.sanitize.attrs) attrs.add(attr);
+			}
+		}
+		for (const spec of this._inlineNodeSpecs.values()) {
+			if (spec.sanitize?.attrs) {
+				for (const attr of spec.sanitize.attrs) attrs.add(attr);
+			}
+		}
+		for (const spec of this._markSpecs.values()) {
+			if (spec.sanitize?.attrs) {
+				for (const attr of spec.sanitize.attrs) attrs.add(attr);
+			}
+		}
+		return [...attrs];
 	}
 
 	// --- Bulk ---
