@@ -125,6 +125,22 @@ export class FontPlugin implements Plugin {
 				}
 				return span;
 			},
+			toHTMLString: (mark, content) => {
+				const family: string = String(mark.attrs?.family ?? '');
+				if (!family) return content;
+				return `<span style="font-family: ${family}">${content}</span>`;
+			},
+			parseHTML: [
+				{
+					tag: 'span',
+					getAttrs: (el) => {
+						const family: string = el.style.fontFamily;
+						if (!family) return false;
+						return { family };
+					},
+				},
+			],
+			sanitize: { tags: ['span'] },
 		});
 	}
 

@@ -6,13 +6,16 @@
 import type { ContentSlice, SliceBlock } from './ContentSlice.js';
 import type { Mark, TextSegment } from './Document.js';
 import { markSetsEqual } from './Document.js';
+import type { ParseRule } from './ParseRule.js';
 import type { Schema } from './Schema.js';
 import { isMarkAllowed, isNodeTypeAllowed } from './Schema.js';
+import type { SchemaRegistry } from './SchemaRegistry.js';
 import type { NodeTypeName } from './TypeBrands.js';
 import { markType, nodeType } from './TypeBrands.js';
 
 export interface HTMLParserOptions {
 	readonly schema: Schema;
+	readonly schemaRegistry?: SchemaRegistry;
 }
 
 const BLOCK_ELEMENTS: ReadonlySet<string> = new Set([
@@ -55,9 +58,19 @@ const INLINE_ELEMENTS: ReadonlySet<string> = new Set([
 
 export class HTMLParser {
 	private readonly schema: Schema;
+	private readonly blockParseRules: readonly {
+		readonly rule: ParseRule;
+		readonly type: string;
+	}[];
+	private readonly markParseRules: readonly {
+		readonly rule: ParseRule;
+		readonly type: string;
+	}[];
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
+		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
+		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
 	}
 
 	/** Parses an HTML fragment and returns a ContentSlice. */
@@ -165,13 +178,25 @@ export class HTMLParser {
 			case 'TR':
 				return this.parseTableAsParagraphs(element);
 
-			default:
+			default: {
+				// Try block parse rules before falling back to paragraph
+				const blockMatch = this.matchBlockRule(element);
+				if (blockMatch) {
+					return [
+						{
+							type: blockMatch.type,
+							...(blockMatch.attrs ? { attrs: blockMatch.attrs } : {}),
+							segments: this.ensureSegments(this.parseInlineChildren(element, [])),
+						},
+					];
+				}
 				return [
 					{
 						type: this.resolveBlockType(nodeType('paragraph')),
 						segments: this.ensureSegments(this.parseInlineChildren(element, [])),
 					},
 				];
+			}
 		}
 	}
 
@@ -327,21 +352,47 @@ export class HTMLParser {
 
 	private marksFromElement(element: HTMLElement): readonly Mark[] {
 		const marks: Mark[] = [];
-		const tag: string = element.tagName;
+		const tag: string = element.tagName.toLowerCase();
 
-		if (tag === 'STRONG' || tag === 'B') {
+		// Try mark parse rules first
+		if (this.markParseRules.length > 0) {
+			const matchedTypes = new Set<string>();
+			for (const entry of this.markParseRules) {
+				if (entry.rule.tag !== tag) continue;
+				if (matchedTypes.has(entry.type)) continue;
+
+				if (entry.rule.getAttrs) {
+					const attrs = entry.rule.getAttrs(element);
+					if (attrs === false) continue;
+					marks.push({
+						type: markType(entry.type),
+						...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+					} as Mark);
+					matchedTypes.add(entry.type);
+				} else {
+					marks.push({ type: markType(entry.type) });
+					matchedTypes.add(entry.type);
+				}
+			}
+
+			if (matchedTypes.size > 0) return marks;
+		}
+
+		// Fallback to hardcoded logic when no registry is provided
+		const upperTag: string = element.tagName;
+		if (upperTag === 'STRONG' || upperTag === 'B') {
 			marks.push({ type: markType('bold') });
 		}
-		if (tag === 'EM' || tag === 'I') {
+		if (upperTag === 'EM' || upperTag === 'I') {
 			marks.push({ type: markType('italic') });
 		}
-		if (tag === 'U') {
+		if (upperTag === 'U') {
 			marks.push({ type: markType('underline') });
 		}
-		if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') {
+		if (upperTag === 'S' || upperTag === 'STRIKE' || upperTag === 'DEL') {
 			marks.push({ type: markType('strikethrough') });
 		}
-		if (tag === 'A') {
+		if (upperTag === 'A') {
 			const href: string = element.getAttribute('href') ?? '';
 			marks.push({ type: markType('link'), attrs: { href } });
 		}
@@ -388,8 +439,31 @@ export class HTMLParser {
 		return segments;
 	}
 
+	private matchBlockRule(el: HTMLElement): {
+		readonly type: NodeTypeName;
+		readonly attrs?: Record<string, string | number | boolean>;
+	} | null {
+		const tag: string = el.tagName.toLowerCase();
+		for (const entry of this.blockParseRules) {
+			if (entry.rule.tag !== tag) continue;
+			if (entry.rule.getAttrs) {
+				const attrs = entry.rule.getAttrs(el);
+				if (attrs === false) continue;
+				return {
+					type: nodeType(entry.type),
+					attrs: attrs as Record<string, string | number | boolean>,
+				};
+			}
+			return { type: nodeType(entry.type) };
+		}
+		return null;
+	}
+
 	private isBlockElement(el: HTMLElement): boolean {
-		return BLOCK_ELEMENTS.has(el.tagName);
+		if (BLOCK_ELEMENTS.has(el.tagName)) return true;
+		// Check if any block parse rule matches this tag
+		const tag: string = el.tagName.toLowerCase();
+		return this.blockParseRules.some((entry) => entry.rule.tag === tag);
 	}
 
 	private hasCheckbox(element: HTMLElement): boolean {

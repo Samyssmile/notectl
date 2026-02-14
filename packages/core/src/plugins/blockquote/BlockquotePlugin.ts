@@ -55,6 +55,11 @@ export class BlockquotePlugin implements Plugin {
 			toDOM(node) {
 				return createBlockElement('blockquote', node.id);
 			},
+			toHTML(_node, content) {
+				return `<blockquote>${content || '<br>'}</blockquote>`;
+			},
+			parseHTML: [{ tag: 'blockquote' }],
+			sanitize: { tags: ['blockquote'] },
 		});
 	}
 

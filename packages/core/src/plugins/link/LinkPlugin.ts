@@ -5,6 +5,7 @@
  */
 
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -71,6 +72,20 @@ export class LinkPlugin implements Plugin {
 				}
 				return a;
 			},
+			toHTMLString: (mark, content) => {
+				const href: string = escapeHTML(String(mark.attrs?.href ?? ''));
+				return `<a href="${href}">${content}</a>`;
+			},
+			parseHTML: [
+				{
+					tag: 'a',
+					getAttrs: (el) => {
+						const href: string = el.getAttribute('href') ?? '';
+						return { href };
+					},
+				},
+			],
+			sanitize: { tags: ['a'], attrs: ['href', 'target', 'rel'] },
 		});
 	}
 

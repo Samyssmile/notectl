@@ -168,6 +168,21 @@ export class HighlightPlugin implements Plugin {
 				span.style.backgroundColor = color;
 				return span;
 			},
+			toHTMLString: (mark, content) => {
+				const color: string = String(mark.attrs?.color ?? '');
+				return `<span style="background-color: ${color}">${content}</span>`;
+			},
+			parseHTML: [
+				{
+					tag: 'span',
+					getAttrs: (el) => {
+						const color: string = el.style.backgroundColor;
+						if (!color) return false;
+						return { color };
+					},
+				},
+			],
+			sanitize: { tags: ['span'] },
 		});
 	}
 

@@ -138,7 +138,7 @@ function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition 
 }
 
 /** Converts a DOM position to a state position, including nested path. */
-function domPositionToState(
+export function domPositionToState(
 	container: HTMLElement,
 	node: Node,
 	domOffset: number,

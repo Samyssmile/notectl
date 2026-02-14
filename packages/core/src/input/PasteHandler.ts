@@ -46,9 +46,15 @@ export class PasteHandler {
 		// Try HTML first, fall back to plain text
 		const html = clipboardData.getData('text/html');
 		if (html) {
+			const allowedTags: string[] = this.schemaRegistry
+				? this.schemaRegistry.getAllowedTags()
+				: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'];
+			const allowedAttrs: string[] = this.schemaRegistry
+				? this.schemaRegistry.getAllowedAttrs()
+				: [];
 			const sanitized = DOMPurify.sanitize(html, {
-				ALLOWED_TAGS: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'],
-				ALLOWED_ATTR: [],
+				ALLOWED_TAGS: allowedTags,
+				ALLOWED_ATTR: allowedAttrs,
 			});
 
 			// TODO: Rich-text paste not yet supported — extract plain text for now

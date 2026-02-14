@@ -101,6 +101,11 @@ export { createBlockElement } from './model/NodeSpec.js';
 export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 
+// --- ParseRule & SanitizeConfig ---
+export type { ParseRule } from './model/ParseRule.js';
+export type { SanitizeConfig } from './model/SanitizeConfig.js';
+export { escapeHTML } from './model/HTMLUtils.js';
+
 // --- SchemaRegistry ---
 export type { FileHandler, FileHandlerEntry } from './model/SchemaRegistry.js';
 export { SchemaRegistry } from './model/SchemaRegistry.js';
