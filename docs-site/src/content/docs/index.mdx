@@ -1,14 +1,14 @@
 ---
 title: notectl
-description: A modern, extensible rich text editor shipped as a Web Component.
+description: The rich text editor that gets out of your way. Build exactly the editing experience your users deserve.
 template: splash
 hero:
-  tagline: A modern, extensible rich text editor shipped as a Web Component. Plugin-based architecture, immutable state, and zero framework dependencies.
+  tagline: The rich text editor that gets out of your way. Zero framework lock-in, full control over every feature, and an architecture built for the real world.
   image:
-    file: ../../assets/screenshots/hero-editor.png
+    file: ../../assets/screenshots/hero-editor-rich.png
   actions:
-    - text: Get Started
-      link: /notectl/getting-started/introduction/
+    - text: Get Started in 2 Minutes
+      link: /notectl/getting-started/installation/
       icon: right-arrow
       variant: primary
     - text: View on GitHub
@@ -17,30 +17,131 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard, Aside, Badge, Tabs, TabItem } from '@astrojs/starlight/components';
 
-## Why notectl?
+## Build editors, not workarounds
 
-<CardGrid stagger>
-	<Card title="Web Component" icon="laptop">
-		Ships as a native `<notectl-editor>` custom element. Works with React, Vue, Angular, Svelte, or plain HTML — no framework lock-in.
+Most rich text editors force you into their world. notectl works in yours. Ship a `<notectl-editor>` Web Component that drops into React, Vue, Angular, Svelte, or plain HTML with zero adapters, zero wrappers, and zero compromises.
+
+<CardGrid>
+	<Card title="One tag. Any framework." icon="laptop">
+		`<notectl-editor>` is a native custom element. No React bindings, no Vue wrappers, no Angular modules. Import it, drop it in, done. Framework upgrades never break your editor.
 	</Card>
-	<Card title="Plugin Architecture" icon="puzzle">
-		Every feature is a plugin. Text formatting, headings, tables, fonts — compose exactly the editor you need. Build your own plugins with a clean API.
+	<Card title="Only ship what you use" icon="puzzle">
+		Every feature is a plugin. Bold, tables, fonts, checklists — compose exactly the editor you need. Your bundle stays lean, your users stay happy.
 	</Card>
-	<Card title="Immutable State" icon="approve-check">
-		All state changes go through transactions with invertible steps. Built-in undo/redo, predictable updates, and easy state inspection.
+	<Card title="State you can trust" icon="approve-check">
+		Immutable state, atomic transactions, invertible steps. Every change is predictable, every change is undoable. No more "how did the DOM get into this state?" debugging.
 	</Card>
-	<Card title="Declarative Toolbar" icon="setting">
-		Configure your toolbar layout with a simple array syntax. Group plugins visually, control ordering, and get automatic separator rendering.
+	<Card title="Toolbar in one line" icon="setting">
+		Configure your toolbar with a simple array. Group plugins visually, reorder freely, add separators — all declarative, zero DOM manipulation.
 	</Card>
 </CardGrid>
 
-## Quick Links
+## See it in action
+
+<Tabs>
+	<TabItem label="Minimal Setup">
+		```ts
+		import { createEditor } from '@notectl/core';
+
+		const editor = await createEditor({
+		  root: document.getElementById('editor')!,
+		});
+		```
+	</TabItem>
+	<TabItem label="Full-Featured">
+		```ts
+		import {
+		  createEditor,
+		  HeadingPlugin,
+		  ListPlugin,
+		  TablePlugin,
+		  LinkPlugin,
+		  FontPlugin,
+		  FontSizePlugin,
+		  TextColorPlugin,
+		  TextAlignmentPlugin,
+		  BlockquotePlugin,
+		  StrikethroughPlugin,
+		  HorizontalRulePlugin,
+		  STARTER_FONTS,
+		} from '@notectl/core';
+
+		const editor = await createEditor({
+		  root: document.getElementById('editor')!,
+		  toolbar: [
+		    [new HeadingPlugin()],
+		    [new ListPlugin(), new BlockquotePlugin()],
+		    [new LinkPlugin(), new TablePlugin()],
+		    [new FontPlugin({ fonts: [...STARTER_FONTS] })],
+		    [new FontSizePlugin()],
+		    [new TextColorPlugin()],
+		    [new TextAlignmentPlugin()],
+		    [new StrikethroughPlugin(), new HorizontalRulePlugin()],
+		  ],
+		});
+		```
+	</TabItem>
+	<TabItem label="Read Content">
+		```ts
+		// Get content as JSON, HTML, or plain text
+		const json = editor.getJSON();
+		const html = editor.getHTML();
+		const text = editor.getText();
+
+		// Set content programmatically
+		editor.setHTML('<h1>Hello</h1><p>World</p>');
+		editor.setJSON(savedDocument);
+
+		// Listen for changes
+		editor.on('stateChange', ({ state }) => {
+		  save(state.doc.toJSON());
+		});
+		```
+	</TabItem>
+</Tabs>
+
+## Why teams choose notectl
+
+<CardGrid stagger>
+	<Card title="15 built-in plugins" icon="puzzle">
+		Text formatting, headings, lists, tables, links, fonts, font sizes, text colors, alignment, blockquotes, strikethrough, horizontal rules, and a declarative toolbar. Every plugin ships with keyboard shortcuts, input rules, and accessible toolbar items.
+	</Card>
+	<Card title="Markdown-style shortcuts" icon="pencil">
+		Type `# ` for headings, `- ` for bullet lists, `1. ` for numbered lists, `> ` for blockquotes, `---` for horizontal rules, `[ ] ` for checklists. Your power users will feel right at home.
+	</Card>
+	<Card title="Tables that actually work" icon="open-book">
+		Full grid picker for insertion, multi-cell selection, row/column operations, keyboard navigation between cells. Not a bolted-on afterthought.
+	</Card>
+	<Card title="Custom fonts made easy" icon="document">
+		Pass a `FontDefinition` with WOFF2/TTF/OTF sources. notectl injects `@font-face` rules automatically. Bundle starter fonts (Fira Sans, Fira Code) or bring your own.
+	</Card>
+</CardGrid>
+
+## Architecture that scales
+
+notectl follows a strict unidirectional data flow. Every user action creates a `Transaction` with atomic, invertible `Steps`. Transactions pass through a priority-ordered middleware chain, produce a new immutable `EditorState`, and the view layer patches only the changed DOM blocks.
+
+```
+Input → Transaction (Steps) → Middleware → New State → DOM Reconciliation
+```
+
+This gives you predictable updates, built-in undo/redo, plugin interception points, and state transitions that are pure functions — easy to test, easy to reason about.
+
+| Layer | What it does |
+|-------|-------------|
+| **Model** | Immutable `Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection` |
+| **State** | `EditorState` container, `Transaction` builder, `History` with step inversion |
+| **View** | Block-level DOM reconciliation, selection sync, input handling |
+| **Commands** | `toggleMark`, `splitBlock`, `deleteBackward`, `insertTable`, and more |
+| **Plugins** | Self-contained feature modules with schema, commands, keymaps, toolbar items |
+
+## Get started
 
 <CardGrid>
-	<LinkCard title="Installation" href="/notectl/getting-started/installation/" description="Install @notectl/core and set up your first editor in under 2 minutes." />
-	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 13 built-in plugins with their APIs, commands, and keyboard shortcuts." />
-	<LinkCard title="Custom Fonts" href="/notectl/guides/custom-fonts/" description="Load custom WOFF2/TTF fonts with automatic @font-face injection." />
-	<LinkCard title="Architecture" href="/notectl/architecture/overview/" description="Understand the layered architecture: model, state, view, input, commands, plugins." />
+	<LinkCard title="Installation" href="/notectl/getting-started/installation/" description="npm install, one import, and you have a working editor. Takes under 2 minutes." />
+	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 15 built-in plugins with their APIs, commands, keyboard shortcuts, and screenshots." />
+	<LinkCard title="Write Your Own Plugin" href="/notectl/guides/writing-plugins/" description="Full guide to building custom plugins with the PluginContext API." />
+	<LinkCard title="Architecture Deep Dive" href="/notectl/architecture/overview/" description="Understand the layered architecture and unidirectional data flow." />
 </CardGrid>

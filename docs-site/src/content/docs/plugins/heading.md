@@ -1,9 +1,11 @@
 ---
 title: Heading Plugin
-description: Heading levels 1–6 with dropdown selector and input rules.
+description: Heading levels 1-6 with dropdown selector, keyboard shortcuts, and Markdown input rules.
 ---
 
-The `HeadingPlugin` adds heading support (H1–H6) with a toolbar dropdown selector, keyboard shortcuts, and Markdown-style input rules.
+The `HeadingPlugin` adds heading support (H1-H6) with a toolbar dropdown selector, keyboard shortcuts, and Markdown-style input rules.
+
+![Heading dropdown selector](../../../assets/screenshots/plugin-heading.png)
 
 ## Usage
 
@@ -20,36 +22,41 @@ new HeadingPlugin({ levels: [1, 2, 3] })
 ```ts
 interface HeadingConfig {
   /** Which heading levels to enable. Default: [1, 2, 3, 4, 5, 6] */
-  levels: HeadingLevel[];
-  separatorAfter?: boolean;
+  readonly levels: HeadingLevel[];
+  /** Render separator after toolbar item. */
+  readonly separatorAfter?: boolean;
 }
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 ```
 
-### Example: Only H1–H3
+### Example: Only H1-H3
 
 ```ts
 new HeadingPlugin({ levels: [1, 2, 3] })
 ```
 
+Only the specified levels appear in the dropdown selector and respond to input rules and keyboard shortcuts.
+
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `setHeading1` | Toggle heading level 1 |
-| `setHeading2` | Toggle heading level 2 |
-| `setHeading3` | Toggle heading level 3 |
-| `setHeading4` | Toggle heading level 4 |
-| `setHeading5` | Toggle heading level 5 |
-| `setHeading6` | Toggle heading level 6 |
-| `setParagraph` | Convert back to paragraph |
-| `toggleHeading` | Toggle H1 |
+| Command | Description | Returns |
+|---------|-------------|---------|
+| `setHeading1` | Toggle heading level 1 | `boolean` |
+| `setHeading2` | Toggle heading level 2 | `boolean` |
+| `setHeading3` | Toggle heading level 3 | `boolean` |
+| `setHeading4` | Toggle heading level 4 | `boolean` |
+| `setHeading5` | Toggle heading level 5 | `boolean` |
+| `setHeading6` | Toggle heading level 6 | `boolean` |
+| `setParagraph` | Convert block back to paragraph | `boolean` |
+| `toggleHeading` | Toggle H1 on current block | `boolean` |
 
 ```ts
 editor.executeCommand('setHeading2');
 editor.executeCommand('setParagraph');
 ```
+
+Each `setHeadingN` command acts as a toggle: if the block is already that heading level, it reverts to a paragraph.
 
 ## Keyboard Shortcuts
 
@@ -62,9 +69,11 @@ editor.executeCommand('setParagraph');
 | `Ctrl+Shift+5` / `Cmd+Shift+5` | Heading 5 |
 | `Ctrl+Shift+6` / `Cmd+Shift+6` | Heading 6 |
 
+Only shortcuts for configured levels are registered.
+
 ## Input Rules
 
-Type at the beginning of a line:
+Type at the beginning of an empty line:
 
 | Pattern | Result |
 |---------|--------|
@@ -75,12 +84,16 @@ Type at the beginning of a line:
 | `##### ` | Heading 5 |
 | `###### ` | Heading 6 |
 
+Input rules only fire for levels included in the `levels` config.
+
 ## Toolbar
 
-The heading plugin renders as a dropdown selector showing "Paragraph", "Heading 1", "Heading 2", etc. The current block type is reflected in the dropdown label.
+The heading plugin renders as a **dropdown selector** in the toolbar. The dropdown label reflects the current block type ("Paragraph", "Heading 1", "Heading 2", etc.). Each option is styled with the corresponding heading font size for visual preview.
 
 ## Node Spec
 
 | Type | HTML Tag | Attributes |
 |------|----------|-----------|
-| `heading` | `<h1>` – `<h6>` | `level: number` |
+| `heading` | `<h1>` - `<h6>` | `level: number` (1-6) |
+
+The `level` attribute maps directly to the HTML heading tag. The `toDOM` method creates the correct `<hN>` element and sets the required `data-block-id` attribute.

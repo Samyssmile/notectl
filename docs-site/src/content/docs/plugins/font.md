@@ -1,11 +1,13 @@
 ---
 title: Font Plugin
-description: Custom font family support with automatic @font-face injection.
+description: Custom font family support with automatic @font-face injection and visual font picker.
 ---
 
 The `FontPlugin` provides a font family selector with automatic `@font-face` CSS injection for custom fonts (WOFF2, TTF, OTF).
 
-For a complete guide on using custom fonts, see [Custom Fonts](/guides/custom-fonts/).
+![Font selector popup](../../../assets/screenshots/plugin-font.png)
+
+For a complete guide on using custom fonts, see [Custom Fonts](/notectl/guides/custom-fonts/).
 
 ## Usage
 
@@ -22,66 +24,71 @@ new FontPlugin({
 ```ts
 interface FontConfig {
   /** Fonts available in the editor. */
-  fonts: FontDefinition[];
+  readonly fonts: FontDefinition[];
   /** Name of the default font. Selecting it removes the mark. */
-  defaultFont?: string;
-  separatorAfter?: boolean;
+  readonly defaultFont?: string;
+  /** Render separator after toolbar item. */
+  readonly separatorAfter?: boolean;
 }
 
 interface FontDefinition {
   /** Display name in toolbar dropdown. */
-  name: string;
+  readonly name: string;
   /** CSS font-family value. */
-  family: string;
-  /** Category for grouping. */
-  category?: 'serif' | 'sans-serif' | 'monospace' | 'display' | 'handwriting';
+  readonly family: string;
+  /** Category for grouping in the picker. */
+  readonly category?: 'serif' | 'sans-serif' | 'monospace' | 'display' | 'handwriting';
   /** @font-face descriptors for auto-injection. */
-  fontFaces?: FontFaceDescriptor[];
+  readonly fontFaces?: FontFaceDescriptor[];
 }
 
 interface FontFaceDescriptor {
-  /** CSS src value. */
-  src: string;
-  /** Weight, e.g. '400' or '100 900'. */
-  weight?: string;
-  /** Style, e.g. 'normal' or 'italic'. */
-  style?: string;
+  /** CSS src value (e.g., "url('/fonts/Inter.woff2') format('woff2')"). */
+  readonly src: string;
+  /** Weight (e.g., '400' or '100 900' for variable fonts). */
+  readonly weight?: string;
+  /** Style (e.g., 'normal' or 'italic'). */
+  readonly style?: string;
   /** Display strategy. Default: 'swap'. */
-  display?: string;
+  readonly display?: string;
 }
 ```
 
 ## Starter Fonts
 
-Built-in fonts with embedded WOFF2 data:
+Built-in fonts with embedded WOFF2 data (no external URLs needed):
 
 ```ts
 import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core';
 ```
 
-| Constant | Font | Category |
-|----------|------|----------|
-| `FIRA_SANS` | Fira Sans | sans-serif |
-| `FIRA_CODE` | Fira Code | monospace |
-| `STARTER_FONTS` | Both of the above | — |
+| Constant | Font | Category | Weights |
+|----------|------|----------|---------|
+| `FIRA_SANS` | Fira Sans | sans-serif | 400, 700 |
+| `FIRA_CODE` | Fira Code | monospace | 400 |
+| `STARTER_FONTS` | Both of the above | - | - |
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `removeFont` | Remove font mark from selection |
+| Command | Description | Returns |
+|---------|-------------|---------|
+| `removeFont` | Remove font mark from selection (reset to default) | `boolean` |
 
 Font application is handled through the plugin's internal `applyFont()` method, triggered by the toolbar popup.
 
 ## Toolbar
 
-The font plugin renders as a combobox-style selector. The label updates to show the active font name. Clicking opens a font picker popup where each font is previewed in its own typeface.
+The font plugin renders as a **combobox-style selector**. The label updates to show the active font name at the cursor position. Clicking opens a font picker popup where each font name is rendered in its own typeface for instant preview.
 
 ## Mark Spec
 
 | Mark | Attributes | Renders As |
 |------|-----------|-----------|
 | `font` | `family: string` | `<span style="font-family: ...">` |
+
+## Default Font Behavior
+
+When the user selects the `defaultFont`, the font mark is **removed** rather than applied. This keeps the document clean — text in the default font has no unnecessary marks.
 
 ## Custom Font Example
 
@@ -105,4 +112,26 @@ new FontPlugin({
   fonts: [...STARTER_FONTS, INTER],
   defaultFont: 'Fira Sans',
 })
+```
+
+## Google Fonts Example
+
+```ts
+const ROBOTO: FontDefinition = {
+  name: 'Roboto',
+  family: "'Roboto', sans-serif",
+  category: 'sans-serif',
+  fontFaces: [
+    {
+      src: "url('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2') format('woff2')",
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      src: "url('https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.woff2') format('woff2')",
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+};
 ```
