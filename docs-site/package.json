@@ -11,6 +11,7 @@
 	},
 	"dependencies": {
 		"@astrojs/starlight": "^0.37.6",
+		"@notectl/core": "workspace:^",
 		"astro": "^5.17.2",
 		"sharp": "^0.34.5"
 	}
