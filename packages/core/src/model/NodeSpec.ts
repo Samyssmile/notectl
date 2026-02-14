@@ -42,6 +42,12 @@ export interface NodeSpec<T extends string = string> {
 	readonly isolating?: boolean;
 	/** If true, node can be selected as an object via mouse interaction. */
 	readonly selectable?: boolean;
+	/**
+	 * Mark types that are incompatible with this block type.
+	 * When a block is converted to this type, marks listed here
+	 * are stripped from the block's inline content.
+	 */
+	readonly excludeMarks?: readonly string[];
 	/** Serializes the block to an HTML string. `content` is the pre-serialized inline children. */
 	readonly toHTML?: (node: BlockNode, content: string) => string;
 	/** Rules for matching HTML elements to this block type during parsing. */
