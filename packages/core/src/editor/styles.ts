@@ -29,6 +29,7 @@ const EDITOR_CSS = `
 .notectl-plugin-container--top {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	border-bottom: 1px solid #e0e0e0;
 	background: #f8f8f8;
 	min-height: 40px;
@@ -37,6 +38,7 @@ const EDITOR_CSS = `
 .notectl-toolbar {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 2px;
 	padding: 4px 8px;
 }

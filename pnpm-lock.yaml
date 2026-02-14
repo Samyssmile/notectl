@@ -26,6 +26,9 @@ importers:
       '@astrojs/starlight':
         specifier: ^0.37.6
         version: 0.37.6(astro@5.17.2(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3))
+      '@notectl/core':
+        specifier: workspace:^
+        version: link:../packages/core
       astro:
         specifier: ^5.17.2
         version: 5.17.2(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3)

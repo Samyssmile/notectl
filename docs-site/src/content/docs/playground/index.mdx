@@ -1,0 +1,31 @@
+---
+title: Playground
+description: Try notectl live in your browser. No installation required.
+---
+
+import EditorPlayground from '../../../components/EditorPlayground.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Try the full-featured notectl editor right here in your browser. All 15 built-in plugins are active.
+
+<Aside type="tip">
+Use keyboard shortcuts like `Ctrl+B` for bold, `Ctrl+I` for italic, or type `# ` to create a heading. See the [Plugin Overview](/notectl/plugins/overview/) for all available shortcuts.
+</Aside>
+
+<EditorPlayground />
+
+## What you see here
+
+This playground runs the exact same `@notectl/core` package you would install in your project. The editor is configured with all built-in plugins:
+
+| Group | Plugins |
+|-------|---------|
+| **Typography** | Font, Font Size |
+| **Formatting** | Bold, Italic, Underline, Strikethrough, Superscript, Subscript |
+| **Color** | Text Color, Highlight |
+| **Structure** | Heading, Blockquote |
+| **Alignment** | Left, Center, Right, Justify |
+| **Lists** | Bullet List, Numbered List |
+| **Insert** | Link, Table, Horizontal Rule |
+
+The output panel below the editor shows the live document state in JSON, HTML, or plain text format.
