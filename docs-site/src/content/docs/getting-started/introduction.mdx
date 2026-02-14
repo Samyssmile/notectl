@@ -3,7 +3,7 @@ title: Introduction
 description: What is notectl and why should you use it?
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 **notectl** is a rich text editor shipped as a native Web Component (`<notectl-editor>`). It is designed from the ground up with a strict layered architecture, immutable data structures, a powerful plugin system, and comprehensive accessibility support.
 
@@ -47,6 +47,22 @@ This architecture gives you:
 | **Commands** | High-level operations: `toggleMark`, `splitBlock`, `deleteBackward` |
 | **Plugins** | Feature modules that register schema, commands, keymaps, toolbar items |
 
+## Built-in Plugins
+
+![Full toolbar with all plugins](../../../assets/screenshots/toolbar-full.png)
+
+notectl ships with 15 built-in plugins covering text formatting, headings, lists, tables, links, fonts, text color, alignment, and more. See the [Plugin Overview](/notectl/plugins/overview/) for the full list.
+
+## Screenshots
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
+
+![Table showcase](../../../assets/screenshots/editor-table-showcase.png)
+
+![List content](../../../assets/screenshots/editor-with-list.png)
+
+</div>
+
 <Aside type="tip">
-Ready to get started? Head to the [Installation](/getting-started/installation/) page to add notectl to your project.
+Ready to get started? Head to the [Installation](/notectl/getting-started/installation/) page to add notectl to your project.
 </Aside>

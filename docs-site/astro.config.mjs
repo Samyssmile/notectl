@@ -67,6 +67,8 @@ export default defineConfig({
 						{ label: 'Text Color', slug: 'plugins/text-color' },
 						{ label: 'Text Alignment', slug: 'plugins/text-alignment' },
 						{ label: 'Strikethrough', slug: 'plugins/strikethrough' },
+						{ label: 'Superscript & Subscript', slug: 'plugins/super-sub' },
+						{ label: 'Highlight', slug: 'plugins/highlight' },
 						{ label: 'Horizontal Rule', slug: 'plugins/horizontal-rule' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
 					],
