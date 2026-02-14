@@ -33,7 +33,7 @@ Most editors bolt formatting on top of `contenteditable` and hope for the best. 
 <br />
 
 ## Wanna try? 
-Check out the [live playground](http://localhost:4321/notectl/playground/) — no install required.
+Check out the [live playground](https://samyssmile.github.io/notectl/playground/) — no install required.
 
 ## Wanna see full working example?
 `examples/vanillajs/` is a great place to see everything in action.
