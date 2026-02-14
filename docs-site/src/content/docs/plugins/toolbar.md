@@ -1,9 +1,11 @@
 ---
 title: Toolbar Plugin
-description: The toolbar UI renderer — automatically created when using the toolbar config.
+description: The toolbar UI renderer with support for buttons, dropdowns, grid pickers, and custom popups.
 ---
 
 The `ToolbarPlugin` renders the editor toolbar UI. It is **automatically created** when you use the `toolbar` configuration option — you don't need to instantiate it manually.
+
+![Full toolbar](../../../assets/screenshots/toolbar-full.png)
 
 ## Automatic Setup
 
@@ -16,6 +18,8 @@ const editor = await createEditor({
 });
 // ToolbarPlugin is automatically created and registered
 ```
+
+Each inner array becomes a visual **toolbar group** separated by dividers.
 
 ## Manual Setup
 
@@ -42,7 +46,7 @@ const editor = await createEditor({
 ```ts
 interface ToolbarLayoutConfig {
   /** Plugin ID groups — each inner array is a visual toolbar group */
-  groups: string[][];
+  readonly groups: ReadonlyArray<ReadonlyArray<string>>;
 }
 ```
 
@@ -52,35 +56,74 @@ Plugins register toolbar items via `context.registerToolbarItem()`:
 
 ```ts
 interface ToolbarItem {
-  id: string;
-  group: string;
-  icon: string;                    // HTML string
-  label: string;                   // Accessible label
-  tooltip?: string;
-  command: string;                 // Command to execute
-  priority: number;                // Order within group
-  separatorAfter?: boolean;
-  popupType?: 'dropdown' | 'gridPicker' | 'custom';
-  popupConfig?: GridPickerConfig | DropdownConfig;
-  renderPopup?: (container, context) => void;
-  isActive?: (state) => boolean;
-  isEnabled?: (state) => boolean;
-  isDisabled?: (state) => boolean;
+  /** Unique identifier. */
+  readonly id: string;
+  /** Logical group for auto-grouping (e.g., 'format', 'block'). */
+  readonly group: string;
+  /** HTML string for the button icon. */
+  readonly icon: string;
+  /** Accessible label for screen readers. */
+  readonly label: string;
+  /** Tooltip text shown on hover. */
+  readonly tooltip?: string;
+  /** Command to execute on click. */
+  readonly command: string;
+  /** Ordering within group (lower = further left). */
+  readonly priority: number;
+  /** Render a separator after this button. */
+  readonly separatorAfter?: boolean;
+  /** Popup type: 'dropdown', 'gridPicker', or 'custom'. */
+  readonly popupType?: 'dropdown' | 'gridPicker' | 'custom';
+  /** Configuration for dropdown or gridPicker popups. */
+  readonly popupConfig?: GridPickerConfig | DropdownConfig;
+  /** Custom popup render function. */
+  renderPopup?(container: HTMLElement, context: PluginContext): void;
+  /** Returns true when the item should appear active/pressed. */
+  isActive?(state: EditorState): boolean;
+  /** Returns true when the item should be enabled. */
+  isEnabled?(state: EditorState): boolean;
 }
 ```
 
 ## Popup Types
 
-- **`dropdown`** — A list of options (used by HeadingPlugin)
-- **`gridPicker`** — A 2D grid (used by TablePlugin for row/column selection)
-- **`custom`** — Full control over popup rendering (used by FontPlugin, TextColorPlugin, LinkPlugin)
+| Type | Description | Used By |
+|------|-------------|---------|
+| `dropdown` | Vertical list of options | HeadingPlugin, TextAlignmentPlugin |
+| `gridPicker` | 2D grid for dimension selection | TablePlugin |
+| `custom` | Full control over popup rendering | FontPlugin, FontSizePlugin, TextColorPlugin, LinkPlugin |
 
-## Services
+## ToolbarService
 
-The toolbar exposes a service for other plugins:
+The toolbar exposes a typed service for programmatic control:
 
 ```ts
 import { ToolbarServiceKey } from '@notectl/core';
 
 const toolbarService = context.getService(ToolbarServiceKey);
+
+// Force refresh of all button states
+toolbarService.refresh();
 ```
+
+```ts
+interface ToolbarServiceAPI {
+  /** Re-reads isActive/isEnabled from state and updates all buttons. */
+  refresh(): void;
+}
+```
+
+## Button States
+
+The toolbar automatically updates button states on every state change:
+- **Active** (`aria-pressed="true"`) — when `isActive()` returns `true` (e.g., bold button when cursor is in bold text)
+- **Disabled** (`aria-disabled="true"`) — when `isEnabled()` returns `false`
+- **Popup open** — visual indicator when a popup is visible
+
+## Accessibility
+
+The toolbar element has:
+- `role="toolbar"` for screen readers
+- `aria-label="Formatting options"`
+- Individual buttons with `aria-pressed` and `aria-label`
+- Tooltip on hover (500ms delay)

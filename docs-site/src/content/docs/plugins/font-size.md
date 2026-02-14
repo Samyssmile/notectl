@@ -1,9 +1,11 @@
 ---
 title: Font Size Plugin
-description: Font size control with dropdown, custom input, and keyboard shortcuts.
+description: Font size control with dropdown, custom input, keyboard shortcuts, and smart default handling.
 ---
 
 The `FontSizePlugin` provides a font size selector with preset sizes, custom input, and keyboard shortcuts for stepping through sizes.
+
+![Font size selector](../../../assets/screenshots/editor-formatted.png)
 
 ## Usage
 
@@ -23,10 +25,11 @@ new FontSizePlugin({
 ```ts
 interface FontSizeConfig {
   /** Preset sizes shown in the dropdown. Sorted and deduplicated automatically. */
-  sizes?: number[];
+  readonly sizes?: number[];
   /** Base font size (no mark applied). Default: 16 */
-  defaultSize?: number;
-  separatorAfter?: boolean;
+  readonly defaultSize?: number;
+  /** Render separator after toolbar item. */
+  readonly separatorAfter?: boolean;
 }
 ```
 
@@ -40,15 +43,16 @@ When `sizes` is not specified:
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `removeFontSize` | Remove font size mark (reset to default) |
-| `increaseFontSize` | Step up to next preset size |
-| `decreaseFontSize` | Step down to previous preset size |
+| Command | Description | Returns |
+|---------|-------------|---------|
+| `removeFontSize` | Remove font size mark (reset to default) | `boolean` |
+| `increaseFontSize` | Step up to next preset size | `boolean` |
+| `decreaseFontSize` | Step down to previous preset size | `boolean` |
 
 ```ts
 editor.executeCommand('increaseFontSize');
 editor.executeCommand('decreaseFontSize');
+editor.executeCommand('removeFontSize');
 ```
 
 ## Keyboard Shortcuts
@@ -60,18 +64,24 @@ editor.executeCommand('decreaseFontSize');
 
 ## Toolbar
 
-The font size plugin renders as a combobox showing the current size. The dropdown includes:
+The font size plugin renders as a **combobox** showing the current size. The dropdown includes:
 
-1. A number input for custom sizes (1–400)
+1. A number input for custom sizes (1-400)
 2. A scrollable list of preset sizes
-3. Keyboard navigation (arrow keys, Enter, Escape)
+3. Full keyboard navigation (arrow keys, Enter, Escape)
+
+The currently active size is highlighted in the list. If the cursor is on text with no font size mark, the default size is shown.
 
 ## Mark Spec
 
 | Mark | Attributes | Renders As |
 |------|-----------|-----------|
-| `fontSize` | `size: string` (e.g. `"24px"`) | `<span style="font-size: 24px">` |
+| `fontSize` | `size: string` (e.g., `"24px"`) | `<span style="font-size: 24px">` |
 
 ## Default Size Behavior
 
 When the user selects the `defaultSize`, the font size mark is **removed** rather than applied. This keeps the document clean — text at the default size has no unnecessary marks.
+
+## Stepping Logic
+
+The `increaseFontSize` and `decreaseFontSize` commands find the current font size at the cursor, locate it in the sorted preset list, and move to the next/previous entry. If the current size is not in the preset list, the commands snap to the nearest preset.
