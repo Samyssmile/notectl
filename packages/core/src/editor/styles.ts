@@ -176,6 +176,10 @@ const EDITOR_CSS = `
 	min-height: var(--notectl-content-min-height, 400px);
 	cursor: text;
 	position: relative;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	-moz-tab-size: 4;
+	tab-size: 4;
 }
 
 .notectl-content p {

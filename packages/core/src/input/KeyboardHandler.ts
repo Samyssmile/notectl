@@ -9,6 +9,7 @@
 
 import {
 	deleteNodeSelection,
+	insertTextCommand,
 	navigateArrowIntoVoid,
 	selectAll,
 	splitBlockCommand,
@@ -68,6 +69,9 @@ export class KeyboardHandler {
 				}
 			}
 		}
+
+		// Tab fallback: insert tab character when no plugin handled it
+		if (this.handleTab(e)) return;
 
 		// Fall back to built-in structural shortcuts
 		const mod = e.metaKey || e.ctrlKey;
@@ -151,6 +155,24 @@ export class KeyboardHandler {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Inserts a tab character when Tab is pressed and no plugin handled it.
+	 * Shift-Tab is suppressed to prevent focus leaving the editor.
+	 */
+	private handleTab(e: KeyboardEvent): boolean {
+		if (e.key !== 'Tab') return false;
+		if (e.metaKey || e.ctrlKey || e.altKey) return false;
+
+		e.preventDefault();
+
+		if (e.shiftKey) return true;
+
+		const state = this.getState();
+		const tr: Transaction = insertTextCommand(state, '\t');
+		this.dispatch(tr);
+		return true;
 	}
 
 	/** Handles arrow key navigation from text blocks into adjacent void blocks. */
