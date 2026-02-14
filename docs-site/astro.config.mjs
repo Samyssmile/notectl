@@ -35,6 +35,10 @@ export default defineConfig({
 			],
 			sidebar: [
 				{
+					label: 'Playground',
+					slug: 'playground',
+				},
+				{
 					label: 'Getting Started',
 					items: [
 						{ label: 'Introduction', slug: 'getting-started/introduction' },

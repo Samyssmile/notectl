@@ -1,0 +1,200 @@
+---
+---
+
+<div class="playground-wrapper">
+	<div class="playground-editor" id="playground-editor"></div>
+
+	<div class="playground-output">
+		<div class="output-tabs">
+			<button class="output-tab active" data-tab="json">JSON</button>
+			<button class="output-tab" data-tab="html">HTML</button>
+			<button class="output-tab" data-tab="text">Text</button>
+		</div>
+		<pre class="output-content" id="playground-output"><code>Click a tab to inspect the editor output.</code></pre>
+	</div>
+</div>
+
+<script>
+	import {
+		BlockquotePlugin,
+		FontPlugin,
+		FontSizePlugin,
+		HeadingPlugin,
+		HighlightPlugin,
+		HorizontalRulePlugin,
+		LinkPlugin,
+		ListPlugin,
+		STARTER_FONTS,
+		StrikethroughPlugin,
+		SuperSubPlugin,
+		TablePlugin,
+		TextAlignmentPlugin,
+		TextColorPlugin,
+		TextFormattingPlugin,
+		createEditor,
+	} from '@notectl/core';
+
+	const container = document.getElementById('playground-editor');
+	const output = document.getElementById('playground-output');
+
+	if (container && output) {
+		const editor = await createEditor({
+			toolbar: [
+				[
+					new FontPlugin({ fonts: [...STARTER_FONTS] }),
+					new FontSizePlugin({
+						sizes: [10, 12, 14, 16, 18, 20, 24, 28, 32, 48],
+						defaultSize: 14,
+					}),
+				],
+				[
+					new TextFormattingPlugin({
+						bold: true,
+						italic: true,
+						underline: true,
+					}),
+					new StrikethroughPlugin(),
+					new SuperSubPlugin(),
+				],
+				[new TextColorPlugin(), new HighlightPlugin()],
+				[new HeadingPlugin(), new BlockquotePlugin()],
+				[new TextAlignmentPlugin()],
+				[new ListPlugin()],
+				[
+					new LinkPlugin(),
+					new TablePlugin(),
+					new HorizontalRulePlugin(),
+				],
+			],
+			placeholder: 'Start typing to try notectl...',
+			autofocus: false,
+		});
+
+		container.appendChild(editor);
+
+		let activeTab = 'json';
+
+		function updateOutput() {
+			const code = output?.querySelector('code');
+			if (!code) return;
+
+			switch (activeTab) {
+				case 'json':
+					code.textContent = JSON.stringify(editor.getJSON(), null, 2);
+					break;
+				case 'html':
+					code.textContent = editor.getHTML();
+					break;
+				case 'text':
+					code.textContent = editor.getText() || '(empty)';
+					break;
+			}
+		}
+
+		document.querySelectorAll('.output-tab').forEach((tab) => {
+			tab.addEventListener('click', () => {
+				document
+					.querySelectorAll('.output-tab')
+					.forEach((t) => t.classList.remove('active'));
+				tab.classList.add('active');
+				activeTab =
+					(tab as HTMLElement).dataset.tab ?? 'json';
+				updateOutput();
+			});
+		});
+
+		editor.on('stateChange', () => {
+			updateOutput();
+		});
+
+		editor.on('ready', () => {
+			updateOutput();
+		});
+	}
+</script>
+
+<style>
+	.playground-wrapper {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+		margin-top: 1rem;
+	}
+
+	.playground-editor {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 8px;
+		overflow: hidden;
+		min-height: 350px;
+		background: var(--sl-color-bg);
+	}
+
+	:root[data-theme='dark'] .playground-editor {
+		border-color: var(--sl-color-gray-4);
+	}
+
+	.playground-output {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	:root[data-theme='dark'] .playground-output {
+		border-color: var(--sl-color-gray-4);
+	}
+
+	.output-tabs {
+		display: flex;
+		gap: 0;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		background: var(--sl-color-gray-6);
+	}
+
+	:root[data-theme='dark'] .output-tabs {
+		border-bottom-color: var(--sl-color-gray-4);
+		background: var(--sl-color-gray-5);
+	}
+
+	.output-tab {
+		padding: 0.5rem 1.25rem;
+		border: none;
+		background: transparent;
+		color: var(--sl-color-gray-2);
+		cursor: pointer;
+		font-size: 0.85rem;
+		font-weight: 500;
+		font-family: var(--sl-font);
+		transition: color 0.15s, background 0.15s;
+		border-bottom: 2px solid transparent;
+	}
+
+	.output-tab:hover {
+		color: var(--sl-color-text);
+		background: var(--sl-color-gray-5);
+	}
+
+	:root[data-theme='dark'] .output-tab:hover {
+		background: var(--sl-color-gray-4);
+	}
+
+	.output-tab.active {
+		color: var(--sl-color-accent);
+		border-bottom-color: var(--sl-color-accent);
+	}
+
+	.output-content {
+		margin: 0;
+		padding: 1rem;
+		max-height: 300px;
+		overflow: auto;
+		font-size: 0.8rem;
+		line-height: 1.5;
+		background: var(--sl-color-bg);
+	}
+
+	.output-content code {
+		font-family: var(--sl-font-mono);
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+</style>
