@@ -54,6 +54,11 @@ export class HorizontalRulePlugin implements Plugin {
 			toDOM(node) {
 				return createBlockElement('hr', node.id);
 			},
+			toHTML() {
+				return '<hr>';
+			},
+			parseHTML: [{ tag: 'hr' }],
+			sanitize: { tags: ['hr'] },
 		});
 	}
 

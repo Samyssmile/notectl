@@ -133,6 +133,11 @@ export class ListPlugin implements Plugin {
 
 				return li;
 			},
+			toHTML(_node, content) {
+				return `<li>${content || '<br>'}</li>`;
+			},
+			parseHTML: [{ tag: 'li' }],
+			sanitize: { tags: ['ul', 'ol', 'li'] },
 		});
 	}
 

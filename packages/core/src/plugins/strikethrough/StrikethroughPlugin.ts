@@ -52,6 +52,9 @@ export class StrikethroughPlugin implements Plugin {
 			toDOM() {
 				return document.createElement('s');
 			},
+			toHTMLString: (_mark, content) => `<s>${content}</s>`,
+			parseHTML: [{ tag: 's' }, { tag: 'strike' }, { tag: 'del' }],
+			sanitize: { tags: ['s'] },
 		});
 	}
 

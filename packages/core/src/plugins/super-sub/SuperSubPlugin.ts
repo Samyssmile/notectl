@@ -9,6 +9,8 @@
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
 import type { Mark } from '../../model/Document.js';
+import type { ParseRule } from '../../model/ParseRule.js';
+import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { RemoveMarkStep, Step } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -57,6 +59,9 @@ interface MarkDefinition {
 	readonly icon: string;
 	readonly keyBinding: string;
 	readonly toolbarPriority: number;
+	readonly toHTMLString: (content: string) => string;
+	readonly parseHTML: readonly ParseRule[];
+	readonly sanitize: SanitizeConfig;
 }
 
 const SUPERSCRIPT_ICON: string = [
@@ -111,6 +116,9 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		icon: SUPERSCRIPT_ICON,
 		keyBinding: 'Mod-.',
 		toolbarPriority: 50,
+		toHTMLString: (content) => `<sup>${content}</sup>`,
+		parseHTML: [{ tag: 'sup' }],
+		sanitize: { tags: ['sup'] },
 	},
 	{
 		type: 'subscript',
@@ -122,6 +130,9 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		icon: SUBSCRIPT_ICON,
 		keyBinding: 'Mod-,',
 		toolbarPriority: 51,
+		toHTMLString: (content) => `<sub>${content}</sub>`,
+		parseHTML: [{ tag: 'sub' }],
+		sanitize: { tags: ['sub'] },
 	},
 ];
 
@@ -168,6 +179,9 @@ export class SuperSubPlugin implements Plugin {
 			toDOM() {
 				return document.createElement(def.tag);
 			},
+			toHTMLString: (_mark, content) => def.toHTMLString(content),
+			parseHTML: def.parseHTML,
+			sanitize: def.sanitize,
 		});
 
 		context.registerCommand(commandName, () => {
