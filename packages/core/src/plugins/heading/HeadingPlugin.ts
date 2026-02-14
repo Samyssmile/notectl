@@ -4,11 +4,13 @@
  * combobox-style toolbar dropdown that reflects the current block type.
  */
 
+import type { BlockNode, Mark } from '../../model/Document.js';
+import { getBlockLength, getInlineChildren, isTextNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
+import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import type { TextAlignment } from '../text-alignment/TextAlignmentPlugin.js';
 
@@ -109,6 +111,7 @@ export class HeadingPlugin implements Plugin {
 			type: 'title',
 			group: 'block',
 			content: { allow: ['text'] },
+			excludeMarks: ['fontSize'],
 			toDOM(node) {
 				const el = createBlockElement('h1', node.id);
 				el.classList.add('notectl-title');
@@ -124,6 +127,7 @@ export class HeadingPlugin implements Plugin {
 			type: 'subtitle',
 			group: 'block',
 			content: { allow: ['text'] },
+			excludeMarks: ['fontSize'],
 			toDOM(node) {
 				const el = createBlockElement('h2', node.id);
 				el.classList.add('notectl-subtitle');
@@ -139,6 +143,7 @@ export class HeadingPlugin implements Plugin {
 			type: 'heading',
 			group: 'block',
 			content: { allow: ['text'] },
+			excludeMarks: ['fontSize'],
 			attrs: {
 				level: { default: 1 },
 			},
@@ -429,17 +434,77 @@ export class HeadingPlugin implements Plugin {
 		type: NodeTypeName,
 		attrs?: Record<string, string | number | boolean>,
 	): boolean {
-		const state = context.getState();
+		const state: EditorState = context.getState();
 		const sel = state.selection;
 		if (isNodeSelection(sel)) return false;
 
-		const tr = state
-			.transaction('command')
-			.setBlockType(sel.anchor.blockId, type, attrs)
-			.setSelection(sel)
-			.build();
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block) return false;
+
+		const builder = state.transaction('command');
+
+		const spec = context.getSchemaRegistry().getNodeSpec(type);
+		if (spec?.excludeMarks && spec.excludeMarks.length > 0) {
+			this.stripExcludedMarks(builder, block, spec.excludeMarks);
+			this.clearExcludedStoredMarks(builder, state, spec.excludeMarks);
+		}
+
+		const tr = builder.setBlockType(sel.anchor.blockId, type, attrs).setSelection(sel).build();
 
 		context.dispatch(tr);
 		return true;
+	}
+
+	/**
+	 * Adds removeMark steps for each excluded mark type found
+	 * on the block's inline text content.
+	 */
+	private stripExcludedMarks(
+		builder: TransactionBuilder,
+		block: BlockNode,
+		excludeMarks: readonly string[],
+	): void {
+		const blockLength: number = getBlockLength(block);
+		if (blockLength === 0) return;
+
+		const excludeSet: Set<string> = new Set(excludeMarks);
+		const inlineChildren = getInlineChildren(block);
+		let offset = 0;
+
+		for (const child of inlineChildren) {
+			if (isTextNode(child)) {
+				if (child.text.length > 0) {
+					for (const mark of child.marks) {
+						if (excludeSet.has(mark.type)) {
+							builder.removeMark(block.id, offset, offset + child.text.length, mark);
+						}
+					}
+				}
+				offset += child.text.length;
+			} else {
+				offset += 1;
+			}
+		}
+	}
+
+	/**
+	 * Clears excluded mark types from stored marks so that
+	 * subsequent typing does not reintroduce them.
+	 */
+	private clearExcludedStoredMarks(
+		builder: TransactionBuilder,
+		state: EditorState,
+		excludeMarks: readonly string[],
+	): void {
+		if (!state.storedMarks) return;
+
+		const excludeSet: Set<string> = new Set(excludeMarks);
+		const filtered: readonly Mark[] = state.storedMarks.filter(
+			(m: Mark) => !excludeSet.has(m.type),
+		);
+
+		if (filtered.length !== state.storedMarks.length) {
+			builder.setStoredMarks(filtered.length > 0 ? filtered : null, state.storedMarks);
+		}
 	}
 }
