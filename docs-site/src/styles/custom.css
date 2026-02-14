@@ -22,6 +22,19 @@
 	max-width: 100%;
 }
 
+/* Screenshot images in docs */
+.sl-markdown-content img {
+	border-radius: 8px;
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+	border: 1px solid var(--sl-color-gray-5);
+	margin: 1rem 0;
+}
+
+:root[data-theme="dark"] .sl-markdown-content img {
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+	border-color: var(--sl-color-gray-4);
+}
+
 /* Code block styling */
 .expressive-code pre {
 	border-radius: 8px !important;
@@ -40,4 +53,15 @@
 /* Badge styling for plugin pages */
 .sl-badge {
 	font-size: 0.75rem;
+}
+
+/* Splash page enhancements */
+[data-page-type="splash"] .hero > img {
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+	border: 1px solid var(--sl-color-gray-5);
+}
+
+:root[data-theme="dark"] [data-page-type="splash"] .hero > img {
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
