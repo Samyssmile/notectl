@@ -51,6 +51,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Toolbar Configuration', slug: 'guides/toolbar' },
 						{ label: 'Custom Fonts', slug: 'guides/custom-fonts' },
+						{ label: 'Styling & Theming', slug: 'guides/styling' },
 						{ label: 'Working with Content', slug: 'guides/content' },
 						{ label: 'Events & Lifecycle', slug: 'guides/events' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },
@@ -65,6 +66,7 @@ export default defineConfig({
 						{ label: 'List', slug: 'plugins/list' },
 						{ label: 'Link', slug: 'plugins/link' },
 						{ label: 'Table', slug: 'plugins/table' },
+					{ label: 'Code Block', slug: 'plugins/code-block' },
 						{ label: 'Blockquote', slug: 'plugins/blockquote' },
 						{ label: 'Font', slug: 'plugins/font' },
 						{ label: 'Font Size', slug: 'plugins/font-size' },
