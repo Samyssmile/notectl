@@ -21,6 +21,7 @@ import {
 	createTableRow,
 	findTableContext,
 	getCellAt,
+	getFirstLeafInCell,
 } from './TableHelpers.js';
 
 interface TableDeletionTarget {
@@ -68,11 +69,14 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 		.insertNode([], insertIndex, tableNode)
 		.insertNode([], insertIndex + 1, paragraphAfter);
 
-	// Set cursor in first cell
+	// Set cursor in first paragraph inside first cell
 	const firstRow = getBlockChildren(tableNode)[0];
 	const firstCell = firstRow ? getBlockChildren(firstRow)[0] : undefined;
+	const firstParagraph = firstCell ? getBlockChildren(firstCell)[0] : undefined;
 
-	if (firstCell) {
+	if (firstParagraph) {
+		tr.setSelection(createCollapsedSelection(firstParagraph.id, 0));
+	} else if (firstCell) {
 		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
 	}
 
@@ -93,9 +97,12 @@ export function addRowAbove(context: PluginContext): boolean {
 	const newRow = createTableRow(tableCtx.totalCols);
 	const tr = state.transaction('command').insertNode([tableCtx.tableId], tableCtx.rowIndex, newRow);
 
-	// Move cursor to first cell of new row
+	// Move cursor to first paragraph inside first cell of new row
 	const firstCell = getBlockChildren(newRow)[0];
-	if (firstCell) {
+	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
+	if (firstLeaf) {
+		tr.setSelection(createCollapsedSelection(firstLeaf.id, 0));
+	} else if (firstCell) {
 		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
 	}
 
@@ -115,9 +122,12 @@ export function addRowBelow(context: PluginContext): boolean {
 		.transaction('command')
 		.insertNode([tableCtx.tableId], tableCtx.rowIndex + 1, newRow);
 
-	// Move cursor to first cell of new row
+	// Move cursor to first paragraph inside first cell of new row
 	const firstCell = getBlockChildren(newRow)[0];
-	if (firstCell) {
+	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
+	if (firstLeaf) {
+		tr.setSelection(createCollapsedSelection(firstLeaf.id, 0));
+	} else if (firstCell) {
 		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
 	}
 
@@ -185,7 +195,8 @@ export function deleteRow(context: PluginContext): boolean {
 	);
 
 	if (targetCellId) {
-		tr.setSelection(createCollapsedSelection(targetCellId, 0));
+		const leafId: BlockId = getFirstLeafInCell(state, targetCellId);
+		tr.setSelection(createCollapsedSelection(leafId, 0));
 	}
 
 	context.dispatch(tr.build());
@@ -228,7 +239,8 @@ export function deleteColumn(context: PluginContext): boolean {
 	);
 
 	if (targetCellId) {
-		tr.setSelection(createCollapsedSelection(targetCellId, 0));
+		const leafId: BlockId = getFirstLeafInCell(state, targetCellId);
+		tr.setSelection(createCollapsedSelection(leafId, 0));
 	}
 
 	context.dispatch(tr.build());

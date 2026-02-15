@@ -40,7 +40,7 @@ The command inserts the `<hr>` and automatically creates a new paragraph below i
 
 | Pattern | Result |
 |---------|--------|
-| `---` (three or more dashes at start of line) | Horizontal rule |
+| `--- ` (three or more dashes + space) | Horizontal rule |
 
 ## Node Spec
 

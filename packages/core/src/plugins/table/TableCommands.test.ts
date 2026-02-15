@@ -7,13 +7,19 @@ import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import { createDeleteTableTransaction, deleteTable } from './TableCommands.js';
 
-function createTableNode(tableId = 't1', rowId = 'r1', cellId = 'c1') {
+function createTableNode(tableId = 't1', rowId = 'r1', cellId = 'c1', paraId = 'p1') {
 	return createBlockNode(
 		'table' as NodeTypeName,
 		[
 			createBlockNode(
 				'table_row' as NodeTypeName,
-				[createBlockNode('table_cell' as NodeTypeName, [createTextNode('')], cellId as BlockId)],
+				[
+					createBlockNode(
+						'table_cell' as NodeTypeName,
+						[createBlockNode('paragraph' as NodeTypeName, [createTextNode('')], paraId as BlockId)],
+						cellId as BlockId,
+					),
+				],
 				rowId as BlockId,
 			),
 		],
@@ -37,7 +43,7 @@ describe('TableCommands.createDeleteTableTransaction', () => {
 		]);
 		const state = EditorState.create({
 			doc,
-			selection: createCollapsedSelection('c1' as BlockId, 0),
+			selection: createCollapsedSelection('p1' as BlockId, 0),
 			schema: createSchema(),
 		});
 
@@ -58,7 +64,7 @@ describe('TableCommands.createDeleteTableTransaction', () => {
 		]);
 		const state = EditorState.create({
 			doc,
-			selection: createCollapsedSelection('c1' as BlockId, 0),
+			selection: createCollapsedSelection('p1' as BlockId, 0),
 			schema: createSchema(),
 		});
 
@@ -94,7 +100,7 @@ describe('TableCommands.deleteTable', () => {
 				createTableNode('t1', 'r1', 'c1'),
 				createBlockNode('paragraph' as NodeTypeName, [createTextNode('after')], 'b2' as BlockId),
 			]),
-			selection: createCollapsedSelection('c1' as BlockId, 0),
+			selection: createCollapsedSelection('p1' as BlockId, 0),
 			schema: createSchema(),
 		});
 

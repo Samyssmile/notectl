@@ -42,9 +42,8 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 			expect(lastBlock?.type).toBe('heading');
 			expect(lastBlock?.attrs?.level).toBe(level);
 
-			// Enter creates a new heading; toggle back to paragraph for next iteration
+			// Enter at end of heading creates a new paragraph automatically
 			await page.keyboard.press('Enter');
-			await page.keyboard.press(`Control+Shift+${level}`);
 		}
 	});
 

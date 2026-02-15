@@ -5,7 +5,13 @@
  */
 
 import type { BlockNode, Mark } from '../../model/Document.js';
-import { getBlockLength, getInlineChildren, isTextNode } from '../../model/Document.js';
+import {
+	generateBlockId,
+	getBlockLength,
+	getBlockText,
+	getInlineChildren,
+	isTextNode,
+} from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
@@ -198,7 +204,9 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	private registerKeymaps(context: PluginContext): void {
-		const keymap: Record<string, () => boolean> = {};
+		const keymap: Record<string, () => boolean> = {
+			Enter: () => this.handleEnter(context),
+		};
 
 		for (const level of this.config.levels) {
 			if (level <= 6) {
@@ -206,9 +214,7 @@ export class HeadingPlugin implements Plugin {
 			}
 		}
 
-		if (Object.keys(keymap).length > 0) {
-			context.registerKeymap(keymap);
-		}
+		context.registerKeymap(keymap);
 	}
 
 	private registerInputRules(context: PluginContext): void {
@@ -392,6 +398,61 @@ export class HeadingPlugin implements Plugin {
 
 		item.addEventListener('mousedown', handler);
 		return item;
+	}
+
+	// --- Enter Handling ---
+
+	private static readonly HEADING_TYPES: ReadonlySet<string> = new Set([
+		'heading',
+		'title',
+		'subtitle',
+	]);
+
+	/**
+	 * Handles Enter inside a heading block.
+	 * Empty heading → convert to paragraph.
+	 * Cursor at end → split and convert new block to paragraph.
+	 * Cursor in middle → normal split (both stay heading).
+	 */
+	private handleEnter(context: PluginContext): boolean {
+		const state = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block = state.getBlock(sel.anchor.blockId);
+		if (!block || !HeadingPlugin.HEADING_TYPES.has(block.type)) return false;
+
+		const text: string = getBlockText(block);
+
+		if (text === '') {
+			// Empty heading → convert to paragraph
+			const tr = state
+				.transaction('input')
+				.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
+				.setSelection(sel)
+				.build();
+			context.dispatch(tr);
+			return true;
+		}
+
+		const blockLength: number = getBlockLength(block);
+
+		if (sel.anchor.offset >= blockLength) {
+			// Cursor at end → split and convert new block to paragraph
+			const newBlockId = generateBlockId();
+			const tr = state
+				.transaction('input')
+				.splitBlock(sel.anchor.blockId, sel.anchor.offset, newBlockId)
+				.setBlockType(newBlockId, nodeType('paragraph'))
+				.setSelection(createCollapsedSelection(newBlockId, 0))
+				.build();
+			context.dispatch(tr);
+			return true;
+		}
+
+		// Cursor in middle → default split (both parts stay heading)
+		return false;
 	}
 
 	/**

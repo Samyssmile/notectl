@@ -374,6 +374,145 @@ describe('HeadingPlugin', () => {
 		});
 	});
 
+	describe('Enter handling', () => {
+		it('registers Enter keymap', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			expectKeyBinding(h, 'Enter');
+		});
+
+		it('empty heading + Enter converts to paragraph', async () => {
+			const state = makeState([{ type: 'heading', text: '', id: 'b1', attrs: { level: 1 } }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children).toHaveLength(1);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+		});
+
+		it('empty title + Enter converts to paragraph', async () => {
+			const state = makeState([{ type: 'title', text: '', id: 'b1' }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+		});
+
+		it('empty subtitle + Enter converts to paragraph', async () => {
+			const state = makeState([{ type: 'subtitle', text: '', id: 'b1' }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+		});
+
+		it('cursor at end of heading + Enter creates paragraph after', async () => {
+			const state = makeState(
+				[{ type: 'heading', text: 'My Title', id: 'b1', attrs: { level: 2 } }],
+				'b1',
+				8,
+			);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(true);
+			const doc = h.getState().doc;
+			expect(doc.children).toHaveLength(2);
+			expect(doc.children[0]?.type).toBe('heading');
+			expect(doc.children[0]?.attrs?.level).toBe(2);
+			const firstBlock = doc.children[0];
+			assertDefined(firstBlock);
+			expect(getBlockText(firstBlock)).toBe('My Title');
+			expect(doc.children[1]?.type).toBe('paragraph');
+			const secondBlock = doc.children[1];
+			assertDefined(secondBlock);
+			expect(getBlockText(secondBlock)).toBe('');
+		});
+
+		it('cursor at end of title + Enter creates paragraph after', async () => {
+			const state = makeState([{ type: 'title', text: 'Title Text', id: 'b1' }], 'b1', 10);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(true);
+			const doc = h.getState().doc;
+			expect(doc.children).toHaveLength(2);
+			expect(doc.children[0]?.type).toBe('title');
+			expect(doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('cursor in middle of heading + Enter returns false (default split)', async () => {
+			const state = makeState(
+				[{ type: 'heading', text: 'Hello World', id: 'b1', attrs: { level: 1 } }],
+				'b1',
+				5,
+			);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(false);
+		});
+
+		it('does not handle Enter on paragraph blocks', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }], 'b1', 5);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			const handled: boolean = enterHandler();
+
+			expect(handled).toBe(false);
+		});
+
+		it('preserves heading text when splitting at end', async () => {
+			const state = makeState(
+				[{ type: 'heading', text: 'Keep This', id: 'b1', attrs: { level: 3 } }],
+				'b1',
+				9,
+			);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			const keymaps = h.getKeymaps();
+			const enterHandler = keymaps[0]?.Enter;
+			assertDefined(enterHandler);
+			enterHandler();
+
+			const doc = h.getState().doc;
+			const block = doc.children[0];
+			assertDefined(block);
+			expect(getBlockText(block)).toBe('Keep This');
+			expect(block.type).toBe('heading');
+			expect(block.attrs?.level).toBe(3);
+		});
+	});
+
 	describe('excludeMarks', () => {
 		it('NodeSpecs declare excludeMarks for fontSize', async () => {
 			const h = await pluginHarness(new HeadingPlugin());
