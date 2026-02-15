@@ -14,7 +14,13 @@ import {
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import { addRowBelow } from './TableCommands.js';
-import { type TableContext, findTableContext, getCellAt } from './TableHelpers.js';
+import {
+	type TableContext,
+	findTableContext,
+	getCellAt,
+	getFirstLeafInCell,
+	getLastLeafInCell,
+} from './TableHelpers.js';
 
 /** Registers all table navigation keymaps. */
 export function registerTableKeymaps(context: PluginContext): void {
@@ -86,6 +92,12 @@ function handleShiftTab(context: PluginContext): boolean {
 function handleEnter(context: PluginContext): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
+
+	const block = state.getBlock(state.selection.anchor.blockId);
+	// Only intercept Enter for paragraphs inside table cells.
+	// Other block types (list_item, heading, etc.) are handled by their plugins.
+	if (block && block.type !== 'paragraph') return false;
+
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -112,6 +124,10 @@ function handleBackspace(context: PluginContext): boolean {
 	const isAtDeletionBoundary = tableCtx.rowIndex === 0 && tableCtx.colIndex === 0;
 	if (!isAtDeletionBoundary) return false;
 
+	// Cursor must be on the first block inside the cell
+	const firstLeaf: BlockId = getFirstLeafInCell(state, tableCtx.cellId);
+	if (sel.anchor.blockId !== firstLeaf) return false;
+
 	return selectTableNode(context, tableCtx.tableId);
 }
 
@@ -135,6 +151,10 @@ function handleDelete(context: PluginContext): boolean {
 		tableCtx.rowIndex === tableCtx.totalRows - 1 && tableCtx.colIndex === tableCtx.totalCols - 1;
 	if (!isAtDeletionBoundary) return false;
 
+	// Cursor must be on the last block inside the cell
+	const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
+	if (sel.anchor.blockId !== lastLeaf) return false;
+
 	return selectTableNode(context, tableCtx.tableId);
 }
 
@@ -144,6 +164,10 @@ function handleArrowDown(context: PluginContext): boolean {
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
+
+	// Only intercept when cursor is on the last block in the cell
+	const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
+	if (state.selection.anchor.blockId !== lastLeaf) return false;
 
 	if (tableCtx.rowIndex >= tableCtx.totalRows - 1) {
 		// At last row — move cursor to paragraph after table
@@ -159,6 +183,10 @@ function handleArrowUp(context: PluginContext): boolean {
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
+
+	// Only intercept when cursor is on the first block in the cell
+	const firstLeaf: BlockId = getFirstLeafInCell(state, tableCtx.cellId);
+	if (state.selection.anchor.blockId !== firstLeaf) return false;
 
 	if (tableCtx.rowIndex <= 0) {
 		// At first row — let default behavior handle it
@@ -184,6 +212,10 @@ function handleArrowRight(context: PluginContext): boolean {
 	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
 	if (!tableCtx) return false;
 
+	// Only jump to next cell when cursor is on the last block in the cell
+	const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
+	if (sel.anchor.blockId !== lastLeaf) return false;
+
 	// Try next cell in same row
 	if (tableCtx.colIndex < tableCtx.totalCols - 1) {
 		return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowIndex, tableCtx.colIndex + 1);
@@ -207,6 +239,10 @@ function handleArrowLeft(context: PluginContext): boolean {
 
 	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
 	if (!tableCtx) return false;
+
+	// Only jump to previous cell when cursor is on the first block in the cell
+	const firstLeaf: BlockId = getFirstLeafInCell(state, tableCtx.cellId);
+	if (sel.anchor.blockId !== firstLeaf) return false;
 
 	// Try previous cell in same row
 	if (tableCtx.colIndex > 0) {
@@ -249,7 +285,7 @@ function handleEscape(context: PluginContext): boolean {
 	return false;
 }
 
-/** Moves cursor to the start of a cell. */
+/** Moves cursor to the start of a cell (first leaf block inside). */
 function moveToCellAndSelect(
 	context: PluginContext,
 	tableId: BlockId,
@@ -260,12 +296,13 @@ function moveToCellAndSelect(
 	const cellId: BlockId | null = getCellAt(state, tableId, rowIndex, colIndex);
 	if (!cellId) return false;
 
-	const tr = state.transaction('command').setSelection(createCollapsedSelection(cellId, 0)).build();
+	const leafId: BlockId = getFirstLeafInCell(state, cellId);
+	const tr = state.transaction('command').setSelection(createCollapsedSelection(leafId, 0)).build();
 	context.dispatch(tr);
 	return true;
 }
 
-/** Moves cursor to the end of a cell (for ArrowLeft navigation). */
+/** Moves cursor to the end of a cell (last leaf block inside, for ArrowLeft). */
 function moveToCellAtEnd(
 	context: PluginContext,
 	tableId: BlockId,
@@ -276,13 +313,14 @@ function moveToCellAtEnd(
 	const cellId: BlockId | null = getCellAt(state, tableId, rowIndex, colIndex);
 	if (!cellId) return false;
 
-	const cell = state.getBlock(cellId);
-	if (!cell) return false;
+	const leafId: BlockId = getLastLeafInCell(state, cellId);
+	const leaf = state.getBlock(leafId);
+	if (!leaf) return false;
 
-	const cellLen: number = getBlockLength(cell);
+	const leafLen: number = getBlockLength(leaf);
 	const tr = state
 		.transaction('command')
-		.setSelection(createCollapsedSelection(cellId, cellLen))
+		.setSelection(createCollapsedSelection(leafId, leafLen))
 		.build();
 	context.dispatch(tr);
 	return true;

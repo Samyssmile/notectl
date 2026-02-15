@@ -36,10 +36,16 @@ function makeTableState(rows = 2, cols = 2, cursorRow = 0, cursorCol = 0): Edito
 		throw new Error('Invalid column index');
 	}
 
+	// Cursor targets the paragraph inside the cell
+	const cellParagraph = getBlockChildren(cell)[0];
+	if (!cellParagraph) {
+		throw new Error('Cell has no paragraph');
+	}
+
 	const doc = createDocument([table, para]);
 	return EditorState.create({
 		doc,
-		selection: createCollapsedSelection(cell.id, 0),
+		selection: createCollapsedSelection(cellParagraph.id, 0),
 		schema: {
 			nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
 			markTypes: ['bold', 'italic', 'underline'],

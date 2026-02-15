@@ -5,12 +5,11 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import { getBlockChildren, isLeafBlock } from '../../model/Document.js';
+import { getBlockChildren } from '../../model/Document.js';
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
-import { renderBlockContent } from '../../view/Reconciler.js';
 import { type TableControlsHandle, createTableControls } from './TableControls.js';
 
 /**
@@ -129,7 +128,7 @@ export function createTableRowNodeViewFactory(_registry: SchemaRegistry): NodeVi
  * Creates a NodeViewFactory for the table_cell node type.
  * Renders as `<td role="cell">` with text content rendered inside.
  */
-export function createTableCellNodeViewFactory(registry: SchemaRegistry): NodeViewFactory {
+export function createTableCellNodeViewFactory(_registry: SchemaRegistry): NodeViewFactory {
 	return (
 		node: BlockNode,
 		_getState: () => EditorState,
@@ -148,12 +147,6 @@ export function createTableCellNodeViewFactory(registry: SchemaRegistry): NodeVi
 		const align: string | undefined = node.attrs?.align as string | undefined;
 		if (align && align !== 'left') {
 			td.style.textAlign = align;
-		}
-
-		// Render text content only for leaf cells (cells with block children
-		// like images are rendered by the Reconciler via contentDOM)
-		if (isLeafBlock(node)) {
-			renderBlockContent(td, node, registry);
 		}
 
 		return {

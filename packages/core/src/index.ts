@@ -328,6 +328,15 @@ export { ImagePlugin } from './plugins/image/ImagePlugin.js';
 export { HardBreakPlugin } from './plugins/hard-break/HardBreakPlugin.js';
 
 export {
+	CodeBlockPlugin,
+	CODE_BLOCK_SERVICE_KEY,
+	type CodeBlockConfig,
+	type CodeBlockService,
+	type SyntaxHighlighter,
+	type SyntaxToken,
+} from './plugins/code-block/CodeBlockPlugin.js';
+
+export {
 	IMAGE_UPLOAD_SERVICE,
 	type ImagePluginConfig,
 	type ImageUploadService,
