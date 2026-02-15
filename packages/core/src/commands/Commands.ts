@@ -7,6 +7,7 @@ import {
 	type Mark,
 	type MarkType,
 	createBlockNode,
+	createInlineNode,
 	createTextNode,
 	generateBlockId,
 	getBlockLength,
@@ -28,7 +29,7 @@ import {
 	isNodeSelection,
 	selectionRange,
 } from '../model/Selection.js';
-import { type BlockId, markType as mkType } from '../model/TypeBrands.js';
+import { type BlockId, inlineType, markType as mkType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
@@ -518,6 +519,29 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 	// handles this correctly because it looks up the block by ID recursively.
 	builder.splitBlock(blockId, offset, newBlockId);
 	builder.setSelection(createCollapsedSelection(newBlockId, 0));
+
+	return builder.build();
+}
+
+/** Inserts a hard line break (InlineNode) at the current cursor position. */
+export function insertHardBreakCommand(state: EditorState): Transaction | null {
+	const sel = state.selection;
+
+	if (isNodeSelection(sel)) return null;
+
+	const builder = state.transaction('input');
+
+	if (!isCollapsed(sel)) {
+		addDeleteSelectionSteps(state, builder);
+	}
+
+	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
+	const insertBlockId: BlockId = range ? range.from.blockId : sel.anchor.blockId;
+	const insertOffset: number = range ? range.from.offset : sel.anchor.offset;
+
+	const hardBreak = createInlineNode(inlineType('hard_break'));
+	builder.insertInlineNode(insertBlockId, insertOffset, hardBreak);
+	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + 1));
 
 	return builder.build();
 }
