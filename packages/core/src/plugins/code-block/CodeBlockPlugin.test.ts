@@ -213,6 +213,58 @@ describe('CodeBlockPlugin', () => {
 		});
 	});
 
+	describe('keyboard: Backspace', () => {
+		it('Backspace at start of code block converts to paragraph', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+		});
+
+		it('Backspace preserves text content when converting', async () => {
+			const state = makeState([{ type: 'code_block', text: 'hello world', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+			handler();
+
+			expect(getBlockText(h.getState().doc.children[0])).toBe('hello world');
+		});
+
+		it('Backspace at non-zero offset returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+
+		it('Backspace on non-code block returns false', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+
+		it('registers Backspace keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'Backspace');
+		});
+	});
+
 	describe('keyboard: Enter', () => {
 		it('Enter inserts newline in code block', async () => {
 			const state = makeState([{ type: 'code_block', text: 'line1', id: 'b1' }], 'b1', 5);
@@ -320,6 +372,190 @@ describe('CodeBlockPlugin', () => {
 			const h = await pluginHarness(new CodeBlockPlugin(), state);
 
 			const handler = h.getKeymaps().find((km) => km['Shift-Tab'])?.['Shift-Tab'];
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+	});
+
+	describe('keymap registration: ArrowDown & ArrowUp', () => {
+		it('registers ArrowDown keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'ArrowDown');
+		});
+
+		it('registers ArrowUp keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'ArrowUp');
+		});
+	});
+
+	describe('keyboard: ArrowDown', () => {
+		it('ArrowDown on last line moves to next block', async () => {
+			const state = makeState(
+				[
+					{ type: 'code_block', text: 'line1\nline2', id: 'b1' },
+					{ type: 'paragraph', text: 'next', id: 'b2' },
+				],
+				'b1',
+				10,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b2');
+				expect(sel.anchor.offset).toBe(0);
+			}
+		});
+
+		it('ArrowDown on non-last line returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'line1\nline2', id: 'b1' }], 'b1', 3);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+
+		it('ArrowDown creates paragraph when code block is last', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 4);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+			handler();
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('ArrowDown on single-line code block exits', async () => {
+			const state = makeState(
+				[
+					{ type: 'code_block', text: 'hello', id: 'b1' },
+					{ type: 'paragraph', text: '', id: 'b2' },
+				],
+				'b1',
+				2,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b2');
+			}
+		});
+
+		it('ArrowDown on non-code block returns false', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+	});
+
+	describe('keyboard: ArrowUp', () => {
+		it('ArrowUp on first line moves to previous block', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'code_block', text: 'line1\nline2', id: 'b2' },
+				],
+				'b2',
+				3,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b1');
+				expect(sel.anchor.offset).toBe(4);
+			}
+		});
+
+		it('ArrowUp on non-first line returns false', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'code_block', text: 'line1\nline2', id: 'b2' },
+				],
+				'b2',
+				8,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+
+		it('ArrowUp at first block returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(false);
+		});
+
+		it('ArrowUp on single-line code block exits', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'code_block', text: 'hello', id: 'b2' },
+				],
+				'b2',
+				3,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b1');
+			}
+		});
+
+		it('ArrowUp on non-code block returns false', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
 			assertDefined(handler);
 
 			const handled: boolean = handler();
