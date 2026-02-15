@@ -12,7 +12,7 @@ test.describe('Plugin Integration — All Plugins Loaded', () => {
 			'textColor',
 			'heading',
 			'blockquote',
-			'text-alignment',
+			'alignment',
 			'link',
 			'list-bullet',
 			'list-ordered',
@@ -234,7 +234,7 @@ test.describe('Plugin Integration — All Plugins Loaded', () => {
 
 	test('alignment dropdown opens with options', async ({ editor, page }) => {
 		await editor.focus();
-		const alignBtn = editor.markButton('text-alignment');
+		const alignBtn = editor.markButton('alignment');
 		await alignBtn.click();
 
 		const popup = page.locator('.notectl-toolbar-popup');

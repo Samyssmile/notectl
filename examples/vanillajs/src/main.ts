@@ -1,4 +1,5 @@
 import {
+	AlignmentPlugin,
 	BlockquotePlugin,
 	FontPlugin,
 	FontSizePlugin,
@@ -12,7 +13,6 @@ import {
 	StrikethroughPlugin,
 	SuperSubPlugin,
 	TablePlugin,
-	TextAlignmentPlugin,
 	TextColorPlugin,
 	TextFormattingPlugin,
 	ToolbarPlugin,
@@ -32,7 +32,7 @@ declare global {
 		HighlightPlugin: typeof HighlightPlugin;
 		HeadingPlugin: typeof HeadingPlugin;
 		BlockquotePlugin: typeof BlockquotePlugin;
-		TextAlignmentPlugin: typeof TextAlignmentPlugin;
+		AlignmentPlugin: typeof AlignmentPlugin;
 		ListPlugin: typeof ListPlugin;
 		LinkPlugin: typeof LinkPlugin;
 		TablePlugin: typeof TablePlugin;
@@ -71,7 +71,7 @@ window.TextColorPlugin = TextColorPlugin;
 window.HighlightPlugin = HighlightPlugin;
 window.HeadingPlugin = HeadingPlugin;
 window.BlockquotePlugin = BlockquotePlugin;
-window.TextAlignmentPlugin = TextAlignmentPlugin;
+window.AlignmentPlugin = AlignmentPlugin;
 window.ListPlugin = ListPlugin;
 window.LinkPlugin = LinkPlugin;
 window.TablePlugin = TablePlugin;
@@ -95,7 +95,7 @@ const output = document.getElementById('output') as HTMLElement;
 			],
 			[new TextColorPlugin(), new HighlightPlugin()],
 			[new HeadingPlugin(), new BlockquotePlugin()],
-			[new TextAlignmentPlugin()],
+			[new AlignmentPlugin()],
 			[new ListPlugin()],
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 		],

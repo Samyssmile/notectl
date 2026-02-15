@@ -37,7 +37,6 @@ export interface ImagePluginConfig {
 	readonly maxFileSize: number;
 	readonly acceptedTypes: readonly string[];
 	readonly resizable: boolean;
-	readonly alignments: readonly ('left' | 'center' | 'right')[];
 	readonly separatorAfter?: boolean;
 }
 
@@ -46,5 +45,4 @@ export const DEFAULT_IMAGE_CONFIG: ImagePluginConfig = {
 	maxFileSize: 10 * 1024 * 1024,
 	acceptedTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
 	resizable: true,
-	alignments: ['left', 'center', 'right'],
 };

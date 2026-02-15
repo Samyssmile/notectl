@@ -352,19 +352,19 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.press('Control+Shift+e');
 
 		let json = await editor.getJSON();
-		expect(json.children[0]?.attrs?.textAlign).toBe('center');
+		expect(json.children[0]?.attrs?.align).toBe('center');
 
 		// Convert to heading — alignment should persist
 		await page.keyboard.press('Control+Shift+1');
 		json = await editor.getJSON();
 		expect(json.children[0]?.type).toBe('heading');
-		expect(json.children[0]?.attrs?.textAlign).toBe('center');
+		expect(json.children[0]?.attrs?.align).toBe('center');
 
 		// Convert back to paragraph
 		await page.keyboard.press('Control+Shift+1');
 		json = await editor.getJSON();
 		expect(json.children[0]?.type).toBe('paragraph');
-		expect(json.children[0]?.attrs?.textAlign).toBe('center');
+		expect(json.children[0]?.attrs?.align).toBe('center');
 	});
 
 	test('full document with every block type', async ({ editor, page }) => {

@@ -29,8 +29,8 @@ test.describe('Title block text alignment', () => {
 		const json = await editor.getJSON();
 		expect(json.children[0]?.type).toBe('title');
 
-		// 5. The text-alignment toolbar button must be enabled (not disabled)
-		const alignBtn = editor.markButton('text-alignment');
+		// 5. The alignment toolbar button must be enabled (not disabled)
+		const alignBtn = editor.markButton('alignment');
 		await expect(alignBtn).toBeVisible();
 		await expect(alignBtn).not.toBeDisabled();
 
@@ -48,7 +48,7 @@ test.describe('Title block text alignment', () => {
 		// 7. Verify the title block now has center alignment
 		const updatedJson = await editor.getJSON();
 		expect(updatedJson.children[0]?.type).toBe('title');
-		expect(updatedJson.children[0]?.attrs?.textAlign).toBe('center');
+		expect(updatedJson.children[0]?.attrs?.align).toBe('center');
 
 		// 8. Verify the text content is preserved
 		const text = await editor.getText();

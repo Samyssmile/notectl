@@ -249,10 +249,7 @@ export class ImagePlugin implements Plugin {
 				...(result.height !== undefined ? { height: result.height } : {}),
 			};
 
-			const tr: Transaction = state
-				.transaction('command')
-				.setNodeAttr(path, merged)
-				.build();
+			const tr: Transaction = state.transaction('command').setNodeAttr(path, merged).build();
 			context.dispatch(tr);
 
 			// Clean up blob URL
