@@ -10,6 +10,7 @@ import {
 	deleteSoftLineForward,
 	deleteWordBackward,
 	deleteWordForward,
+	insertHardBreakCommand,
 	insertTextCommand,
 	splitBlockCommand,
 } from '../commands/Commands.js';
@@ -90,8 +91,11 @@ export class InputHandler {
 				break;
 
 			case 'insertParagraph':
-			case 'insertLineBreak':
 				tr = splitBlockCommand(state);
+				break;
+
+			case 'insertLineBreak':
+				tr = insertHardBreakCommand(state);
 				break;
 
 			case 'deleteContentBackward':

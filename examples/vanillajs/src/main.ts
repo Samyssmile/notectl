@@ -3,6 +3,7 @@ import {
 	BlockquotePlugin,
 	FontPlugin,
 	FontSizePlugin,
+	HardBreakPlugin,
 	HeadingPlugin,
 	HighlightPlugin,
 	HorizontalRulePlugin,
@@ -99,6 +100,7 @@ const output = document.getElementById('output') as HTMLElement;
 			[new ListPlugin()],
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 		],
+		plugins: [new HardBreakPlugin()],
 		placeholder: 'Start typing...',
 		autofocus: true,
 	});
