@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	type BlockNode,
 	type Mark,
 	createBlockNode,
 	createDocument,
@@ -9,14 +10,22 @@ import {
 	isTextNode,
 } from '../../model/Document.js';
 import { createCollapsedSelection } from '../../model/Selection.js';
-import { markType } from '../../model/TypeBrands.js';
+import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin } from '../Plugin.js';
-import { PluginManager, type PluginManagerInitOptions } from '../PluginManager.js';
+import { PluginManager } from '../PluginManager.js';
 import { HeadingPlugin } from './HeadingPlugin.js';
 
 // --- Helpers ---
+
+type BlockWithAttrs = Omit<BlockNode, 'attrs'> & {
+	readonly attrs: Record<string, string | number | boolean>;
+};
+
+function assertDefined<T>(value: T | undefined | null): asserts value is T {
+	expect(value).toBeDefined();
+}
 
 const BOLD_MARK: Mark = { type: markType('bold') };
 const ITALIC_MARK: Mark = { type: markType('italic') };
@@ -35,13 +44,13 @@ function makeState(
 	cursorOffset?: number,
 ): EditorState {
 	const blockNodes = (blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]).map((b) =>
-		createBlockNode(b.type, [createTextNode(b.text, b.marks)], b.id, b.attrs),
+		createBlockNode(nodeType(b.type), [createTextNode(b.text, b.marks)], blockId(b.id), b.attrs),
 	);
 	const doc = createDocument(blockNodes);
 	return EditorState.create({
 		doc,
 		selection: createCollapsedSelection(
-			cursorBlockId ?? blockNodes[0]?.id ?? '',
+			blockId(cursorBlockId ?? blockNodes[0]?.id ?? ''),
 			cursorOffset ?? 0,
 		),
 		schema: {
@@ -57,7 +66,6 @@ async function initPlugin(
 ): Promise<{ pm: PluginManager; dispatch: ReturnType<typeof vi.fn>; getState: () => EditorState }> {
 	const pm = new PluginManager();
 	pm.register(plugin);
-	const dispatch = vi.fn();
 	let currentState = state ?? makeState();
 
 	// Apply dispatched transactions to state for realistic behavior
@@ -113,7 +121,10 @@ describe('HeadingPlugin', () => {
 			const spec = pm.schemaRegistry.getNodeSpec('heading');
 
 			for (let level = 1; level <= 6; level++) {
-				const el = spec?.toDOM(createBlockNode('heading', [createTextNode('')], 'test', { level }));
+				const block = createBlockNode(nodeType('heading'), [createTextNode('')], blockId('test'), {
+					level,
+				});
+				const el = spec?.toDOM(block as BlockWithAttrs);
 				expect(el?.tagName).toBe(`H${level}`);
 				expect(el?.getAttribute('data-block-id')).toBe('test');
 			}
@@ -124,7 +135,8 @@ describe('HeadingPlugin', () => {
 			const { pm } = await initPlugin(plugin);
 
 			const spec = pm.schemaRegistry.getNodeSpec('heading');
-			const el = spec?.toDOM(createBlockNode('heading', [createTextNode('')], 'test'));
+			const block = createBlockNode(nodeType('heading'), [createTextNode('')], blockId('test'));
+			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H1');
 		});
 
@@ -133,7 +145,8 @@ describe('HeadingPlugin', () => {
 			const { pm } = await initPlugin(plugin);
 
 			const spec = pm.schemaRegistry.getNodeSpec('title');
-			const el = spec?.toDOM(createBlockNode('title', [createTextNode('')], 'test'));
+			const block = createBlockNode(nodeType('title'), [createTextNode('')], blockId('test'));
+			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H1');
 			expect(el?.classList.contains('notectl-title')).toBe(true);
 			expect(el?.getAttribute('data-block-id')).toBe('test');
@@ -144,7 +157,8 @@ describe('HeadingPlugin', () => {
 			const { pm } = await initPlugin(plugin);
 
 			const spec = pm.schemaRegistry.getNodeSpec('subtitle');
-			const el = spec?.toDOM(createBlockNode('subtitle', [createTextNode('')], 'test'));
+			const block = createBlockNode(nodeType('subtitle'), [createTextNode('')], blockId('test'));
+			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H2');
 			expect(el?.classList.contains('notectl-subtitle')).toBe(true);
 			expect(el?.getAttribute('data-block-id')).toBe('test');
@@ -237,7 +251,9 @@ describe('HeadingPlugin', () => {
 			const { pm, getState } = await initPlugin(plugin, state);
 
 			pm.executeCommand('setHeading1');
-			expect(getBlockText(getState().doc.children[0])).toBe('Hello World');
+			const block = getState().doc.children[0];
+			assertDefined(block);
+			expect(getBlockText(block)).toBe('Hello World');
 		});
 
 		it('setTitle converts paragraph to title', async () => {
@@ -286,7 +302,9 @@ describe('HeadingPlugin', () => {
 			const { pm, getState } = await initPlugin(plugin, state);
 
 			pm.executeCommand('setTitle');
-			expect(getBlockText(getState().doc.children[0])).toBe('Hello World');
+			const block = getState().doc.children[0];
+			assertDefined(block);
+			expect(getBlockText(block)).toBe('Hello World');
 		});
 	});
 
@@ -376,9 +394,11 @@ describe('HeadingPlugin', () => {
 			const h1Rule = rules[0];
 
 			const match = '# '.match(h1Rule?.pattern ?? /$/);
+			assertDefined(match);
 			const tr = h1Rule?.handler(state, match, 0, 2);
 
 			expect(tr).not.toBeNull();
+			assertDefined(tr);
 			const newState = state.apply(tr);
 			expect(newState.doc.children[0]?.type).toBe('heading');
 			expect(newState.doc.children[0]?.attrs?.level).toBe(1);
@@ -396,6 +416,7 @@ describe('HeadingPlugin', () => {
 			const rules = pm.schemaRegistry.getInputRules();
 			const h1Rule = rules[0];
 			const match = '# '.match(h1Rule?.pattern ?? /$/);
+			assertDefined(match);
 			const tr = h1Rule?.handler(state, match, 0, 2);
 
 			expect(tr).toBeNull();
@@ -483,7 +504,8 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setTitle');
 
 			const block = getState().doc.children[0];
-			expect(block?.type).toBe('title');
+			assertDefined(block);
+			expect(block.type).toBe('title');
 
 			const inlineChildren = getInlineChildren(block);
 			for (const child of inlineChildren) {
@@ -504,6 +526,7 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setTitle');
 
 			const block = getState().doc.children[0];
+			assertDefined(block);
 			const inlineChildren = getInlineChildren(block);
 			const hasBold = inlineChildren.some(
 				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
@@ -521,7 +544,8 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setSubtitle');
 
 			const block = getState().doc.children[0];
-			expect(block?.type).toBe('subtitle');
+			assertDefined(block);
+			expect(block.type).toBe('subtitle');
 
 			const inlineChildren = getInlineChildren(block);
 			for (const child of inlineChildren) {
@@ -541,7 +565,8 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setHeading1');
 
 			const block = getState().doc.children[0];
-			expect(block?.type).toBe('heading');
+			assertDefined(block);
+			expect(block.type).toBe('heading');
 
 			const inlineChildren = getInlineChildren(block);
 			for (const child of inlineChildren) {
@@ -559,7 +584,9 @@ describe('HeadingPlugin', () => {
 			const { pm, getState } = await initPlugin(plugin, state);
 
 			pm.executeCommand('setTitle');
-			expect(getBlockText(getState().doc.children[0])).toBe('Hello World');
+			const block = getState().doc.children[0];
+			assertDefined(block);
+			expect(getBlockText(block)).toBe('Hello World');
 		});
 
 		it('preserves italic marks when stripping fontSize', async () => {
@@ -577,6 +604,7 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setHeading2');
 
 			const block = getState().doc.children[0];
+			assertDefined(block);
 			const inlineChildren = getInlineChildren(block);
 			const markTypes: string[] = [];
 			for (const child of inlineChildren) {
@@ -599,7 +627,8 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setTitle');
 
 			const block = getState().doc.children[0];
-			expect(block?.type).toBe('title');
+			assertDefined(block);
+			expect(block.type).toBe('title');
 			const inlineChildren = getInlineChildren(block);
 			const hasBold = inlineChildren.some(
 				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
@@ -624,7 +653,8 @@ describe('HeadingPlugin', () => {
 			pm.executeCommand('setParagraph');
 
 			const block = getState().doc.children[0];
-			expect(block?.type).toBe('paragraph');
+			assertDefined(block);
+			expect(block.type).toBe('paragraph');
 			const inlineChildren = getInlineChildren(block);
 			const hasBold = inlineChildren.some(
 				(child) => isTextNode(child) && child.marks.some((m) => m.type === 'bold'),
