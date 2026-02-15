@@ -1,5 +1,8 @@
 /**
  * Editor styles using Adopted Stylesheets for Shadow DOM.
+ *
+ * All colors reference CSS custom properties set by the ThemeEngine.
+ * The theme stylesheet is always injected first, providing all --notectl-* values.
  */
 
 const EDITOR_CSS = `
@@ -8,21 +11,21 @@ const EDITOR_CSS = `
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	font-size: 16px;
 	line-height: 1.6;
-	color: #1a1a1a;
+	color: var(--notectl-fg);
 }
 
 .notectl-editor {
 	display: flex;
 	flex-direction: column;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 6px;
 	overflow: hidden;
-	background: #fff;
+	background: var(--notectl-bg);
 }
 
 .notectl-editor:focus-within {
-	border-color: #4a90d9;
-	box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+	border-color: var(--notectl-border-focus);
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 /* Toolbar */
@@ -30,8 +33,8 @@ const EDITOR_CSS = `
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	border-bottom: 1px solid #e0e0e0;
-	background: #f8f8f8;
+	border-bottom: 1px solid var(--notectl-border);
+	background: var(--notectl-toolbar-bg, var(--notectl-surface-raised));
 	min-height: 40px;
 }
 
@@ -53,7 +56,7 @@ const EDITOR_CSS = `
 	border-radius: 4px;
 	background: transparent;
 	cursor: pointer;
-	color: #444;
+	color: var(--notectl-fg);
 	font-size: 14px;
 	line-height: 1;
 	padding: 0;
@@ -61,14 +64,14 @@ const EDITOR_CSS = `
 }
 
 .notectl-toolbar-btn:hover {
-	background: #e8e8e8;
-	border-color: #d0d0d0;
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-border);
 }
 
 .notectl-toolbar-btn--active {
-	background: #d0e0f0;
-	border-color: #a0c0e0;
-	color: #1a5fa0;
+	background: var(--notectl-active-bg);
+	border-color: var(--notectl-primary-muted);
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-toolbar-btn:disabled {
@@ -100,8 +103,8 @@ const EDITOR_CSS = `
 	position: fixed;
 	padding: 4px 8px;
 	border-radius: 4px;
-	background: #1a1a1a;
-	color: #fff;
+	background: var(--notectl-tooltip-bg);
+	color: var(--notectl-tooltip-fg);
 	font-size: 11px;
 	font-weight: 500;
 	white-space: nowrap;
@@ -116,17 +119,17 @@ const EDITOR_CSS = `
 	display: inline-block;
 	width: 1px;
 	height: 20px;
-	background: #d0d0d0;
+	background: var(--notectl-border);
 	margin: 0 4px;
 	vertical-align: middle;
 }
 
 /* Toolbar Popups */
 .notectl-toolbar-popup {
-	background: #fff;
-	border: 1px solid #d0d0d0;
+	background: var(--notectl-surface-overlay);
+	border: 1px solid var(--notectl-border);
 	border-radius: 6px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 4px 12px var(--notectl-shadow);
 	overflow: hidden;
 }
 
@@ -146,14 +149,14 @@ const EDITOR_CSS = `
 	background: none;
 	cursor: pointer;
 	font-size: 14px;
-	color: #333;
+	color: var(--notectl-fg);
 	line-height: 1.4;
 	font-family: inherit;
 	white-space: nowrap;
 }
 
 .notectl-dropdown__item:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-dropdown__item-icon {
@@ -162,7 +165,7 @@ const EDITOR_CSS = `
 	justify-content: center;
 	width: 28px;
 	font-weight: 600;
-	color: #555;
+	color: var(--notectl-fg-muted);
 	flex-shrink: 0;
 }
 
@@ -213,7 +216,7 @@ const EDITOR_CSS = `
 /* Bullet List */
 .notectl-list-item--bullet::before {
 	content: '\\2022';
-	color: #444;
+	color: var(--notectl-fg);
 }
 
 /* Ordered List — uses CSS counters to auto-number */
@@ -239,7 +242,7 @@ const EDITOR_CSS = `
 
 .notectl-list-item--ordered::before {
 	content: counter(notectl-ordered) '.';
-	color: #444;
+	color: var(--notectl-fg);
 	font-size: 14px;
 }
 
@@ -247,24 +250,24 @@ const EDITOR_CSS = `
 .notectl-list-item--checklist::before {
 	content: '\\2610';
 	font-size: 16px;
-	color: #666;
+	color: var(--notectl-fg-muted);
 	cursor: pointer;
 }
 
 .notectl-list-item--checklist[data-checked="true"]::before {
 	content: '\\2611';
-	color: #1a8c1a;
+	color: var(--notectl-success);
 }
 
 .notectl-list-item--checklist[data-checked="true"] {
-	color: #888;
+	color: var(--notectl-fg-muted);
 	text-decoration: line-through;
 }
 
 /* Horizontal Rule */
 .notectl-content hr {
 	border: none;
-	border-top: 1px solid #d0d0d0;
+	border-top: 1px solid var(--notectl-border);
 	margin: 8px 0;
 	padding: 0;
 	cursor: default;
@@ -303,7 +306,7 @@ const EDITOR_CSS = `
 }
 
 .notectl-image--selected .notectl-image__container {
-	outline: 2px solid #4a90d9;
+	outline: 2px solid var(--notectl-primary);
 	outline-offset: 2px;
 	border-radius: 6px;
 }
@@ -316,11 +319,11 @@ const EDITOR_CSS = `
 	top: -36px;
 	left: 50%;
 	transform: translateX(-50%);
-	background: #fff;
-	border: 1px solid #ddd;
+	background: var(--notectl-surface-overlay);
+	border: 1px solid var(--notectl-border);
 	border-radius: 6px;
 	padding: 2px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+	box-shadow: 0 2px 8px var(--notectl-shadow);
 	z-index: 10;
 }
 
@@ -334,16 +337,16 @@ const EDITOR_CSS = `
 	background: transparent;
 	border-radius: 4px;
 	cursor: pointer;
-	color: #444;
+	color: var(--notectl-fg);
 }
 
 .notectl-image__align-btn:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-image__align-btn--active {
-	background: #e3f2fd;
-	color: #1976d2;
+	background: var(--notectl-active-bg);
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-image__align-btn svg {
@@ -362,7 +365,7 @@ const EDITOR_CSS = `
 	background: rgba(255, 255, 255, 0.8);
 	border-radius: 4px;
 	font-size: 13px;
-	color: #666;
+	color: var(--notectl-fg-muted);
 }
 
 .notectl-image__overlay--uploading {
@@ -371,8 +374,8 @@ const EDITOR_CSS = `
 
 .notectl-image__overlay--error {
 	display: flex;
-	background: rgba(255, 235, 235, 0.9);
-	color: #cc0000;
+	background: var(--notectl-danger-muted);
+	color: var(--notectl-danger);
 }
 
 /* Resize overlay + handles */
@@ -386,8 +389,8 @@ const EDITOR_CSS = `
 	position: absolute;
 	width: 10px;
 	height: 10px;
-	background: #fff;
-	border: 2px solid #4a90d9;
+	background: var(--notectl-bg);
+	border: 2px solid var(--notectl-primary);
 	border-radius: 50%;
 	pointer-events: all;
 	z-index: 2;
@@ -395,12 +398,12 @@ const EDITOR_CSS = `
 }
 
 .notectl-image__resize-handle:hover {
-	background: #4a90d9;
+	background: var(--notectl-primary);
 	transform: scale(1.3);
 }
 
 .notectl-image--resizing .notectl-image__resize-handle {
-	background: #4a90d9;
+	background: var(--notectl-primary);
 }
 
 .notectl-image__resize-handle--nw {
@@ -434,8 +437,8 @@ const EDITOR_CSS = `
 	left: 50%;
 	transform: translateX(-50%);
 	padding: 2px 8px;
-	background: rgba(0, 0, 0, 0.75);
-	color: #fff;
+	background: var(--notectl-tooltip-bg);
+	color: var(--notectl-tooltip-fg);
 	font-size: 11px;
 	font-weight: 500;
 	border-radius: 4px;
@@ -458,7 +461,7 @@ const EDITOR_CSS = `
 /* Placeholder */
 .notectl-content.notectl-content--empty::before {
 	content: attr(data-placeholder);
-	color: #999;
+	color: var(--notectl-fg-muted);
 	pointer-events: none;
 	position: absolute;
 	top: 12px;
@@ -467,7 +470,7 @@ const EDITOR_CSS = `
 
 /* Plugin container bottom */
 .notectl-plugin-container--bottom {
-	border-top: 1px solid #e0e0e0;
+	border-top: 1px solid var(--notectl-border);
 }
 
 /* Color Picker Popup */
@@ -481,17 +484,17 @@ const EDITOR_CSS = `
 	width: 100%;
 	padding: 6px 12px;
 	margin-bottom: 8px;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: #fff;
+	background: var(--notectl-bg);
 	cursor: pointer;
 	font-size: 13px;
-	color: #333;
+	color: var(--notectl-fg);
 	text-align: center;
 }
 
 .notectl-color-picker__default:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-color-picker__grid {
@@ -516,7 +519,7 @@ const EDITOR_CSS = `
 }
 
 .notectl-color-picker__swatch--active {
-	border: 2px solid #1a5fa0;
+	border: 2px solid var(--notectl-primary-fg);
 	border-radius: 3px;
 }
 
@@ -535,19 +538,19 @@ const EDITOR_CSS = `
 	max-width: 160px;
 	padding: 0 8px;
 	gap: 4px;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: #fff;
+	background: var(--notectl-bg);
 }
 
 .notectl-toolbar-btn--font:hover {
-	background: #f5f5f5;
-	border-color: #b0b0b0;
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-fg-muted);
 }
 
 .notectl-toolbar-btn--font.notectl-toolbar-btn--active {
-	background: #fff;
-	border-color: #a0c0e0;
+	background: var(--notectl-bg);
+	border-color: var(--notectl-primary-muted);
 }
 
 .notectl-toolbar-btn--font .notectl-toolbar-btn__icon {
@@ -566,7 +569,7 @@ const EDITOR_CSS = `
 	flex: 1;
 	font-size: 13px;
 	font-weight: 500;
-	color: #333;
+	color: var(--notectl-fg);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -577,7 +580,7 @@ const EDITOR_CSS = `
 .notectl-font-select__arrow {
 	flex-shrink: 0;
 	font-size: 11px;
-	color: #888;
+	color: var(--notectl-fg-muted);
 	line-height: 30px;
 }
 
@@ -602,7 +605,7 @@ const EDITOR_CSS = `
 	background: none;
 	cursor: pointer;
 	font-size: 14px;
-	color: #333;
+	color: var(--notectl-fg);
 	line-height: 1.4;
 	text-align: left;
 	white-space: nowrap;
@@ -611,16 +614,16 @@ const EDITOR_CSS = `
 }
 
 .notectl-font-picker__item:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-font-picker__item--active {
-	background: #e8f0fb;
-	color: #1a5fa0;
+	background: var(--notectl-active-bg);
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-font-picker__item--active:hover {
-	background: #d0e0f0;
+	background: var(--notectl-active-bg);
 }
 
 .notectl-font-picker__check {
@@ -631,7 +634,7 @@ const EDITOR_CSS = `
 	flex-shrink: 0;
 	font-size: 13px;
 	font-weight: 600;
-	color: #1a5fa0;
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-font-picker__label {
@@ -640,7 +643,7 @@ const EDITOR_CSS = `
 
 .notectl-font-picker__separator {
 	height: 1px;
-	background: #e0e0e0;
+	background: var(--notectl-border);
 	margin: 4px 8px;
 }
 
@@ -651,19 +654,19 @@ const EDITOR_CSS = `
 	max-width: 160px;
 	padding: 0 8px;
 	gap: 4px;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: #fff;
+	background: var(--notectl-bg);
 }
 
 .notectl-toolbar-btn--heading:hover {
-	background: #f5f5f5;
-	border-color: #b0b0b0;
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-fg-muted);
 }
 
 .notectl-toolbar-btn--heading.notectl-toolbar-btn--active {
-	background: #fff;
-	border-color: #a0c0e0;
+	background: var(--notectl-bg);
+	border-color: var(--notectl-primary-muted);
 }
 
 .notectl-toolbar-btn--heading .notectl-toolbar-btn__icon {
@@ -682,7 +685,7 @@ const EDITOR_CSS = `
 	flex: 1;
 	font-size: 13px;
 	font-weight: 500;
-	color: #333;
+	color: var(--notectl-fg);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -693,7 +696,7 @@ const EDITOR_CSS = `
 .notectl-heading-select__arrow {
 	flex-shrink: 0;
 	font-size: 11px;
-	color: #888;
+	color: var(--notectl-fg-muted);
 	line-height: 30px;
 }
 
@@ -718,7 +721,7 @@ const EDITOR_CSS = `
 	background: none;
 	cursor: pointer;
 	font-size: 14px;
-	color: #333;
+	color: var(--notectl-fg);
 	text-align: left;
 	white-space: nowrap;
 	font-family: inherit;
@@ -726,16 +729,16 @@ const EDITOR_CSS = `
 }
 
 .notectl-heading-picker__item:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-heading-picker__item--active {
-	background: #e8f0fb;
-	color: #1a5fa0;
+	background: var(--notectl-active-bg);
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-heading-picker__item--active:hover {
-	background: #d0e0f0;
+	background: var(--notectl-active-bg);
 }
 
 .notectl-heading-picker__check {
@@ -746,7 +749,7 @@ const EDITOR_CSS = `
 	flex-shrink: 0;
 	font-size: 13px;
 	font-weight: 600;
-	color: #1a5fa0;
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-heading-picker__label {
@@ -780,7 +783,7 @@ const EDITOR_CSS = `
 }
 
 .notectl-table td {
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	padding: 8px 12px;
 	min-width: 60px;
 	vertical-align: top;
@@ -788,21 +791,21 @@ const EDITOR_CSS = `
 }
 
 .notectl-table td:focus-within {
-	outline: 2px solid #4a90d9;
+	outline: 2px solid var(--notectl-primary);
 	outline-offset: -2px;
 }
 
 .notectl-table-cell--selected {
-	background: rgba(74, 144, 217, 0.15);
+	background: var(--notectl-primary-muted);
 }
 
 /* Table Context Menu */
 .notectl-table-context-menu {
 	position: fixed;
-	background: #fff;
-	border: 1px solid #d0d0d0;
+	background: var(--notectl-surface-overlay);
+	border: 1px solid var(--notectl-border);
 	border-radius: 6px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 4px 12px var(--notectl-shadow);
 	padding: 4px 0;
 	min-width: 180px;
 	z-index: 10000;
@@ -817,17 +820,17 @@ const EDITOR_CSS = `
 	background: none;
 	cursor: pointer;
 	font-size: 14px;
-	color: #333;
+	color: var(--notectl-fg);
 	font-family: inherit;
 }
 
 .notectl-table-context-menu button:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-table-context-menu hr {
 	border: none;
-	border-top: 1px solid #e0e0e0;
+	border-top: 1px solid var(--notectl-border);
 	margin: 4px 0;
 }
 
@@ -845,7 +848,7 @@ const EDITOR_CSS = `
 }
 
 .ntbl-container.notectl-table--selected .notectl-table-wrapper {
-	outline: 2px solid #1d4ed8;
+	outline: 2px solid var(--notectl-primary-fg);
 	outline-offset: 2px;
 	border-radius: 6px;
 }
@@ -910,22 +913,22 @@ const EDITOR_CSS = `
 
 .ntbl-col-handle {
 	height: 100%;
-	background: #edf0f4;
+	background: var(--notectl-hover-bg);
 	border-radius: 4px 4px 0 0;
 }
 
 .ntbl-col-handle:hover {
-	background: #dce3ed;
+	background: var(--notectl-border);
 }
 
 .ntbl-row-handle {
 	width: 100%;
-	background: #edf0f4;
+	background: var(--notectl-hover-bg);
 	border-radius: 4px 0 0 4px;
 }
 
 .ntbl-row-handle:hover {
-	background: #dce3ed;
+	background: var(--notectl-border);
 }
 
 /* --- Handle Delete Button --- */
@@ -937,7 +940,7 @@ const EDITOR_CSS = `
 	height: 16px;
 	border: none;
 	background: transparent;
-	color: #999;
+	color: var(--notectl-fg-muted);
 	cursor: pointer;
 	border-radius: 3px;
 	padding: 0;
@@ -953,8 +956,8 @@ const EDITOR_CSS = `
 }
 
 .ntbl-handle-delete:hover {
-	background: #fee2e2;
-	color: #dc2626;
+	background: var(--notectl-danger-muted);
+	color: var(--notectl-danger);
 }
 
 /* --- Insert Lines --- */
@@ -976,11 +979,11 @@ const EDITOR_CSS = `
 	background: linear-gradient(
 		90deg,
 		transparent,
-		#4a90d9 8%,
-		#4a90d9 92%,
+		var(--notectl-primary) 8%,
+		var(--notectl-primary) 92%,
 		transparent
 	);
-	box-shadow: 0 0 6px rgba(74, 144, 217, 0.35);
+	box-shadow: 0 0 6px var(--notectl-focus-ring);
 }
 
 .ntbl-insert-line--vertical {
@@ -988,11 +991,11 @@ const EDITOR_CSS = `
 	background: linear-gradient(
 		180deg,
 		transparent,
-		#4a90d9 8%,
-		#4a90d9 92%,
+		var(--notectl-primary) 8%,
+		var(--notectl-primary) 92%,
 		transparent
 	);
-	box-shadow: 0 0 6px rgba(74, 144, 217, 0.35);
+	box-shadow: 0 0 6px var(--notectl-focus-ring);
 }
 
 /* --- Insert Button on Line --- */
@@ -1001,16 +1004,16 @@ const EDITOR_CSS = `
 	width: 20px;
 	height: 20px;
 	border-radius: 50%;
-	background: #fff;
-	border: 2px solid #4a90d9;
-	color: #4a90d9;
+	background: var(--notectl-bg);
+	border: 2px solid var(--notectl-primary);
+	color: var(--notectl-primary);
 	cursor: pointer;
 	pointer-events: all;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	padding: 0;
-	box-shadow: 0 2px 8px rgba(74, 144, 217, 0.25);
+	box-shadow: 0 2px 8px var(--notectl-focus-ring);
 	transition: background 0.15s, color 0.15s,
 		transform 0.15s, box-shadow 0.15s;
 }
@@ -1028,9 +1031,9 @@ const EDITOR_CSS = `
 }
 
 .ntbl-insert-btn:hover {
-	background: #4a90d9;
-	color: #fff;
-	box-shadow: 0 2px 12px rgba(74, 144, 217, 0.45);
+	background: var(--notectl-primary);
+	color: var(--notectl-bg);
+	box-shadow: 0 2px 12px var(--notectl-focus-ring);
 }
 
 .ntbl-insert-line--horizontal .ntbl-insert-btn:hover {
@@ -1068,10 +1071,10 @@ const EDITOR_CSS = `
 	left: 0;
 	width: 20px;
 	height: 20px;
-	border: 1px solid #fca5a5;
+	border: 1px solid var(--notectl-danger);
 	border-radius: 4px;
-	background: #fff;
-	color: #b91c1c;
+	background: var(--notectl-bg);
+	color: var(--notectl-danger);
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -1086,41 +1089,41 @@ const EDITOR_CSS = `
 }
 
 .ntbl-delete-table-btn:hover {
-	background: #fee2e2;
-	border-color: #f87171;
+	background: var(--notectl-danger-muted);
+	border-color: var(--notectl-danger);
 }
 
 .ntbl-add-row {
 	bottom: 0;
 	height: 24px;
-	border: 1px dashed #d0d0d0;
+	border: 1px dashed var(--notectl-border);
 	border-radius: 0 0 6px 6px;
 	border-top: none;
-	color: #aaa;
+	color: var(--notectl-fg-muted);
 	transform: translateY(100%);
 }
 
 .ntbl-add-row:hover {
-	background: #f0f6ff;
-	border-color: #4a90d9;
-	color: #4a90d9;
+	background: var(--notectl-primary-muted);
+	border-color: var(--notectl-primary);
+	color: var(--notectl-primary);
 }
 
 .ntbl-add-col {
 	right: 0;
 	top: 24px;
 	width: 24px;
-	border: 1px dashed #d0d0d0;
+	border: 1px dashed var(--notectl-border);
 	border-radius: 0 6px 6px 0;
 	border-left: none;
-	color: #aaa;
+	color: var(--notectl-fg-muted);
 	transform: translateX(100%);
 }
 
 .ntbl-add-col:hover {
-	background: #f0f6ff;
-	border-color: #4a90d9;
-	color: #4a90d9;
+	background: var(--notectl-primary-muted);
+	border-color: var(--notectl-primary);
+	color: var(--notectl-primary);
 }
 
 .ntbl-add-icon {
@@ -1141,19 +1144,19 @@ const EDITOR_CSS = `
 	max-width: 80px;
 	padding: 0 8px;
 	gap: 4px;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: #fff;
+	background: var(--notectl-bg);
 }
 
 .notectl-toolbar-btn--fontSize:hover {
-	background: #f5f5f5;
-	border-color: #b0b0b0;
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-fg-muted);
 }
 
 .notectl-toolbar-btn--fontSize.notectl-toolbar-btn--active {
-	background: #fff;
-	border-color: #a0c0e0;
+	background: var(--notectl-bg);
+	border-color: var(--notectl-primary-muted);
 }
 
 .notectl-toolbar-btn--fontSize .notectl-toolbar-btn__icon {
@@ -1172,7 +1175,7 @@ const EDITOR_CSS = `
 	flex: 1;
 	font-size: 13px;
 	font-weight: 500;
-	color: #333;
+	color: var(--notectl-fg);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1183,7 +1186,7 @@ const EDITOR_CSS = `
 .notectl-font-size-select__arrow {
 	flex-shrink: 0;
 	font-size: 11px;
-	color: #888;
+	color: var(--notectl-fg-muted);
 	line-height: 30px;
 }
 
@@ -1201,11 +1204,12 @@ const EDITOR_CSS = `
 .notectl-font-size-picker__input {
 	width: 100%;
 	padding: 6px 8px;
-	border: 1px solid #d0d0d0;
+	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
 	font-size: 13px;
 	font-family: inherit;
-	color: #333;
+	color: var(--notectl-fg);
+	background: var(--notectl-bg);
 	outline: none;
 	box-sizing: border-box;
 	-moz-appearance: textfield;
@@ -1218,8 +1222,8 @@ const EDITOR_CSS = `
 }
 
 .notectl-font-size-picker__input:focus {
-	border-color: #4a90d9;
-	box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+	border-color: var(--notectl-border-focus);
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 .notectl-font-size-picker__list {
@@ -1238,7 +1242,7 @@ const EDITOR_CSS = `
 	background: none;
 	cursor: pointer;
 	font-size: 14px;
-	color: #333;
+	color: var(--notectl-fg);
 	line-height: 1.4;
 	text-align: left;
 	white-space: nowrap;
@@ -1248,20 +1252,20 @@ const EDITOR_CSS = `
 }
 
 .notectl-font-size-picker__item:hover {
-	background: #f0f0f0;
+	background: var(--notectl-hover-bg);
 }
 
 .notectl-font-size-picker__item--active {
-	background: #e8f0fb;
-	color: #1a5fa0;
+	background: var(--notectl-active-bg);
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-font-size-picker__item--active:hover {
-	background: #d0e0f0;
+	background: var(--notectl-active-bg);
 }
 
 .notectl-font-size-picker__item--focused {
-	outline: 2px solid #4a90d9;
+	outline: 2px solid var(--notectl-primary);
 	outline-offset: -2px;
 }
 
@@ -1273,26 +1277,20 @@ const EDITOR_CSS = `
 	flex-shrink: 0;
 	font-size: 13px;
 	font-weight: 600;
-	color: #1a5fa0;
+	color: var(--notectl-primary-fg);
 }
 
 .notectl-font-size-picker__label {
 	flex: 1;
 }
 
-/* Code Block — themeable via CSS custom properties:
- * --notectl-code-block-bg            (default: #1e1e2e)
- * --notectl-code-block-color         (default: #cdd6f4)
- * --notectl-code-block-header-bg     (default: rgba(255,255,255,0.06))
- * --notectl-code-block-header-color  (default: #7f849c)
- * --notectl-code-block-header-border (default: rgba(255,255,255,0.08))
- */
+/* Code Block — uses theme custom properties */
 .notectl-code-block {
 	position: relative;
 	margin: 8px 0;
 	border-radius: 6px;
-	background: var(--notectl-code-block-bg, #1e1e2e);
-	color: var(--notectl-code-block-color, #cdd6f4);
+	background: var(--notectl-code-block-bg);
+	color: var(--notectl-code-block-color);
 	font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
 	font-size: 14px;
 	line-height: 1.5;
@@ -1304,10 +1302,10 @@ const EDITOR_CSS = `
 	align-items: center;
 	justify-content: space-between;
 	padding: 6px 12px;
-	background: var(--notectl-code-block-header-bg, rgba(255, 255, 255, 0.06));
-	border-bottom: 1px solid var(--notectl-code-block-header-border, rgba(255, 255, 255, 0.08));
+	background: var(--notectl-code-block-header-bg);
+	border-bottom: 1px solid var(--notectl-code-block-header-border);
 	font-size: 12px;
-	color: var(--notectl-code-block-header-color, #7f849c);
+	color: var(--notectl-code-block-header-color);
 	user-select: none;
 }
 
@@ -1325,7 +1323,7 @@ const EDITOR_CSS = `
 	border: none;
 	border-radius: 4px;
 	background: transparent;
-	color: var(--notectl-code-block-header-color, #7f849c);
+	color: var(--notectl-code-block-header-color);
 	cursor: pointer;
 	padding: 0;
 	transition: background 0.15s, color 0.15s;
@@ -1333,7 +1331,7 @@ const EDITOR_CSS = `
 
 .notectl-code-block__copy:hover {
 	background: rgba(255, 255, 255, 0.1);
-	color: var(--notectl-code-block-color, #cdd6f4);
+	color: var(--notectl-code-block-color);
 }
 
 .notectl-code-block__copy svg {
@@ -1352,13 +1350,13 @@ const EDITOR_CSS = `
 }
 
 .notectl-code-block--selected {
-	outline: 2px solid #4a90d9;
+	outline: 2px solid var(--notectl-primary);
 	outline-offset: 2px;
 }
 
 /* Node selection */
 .notectl-node-selected {
-	outline: 2px solid #4a90d9;
+	outline: 2px solid var(--notectl-primary);
 	outline-offset: 2px;
 }
 `;
