@@ -1,45 +1,49 @@
 /**
- * TextAlignmentPlugin: adds left/center/right/justify alignment as a block
- * attribute on paragraphs and headings. Patches their NodeSpecs to render
- * the `textAlign` attribute via inline `text-align` style and provides
- * toggle commands, keyboard shortcuts, and a toolbar dropdown.
+ * AlignmentPlugin: adds left/center/right/justify alignment as a block
+ * attribute on paragraphs, headings, images, and other alignable types.
+ * Patches their NodeSpecs to render the `align` attribute via inline
+ * `text-align` style and provides toggle commands, keyboard shortcuts,
+ * and a toolbar dropdown. Handles both TextSelection and NodeSelection.
  */
 
 import type { BlockNode } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
-import { isNodeSelection } from '../../model/Selection.js';
+import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 
 // --- Public Types ---
 
-export type TextAlignment = 'left' | 'center' | 'right' | 'justify';
+export type BlockAlignment = 'left' | 'center' | 'right' | 'justify';
 
-export interface TextAlignmentConfig {
+export interface AlignmentConfig {
 	/** Which alignments to expose. Defaults to all four. */
-	readonly alignments: readonly TextAlignment[];
-	/** Block types that support alignment. Defaults to paragraph + heading. */
+	readonly alignments: readonly BlockAlignment[];
+	/** Block types that support alignment. Defaults to paragraph + heading + title + subtitle + table_cell + image. */
 	readonly alignableTypes: readonly string[];
+	/** Per-type default alignment (e.g. `{ image: 'center' }`). Falls back to `'left'`. */
+	readonly defaults: Readonly<Record<string, BlockAlignment>>;
 	/** When true, a separator is rendered after the toolbar item. */
 	readonly separatorAfter?: boolean;
 }
 
 // --- Constants ---
 
-const DEFAULT_CONFIG: TextAlignmentConfig = {
+const DEFAULT_CONFIG: AlignmentConfig = {
 	alignments: ['left', 'center', 'right', 'justify'],
-	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell'],
+	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell', 'image'],
+	defaults: { image: 'center' },
 };
 
-const ALIGNMENT_LABELS: Readonly<Record<TextAlignment, string>> = {
+const ALIGNMENT_LABELS: Readonly<Record<BlockAlignment, string>> = {
 	left: 'Align Left',
 	center: 'Align Center',
 	right: 'Align Right',
 	justify: 'Justify',
 };
 
-const ALIGNMENT_ICONS: Readonly<Record<TextAlignment, string>> = {
+export const ALIGNMENT_ICONS: Readonly<Record<BlockAlignment, string>> = {
 	left: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>',
 	center:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg>',
@@ -51,16 +55,20 @@ const ALIGNMENT_ICONS: Readonly<Record<TextAlignment, string>> = {
 
 // --- Plugin ---
 
-export class TextAlignmentPlugin implements Plugin {
-	readonly id = 'text-alignment';
-	readonly name = 'Text Alignment';
+export class AlignmentPlugin implements Plugin {
+	readonly id = 'alignment';
+	readonly name = 'Alignment';
 	readonly priority = 90;
 
-	private readonly config: TextAlignmentConfig;
+	private readonly config: AlignmentConfig;
 	private alignableTypes!: ReadonlySet<string>;
 
-	constructor(config?: Partial<TextAlignmentConfig>) {
-		this.config = { ...DEFAULT_CONFIG, ...config };
+	constructor(config?: Partial<AlignmentConfig>) {
+		this.config = {
+			...DEFAULT_CONFIG,
+			...config,
+			defaults: { ...DEFAULT_CONFIG.defaults, ...config?.defaults },
+		};
 	}
 
 	init(context: PluginContext): void {
@@ -76,7 +84,8 @@ export class TextAlignmentPlugin implements Plugin {
 
 	/**
 	 * Patches existing NodeSpecs for alignable block types to support the
-	 * `textAlign` attribute and render it as an inline style.
+	 * `align` attribute and render it as an inline style. Skips types
+	 * that already define an `align` attribute in their spec.
 	 */
 	private patchNodeSpecs(context: PluginContext): void {
 		const registry = context.getSchemaRegistry();
@@ -85,14 +94,18 @@ export class TextAlignmentPlugin implements Plugin {
 			const spec = registry.getNodeSpec(type);
 			if (!spec) continue;
 
+			// Skip types that already declare an `align` attr (e.g. image)
+			if (spec.attrs?.align) continue;
+
 			const originalToDOM = spec.toDOM;
+			const defaultAlign: BlockAlignment = this.config.defaults[type] ?? 'left';
 
 			registry.removeNodeSpec(type);
 			registry.registerNodeSpec({
 				...spec,
 				attrs: {
 					...spec.attrs,
-					textAlign: { default: 'left' },
+					align: { default: defaultAlign },
 				},
 				toDOM(node) {
 					const el = originalToDOM.call(spec, node);
@@ -146,11 +159,11 @@ export class TextAlignmentPlugin implements Plugin {
 		}));
 
 		context.registerToolbarItem({
-			id: 'text-alignment',
+			id: 'alignment',
 			group: 'block',
 			icon: ALIGNMENT_ICONS.left,
-			label: 'Text Alignment',
-			tooltip: 'Text Alignment',
+			label: 'Alignment',
+			tooltip: 'Alignment',
 			command: 'alignLeft',
 			priority: 60,
 			popupType: 'dropdown',
@@ -164,7 +177,7 @@ export class TextAlignmentPlugin implements Plugin {
 	// --- Middleware ---
 
 	/**
-	 * Preserves the `textAlign` attribute when other plugins change the block
+	 * Preserves the `align` attribute when other plugins change the block
 	 * type (e.g. paragraph → heading) via `setBlockType`, which replaces attrs.
 	 */
 	private registerMiddleware(context: PluginContext): void {
@@ -175,14 +188,14 @@ export class TextAlignmentPlugin implements Plugin {
 				if (step.type !== 'setBlockType') return step;
 				if (!this.alignableTypes.has(step.nodeType)) return step;
 
-				const prevAlign = step.previousAttrs?.textAlign;
+				const prevAlign = step.previousAttrs?.align;
 				if (!prevAlign || prevAlign === 'left') return step;
 
-				// Carry forward textAlign into new attrs
+				// Carry forward align into new attrs
 				patched = true;
 				return {
 					...step,
-					attrs: { ...step.attrs, textAlign: prevAlign },
+					attrs: { ...step.attrs, align: prevAlign },
 				};
 			});
 
@@ -192,22 +205,47 @@ export class TextAlignmentPlugin implements Plugin {
 
 	// --- Alignment Logic ---
 
-	private setAlignment(context: PluginContext, alignment: TextAlignment): boolean {
-		const state = context.getState();
+	/**
+	 * Gets the selected block, handling both TextSelection and NodeSelection.
+	 */
+	private getSelectedBlock(state: EditorState): BlockNode | undefined {
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-		const block = state.getBlock(sel.anchor.blockId);
+		if (isNodeSelection(sel)) {
+			return state.getBlock(sel.nodeId);
+		}
+		if (isTextSelection(sel)) {
+			return state.getBlock(sel.anchor.blockId);
+		}
+		return undefined;
+	}
+
+	/**
+	 * Gets the block ID of the selected block, handling both selection types.
+	 */
+	private getSelectedBlockId(state: EditorState): BlockId | undefined {
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return sel.nodeId;
+		if (isTextSelection(sel)) return sel.anchor.blockId;
+		return undefined;
+	}
+
+	private setAlignment(context: PluginContext, alignment: BlockAlignment): boolean {
+		const state = context.getState();
+		const block = this.getSelectedBlock(state);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 
-		const path = findNodePath(state.doc, sel.anchor.blockId);
+		const blockId = this.getSelectedBlockId(state);
+		if (!blockId) return false;
+
+		const path = findNodePath(state.doc, blockId);
 		if (!path) return false;
 
-		const newAttrs = { ...block.attrs, textAlign: alignment };
+		const newAttrs = { ...block.attrs, align: alignment };
 
 		const tr = state
 			.transaction('command')
 			.setNodeAttr(path as BlockId[], newAttrs)
-			.setSelection(sel)
+			.setSelection(state.selection)
 			.build();
 
 		context.dispatch(tr);
@@ -215,16 +253,15 @@ export class TextAlignmentPlugin implements Plugin {
 	}
 
 	private isNonDefaultAlignment(state: EditorState): boolean {
-		if (isNodeSelection(state.selection)) return false;
-		const block = state.getBlock(state.selection.anchor.blockId);
+		const block = this.getSelectedBlock(state);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
-		const align = block.attrs?.textAlign;
-		return align != null && align !== 'left';
+		const align = block.attrs?.align;
+		const defaultAlign: BlockAlignment = this.config.defaults[block.type] ?? 'left';
+		return align != null && align !== defaultAlign;
 	}
 
 	private isAlignable(state: EditorState): boolean {
-		if (isNodeSelection(state.selection)) return false;
-		const block = state.getBlock(state.selection.anchor.blockId);
+		const block = this.getSelectedBlock(state);
 		return block != null && this.alignableTypes.has(block.type);
 	}
 }
@@ -232,7 +269,7 @@ export class TextAlignmentPlugin implements Plugin {
 // --- Helpers ---
 
 function applyAlignment(el: HTMLElement, node: BlockNode): void {
-	const align = node.attrs?.textAlign;
+	const align = node.attrs?.align;
 	if (typeof align === 'string' && align !== 'left') {
 		el.style.textAlign = align;
 	}

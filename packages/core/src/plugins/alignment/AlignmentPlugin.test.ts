@@ -8,9 +8,10 @@ import {
 } from '../../test/PluginTestUtils.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
+import { ImagePlugin } from '../image/ImagePlugin.js';
 import { createTable } from '../table/TableHelpers.js';
 import { TablePlugin } from '../table/TablePlugin.js';
-import { TextAlignmentPlugin } from './TextAlignmentPlugin.js';
+import { AlignmentPlugin } from './AlignmentPlugin.js';
 
 // --- Helpers ---
 
@@ -38,42 +39,54 @@ function makeState(
 
 // --- Tests ---
 
-describe('TextAlignmentPlugin', () => {
+describe('AlignmentPlugin', () => {
 	describe('registration', () => {
 		it('registers with correct id and name', () => {
-			const plugin = new TextAlignmentPlugin();
-			expect(plugin.id).toBe('text-alignment');
-			expect(plugin.name).toBe('Text Alignment');
+			const plugin = new AlignmentPlugin();
+			expect(plugin.id).toBe('alignment');
+			expect(plugin.name).toBe('Alignment');
 			expect(plugin.priority).toBe(90);
 		});
 	});
 
 	describe('NodeSpec patching', () => {
-		it('patches paragraph NodeSpec with textAlign attr', async () => {
-			const h = await pluginHarness(new TextAlignmentPlugin(), undefined, HARNESS_OPTIONS);
+		it('patches paragraph NodeSpec with align attr', async () => {
+			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getNodeSpec('paragraph');
-			expect(spec?.attrs?.textAlign).toBeDefined();
-			expect(spec?.attrs?.textAlign?.default).toBe('left');
+			expect(spec?.attrs?.align).toBeDefined();
+			expect(spec?.attrs?.align?.default).toBe('left');
 		});
 
-		it('patches heading NodeSpec with textAlign attr when heading plugin is loaded', async () => {
+		it('patches heading NodeSpec with align attr when heading plugin is loaded', async () => {
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				undefined,
 				HARNESS_OPTIONS,
 			);
 			const spec = h.getNodeSpec('heading');
-			expect(spec?.attrs?.textAlign).toBeDefined();
-			expect(spec?.attrs?.textAlign?.default).toBe('left');
+			expect(spec?.attrs?.align).toBeDefined();
+			expect(spec?.attrs?.align?.default).toBe('left');
+		});
+
+		it('does not patch image NodeSpec (already has align attr)', async () => {
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				undefined,
+				HARNESS_OPTIONS,
+			);
+			// Image NodeSpec should keep its own align attr with default 'center'
+			const spec = h.getNodeSpec('image');
+			expect(spec?.attrs?.align).toBeDefined();
+			expect(spec?.attrs?.align?.default).toBe('center');
 		});
 
 		it('paragraph toDOM renders text-align style for non-left alignment', async () => {
-			const h = await pluginHarness(new TextAlignmentPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getNodeSpec('paragraph');
 
 			const el = spec?.toDOM(
 				createBlockNode('paragraph', [createTextNode('')], 'test', {
-					textAlign: 'center',
+					align: 'center',
 				}),
 			);
 			expect(el?.style.textAlign).toBe('center');
@@ -81,12 +94,12 @@ describe('TextAlignmentPlugin', () => {
 		});
 
 		it('paragraph toDOM does not set style for left alignment', async () => {
-			const h = await pluginHarness(new TextAlignmentPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getNodeSpec('paragraph');
 
 			const el = spec?.toDOM(
 				createBlockNode('paragraph', [createTextNode('')], 'test', {
-					textAlign: 'left',
+					align: 'left',
 				}),
 			);
 			expect(el?.style.textAlign).toBe('');
@@ -94,7 +107,7 @@ describe('TextAlignmentPlugin', () => {
 
 		it('heading toDOM renders text-align style and correct tag', async () => {
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				undefined,
 				HARNESS_OPTIONS,
 			);
@@ -103,7 +116,7 @@ describe('TextAlignmentPlugin', () => {
 			const el = spec?.toDOM(
 				createBlockNode('heading', [createTextNode('')], 'test', {
 					level: 2,
-					textAlign: 'right',
+					align: 'right',
 				}),
 			);
 			expect(el?.tagName).toBe('H2');
@@ -113,7 +126,7 @@ describe('TextAlignmentPlugin', () => {
 
 		it('heading toDOM preserves original behavior without alignment', async () => {
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				undefined,
 				HARNESS_OPTIONS,
 			);
@@ -132,7 +145,7 @@ describe('TextAlignmentPlugin', () => {
 	describe('commands', () => {
 		it('registers alignment commands for all four alignments', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			expectCommandRegistered(h, 'alignLeft');
 			expectCommandRegistered(h, 'alignCenter');
@@ -140,43 +153,43 @@ describe('TextAlignmentPlugin', () => {
 			expectCommandRegistered(h, 'alignJustify');
 		});
 
-		it('alignCenter sets textAlign to center on paragraph', async () => {
+		it('alignCenter sets align to center on paragraph', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('alignCenter');
-			expect(h.getState().doc.children[0]?.attrs?.textAlign).toBe('center');
+			expect(h.getState().doc.children[0]?.attrs?.align).toBe('center');
 		});
 
-		it('alignRight sets textAlign to right on paragraph', async () => {
+		it('alignRight sets align to right on paragraph', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('alignRight');
-			expect(h.getState().doc.children[0]?.attrs?.textAlign).toBe('right');
+			expect(h.getState().doc.children[0]?.attrs?.align).toBe('right');
 		});
 
-		it('alignJustify sets textAlign to justify on paragraph', async () => {
+		it('alignJustify sets align to justify on paragraph', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('alignJustify');
-			expect(h.getState().doc.children[0]?.attrs?.textAlign).toBe('justify');
+			expect(h.getState().doc.children[0]?.attrs?.align).toBe('justify');
 		});
 
-		it('alignLeft resets textAlign to left', async () => {
+		it('alignLeft resets align to left', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'center' },
+					attrs: { align: 'center' },
 				},
 			]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('alignLeft');
-			expect(h.getState().doc.children[0]?.attrs?.textAlign).toBe('left');
+			expect(h.getState().doc.children[0]?.attrs?.align).toBe('left');
 		});
 
 		it('sets alignment on heading blocks', async () => {
@@ -189,14 +202,14 @@ describe('TextAlignmentPlugin', () => {
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignCenter');
 			const block = h.getState().doc.children[0];
-			expect(block?.attrs?.textAlign).toBe('center');
+			expect(block?.attrs?.align).toBe('center');
 		});
 
 		it('preserves heading level when setting alignment', async () => {
@@ -209,7 +222,7 @@ describe('TextAlignmentPlugin', () => {
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -217,7 +230,7 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('alignRight');
 			const block = h.getState().doc.children[0];
 			expect(block?.attrs?.level).toBe(3);
-			expect(block?.attrs?.textAlign).toBe('right');
+			expect(block?.attrs?.align).toBe('right');
 		});
 
 		it('returns false for non-alignable block types', async () => {
@@ -229,7 +242,7 @@ describe('TextAlignmentPlugin', () => {
 					attrs: { listType: 'bullet', indent: 0 },
 				},
 			]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
 
 			expect(h.executeCommand('alignCenter')).toBe(false);
 		});
@@ -237,7 +250,7 @@ describe('TextAlignmentPlugin', () => {
 		it('respects configured alignments subset', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
 			const h = await pluginHarness(
-				new TextAlignmentPlugin({ alignments: ['left', 'center'] }),
+				new AlignmentPlugin({ alignments: ['left', 'center'] }),
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -249,9 +262,92 @@ describe('TextAlignmentPlugin', () => {
 		});
 	});
 
+	describe('NodeSelection support', () => {
+		it('sets alignment on image via NodeSelection', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'center' } })
+				.nodeSelection('img1')
+				.schema(['paragraph', 'image'], ['bold'])
+				.build();
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
+
+			h.executeCommand('alignLeft');
+			const block = h.getState().doc.children[1];
+			expect(block?.attrs?.align).toBe('left');
+		});
+
+		it('sets alignment to right on image via NodeSelection', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'center' } })
+				.nodeSelection('img1')
+				.schema(['paragraph', 'image'], ['bold'])
+				.build();
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
+
+			h.executeCommand('alignRight');
+			const block = h.getState().doc.children[1];
+			expect(block?.attrs?.align).toBe('right');
+		});
+
+		it('isEnabled returns true for image NodeSelection', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'center' } })
+				.nodeSelection('img1')
+				.schema(['paragraph', 'image'], ['bold'])
+				.build();
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
+			expectToolbarEnabled(h, 'alignment', true);
+		});
+
+		it('isActive returns false when image has default center alignment', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'center' } })
+				.nodeSelection('img1')
+				.schema(['paragraph', 'image'], ['bold'])
+				.build();
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
+			expectToolbarActive(h, 'alignment', false);
+		});
+
+		it('isActive returns true when image has non-default alignment', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'left' } })
+				.nodeSelection('img1')
+				.schema(['paragraph', 'image'], ['bold'])
+				.build();
+			const h = await pluginHarness(
+				[new ImagePlugin(), new AlignmentPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
+			expectToolbarActive(h, 'alignment', true);
+		});
+	});
+
 	describe('keymap registration', () => {
 		it('registers keymaps for all alignments', async () => {
-			const h = await pluginHarness(new TextAlignmentPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const keymaps = h.getKeymaps();
 
 			const keys = keymaps.flatMap((km) => Object.keys(km));
@@ -263,7 +359,7 @@ describe('TextAlignmentPlugin', () => {
 
 		it('restricts keymaps to configured alignments', async () => {
 			const h = await pluginHarness(
-				new TextAlignmentPlugin({ alignments: ['left', 'center'] }),
+				new AlignmentPlugin({ alignments: ['left', 'center'] }),
 				undefined,
 				HARNESS_OPTIONS,
 			);
@@ -278,9 +374,9 @@ describe('TextAlignmentPlugin', () => {
 	});
 
 	describe('toolbar item', () => {
-		it('registers a text-alignment toolbar item', async () => {
-			const h = await pluginHarness(new TextAlignmentPlugin(), undefined, HARNESS_OPTIONS);
-			expectToolbarItem(h, 'text-alignment', {
+		it('registers an alignment toolbar item', async () => {
+			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
+			expectToolbarItem(h, 'alignment', {
 				group: 'block',
 				popupType: 'dropdown',
 			});
@@ -288,13 +384,13 @@ describe('TextAlignmentPlugin', () => {
 
 		it('dropdown contains all configured alignments', async () => {
 			const h = await pluginHarness(
-				new TextAlignmentPlugin({
+				new AlignmentPlugin({
 					alignments: ['left', 'center', 'right'],
 				}),
 				undefined,
 				HARNESS_OPTIONS,
 			);
-			const item = h.getToolbarItem('text-alignment');
+			const item = h.getToolbarItem('alignment');
 			const config = item?.popupConfig as {
 				items: readonly { label: string }[];
 			};
@@ -311,11 +407,11 @@ describe('TextAlignmentPlugin', () => {
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'center' },
+					attrs: { align: 'center' },
 				},
 			]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
-			expectToolbarActive(h, 'text-alignment', true);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+			expectToolbarActive(h, 'alignment', true);
 		});
 
 		it('isActive returns false when block has left alignment', async () => {
@@ -324,17 +420,17 @@ describe('TextAlignmentPlugin', () => {
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'left' },
+					attrs: { align: 'left' },
 				},
 			]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
-			expectToolbarActive(h, 'text-alignment', false);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+			expectToolbarActive(h, 'alignment', false);
 		});
 
 		it('isEnabled returns true for alignable blocks', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
-			expectToolbarEnabled(h, 'text-alignment', true);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+			expectToolbarEnabled(h, 'alignment', true);
 		});
 
 		it('isEnabled returns false for non-alignable blocks', async () => {
@@ -346,28 +442,28 @@ describe('TextAlignmentPlugin', () => {
 					attrs: { listType: 'bullet', indent: 0 },
 				},
 			]);
-			const h = await pluginHarness(new TextAlignmentPlugin(), state, HARNESS_OPTIONS);
-			expectToolbarEnabled(h, 'text-alignment', false);
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+			expectToolbarEnabled(h, 'alignment', false);
 		});
 
 		it('isEnabled returns true for title blocks', async () => {
 			const state = makeState([{ type: 'title', text: 'My Title', id: 'b1' }]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
-			expectToolbarEnabled(h, 'text-alignment', true);
+			expectToolbarEnabled(h, 'alignment', true);
 		});
 
 		it('isEnabled returns true for subtitle blocks', async () => {
 			const state = makeState([{ type: 'subtitle', text: 'My Subtitle', id: 'b1' }]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
-			expectToolbarEnabled(h, 'text-alignment', true);
+			expectToolbarEnabled(h, 'alignment', true);
 		});
 	});
 
@@ -375,40 +471,40 @@ describe('TextAlignmentPlugin', () => {
 		it('sets alignment on title blocks', async () => {
 			const state = makeState([{ type: 'title', text: 'My Title', id: 'b1' }]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignCenter');
 			const block = h.getState().doc.children[0];
-			expect(block?.attrs?.textAlign).toBe('center');
+			expect(block?.attrs?.align).toBe('center');
 		});
 
 		it('sets alignment on subtitle blocks', async () => {
 			const state = makeState([{ type: 'subtitle', text: 'My Subtitle', id: 'b1' }]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignCenter');
 			const block = h.getState().doc.children[0];
-			expect(block?.attrs?.textAlign).toBe('center');
+			expect(block?.attrs?.align).toBe('center');
 		});
 
-		it('preserves textAlign when changing paragraph to title', async () => {
+		it('preserves align when changing paragraph to title', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'center' },
+					attrs: { align: 'center' },
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -416,20 +512,20 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('setTitle');
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('title');
-			expect(block?.attrs?.textAlign).toBe('center');
+			expect(block?.attrs?.align).toBe('center');
 		});
 
-		it('preserves textAlign when changing paragraph to subtitle', async () => {
+		it('preserves align when changing paragraph to subtitle', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'right' },
+					attrs: { align: 'right' },
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -437,22 +533,22 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('setSubtitle');
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('subtitle');
-			expect(block?.attrs?.textAlign).toBe('right');
+			expect(block?.attrs?.align).toBe('right');
 		});
 	});
 
 	describe('middleware — preserves alignment on block type change', () => {
-		it('preserves textAlign when changing paragraph to heading', async () => {
+		it('preserves align when changing paragraph to heading', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'center' },
+					attrs: { align: 'center' },
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -460,20 +556,20 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('setHeading1');
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('heading');
-			expect(block?.attrs?.textAlign).toBe('center');
+			expect(block?.attrs?.align).toBe('center');
 		});
 
-		it('preserves textAlign when changing heading to paragraph', async () => {
+		it('preserves align when changing heading to paragraph', async () => {
 			const state = makeState([
 				{
 					type: 'heading',
 					text: 'Title',
 					id: 'b1',
-					attrs: { level: 1, textAlign: 'right' },
+					attrs: { level: 1, align: 'right' },
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -481,7 +577,7 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('setParagraph');
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('paragraph');
-			expect(block?.attrs?.textAlign).toBe('right');
+			expect(block?.attrs?.align).toBe('right');
 		});
 
 		it('does not interfere when block has left alignment', async () => {
@@ -490,11 +586,11 @@ describe('TextAlignmentPlugin', () => {
 					type: 'paragraph',
 					text: 'Hello',
 					id: 'b1',
-					attrs: { textAlign: 'left' },
+					attrs: { align: 'left' },
 				},
 			]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -505,10 +601,10 @@ describe('TextAlignmentPlugin', () => {
 			expect(block?.attrs?.level).toBe(2);
 		});
 
-		it('does not interfere when block has no textAlign attr', async () => {
+		it('does not interfere when block has no align attr', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
 			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextAlignmentPlugin()],
+				[new HeadingPlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -539,61 +635,61 @@ describe('TextAlignmentPlugin', () => {
 			};
 		}
 
-		it('patches table_cell NodeSpec with textAlign attr', async () => {
+		it('patches table_cell NodeSpec with align attr', async () => {
 			const { state } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 			const spec = h.getNodeSpec('table_cell');
-			expect(spec?.attrs?.textAlign).toBeDefined();
-			expect(spec?.attrs?.textAlign?.default).toBe('left');
+			expect(spec?.attrs?.align).toBeDefined();
+			expect(spec?.attrs?.align?.default).toBe('left');
 		});
 
-		it('alignCenter sets textAlign to center on table cell', async () => {
+		it('alignCenter sets align to center on table cell', async () => {
 			const { state, cellId } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignCenter');
 			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.textAlign).toBe('center');
+			expect(cell?.attrs?.align).toBe('center');
 		});
 
-		it('alignRight sets textAlign to right on table cell', async () => {
+		it('alignRight sets align to right on table cell', async () => {
 			const { state, cellId } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignRight');
 			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.textAlign).toBe('right');
+			expect(cell?.attrs?.align).toBe('right');
 		});
 
-		it('alignJustify sets textAlign to justify on table cell', async () => {
+		it('alignJustify sets align to justify on table cell', async () => {
 			const { state, cellId } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignJustify');
 			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.textAlign).toBe('justify');
+			expect(cell?.attrs?.align).toBe('justify');
 		});
 
-		it('alignLeft resets textAlign to left on table cell', async () => {
+		it('alignLeft resets align to left on table cell', async () => {
 			const { state, cellId } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
@@ -601,29 +697,29 @@ describe('TextAlignmentPlugin', () => {
 			h.executeCommand('alignCenter');
 			h.executeCommand('alignLeft');
 			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.textAlign).toBe('left');
+			expect(cell?.attrs?.align).toBe('left');
 		});
 
 		it('isEnabled returns true when cursor is in a table cell', async () => {
 			const { state } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
-			expectToolbarEnabled(h, 'text-alignment', true);
+			expectToolbarEnabled(h, 'alignment', true);
 		});
 
 		it('isActive returns true when table cell has non-left alignment', async () => {
 			const { state } = makeTableCellState();
 			const h = await pluginHarness(
-				[new TablePlugin(), new TextAlignmentPlugin()],
+				[new TablePlugin(), new AlignmentPlugin()],
 				state,
 				HARNESS_OPTIONS,
 			);
 
 			h.executeCommand('alignCenter');
-			expectToolbarActive(h, 'text-alignment', true);
+			expectToolbarActive(h, 'alignment', true);
 		});
 	});
 });

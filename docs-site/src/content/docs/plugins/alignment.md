@@ -1,41 +1,41 @@
 ---
-title: Text Alignment Plugin
+title: Alignment Plugin
 description: Left, center, right, and justify text alignment with keyboard shortcuts and middleware.
 ---
 
-The `TextAlignmentPlugin` adds text alignment support for paragraphs, headings, and other alignable block types.
+The `AlignmentPlugin` adds text alignment support for paragraphs, headings, and other alignable block types.
 
 ![Text alignment options](../../../assets/screenshots/plugin-text-alignment.png)
 
 ## Usage
 
 ```ts
-import { TextAlignmentPlugin } from '@notectl/core';
+import { AlignmentPlugin } from '@notectl/core';
 
-new TextAlignmentPlugin()
+new AlignmentPlugin()
 // or restrict alignments:
-new TextAlignmentPlugin({ alignments: ['left', 'center', 'right'] })
+new AlignmentPlugin({ alignments: ['left', 'center', 'right'] })
 ```
 
 ## Configuration
 
 ```ts
-interface TextAlignmentConfig {
+interface AlignmentConfig {
   /** Enabled alignment options. Default: ['left', 'center', 'right', 'justify'] */
-  readonly alignments: TextAlignment[];
+  readonly alignments: BlockAlignment[];
   /** Block types that support alignment. Default: ['paragraph', 'heading', 'title', 'subtitle'] */
   readonly alignableTypes: string[];
   /** Render separator after toolbar item. */
   readonly separatorAfter?: boolean;
 }
 
-type TextAlignment = 'left' | 'center' | 'right' | 'justify';
+type BlockAlignment = 'left' | 'center' | 'right' | 'justify';
 ```
 
 ### Example: No justify
 
 ```ts
-new TextAlignmentPlugin({
+new AlignmentPlugin({
   alignments: ['left', 'center', 'right'],
 })
 ```
@@ -43,7 +43,7 @@ new TextAlignmentPlugin({
 ### Example: Custom alignable types
 
 ```ts
-new TextAlignmentPlugin({
+new AlignmentPlugin({
   alignableTypes: ['paragraph', 'heading', 'blockquote'],
 })
 ```
@@ -77,14 +77,14 @@ The alignment plugin renders as a **dropdown button** with alignment icons. The 
 
 ## Middleware
 
-The plugin registers transaction middleware that **preserves the `textAlign` attribute** when a block's type changes (e.g., paragraph to heading). This ensures alignment survives block type transformations.
+The plugin registers transaction middleware that **preserves the `align` attribute** when a block's type changes (e.g., paragraph to heading). This ensures alignment survives block type transformations.
 
 ## Node Attribute
 
-The plugin patches existing node specs to add a `textAlign` attribute:
+The plugin patches existing node specs to add an `align` attribute:
 
 | Attribute | Type | Default | Renders As |
 |-----------|------|---------|-----------|
-| `textAlign` | `string` | `'left'` | `style="text-align: center"` |
+| `align` | `string` | `'left'` | `style="text-align: center"` |
 
 When alignment is `'left'` (the default), no inline style is added to keep the DOM clean.

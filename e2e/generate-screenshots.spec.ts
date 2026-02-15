@@ -468,7 +468,7 @@ const ALIGNMENT_CONTENT: DocDef = {
 				),
 			],
 			{
-				textAlign: 'left',
+				align: 'left',
 			},
 		),
 		para(
@@ -477,12 +477,12 @@ const ALIGNMENT_CONTENT: DocDef = {
 					'Center-aligned text is perfect for headings, titles, and quotes that need visual emphasis.',
 				),
 			],
-			{ textAlign: 'center' },
+			{ align: 'center' },
 		),
 		para(
 			[txt('Right-aligned text works well for dates, signatures, and certain layout patterns.')],
 			{
-				textAlign: 'right',
+				align: 'right',
 			},
 		),
 		para(
@@ -491,7 +491,7 @@ const ALIGNMENT_CONTENT: DocDef = {
 					'Justified text creates clean, even edges on both sides. This is commonly used in books and formal documents for a polished, professional appearance.',
 				),
 			],
-			{ textAlign: 'justify' },
+			{ align: 'justify' },
 		),
 	],
 };

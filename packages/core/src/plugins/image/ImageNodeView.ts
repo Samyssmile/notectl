@@ -17,27 +17,6 @@ const ALIGNMENT_CLASSES: Record<string, string> = {
 	right: 'notectl-image--right',
 };
 
-// --- Alignment toolbar icons ---
-
-const ALIGN_LEFT_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>';
-const ALIGN_CENTER_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg>';
-const ALIGN_RIGHT_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg>';
-
-interface AlignmentDef {
-	readonly key: string;
-	readonly icon: string;
-	readonly label: string;
-}
-
-const ALIGNMENTS: readonly AlignmentDef[] = [
-	{ key: 'left', icon: ALIGN_LEFT_ICON, label: 'Align left' },
-	{ key: 'center', icon: ALIGN_CENTER_ICON, label: 'Align center' },
-	{ key: 'right', icon: ALIGN_RIGHT_ICON, label: 'Align right' },
-];
-
 const MIN_IMAGE_WIDTH = 50;
 
 type HandlePosition = 'nw' | 'ne' | 'sw' | 'se';
@@ -108,7 +87,6 @@ export function createImageNodeViewFactory(
 
 		let currentNodeId: BlockId = node.id;
 		let resizeOverlay: HTMLDivElement | null = null;
-		let alignmentToolbar: HTMLDivElement | null = null;
 
 		// --- Attribute Application ---
 
@@ -263,60 +241,6 @@ export function createImageNodeViewFactory(
 			}
 		}
 
-		// --- Alignment Toolbar ---
-
-		function createAlignmentToolbar(nodeId: BlockId): void {
-			if (alignmentToolbar) return;
-
-			alignmentToolbar = document.createElement('div');
-			alignmentToolbar.className = 'notectl-image__align-toolbar';
-
-			for (const { key, icon, label } of ALIGNMENTS) {
-				const btn: HTMLButtonElement = document.createElement('button');
-				btn.type = 'button';
-				btn.className = 'notectl-image__align-btn';
-				btn.innerHTML = icon;
-				btn.title = label;
-				btn.setAttribute('aria-label', label);
-
-				const currentAlign: string =
-					(getState().getBlock(nodeId)?.attrs?.align as string | undefined) ?? 'center';
-				if (currentAlign === key) {
-					btn.classList.add('notectl-image__align-btn--active');
-				}
-
-				btn.addEventListener('pointerdown', (e: PointerEvent) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const state: EditorState = getState();
-					const currentBlock: BlockNode | undefined = state.getBlock(nodeId);
-					if (!currentBlock) return;
-
-					const path: BlockId[] | undefined = state.getNodePath(nodeId);
-					if (!path) return;
-
-					const merged: BlockAttrs = { ...(currentBlock.attrs ?? {}), align: key };
-					const tr: Transaction = state
-						.transaction('command')
-						.setNodeAttr(path, merged)
-						.build();
-					dispatch(tr);
-				});
-
-				alignmentToolbar.appendChild(btn);
-			}
-
-			container.appendChild(alignmentToolbar);
-		}
-
-		function removeAlignmentToolbar(): void {
-			if (alignmentToolbar) {
-				alignmentToolbar.remove();
-				alignmentToolbar = null;
-			}
-		}
-
 		// --- NodeView Interface ---
 
 		return {
@@ -334,18 +258,15 @@ export function createImageNodeViewFactory(
 			selectNode(): void {
 				figure.classList.add('notectl-image--selected');
 				createResizeOverlay(currentNodeId);
-				createAlignmentToolbar(currentNodeId);
 			},
 
 			deselectNode(): void {
 				figure.classList.remove('notectl-image--selected');
 				removeResizeOverlay();
-				removeAlignmentToolbar();
 			},
 
 			destroy(): void {
 				removeResizeOverlay();
-				removeAlignmentToolbar();
 				// Do NOT revoke blob URLs here — the URL may still be referenced
 				// by the clipboard (cut/paste) or undo history. Blob URLs are
 				// automatically released when the document is unloaded.

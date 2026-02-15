@@ -99,7 +99,7 @@ import {
   HorizontalRulePlugin,
   StrikethroughPlugin,
   TextColorPlugin,
-  TextAlignmentPlugin,
+  AlignmentPlugin,
   FontPlugin,
   FontSizePlugin,
   STARTER_FONTS,
@@ -121,7 +121,7 @@ const editor = await createEditor({
     [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
     // Typography: Alignment, Font, Size
     [
-      new TextAlignmentPlugin(),
+      new AlignmentPlugin(),
       new FontPlugin({ fonts: [...STARTER_FONTS] }),
       new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 16 }),
     ],
@@ -148,4 +148,4 @@ Each plugin has a `priority` number that determines its rendering order within a
 | HorizontalRulePlugin | 50 |
 | StrikethroughPlugin | 20 |
 | TextColorPlugin | 45 |
-| TextAlignmentPlugin | 55 |
+| AlignmentPlugin | 55 |

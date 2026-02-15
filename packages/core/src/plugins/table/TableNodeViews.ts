@@ -144,10 +144,10 @@ export function createTableCellNodeViewFactory(registry: SchemaRegistry): NodeVi
 		if (colspan > 1) td.colSpan = colspan;
 		if (rowspan > 1) td.rowSpan = rowspan;
 
-		// Apply text alignment from TextAlignmentPlugin's patched attribute
-		const textAlign: string | undefined = node.attrs?.textAlign as string | undefined;
-		if (textAlign && textAlign !== 'left') {
-			td.style.textAlign = textAlign;
+		// Apply alignment from AlignmentPlugin's patched attribute
+		const align: string | undefined = node.attrs?.align as string | undefined;
+		if (align && align !== 'left') {
+			td.style.textAlign = align;
 		}
 
 		// Render text content only for leaf cells (cells with block children

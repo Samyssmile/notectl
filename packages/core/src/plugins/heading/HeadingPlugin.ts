@@ -12,15 +12,15 @@ import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import type { TextAlignment } from '../text-alignment/TextAlignmentPlugin.js';
+import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
 
 // --- Attribute Registry Augmentation ---
 
 declare module '../../model/AttrRegistry.js' {
 	interface NodeAttrRegistry {
-		heading: { level: HeadingLevel; textAlign?: TextAlignment };
-		title: { textAlign?: TextAlignment };
-		subtitle: { textAlign?: TextAlignment };
+		heading: { level: HeadingLevel; align?: BlockAlignment };
+		title: { align?: BlockAlignment };
+		subtitle: { align?: BlockAlignment };
 	}
 }
 

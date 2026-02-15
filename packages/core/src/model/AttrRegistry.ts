@@ -5,18 +5,18 @@
  * @example
  * declare module '../../model/AttrRegistry.js' {
  *   interface NodeAttrRegistry {
- *     heading: { level: HeadingLevel; textAlign?: TextAlignment };
+ *     heading: { level: HeadingLevel; align?: BlockAlignment };
  *   }
  * }
  */
 
-import type { TextAlignment } from '../plugins/text-alignment/TextAlignmentPlugin.js';
+import type { BlockAlignment } from '../plugins/alignment/AlignmentPlugin.js';
 import type { BlockNode, InlineNode, Mark } from './Document.js';
 import { isInlineNode } from './Document.js';
 
 /** Plugins augment this interface to register typed node attributes. */
 export interface NodeAttrRegistry {
-	paragraph: { textAlign?: TextAlignment };
+	paragraph: { align?: BlockAlignment };
 }
 
 /** Plugins augment this interface to register typed mark attributes. */

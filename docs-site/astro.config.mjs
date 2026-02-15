@@ -69,7 +69,7 @@ export default defineConfig({
 						{ label: 'Font', slug: 'plugins/font' },
 						{ label: 'Font Size', slug: 'plugins/font-size' },
 						{ label: 'Text Color', slug: 'plugins/text-color' },
-						{ label: 'Text Alignment', slug: 'plugins/text-alignment' },
+						{ label: 'Alignment', slug: 'plugins/alignment' },
 						{ label: 'Strikethrough', slug: 'plugins/strikethrough' },
 						{ label: 'Superscript & Subscript', slug: 'plugins/super-sub' },
 						{ label: 'Highlight', slug: 'plugins/highlight' },
