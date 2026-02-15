@@ -621,12 +621,14 @@ describe('AlignmentPlugin', () => {
 			const table = createTable(2, 2);
 			const firstRow = getBlockChildren(table)[0] as ReturnType<typeof createTable>;
 			const firstCell = getBlockChildren(firstRow)[0] as ReturnType<typeof createTable>;
+			const firstParagraph = getBlockChildren(firstCell)[0] as ReturnType<typeof createTable>;
 
 			return {
 				cellId: firstCell.id,
+				paragraphId: firstParagraph.id,
 				state: stateBuilder()
 					.nestedBlock(table)
-					.cursor(firstCell.id, 0)
+					.cursor(firstParagraph.id, 0)
 					.schema(
 						['paragraph', 'table', 'table_row', 'table_cell'],
 						['bold', 'italic', 'underline'],
@@ -647,8 +649,8 @@ describe('AlignmentPlugin', () => {
 			expect(spec?.attrs?.align?.default).toBe('left');
 		});
 
-		it('alignCenter sets align to center on table cell', async () => {
-			const { state, cellId } = makeTableCellState();
+		it('alignCenter sets align to center on paragraph inside table cell', async () => {
+			const { state, paragraphId } = makeTableCellState();
 			const h = await pluginHarness(
 				[new TablePlugin(), new AlignmentPlugin()],
 				state,
@@ -656,12 +658,12 @@ describe('AlignmentPlugin', () => {
 			);
 
 			h.executeCommand('alignCenter');
-			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.align).toBe('center');
+			const para = h.getState().getBlock(paragraphId);
+			expect(para?.attrs?.align).toBe('center');
 		});
 
-		it('alignRight sets align to right on table cell', async () => {
-			const { state, cellId } = makeTableCellState();
+		it('alignRight sets align to right on paragraph inside table cell', async () => {
+			const { state, paragraphId } = makeTableCellState();
 			const h = await pluginHarness(
 				[new TablePlugin(), new AlignmentPlugin()],
 				state,
@@ -669,12 +671,12 @@ describe('AlignmentPlugin', () => {
 			);
 
 			h.executeCommand('alignRight');
-			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.align).toBe('right');
+			const para = h.getState().getBlock(paragraphId);
+			expect(para?.attrs?.align).toBe('right');
 		});
 
-		it('alignJustify sets align to justify on table cell', async () => {
-			const { state, cellId } = makeTableCellState();
+		it('alignJustify sets align to justify on paragraph inside table cell', async () => {
+			const { state, paragraphId } = makeTableCellState();
 			const h = await pluginHarness(
 				[new TablePlugin(), new AlignmentPlugin()],
 				state,
@@ -682,12 +684,12 @@ describe('AlignmentPlugin', () => {
 			);
 
 			h.executeCommand('alignJustify');
-			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.align).toBe('justify');
+			const para = h.getState().getBlock(paragraphId);
+			expect(para?.attrs?.align).toBe('justify');
 		});
 
-		it('alignLeft resets align to left on table cell', async () => {
-			const { state, cellId } = makeTableCellState();
+		it('alignLeft resets align to left on paragraph inside table cell', async () => {
+			const { state, paragraphId } = makeTableCellState();
 			const h = await pluginHarness(
 				[new TablePlugin(), new AlignmentPlugin()],
 				state,
@@ -696,8 +698,8 @@ describe('AlignmentPlugin', () => {
 
 			h.executeCommand('alignCenter');
 			h.executeCommand('alignLeft');
-			const cell = h.getState().getBlock(cellId);
-			expect(cell?.attrs?.align).toBe('left');
+			const para = h.getState().getBlock(paragraphId);
+			expect(para?.attrs?.align).toBe('left');
 		});
 
 		it('isEnabled returns true when cursor is in a table cell', async () => {
@@ -710,7 +712,7 @@ describe('AlignmentPlugin', () => {
 			expectToolbarEnabled(h, 'alignment', true);
 		});
 
-		it('isActive returns true when table cell has non-left alignment', async () => {
+		it('isActive returns true when paragraph in table cell has non-left alignment', async () => {
 			const { state } = makeTableCellState();
 			const h = await pluginHarness(
 				[new TablePlugin(), new AlignmentPlugin()],

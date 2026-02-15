@@ -119,11 +119,14 @@ test.describe('Tab Key Behavior', () => {
 		expect(table).toBeDefined();
 
 		// Extract cell texts from nested table structure
+		// Cells contain paragraphs, which contain text nodes
 		const cellTexts: string[] = [];
 		for (const row of table.children ?? []) {
 			for (const cell of row.children ?? []) {
-				for (const child of cell.children ?? []) {
-					if (child.text) cellTexts.push(child.text);
+				for (const block of cell.children ?? []) {
+					for (const child of block.children ?? []) {
+						if (child.text) cellTexts.push(child.text);
+					}
 				}
 			}
 		}

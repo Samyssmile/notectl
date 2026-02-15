@@ -11,8 +11,7 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Meeting Notes', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Enter on heading creates new heading; convert to paragraph
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading automatically creates a paragraph
 
 		// 2. Normal paragraph
 		await page.keyboard.type('Discussed the following topics:', { delay: 10 });

@@ -135,7 +135,9 @@ export class TablePlugin implements Plugin {
 		context.registerNodeSpec({
 			type: 'table_cell',
 			group: 'table_content',
-			content: { allow: ['text', 'image'] },
+			content: {
+				allow: ['paragraph', 'list_item', 'heading', 'blockquote', 'image', 'horizontal_rule'],
+			},
 			isolating: true,
 			toDOM(node) {
 				const td: HTMLTableCellElement = document.createElement('td');

@@ -35,13 +35,7 @@ export function createTable(rows: number, cols: number): BlockNode {
 	for (let r = 0; r < rows; r++) {
 		const cellNodes: ChildNode[] = [];
 		for (let c = 0; c < cols; c++) {
-			cellNodes.push(
-				createBlockNode(
-					nodeType('table_cell') as NodeTypeName,
-					[createTextNode('')],
-					generateBlockId(),
-				),
-			);
+			cellNodes.push(createTableCell());
 		}
 		rowNodes.push(
 			createBlockNode(nodeType('table_row') as NodeTypeName, cellNodes, generateBlockId()),
@@ -55,24 +49,19 @@ export function createTable(rows: number, cols: number): BlockNode {
 export function createTableRow(cols: number): BlockNode {
 	const cellNodes: ChildNode[] = [];
 	for (let c = 0; c < cols; c++) {
-		cellNodes.push(
-			createBlockNode(
-				nodeType('table_cell') as NodeTypeName,
-				[createTextNode('')],
-				generateBlockId(),
-			),
-		);
+		cellNodes.push(createTableCell());
 	}
 	return createBlockNode(nodeType('table_row') as NodeTypeName, cellNodes, generateBlockId());
 }
 
-/** Creates a single empty table cell. */
+/** Creates a single empty table cell containing a paragraph. */
 export function createTableCell(): BlockNode {
-	return createBlockNode(
-		nodeType('table_cell') as NodeTypeName,
+	const paragraph: BlockNode = createBlockNode(
+		nodeType('paragraph') as NodeTypeName,
 		[createTextNode('')],
 		generateBlockId(),
 	);
+	return createBlockNode(nodeType('table_cell') as NodeTypeName, [paragraph], generateBlockId());
 }
 
 /**
@@ -185,6 +174,38 @@ export function getAllCellIds(state: EditorState, tableId: BlockId): readonly Bl
 		}
 	}
 	return result;
+}
+
+/** Returns the first leaf-block ID inside a table cell (e.g. the paragraph). */
+export function getFirstLeafInCell(state: EditorState, cellId: BlockId): BlockId {
+	const cell: BlockNode | undefined = state.getBlock(cellId);
+	if (!cell) return cellId;
+	const blockChildren: readonly BlockNode[] = getBlockChildren(cell);
+	const first: BlockNode | undefined = blockChildren[0];
+	if (!first) return cellId;
+	let current: BlockNode = first;
+	while (true) {
+		const children: readonly BlockNode[] = getBlockChildren(current);
+		const next: BlockNode | undefined = children[0];
+		if (!next) return current.id;
+		current = next;
+	}
+}
+
+/** Returns the last leaf-block ID inside a table cell. */
+export function getLastLeafInCell(state: EditorState, cellId: BlockId): BlockId {
+	const cell: BlockNode | undefined = state.getBlock(cellId);
+	if (!cell) return cellId;
+	const blockChildren: readonly BlockNode[] = getBlockChildren(cell);
+	const last: BlockNode | undefined = blockChildren[blockChildren.length - 1];
+	if (!last) return cellId;
+	let current: BlockNode = last;
+	while (true) {
+		const children: readonly BlockNode[] = getBlockChildren(current);
+		const next: BlockNode | undefined = children[children.length - 1];
+		if (!next) return current.id;
+		current = next;
+	}
 }
 
 /** Checks whether a block is inside a table. */
