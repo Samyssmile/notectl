@@ -22,7 +22,7 @@ notectl ships with **15 built-in plugins**. Every editor feature — from bold t
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
 | [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`-` |
 | [TextColorPlugin](/notectl/plugins/text-color/) | `textColor` | Text color picker | - |
-| [TextAlignmentPlugin](/notectl/plugins/text-alignment/) | `text-alignment` | Left, center, right, justify | `Ctrl+Shift+L`/`E`/`R`/`J` |
+| [AlignmentPlugin](/notectl/plugins/alignment/) | `alignment` | Left, center, right, justify | `Ctrl+Shift+L`/`E`/`R`/`J` |
 | [StrikethroughPlugin](/notectl/plugins/strikethrough/) | `strikethrough` | Strikethrough text | `Ctrl+Shift+X` |
 | [SuperSubPlugin](/notectl/plugins/super-sub/) | `super-sub` | Superscript & subscript | `Ctrl+.`, `Ctrl+,` |
 | [HighlightPlugin](/notectl/plugins/highlight/) | `highlight` | Text highlight (background color) | - |

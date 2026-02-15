@@ -89,7 +89,7 @@ interface ToolbarItem {
 
 | Type | Description | Used By |
 |------|-------------|---------|
-| `dropdown` | Vertical list of options | HeadingPlugin, TextAlignmentPlugin |
+| `dropdown` | Vertical list of options | HeadingPlugin, AlignmentPlugin |
 | `gridPicker` | 2D grid for dimension selection | TablePlugin |
 | `custom` | Full control over popup rendering | FontPlugin, FontSizePlugin, TextColorPlugin, LinkPlugin |
 

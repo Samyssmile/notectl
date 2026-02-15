@@ -92,7 +92,7 @@ Every capability is a plugin. Compose exactly the editor you need.
 | **LinkPlugin** | Hyperlink insertion and editing |
 | **TablePlugin** | Full table support with row/column controls |
 | **TextColorPlugin** | Text color picker |
-| **TextAlignmentPlugin** | Left, center, right, justify |
+| **AlignmentPlugin** | Left, center, right, justify |
 | **FontPlugin** | Font family selection with custom font support |
 | **FontSizePlugin** | Configurable font sizes |
 | **HorizontalRulePlugin** | Horizontal dividers |
@@ -188,7 +188,7 @@ const editor = await createEditor({
     [new FontPlugin(), new FontSizePlugin()],
     [new TextFormattingPlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
     [new HeadingPlugin(), new BlockquotePlugin()],
-    [new TextAlignmentPlugin()],
+    [new AlignmentPlugin()],
     [new ListPlugin()],
     [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin()],
   ],

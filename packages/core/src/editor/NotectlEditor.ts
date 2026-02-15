@@ -553,8 +553,8 @@ export class NotectlEditor extends HTMLElement {
 			html = `<p>${inlineContent || '<br>'}</p>`;
 		}
 
-		// Inject textAlign style into the first opening tag
-		const align: string | undefined = (block.attrs as Record<string, unknown>)?.textAlign as
+		// Inject align style into the first opening tag
+		const align: string | undefined = (block.attrs as Record<string, unknown>)?.align as
 			| string
 			| undefined;
 		if (align && align !== 'left') {
