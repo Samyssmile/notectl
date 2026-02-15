@@ -229,6 +229,7 @@ export class CodeBlockPlugin implements Plugin {
 	private registerKeymaps(context: PluginContext): void {
 		context.registerKeymap({
 			Enter: () => this.handleEnter(context),
+			Backspace: () => this.handleBackspace(context),
 			Tab: () => this.handleTab(context),
 			'Shift-Tab': () => this.handleShiftTab(context),
 			Escape: () => this.handleEscape(context),
@@ -372,6 +373,29 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	// --- Keyboard Handlers ---
+
+	/**
+	 * Handles Backspace at the start of a code block.
+	 * Converts the code block back to a paragraph, preserving text.
+	 */
+	private handleBackspace(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+		if (sel.anchor.offset !== 0) return false;
+
+		const tr: Transaction = state
+			.transaction('input')
+			.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
+			.setSelection(sel)
+			.build();
+		context.dispatch(tr);
+		return true;
+	}
 
 	private handleEnter(context: PluginContext): boolean {
 		const state: EditorState = context.getState();

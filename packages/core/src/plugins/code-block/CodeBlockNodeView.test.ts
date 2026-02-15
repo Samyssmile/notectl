@@ -41,12 +41,14 @@ describe('CodeBlockNodeView', () => {
 			expect(view.dom.getAttribute('data-block-id')).toBe('cb1');
 		});
 
-		it('sets data-selectable attribute', () => {
+		it('does not set data-selectable (Reconciler sets it from NodeSpec)', () => {
 			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
 			const node = makeCodeBlock();
 			const view = factory(node, () => makeState(), vi.fn());
 
-			expect(view.dom.getAttribute('data-selectable')).toBe('true');
+			// data-selectable is set by Reconciler based on NodeSpec.selectable,
+			// not by the NodeView itself
+			expect(view.dom.getAttribute('data-selectable')).toBeNull();
 		});
 
 		it('has notectl-code-block class', () => {

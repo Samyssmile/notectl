@@ -5,7 +5,16 @@
  */
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
-import { getBlockLength, getBlockText } from '../model/Document.js';
+import type { BlockNode, Mark } from '../model/Document.js';
+import {
+	getBlockLength,
+	getBlockText,
+	getInlineChildren,
+	isInlineNode,
+	isTextNode,
+} from '../model/Document.js';
+import { escapeHTML } from '../model/HTMLUtils.js';
+import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	isCollapsed,
@@ -164,10 +173,81 @@ export class ClipboardHandler {
 		const plainText: string = lines.join('\n');
 		clipboardData.setData('text/plain', plainText);
 
+		// Write text/html with inline marks so paste preserves formatting
+		if (this.schemaRegistry) {
+			const htmlParts: string[] = [];
+			for (let i = fromIdx; i <= toIdx; i++) {
+				const bid = blockOrder[i];
+				if (!bid) continue;
+				const block = state.getBlock(bid);
+				if (!block) continue;
+
+				const start = i === fromIdx ? range.from.offset : 0;
+				const end = i === toIdx ? range.to.offset : getBlockLength(block);
+				htmlParts.push(this.serializeBlockRangeToHTML(block, start, end));
+			}
+			clipboardData.setData('text/html', htmlParts.join(''));
+		}
+
 		// Store rich block data in memory — system clipboard strips custom MIME
 		// types and rewrites text/html, so we use an in-memory store keyed by
 		// the plain-text fingerprint to verify origin on paste.
 		setRichClipboard(plainText, richBlocks);
+	}
+
+	/** Serializes a range of inline content within a block to an HTML string. */
+	private serializeBlockRangeToHTML(block: BlockNode, start: number, end: number): string {
+		const children = getInlineChildren(block);
+		const parts: string[] = [];
+		let pos = 0;
+
+		for (const child of children) {
+			const width: number = isInlineNode(child) ? 1 : child.text.length;
+			const childEnd: number = pos + width;
+
+			if (childEnd <= start || pos >= end) {
+				pos = childEnd;
+				continue;
+			}
+
+			if (isTextNode(child)) {
+				const sliceFrom: number = Math.max(0, start - pos);
+				const sliceTo: number = Math.min(child.text.length, end - pos);
+				const text: string = child.text.slice(sliceFrom, sliceTo);
+				if (text.length > 0) {
+					parts.push(this.serializeTextWithMarks(text, child.marks));
+				}
+			}
+			// InlineNodes are skipped for text/html serialization (same as plain text)
+
+			pos = childEnd;
+		}
+
+		return parts.join('');
+	}
+
+	/** Wraps escaped text in mark HTML tags using MarkSpec.toHTMLString when available. */
+	private serializeTextWithMarks(text: string, marks: readonly Mark[]): string {
+		if (marks.length === 0 || !this.schemaRegistry) {
+			return escapeHTML(text);
+		}
+
+		// Sort marks by rank (lowest rank = closest to text content = applied first)
+		const sorted: readonly Mark[] = [...marks].sort((a, b) => {
+			const specA: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(a.type);
+			const specB: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(b.type);
+			return (specA?.rank ?? 100) - (specB?.rank ?? 100);
+		});
+
+		let html: string = escapeHTML(text);
+		// Apply marks from innermost (lowest rank) to outermost (highest rank)
+		for (const mark of sorted) {
+			const spec: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(mark.type);
+			if (spec?.toHTMLString) {
+				html = spec.toHTMLString(mark, html);
+			}
+		}
+		return html;
 	}
 
 	destroy(): void {
