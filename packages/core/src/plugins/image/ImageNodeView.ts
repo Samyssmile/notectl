@@ -164,13 +164,16 @@ export function createImageNodeViewFactory(
 			const prevHeight: number | undefined = block.attrs?.height as number | undefined;
 			if (prevWidth === width && prevHeight === height) return;
 
+			const path: BlockId[] | undefined = state.getNodePath(nodeId);
+			if (!path) return;
+
 			const merged: BlockAttrs = {
 				...(block.attrs ?? {}),
 				width,
 				height,
 			};
 
-			const tr: Transaction = state.transaction('command').setNodeAttr([nodeId], merged).build();
+			const tr: Transaction = state.transaction('command').setNodeAttr(path, merged).build();
 			dispatch(tr);
 		}
 
@@ -290,10 +293,13 @@ export function createImageNodeViewFactory(
 					const currentBlock: BlockNode | undefined = state.getBlock(nodeId);
 					if (!currentBlock) return;
 
+					const path: BlockId[] | undefined = state.getNodePath(nodeId);
+					if (!path) return;
+
 					const merged: BlockAttrs = { ...(currentBlock.attrs ?? {}), align: key };
 					const tr: Transaction = state
 						.transaction('command')
-						.setNodeAttr([nodeId], merged)
+						.setNodeAttr(path, merged)
 						.build();
 					dispatch(tr);
 				});
