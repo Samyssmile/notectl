@@ -98,15 +98,6 @@ describe('ImagePlugin', () => {
 			// Returns false because no NodeSelection on image
 			expect(pm.executeCommand('removeImage')).toBe(false);
 		});
-
-		it('registers alignment commands', async () => {
-			const plugin = new ImagePlugin();
-			const { pm } = await pluginHarness(plugin, defaultState());
-			// Returns false because no NodeSelection on image
-			expect(pm.executeCommand('setImageAlignLeft')).toBe(false);
-			expect(pm.executeCommand('setImageAlignCenter')).toBe(false);
-			expect(pm.executeCommand('setImageAlignRight')).toBe(false);
-		});
 	});
 
 	describe('toolbar', () => {

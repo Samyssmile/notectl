@@ -208,11 +208,6 @@ export function setImageAttr(context: PluginContext, attrs: Partial<ImageAttrs>)
 	return true;
 }
 
-/** Sets the alignment of the currently selected image. */
-export function setImageAlign(context: PluginContext, align: 'left' | 'center' | 'right'): boolean {
-	return setImageAttr(context, { align });
-}
-
 /** Registers all image commands on the plugin context. */
 export function registerImageCommands(context: PluginContext): void {
 	context.registerCommand('insertImage', () => {
@@ -221,17 +216,5 @@ export function registerImageCommands(context: PluginContext): void {
 
 	context.registerCommand('removeImage', () => {
 		return removeImage(context);
-	});
-
-	context.registerCommand('setImageAlignLeft', () => {
-		return setImageAlign(context, 'left');
-	});
-
-	context.registerCommand('setImageAlignCenter', () => {
-		return setImageAlign(context, 'center');
-	});
-
-	context.registerCommand('setImageAlignRight', () => {
-		return setImageAlign(context, 'right');
 	});
 }

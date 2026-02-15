@@ -263,10 +263,18 @@ export {
 } from './plugins/horizontal-rule/HorizontalRulePlugin.js';
 
 export {
-	TextAlignmentPlugin,
-	type TextAlignmentConfig,
-	type TextAlignment,
-} from './plugins/text-alignment/TextAlignmentPlugin.js';
+	AlignmentPlugin,
+	ALIGNMENT_ICONS,
+	type AlignmentConfig,
+	type BlockAlignment,
+} from './plugins/alignment/AlignmentPlugin.js';
+
+/** @deprecated Use `AlignmentPlugin` instead. */
+export { AlignmentPlugin as TextAlignmentPlugin } from './plugins/alignment/AlignmentPlugin.js';
+/** @deprecated Use `AlignmentConfig` instead. */
+export type { AlignmentConfig as TextAlignmentConfig } from './plugins/alignment/AlignmentPlugin.js';
+/** @deprecated Use `BlockAlignment` instead. */
+export type { BlockAlignment as TextAlignment } from './plugins/alignment/AlignmentPlugin.js';
 
 export {
 	FontPlugin,
