@@ -11,10 +11,7 @@ test.describe('Code Block Plugin', () => {
 		expect(json.children[0]?.type).toBe('code_block');
 	});
 
-	test('```java + space creates code_block with language attr', async ({
-		editor,
-		page,
-	}) => {
+	test('```java + space creates code_block with language attr', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('```java ', { delay: 10 });
 
@@ -23,10 +20,7 @@ test.describe('Code Block Plugin', () => {
 		expect(json.children[0]?.attrs?.language).toBe('java');
 	});
 
-	test('code_block has default attrs (language, backgroundColor)', async ({
-		editor,
-		page,
-	}) => {
+	test('code_block has default attrs (language, backgroundColor)', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
 
@@ -66,10 +60,7 @@ test.describe('Code Block Plugin', () => {
 		expect(block?.children?.[0]?.text).toContain('public static void main');
 	});
 
-	test('Enter inside code block inserts newline, not new paragraph', async ({
-		editor,
-		page,
-	}) => {
+	test('Enter inside code block inserts newline, not new paragraph', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
 		await page.keyboard.type('line 1', { delay: 10 });
@@ -108,10 +99,7 @@ test.describe('Code Block Plugin', () => {
 		await expect(code).toContainText('some code');
 	});
 
-	test('code block has non-editable header with language label', async ({
-		editor,
-		page,
-	}) => {
+	test('code block has non-editable header with language label', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('```typescript ', { delay: 10 });
 

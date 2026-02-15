@@ -100,6 +100,12 @@ export function reconcile(
 			if (existingNv) {
 				const handled = existingNv.update?.(block) ?? false;
 				if (handled) {
+					// Re-render inline content into contentDOM for leaf blocks
+					if (isLeafBlock(block) && existingNv.contentDOM) {
+						existingNv.contentDOM.textContent = '';
+						const updatedInlineDecos = options?.decorations?.findInline(block.id);
+						renderBlockContent(existingNv.contentDOM, block, registry, updatedInlineDecos);
+					}
 					previousSibling = existingNv.dom;
 					continue;
 				}
@@ -244,13 +250,24 @@ export function renderBlock(
 				nv.dom.setAttribute('data-selectable', 'true');
 			}
 
-			// Recursively render block children into NodeView content areas
-			const blockChildren = getBlockChildren(block);
-			for (const child of blockChildren) {
-				const contentDOM = nv.getContentDOM?.(child.id) ?? nv.contentDOM;
-				if (contentDOM) {
-					const childEl = renderBlock(child, registry, nodeViews, options);
-					contentDOM.appendChild(childEl);
+			// Mark contentDOM so SelectionSync can find it
+			if (nv.contentDOM && nv.contentDOM !== nv.dom) {
+				nv.contentDOM.setAttribute('data-content-dom', 'true');
+			}
+
+			// Render children into NodeView content area
+			if (isLeafBlock(block) && nv.contentDOM) {
+				// Leaf blocks: render inline content (TextNodes) into contentDOM
+				renderBlockContent(nv.contentDOM, block, registry, inlineDecos);
+			} else {
+				// Container blocks: recursively render block children
+				const blockChildren = getBlockChildren(block);
+				for (const child of blockChildren) {
+					const contentDOM = nv.getContentDOM?.(child.id) ?? nv.contentDOM;
+					if (contentDOM) {
+						const childEl = renderBlock(child, registry, nodeViews, options);
+						contentDOM.appendChild(childEl);
+					}
 				}
 			}
 

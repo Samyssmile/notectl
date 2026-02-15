@@ -89,6 +89,7 @@ export class EditorView {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			schemaRegistry: this.schemaRegistry,
+			syncSelection: () => this.syncSelectionFromDOM(),
 		});
 
 		this.handleSelectionChange = this.onSelectionChange.bind(this);
