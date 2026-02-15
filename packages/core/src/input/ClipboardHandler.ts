@@ -21,6 +21,8 @@ export interface ClipboardHandlerOptions {
 	readonly getState: GetStateFn;
 	readonly dispatch: DispatchFn;
 	readonly schemaRegistry?: SchemaRegistry;
+	/** Force-sync DOM selection to state (selectionchange may fire async). */
+	readonly syncSelection?: () => void;
 }
 
 /** Custom MIME type for internal block copy/paste round-trips (void/NodeSelection). */
@@ -30,6 +32,7 @@ export class ClipboardHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly syncSelection?: () => void;
 	private readonly handleCopy: (e: ClipboardEvent) => void;
 	private readonly handleCut: (e: ClipboardEvent) => void;
 
@@ -40,6 +43,7 @@ export class ClipboardHandler {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
 		this.schemaRegistry = options.schemaRegistry;
+		this.syncSelection = options.syncSelection;
 
 		this.handleCopy = this.onCopy.bind(this);
 		this.handleCut = this.onCut.bind(this);
@@ -48,6 +52,9 @@ export class ClipboardHandler {
 	}
 
 	private onCopy(e: ClipboardEvent): void {
+		// Sync DOM selection → state first; selectionchange may lag behind
+		this.syncSelection?.();
+
 		const state = this.getState();
 		const sel = state.selection;
 
@@ -66,6 +73,9 @@ export class ClipboardHandler {
 	}
 
 	private onCut(e: ClipboardEvent): void {
+		// Sync DOM selection → state first; selectionchange may lag behind
+		this.syncSelection?.();
+
 		const state = this.getState();
 		const sel = state.selection;
 
