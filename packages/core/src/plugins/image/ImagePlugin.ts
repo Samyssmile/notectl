@@ -239,6 +239,9 @@ export class ImagePlugin implements Plugin {
 			const block: BlockNode | undefined = state.getBlock(imageBlockId);
 			if (!block) return;
 
+			const path: BlockId[] | undefined = state.getNodePath(imageBlockId);
+			if (!path) return;
+
 			const merged: BlockAttrs = {
 				...(block.attrs ?? {}),
 				src: result.url,
@@ -248,7 +251,7 @@ export class ImagePlugin implements Plugin {
 
 			const tr: Transaction = state
 				.transaction('command')
-				.setNodeAttr([imageBlockId], merged)
+				.setNodeAttr(path, merged)
 				.build();
 			context.dispatch(tr);
 
