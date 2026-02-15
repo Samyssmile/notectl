@@ -7,11 +7,17 @@ import { ClipboardHandler } from '../input/ClipboardHandler.js';
 import { InputHandler } from '../input/InputHandler.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import { PasteHandler } from '../input/PasteHandler.js';
+import { generateBlockId, getBlockLength } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { Position } from '../model/Selection.js';
-import { createNodeSelection, isNodeSelection, selectionsEqual } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	isNodeSelection,
+	selectionsEqual,
+} from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import { blockId as toBlockId } from '../model/TypeBrands.js';
+import { nodeType, blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -244,8 +250,14 @@ export class EditorView {
 		if (!(target instanceof HTMLElement)) return;
 
 		const nearestBlockEl = target.closest('[data-block-id]');
-		if (!(nearestBlockEl instanceof HTMLElement)) return;
-		if (!this.contentElement.contains(nearestBlockEl)) return;
+
+		// Click in empty space below all blocks → create a paragraph
+		if (!(nearestBlockEl instanceof HTMLElement) || !this.contentElement.contains(nearestBlockEl)) {
+			if (this.contentElement.contains(target) || target === this.contentElement) {
+				this.handleClickBelowContent(e);
+			}
+			return;
+		}
 
 		const isNodeSelectable =
 			nearestBlockEl.hasAttribute('data-void') || nearestBlockEl.hasAttribute('data-selectable');
@@ -283,6 +295,54 @@ export class EditorView {
 
 		const newState = this.state.apply(tr);
 		this.applyUpdate(newState, tr);
+	}
+
+	/**
+	 * When the user clicks in empty space below all rendered blocks,
+	 * appends a new paragraph after the last block and focuses it.
+	 */
+	private handleClickBelowContent(e: MouseEvent): void {
+		const lastBlockEl: Element | null = this.contentElement.querySelector(
+			':scope > [data-block-id]:last-child',
+		);
+		if (!lastBlockEl) return;
+
+		// Only act if click is below the last block
+		const lastRect: DOMRect = lastBlockEl.getBoundingClientRect();
+		if (e.clientY <= lastRect.bottom) return;
+
+		// Check if the last block is already an empty paragraph we can focus
+		const blockOrder: readonly BlockId[] = this.state.getBlockOrder();
+		const lastId: BlockId | undefined = blockOrder[blockOrder.length - 1];
+		if (!lastId) return;
+
+		const lastBlock = this.state.getBlock(lastId);
+		if (lastBlock?.type === 'paragraph' && getBlockLength(lastBlock) === 0) {
+			// Focus the existing empty paragraph
+			const tr: Transaction = this.state
+				.transaction('input')
+				.setSelection(createCollapsedSelection(lastId, 0))
+				.build();
+			this.dispatch(tr);
+			e.preventDefault();
+			return;
+		}
+
+		// Create a new paragraph after the last block
+		e.preventDefault();
+		this.contentElement.focus();
+
+		const newId: BlockId = generateBlockId();
+		const lastLen: number = lastBlock ? getBlockLength(lastBlock) : 0;
+
+		const tr: Transaction = this.state
+			.transaction('input')
+			.splitBlock(lastId, lastLen, newId)
+			.setBlockType(newId, nodeType('paragraph'))
+			.setSelection(createCollapsedSelection(newId, 0))
+			.build();
+
+		this.dispatch(tr);
 	}
 
 	/** Builds an array of block IDs from root to leaf. */

@@ -233,6 +233,8 @@ export class CodeBlockPlugin implements Plugin {
 			Tab: () => this.handleTab(context),
 			'Shift-Tab': () => this.handleShiftTab(context),
 			Escape: () => this.handleEscape(context),
+			ArrowDown: () => this.handleArrowDown(context),
+			ArrowUp: () => this.handleArrowUp(context),
 			'Mod-Shift-M': () => context.executeCommand('toggleCodeBlock'),
 		});
 	}
@@ -512,6 +514,81 @@ export class CodeBlockPlugin implements Plugin {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Handles ArrowDown at the last line of a code block.
+	 * Exits to the next block or creates a paragraph below.
+	 */
+	private handleArrowDown(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+
+		const text: string = getBlockText(block);
+		const offset: number = sel.anchor.offset;
+
+		// Only exit if cursor is on the last line
+		const nextNewline: number = text.indexOf('\n', offset);
+		if (nextNewline !== -1) return false;
+
+		const blockOrder: readonly BlockId[] = state.getBlockOrder();
+		const idx: number = blockOrder.indexOf(sel.anchor.blockId);
+
+		if (idx < blockOrder.length - 1) {
+			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
+			const tr: Transaction = state
+				.transaction('command')
+				.setSelection(createCollapsedSelection(nextId, 0))
+				.build();
+			context.dispatch(tr);
+		} else {
+			this.insertParagraphAfter(context, sel.anchor.blockId);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handles ArrowUp at the first line of a code block.
+	 * Exits to the previous block.
+	 */
+	private handleArrowUp(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+
+		const text: string = getBlockText(block);
+		const offset: number = sel.anchor.offset;
+
+		// Only exit if cursor is on the first line
+		const firstNewline: number = text.indexOf('\n');
+		if (firstNewline !== -1 && offset > firstNewline) return false;
+
+		const blockOrder: readonly BlockId[] = state.getBlockOrder();
+		const idx: number = blockOrder.indexOf(sel.anchor.blockId);
+
+		if (idx > 0) {
+			const prevId: BlockId = blockOrder[idx - 1] as BlockId;
+			const prevBlock: BlockNode | undefined = state.getBlock(prevId);
+			const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
+			const tr: Transaction = state
+				.transaction('command')
+				.setSelection(createCollapsedSelection(prevId, prevLen))
+				.build();
+			context.dispatch(tr);
+			return true;
+		}
+
+		return false;
 	}
 
 	// --- Helpers ---

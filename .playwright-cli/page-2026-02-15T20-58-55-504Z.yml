@@ -1,0 +1,90 @@
+- generic [ref=e2]:
+  - heading "Notectl" [level=1] [ref=e3]
+  - paragraph [ref=e4]: State-driven rich text editing — Vanilla JS Playground
+  - generic [ref=e7]:
+    - toolbar "Formatting options" [ref=e9]:
+      - button "Font" [ref=e10] [cursor=pointer]:
+        - generic:
+          - generic: Fira Sans
+          - generic: ▾
+      - button "Font Size" [ref=e11] [cursor=pointer]:
+        - generic:
+          - generic: "12"
+          - generic: ▾
+      - separator [ref=e12]
+      - button "Bold" [ref=e13] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Italic" [ref=e14] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Underline" [ref=e15] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Strikethrough" [ref=e16] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Superscript" [ref=e17] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Subscript" [ref=e18] [cursor=pointer]:
+        - generic:
+          - img
+      - separator [ref=e19]
+      - button "Text Color" [ref=e20] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Highlight" [ref=e21] [cursor=pointer]:
+        - generic:
+          - img
+      - separator [ref=e22]
+      - button "Block Type" [ref=e23] [cursor=pointer]:
+        - generic:
+          - generic: Paragraph
+          - generic: ▾
+      - button "Blockquote" [ref=e24] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Code Block" [ref=e25] [cursor=pointer]:
+        - generic:
+          - img
+      - separator [ref=e26]
+      - button "Alignment" [ref=e27] [cursor=pointer]:
+        - generic:
+          - img
+      - separator [ref=e28]
+      - button "Bullet List" [ref=e29] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Numbered List" [ref=e30] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Checklist" [ref=e31] [cursor=pointer]:
+        - generic:
+          - img
+      - separator [ref=e32]
+      - button "Link" [ref=e33] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Insert Table" [ref=e34] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Horizontal Rule" [ref=e35] [cursor=pointer]:
+        - generic:
+          - img
+      - button "Insert Image" [ref=e36] [cursor=pointer]:
+        - generic:
+          - img
+    - textbox "Rich text editor" [ref=e37]:
+      - paragraph [ref=e52]: Hello World
+  - generic [ref=e41]:
+    - button "Get JSON" [ref=e42] [cursor=pointer]
+    - button "Get HTML" [ref=e43] [cursor=pointer]
+    - button "Get Text" [ref=e44] [cursor=pointer]
+    - button "Is Empty?" [ref=e45] [cursor=pointer]
+    - 'button "API: Toggle Bold" [ref=e46] [cursor=pointer]'
+    - 'button "API: Undo" [ref=e47] [cursor=pointer]'
+    - 'button "API: Redo" [ref=e48] [cursor=pointer]'
+  - generic [ref=e49]:
+    - heading "Output" [level=3] [ref=e50]
+    - generic [ref=e51]: Click a button above to inspect editor state.
