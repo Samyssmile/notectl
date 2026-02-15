@@ -1280,13 +1280,19 @@ const EDITOR_CSS = `
 	flex: 1;
 }
 
-/* Code Block */
+/* Code Block — themeable via CSS custom properties:
+ * --notectl-code-block-bg            (default: #1e1e2e)
+ * --notectl-code-block-color         (default: #cdd6f4)
+ * --notectl-code-block-header-bg     (default: rgba(255,255,255,0.06))
+ * --notectl-code-block-header-color  (default: #7f849c)
+ * --notectl-code-block-header-border (default: rgba(255,255,255,0.08))
+ */
 .notectl-code-block {
 	position: relative;
 	margin: 8px 0;
 	border-radius: 6px;
-	background: #1e1e2e;
-	color: #cdd6f4;
+	background: var(--notectl-code-block-bg, #1e1e2e);
+	color: var(--notectl-code-block-color, #cdd6f4);
 	font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
 	font-size: 14px;
 	line-height: 1.5;
@@ -1298,10 +1304,10 @@ const EDITOR_CSS = `
 	align-items: center;
 	justify-content: space-between;
 	padding: 6px 12px;
-	background: rgba(255, 255, 255, 0.06);
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	background: var(--notectl-code-block-header-bg, rgba(255, 255, 255, 0.06));
+	border-bottom: 1px solid var(--notectl-code-block-header-border, rgba(255, 255, 255, 0.08));
 	font-size: 12px;
-	color: #7f849c;
+	color: var(--notectl-code-block-header-color, #7f849c);
 	user-select: none;
 }
 
@@ -1319,7 +1325,7 @@ const EDITOR_CSS = `
 	border: none;
 	border-radius: 4px;
 	background: transparent;
-	color: #7f849c;
+	color: var(--notectl-code-block-header-color, #7f849c);
 	cursor: pointer;
 	padding: 0;
 	transition: background 0.15s, color 0.15s;
@@ -1327,7 +1333,7 @@ const EDITOR_CSS = `
 
 .notectl-code-block__copy:hover {
 	background: rgba(255, 255, 255, 0.1);
-	color: #cdd6f4;
+	color: var(--notectl-code-block-color, #cdd6f4);
 }
 
 .notectl-code-block__copy svg {
