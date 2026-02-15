@@ -26,7 +26,6 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		const pre: HTMLElement = document.createElement('pre');
 		pre.className = 'notectl-code-block';
 		pre.setAttribute('data-block-id', node.id);
-		pre.setAttribute('data-selectable', 'true');
 
 		// Header (non-editable)
 		const header: HTMLDivElement = document.createElement('div');

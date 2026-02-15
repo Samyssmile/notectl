@@ -183,6 +183,50 @@ describe('PasteHandler text paste', () => {
 		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(tr.metadata.origin).toBe('paste');
 	});
+
+	it('HTML paste preserves superscript marks when schemaRegistry is present', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+		getState = () => currentState;
+
+		const registry = new SchemaRegistry();
+		registry.registerMarkSpec({
+			type: 'superscript',
+			rank: 4,
+			toDOM: () => document.createElement('sup'),
+			toHTMLString: (_mark, content) => `<sup>${content}</sup>`,
+			parseHTML: [{ tag: 'sup' }],
+			sanitize: { tags: ['sup'] },
+		});
+
+		handler = new PasteHandler(element, { getState, dispatch, schemaRegistry: registry });
+
+		const event: ClipboardEvent = createPasteEvent({
+			html: '<p>x<sup>2</sup></p>',
+		});
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(tr.metadata.origin).toBe('paste');
+
+		// Verify that the inserted text has superscript marks
+		const block = currentState.doc.children[0];
+		expect(block).toBeDefined();
+		if (block) {
+			const textChildren = block.children.filter(
+				(c): c is { type: 'text'; text: string; marks: readonly { type: string }[] } =>
+					c.type === 'text',
+			);
+			const supChild = textChildren.find((c) => c.marks.some((m) => m.type === 'superscript'));
+			expect(supChild).toBeDefined();
+			expect(supChild?.text).toContain('2');
+		}
+	});
 });
 
 describe('PasteHandler block paste', () => {

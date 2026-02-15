@@ -5,6 +5,7 @@
 
 import DOMPurify from 'dompurify';
 import { insertTextCommand } from '../commands/Commands.js';
+import { pasteSlice } from '../commands/PasteCommand.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
@@ -14,7 +15,9 @@ import {
 	isBlockNode,
 } from '../model/Document.js';
 import { generateBlockId } from '../model/Document.js';
+import { HTMLParser } from '../model/HTMLParser.js';
 import { findNodePath } from '../model/NodeResolver.js';
+import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	createCollapsedSelection,
@@ -98,11 +101,20 @@ export class PasteHandler {
 				ALLOWED_ATTR: allowedAttrs,
 			});
 
-			// TODO: Rich-text paste not yet supported — extract plain text for now
-			const text = this.extractTextFromHTML(sanitized);
-			if (text) {
-				const tr = insertTextCommand(state, text, 'paste');
+			if (this.schemaRegistry) {
+				const schema = schemaFromRegistry(this.schemaRegistry);
+				const parser = new HTMLParser({ schema, schemaRegistry: this.schemaRegistry });
+				const template = document.createElement('template');
+				template.innerHTML = sanitized;
+				const slice = parser.parse(template.content);
+				const tr = pasteSlice(state, slice);
 				this.dispatch(tr);
+			} else {
+				const text = this.extractTextFromHTML(sanitized);
+				if (text) {
+					const tr = insertTextCommand(state, text, 'paste');
+					this.dispatch(tr);
+				}
 			}
 			return;
 		}
