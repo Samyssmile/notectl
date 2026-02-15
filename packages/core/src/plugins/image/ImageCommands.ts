@@ -198,8 +198,11 @@ export function setImageAttr(context: PluginContext, attrs: Partial<ImageAttrs>)
 	const block: BlockNode | undefined = state.getBlock(sel.nodeId);
 	if (!block || block.type !== 'image') return false;
 
+	const path: BlockId[] | undefined = state.getNodePath(sel.nodeId);
+	if (!path) return false;
+
 	const merged: BlockAttrs = { ...(block.attrs ?? {}), ...attrs };
-	const tr = state.transaction('command').setNodeAttr([sel.nodeId], merged).build();
+	const tr = state.transaction('command').setNodeAttr(path, merged).build();
 
 	context.dispatch(tr);
 	return true;
