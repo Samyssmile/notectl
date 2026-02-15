@@ -19,6 +19,7 @@ import {
 } from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { stateBuilder } from '../test/TestUtils.js';
 import {
 	deleteBackward,
 	deleteForward,
@@ -42,11 +43,7 @@ import {
 describe('Commands', () => {
 	describe('toggleMark (collapsed)', () => {
 		it('toggles stored marks when selection is collapsed', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 3),
-			});
+			const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 3).build();
 
 			const tr = toggleBold(state);
 			expect(tr).not.toBeNull();
@@ -56,13 +53,10 @@ describe('Commands', () => {
 		});
 
 		it('removes stored mark if already active', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello', [{ type: 'bold' }])], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 3),
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1', { marks: [{ type: 'bold' }] })
+				.cursor('b1', 3)
+				.build();
 
 			const tr = toggleBold(state);
 			const newState = state.apply(tr);
@@ -72,13 +66,10 @@ describe('Commands', () => {
 
 	describe('toggleMark (range)', () => {
 		it('adds bold to selected range', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-			});
+			const state = stateBuilder()
+				.paragraph('hello world', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.build();
 
 			const tr = toggleBold(state);
 			const newState = state.apply(tr);
@@ -90,13 +81,10 @@ describe('Commands', () => {
 		});
 
 		it('removes bold from fully bold range', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello', [{ type: 'bold' }])], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1', { marks: [{ type: 'bold' }] })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.build();
 
 			const tr = toggleBold(state);
 			const newState = state.apply(tr);
@@ -114,11 +102,7 @@ describe('Commands', () => {
 
 	describe('insertTextCommand', () => {
 		it('inserts text at cursor', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 0),
-			});
+			const state = stateBuilder().paragraph('', 'b1').cursor('b1', 0).build();
 
 			const tr = insertTextCommand(state, 'hello');
 			const newState = state.apply(tr);
@@ -127,13 +111,10 @@ describe('Commands', () => {
 		});
 
 		it('replaces selected text', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-			});
+			const state = stateBuilder()
+				.paragraph('hello world', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.build();
 
 			const tr = insertTextCommand(state, 'hi');
 			const newState = state.apply(tr);
@@ -143,11 +124,7 @@ describe('Commands', () => {
 
 	describe('deleteBackward', () => {
 		it('deletes one character backward', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 5),
-			});
+			const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 5).build();
 
 			const tr = deleteBackward(state);
 			const newState = state.apply(tr);
@@ -155,14 +132,11 @@ describe('Commands', () => {
 		});
 
 		it('merges with previous block at offset 0', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
-				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b2', 0),
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.paragraph('world', 'b2')
+				.cursor('b2', 0)
+				.build();
 
 			const tr = deleteBackward(state);
 			const newState = state.apply(tr);
@@ -171,23 +145,14 @@ describe('Commands', () => {
 		});
 
 		it('returns null at start of first block', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 0),
-			});
-
+			const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 0).build();
 			expect(deleteBackward(state)).toBeNull();
 		});
 	});
 
 	describe('deleteForward', () => {
 		it('deletes one character forward', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 0),
-			});
+			const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 0).build();
 
 			const tr = deleteForward(state);
 			const newState = state.apply(tr);
@@ -197,13 +162,7 @@ describe('Commands', () => {
 
 	describe('deleteWordBackward', () => {
 		it('deletes entire word backward', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 11),
-			});
+			const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 11).build();
 
 			const tr = deleteWordBackward(state);
 			const newState = state.apply(tr);
@@ -213,13 +172,7 @@ describe('Commands', () => {
 
 	describe('splitBlockCommand', () => {
 		it('splits block at cursor', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 5),
-			});
+			const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 5).build();
 
 			const tr = splitBlockCommand(state);
 			const newState = state.apply(tr);
@@ -230,14 +183,11 @@ describe('Commands', () => {
 
 	describe('selectAll', () => {
 		it('selects from start of first block to end of last block', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
-				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 0),
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.paragraph('world', 'b2')
+				.cursor('b1', 0)
+				.build();
 
 			const tr = selectAll(state);
 			const newState = state.apply(tr);
@@ -250,24 +200,17 @@ describe('Commands', () => {
 
 	describe('isMarkActive', () => {
 		it('returns true when cursor is inside bold text', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('bold', [{ type: 'bold' }])], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-			});
+			const state = stateBuilder()
+				.paragraph('bold', 'b1', { marks: [{ type: 'bold' }] })
+				.cursor('b1', 2)
+				.build();
 
 			expect(isMarkActive(state, 'bold')).toBe(true);
 			expect(isMarkActive(state, 'italic')).toBe(false);
 		});
 
 		it('uses stored marks when available', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 3),
-			});
+			const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 3).build();
 
 			// Toggle bold to set stored marks
 			const tr = toggleBold(state);
@@ -286,11 +229,10 @@ describe('Commands', () => {
 
 	describe('combined marks', () => {
 		it('applies bold and italic independently', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			let state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-			});
+			let state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.build();
 
 			state = state.apply(toggleBold(state));
 			state = state.apply(toggleItalic(state));

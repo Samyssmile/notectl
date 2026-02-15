@@ -92,6 +92,83 @@ Enforced via `biome.json` and `code-style-requirements.md`:
 - `NodeSpec.toDOM()` must set `data-block-id` on the root element
 - Reconciler works at block granularity — text rendering rebuilds inline content fully
 
+## Writing Tests
+
+Test utilities live in `packages/core/src/test/`. Use them to reduce boilerplate.
+
+### State Creation — `stateBuilder()`
+
+Use `stateBuilder()` instead of manual `createDocument` + `EditorState.create`:
+
+```typescript
+import { stateBuilder } from '../../test/TestUtils.js';
+
+// Collapsed cursor
+const state = stateBuilder()
+  .paragraph('Hello', 'b1')
+  .cursor('b1', 3)
+  .schema(['paragraph'], ['bold', 'italic'])
+  .build();
+
+// Range selection
+const state = stateBuilder()
+  .paragraph('Hello', 'b1')
+  .selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+  .schema(['paragraph'], ['bold'])
+  .build();
+
+// Custom block types
+const state = stateBuilder()
+  .block('list_item', 'item text', 'b1', { attrs: { listType: 'bullet', indent: 0 } })
+  .cursor('b1', 0)
+  .schema(['paragraph', 'list_item'], ['bold'])
+  .build();
+```
+
+**Important**: `stateBuilder().schema([...]).build()` creates zero blocks. Always add at least one block. Include all required mark/node types in `.schema()`.
+
+### Plugin Tests — `pluginHarness()`
+
+Use `pluginHarness()` for plugin test setup. Access everything via the `h.` harness object:
+
+```typescript
+import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+
+const state = stateBuilder().paragraph('hello', 'b1').cursor('b1', 0).build();
+const h = await pluginHarness(new MyPlugin(), state);
+
+h.getMarkSpec('bold');           // MarkSpec | undefined
+h.getNodeSpec('heading');        // NodeSpec | undefined
+h.getToolbarItem('bold');        // ToolbarItem | undefined
+h.executeCommand('toggleBold');  // boolean
+h.getKeymaps();                  // KeymapEntry[]
+h.getInputRules();               // InputRule[]
+h.getState();                    // current EditorState
+h.dispatch;                      // vi.fn() spy
+```
+
+### Assertion Helpers — `PluginTestUtils.ts`
+
+Use assertion helpers for common plugin checks:
+
+```typescript
+import {
+  expectMarkSpec, expectToolbarItem, expectToolbarActive,
+  expectKeyBinding, expectCommandRegistered, expectCommandDispatches,
+} from '../../test/PluginTestUtils.js';
+
+expectMarkSpec(h, 'bold', { tag: 'STRONG', rank: 1 });
+expectToolbarItem(h, 'bold', { group: 'format', label: 'Bold', command: 'toggleBold' });
+expectToolbarActive(h, 'bold', true);
+expectKeyBinding(h, 'Mod-b');
+expectCommandRegistered(h, 'toggleBold');
+expectCommandDispatches(h, 'toggleBold');
+```
+
+### When NOT to use these utilities
+
+Low-level tests for `model/`, `state/`, and `view/` layers should create state directly — they test primitives and need explicit control over data structures.
+
 ## Code Changes
 After code changes, always run unit tests, e2e tests and biom linting.
 After writing new features or fixing bugs, please add tests to cover the new code paths. Aim for high coverage, but prioritize meaningful tests over 100% coverage.

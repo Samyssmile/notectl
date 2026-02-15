@@ -1,47 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../../model/Selection.js';
-import { EditorState } from '../../state/EditorState.js';
-import type { Plugin } from '../Plugin.js';
-import { PluginManager, type PluginManagerInitOptions } from '../PluginManager.js';
+import {
+	expectMarkSpec,
+	expectToolbarActive,
+	expectToolbarItem,
+} from '../../test/PluginTestUtils.js';
+import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { type FontDefinition, FontPlugin } from './FontPlugin.js';
 
-// --- Helpers ---
-
-function makeOptions(overrides?: Partial<PluginManagerInitOptions>): PluginManagerInitOptions {
-	return {
-		getState: () => EditorState.create(),
-		dispatch: vi.fn(),
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-		...overrides,
-	};
-}
-
-function defaultState(): EditorState {
-	return EditorState.create({
-		schema: { nodeTypes: ['paragraph'], markTypes: ['bold', 'italic', 'underline', 'font'] },
-	});
-}
-
-async function initWithPlugin(
-	plugin: Plugin,
-	stateOverride?: EditorState,
-): Promise<{ pm: PluginManager; dispatch: ReturnType<typeof vi.fn> }> {
-	const pm = new PluginManager();
-	pm.register(plugin);
-	const dispatch = vi.fn();
-	const state: EditorState = stateOverride ?? defaultState();
-
-	await pm.init(
-		makeOptions({
-			getState: () => state,
-			dispatch,
-		}),
-	);
-
-	return { pm, dispatch };
-}
+// --- Constants ---
 
 const TEST_FONT: FontDefinition = {
 	name: 'Test Font',
@@ -54,6 +20,15 @@ const MONO_FONT: FontDefinition = {
 	family: "'Mono', monospace",
 	category: 'monospace',
 };
+
+const FONT_SCHEMA: [string[], string[]] = [['paragraph'], ['bold', 'italic', 'underline', 'font']];
+
+function defaultState() {
+	return stateBuilder()
+		.paragraph('text', 'b1')
+		.schema(...FONT_SCHEMA)
+		.build();
+}
 
 // --- Tests ---
 
@@ -69,100 +44,70 @@ describe('FontPlugin', () => {
 
 	describe('MarkSpec', () => {
 		it('registers font MarkSpec', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-			expect(pm.schemaRegistry.getMarkSpec('font')).toBeDefined();
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expect(h.getMarkSpec('font')).toBeDefined();
 		});
 
 		it('font MarkSpec creates <span> with style.fontFamily', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getMarkSpec('font');
-			const el: HTMLElement = spec?.toDOM({
-				type: 'font',
-				attrs: { family: "'Fira Code', monospace" },
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expectMarkSpec(h, 'font', {
+				tag: 'SPAN',
+				toDOMInput: { type: 'font', attrs: { family: "'Fira Code', monospace" } },
 			});
-			expect(el?.tagName).toBe('SPAN');
-			expect(el?.style.fontFamily).toBeTruthy();
 		});
 
 		it('has rank 6', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-			expect(pm.schemaRegistry.getMarkSpec('font')?.rank).toBe(6);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expectMarkSpec(h, 'font', { rank: 6 });
 		});
 
 		it('has family attr with default', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-			const spec = pm.schemaRegistry.getMarkSpec('font');
-			expect(spec?.attrs).toEqual({ family: { default: '' } });
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expectMarkSpec(h, 'font', { attrs: { family: { default: '' } } });
 		});
 	});
 
 	describe('commands', () => {
 		it('registers removeFont command', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-			expect(pm.executeCommand('removeFont')).toBe(false);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expect(h.executeCommand('removeFont')).toBe(false);
 		});
 
 		it('registers setFont command', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-			expect(pm.executeCommand('setFont')).toBe(false);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expect(h.executeCommand('setFont')).toBe(false);
 		});
 
 		it('removeFont dispatches on font-marked text with range selection', async () => {
-			const doc = createDocument([
-				createBlockNode(
-					'paragraph',
-					[createTextNode('hello', [{ type: 'font', attrs: { family: 'Arial' } }])],
-					'b1',
-				),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1', {
+					marks: [{ type: 'font', attrs: { family: 'Arial' } }],
+				})
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.schema(['paragraph'], ['font'])
+				.build();
 
-			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
-			const { dispatch } = await initWithPlugin(plugin, state);
-
-			expect(dispatch).not.toHaveBeenCalled();
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT] }), state);
+			expect(h.dispatch).not.toHaveBeenCalled();
 		});
 	});
 
 	describe('configuration', () => {
 		it('renders configured fonts in popup', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const listItems = container.querySelectorAll('.notectl-font-picker__item');
 			expect(listItems.length).toBe(2);
 		});
 
 		it('uses first font as default when defaultFont not specified', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const activeItem = container.querySelector('.notectl-font-picker__item--active');
 			expect(activeItem).not.toBeNull();
@@ -171,19 +116,12 @@ describe('FontPlugin', () => {
 		});
 
 		it('uses named defaultFont when specified', async () => {
-			const plugin = new FontPlugin({
-				fonts: [TEST_FONT, MONO_FONT],
-				defaultFont: 'Mono',
-			});
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(
+				new FontPlugin({ fonts: [TEST_FONT, MONO_FONT], defaultFont: 'Mono' }),
+			);
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const activeItem = container.querySelector('.notectl-font-picker__item--active');
 			expect(activeItem).not.toBeNull();
@@ -192,19 +130,12 @@ describe('FontPlugin', () => {
 		});
 
 		it('falls back to first font when defaultFont name not found', async () => {
-			const plugin = new FontPlugin({
-				fonts: [TEST_FONT, MONO_FONT],
-				defaultFont: 'NonExistent',
-			});
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(
+				new FontPlugin({ fonts: [TEST_FONT, MONO_FONT], defaultFont: 'NonExistent' }),
+			);
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const activeItem = container.querySelector('.notectl-font-picker__item--active');
 			expect(activeItem).not.toBeNull();
@@ -213,16 +144,10 @@ describe('FontPlugin', () => {
 		});
 
 		it('accepts custom font list', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const listItems = container.querySelectorAll('.notectl-font-picker__item');
 			expect(listItems.length).toBe(2);
@@ -237,82 +162,51 @@ describe('FontPlugin', () => {
 
 	describe('toolbar item', () => {
 		it('registers a font toolbar item', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
-			expect(item).toBeDefined();
-			expect(item?.group).toBe('format');
-			expect(item?.label).toBe('Font');
-			expect(item?.priority).toBe(5);
-			expect(item?.popupType).toBe('custom');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expectToolbarItem(h, 'font', {
+				group: 'format',
+				label: 'Font',
+				priority: 5,
+				popupType: 'custom',
+			});
 		});
 
 		it('toolbar item reports active state when text has font', async () => {
-			const doc = createDocument([
-				createBlockNode(
-					'paragraph',
-					[createTextNode('styled', [{ type: 'font', attrs: { family: 'Arial' } }])],
-					'b1',
-				),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: 'Arial' } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state }));
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
-			expect(item?.isActive?.(state)).toBe(true);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			expectToolbarActive(h, 'font', true);
 		});
 
 		it('toolbar item reports inactive state when text has no font', async () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('plain')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('plain', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state }));
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
-			expect(item?.isActive?.(state)).toBe(false);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			expectToolbarActive(h, 'font', false);
 		});
 
 		it('respects separatorAfter config', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT], separatorAfter: true });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
-			expect(item?.separatorAfter).toBe(true);
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT], separatorAfter: true }));
+			expectToolbarItem(h, 'font', { separatorAfter: true });
 		});
 	});
 
 	describe('popup rendering', () => {
 		it('renders font list without separate Default entry', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const list = container.querySelector('.notectl-font-picker__list');
 			expect(list).not.toBeNull();
@@ -321,36 +215,18 @@ describe('FontPlugin', () => {
 		});
 
 		it('highlights active font in popup with checkmark', async () => {
-			const doc = createDocument([
-				createBlockNode(
-					'paragraph',
-					[
-						createTextNode('styled', [
-							{
-								type: 'font',
-								attrs: { family: "'Test Font', sans-serif" },
-							},
-						]),
-					],
-					'b1',
-				),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: "'Test Font', sans-serif" } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
-			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
-			const { pm } = await initWithPlugin(plugin, state);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT] }), state);
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => state,
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }));
 
 			const activeItem = container.querySelector('.notectl-font-picker__item--active');
 			expect(activeItem).not.toBeNull();
@@ -363,16 +239,10 @@ describe('FontPlugin', () => {
 		});
 
 		it('shows font preview with correct font-family on label', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const fontLabel = container.querySelector(
 				'.notectl-font-picker__item .notectl-font-picker__label',
@@ -381,16 +251,10 @@ describe('FontPlugin', () => {
 		});
 
 		it('marks default font as active when no font mark is set', async () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			const { pm } = await initWithPlugin(plugin);
-
-			const items = pm.schemaRegistry.getToolbarItems();
-			const item = items.find((i) => i.id === 'font');
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
 			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, {
-				getState: () => defaultState(),
-				dispatch: vi.fn(),
-			} as unknown as import('../Plugin.js').PluginContext);
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
 
 			const activeItem = container.querySelector('.notectl-font-picker__item--active');
 			expect(activeItem).not.toBeNull();
@@ -401,21 +265,18 @@ describe('FontPlugin', () => {
 
 	describe('font application', () => {
 		it('applies font on range selection', async () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
 			const dispatch = vi.fn();
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state, dispatch }));
+			const h = await pluginHarness(plugin, state);
 
 			plugin.applyFont(
-				{ getState: () => state, dispatch } as unknown as import('../Plugin.js').PluginContext,
+				mockPluginContext({ getState: h.getState, dispatch }),
 				state,
 				TEST_FONT.family,
 			);
@@ -424,21 +285,18 @@ describe('FontPlugin', () => {
 		});
 
 		it('applies font on collapsed selection via stored marks', async () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
 			const dispatch = vi.fn();
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state, dispatch }));
+			await pluginHarness(plugin, state);
 
 			plugin.applyFont(
-				{ getState: () => state, dispatch } as unknown as import('../Plugin.js').PluginContext,
+				mockPluginContext({ getState: () => state, dispatch }),
 				state,
 				TEST_FONT.family,
 			);
@@ -447,27 +305,20 @@ describe('FontPlugin', () => {
 		});
 
 		it('replaces font on already-font-styled text', async () => {
-			const doc = createDocument([
-				createBlockNode(
-					'paragraph',
-					[createTextNode('hello', [{ type: 'font', attrs: { family: 'Arial' } }])],
-					'b1',
-				),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1', {
+					marks: [{ type: 'font', attrs: { family: 'Arial' } }],
+				})
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
 			const dispatch = vi.fn();
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state, dispatch }));
+			await pluginHarness(plugin, state);
 
 			plugin.applyFont(
-				{ getState: () => state, dispatch } as unknown as import('../Plugin.js').PluginContext,
+				mockPluginContext({ getState: () => state, dispatch }),
 				state,
 				MONO_FONT.family,
 			);
@@ -476,24 +327,19 @@ describe('FontPlugin', () => {
 		});
 
 		it('applies font across multiple blocks', async () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('first')], 'b1'),
-				createBlockNode('paragraph', [createTextNode('second')], 'b2'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b2', offset: 6 }),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('first', 'b1')
+				.paragraph('second', 'b2')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b2', offset: 6 })
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT] });
 			const dispatch = vi.fn();
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state, dispatch }));
+			await pluginHarness(plugin, state);
 
 			plugin.applyFont(
-				{ getState: () => state, dispatch } as unknown as import('../Plugin.js').PluginContext,
+				mockPluginContext({ getState: () => state, dispatch }),
 				state,
 				TEST_FONT.family,
 			);
@@ -504,42 +350,35 @@ describe('FontPlugin', () => {
 
 	describe('getActiveFont', () => {
 		it('returns null when no font mark is present', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('plain')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('plain', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
 			expect(plugin.getActiveFont(state)).toBeNull();
 		});
 
 		it('returns family when font mark is present', () => {
-			const doc = createDocument([
-				createBlockNode(
-					'paragraph',
-					[createTextNode('styled', [{ type: 'font', attrs: { family: 'Georgia, serif' } }])],
-					'b1',
-				),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: 'Georgia, serif' } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
 			expect(plugin.getActiveFont(state)).toBe('Georgia, serif');
 		});
 
 		it('reads from stored marks when available', () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const baseState = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['font'] },
-			});
+			const baseState = stateBuilder()
+				.paragraph('hello', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
 
 			// Apply stored marks via transaction
 			const tr = baseState
@@ -547,7 +386,7 @@ describe('FontPlugin', () => {
 				.setStoredMarks([{ type: 'font', attrs: { family: 'Arial' } }], null)
 				.setSelection(baseState.selection)
 				.build();
-			const state: EditorState = baseState.apply(tr);
+			const state = baseState.apply(tr);
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
 			expect(plugin.getActiveFont(state)).toBe('Arial');
@@ -571,7 +410,7 @@ describe('FontPlugin', () => {
 			};
 
 			const plugin = new FontPlugin({ fonts: [customFont] });
-			await initWithPlugin(plugin);
+			await pluginHarness(plugin);
 
 			const style = document.querySelector('style[data-notectl-fonts]');
 			expect(style).not.toBeNull();
@@ -585,7 +424,7 @@ describe('FontPlugin', () => {
 			const plugin = new FontPlugin({
 				fonts: [{ name: 'Arial', family: 'Arial, sans-serif' }],
 			});
-			await initWithPlugin(plugin);
+			await pluginHarness(plugin);
 
 			const style = document.querySelector('style[data-notectl-fonts]');
 			expect(style).toBeNull();
@@ -601,7 +440,7 @@ describe('FontPlugin', () => {
 			};
 
 			const plugin = new FontPlugin({ fonts: [customFont] });
-			await initWithPlugin(plugin);
+			await pluginHarness(plugin);
 
 			expect(document.querySelector('style[data-notectl-fonts]')).not.toBeNull();
 

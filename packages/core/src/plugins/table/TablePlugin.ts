@@ -135,7 +135,7 @@ export class TablePlugin implements Plugin {
 		context.registerNodeSpec({
 			type: 'table_cell',
 			group: 'table_content',
-			content: { allow: ['text'] },
+			content: { allow: ['text', 'image'] },
 			isolating: true,
 			toDOM(node) {
 				const td: HTMLTableCellElement = document.createElement('td');
