@@ -2,7 +2,7 @@
 
 # notectl
 
-**A modern rich text editor, shipped as a single Web Component.**
+## **A framework-agnostic rich text editor as a Web Component — ship only what you use.**
 
 Built on immutable state, a transaction-based architecture, and a plugin system that powers every feature — from bold text to full table editing.
 

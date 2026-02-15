@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import { createBlockNode, createDocument, createTextNode, isBlockNode } from '../model/Document.js';
+import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection } from '../model/Selection.js';
+import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -22,14 +23,17 @@ function createPasteEvent(options: {
 	items?: DataTransferItem[];
 	html?: string;
 	text?: string;
+	extraData?: Record<string, string>;
 }): ClipboardEvent {
 	const files: File[] = options.files ?? [];
 	const items: DataTransferItem[] = options.items ?? [];
+	const extra: Record<string, string> = options.extraData ?? {};
 
 	const dataTransfer = {
 		files,
 		items,
 		getData(type: string): string {
+			if (type in extra) return extra[type] as string;
 			if (type === 'text/html') return options.html ?? '';
 			if (type === 'text/plain') return options.text ?? '';
 			return '';
@@ -178,6 +182,89 @@ describe('PasteHandler text paste', () => {
 		expect(dispatch).toHaveBeenCalledTimes(1);
 		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(tr.metadata.origin).toBe('paste');
+	});
+});
+
+describe('PasteHandler block paste', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('inserts block node from application/x-notectl-block JSON', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+
+		const registry = new SchemaRegistry();
+		const imgSpec: NodeSpec<'image'> = {
+			type: 'image',
+			isVoid: true,
+			toDOM: () => document.createElement('img'),
+		};
+		registry.registerNodeSpec(imgSpec);
+
+		let currentState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const blockJson: string = JSON.stringify({
+			type: 'image',
+			attrs: { src: 'https://example.com/photo.png', alt: 'A photo' },
+		});
+
+		const event: ClipboardEvent = createPasteEvent({
+			extraData: { 'application/x-notectl-block': blockJson },
+		});
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(tr.metadata.origin).toBe('paste');
+
+		// Verify the new block was inserted
+		expect(currentState.doc.children).toHaveLength(2);
+		const newBlock = currentState.doc.children[1];
+		expect(isBlockNode(newBlock)).toBe(true);
+		if (isBlockNode(newBlock)) {
+			expect(newBlock.type).toBe('image');
+			expect(newBlock.attrs?.src).toBe('https://example.com/photo.png');
+		}
+
+		// Selection should be a NodeSelection on the new block
+		expect(isNodeSelection(currentState.selection)).toBe(true);
+	});
+
+	it('ignores unknown block types when registry is present', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+
+		const registry = new SchemaRegistry();
+		// No 'image' spec registered
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const blockJson: string = JSON.stringify({ type: 'image', attrs: { src: 'x' } });
+		const event: ClipboardEvent = createPasteEvent({
+			extraData: { 'application/x-notectl-block': blockJson },
+		});
+		element.dispatchEvent(event);
+
+		expect(dispatch).not.toHaveBeenCalled();
 	});
 });
 

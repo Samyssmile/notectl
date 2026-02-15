@@ -3,6 +3,7 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
+import { ClipboardHandler } from '../input/ClipboardHandler.js';
 import { InputHandler } from '../input/InputHandler.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import { PasteHandler } from '../input/PasteHandler.js';
@@ -38,6 +39,7 @@ export class EditorView {
 	private readonly inputHandler: InputHandler;
 	private readonly keyboardHandler: KeyboardHandler;
 	private readonly pasteHandler: PasteHandler;
+	private readonly clipboardHandler: ClipboardHandler;
 	readonly history: HistoryManager;
 	private readonly stateChangeCallbacks: StateChangeCallback[] = [];
 	private readonly handleSelectionChange: () => void;
@@ -45,6 +47,7 @@ export class EditorView {
 	private readonly handleDragover: (e: DragEvent) => void;
 	private readonly handleDrop: (e: DragEvent) => void;
 	private isUpdating = false;
+	private pendingNodeSelectionClear = false;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
@@ -78,6 +81,11 @@ export class EditorView {
 			schemaRegistry: this.schemaRegistry,
 		});
 		this.pasteHandler = new PasteHandler(contentElement, {
+			getState: () => this.state,
+			dispatch: (tr: Transaction) => this.dispatch(tr),
+			schemaRegistry: this.schemaRegistry,
+		});
+		this.clipboardHandler = new ClipboardHandler(contentElement, {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			schemaRegistry: this.schemaRegistry,
@@ -206,8 +214,10 @@ export class EditorView {
 
 	/** Syncs the DOM selection to the editor state. */
 	private syncSelectionFromDOM(): void {
-		// If NodeSelection is active, preserve it — DOM selectionchange should not override
-		if (isNodeSelection(this.state.selection)) return;
+		// If NodeSelection is active, preserve it — DOM selectionchange should not override.
+		// Exception: after mousedown on a non-selectable block, allow the DOM selection to take over.
+		if (isNodeSelection(this.state.selection) && !this.pendingNodeSelectionClear) return;
+		this.pendingNodeSelectionClear = false;
 
 		const sel = readSelectionFromDOM(this.contentElement);
 		if (!sel) return;
@@ -238,7 +248,14 @@ export class EditorView {
 
 		const isNodeSelectable =
 			nearestBlockEl.hasAttribute('data-void') || nearestBlockEl.hasAttribute('data-selectable');
-		if (!isNodeSelectable) return;
+		if (!isNodeSelectable) {
+			// When clicking a non-selectable block while NodeSelection is active,
+			// allow the next syncSelectionFromDOM to override the NodeSelection
+			if (isNodeSelection(this.state.selection)) {
+				this.pendingNodeSelectionClear = true;
+			}
+			return;
+		}
 
 		e.preventDefault();
 		this.contentElement.focus();
@@ -370,6 +387,7 @@ export class EditorView {
 		this.inputHandler.destroy();
 		this.keyboardHandler.destroy();
 		this.pasteHandler.destroy();
+		this.clipboardHandler.destroy();
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
 		this.contentElement.removeEventListener('mousedown', this.handleMousedown);
 		this.contentElement.removeEventListener('dragover', this.handleDragover);

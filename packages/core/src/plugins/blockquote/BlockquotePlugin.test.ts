@@ -1,63 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { getBlockText } from '../../model/Document.js';
 import {
-	createBlockNode,
-	createDocument,
-	createTextNode,
-	getBlockText,
-} from '../../model/Document.js';
-import { createCollapsedSelection } from '../../model/Selection.js';
-import { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
-import type { Plugin } from '../Plugin.js';
-import { PluginManager } from '../PluginManager.js';
+	expectCommandRegistered,
+	expectKeyBinding,
+	expectNodeSpec,
+	expectToolbarActive,
+	expectToolbarItem,
+} from '../../test/PluginTestUtils.js';
+import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { BlockquotePlugin } from './BlockquotePlugin.js';
 
 // --- Helpers ---
 
 function makeState(
-	blocks?: {
-		type: string;
-		text: string;
-		id: string;
-		attrs?: Record<string, string | number | boolean>;
-	}[],
+	blocks?: { type: string; text: string; id: string }[],
 	cursorBlockId?: string,
 	cursorOffset?: number,
-): EditorState {
-	const blockNodes = (blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]).map((b) =>
-		createBlockNode(b.type, [createTextNode(b.text)], b.id, b.attrs),
-	);
-	const doc = createDocument(blockNodes);
-	return EditorState.create({
-		doc,
-		selection: createCollapsedSelection(
-			cursorBlockId ?? blockNodes[0]?.id ?? '',
-			cursorOffset ?? 0,
-		),
-		schema: { nodeTypes: ['paragraph', 'blockquote'], markTypes: ['bold', 'italic', 'underline'] },
-	});
-}
-
-async function initPlugin(
-	plugin: Plugin,
-	state?: EditorState,
-): Promise<{ pm: PluginManager; dispatch: ReturnType<typeof vi.fn>; getState: () => EditorState }> {
-	const pm = new PluginManager();
-	pm.register(plugin);
-	let currentState = state ?? makeState();
-
-	const trackingDispatch = vi.fn((tr: Transaction) => {
-		currentState = currentState.apply(tr);
-	});
-
-	await pm.init({
-		getState: () => currentState,
-		dispatch: trackingDispatch,
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-	});
-
-	return { pm, dispatch: trackingDispatch, getState: () => currentState };
+) {
+	const builder = stateBuilder();
+	for (const b of blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]) {
+		builder.block(b.type, b.text, b.id);
+	}
+	const bid = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
+	builder.cursor(bid, cursorOffset ?? 0);
+	builder.schema(['paragraph', 'blockquote'], ['bold', 'italic', 'underline']);
+	return builder.build();
 }
 
 // --- Tests ---
@@ -74,17 +41,16 @@ describe('BlockquotePlugin', () => {
 
 	describe('NodeSpec', () => {
 		it('registers blockquote NodeSpec', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.schemaRegistry.getNodeSpec('blockquote')).toBeDefined();
+			const h = await pluginHarness(new BlockquotePlugin());
+			expectNodeSpec(h, 'blockquote');
 		});
 
 		it('blockquote NodeSpec creates <blockquote> element', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getNodeSpec('blockquote');
-			const el = spec?.toDOM(createBlockNode('blockquote', [createTextNode('')], 'test'));
+			const h = await pluginHarness(new BlockquotePlugin());
+			const spec = h.getNodeSpec('blockquote');
+			assertDefined(spec);
+			const { createBlockNode, createTextNode } = await import('../../model/Document.js');
+			const el = spec.toDOM(createBlockNode('blockquote', [createTextNode('')], 'test'));
 			expect(el?.tagName).toBe('BLOCKQUOTE');
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 		});
@@ -92,86 +58,66 @@ describe('BlockquotePlugin', () => {
 
 	describe('commands', () => {
 		it('registers toggleBlockquote command', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.executeCommand('toggleBlockquote')).toBe(true);
+			const h = await pluginHarness(new BlockquotePlugin());
+			expectCommandRegistered(h, 'toggleBlockquote');
 		});
 
 		it('registers setBlockquote command', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.executeCommand('setBlockquote')).toBe(true);
+			const h = await pluginHarness(new BlockquotePlugin());
+			expectCommandRegistered(h, 'setBlockquote');
 		});
 
 		it('toggleBlockquote converts paragraph to blockquote', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const plugin = new BlockquotePlugin();
-			const { pm, dispatch, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
 
-			pm.executeCommand('toggleBlockquote');
+			h.executeCommand('toggleBlockquote');
 
-			expect(dispatch).toHaveBeenCalled();
-			expect(getState().doc.children[0]?.type).toBe('blockquote');
+			expect(h.dispatch).toHaveBeenCalled();
+			expect(h.getState().doc.children[0]?.type).toBe('blockquote');
 		});
 
 		it('toggleBlockquote converts blockquote back to paragraph', async () => {
 			const state = makeState([{ type: 'blockquote', text: 'Hello', id: 'b1' }]);
-			const plugin = new BlockquotePlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
 
-			pm.executeCommand('toggleBlockquote');
-			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			h.executeCommand('toggleBlockquote');
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
 		});
 
 		it('preserves text content when toggling', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello World', id: 'b1' }]);
-			const plugin = new BlockquotePlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
 
-			pm.executeCommand('toggleBlockquote');
-			expect(getBlockText(getState().doc.children[0])).toBe('Hello World');
+			h.executeCommand('toggleBlockquote');
+			expect(getBlockText(h.getState().doc.children[0])).toBe('Hello World');
 		});
 	});
 
 	describe('keymap registration', () => {
 		it('registers Mod-Shift-> keymap', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const keymaps = pm.schemaRegistry.getKeymaps();
-			expect(keymaps.length).toBeGreaterThan(0);
-
-			const keymap = keymaps[0];
-			expect(keymap?.['Mod-Shift->']).toBeDefined();
+			const h = await pluginHarness(new BlockquotePlugin());
+			expectKeyBinding(h, 'Mod-Shift->');
 		});
 	});
 
 	describe('input rules', () => {
 		it('registers one input rule', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			expect(rules.length).toBe(1);
+			const h = await pluginHarness(new BlockquotePlugin());
+			expect(h.getInputRules().length).toBe(1);
 		});
 
 		it('input rule pattern matches "> "', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const rule = rules[0];
+			const h = await pluginHarness(new BlockquotePlugin());
+			const rule = h.getInputRules()[0];
 			expect(rule?.pattern.test('> ')).toBe(true);
 			expect(rule?.pattern.test('>> ')).toBe(false);
 		});
 
 		it('input rule handler converts paragraph to blockquote', async () => {
 			const state = makeState([{ type: 'paragraph', text: '> ', id: 'b1' }], 'b1', 2);
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const rule = rules[0];
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+			const rule = h.getInputRules()[0];
 
 			const match = '> '.match(rule?.pattern ?? /$/);
 			const tr = rule?.handler(state, match, 0, 2);
@@ -183,11 +129,8 @@ describe('BlockquotePlugin', () => {
 
 		it('input rule only applies on paragraph blocks', async () => {
 			const state = makeState([{ type: 'blockquote', text: '> ', id: 'b1' }], 'b1', 2);
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const rule = rules[0];
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+			const rule = h.getInputRules()[0];
 			const match = '> '.match(rule?.pattern ?? /$/);
 			const tr = rule?.handler(state, match, 0, 2);
 
@@ -197,40 +140,29 @@ describe('BlockquotePlugin', () => {
 
 	describe('toolbar item', () => {
 		it('registers a blockquote toolbar item', async () => {
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const item = pm.schemaRegistry.getToolbarItem('blockquote');
-			expect(item).toBeDefined();
-			expect(item?.group).toBe('block');
-			expect(item?.label).toBe('Blockquote');
-			expect(item?.command).toBe('toggleBlockquote');
+			const h = await pluginHarness(new BlockquotePlugin());
+			expectToolbarItem(h, 'blockquote', {
+				group: 'block',
+				label: 'Blockquote',
+				command: 'toggleBlockquote',
+			});
 		});
 
 		it('isActive returns true when cursor is in blockquote', async () => {
 			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }]);
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('blockquote');
-			expect(item?.isActive?.(state)).toBe(true);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+			expectToolbarActive(h, 'blockquote', true);
 		});
 
 		it('isActive returns false when cursor is in paragraph', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }]);
-			const plugin = new BlockquotePlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('blockquote');
-			expect(item?.isActive?.(state)).toBe(false);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+			expectToolbarActive(h, 'blockquote', false);
 		});
 
 		it('respects separatorAfter config', async () => {
-			const plugin = new BlockquotePlugin({ separatorAfter: true });
-			const { pm } = await initPlugin(plugin);
-
-			const item = pm.schemaRegistry.getToolbarItem('blockquote');
-			expect(item?.separatorAfter).toBe(true);
+			const h = await pluginHarness(new BlockquotePlugin({ separatorAfter: true }));
+			expectToolbarItem(h, 'blockquote', { separatorAfter: true });
 		});
 	});
 });

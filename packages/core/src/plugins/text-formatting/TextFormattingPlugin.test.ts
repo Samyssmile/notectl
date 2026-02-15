@@ -1,48 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-	createBlockNode,
-	createDocument,
-	createTextNode,
-	getTextChildren,
-} from '../../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../../model/Selection.js';
-import { EditorState } from '../../state/EditorState.js';
-import type { Plugin, PluginContext } from '../Plugin.js';
-import { PluginManager, type PluginManagerInitOptions } from '../PluginManager.js';
+	expectCommandDispatches,
+	expectCommandNotRegistered,
+	expectCommandRegistered,
+	expectKeyBinding,
+	expectMarkSpec,
+	expectNoKeyBinding,
+	expectToolbarActive,
+	expectToolbarItem,
+} from '../../test/PluginTestUtils.js';
+import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { TextFormattingPlugin } from './TextFormattingPlugin.js';
-
-// --- Helpers ---
-
-function makeOptions(overrides?: Partial<PluginManagerInitOptions>): PluginManagerInitOptions {
-	return {
-		getState: () => EditorState.create(),
-		dispatch: vi.fn(),
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-		...overrides,
-	};
-}
-
-async function initWithPlugin(
-	plugin: Plugin,
-	stateOverride?: EditorState,
-): Promise<{ pm: PluginManager; dispatch: ReturnType<typeof vi.fn> }> {
-	const pm = new PluginManager();
-	pm.register(plugin);
-	const dispatch = vi.fn();
-	const state = stateOverride ?? EditorState.create();
-
-	await pm.init(
-		makeOptions({
-			getState: () => state,
-			dispatch,
-		}),
-	);
-
-	return { pm, dispatch };
-}
-
-// --- Tests ---
 
 describe('TextFormattingPlugin', () => {
 	describe('registration', () => {
@@ -61,123 +29,123 @@ describe('TextFormattingPlugin', () => {
 	describe('MarkSpec registration', () => {
 		it('registers all three mark specs by default', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const registry = pm.schemaRegistry;
-			expect(registry.getMarkSpec('bold')).toBeDefined();
-			expect(registry.getMarkSpec('italic')).toBeDefined();
-			expect(registry.getMarkSpec('underline')).toBeDefined();
+			expect(h.getMarkSpec('bold')).toBeDefined();
+			expect(h.getMarkSpec('italic')).toBeDefined();
+			expect(h.getMarkSpec('underline')).toBeDefined();
 		});
 
 		it('bold MarkSpec creates <strong> element', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const spec = pm.schemaRegistry.getMarkSpec('bold');
-			const el = spec?.toDOM({ type: 'bold' });
-			expect(el?.tagName).toBe('STRONG');
+			expectMarkSpec(h, 'bold', { tag: 'STRONG' });
 		});
 
 		it('italic MarkSpec creates <em> element', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const spec = pm.schemaRegistry.getMarkSpec('italic');
-			const el = spec?.toDOM({ type: 'italic' });
-			expect(el?.tagName).toBe('EM');
+			expectMarkSpec(h, 'italic', { tag: 'EM' });
 		});
 
 		it('underline MarkSpec creates <u> element', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const spec = pm.schemaRegistry.getMarkSpec('underline');
-			const el = spec?.toDOM({ type: 'underline' });
-			expect(el?.tagName).toBe('U');
+			expectMarkSpec(h, 'underline', { tag: 'U' });
 		});
 
 		it('respects rank ordering (bold=0, italic=1, underline=2)', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.schemaRegistry.getMarkSpec('bold')?.rank).toBe(0);
-			expect(pm.schemaRegistry.getMarkSpec('italic')?.rank).toBe(1);
-			expect(pm.schemaRegistry.getMarkSpec('underline')?.rank).toBe(2);
+			expectMarkSpec(h, 'bold', { rank: 0 });
+			expectMarkSpec(h, 'italic', { rank: 1 });
+			expectMarkSpec(h, 'underline', { rank: 2 });
 		});
 
 		it('does not register disabled marks', async () => {
-			const plugin = new TextFormattingPlugin({ bold: true, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: true,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			expect(pm.schemaRegistry.getMarkSpec('bold')).toBeDefined();
-			expect(pm.schemaRegistry.getMarkSpec('italic')).toBeUndefined();
-			expect(pm.schemaRegistry.getMarkSpec('underline')).toBeUndefined();
+			expect(h.getMarkSpec('bold')).toBeDefined();
+			expect(h.getMarkSpec('italic')).toBeUndefined();
+			expect(h.getMarkSpec('underline')).toBeUndefined();
 		});
 
 		it('registers no marks when all disabled', async () => {
-			const plugin = new TextFormattingPlugin({ bold: false, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: false,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			expect(pm.schemaRegistry.getMarkTypes()).toEqual([]);
+			expect(h.pm.schemaRegistry.getMarkTypes()).toEqual([]);
 		});
 	});
 
 	describe('command registration', () => {
 		it('registers toggleBold command', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.executeCommand('toggleBold')).toBe(true);
+			expectCommandRegistered(h, 'toggleBold');
 		});
 
 		it('registers toggleItalic command', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.executeCommand('toggleItalic')).toBe(true);
+			expectCommandRegistered(h, 'toggleItalic');
 		});
 
 		it('registers toggleUnderline command', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.executeCommand('toggleUnderline')).toBe(true);
+			expectCommandRegistered(h, 'toggleUnderline');
 		});
 
 		it('does not register commands for disabled marks', async () => {
-			const plugin = new TextFormattingPlugin({ bold: true, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: true,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			expect(pm.executeCommand('toggleBold')).toBe(true);
-			expect(pm.executeCommand('toggleItalic')).toBe(false);
-			expect(pm.executeCommand('toggleUnderline')).toBe(false);
+			expectCommandRegistered(h, 'toggleBold');
+			expectCommandNotRegistered(h, 'toggleItalic');
+			expectCommandNotRegistered(h, 'toggleUnderline');
 		});
 
 		it('toggleBold command dispatches a transaction', async () => {
-			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-			const state = EditorState.create({
-				doc,
-				selection: createSelection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 }),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['bold', 'italic', 'underline'] },
-			});
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.schema(['paragraph'], ['bold', 'italic', 'underline'])
+				.build();
 
 			const plugin = new TextFormattingPlugin();
-			const { pm, dispatch } = await initWithPlugin(plugin, state);
+			const h = await pluginHarness(plugin, state);
 
-			pm.executeCommand('toggleBold');
-
-			expect(dispatch).toHaveBeenCalled();
-			const tr = dispatch.mock.calls[0]?.[0];
-			expect(tr.steps.length).toBeGreaterThan(0);
+			expectCommandDispatches(h, 'toggleBold');
 		});
 	});
 
 	describe('toolbar item registration', () => {
 		it('registers toolbar items for all enabled marks', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const items = pm.schemaRegistry.getToolbarItems();
+			const items = h.getToolbarItems();
 			const ids = items.map((i) => i.id);
 			expect(ids).toContain('bold');
 			expect(ids).toContain('italic');
@@ -186,21 +154,21 @@ describe('TextFormattingPlugin', () => {
 
 		it('toolbar items have correct labels', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const items = pm.schemaRegistry.getToolbarItems();
-			const boldItem = items.find((i) => i.id === 'bold');
-			expect(boldItem?.label).toBe('Bold');
-			expect(boldItem?.icon).toContain('<svg');
-			expect(boldItem?.group).toBe('format');
-			expect(boldItem?.command).toBe('toggleBold');
+			expectToolbarItem(h, 'bold', {
+				label: 'Bold',
+				group: 'format',
+				command: 'toggleBold',
+				hasSvgIcon: true,
+			});
 		});
 
 		it('toolbar items have correct priority ordering', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const items = pm.schemaRegistry.getToolbarItems();
+			const items = h.getToolbarItems();
 			const boldPriority = items.find((i) => i.id === 'bold')?.priority;
 			const italicPriority = items.find((i) => i.id === 'italic')?.priority;
 			const underlinePriority = items.find((i) => i.id === 'underline')?.priority;
@@ -210,33 +178,28 @@ describe('TextFormattingPlugin', () => {
 		});
 
 		it('toolbar items report active state', async () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('bold', [{ type: 'bold' }])], 'b1'),
-			]);
-			const state = EditorState.create({
-				doc,
-				selection: createCollapsedSelection('b1', 2),
-				schema: { nodeTypes: ['paragraph'], markTypes: ['bold', 'italic', 'underline'] },
-			});
+			const state = stateBuilder()
+				.paragraph('bold', 'b1', { marks: [{ type: 'bold' }] })
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['bold', 'italic', 'underline'])
+				.build();
 
 			const plugin = new TextFormattingPlugin();
-			const pm = new PluginManager();
-			pm.register(plugin);
-			await pm.init(makeOptions({ getState: () => state }));
+			const h = await pluginHarness(plugin, state);
 
-			const items = pm.schemaRegistry.getToolbarItems();
-			const boldItem = items.find((i) => i.id === 'bold');
-			const italicItem = items.find((i) => i.id === 'italic');
-
-			expect(boldItem?.isActive?.(state)).toBe(true);
-			expect(italicItem?.isActive?.(state)).toBe(false);
+			expectToolbarActive(h, 'bold', true);
+			expectToolbarActive(h, 'italic', false);
 		});
 
 		it('does not register toolbar items for disabled marks', async () => {
-			const plugin = new TextFormattingPlugin({ bold: true, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: true,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			const items = pm.schemaRegistry.getToolbarItems();
+			const items = h.getToolbarItems();
 			const ids = items.map((i) => i.id);
 			expect(ids).toContain('bold');
 			expect(ids).not.toContain('italic');
@@ -247,35 +210,41 @@ describe('TextFormattingPlugin', () => {
 	describe('keymap registration', () => {
 		it('registers keymaps for enabled marks', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = h.getKeymaps();
 			expect(keymaps.length).toBeGreaterThan(0);
 
-			const keymap = keymaps[0];
-			expect(keymap?.['Mod-B']).toBeDefined();
-			expect(keymap?.['Mod-I']).toBeDefined();
-			expect(keymap?.['Mod-U']).toBeDefined();
+			expectKeyBinding(h, 'Mod-B');
+			expectKeyBinding(h, 'Mod-I');
+			expectKeyBinding(h, 'Mod-U');
 		});
 
 		it('does not register keymaps for disabled marks', async () => {
-			const plugin = new TextFormattingPlugin({ bold: true, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: true,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = h.getKeymaps();
 			expect(keymaps.length).toBeGreaterThan(0);
 
-			const keymap = keymaps[0];
-			expect(keymap?.['Mod-B']).toBeDefined();
-			expect(keymap?.['Mod-I']).toBeUndefined();
-			expect(keymap?.['Mod-U']).toBeUndefined();
+			expectKeyBinding(h, 'Mod-B');
+			expectNoKeyBinding(h, 'Mod-I');
+			expectNoKeyBinding(h, 'Mod-U');
 		});
 
 		it('does not register any keymap when all marks disabled', async () => {
-			const plugin = new TextFormattingPlugin({ bold: false, italic: false, underline: false });
-			const { pm } = await initWithPlugin(plugin);
+			const plugin = new TextFormattingPlugin({
+				bold: false,
+				italic: false,
+				underline: false,
+			});
+			const h = await pluginHarness(plugin);
 
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = h.getKeymaps();
 			expect(keymaps).toHaveLength(0);
 		});
 	});
@@ -283,20 +252,20 @@ describe('TextFormattingPlugin', () => {
 	describe('config defaults', () => {
 		it('enables all marks by default', async () => {
 			const plugin = new TextFormattingPlugin();
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.schemaRegistry.getMarkSpec('bold')).toBeDefined();
-			expect(pm.schemaRegistry.getMarkSpec('italic')).toBeDefined();
-			expect(pm.schemaRegistry.getMarkSpec('underline')).toBeDefined();
+			expect(h.getMarkSpec('bold')).toBeDefined();
+			expect(h.getMarkSpec('italic')).toBeDefined();
+			expect(h.getMarkSpec('underline')).toBeDefined();
 		});
 
 		it('partial config merges with defaults', async () => {
 			const plugin = new TextFormattingPlugin({ italic: false });
-			const { pm } = await initWithPlugin(plugin);
+			const h = await pluginHarness(plugin);
 
-			expect(pm.schemaRegistry.getMarkSpec('bold')).toBeDefined();
-			expect(pm.schemaRegistry.getMarkSpec('italic')).toBeUndefined();
-			expect(pm.schemaRegistry.getMarkSpec('underline')).toBeDefined();
+			expect(h.getMarkSpec('bold')).toBeDefined();
+			expect(h.getMarkSpec('italic')).toBeUndefined();
+			expect(h.getMarkSpec('underline')).toBeDefined();
 		});
 	});
 });
