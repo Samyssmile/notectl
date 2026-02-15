@@ -182,6 +182,7 @@ export {
 export type { InputRule } from './input/InputRule.js';
 export type { Keymap, KeymapHandler } from './input/Keymap.js';
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
+export { ClipboardHandler } from './input/ClipboardHandler.js';
 
 // --- View ---
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
@@ -312,6 +313,16 @@ export {
 	isInsideTable,
 	type TableContext,
 } from './plugins/table/TableHelpers.js';
+
+export { ImagePlugin } from './plugins/image/ImagePlugin.js';
+
+export {
+	IMAGE_UPLOAD_SERVICE,
+	type ImagePluginConfig,
+	type ImageUploadService,
+	type ImageUploadResult,
+	type ImageAttrs,
+} from './plugins/image/ImageUpload.js';
 
 // --- Decorations ---
 export type {

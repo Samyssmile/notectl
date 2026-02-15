@@ -1,6 +1,0 @@
-  Fehlende Grundfunktionen                                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                                                                    
-  4. Markdown Input Rules — Tippe #  → Heading, -  → Liste, **text** → Bold, `code` → Inline Code. Modernes Editor-UX-Pattern (Notion, Obsidian).                                                                                                                                                   
-  5. Inline Code + Code Blocks — Neuer Mark-Typ code und Block-Typ codeBlock. Standard für technische Nutzer.                                                                                                                                                                                       
-  9. Bilder — Drag & Drop, Paste aus Clipboard, Upload. Erfordert Void-Node-Konzept.
-  11. Slash Commands (/) — Modernes Pattern: Tippe / → Menü mit Block-Typen. Erwartet von jedem modernen Editor.

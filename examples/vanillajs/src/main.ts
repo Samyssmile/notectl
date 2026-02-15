@@ -5,6 +5,7 @@ import {
 	HeadingPlugin,
 	HighlightPlugin,
 	HorizontalRulePlugin,
+	ImagePlugin,
 	LinkPlugin,
 	ListPlugin,
 	STARTER_FONTS,
@@ -36,6 +37,7 @@ declare global {
 		LinkPlugin: typeof LinkPlugin;
 		TablePlugin: typeof TablePlugin;
 		HorizontalRulePlugin: typeof HorizontalRulePlugin;
+		ImagePlugin: typeof ImagePlugin;
 	}
 }
 
@@ -74,6 +76,7 @@ window.ListPlugin = ListPlugin;
 window.LinkPlugin = LinkPlugin;
 window.TablePlugin = TablePlugin;
 window.HorizontalRulePlugin = HorizontalRulePlugin;
+window.ImagePlugin = ImagePlugin;
 
 const container = document.getElementById('editor-container') as HTMLElement;
 const output = document.getElementById('output') as HTMLElement;
@@ -94,7 +97,7 @@ const output = document.getElementById('output') as HTMLElement;
 			[new HeadingPlugin(), new BlockquotePlugin()],
 			[new TextAlignmentPlugin()],
 			[new ListPlugin()],
-			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin()],
+			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 		],
 		placeholder: 'Start typing...',
 		autofocus: true,

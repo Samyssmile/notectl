@@ -6,7 +6,9 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
+import { findNodePath } from '../../model/NodeResolver.js';
 import { isNodeSelection } from '../../model/Selection.js';
+import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 
@@ -27,7 +29,7 @@ export interface TextAlignmentConfig {
 
 const DEFAULT_CONFIG: TextAlignmentConfig = {
 	alignments: ['left', 'center', 'right', 'justify'],
-	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle'],
+	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell'],
 };
 
 const ALIGNMENT_LABELS: Readonly<Record<TextAlignment, string>> = {
@@ -197,11 +199,14 @@ export class TextAlignmentPlugin implements Plugin {
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 
+		const path = findNodePath(state.doc, sel.anchor.blockId);
+		if (!path) return false;
+
 		const newAttrs = { ...block.attrs, textAlign: alignment };
 
 		const tr = state
 			.transaction('command')
-			.setNodeAttr([sel.anchor.blockId], newAttrs)
+			.setNodeAttr(path as BlockId[], newAttrs)
 			.setSelection(sel)
 			.build();
 
