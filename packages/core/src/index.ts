@@ -164,6 +164,7 @@ export {
 	toggleItalic,
 	toggleUnderline,
 	insertTextCommand,
+	insertHardBreakCommand,
 	deleteSelectionCommand,
 	deleteBackward,
 	deleteForward,
@@ -323,6 +324,8 @@ export {
 } from './plugins/table/TableHelpers.js';
 
 export { ImagePlugin } from './plugins/image/ImagePlugin.js';
+
+export { HardBreakPlugin } from './plugins/hard-break/HardBreakPlugin.js';
 
 export {
 	IMAGE_UPLOAD_SERVICE,

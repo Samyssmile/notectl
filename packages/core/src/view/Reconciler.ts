@@ -321,11 +321,20 @@ export function renderBlockContent(
 				container.appendChild(renderInlineNode(child, registry));
 			}
 		}
-		return;
+	} else {
+		// Decorated path: split content into micro-segments
+		renderDecoratedContent(container, inlineChildren, inlineDecos, registry);
 	}
 
-	// Decorated path: split content into micro-segments
-	renderDecoratedContent(container, inlineChildren, inlineDecos, registry);
+	// Trailing <br> hack: when the last child is a hard_break InlineNode,
+	// browsers won't render an empty line after a trailing <br>.
+	// Append an extra plain <br> (without contenteditable="false") so the
+	// cursor can be placed on the new line. SelectionSync skips non-
+	// contenteditable, non-text elements, so offset counting stays correct.
+	const lastChild = inlineChildren[inlineChildren.length - 1];
+	if (lastChild && isInlineNode(lastChild) && lastChild.inlineType === 'hard_break') {
+		container.appendChild(document.createElement('br'));
+	}
 }
 
 /** Fallback paragraph rendering when no NodeSpec is found. */
