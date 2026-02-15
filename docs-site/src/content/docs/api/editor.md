@@ -45,6 +45,8 @@ interface NotectlEditorConfig {
   autofocus?: boolean;
   /** Maximum undo history depth. */
   maxHistoryDepth?: number;
+  /** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
+  theme?: ThemePreset | Theme;
 }
 ```
 
@@ -143,6 +145,25 @@ Unsubscribe from an event.
 | `blur` | `undefined` | Editor lost focus |
 | `ready` | `undefined` | Initialization complete |
 
+## Theme API
+
+### `setTheme(theme: ThemePreset | Theme): void`
+
+Changes the theme at runtime. Accepts a preset string (`'light'`, `'dark'`, `'system'`) or a custom `Theme` object.
+
+```ts
+import { ThemePreset } from '@notectl/core';
+
+editor.setTheme(ThemePreset.Dark);
+editor.setTheme(myCustomTheme);
+```
+
+### `getTheme(): ThemePreset | Theme`
+
+Returns the current theme setting.
+
+See the [Theming guide](/notectl/guides/styling/) for full details on presets, custom themes, and CSS custom properties.
+
 ## Lifecycle
 
 ### `whenReady(): Promise<void>`
@@ -167,3 +188,4 @@ Cleans up the editor. The editor can be re-initialized after destruction.
 |-----------|-------------|
 | `placeholder` | Placeholder text (reflected) |
 | `readonly` | Read-only mode (reflected) |
+| `theme` | Theme preset: `"light"`, `"dark"`, or `"system"` |
