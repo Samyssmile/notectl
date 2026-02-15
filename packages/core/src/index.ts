@@ -359,6 +359,24 @@ export {
 	widget as widgetDecoration,
 } from './decorations/Decoration.js';
 
+// --- Theme ---
+export {
+	ThemePreset,
+	LIGHT_THEME,
+	DARK_THEME,
+	createTheme,
+	resolveTheme,
+} from './editor/theme/ThemeTokens.js';
+export type {
+	Theme,
+	PartialTheme,
+	ThemePrimitives,
+	ThemeToolbar,
+	ThemeCodeBlock,
+	ThemeTooltip,
+} from './editor/theme/ThemeTokens.js';
+export { generateThemeCSS, createThemeStyleSheet } from './editor/theme/ThemeEngine.js';
+
 // --- Editor ---
 export type { NotectlEditorConfig, StateChangeEvent } from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';

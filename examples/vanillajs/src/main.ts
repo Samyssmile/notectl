@@ -17,6 +17,7 @@ import {
 	TablePlugin,
 	TextColorPlugin,
 	TextFormattingPlugin,
+	ThemePreset,
 	ToolbarPlugin,
 	createEditor,
 } from '@notectl/core';
@@ -85,6 +86,7 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const editor = await createEditor({
+		theme: ThemePreset.Dark,
 		toolbar: [
 			[
 				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
@@ -99,12 +101,7 @@ const output = document.getElementById('output') as HTMLElement;
 			[
 				new HeadingPlugin(),
 				new BlockquotePlugin(),
-				new CodeBlockPlugin({
-					background: '#f8f9fa',
-					headerBackground: '#e9ecef',
-					textColor: '#212529',
-					headerColor: '#868e96',
-				}),
+				new CodeBlockPlugin(),
 			],
 			[new AlignmentPlugin()],
 			[new ListPlugin()],
@@ -157,4 +154,17 @@ const output = document.getElementById('output') as HTMLElement;
 		editor.commands.redo();
 		output.textContent = 'Redo executed';
 	});
+
+	// Theme toggle
+	const themeBtn: HTMLButtonElement = document.createElement('button');
+	themeBtn.textContent = 'Toggle Dark Mode';
+	themeBtn.style.cssText = 'margin-top:8px;padding:6px 12px;cursor:pointer;';
+	themeBtn.addEventListener('click', () => {
+		const current = editor.getTheme();
+		const next = current === ThemePreset.Dark ? ThemePreset.Light : ThemePreset.Dark;
+		editor.setTheme(next);
+		themeBtn.textContent = next === ThemePreset.Dark ? 'Toggle Light Mode' : 'Toggle Dark Mode';
+		output.textContent = `Theme: ${next}`;
+	});
+	container.parentElement?.insertBefore(themeBtn, container.nextSibling);
 })();

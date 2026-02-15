@@ -37,6 +37,8 @@ import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { EditorView } from '../view/EditorView.js';
 import { getEditorStyleSheet } from './styles.js';
+import { generateThemeCSS } from './theme/ThemeEngine.js';
+import { type Theme, ThemePreset, resolveTheme } from './theme/ThemeTokens.js';
 
 // --- Config Types ---
 
@@ -54,6 +56,8 @@ export interface NotectlEditorConfig {
 	readonly?: boolean;
 	autofocus?: boolean;
 	maxHistoryDepth?: number;
+	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
+	theme?: ThemePreset | Theme;
 }
 
 // --- Event Types ---
@@ -90,6 +94,9 @@ export class NotectlEditor extends HTMLElement {
 	private readonly readyPromise: Promise<void>;
 	private initialized = false;
 	private preInitPlugins: Plugin[] = [];
+	private themeStyleSheet: CSSStyleSheet | null = null;
+	private systemThemeQuery: MediaQueryList | null = null;
+	private systemThemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
 
 	constructor() {
 		super();
@@ -100,7 +107,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	static get observedAttributes(): string[] {
-		return ['placeholder', 'readonly'];
+		return ['placeholder', 'readonly', 'theme'];
 	}
 
 	connectedCallback(): void {
@@ -118,6 +125,9 @@ export class NotectlEditor extends HTMLElement {
 		}
 		if (name === 'readonly' && this.contentElement) {
 			this.contentElement.contentEditable = newValue === null ? 'true' : 'false';
+		}
+		if (name === 'theme' && this.initialized) {
+			this.applyTheme((newValue as ThemePreset) ?? ThemePreset.Light);
 		}
 	}
 
@@ -140,7 +150,9 @@ export class NotectlEditor extends HTMLElement {
 
 		const shadow = this.shadowRoot;
 		if (!shadow) return;
-		shadow.adoptedStyleSheets = [getEditorStyleSheet()];
+
+		// Apply theme (default: Light) — must happen before editor stylesheet
+		this.applyTheme(this.config.theme ?? ThemePreset.Light);
 
 		// 1. Build DOM structure
 		this.editorWrapper = document.createElement('div');
@@ -433,8 +445,22 @@ export class NotectlEditor extends HTMLElement {
 		this.config = { ...this.config, ...config };
 	}
 
+	// --- Theme API ---
+
+	/** Changes the theme at runtime. */
+	setTheme(theme: ThemePreset | Theme): void {
+		this.config = { ...this.config, theme };
+		this.applyTheme(theme);
+	}
+
+	/** Returns the current theme setting. */
+	getTheme(): ThemePreset | Theme {
+		return this.config.theme ?? ThemePreset.Light;
+	}
+
 	/** Cleans up the editor. Awaiting ensures async plugin teardown completes. */
 	destroy(): Promise<void> {
+		this.cleanupSystemThemeListener();
 		this.view?.destroy();
 		const pluginTeardown = this.pluginManager?.destroy() ?? Promise.resolve();
 		this.view = null;
@@ -444,6 +470,53 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	// --- Private ---
+
+	/** Applies a theme. Called during init() and on runtime changes. */
+	private applyTheme(theme: ThemePreset | Theme): void {
+		this.cleanupSystemThemeListener();
+
+		if (theme === ThemePreset.System) {
+			this.setupSystemThemeListener();
+			const resolved: Theme = resolveTheme(this.getSystemTheme());
+			this.setThemeStyleSheet(resolved);
+		} else {
+			this.setThemeStyleSheet(resolveTheme(theme));
+		}
+	}
+
+	private setThemeStyleSheet(theme: Theme): void {
+		if (!this.themeStyleSheet) {
+			this.themeStyleSheet = new CSSStyleSheet();
+		}
+		this.themeStyleSheet.replaceSync(generateThemeCSS(theme));
+
+		const shadow: ShadowRoot | null = this.shadowRoot;
+		if (shadow) {
+			shadow.adoptedStyleSheets = [this.themeStyleSheet, getEditorStyleSheet()];
+		}
+	}
+
+	private setupSystemThemeListener(): void {
+		this.systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		this.systemThemeHandler = (_e: MediaQueryListEvent): void => {
+			const resolved: Theme = resolveTheme(this.getSystemTheme());
+			this.setThemeStyleSheet(resolved);
+		};
+		this.systemThemeQuery.addEventListener('change', this.systemThemeHandler);
+	}
+
+	private cleanupSystemThemeListener(): void {
+		if (this.systemThemeQuery && this.systemThemeHandler) {
+			this.systemThemeQuery.removeEventListener('change', this.systemThemeHandler);
+		}
+		this.systemThemeQuery = null;
+		this.systemThemeHandler = null;
+	}
+
+	private getSystemTheme(): ThemePreset {
+		const prefersDark: boolean = window.matchMedia('(prefers-color-scheme: dark)').matches;
+		return prefersDark ? ThemePreset.Dark : ThemePreset.Light;
+	}
 
 	/**
 	 * Processes the declarative `toolbar` config: registers a ToolbarPlugin
