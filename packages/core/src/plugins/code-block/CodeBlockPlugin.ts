@@ -250,10 +250,10 @@ export class CodeBlockPlugin implements Plugin {
 				if (!block || block.type !== 'paragraph') return null;
 
 				const language: string = match[1] ?? '';
-				const attrs: Record<string, string | number | boolean> = {};
-				if (language) {
-					attrs.language = language;
-				}
+				const attrs: Record<string, string | number | boolean> = {
+					language,
+					backgroundColor: '',
+				};
 
 				return state
 					.transaction('input')
@@ -520,10 +520,10 @@ export class CodeBlockPlugin implements Plugin {
 		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
 		if (!block || block.type === 'code_block') return false;
 
-		const attrs: Record<string, string | number | boolean> = {};
-		if (this.config.defaultLanguage) {
-			attrs.language = this.config.defaultLanguage;
-		}
+		const attrs: Record<string, string | number | boolean> = {
+			language: this.config.defaultLanguage ?? '',
+			backgroundColor: '',
+		};
 
 		const builder: TransactionBuilder = state.transaction('command');
 		this.stripAllMarks(builder, block);

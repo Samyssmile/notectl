@@ -90,14 +90,17 @@ function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition 
 	blockEl ??= container.querySelector(`[data-block-id="${pos.blockId}"]`);
 	if (!blockEl) return null;
 
+	// Use contentDOM if available (NodeView blocks like code_block)
+	const contentEl: Element = resolveContentRoot(blockEl);
+
 	// Handle empty paragraphs with <br>
-	if (blockEl.childNodes.length === 1 && blockEl.firstChild?.nodeName === 'BR') {
-		return { node: blockEl, offset: 0 };
+	if (contentEl.childNodes.length === 1 && contentEl.firstChild?.nodeName === 'BR') {
+		return { node: contentEl, offset: 0 };
 	}
 
 	// Walk through text nodes and inline elements to find the correct position
 	let remaining = pos.offset;
-	const walker = createInlineContentWalker(blockEl);
+	const walker = createInlineContentWalker(contentEl);
 
 	let current = walker.nextNode();
 	while (current) {
@@ -126,15 +129,15 @@ function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition 
 	}
 
 	// Fallback: position at end of block
-	const lastChild = blockEl.lastChild;
+	const lastChild = contentEl.lastChild;
 	if (lastChild) {
 		if (lastChild.nodeType === Node.TEXT_NODE) {
 			return { node: lastChild, offset: lastChild.textContent?.length ?? 0 };
 		}
-		return { node: blockEl, offset: blockEl.childNodes.length };
+		return { node: contentEl, offset: contentEl.childNodes.length };
 	}
 
-	return { node: blockEl, offset: 0 };
+	return { node: contentEl, offset: 0 };
 }
 
 /** Converts a DOM position to a state position, including nested path. */
@@ -154,11 +157,15 @@ export function domPositionToState(
 	// Build path by collecting all data-block-id ancestors from leaf to root
 	const path = buildBlockPath(container, blockEl);
 
-	// Handle clicks on the block element itself (e.g. empty paragraph with <br>)
-	if (node === blockEl) {
+	// Use contentDOM if available (NodeView blocks like code_block)
+	const contentEl: Element = resolveContentRoot(blockEl);
+
+	// Handle clicks on the block or content element itself (e.g. empty paragraph with <br>)
+	if (node === blockEl || node === contentEl) {
+		const targetEl: Element = node === contentEl ? contentEl : blockEl;
 		let childOffset = 0;
 		let childIdx = 0;
-		for (const child of Array.from(blockEl.childNodes)) {
+		for (const child of Array.from(targetEl.childNodes)) {
 			if (childIdx >= domOffset) break;
 			childOffset += inlineContentWidth(child);
 			childIdx++;
@@ -166,9 +173,14 @@ export function domPositionToState(
 		return createPosition(bid, childOffset, path.length > 1 ? path : undefined);
 	}
 
+	// If node is outside the contentDOM (e.g. in NodeView header), map to offset 0
+	if (contentEl !== blockEl && !contentEl.contains(node)) {
+		return createPosition(bid, 0, path.length > 1 ? path : undefined);
+	}
+
 	// Calculate offset by walking text nodes and inline elements
 	let offset = 0;
-	const walker = createInlineContentWalker(blockEl);
+	const walker = createInlineContentWalker(contentEl);
 
 	let walkerNode = walker.nextNode();
 	while (walkerNode) {
@@ -279,6 +291,16 @@ function childIndexOf(parent: Node, child: Node): number {
 		idx++;
 	}
 	return idx;
+}
+
+/**
+ * Resolves the content root for inline content walking.
+ * If the block element has a contentDOM (marked with data-content-dom),
+ * returns it so the walker skips NodeView structural elements (headers, etc.).
+ */
+function resolveContentRoot(blockEl: Element): Element {
+	const contentDOM: Element | null = blockEl.querySelector('[data-content-dom]');
+	return contentDOM ?? blockEl;
 }
 
 /** Counts the inline content width of a DOM node (text length + 1 per inline element). */
