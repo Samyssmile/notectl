@@ -86,7 +86,7 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const editor = await createEditor({
-		theme: ThemePreset.Dark,
+		theme: ThemePreset.Light,
 		toolbar: [
 			[
 				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
