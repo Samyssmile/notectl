@@ -13,7 +13,13 @@ describe('TableNodeView', () => {
 			[
 				createBlockNode(
 					'table_row',
-					[createBlockNode('table_cell', [createTextNode('')], 'c1')],
+					[
+						createBlockNode(
+							'table_cell',
+							[createBlockNode('paragraph', [createTextNode('')], 'p1')],
+							'c1',
+						),
+					],
 					'r1',
 				),
 			],
@@ -22,7 +28,7 @@ describe('TableNodeView', () => {
 
 		const state = EditorState.create({
 			doc: createDocument([tableNode]),
-			selection: createCollapsedSelection('c1', 0),
+			selection: createCollapsedSelection('p1', 0),
 			schema: {
 				nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
 				markTypes: ['bold', 'italic', 'underline'],

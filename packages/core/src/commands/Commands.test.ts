@@ -533,7 +533,13 @@ describe('Commands', () => {
 				[
 					createBlockNode(
 						'table_row',
-						[createBlockNode('table_cell', [createTextNode('')], 'c1')],
+						[
+							createBlockNode(
+								'table_cell',
+								[createBlockNode('paragraph', [createTextNode('')], 'p1')],
+								'c1',
+							),
+						],
 						'r1',
 					),
 				],
@@ -801,7 +807,7 @@ describe('Commands', () => {
 	});
 
 	describe('Table cell isolation guards', () => {
-		it('mergeBlockBackward does not merge adjacent table cells', () => {
+		it('mergeBlockBackward does not merge paragraphs across table cells', () => {
 			const schema = createTableCellSchema();
 			const doc = createDocument([
 				createBlockNode(
@@ -810,8 +816,16 @@ describe('Commands', () => {
 						createBlockNode(
 							'table_row',
 							[
-								createBlockNode('table_cell', [createTextNode('A')], 'c1'),
-								createBlockNode('table_cell', [createTextNode('B')], 'c2'),
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('A')], 'p1')],
+									'c1',
+								),
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('B')], 'p2')],
+									'c2',
+								),
 							],
 							'r1',
 						),
@@ -821,14 +835,14 @@ describe('Commands', () => {
 			]);
 			const state = EditorState.create({
 				doc,
-				selection: createCollapsedSelection('c2', 0),
+				selection: createCollapsedSelection('p2', 0),
 				schema,
 			});
 
 			expect(mergeBlockBackward(state)).toBeNull();
 		});
 
-		it('deleteForward does not merge adjacent table cells at end-of-cell', () => {
+		it('deleteForward does not merge paragraphs across table cells', () => {
 			const schema = createTableCellSchema();
 			const doc = createDocument([
 				createBlockNode(
@@ -837,8 +851,16 @@ describe('Commands', () => {
 						createBlockNode(
 							'table_row',
 							[
-								createBlockNode('table_cell', [createTextNode('A')], 'c1'),
-								createBlockNode('table_cell', [createTextNode('B')], 'c2'),
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('A')], 'p1')],
+									'c1',
+								),
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('B')], 'p2')],
+									'c2',
+								),
 							],
 							'r1',
 						),
@@ -848,7 +870,7 @@ describe('Commands', () => {
 			]);
 			const state = EditorState.create({
 				doc,
-				selection: createCollapsedSelection('c1', 1),
+				selection: createCollapsedSelection('p1', 1),
 				schema,
 			});
 

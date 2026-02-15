@@ -5,15 +5,27 @@
 
 import DOMPurify from 'dompurify';
 import { insertTextCommand } from '../commands/Commands.js';
-import { type BlockNode, createBlockNode, isBlockNode } from '../model/Document.js';
+import {
+	type BlockAttrs,
+	type BlockNode,
+	createBlockNode,
+	createTextNode,
+	getBlockText,
+	isBlockNode,
+} from '../model/Document.js';
 import { generateBlockId } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createNodeSelection, isNodeSelection } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	isNodeSelection,
+} from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 
 export interface PasteHandlerOptions {
 	getState: GetStateFn;
@@ -55,11 +67,26 @@ export class PasteHandler {
 		// Check for file paste first
 		if (this.handleFilePaste(clipboardData)) return;
 
+		// Check in-memory rich clipboard (block structure from our own copy)
+		const plainText: string = clipboardData.getData('text/plain');
+		if (plainText) {
+			const richBlocks: readonly RichBlockData[] | undefined = consumeRichClipboard(plainText);
+			if (richBlocks && this.handleRichPaste(richBlocks)) {
+				return;
+			}
+		}
+
 		const state = this.getState();
 
 		// Try HTML first, fall back to plain text
 		const html = clipboardData.getData('text/html');
 		if (html) {
+			// Check for embedded rich block data (from programmatic paste)
+			const richJson: string | undefined = this.extractRichData(html);
+			if (richJson && this.handleRichPasteFromJson(richJson)) {
+				return;
+			}
+
 			const allowedTags: string[] = this.schemaRegistry
 				? this.schemaRegistry.getAllowedTags()
 				: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'];
@@ -80,9 +107,8 @@ export class PasteHandler {
 			return;
 		}
 
-		const text = clipboardData.getData('text/plain');
-		if (text) {
-			const tr = insertTextCommand(state, text, 'paste');
+		if (plainText) {
+			const tr = insertTextCommand(this.getState(), plainText, 'paste');
 			this.dispatch(tr);
 		}
 	}
@@ -159,6 +185,175 @@ export class PasteHandler {
 		this.dispatch(builder.build());
 	}
 
+	/** Parses JSON and delegates to handleRichPaste (for HTML-embedded data). */
+	private handleRichPasteFromJson(json: string): boolean {
+		let blocks: RichBlockData[];
+		try {
+			blocks = JSON.parse(json) as RichBlockData[];
+		} catch {
+			return false;
+		}
+		if (!Array.isArray(blocks) || blocks.length === 0) return false;
+		return this.handleRichPaste(blocks);
+	}
+
+	/**
+	 * Handles paste of rich block data (text selections that carry block structure).
+	 * Returns true if the paste was handled, false to fall through to plain-text paste.
+	 */
+	private handleRichPaste(blocks: readonly RichBlockData[]): boolean {
+		if (blocks.length === 0) return false;
+
+		// Only use rich paste for structured blocks (list_item, heading, etc.)
+		const hasStructured: boolean = blocks.some(
+			(b) => b.type !== undefined && b.type !== 'paragraph',
+		);
+		if (!hasStructured) return false;
+
+		const state = this.getState();
+		const sel = state.selection;
+		const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
+
+		const cellId: BlockId | undefined = this.findTableCellAncestor(state, anchorBlockId);
+
+		if (cellId) {
+			return this.insertRichBlocksIntoCell(blocks, state, anchorBlockId, cellId);
+		}
+		return this.insertRichBlocksAtRoot(blocks, state, anchorBlockId);
+	}
+
+	/** Inserts rich blocks as children of a table cell. */
+	private insertRichBlocksIntoCell(
+		blocks: readonly RichBlockData[],
+		state: EditorState,
+		anchorBlockId: BlockId,
+		cellId: BlockId,
+	): boolean {
+		const cellPath: BlockId[] | undefined = findNodePath(state.doc, cellId) as
+			| BlockId[]
+			| undefined;
+		if (!cellPath) return false;
+
+		const cell: BlockNode | undefined = state.getBlock(cellId);
+		if (!cell) return false;
+
+		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
+		const anchorIndex: number = cell.children.findIndex(
+			(c) => isBlockNode(c) && c.id === anchorBlockId,
+		);
+		const isAnchorEmpty: boolean =
+			anchorBlock !== undefined &&
+			anchorBlock.type === 'paragraph' &&
+			getBlockText(anchorBlock) === '';
+
+		let insertIndex: number = anchorIndex >= 0 ? anchorIndex + 1 : cell.children.length;
+		const builder = state.transaction('paste');
+		let lastBlockId: BlockId | undefined;
+		let lastTextLen = 0;
+
+		for (const blockData of blocks) {
+			if (!blockData.type) continue;
+
+			const newId: BlockId = generateBlockId();
+			const text: string = blockData.text ?? '';
+			const children = text ? [createTextNode(text)] : undefined;
+			const attrs: BlockAttrs | undefined = blockData.attrs
+				? (blockData.attrs as BlockAttrs)
+				: undefined;
+
+			const newBlock: BlockNode = createBlockNode(
+				nodeType(blockData.type) as NodeTypeName,
+				children,
+				newId,
+				attrs,
+			);
+
+			builder.insertNode(cellPath, insertIndex, newBlock);
+			insertIndex++;
+			lastBlockId = newId;
+			lastTextLen = text.length;
+		}
+
+		// Remove the empty anchor paragraph (it is still at anchorIndex in the working doc)
+		if (isAnchorEmpty && anchorIndex >= 0) {
+			builder.removeNode(cellPath, anchorIndex);
+		}
+
+		if (lastBlockId) {
+			builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
+		}
+
+		this.dispatch(builder.build());
+		return true;
+	}
+
+	/** Inserts rich blocks after the anchor block at the root/parent level. */
+	private insertRichBlocksAtRoot(
+		blocks: readonly RichBlockData[],
+		state: EditorState,
+		anchorBlockId: BlockId,
+	): boolean {
+		const path = findNodePath(state.doc, anchorBlockId);
+		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
+			parentPath.length === 0
+				? state.doc.children
+				: (() => {
+						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+						return parent ? parent.children : [];
+					})();
+
+		const anchorIndex: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
+		if (anchorIndex < 0) return false;
+
+		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
+		const isAnchorEmpty: boolean =
+			anchorBlock !== undefined &&
+			anchorBlock.type === 'paragraph' &&
+			getBlockText(anchorBlock) === '';
+
+		let insertIndex: number = anchorIndex + 1;
+		const builder = state.transaction('paste');
+		let lastBlockId: BlockId | undefined;
+		let lastTextLen = 0;
+
+		for (const blockData of blocks) {
+			if (!blockData.type) continue;
+
+			const newId: BlockId = generateBlockId();
+			const text: string = blockData.text ?? '';
+			const children = text ? [createTextNode(text)] : undefined;
+			const attrs: BlockAttrs | undefined = blockData.attrs
+				? (blockData.attrs as BlockAttrs)
+				: undefined;
+
+			const newBlock: BlockNode = createBlockNode(
+				nodeType(blockData.type) as NodeTypeName,
+				children,
+				newId,
+				attrs,
+			);
+
+			builder.insertNode(parentPath, insertIndex, newBlock);
+			insertIndex++;
+			lastBlockId = newId;
+			lastTextLen = text.length;
+		}
+
+		// Remove the empty anchor paragraph
+		if (isAnchorEmpty) {
+			builder.removeNode(parentPath, anchorIndex);
+		}
+
+		if (lastBlockId) {
+			builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
+		}
+
+		this.dispatch(builder.build());
+		return true;
+	}
+
 	/** Finds a table_cell ancestor for the given block (or the block itself). */
 	private findTableCellAncestor(state: EditorState, blockId: BlockId): BlockId | undefined {
 		const block: BlockNode | undefined = state.getBlock(blockId);
@@ -208,6 +403,15 @@ export class PasteHandler {
 		}
 
 		return false;
+	}
+
+	/** Extracts embedded rich block JSON from HTML (data-notectl-rich attribute). */
+	private extractRichData(html: string): string | undefined {
+		const template = document.createElement('template');
+		template.innerHTML = html;
+		const richEl: Element | null = template.content.querySelector('[data-notectl-rich]');
+		if (!richEl) return undefined;
+		return richEl.getAttribute('data-notectl-rich') ?? undefined;
 	}
 
 	private extractTextFromHTML(html: string): string {

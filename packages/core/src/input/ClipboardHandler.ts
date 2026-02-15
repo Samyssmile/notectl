@@ -15,6 +15,7 @@ import {
 } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import { setRichClipboard } from './InternalClipboard.js';
 
 export interface ClipboardHandlerOptions {
 	readonly getState: GetStateFn;
@@ -22,7 +23,7 @@ export interface ClipboardHandlerOptions {
 	readonly schemaRegistry?: SchemaRegistry;
 }
 
-/** Custom MIME type for internal block copy/paste round-trips. */
+/** Custom MIME type for internal block copy/paste round-trips (void/NodeSelection). */
 const BLOCK_MIME = 'application/x-notectl-block';
 
 export class ClipboardHandler {
@@ -124,6 +125,12 @@ export class ClipboardHandler {
 		const toIdx = blockOrder.indexOf(range.to.blockId);
 
 		const lines: string[] = [];
+		const richBlocks: Array<{
+			type: string;
+			text: string;
+			attrs?: Record<string, unknown>;
+		}> = [];
+
 		for (let i = fromIdx; i <= toIdx; i++) {
 			const bid = blockOrder[i];
 			if (!bid) continue;
@@ -134,10 +141,23 @@ export class ClipboardHandler {
 			const blockLen = getBlockLength(block);
 			const start = i === fromIdx ? range.from.offset : 0;
 			const end = i === toIdx ? range.to.offset : blockLen;
-			lines.push(text.slice(start, end));
+			const sliced: string = text.slice(start, end);
+			lines.push(sliced);
+
+			richBlocks.push({
+				type: block.type,
+				text: sliced,
+				...(block.attrs ? { attrs: { ...block.attrs } } : {}),
+			});
 		}
 
-		clipboardData.setData('text/plain', lines.join('\n'));
+		const plainText: string = lines.join('\n');
+		clipboardData.setData('text/plain', plainText);
+
+		// Store rich block data in memory — system clipboard strips custom MIME
+		// types and rewrites text/html, so we use an in-memory store keyed by
+		// the plain-text fingerprint to verify origin on paste.
+		setRichClipboard(plainText, richBlocks);
 	}
 
 	destroy(): void {

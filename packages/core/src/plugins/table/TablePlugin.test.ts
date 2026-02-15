@@ -36,11 +36,12 @@ function makeTableState(rows = 2, cols = 3, cursorRow = 0, cursorCol = 0): Edito
 
 	const doc = createDocument([table, para]);
 
-	// Find the cell to place cursor in
+	// Find the paragraph inside the cell to place cursor in
 	const tableRows: readonly BlockNode[] = getBlockChildren(table);
 	const row = tableRows[cursorRow];
 	const cells: readonly BlockNode[] = getBlockChildren(row);
 	const cell = cells[cursorCol];
+	const cellParagraph = getBlockChildren(cell)[0];
 
 	const schema = {
 		nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
@@ -55,7 +56,7 @@ function makeTableState(rows = 2, cols = 3, cursorRow = 0, cursorCol = 0): Edito
 
 	return EditorState.create({
 		doc,
-		selection: createCollapsedSelection(cell.id, 0),
+		selection: createCollapsedSelection(cellParagraph.id, 0),
 		schema,
 	});
 }
@@ -231,11 +232,15 @@ describe('TableHelpers', () => {
 				const cells: readonly BlockNode[] = getBlockChildren(row);
 				for (const cell of cells) {
 					ids.add(cell.id);
+					const cellChildren: readonly BlockNode[] = getBlockChildren(cell);
+					for (const child of cellChildren) {
+						ids.add(child.id);
+					}
 				}
 			}
 
-			// table(1) + rows(2) + cells(4) = 7 unique IDs
-			expect(ids.size).toBe(7);
+			// table(1) + rows(2) + cells(4) + paragraphs(4) = 11 unique IDs
+			expect(ids.size).toBe(11);
 		});
 	});
 
@@ -248,10 +253,16 @@ describe('TableHelpers', () => {
 	});
 
 	describe('createTableCell', () => {
-		it('creates a cell with empty text', () => {
+		it('creates a cell containing a paragraph', () => {
 			const cell: BlockNode = createTableCell();
 			expect(cell.type).toBe('table_cell');
-			expect(getBlockText(cell)).toBe('');
+			const children: readonly BlockNode[] = getBlockChildren(cell);
+			expect(children.length).toBe(1);
+			const para: BlockNode | undefined = children[0];
+			expect(para?.type).toBe('paragraph');
+			if (para) {
+				expect(getBlockText(para)).toBe('');
+			}
 		});
 	});
 
@@ -344,7 +355,7 @@ describe('Table insertTable command', () => {
 		}
 	});
 
-	it('places cursor in first cell after insert', async () => {
+	it('places cursor in first cell paragraph after insert', async () => {
 		const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
 		const h = await pluginHarness(new TablePlugin(), state);
 
@@ -354,8 +365,9 @@ describe('Table insertTable command', () => {
 		const table = newState.doc.children[1];
 		const firstRow = getBlockChildren(table)[0];
 		const firstCell = getBlockChildren(firstRow)[0];
+		const firstParagraph = getBlockChildren(firstCell)[0];
 
-		expect(newState.selection.anchor.blockId).toBe(firstCell?.id);
+		expect(newState.selection.anchor.blockId).toBe(firstParagraph?.id);
 		expect(newState.selection.anchor.offset).toBe(0);
 	});
 });

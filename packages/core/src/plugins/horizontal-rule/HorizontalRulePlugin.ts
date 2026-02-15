@@ -104,7 +104,7 @@ export class HorizontalRulePlugin implements Plugin {
 			group: 'block',
 			icon,
 			label: 'Horizontal Rule',
-			tooltip: 'Horizontal Rule',
+			tooltip: 'Horizontal Rule (--- + Space)',
 			command: 'insertHorizontalRule',
 			priority: 60,
 			separatorAfter: this.config.separatorAfter,
