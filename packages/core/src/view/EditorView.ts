@@ -258,6 +258,16 @@ export class EditorView {
 			return;
 		}
 
+		// If clicking inside contentDOM (e.g. code block content area),
+		// allow browser cursor placement instead of creating NodeSelection.
+		const contentDOM: Element | null = nearestBlockEl.querySelector('[data-content-dom]');
+		if (contentDOM?.contains(target)) {
+			if (isNodeSelection(this.state.selection)) {
+				this.pendingNodeSelectionClear = true;
+			}
+			return;
+		}
+
 		e.preventDefault();
 		this.contentElement.focus();
 

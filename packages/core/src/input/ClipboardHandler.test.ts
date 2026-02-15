@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Mark } from '../model/Document.js';
 import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -7,7 +8,7 @@ import {
 	createNodeSelection,
 	createSelection,
 } from '../model/Selection.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
+import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -201,6 +202,40 @@ describe('ClipboardHandler copy', () => {
 
 		expect(event.defaultPrevented).toBe(false);
 		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('writes text/html with mark tags for text selection with marks', () => {
+		const supMark: Mark = { type: markType('superscript') };
+		const doc = createDocument([
+			createBlockNode('paragraph', [createTextNode('x'), createTextNode('2', [supMark])], B1),
+		]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 2 }),
+		});
+		dispatch = vi.fn();
+		element = document.createElement('div');
+
+		const registry = new SchemaRegistry();
+		registry.registerMarkSpec({
+			type: 'superscript',
+			rank: 4,
+			toDOM: () => document.createElement('sup'),
+			toHTMLString: (_mark, content) => `<sup>${content}</sup>`,
+		});
+
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		expect(event.data.get('text/plain')).toBe('x2');
+		const html: string = event.data.get('text/html') ?? '';
+		expect(html).toBe('x<sup>2</sup>');
 	});
 });
 
