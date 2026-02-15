@@ -51,7 +51,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Toolbar Configuration', slug: 'guides/toolbar' },
 						{ label: 'Custom Fonts', slug: 'guides/custom-fonts' },
-						{ label: 'Styling & Theming', slug: 'guides/styling' },
+						{ label: 'Theming', slug: 'guides/styling' },
 						{ label: 'Working with Content', slug: 'guides/content' },
 						{ label: 'Events & Lifecycle', slug: 'guides/events' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },
