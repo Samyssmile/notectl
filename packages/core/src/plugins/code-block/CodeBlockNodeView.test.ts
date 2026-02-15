@@ -192,6 +192,51 @@ describe('CodeBlockNodeView', () => {
 		});
 	});
 
+	describe('config color overrides', () => {
+		it('sets --notectl-code-block-bg from config.background', () => {
+			const factory = createCodeBlockNodeViewFactory({ background: '#ffffff' });
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-bg')).toBe('#ffffff');
+		});
+
+		it('sets --notectl-code-block-header-bg from config.headerBackground', () => {
+			const factory = createCodeBlockNodeViewFactory({ headerBackground: '#f0f0f0' });
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-header-bg')).toBe('#f0f0f0');
+		});
+
+		it('sets --notectl-code-block-color from config.textColor', () => {
+			const factory = createCodeBlockNodeViewFactory({ textColor: '#333333' });
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-color')).toBe('#333333');
+		});
+
+		it('sets --notectl-code-block-header-color from config.headerColor', () => {
+			const factory = createCodeBlockNodeViewFactory({ headerColor: '#666666' });
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-header-color')).toBe('#666666');
+		});
+
+		it('does not set CSS custom properties when config colors are absent', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-bg')).toBe('');
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-header-bg')).toBe('');
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-color')).toBe('');
+			expect(view.dom.style.getPropertyValue('--notectl-code-block-header-color')).toBe('');
+		});
+	});
+
 	describe('selectNode / deselectNode', () => {
 		it('selectNode adds selected class', () => {
 			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);

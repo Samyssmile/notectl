@@ -96,7 +96,16 @@ const output = document.getElementById('output') as HTMLElement;
 				new SuperSubPlugin(),
 			],
 			[new TextColorPlugin(), new HighlightPlugin()],
-			[new HeadingPlugin(), new BlockquotePlugin(), new CodeBlockPlugin()],
+			[
+				new HeadingPlugin(),
+				new BlockquotePlugin(),
+				new CodeBlockPlugin({
+					background: '#f8f9fa',
+					headerBackground: '#e9ecef',
+					textColor: '#212529',
+					headerColor: '#868e96',
+				}),
+			],
 			[new AlignmentPlugin()],
 			[new ListPlugin()],
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],

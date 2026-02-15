@@ -58,6 +58,20 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		pre.appendChild(header);
 		pre.appendChild(code);
 
+		// Apply config-level color overrides as CSS custom properties
+		if (config.background) {
+			pre.style.setProperty('--notectl-code-block-bg', config.background);
+		}
+		if (config.headerBackground) {
+			pre.style.setProperty('--notectl-code-block-header-bg', config.headerBackground);
+		}
+		if (config.textColor) {
+			pre.style.setProperty('--notectl-code-block-color', config.textColor);
+		}
+		if (config.headerColor) {
+			pre.style.setProperty('--notectl-code-block-header-color', config.headerColor);
+		}
+
 		let currentNodeId: BlockId = node.id;
 
 		// --- Attribute Application ---
