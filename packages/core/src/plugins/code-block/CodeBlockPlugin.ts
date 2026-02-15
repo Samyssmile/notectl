@@ -62,6 +62,14 @@ export interface CodeBlockConfig {
 	readonly spaceCount?: number;
 	readonly showCopyButton?: boolean;
 	readonly separatorAfter?: boolean;
+	/** Default body background color (overrides --notectl-code-block-bg). */
+	readonly background?: string;
+	/** Default header background color (overrides --notectl-code-block-header-bg). */
+	readonly headerBackground?: string;
+	/** Default text color (overrides --notectl-code-block-color). */
+	readonly textColor?: string;
+	/** Default header/label text color (overrides --notectl-code-block-header-color). */
+	readonly headerColor?: string;
 }
 
 const DEFAULT_CONFIG: CodeBlockConfig = {
