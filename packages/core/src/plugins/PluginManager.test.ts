@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EditorState } from '../state/EditorState.js';
-import type { Transaction } from '../state/Transaction.js';
+import { makePluginOptions } from '../test/TestUtils.js';
 import { EventKey, ServiceKey } from './Plugin.js';
 import type { Plugin, PluginContext } from './Plugin.js';
-import { PluginManager, type PluginManagerInitOptions } from './PluginManager.js';
+import { PluginManager } from './PluginManager.js';
 
 // --- Helpers ---
 
@@ -15,17 +15,7 @@ function makePlugin(overrides: Partial<Plugin> & { id: string }): Plugin {
 	};
 }
 
-function makeOptions(overrides?: Partial<PluginManagerInitOptions>): PluginManagerInitOptions {
-	return {
-		getState: () => EditorState.create(),
-		dispatch: vi.fn(),
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-		...overrides,
-	};
-}
-
-function makeTr(): Transaction {
+function makeTr() {
 	const state = EditorState.create();
 	return state.transaction('command').build();
 }
@@ -50,7 +40,7 @@ describe('PluginManager', () => {
 		it('throws on registration after init', async () => {
 			const pm = new PluginManager();
 			pm.register(makePlugin({ id: 'a' }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(() => pm.register(makePlugin({ id: 'b' }))).toThrow('after initialization');
 		});
 
@@ -59,7 +49,10 @@ describe('PluginManager', () => {
 			const initFn = vi.fn();
 			pm.register(makePlugin({ id: 'a', init: initFn }));
 
-			const [r1, r2] = await Promise.allSettled([pm.init(makeOptions()), pm.init(makeOptions())]);
+			const [r1, r2] = await Promise.allSettled([
+				pm.init(makePluginOptions()),
+				pm.init(makePluginOptions()),
+			]);
 
 			expect(r1.status).toBe('fulfilled');
 			expect(r2.status).toBe('fulfilled');
@@ -90,7 +83,7 @@ describe('PluginManager', () => {
 				}),
 			);
 
-			const initPromise = pm.init(makeOptions());
+			const initPromise = pm.init(makePluginOptions());
 
 			// Plugin is still initializing — register should throw because initializing guard is active
 			expect(registeredDuringInit).toBe(false);
@@ -132,7 +125,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(order).toEqual(['a', 'b']);
 		});
 
@@ -156,7 +149,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(order.indexOf('parent')).toBeLessThan(order.indexOf('child'));
 		});
 
@@ -189,7 +182,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(order).toEqual(['a', 'b', 'c']);
 		});
 
@@ -197,13 +190,13 @@ describe('PluginManager', () => {
 			const pm = new PluginManager();
 			pm.register(makePlugin({ id: 'a', dependencies: ['b'] }));
 			pm.register(makePlugin({ id: 'b', dependencies: ['a'] }));
-			await expect(pm.init(makeOptions())).rejects.toThrow('Circular dependency');
+			await expect(pm.init(makePluginOptions())).rejects.toThrow('Circular dependency');
 		});
 
 		it('throws on missing dependency', async () => {
 			const pm = new PluginManager();
 			pm.register(makePlugin({ id: 'a', dependencies: ['missing'] }));
-			await expect(pm.init(makeOptions())).rejects.toThrow('not registered');
+			await expect(pm.init(makePluginOptions())).rejects.toThrow('not registered');
 		});
 	});
 
@@ -231,7 +224,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const dispatch = vi.fn();
 			const tr = makeTr();
@@ -252,7 +245,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const dispatch = vi.fn();
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), dispatch);
@@ -283,7 +276,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const dispatch = vi.fn();
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), dispatch);
@@ -307,7 +300,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const dispatch = vi.fn();
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), dispatch);
@@ -339,7 +332,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const dispatch = vi.fn();
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), dispatch);
@@ -372,7 +365,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), vi.fn());
 			expect(order).toEqual([1, 2]);
@@ -392,7 +385,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(pm.executeCommand('doSomething')).toBe(true);
 			expect(handler).toHaveBeenCalled();
@@ -421,7 +414,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 		});
 
 		it('isolates command errors', async () => {
@@ -438,7 +431,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(pm.executeCommand('crash')).toBe(false);
 			expect(errSpy).toHaveBeenCalled();
@@ -463,7 +456,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(pm.getService(greeterKey)).toBe(svc);
 		});
@@ -491,7 +484,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 		});
 
 		it('service is accessible from other plugin contexts', async () => {
@@ -518,7 +511,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(retrievedSvc).toBe(svc);
 		});
@@ -535,7 +528,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(pm.executeCommand('cmdA')).toBe(true);
 			await pm.destroy();
@@ -553,7 +546,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(pm.getService(key)).toEqual({ x: 1 });
 			await pm.destroy();
@@ -585,7 +578,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(received).toEqual([42]);
 		});
@@ -607,7 +600,7 @@ describe('PluginManager', () => {
 				}),
 			);
 			pm.register(makePlugin({ id: 'good', priority: 2, init: goodInit }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(goodInit).toHaveBeenCalled();
 			errSpy.mockRestore();
@@ -628,7 +621,7 @@ describe('PluginManager', () => {
 				}),
 			);
 			pm.register(makePlugin({ id: 'good', priority: 2, onStateChange: goodCb }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const state = EditorState.create();
 			const tr = makeTr();
@@ -653,7 +646,7 @@ describe('PluginManager', () => {
 				}),
 			);
 			pm.register(makePlugin({ id: 'good', priority: 2, destroy: goodDestroy }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			await pm.destroy();
 
 			expect(goodDestroy).toHaveBeenCalled();
@@ -693,7 +686,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			await pm.destroy();
 
 			expect(order).toEqual(['c', 'b', 'a']);
@@ -711,7 +704,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			await pm.destroy();
 
 			expect(pm.getPluginIds()).toEqual([]);
@@ -727,7 +720,7 @@ describe('PluginManager', () => {
 			const cb = vi.fn();
 
 			pm.register(makePlugin({ id: 'a', onStateChange: cb }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			const oldState = EditorState.create();
 			const newState = EditorState.create();
@@ -759,7 +752,7 @@ describe('PluginManager', () => {
 					},
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			pm.notifyStateChange(EditorState.create(), EditorState.create(), makeTr());
 			expect(order).toEqual(['a', 'b']);
@@ -772,7 +765,7 @@ describe('PluginManager', () => {
 			const onConfigure = vi.fn();
 
 			pm.register(makePlugin({ id: 'a', onConfigure }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			pm.configurePlugin('a', { foo: 'bar' });
 			expect(onConfigure).toHaveBeenCalledWith({ foo: 'bar' });
@@ -780,14 +773,14 @@ describe('PluginManager', () => {
 
 		it('throws for unknown plugin', async () => {
 			const pm = new PluginManager();
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(() => pm.configurePlugin('nope', {})).toThrow('not found');
 		});
 
 		it('is a no-op if plugin has no onConfigure', async () => {
 			const pm = new PluginManager();
 			pm.register(makePlugin({ id: 'a' }));
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 			expect(() => pm.configurePlugin('a', {})).not.toThrow();
 		});
 	});
@@ -818,7 +811,7 @@ describe('PluginManager', () => {
 					}),
 				}),
 			);
-			await pm.init(makeOptions());
+			await pm.init(makePluginOptions());
 
 			expect(received).toEqual([42]);
 		});

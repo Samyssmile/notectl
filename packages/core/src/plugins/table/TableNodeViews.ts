@@ -5,7 +5,7 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import { getBlockChildren } from '../../model/Document.js';
+import { getBlockChildren, isLeafBlock } from '../../model/Document.js';
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -144,8 +144,17 @@ export function createTableCellNodeViewFactory(registry: SchemaRegistry): NodeVi
 		if (colspan > 1) td.colSpan = colspan;
 		if (rowspan > 1) td.rowSpan = rowspan;
 
-		// Render text content
-		renderBlockContent(td, node, registry);
+		// Apply text alignment from TextAlignmentPlugin's patched attribute
+		const textAlign: string | undefined = node.attrs?.textAlign as string | undefined;
+		if (textAlign && textAlign !== 'left') {
+			td.style.textAlign = textAlign;
+		}
+
+		// Render text content only for leaf cells (cells with block children
+		// like images are rendered by the Reconciler via contentDOM)
+		if (isLeafBlock(node)) {
+			renderBlockContent(td, node, registry);
+		}
 
 		return {
 			dom: td,

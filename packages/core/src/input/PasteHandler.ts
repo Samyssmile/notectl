@@ -5,7 +5,14 @@
 
 import DOMPurify from 'dompurify';
 import { insertTextCommand } from '../commands/Commands.js';
+import { type BlockNode, createBlockNode, isBlockNode } from '../model/Document.js';
+import { generateBlockId } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createNodeSelection, isNodeSelection } from '../model/Selection.js';
+import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
+import { nodeType } from '../model/TypeBrands.js';
+import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 
 export interface PasteHandlerOptions {
@@ -37,6 +44,13 @@ export class PasteHandler {
 
 		const clipboardData = e.clipboardData;
 		if (!clipboardData) return;
+
+		// Check for internal block paste (from ClipboardHandler)
+		const blockJson: string = clipboardData.getData('application/x-notectl-block');
+		if (blockJson) {
+			this.handleBlockPaste(blockJson);
+			return;
+		}
 
 		// Check for file paste first
 		if (this.handleFilePaste(clipboardData)) return;
@@ -71,6 +85,93 @@ export class PasteHandler {
 			const tr = insertTextCommand(state, text, 'paste');
 			this.dispatch(tr);
 		}
+	}
+
+	/** Handles paste of an internal block node from ClipboardHandler. */
+	private handleBlockPaste(json: string): void {
+		let parsed: { type?: string; attrs?: Record<string, unknown> };
+		try {
+			parsed = JSON.parse(json) as { type?: string; attrs?: Record<string, unknown> };
+		} catch {
+			return;
+		}
+
+		const typeName: string | undefined = parsed.type;
+		if (!typeName) return;
+
+		// Validate that this type is known (if we have a registry)
+		if (this.schemaRegistry && !this.schemaRegistry.getNodeSpec(typeName)) return;
+
+		const state = this.getState();
+		const sel = state.selection;
+
+		// Find anchor block to insert after
+		const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
+
+		const newBlockId: BlockId = generateBlockId();
+		const attrs: Record<string, string | number | boolean> | undefined = parsed.attrs
+			? (parsed.attrs as Record<string, string | number | boolean>)
+			: undefined;
+		const newBlock: BlockNode = createBlockNode(
+			nodeType(typeName) as NodeTypeName,
+			[],
+			newBlockId,
+			attrs,
+		);
+
+		// Check if we're inside a table cell — insert as child of cell
+		const cellId: BlockId | undefined = this.findTableCellAncestor(state, anchorBlockId);
+		if (cellId) {
+			const cellPath: BlockId[] | undefined = findNodePath(state.doc, cellId) as
+				| BlockId[]
+				| undefined;
+			if (!cellPath) return;
+
+			const cell: BlockNode | undefined = state.getBlock(cellId);
+			if (!cell) return;
+
+			const builder = state.transaction('paste');
+			builder.insertNode(cellPath, cell.children.length, newBlock);
+			builder.setSelection(createNodeSelection(newBlockId, [...cellPath, newBlockId]));
+			this.dispatch(builder.build());
+			return;
+		}
+
+		// Default: insert after the anchor block at the same level
+		const path = findNodePath(state.doc, anchorBlockId);
+		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
+			parentPath.length === 0
+				? state.doc.children
+				: (() => {
+						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+						return parent ? parent.children : [];
+					})();
+
+		const index: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
+		if (index < 0) return;
+
+		const builder = state.transaction('paste');
+		builder.insertNode(parentPath, index + 1, newBlock);
+		builder.setSelection(createNodeSelection(newBlockId, [...parentPath, newBlockId]));
+
+		this.dispatch(builder.build());
+	}
+
+	/** Finds a table_cell ancestor for the given block (or the block itself). */
+	private findTableCellAncestor(state: EditorState, blockId: BlockId): BlockId | undefined {
+		const block: BlockNode | undefined = state.getBlock(blockId);
+		if (block?.type === 'table_cell') return blockId;
+
+		const path: BlockId[] | undefined = findNodePath(state.doc, blockId) as BlockId[] | undefined;
+		if (!path) return undefined;
+
+		for (const id of path) {
+			const node: BlockNode | undefined = state.getBlock(id as BlockId);
+			if (node?.type === 'table_cell') return id as BlockId;
+		}
+		return undefined;
 	}
 
 	/** Checks for files in clipboard data and delegates to registered handlers. */

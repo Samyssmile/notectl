@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	type BlockNode,
 	createBlockNode,
@@ -6,16 +6,13 @@ import {
 	createTextNode,
 	getBlockChildren,
 	getBlockText,
-	isBlockNode,
 } from '../../model/Document.js';
-import { schemaFromRegistry } from '../../model/Schema.js';
-import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js';
+import { createCollapsedSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
-import type { Plugin } from '../Plugin.js';
-import { PluginManager } from '../PluginManager.js';
+import { expectToolbarItem } from '../../test/PluginTestUtils.js';
+import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import {
 	createTable,
 	createTableCell,
@@ -73,47 +70,16 @@ function makeState(
 	cursorBlockId?: string,
 	cursorOffset?: number,
 ): EditorState {
-	const blockNodes = (blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]).map((b) =>
-		createBlockNode(b.type as NodeTypeName, [createTextNode(b.text)], b.id as BlockId, b.attrs),
+	const builder = stateBuilder();
+	for (const b of blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]) {
+		builder.block(b.type, b.text, b.id, { attrs: b.attrs });
+	}
+	builder.cursor(cursorBlockId ?? blocks?.[0]?.id ?? 'b1', cursorOffset ?? 0);
+	builder.schema(
+		['paragraph', 'table', 'table_row', 'table_cell'],
+		['bold', 'italic', 'underline'],
 	);
-	const doc = createDocument(blockNodes);
-	return EditorState.create({
-		doc,
-		selection: createCollapsedSelection(
-			(cursorBlockId ?? blockNodes[0]?.id) as BlockId,
-			cursorOffset ?? 0,
-		),
-		schema: {
-			nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
-			markTypes: ['bold', 'italic', 'underline'],
-		},
-	});
-}
-
-async function initPlugin(
-	plugin: Plugin,
-	state?: EditorState,
-): Promise<{
-	pm: PluginManager;
-	dispatch: ReturnType<typeof vi.fn>;
-	getState: () => EditorState;
-}> {
-	const pm = new PluginManager();
-	pm.register(plugin);
-	let currentState = state ?? makeState();
-
-	const trackingDispatch = vi.fn((tr: Transaction) => {
-		currentState = currentState.apply(tr);
-	});
-
-	await pm.init({
-		getState: () => currentState,
-		dispatch: trackingDispatch,
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-	});
-
-	return { pm, dispatch: trackingDispatch, getState: () => currentState };
+	return builder.build();
 }
 
 // --- Tests ---
@@ -130,40 +96,37 @@ describe('TablePlugin', () => {
 
 	describe('NodeSpec registration', () => {
 		it('registers table, table_row, and table_cell NodeSpecs', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.schemaRegistry.getNodeSpec('table')).toBeDefined();
-			expect(pm.schemaRegistry.getNodeSpec('table_row')).toBeDefined();
-			expect(pm.schemaRegistry.getNodeSpec('table_cell')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.getNodeSpec('table')).toBeDefined();
+			expect(h.getNodeSpec('table_row')).toBeDefined();
+			expect(h.getNodeSpec('table_cell')).toBeDefined();
 		});
 
 		it('table NodeSpec has isolating: true', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const spec = pm.schemaRegistry.getNodeSpec('table');
-			expect(spec?.isolating).toBe(true);
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.getNodeSpec('table')?.isolating).toBe(true);
 		});
 
 		it('table NodeSpec has selectable: true', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const spec = pm.schemaRegistry.getNodeSpec('table');
-			expect(spec?.selectable).toBe(true);
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.getNodeSpec('table')?.selectable).toBe(true);
 		});
 
 		it('table_cell NodeSpec has isolating: true', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const spec = pm.schemaRegistry.getNodeSpec('table_cell');
-			expect(spec?.isolating).toBe(true);
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.getNodeSpec('table_cell')?.isolating).toBe(true);
 		});
 
 		it('table NodeSpec toDOM creates element with data-block-id', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const spec = pm.schemaRegistry.getNodeSpec('table');
+			const h = await pluginHarness(new TablePlugin());
+			const spec = h.getNodeSpec('table');
 			const el = spec?.toDOM(createBlockNode('table', [], 'tbl-1' as BlockId));
 			expect(el?.getAttribute('data-block-id')).toBe('tbl-1');
 		});
 
 		it('table_cell NodeSpec toDOM creates td element', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const spec = pm.schemaRegistry.getNodeSpec('table_cell');
+			const h = await pluginHarness(new TablePlugin());
+			const spec = h.getNodeSpec('table_cell');
 			const el = spec?.toDOM(createBlockNode('table_cell', [createTextNode('')], 'c1' as BlockId));
 			expect(el?.tagName).toBe('TD');
 			expect(el?.getAttribute('role')).toBe('cell');
@@ -172,69 +135,68 @@ describe('TablePlugin', () => {
 
 	describe('NodeView registration', () => {
 		it('registers NodeViews for table, table_row, and table_cell', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.schemaRegistry.getNodeViewFactory('table')).toBeDefined();
-			expect(pm.schemaRegistry.getNodeViewFactory('table_row')).toBeDefined();
-			expect(pm.schemaRegistry.getNodeViewFactory('table_cell')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.pm.schemaRegistry.getNodeViewFactory('table')).toBeDefined();
+			expect(h.pm.schemaRegistry.getNodeViewFactory('table_row')).toBeDefined();
+			expect(h.pm.schemaRegistry.getNodeViewFactory('table_cell')).toBeDefined();
 		});
 	});
 
 	describe('toolbar', () => {
 		it('registers table toolbar item with grid picker', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			const item = pm.schemaRegistry.getToolbarItem('table');
-			expect(item).toBeDefined();
-			expect(item?.group).toBe('insert');
-			expect(item?.label).toBe('Insert Table');
-			expect(item?.popupType).toBe('gridPicker');
-			expect(item?.priority).toBe(80);
+			const h = await pluginHarness(new TablePlugin());
+			expectToolbarItem(h, 'table', {
+				group: 'insert',
+				label: 'Insert Table',
+				popupType: 'gridPicker',
+				priority: 80,
+			});
 		});
 
 		it('respects separatorAfter config', async () => {
-			const { pm } = await initPlugin(new TablePlugin({ separatorAfter: true }));
-			const item = pm.schemaRegistry.getToolbarItem('table');
-			expect(item?.separatorAfter).toBe(true);
+			const h = await pluginHarness(new TablePlugin({ separatorAfter: true }));
+			expectToolbarItem(h, 'table', { separatorAfter: true });
 		});
 	});
 
 	describe('command registration', () => {
 		it('registers insertTable command', async () => {
-			const { pm, dispatch } = await initPlugin(new TablePlugin());
-			const result: boolean = pm.executeCommand('insertTable');
+			const h = await pluginHarness(new TablePlugin());
+			const result: boolean = h.executeCommand('insertTable');
 			expect(result).toBe(true);
-			expect(dispatch).toHaveBeenCalled();
+			expect(h.dispatch).toHaveBeenCalled();
 		});
 
 		it('registers addRowAbove command', async () => {
 			const state = makeTableState(2, 3);
-			const { pm } = await initPlugin(new TablePlugin(), state);
+			const h = await pluginHarness(new TablePlugin(), state);
 			// Command exists but needs table context (returns false without)
-			expect(pm.executeCommand('addRowAbove')).toBeDefined();
+			expect(h.executeCommand('addRowAbove')).toBeDefined();
 		});
 
 		it('registers addRowBelow command', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.executeCommand('addRowBelow')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.executeCommand('addRowBelow')).toBeDefined();
 		});
 
 		it('registers deleteRow command', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.executeCommand('deleteRow')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.executeCommand('deleteRow')).toBeDefined();
 		});
 
 		it('registers deleteColumn command', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.executeCommand('deleteColumn')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.executeCommand('deleteColumn')).toBeDefined();
 		});
 
 		it('registers deleteTable command', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.executeCommand('deleteTable')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.executeCommand('deleteTable')).toBeDefined();
 		});
 
 		it('registers selectTable command', async () => {
-			const { pm } = await initPlugin(new TablePlugin());
-			expect(pm.executeCommand('selectTable')).toBeDefined();
+			const h = await pluginHarness(new TablePlugin());
+			expect(h.executeCommand('selectTable')).toBeDefined();
 		});
 	});
 });
@@ -360,12 +322,12 @@ describe('TableHelpers', () => {
 describe('Table insertTable command', () => {
 	it('inserts a table into the document', async () => {
 		const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-		const { pm, dispatch, getState } = await initPlugin(new TablePlugin(), state);
+		const h = await pluginHarness(new TablePlugin(), state);
 
-		pm.executeCommand('insertTable');
+		h.executeCommand('insertTable');
 
-		expect(dispatch).toHaveBeenCalled();
-		const newState = getState();
+		expect(h.dispatch).toHaveBeenCalled();
+		const newState = h.getState();
 
 		// Should have: original paragraph, table, new paragraph
 		expect(newState.doc.children.length).toBe(3);
@@ -384,11 +346,11 @@ describe('Table insertTable command', () => {
 
 	it('places cursor in first cell after insert', async () => {
 		const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
-		const { pm, getState } = await initPlugin(new TablePlugin(), state);
+		const h = await pluginHarness(new TablePlugin(), state);
 
-		pm.executeCommand('insertTable');
+		h.executeCommand('insertTable');
 
-		const newState = getState();
+		const newState = h.getState();
 		const table = newState.doc.children[1];
 		const firstRow = getBlockChildren(table)[0];
 		const firstCell = getBlockChildren(firstRow)[0];

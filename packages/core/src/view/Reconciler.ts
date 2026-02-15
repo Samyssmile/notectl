@@ -147,6 +147,20 @@ export function reconcile(
 			}
 		}
 	}
+
+	// Handle selection for nested NodeViews (e.g. images inside table cells)
+	if (previousSelectedNodeId && previousSelectedNodeId !== selectedNodeId) {
+		const nested = nodeViews?.get(previousSelectedNodeId);
+		if (nested && !newBlockIds.has(previousSelectedNodeId)) {
+			nested.deselectNode?.();
+		}
+	}
+	if (selectedNodeId && !newBlockIds.has(selectedNodeId)) {
+		const nested = nodeViews?.get(selectedNodeId);
+		if (nested) {
+			nested.selectNode?.();
+		}
+	}
 }
 
 /** Checks whether a block has changed by comparing its children, attrs, and decorations. */

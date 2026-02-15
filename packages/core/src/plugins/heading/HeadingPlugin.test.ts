@@ -1,20 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	type BlockNode,
 	type Mark,
 	createBlockNode,
-	createDocument,
 	createTextNode,
 	getBlockText,
 	getInlineChildren,
 	isTextNode,
 } from '../../model/Document.js';
-import { createCollapsedSelection } from '../../model/Selection.js';
 import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
-import { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
-import type { Plugin } from '../Plugin.js';
-import { PluginManager } from '../PluginManager.js';
+import {
+	expectCommandRegistered,
+	expectKeyBinding,
+	expectNodeSpec,
+	expectToolbarActive,
+	expectToolbarItem,
+} from '../../test/PluginTestUtils.js';
+import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from './HeadingPlugin.js';
 
 // --- Helpers ---
@@ -22,10 +24,6 @@ import { HeadingPlugin } from './HeadingPlugin.js';
 type BlockWithAttrs = Omit<BlockNode, 'attrs'> & {
 	readonly attrs: Record<string, string | number | boolean>;
 };
-
-function assertDefined<T>(value: T | undefined | null): asserts value is T {
-	expect(value).toBeDefined();
-}
 
 const BOLD_MARK: Mark = { type: markType('bold') };
 const ITALIC_MARK: Mark = { type: markType('italic') };
@@ -42,45 +40,18 @@ function makeState(
 	}[],
 	cursorBlockId?: string,
 	cursorOffset?: number,
-): EditorState {
-	const blockNodes = (blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]).map((b) =>
-		createBlockNode(nodeType(b.type), [createTextNode(b.text, b.marks)], blockId(b.id), b.attrs),
+) {
+	const builder = stateBuilder();
+	for (const b of blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]) {
+		builder.block(b.type, b.text, b.id, { marks: b.marks, attrs: b.attrs });
+	}
+	const bid = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
+	builder.cursor(bid, cursorOffset ?? 0);
+	builder.schema(
+		['paragraph', 'heading', 'title', 'subtitle'],
+		['bold', 'italic', 'underline', 'fontSize'],
 	);
-	const doc = createDocument(blockNodes);
-	return EditorState.create({
-		doc,
-		selection: createCollapsedSelection(
-			blockId(cursorBlockId ?? blockNodes[0]?.id ?? ''),
-			cursorOffset ?? 0,
-		),
-		schema: {
-			nodeTypes: ['paragraph', 'heading', 'title', 'subtitle'],
-			markTypes: ['bold', 'italic', 'underline', 'fontSize'],
-		},
-	});
-}
-
-async function initPlugin(
-	plugin: Plugin,
-	state?: EditorState,
-): Promise<{ pm: PluginManager; dispatch: ReturnType<typeof vi.fn>; getState: () => EditorState }> {
-	const pm = new PluginManager();
-	pm.register(plugin);
-	let currentState = state ?? makeState();
-
-	// Apply dispatched transactions to state for realistic behavior
-	const trackingDispatch = vi.fn((tr: Transaction) => {
-		currentState = currentState.apply(tr);
-	});
-
-	await pm.init({
-		getState: () => currentState,
-		dispatch: trackingDispatch,
-		getContainer: () => document.createElement('div'),
-		getPluginContainer: () => document.createElement('div'),
-	});
-
-	return { pm, dispatch: trackingDispatch, getState: () => currentState };
+	return builder.build();
 }
 
 // --- Tests ---
@@ -96,29 +67,16 @@ describe('HeadingPlugin', () => {
 	});
 
 	describe('NodeSpec', () => {
-		it('registers heading NodeSpec', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.schemaRegistry.getNodeSpec('heading')).toBeDefined();
-		});
-
-		it('registers title NodeSpec', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.schemaRegistry.getNodeSpec('title')).toBeDefined();
-		});
-
-		it('registers subtitle NodeSpec', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-			expect(pm.schemaRegistry.getNodeSpec('subtitle')).toBeDefined();
+		it('registers heading, title, and subtitle NodeSpecs', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			expectNodeSpec(h, 'heading');
+			expectNodeSpec(h, 'title');
+			expectNodeSpec(h, 'subtitle');
 		});
 
 		it('heading NodeSpec creates correct HTML tag for each level', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getNodeSpec('heading');
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('heading');
 
 			for (let level = 1; level <= 6; level++) {
 				const block = createBlockNode(nodeType('heading'), [createTextNode('')], blockId('test'), {
@@ -131,20 +89,16 @@ describe('HeadingPlugin', () => {
 		});
 
 		it('heading NodeSpec defaults to h1 without level attr', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getNodeSpec('heading');
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('heading');
 			const block = createBlockNode(nodeType('heading'), [createTextNode('')], blockId('test'));
 			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H1');
 		});
 
 		it('title NodeSpec creates h1 with notectl-title class', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getNodeSpec('title');
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('title');
 			const block = createBlockNode(nodeType('title'), [createTextNode('')], blockId('test'));
 			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H1');
@@ -153,10 +107,8 @@ describe('HeadingPlugin', () => {
 		});
 
 		it('subtitle NodeSpec creates h2 with notectl-subtitle class', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const spec = pm.schemaRegistry.getNodeSpec('subtitle');
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('subtitle');
 			const block = createBlockNode(nodeType('subtitle'), [createTextNode('')], blockId('test'));
 			const el = spec?.toDOM(block as BlockWithAttrs);
 			expect(el?.tagName).toBe('H2');
@@ -167,142 +119,123 @@ describe('HeadingPlugin', () => {
 
 	describe('commands', () => {
 		it('registers setHeading commands for all levels', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
+			const h = await pluginHarness(new HeadingPlugin());
 			for (let level = 1; level <= 6; level++) {
-				expect(pm.executeCommand(`setHeading${level}`)).toBe(true);
+				expectCommandRegistered(h, `setHeading${level}`);
 			}
 		});
 
 		it('registers setParagraph command', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			expect(pm.executeCommand('setParagraph')).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin());
+			expectCommandRegistered(h, 'setParagraph');
 		});
 
 		it('registers setTitle command', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			expect(pm.executeCommand('setTitle')).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin());
+			expectCommandRegistered(h, 'setTitle');
 		});
 
 		it('registers setSubtitle command', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			expect(pm.executeCommand('setSubtitle')).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin());
+			expectCommandRegistered(h, 'setSubtitle');
 		});
 
 		it('setHeading1 converts paragraph to heading', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, dispatch, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading1');
+			h.executeCommand('setHeading1');
 
-			expect(dispatch).toHaveBeenCalled();
-			expect(getState().doc.children[0]?.type).toBe('heading');
-			expect(getState().doc.children[0]?.attrs?.level).toBe(1);
+			expect(h.dispatch).toHaveBeenCalled();
+			expect(h.getState().doc.children[0]?.type).toBe('heading');
+			expect(h.getState().doc.children[0]?.attrs?.level).toBe(1);
 		});
 
 		it('setHeading2 sets level 2', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading2');
-			expect(getState().doc.children[0]?.attrs?.level).toBe(2);
+			h.executeCommand('setHeading2');
+			expect(h.getState().doc.children[0]?.attrs?.level).toBe(2);
 		});
 
 		it('toggling same heading level reverts to paragraph', async () => {
 			const state = makeState([{ type: 'heading', text: 'Hello', id: 'b1', attrs: { level: 1 } }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading1');
-			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			h.executeCommand('setHeading1');
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
 		});
 
 		it('toggling different heading level changes level', async () => {
 			const state = makeState([{ type: 'heading', text: 'Hello', id: 'b1', attrs: { level: 1 } }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading3');
-			expect(getState().doc.children[0]?.type).toBe('heading');
-			expect(getState().doc.children[0]?.attrs?.level).toBe(3);
+			h.executeCommand('setHeading3');
+			expect(h.getState().doc.children[0]?.type).toBe('heading');
+			expect(h.getState().doc.children[0]?.attrs?.level).toBe(3);
 		});
 
 		it('setParagraph converts heading back to paragraph', async () => {
 			const state = makeState([{ type: 'heading', text: 'Hello', id: 'b1', attrs: { level: 2 } }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setParagraph');
-			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			h.executeCommand('setParagraph');
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
 		});
 
 		it('preserves text content when toggling', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello World', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading1');
-			const block = getState().doc.children[0];
+			h.executeCommand('setHeading1');
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(getBlockText(block)).toBe('Hello World');
 		});
 
 		it('setTitle converts paragraph to title', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'My Title', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, dispatch, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
+			h.executeCommand('setTitle');
 
-			expect(dispatch).toHaveBeenCalled();
-			expect(getState().doc.children[0]?.type).toBe('title');
+			expect(h.dispatch).toHaveBeenCalled();
+			expect(h.getState().doc.children[0]?.type).toBe('title');
 		});
 
 		it('setSubtitle converts paragraph to subtitle', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'My Subtitle', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, dispatch, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setSubtitle');
+			h.executeCommand('setSubtitle');
 
-			expect(dispatch).toHaveBeenCalled();
-			expect(getState().doc.children[0]?.type).toBe('subtitle');
+			expect(h.dispatch).toHaveBeenCalled();
+			expect(h.getState().doc.children[0]?.type).toBe('subtitle');
 		});
 
 		it('toggling title when already title reverts to paragraph', async () => {
 			const state = makeState([{ type: 'title', text: 'My Title', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
-			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			h.executeCommand('setTitle');
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
 		});
 
 		it('toggling subtitle when already subtitle reverts to paragraph', async () => {
 			const state = makeState([{ type: 'subtitle', text: 'My Subtitle', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setSubtitle');
-			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			h.executeCommand('setSubtitle');
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
 		});
 
 		it('preserves text content when switching to title', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello World', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
-			const block = getState().doc.children[0];
+			h.executeCommand('setTitle');
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(getBlockText(block)).toBe('Hello World');
 		});
@@ -310,88 +243,66 @@ describe('HeadingPlugin', () => {
 
 	describe('config', () => {
 		it('restricts commands to configured levels', async () => {
-			const plugin = new HeadingPlugin({ levels: [1, 2, 3] });
-			const { pm } = await initPlugin(plugin);
+			const h = await pluginHarness(new HeadingPlugin({ levels: [1, 2, 3] }));
 
-			expect(pm.executeCommand('setHeading1')).toBe(true);
-			expect(pm.executeCommand('setHeading2')).toBe(true);
-			expect(pm.executeCommand('setHeading3')).toBe(true);
-			expect(pm.executeCommand('setHeading4')).toBe(false);
-			expect(pm.executeCommand('setHeading5')).toBe(false);
-			expect(pm.executeCommand('setHeading6')).toBe(false);
+			expectCommandRegistered(h, 'setHeading1');
+			expectCommandRegistered(h, 'setHeading2');
+			expectCommandRegistered(h, 'setHeading3');
+			expect(h.executeCommand('setHeading4')).toBe(false);
+			expect(h.executeCommand('setHeading5')).toBe(false);
+			expect(h.executeCommand('setHeading6')).toBe(false);
 		});
 
 		it('title and subtitle are always available regardless of config', async () => {
-			const plugin = new HeadingPlugin({ levels: [1] });
-			const { pm } = await initPlugin(plugin);
-
-			expect(pm.executeCommand('setTitle')).toBe(true);
-			expect(pm.executeCommand('setSubtitle')).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin({ levels: [1] }));
+			expectCommandRegistered(h, 'setTitle');
+			expectCommandRegistered(h, 'setSubtitle');
 		});
 	});
 
 	describe('keymap registration', () => {
 		it('registers keymaps for all levels', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const keymaps = pm.schemaRegistry.getKeymaps();
-			expect(keymaps.length).toBeGreaterThan(0);
-
-			const keymap = keymaps[0];
+			const h = await pluginHarness(new HeadingPlugin());
 			for (let level = 1; level <= 6; level++) {
-				expect(keymap?.[`Mod-Shift-${level}`]).toBeDefined();
+				expectKeyBinding(h, `Mod-Shift-${level}`);
 			}
 		});
 
 		it('restricts keymaps to configured levels', async () => {
-			const plugin = new HeadingPlugin({ levels: [1, 2] });
-			const { pm } = await initPlugin(plugin);
+			const h = await pluginHarness(new HeadingPlugin({ levels: [1, 2] }));
+			expectKeyBinding(h, 'Mod-Shift-1');
+			expectKeyBinding(h, 'Mod-Shift-2');
 
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = h.getKeymaps();
 			const keymap = keymaps[0];
-			expect(keymap?.['Mod-Shift-1']).toBeDefined();
-			expect(keymap?.['Mod-Shift-2']).toBeDefined();
 			expect(keymap?.['Mod-Shift-3']).toBeUndefined();
 		});
 	});
 
 	describe('input rules', () => {
 		it('registers input rules for each level', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			expect(rules.length).toBe(6);
+			const h = await pluginHarness(new HeadingPlugin());
+			expect(h.getInputRules().length).toBe(6);
 		});
 
 		it('input rule pattern matches "# " for H1', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const h1Rule = rules[0];
+			const h = await pluginHarness(new HeadingPlugin());
+			const h1Rule = h.getInputRules()[0];
 			expect(h1Rule?.pattern.test('# ')).toBe(true);
 			expect(h1Rule?.pattern.test('## ')).toBe(false);
 		});
 
 		it('input rule pattern matches "## " for H2', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const h2Rule = rules[1];
+			const h = await pluginHarness(new HeadingPlugin());
+			const h2Rule = h.getInputRules()[1];
 			expect(h2Rule?.pattern.test('## ')).toBe(true);
 			expect(h2Rule?.pattern.test('# ')).toBe(false);
 		});
 
 		it('input rule handler converts paragraph to heading', async () => {
 			const state = makeState([{ type: 'paragraph', text: '# ', id: 'b1' }], 'b1', 2);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const h1Rule = rules[0];
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const h1Rule = h.getInputRules()[0];
 
 			const match = '# '.match(h1Rule?.pattern ?? /$/);
 			assertDefined(match);
@@ -410,11 +321,8 @@ describe('HeadingPlugin', () => {
 				'b1',
 				2,
 			);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const rules = pm.schemaRegistry.getInputRules();
-			const h1Rule = rules[0];
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const h1Rule = h.getInputRules()[0];
 			const match = '# '.match(h1Rule?.pattern ?? /$/);
 			assertDefined(match);
 			const tr = h1Rule?.handler(state, match, 0, 2);
@@ -425,85 +333,69 @@ describe('HeadingPlugin', () => {
 
 	describe('toolbar item', () => {
 		it('registers a heading toolbar item with custom popup', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
+			const h = await pluginHarness(new HeadingPlugin());
+			expectToolbarItem(h, 'heading', {
+				group: 'block',
+				popupType: 'custom',
+			});
 
-			const item = pm.schemaRegistry.getToolbarItem('heading');
-			expect(item).toBeDefined();
-			expect(item?.group).toBe('block');
+			const item = h.getToolbarItem('heading');
 			expect(item?.icon).toContain('data-heading-label');
-			expect(item?.popupType).toBe('custom');
 		});
 
 		it('combobox label defaults to Paragraph', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const item = pm.schemaRegistry.getToolbarItem('heading');
+			const h = await pluginHarness(new HeadingPlugin());
+			const item = h.getToolbarItem('heading');
 			expect(item?.icon).toContain('Paragraph');
 		});
 
 		it('isActive returns true when cursor is in heading', async () => {
 			const state = makeState([{ type: 'heading', text: 'Title', id: 'b1', attrs: { level: 1 } }]);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('heading');
-			expect(item?.isActive?.(state)).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectToolbarActive(h, 'heading', true);
 		});
 
 		it('isActive returns true when cursor is in title', async () => {
 			const state = makeState([{ type: 'title', text: 'My Title', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('heading');
-			expect(item?.isActive?.(state)).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectToolbarActive(h, 'heading', true);
 		});
 
 		it('isActive returns true when cursor is in subtitle', async () => {
 			const state = makeState([{ type: 'subtitle', text: 'My Subtitle', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('heading');
-			expect(item?.isActive?.(state)).toBe(true);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectToolbarActive(h, 'heading', true);
 		});
 
 		it('isActive returns false when cursor is in paragraph', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin, state);
-
-			const item = pm.schemaRegistry.getToolbarItem('heading');
-			expect(item?.isActive?.(state)).toBe(false);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectToolbarActive(h, 'heading', false);
 		});
 	});
 
 	describe('excludeMarks', () => {
 		it('NodeSpecs declare excludeMarks for fontSize', async () => {
-			const plugin = new HeadingPlugin();
-			const { pm } = await initPlugin(plugin);
-
-			const titleSpec = pm.schemaRegistry.getNodeSpec('title');
-			const subtitleSpec = pm.schemaRegistry.getNodeSpec('subtitle');
-			const headingSpec = pm.schemaRegistry.getNodeSpec('heading');
-
-			expect(titleSpec?.excludeMarks).toContain('fontSize');
-			expect(subtitleSpec?.excludeMarks).toContain('fontSize');
-			expect(headingSpec?.excludeMarks).toContain('fontSize');
+			const h = await pluginHarness(new HeadingPlugin());
+			expectNodeSpec(h, 'title', { excludeMarks: ['fontSize'] });
+			expectNodeSpec(h, 'subtitle', { excludeMarks: ['fontSize'] });
+			expectNodeSpec(h, 'heading', { excludeMarks: ['fontSize'] });
 		});
 
 		it('setTitle strips fontSize marks from text', async () => {
 			const state = makeState([
-				{ type: 'paragraph', text: 'Hello World', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+				{
+					type: 'paragraph',
+					text: 'Hello World',
+					id: 'b1',
+					marks: [BOLD_MARK, FONT_SIZE_12],
+				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
+			h.executeCommand('setTitle');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(block.type).toBe('title');
 
@@ -518,14 +410,18 @@ describe('HeadingPlugin', () => {
 
 		it('setTitle preserves bold marks', async () => {
 			const state = makeState([
-				{ type: 'paragraph', text: 'Hello', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+				{
+					type: 'paragraph',
+					text: 'Hello',
+					id: 'b1',
+					marks: [BOLD_MARK, FONT_SIZE_12],
+				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
+			h.executeCommand('setTitle');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			const inlineChildren = getInlineChildren(block);
 			const hasBold = inlineChildren.some(
@@ -536,14 +432,18 @@ describe('HeadingPlugin', () => {
 
 		it('setSubtitle strips fontSize marks', async () => {
 			const state = makeState([
-				{ type: 'paragraph', text: 'Subtitle', id: 'b1', marks: [FONT_SIZE_24] },
+				{
+					type: 'paragraph',
+					text: 'Subtitle',
+					id: 'b1',
+					marks: [FONT_SIZE_24],
+				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setSubtitle');
+			h.executeCommand('setSubtitle');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(block.type).toBe('subtitle');
 
@@ -557,14 +457,18 @@ describe('HeadingPlugin', () => {
 
 		it('setHeading1 strips fontSize marks', async () => {
 			const state = makeState([
-				{ type: 'paragraph', text: 'Heading', id: 'b1', marks: [FONT_SIZE_12] },
+				{
+					type: 'paragraph',
+					text: 'Heading',
+					id: 'b1',
+					marks: [FONT_SIZE_12],
+				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading1');
+			h.executeCommand('setHeading1');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(block.type).toBe('heading');
 
@@ -578,13 +482,17 @@ describe('HeadingPlugin', () => {
 
 		it('preserves text content when stripping marks', async () => {
 			const state = makeState([
-				{ type: 'paragraph', text: 'Hello World', id: 'b1', marks: [BOLD_MARK, FONT_SIZE_12] },
+				{
+					type: 'paragraph',
+					text: 'Hello World',
+					id: 'b1',
+					marks: [BOLD_MARK, FONT_SIZE_12],
+				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
-			const block = getState().doc.children[0];
+			h.executeCommand('setTitle');
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(getBlockText(block)).toBe('Hello World');
 		});
@@ -598,12 +506,11 @@ describe('HeadingPlugin', () => {
 					marks: [BOLD_MARK, ITALIC_MARK, FONT_SIZE_24],
 				},
 			]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setHeading2');
+			h.executeCommand('setHeading2');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			const inlineChildren = getInlineChildren(block);
 			const markTypes: string[] = [];
@@ -620,13 +527,19 @@ describe('HeadingPlugin', () => {
 		});
 
 		it('no-op when block has no excluded marks', async () => {
-			const state = makeState([{ type: 'paragraph', text: 'Plain', id: 'b1', marks: [BOLD_MARK] }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const state = makeState([
+				{
+					type: 'paragraph',
+					text: 'Plain',
+					id: 'b1',
+					marks: [BOLD_MARK],
+				},
+			]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
+			h.executeCommand('setTitle');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(block.type).toBe('title');
 			const inlineChildren = getInlineChildren(block);
@@ -638,21 +551,26 @@ describe('HeadingPlugin', () => {
 
 		it('handles empty block without crashing', async () => {
 			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setTitle');
-			expect(getState().doc.children[0]?.type).toBe('title');
+			h.executeCommand('setTitle');
+			expect(h.getState().doc.children[0]?.type).toBe('title');
 		});
 
 		it('setParagraph does not strip marks (no excludeMarks on paragraph)', async () => {
-			const state = makeState([{ type: 'title', text: 'Title', id: 'b1', marks: [BOLD_MARK] }]);
-			const plugin = new HeadingPlugin();
-			const { pm, getState } = await initPlugin(plugin, state);
+			const state = makeState([
+				{
+					type: 'title',
+					text: 'Title',
+					id: 'b1',
+					marks: [BOLD_MARK],
+				},
+			]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			pm.executeCommand('setParagraph');
+			h.executeCommand('setParagraph');
 
-			const block = getState().doc.children[0];
+			const block = h.getState().doc.children[0];
 			assertDefined(block);
 			expect(block.type).toBe('paragraph');
 			const inlineChildren = getInlineChildren(block);
