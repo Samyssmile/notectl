@@ -46,10 +46,17 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 			copyBtn.innerHTML = COPY_ICON;
 		}
 
+		// Screen reader live region for copy feedback
+		const copyAnnouncer: HTMLSpanElement = document.createElement('span');
+		copyAnnouncer.className = 'notectl-sr-only';
+		copyAnnouncer.setAttribute('aria-live', 'assertive');
+		copyAnnouncer.setAttribute('aria-atomic', 'true');
+
 		header.appendChild(langLabel);
 		if (copyBtn) {
 			header.appendChild(copyBtn);
 		}
+		header.appendChild(copyAnnouncer);
 
 		// Content area (Reconciler target)
 		const code: HTMLElement = document.createElement('code');
@@ -105,6 +112,12 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 
 				const text: string = getBlockText(block);
 				navigator.clipboard.writeText(text);
+
+				// Announce to screen readers
+				copyAnnouncer.textContent = 'Copied to clipboard';
+				setTimeout(() => {
+					copyAnnouncer.textContent = '';
+				}, 1000);
 			});
 		}
 

@@ -151,4 +151,37 @@ test.describe('Tab Key Behavior', () => {
 		text = await editor.getText();
 		expect(text.trim()).toBe('Hello');
 	});
+
+	test('Escape exits the editor (WCAG 2.1.2)', async ({ editor, page }) => {
+		await editor.typeText('Some text');
+
+		// Verify focus is inside the editor
+		const focusedBefore = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const content = el?.shadowRoot?.querySelector('.notectl-content');
+			return content?.contains(document.activeElement) || el?.shadowRoot?.activeElement === content;
+		});
+		expect(focusedBefore).toBe(true);
+
+		// Press Escape to exit
+		await page.keyboard.press('Escape');
+
+		// Content area should no longer have focus
+		const focusedAfter = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const content = el?.shadowRoot?.querySelector('.notectl-content');
+			return content?.contains(document.activeElement) || el?.shadowRoot?.activeElement === content;
+		});
+		expect(focusedAfter).toBe(false);
+	});
+
+	test('content area has aria-description for exit hint', async ({ editor, page }) => {
+		await editor.focus();
+		const desc = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const content = el?.shadowRoot?.querySelector('.notectl-content');
+			return content?.getAttribute('aria-description');
+		});
+		expect(desc).toBe('Press Escape to exit the editor');
+	});
 });

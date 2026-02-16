@@ -54,6 +54,14 @@ export class EditorPage {
 		return this.root.locator('[aria-live="polite"]');
 	}
 
+	popup(): Locator {
+		return this.root.locator('.notectl-toolbar-popup');
+	}
+
+	dropdownItems(): Locator {
+		return this.root.locator('[role="menuitem"]');
+	}
+
 	// ── Navigation ──────────────────────────────────────────────
 
 	async goto(): Promise<void> {

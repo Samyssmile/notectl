@@ -173,6 +173,7 @@ export type TransactionOrigin = 'input' | 'paste' | 'command' | 'history' | 'api
 export interface TransactionMetadata {
 	readonly origin: TransactionOrigin;
 	readonly timestamp: number;
+	readonly historyDirection?: 'undo' | 'redo';
 }
 
 export interface Transaction {

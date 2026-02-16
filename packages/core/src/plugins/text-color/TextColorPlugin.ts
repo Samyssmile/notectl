@@ -417,6 +417,7 @@ export class TextColorPlugin implements Plugin {
 				swatch.style.border = '1px solid #d0d0d0';
 			}
 			swatch.title = color;
+			swatch.setAttribute('aria-label', `Text color ${color}`);
 
 			swatch.addEventListener('mousedown', (e) => {
 				e.preventDefault();

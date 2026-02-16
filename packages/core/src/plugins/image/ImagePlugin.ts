@@ -292,6 +292,7 @@ export class ImagePlugin implements Plugin {
 
 		const uploadLabel: HTMLLabelElement = document.createElement('label');
 		uploadLabel.textContent = 'Upload from computer';
+		uploadLabel.setAttribute('aria-label', 'Upload image from computer');
 		uploadLabel.style.cssText =
 			'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
 			'text-align:center;box-sizing:border-box;' +
@@ -333,6 +334,7 @@ export class ImagePlugin implements Plugin {
 		const urlInput: HTMLInputElement = document.createElement('input');
 		urlInput.type = 'url';
 		urlInput.placeholder = 'https://...';
+		urlInput.setAttribute('aria-label', 'Image URL');
 		urlInput.style.cssText =
 			'width:100%;padding:6px 8px;box-sizing:border-box;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +
@@ -341,6 +343,7 @@ export class ImagePlugin implements Plugin {
 		const insertBtn: HTMLButtonElement = document.createElement('button');
 		insertBtn.type = 'button';
 		insertBtn.textContent = 'Insert';
+		insertBtn.setAttribute('aria-label', 'Insert image');
 		insertBtn.style.cssText =
 			'width:100%;padding:8px 12px;margin-top:4px;cursor:pointer;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +
