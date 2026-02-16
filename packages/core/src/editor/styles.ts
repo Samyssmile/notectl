@@ -74,6 +74,11 @@ const EDITOR_CSS = `
 	color: var(--notectl-primary-fg);
 }
 
+.notectl-toolbar-btn:focus-visible {
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+	outline: none;
+}
+
 .notectl-toolbar-btn:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
@@ -133,6 +138,12 @@ const EDITOR_CSS = `
 	overflow: hidden;
 }
 
+/* Grid Picker */
+.notectl-grid-picker__cell:focus-visible {
+	outline: 2px solid var(--notectl-focus-ring);
+	outline-offset: -1px;
+}
+
 /* Dropdown */
 .notectl-dropdown {
 	min-width: 160px;
@@ -155,8 +166,13 @@ const EDITOR_CSS = `
 	white-space: nowrap;
 }
 
-.notectl-dropdown__item:hover {
+.notectl-dropdown__item:hover,
+.notectl-dropdown__item:focus-visible {
 	background: var(--notectl-hover-bg);
+}
+
+.notectl-dropdown__item:focus-visible {
+	outline: none;
 }
 
 .notectl-dropdown__item-icon {
@@ -513,9 +529,15 @@ const EDITOR_CSS = `
 	transition: transform 0.1s;
 }
 
-.notectl-color-picker__swatch:hover {
+.notectl-color-picker__swatch:hover,
+.notectl-color-picker__swatch:focus-visible {
 	transform: scale(1.25);
 	z-index: 1;
+}
+
+.notectl-color-picker__swatch:focus-visible {
+	outline: 2px solid var(--notectl-focus-ring);
+	outline-offset: 1px;
 }
 
 .notectl-color-picker__swatch--active {
@@ -866,7 +888,8 @@ const EDITOR_CSS = `
 	pointer-events: none;
 }
 
-.ntbl-container:hover .ntbl-col-bar {
+.ntbl-container:hover .ntbl-col-bar,
+.ntbl-container:focus-within .ntbl-col-bar {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -890,7 +913,8 @@ const EDITOR_CSS = `
 	pointer-events: none;
 }
 
-.ntbl-container:hover .ntbl-row-bar {
+.ntbl-container:hover .ntbl-row-bar,
+.ntbl-container:focus-within .ntbl-row-bar {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -950,14 +974,21 @@ const EDITOR_CSS = `
 		background 0.15s, color 0.15s;
 }
 
-.ntbl-handle:hover .ntbl-handle-delete {
+.ntbl-handle:hover .ntbl-handle-delete,
+.ntbl-handle:focus-within .ntbl-handle-delete {
 	opacity: 1;
 	transform: scale(1);
 }
 
-.ntbl-handle-delete:hover {
+.ntbl-handle-delete:hover,
+.ntbl-handle-delete:focus-visible {
 	background: var(--notectl-danger-muted);
 	color: var(--notectl-danger);
+}
+
+.ntbl-handle-delete:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 /* --- Insert Lines --- */
@@ -1030,10 +1061,16 @@ const EDITOR_CSS = `
 	transform: translateY(-50%);
 }
 
-.ntbl-insert-btn:hover {
+.ntbl-insert-btn:hover,
+.ntbl-insert-btn:focus-visible {
 	background: var(--notectl-primary);
 	color: var(--notectl-bg);
 	box-shadow: 0 2px 12px var(--notectl-focus-ring);
+}
+
+.ntbl-insert-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 .ntbl-insert-line--horizontal .ntbl-insert-btn:hover {
@@ -1057,7 +1094,8 @@ const EDITOR_CSS = `
 		border-color 0.2s ease;
 }
 
-.ntbl-container:hover .ntbl-add-zone {
+.ntbl-container:hover .ntbl-add-zone,
+.ntbl-container:focus-within .ntbl-add-zone {
 	opacity: 1;
 }
 
@@ -1084,13 +1122,20 @@ const EDITOR_CSS = `
 }
 
 .ntbl-container:hover .ntbl-delete-table-btn,
+.ntbl-container:focus-within .ntbl-delete-table-btn,
 .ntbl-container.notectl-table--selected .ntbl-delete-table-btn {
 	opacity: 1;
 }
 
-.ntbl-delete-table-btn:hover {
+.ntbl-delete-table-btn:hover,
+.ntbl-delete-table-btn:focus-visible {
 	background: var(--notectl-danger-muted);
 	border-color: var(--notectl-danger);
+}
+
+.ntbl-delete-table-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 .ntbl-add-row {
@@ -1103,10 +1148,16 @@ const EDITOR_CSS = `
 	transform: translateY(100%);
 }
 
-.ntbl-add-row:hover {
+.ntbl-add-row:hover,
+.ntbl-add-row:focus-visible {
 	background: var(--notectl-primary-muted);
 	border-color: var(--notectl-primary);
 	color: var(--notectl-primary);
+}
+
+.ntbl-add-row:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 .ntbl-add-col {
@@ -1120,10 +1171,16 @@ const EDITOR_CSS = `
 	transform: translateX(100%);
 }
 
-.ntbl-add-col:hover {
+.ntbl-add-col:hover,
+.ntbl-add-col:focus-visible {
 	background: var(--notectl-primary-muted);
 	border-color: var(--notectl-primary);
 	color: var(--notectl-primary);
+}
+
+.ntbl-add-col:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
 }
 
 .ntbl-add-icon {
@@ -1358,6 +1415,29 @@ const EDITOR_CSS = `
 .notectl-node-selected {
 	outline: 2px solid var(--notectl-primary);
 	outline-offset: 2px;
+}
+
+/* Reduced motion preference (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+	.notectl-toolbar-btn,
+	.notectl-image__resize-handle,
+	.notectl-image__size-indicator,
+	.notectl-color-picker__swatch,
+	.notectl-font-picker__item,
+	.notectl-heading-picker__item,
+	.notectl-font-size-picker__item,
+	.ntbl-handle,
+	.ntbl-handle-delete,
+	.ntbl-insert-line,
+	.ntbl-insert-btn,
+	.ntbl-add-zone,
+	.ntbl-add-icon,
+	.ntbl-col-bar,
+	.ntbl-row-bar,
+	.ntbl-delete-table-btn,
+	.notectl-code-block__copy {
+		transition: none !important;
+	}
 }
 `;
 

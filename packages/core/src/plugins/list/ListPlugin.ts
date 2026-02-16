@@ -129,7 +129,15 @@ export class ListPlugin implements Plugin {
 
 				if (listType === 'checklist') {
 					li.setAttribute('data-checked', String(checked));
+					li.setAttribute('aria-checked', String(checked));
+					li.setAttribute('aria-roledescription', 'checklist item');
+				} else {
+					li.setAttribute(
+						'aria-roledescription',
+						listType === 'ordered' ? 'numbered list item' : 'list item',
+					);
 				}
+				li.setAttribute('aria-level', String(indent + 1));
 
 				return li;
 			},

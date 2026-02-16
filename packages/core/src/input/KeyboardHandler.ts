@@ -73,6 +73,9 @@ export class KeyboardHandler {
 		// Tab fallback: insert tab character when no plugin handled it
 		if (this.handleTab(e)) return;
 
+		// Escape fallback: exit editor when no plugin handled it (WCAG 2.1.2)
+		if (this.handleEscape(e)) return;
+
 		// Fall back to built-in structural shortcuts
 		const mod = e.metaKey || e.ctrlKey;
 		if (!mod) return;
@@ -172,6 +175,18 @@ export class KeyboardHandler {
 		const state = this.getState();
 		const tr: Transaction = insertTextCommand(state, '\t');
 		this.dispatch(tr);
+		return true;
+	}
+
+	/**
+	 * Exits the editor when Escape is pressed and no plugin handled it.
+	 * Satisfies WCAG 2.1.2 "No Keyboard Trap" — since Tab is intercepted
+	 * for indent/insert, Escape provides the keyboard exit mechanism.
+	 */
+	private handleEscape(e: KeyboardEvent): boolean {
+		if (e.key !== 'Escape') return false;
+
+		this.element.blur();
 		return true;
 	}
 
