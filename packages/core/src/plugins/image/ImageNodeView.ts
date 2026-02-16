@@ -36,6 +36,13 @@ const HANDLE_X_SIGN: Readonly<Record<HandlePosition, 1 | -1>> = {
 	se: 1,
 };
 
+const HANDLE_LABELS: Readonly<Record<HandlePosition, string>> = {
+	nw: 'Resize top-left',
+	ne: 'Resize top-right',
+	sw: 'Resize bottom-left',
+	se: 'Resize bottom-right',
+};
+
 // --- Global cursor override during resize ---
 
 let activeCursorStyle: HTMLStyleElement | null = null;
@@ -120,9 +127,16 @@ export function createImageNodeViewFactory(
 			}
 
 			const uploadState: UploadState = uploadStates.get(n.id) ?? 'idle';
-			overlay.classList.toggle('notectl-image__overlay--uploading', uploadState === 'uploading');
+			const isUploading: boolean = uploadState === 'uploading';
+			overlay.classList.toggle('notectl-image__overlay--uploading', isUploading);
 			overlay.classList.toggle('notectl-image__overlay--error', uploadState === 'error');
-			overlay.textContent = uploadState === 'uploading' ? 'Uploading...' : '';
+			overlay.textContent = isUploading ? 'Uploading...' : '';
+
+			if (isUploading) {
+				figure.setAttribute('aria-busy', 'true');
+			} else {
+				figure.removeAttribute('aria-busy');
+			}
 		}
 
 		applyAttrs(node);
@@ -226,6 +240,8 @@ export function createImageNodeViewFactory(
 			for (const pos of positions) {
 				const handle: HTMLDivElement = document.createElement('div');
 				handle.className = `notectl-image__resize-handle notectl-image__resize-handle--${pos}`;
+				handle.setAttribute('aria-label', HANDLE_LABELS[pos]);
+				handle.setAttribute('aria-roledescription', 'resize handle');
 				attachHandleListeners(handle, pos, nodeId, sizeIndicator);
 				resizeOverlay.appendChild(handle);
 			}

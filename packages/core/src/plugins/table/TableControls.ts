@@ -180,6 +180,7 @@ function createButton(className: string, innerHTML: string, title: string): HTML
 	btn.innerHTML = innerHTML;
 	btn.title = title;
 	btn.type = 'button';
+	btn.setAttribute('aria-label', title);
 	btn.setAttribute('contenteditable', 'false');
 	btn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
@@ -200,23 +201,25 @@ function buildInsertLine(orientation: 'horizontal' | 'vertical'): HTMLDivElement
 	return line;
 }
 
-function buildAddButton(className: string, title: string): HTMLDivElement {
-	const container: HTMLDivElement = document.createElement('div');
-	container.className = `ntbl-add-zone ${className}`;
-	container.setAttribute('contenteditable', 'false');
-	container.title = title;
+function buildAddButton(className: string, title: string): HTMLButtonElement {
+	const btn: HTMLButtonElement = document.createElement('button');
+	btn.className = `ntbl-add-zone ${className}`;
+	btn.type = 'button';
+	btn.setAttribute('contenteditable', 'false');
+	btn.setAttribute('aria-label', title);
+	btn.title = title;
 
 	const icon: HTMLSpanElement = document.createElement('span');
 	icon.className = 'ntbl-add-icon';
 	icon.innerHTML = PLUS_SVG;
-	container.appendChild(icon);
+	btn.appendChild(icon);
 
-	container.addEventListener('mousedown', (e: MouseEvent) => {
+	btn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
 	});
 
-	return container;
+	return btn;
 }
 
 function buildHandleBar(className: string): HTMLDivElement {
@@ -269,8 +272,8 @@ export function createTableControls(
 	const rowBar: HTMLDivElement = buildHandleBar('ntbl-row-bar');
 	const insertLineH: HTMLDivElement = buildInsertLine('horizontal');
 	const insertLineV: HTMLDivElement = buildInsertLine('vertical');
-	const addRowZone: HTMLDivElement = buildAddButton('ntbl-add-row', 'Add row');
-	const addColZone: HTMLDivElement = buildAddButton('ntbl-add-col', 'Add column');
+	const addRowZone: HTMLButtonElement = buildAddButton('ntbl-add-row', 'Add row');
+	const addColZone: HTMLButtonElement = buildAddButton('ntbl-add-col', 'Add column');
 	const deleteTableBtn: HTMLButtonElement = createButton(
 		'ntbl-delete-table-btn',
 		TABLE_DELETE_SVG,

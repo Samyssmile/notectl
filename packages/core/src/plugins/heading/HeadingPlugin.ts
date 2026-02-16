@@ -317,6 +317,8 @@ export class HeadingPlugin implements Plugin {
 
 		const list: HTMLDivElement = document.createElement('div');
 		list.className = 'notectl-heading-picker__list';
+		list.setAttribute('role', 'listbox');
+		list.setAttribute('aria-label', 'Block types');
 
 		const addItem = (
 			label: string,
@@ -374,6 +376,8 @@ export class HeadingPlugin implements Plugin {
 		const item: HTMLButtonElement = document.createElement('button');
 		item.type = 'button';
 		item.className = 'notectl-heading-picker__item';
+		item.setAttribute('role', 'option');
+		item.setAttribute('aria-selected', String(isActive));
 
 		if (isActive) {
 			item.classList.add('notectl-heading-picker__item--active');
