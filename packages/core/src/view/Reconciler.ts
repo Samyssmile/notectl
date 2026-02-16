@@ -130,7 +130,8 @@ export function reconcile(
 			previousSibling = newEl;
 		}
 
-		// Handle NodeSelection visual state
+		// Handle NodeSelection visual state (CSS class only — aria-selected is
+		// invalid on generic block elements like <figure>, <pre>, etc.)
 		if (selectedNodeId === block.id) {
 			const nv = nodeViews?.get(block.id);
 			if (nv) {

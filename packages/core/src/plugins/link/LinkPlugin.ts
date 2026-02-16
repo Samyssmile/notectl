@@ -292,6 +292,7 @@ export class LinkPlugin implements Plugin {
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';
 			removeBtn.textContent = 'Remove Link';
+			removeBtn.setAttribute('aria-label', 'Remove link');
 			removeBtn.style.cssText = 'width:100%;padding:6px 12px;cursor:pointer;';
 			removeBtn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
@@ -304,11 +305,13 @@ export class LinkPlugin implements Plugin {
 			const input = document.createElement('input');
 			input.type = 'url';
 			input.placeholder = 'https://...';
+			input.setAttribute('aria-label', 'URL');
 			input.style.cssText = 'width:100%;padding:4px;box-sizing:border-box;';
 
 			const applyBtn = document.createElement('button');
 			applyBtn.type = 'button';
 			applyBtn.textContent = 'Apply';
+			applyBtn.setAttribute('aria-label', 'Apply link');
 			applyBtn.style.cssText = 'width:100%;padding:6px 12px;margin-top:4px;cursor:pointer;';
 
 			applyBtn.addEventListener('mousedown', (e) => {

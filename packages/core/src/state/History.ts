@@ -103,7 +103,7 @@ export class HistoryManager {
 			selectionBefore: state.selection,
 			selectionAfter: currentState.selection,
 			storedMarksAfter: currentState.storedMarks,
-			metadata: { origin: 'history', timestamp: Date.now() },
+			metadata: { origin: 'history', timestamp: Date.now(), historyDirection: 'undo' },
 		};
 
 		return { state: currentState, transaction };
@@ -136,7 +136,7 @@ export class HistoryManager {
 			selectionBefore: state.selection,
 			selectionAfter: currentState.selection,
 			storedMarksAfter: currentState.storedMarks,
-			metadata: { origin: 'history', timestamp: Date.now() },
+			metadata: { origin: 'history', timestamp: Date.now(), historyDirection: 'redo' },
 		};
 
 		return { state: currentState, transaction };

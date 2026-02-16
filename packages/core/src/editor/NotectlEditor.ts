@@ -124,7 +124,13 @@ export class NotectlEditor extends HTMLElement {
 			this.contentElement.setAttribute('data-placeholder', newValue ?? '');
 		}
 		if (name === 'readonly' && this.contentElement) {
-			this.contentElement.contentEditable = newValue === null ? 'true' : 'false';
+			const isReadonly: boolean = newValue !== null;
+			this.contentElement.contentEditable = isReadonly ? 'false' : 'true';
+			if (isReadonly) {
+				this.contentElement.setAttribute('aria-readonly', 'true');
+			} else {
+				this.contentElement.removeAttribute('aria-readonly');
+			}
 		}
 		if (name === 'theme' && this.initialized) {
 			this.applyTheme((newValue as ThemePreset) ?? ThemePreset.Light);
@@ -167,6 +173,10 @@ export class NotectlEditor extends HTMLElement {
 		this.contentElement.setAttribute('role', 'textbox');
 		this.contentElement.setAttribute('aria-multiline', 'true');
 		this.contentElement.setAttribute('aria-label', 'Rich text editor');
+		if (this.config.readonly) {
+			this.contentElement.setAttribute('aria-readonly', 'true');
+		}
+		this.contentElement.setAttribute('aria-description', 'Press Escape to exit the editor');
 		this.contentElement.setAttribute(
 			'data-placeholder',
 			this.config.placeholder ?? 'Start typing...',
@@ -440,6 +450,11 @@ export class NotectlEditor extends HTMLElement {
 
 		if (config.readonly !== undefined && this.contentElement) {
 			this.contentElement.contentEditable = config.readonly ? 'false' : 'true';
+			if (config.readonly) {
+				this.contentElement.setAttribute('aria-readonly', 'true');
+			} else {
+				this.contentElement.removeAttribute('aria-readonly');
+			}
 		}
 
 		this.config = { ...this.config, ...config };
@@ -581,8 +596,8 @@ export class NotectlEditor extends HTMLElement {
 			this.emit('selectionChange', { selection: newState.selection });
 		}
 
-		// Announce formatting changes for screen readers
-		this.announceFormatChange(oldState, newState);
+		// Announce state changes for screen readers (priority-ordered)
+		this.announceStateChange(oldState, newState, tr);
 	}
 
 	private updateEmptyState(): void {
@@ -590,10 +605,29 @@ export class NotectlEditor extends HTMLElement {
 		this.contentElement.classList.toggle('notectl-content--empty', this.isEmpty());
 	}
 
-	private announceFormatChange(oldState: EditorState, newState: EditorState): void {
+	private announceStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
 		if (!this.announcer) return;
 
-		// Announce changes for all mark types in the schema
+		// Priority 1: Undo/Redo
+		if (tr.metadata.historyDirection === 'undo') {
+			this.announcer.textContent = 'Undo';
+			return;
+		}
+		if (tr.metadata.historyDirection === 'redo') {
+			this.announcer.textContent = 'Redo';
+			return;
+		}
+
+		// Priority 2: Block type changes
+		for (const step of tr.steps) {
+			if (step.type === 'setBlockType') {
+				const label = getBlockTypeLabel(step.nodeType, step.attrs);
+				this.announcer.textContent = label;
+				return;
+			}
+		}
+
+		// Priority 3: Mark changes
 		const markTypes = newState.schema.markTypes;
 		for (const mt of markTypes) {
 			const branded = toMarkType(mt);
@@ -816,6 +850,25 @@ export class NotectlEditor extends HTMLElement {
 }
 
 // --- Helpers ---
+
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+	paragraph: 'Paragraph',
+	heading: 'Heading',
+	code_block: 'Code Block',
+	blockquote: 'Block Quote',
+	list_item: 'List Item',
+	horizontal_rule: 'Horizontal Rule',
+	image: 'Image',
+	table: 'Table',
+};
+
+/** Returns a human-readable label for a block type (used in screen reader announcements). */
+function getBlockTypeLabel(typeName: string, attrs?: Record<string, unknown>): string {
+	if (typeName === 'heading' && attrs?.level) {
+		return `Heading ${attrs.level}`;
+	}
+	return BLOCK_TYPE_LABELS[typeName] ?? typeName;
+}
 
 /** Matches an element against block parse rules. Returns matched type and attrs. */
 function matchBlockParseRule(
