@@ -96,6 +96,7 @@ import {
   LinkPlugin,
   ListPlugin,
   TablePlugin,
+  CodeBlockPlugin,
   HorizontalRulePlugin,
   StrikethroughPlugin,
   TextColorPlugin,
@@ -117,6 +118,8 @@ const editor = await createEditor({
     [new ListPlugin()],
     // Tables
     [new TablePlugin()],
+    // Code blocks
+    [new CodeBlockPlugin()],
     // Additional inline formatting
     [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
     // Typography: Alignment, Font, Size
@@ -144,6 +147,7 @@ Each plugin has a `priority` number that determines its rendering order within a
 | BlockquotePlugin | 25 |
 | LinkPlugin | 30 |
 | ListPlugin | 35 |
+| CodeBlockPlugin | 36 |
 | TablePlugin | 40 |
 | HorizontalRulePlugin | 50 |
 | StrikethroughPlugin | 20 |
