@@ -3,7 +3,7 @@ set -euo pipefail
 
 ALL_PACKAGES=(
   "core:packages/core"
-  "angular:packages/angular/dist"
+  "angular:packages/angular"
 )
 
 ROOT_DIR="$(pwd)"
