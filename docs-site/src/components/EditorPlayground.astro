@@ -16,21 +16,25 @@
 
 <script>
 	import {
+		AlignmentPlugin,
 		BlockquotePlugin,
+		CodeBlockPlugin,
 		FontPlugin,
 		FontSizePlugin,
+		HardBreakPlugin,
 		HeadingPlugin,
 		HighlightPlugin,
 		HorizontalRulePlugin,
+		ImagePlugin,
 		LinkPlugin,
 		ListPlugin,
 		STARTER_FONTS,
 		StrikethroughPlugin,
 		SuperSubPlugin,
 		TablePlugin,
-		AlignmentPlugin,
 		TextColorPlugin,
 		TextFormattingPlugin,
+		ThemePreset,
 		createEditor,
 	} from '@notectl/core';
 
@@ -39,6 +43,7 @@
 
 	if (container && output) {
 		const editor = await createEditor({
+			theme: ThemePreset.Light,
 			toolbar: [
 				[
 					new FontPlugin({ fonts: [...STARTER_FONTS] }),
@@ -57,15 +62,17 @@
 					new SuperSubPlugin(),
 				],
 				[new TextColorPlugin(), new HighlightPlugin()],
-				[new HeadingPlugin(), new BlockquotePlugin()],
+				[new HeadingPlugin(), new BlockquotePlugin(), new CodeBlockPlugin()],
 				[new AlignmentPlugin()],
 				[new ListPlugin()],
 				[
 					new LinkPlugin(),
 					new TablePlugin(),
 					new HorizontalRulePlugin(),
+					new ImagePlugin(),
 				],
 			],
+			plugins: [new HardBreakPlugin()],
 			placeholder: 'Start typing to try notectl...',
 			autofocus: false,
 		});
