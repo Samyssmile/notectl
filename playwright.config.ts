@@ -8,20 +8,39 @@ export default defineConfig({
 	workers: process.env.CI ? 1 : undefined,
 	reporter: 'html',
 	use: {
-		baseURL: 'http://localhost:3000',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 	},
 	projects: [
 		{
 			name: 'chromium',
-			use: { ...devices['Desktop Chrome'] },
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:3000',
+			},
+			testIgnore: /angular/,
+		},
+		{
+			name: 'angular',
+			use: {
+				...devices['Desktop Chrome'],
+				baseURL: 'http://localhost:4200',
+			},
+			testMatch: /angular/,
 		},
 	],
-	webServer: {
-		command: 'pnpm --filter examples-vanillajs dev',
-		url: 'http://localhost:3000',
-		reuseExistingServer: !process.env.CI,
-		timeout: 10000,
-	},
+	webServer: [
+		{
+			command: 'pnpm --filter examples-vanillajs dev',
+			url: 'http://localhost:3000',
+			reuseExistingServer: !process.env.CI,
+			timeout: 10000,
+		},
+		{
+			command: 'pnpm --filter angular start',
+			url: 'http://localhost:4200',
+			reuseExistingServer: !process.env.CI,
+			timeout: 60000,
+		},
+	],
 });
