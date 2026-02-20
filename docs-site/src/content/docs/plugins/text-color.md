@@ -30,7 +30,7 @@ interface TextColorConfig {
 }
 ```
 
-Colors must be valid hex values (`#RGB` or `#RRGGBB`). Invalid values are filtered out. Duplicates (case-insensitive) are removed.
+Colors must be valid hex values (`#RGB` or `#RRGGBB`). Invalid values cause an error to be thrown. Duplicates (case-insensitive) are removed.
 
 ## Commands
 

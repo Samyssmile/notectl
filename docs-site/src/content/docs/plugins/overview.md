@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **16 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **18 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -14,12 +14,13 @@ notectl ships with **16 built-in plugins**. Every editor feature — from bold t
 | Plugin | ID | Description | Keyboard Shortcuts |
 |--------|----|-------------|-------------------|
 | [TextFormattingPlugin](/notectl/plugins/text-formatting/) | `text-formatting` | Bold, italic, underline | `Ctrl+B`, `Ctrl+I`, `Ctrl+U` |
-| [HeadingPlugin](/notectl/plugins/heading/) | `heading` | Heading levels 1-6 | `Ctrl+Shift+1`-`6` |
+| [HeadingPlugin](/notectl/plugins/heading/) | `heading` | Heading levels 1-6, Title, Subtitle | `Ctrl+Shift+1`-`6` |
 | [ListPlugin](/notectl/plugins/list/) | `list` | Bullet, ordered, and checklist | `Tab`, `Shift+Tab` |
 | [LinkPlugin](/notectl/plugins/link/) | `link` | Hyperlinks | `Ctrl+K` |
 | [TablePlugin](/notectl/plugins/table/) | `table` | Tables with cell selection | `Tab`, `Enter` |
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
+| [ImagePlugin](/notectl/plugins/image/) | `image` | Image blocks with upload support | - |
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
 | [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`-` |
 | [TextColorPlugin](/notectl/plugins/text-color/) | `textColor` | Text color picker | - |
@@ -28,6 +29,7 @@ notectl ships with **16 built-in plugins**. Every editor feature — from bold t
 | [SuperSubPlugin](/notectl/plugins/super-sub/) | `super-sub` | Superscript & subscript | `Ctrl+.`, `Ctrl+,` |
 | [HighlightPlugin](/notectl/plugins/highlight/) | `highlight` | Text highlight (background color) | - |
 | [HorizontalRulePlugin](/notectl/plugins/horizontal-rule/) | `horizontal-rule` | Horizontal divider lines | - |
+| [HardBreakPlugin](/notectl/plugins/hard-break/) | `hard-break` | Line breaks within a block | `Shift+Enter` |
 | [ToolbarPlugin](/notectl/plugins/toolbar/) | `toolbar` | Toolbar UI (auto-created) | - |
 
 ## How Plugins Work
@@ -43,16 +45,20 @@ interface Plugin {
   /** Toolbar ordering (lower = further left). */
   readonly priority?: number;
   /** Required plugin IDs that must be loaded first. */
-  readonly dependencies?: string[];
+  readonly dependencies?: readonly string[];
 
   /** Register schema, commands, keymaps, toolbar items. */
-  init(context: PluginContext): void;
+  init(context: PluginContext): void | Promise<void>;
   /** Clean up when the editor is destroyed. */
-  destroy?(): void;
+  destroy?(): void | Promise<void>;
   /** Called on every state change (for reactive updates). */
   onStateChange?(oldState: EditorState, newState: EditorState, tr: Transaction): void;
+  /** Called when configurePlugin() is used at runtime. */
+  onConfigure?(config: TConfig): void;
   /** Called once after all plugins are initialized. */
-  onReady?(): void;
+  onReady?(): void | Promise<void>;
+  /** Returns decorations for the current state. */
+  decorations?(state: EditorState, tr?: Transaction): DecorationSet;
 }
 ```
 
@@ -64,12 +70,16 @@ Plugins register through the `PluginContext`:
 |--------|-------------|---------|
 | `registerNodeSpec()` | New block types | heading, list_item, table, blockquote |
 | `registerMarkSpec()` | New inline marks | bold, italic, link, textColor |
+| `registerInlineNodeSpec()` | New inline elements | hard_break, emoji, mention |
 | `registerCommand()` | Named commands | toggleBold, insertTable, alignCenter |
 | `registerKeymap()` | Keyboard shortcuts | `Mod-B` for bold, `Mod-K` for link |
 | `registerInputRule()` | Text pattern transforms | `# ` to heading, `---` to horizontal rule |
 | `registerToolbarItem()` | Toolbar buttons/dropdowns | Bold button, heading dropdown, color picker |
+| `registerBlockTypePickerEntry()` | Block type dropdown entries | Heading levels, paragraph, title |
+| `registerNodeView()` | Custom block renderers | Code block header, image upload UI, table controls |
 | `registerMiddleware()` | Transaction interceptors | Preserve alignment on block type change |
 | `registerService()` | Typed services | ToolbarService, TableSelectionService |
+| `registerFileHandler()` | File paste/drop handlers | Image upload on drag-and-drop |
 
 ## Plugin Composition
 
@@ -82,7 +92,7 @@ const editor = await createEditor({
     [new HeadingPlugin()],                  // Group 2: Heading dropdown
     [new ListPlugin(), new BlockquotePlugin()], // Group 3: Lists + blockquote
     [new LinkPlugin(), new TablePlugin()],  // Group 4: Link + table
-    [new CodeBlockPlugin()],                // Group 5: Code blocks
+    [new CodeBlockPlugin()],               // Group 5: Code blocks
   ],
 });
 ```

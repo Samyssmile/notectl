@@ -72,9 +72,8 @@ import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core';
 
 | Command | Description | Returns |
 |---------|-------------|---------|
+| `setFont` | Reserved — font is applied via the toolbar popup | `false` |
 | `removeFont` | Remove font mark from selection (reset to default) | `boolean` |
-
-Font application is handled through the plugin's internal `applyFont()` method, triggered by the toolbar popup.
 
 ## Toolbar
 

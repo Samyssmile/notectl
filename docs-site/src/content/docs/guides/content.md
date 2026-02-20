@@ -19,22 +19,21 @@ Returns a `Document` object:
 
 ```json
 {
-  "type": "doc",
   "children": [
     {
       "type": "heading",
       "id": "abc123",
       "attrs": { "level": 1 },
       "children": [
-        { "text": "Hello ", "marks": [] },
-        { "text": "World", "marks": [{ "type": "bold" }] }
+        { "type": "text", "text": "Hello ", "marks": [] },
+        { "type": "text", "text": "World", "marks": [{ "type": "bold" }] }
       ]
     },
     {
       "type": "paragraph",
       "id": "def456",
       "children": [
-        { "text": "Some text here.", "marks": [] }
+        { "type": "text", "text": "Some text here.", "marks": [] }
       ]
     }
   ]
@@ -142,8 +141,8 @@ editor.commands.toggleUnderline();
 // Execute named commands from plugins
 editor.executeCommand('toggleStrikethrough');
 editor.executeCommand('insertHorizontalRule');
-editor.executeCommand('toggleOrderedList');
-editor.executeCommand('toggleBulletList');
+editor.executeCommand('toggleList:ordered');
+editor.executeCommand('toggleList:bullet');
 editor.executeCommand('toggleBlockquote');
 
 // Undo / Redo

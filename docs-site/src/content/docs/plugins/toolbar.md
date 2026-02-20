@@ -110,6 +110,8 @@ toolbarService.refresh();
 interface ToolbarServiceAPI {
   /** Re-reads isActive/isEnabled from state and updates all buttons. */
   refresh(): void;
+  /** Closes any open toolbar popup (font picker, color picker, etc.). */
+  closePopup(): void;
 }
 ```
 

@@ -35,20 +35,21 @@ interface TableConfig {
 | Command | Description | Returns |
 |---------|-------------|---------|
 | `insertTable` | Insert a table (via grid picker selection) | `boolean` |
-| `addRowBefore` | Insert row above current cell | `boolean` |
-| `addRowAfter` | Insert row below current cell | `boolean` |
-| `addColumnBefore` | Insert column to the left of current cell | `boolean` |
-| `addColumnAfter` | Insert column to the right of current cell | `boolean` |
+| `addRowAbove` | Insert row above current cell | `boolean` |
+| `addRowBelow` | Insert row below current cell | `boolean` |
+| `addColumnLeft` | Insert column to the left of current cell | `boolean` |
+| `addColumnRight` | Insert column to the right of current cell | `boolean` |
 | `deleteRow` | Delete the row containing the cursor | `boolean` |
 | `deleteColumn` | Delete the column containing the cursor | `boolean` |
 | `deleteTable` | Delete the entire table | `boolean` |
+| `selectTable` | Select the entire table | `boolean` |
 
 ```ts
 // Insert a table programmatically
 editor.executeCommand('insertTable');
 
 // Modify table structure
-editor.executeCommand('addRowAfter');
+editor.executeCommand('addRowBelow');
 editor.executeCommand('deleteColumn');
 ```
 
@@ -56,9 +57,12 @@ editor.executeCommand('deleteColumn');
 
 | Shortcut | Action |
 |----------|--------|
-| `Tab` | Move to next cell (wraps to next row) |
+| `Tab` | Move to next cell (wraps to next row, adds row at end) |
 | `Shift+Tab` | Move to previous cell |
-| `Enter` | Move to cell below (adds new row if at bottom) |
+| `Enter` | Move to cell below |
+| `Backspace` | Delete content or merge with previous cell |
+| `Delete` | Delete content or merge with next cell |
+| `Escape` | Exit table selection |
 | Arrow keys | Navigate between cells |
 
 ## Toolbar

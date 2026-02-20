@@ -162,12 +162,11 @@ editor.setHTML('<h1>Hello</h1><p>Welcome to <strong>notectl</strong>!</p>');
 
 // Set content from JSON (Document model)
 editor.setJSON({
-  type: 'doc',
   children: [
     {
       type: 'paragraph',
       id: 'block-1',
-      children: [{ text: 'Hello world', marks: [] }],
+      children: [{ type: 'text', text: 'Hello world', marks: [] }],
     },
   ],
 });
@@ -191,7 +190,7 @@ editor.executeCommand('insertHorizontalRule');
 ```
 
 <Aside type="tip">
-  Check the [Toolbar Configuration](/guides/toolbar/) guide to learn how to customize the toolbar layout and appearance.
+  Check the [Toolbar Configuration](/notectl/guides/toolbar/) guide to learn how to customize the toolbar layout and appearance.
 </Aside>
 
 ## Framework Integration
