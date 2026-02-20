@@ -42,6 +42,7 @@ For a production editor with a toolbar and all features:
      LinkPlugin,
      BlockquotePlugin,
      TablePlugin,
+     CodeBlockPlugin,
      StrikethroughPlugin,
      TextColorPlugin,
      AlignmentPlugin,
@@ -69,7 +70,9 @@ For a production editor with a toolbar and all features:
        [new ListPlugin()],
        // Group 5: Tables
        [new TablePlugin()],
-       // Group 6: Inline formatting
+       // Group 6: Code
+       [new CodeBlockPlugin()],
+       // Group 7: Inline formatting
        [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
        // Group 7: Typography
        [
