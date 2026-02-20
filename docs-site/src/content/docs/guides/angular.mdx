@@ -1,0 +1,443 @@
+---
+title: Angular Integration
+description: Integrate notectl into Angular applications with native bindings, reactive forms, and dependency injection.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The `@notectl/angular` package provides a native Angular wrapper around the notectl editor. It ships a standalone component, a `ControlValueAccessor` for reactive and template-driven forms, and an injectable service for programmatic access.
+
+**Requirements:** Angular 21+, Node.js 20+
+
+## Installation
+
+<Steps>
+1. **Install both packages**
+
+   ```bash
+   npm install @notectl/core @notectl/angular
+   ```
+
+   `@notectl/core` contains the editor engine and plugins. `@notectl/angular` provides the Angular bindings.
+
+2. **Register the provider**
+
+   Add `provideNotectl()` to your application providers. This is optional but recommended — it enables app-wide default configuration.
+
+   ```ts
+   // app.config.ts
+   import { type ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
+   import { provideNotectl } from '@notectl/angular';
+
+   export const appConfig: ApplicationConfig = {
+     providers: [
+       provideZonelessChangeDetection(),
+       provideNotectl(),
+     ],
+   };
+   ```
+</Steps>
+
+## Basic Usage
+
+Import `NotectlEditorComponent` and configure the plugins you need:
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  NotectlEditorComponent,
+  TextFormattingPlugin,
+  HeadingPlugin,
+  ListPlugin,
+  LinkPlugin,
+  ThemePreset,
+} from '@notectl/angular';
+import type { Plugin, StateChangeEvent } from '@notectl/angular';
+
+@Component({
+  selector: 'app-editor',
+  imports: [NotectlEditorComponent],
+  template: `
+    <ntl-editor
+      [toolbar]="toolbar"
+      [plugins]="plugins"
+      [theme]="theme()"
+      [autofocus]="true"
+      (stateChange)="onStateChange($event)"
+    />
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class EditorComponent {
+  protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
+    [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
+    [new HeadingPlugin()],
+    [new ListPlugin()],
+    [new LinkPlugin()],
+  ];
+
+  protected readonly plugins: Plugin[] = [];
+
+  protected onStateChange(event: StateChangeEvent): void {
+    console.log('New state:', event.newState);
+  }
+}
+```
+
+<Aside type="tip">
+  All plugins and types are re-exported from `@notectl/angular`, so you only need a single import source.
+</Aside>
+
+## Component Inputs & Outputs
+
+The `<ntl-editor>` component uses Angular signals for all inputs and outputs:
+
+### Inputs
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `toolbar` | `Plugin[][]` | — | Toolbar layout (groups of plugins) |
+| `plugins` | `Plugin[]` | `[]` | Plugins without toolbar buttons |
+| `features` | `Partial<TextFormattingConfig>` | — | Feature toggles for text formatting |
+| `placeholder` | `string` | `'Start typing...'` | Placeholder text |
+| `readonlyMode` | `boolean` | `false` | Readonly mode |
+| `autofocus` | `boolean` | `false` | Auto-focus on mount |
+| `maxHistoryDepth` | `number` | — | Undo/redo history limit |
+| `theme` | `ThemePreset \| Theme` | `ThemePreset.Light` | Editor theme |
+
+### Outputs
+
+| Output | Payload | Description |
+|--------|---------|-------------|
+| `stateChange` | `StateChangeEvent` | Fires on every content change |
+| `selectionChange` | `SelectionChangeEvent` | Fires when cursor/selection moves |
+| `editorFocus` | `void` | Editor gained focus |
+| `editorBlur` | `void` | Editor lost focus |
+| `ready` | `void` | Editor fully initialized |
+
+### Two-Way Content Binding
+
+Use `[(content)]` to bind the document model in both directions:
+
+```html
+<ntl-editor [(content)]="myDocument" [toolbar]="toolbar" />
+```
+
+```ts
+protected readonly myDocument = signal<Document | undefined>(undefined);
+```
+
+## Reactive Forms
+
+The `NotectlValueAccessorDirective` integrates with Angular's reactive and template-driven forms automatically.
+
+### With FormControl
+
+```ts
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import {
+  NotectlEditorComponent,
+  NotectlValueAccessorDirective,
+  TextFormattingPlugin,
+} from '@notectl/angular';
+import type { Document, Plugin } from '@notectl/angular';
+
+@Component({
+  selector: 'app-editor-form',
+  imports: [ReactiveFormsModule, NotectlEditorComponent, NotectlValueAccessorDirective],
+  template: `
+    <ntl-editor [formControl]="editorControl" [toolbar]="toolbar" />
+    <button (click)="save()">Save</button>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class EditorFormComponent {
+  protected readonly editorControl = new FormControl<Document | null>(null);
+
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
+    [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
+  ];
+
+  protected save(): void {
+    const value: Document | null = this.editorControl.value;
+    console.log('Form value:', value);
+  }
+}
+```
+
+### With ngModel
+
+```ts
+@Component({
+  selector: 'app-editor-ngmodel',
+  imports: [FormsModule, NotectlEditorComponent, NotectlValueAccessorDirective],
+  template: `<ntl-editor [(ngModel)]="content" [toolbar]="toolbar" />`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class EditorNgModelComponent {
+  protected content: Document | null = null;
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
+    [new TextFormattingPlugin()],
+  ];
+}
+```
+
+### Content Format
+
+By default, forms use JSON (`Document` objects). You can switch to HTML or plain text via the provider:
+
+```ts
+provideNotectl({
+  contentFormat: 'html',  // 'json' | 'html' | 'text'
+})
+```
+
+| Format | Form Value Type | Description |
+|--------|----------------|-------------|
+| `'json'` | `Document` | Structured document model (default) |
+| `'html'` | `string` | Sanitized HTML |
+| `'text'` | `string` | Plain text |
+
+## Theming
+
+Switch themes at runtime using a signal:
+
+```ts
+protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+
+toggleTheme(): void {
+  const next = this.theme() === ThemePreset.Light
+    ? ThemePreset.Dark
+    : ThemePreset.Light;
+  this.theme.set(next);
+}
+```
+
+```html
+<ntl-editor [theme]="theme()" [toolbar]="toolbar" />
+<button (click)="toggleTheme()">Toggle Theme</button>
+```
+
+## Editor Service
+
+Use `NotectlEditorService` when a sibling component (e.g. a custom toolbar) needs to interact with the editor without a template reference:
+
+```ts
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  inject,
+  viewChild,
+} from '@angular/core';
+import {
+  NotectlEditorComponent,
+  NotectlEditorService,
+} from '@notectl/angular';
+import type { Plugin } from '@notectl/angular';
+
+@Component({
+  selector: 'app-editor-page',
+  providers: [NotectlEditorService],
+  imports: [NotectlEditorComponent, ToolbarComponent],
+  template: `
+    <app-toolbar />
+    <ntl-editor #editor [toolbar]="toolbar" />
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class EditorPageComponent {
+  private readonly editorRef = viewChild.required<NotectlEditorComponent>('editor');
+  private readonly service = inject(NotectlEditorService);
+
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [/* ... */];
+
+  constructor() {
+    afterNextRender(() => {
+      this.service.register(this.editorRef());
+    });
+  }
+}
+```
+
+Then in the toolbar component:
+
+```ts
+@Component({
+  selector: 'app-toolbar',
+  template: `
+    <button (click)="bold()">Bold</button>
+    <button (click)="undo()">Undo</button>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ToolbarComponent {
+  private readonly editorService = inject(NotectlEditorService);
+
+  protected bold(): void {
+    this.editorService.executeCommand('toggleBold');
+  }
+
+  protected undo(): void {
+    this.editorService.executeCommand('undo');
+  }
+}
+```
+
+## Reading & Writing Content
+
+```ts
+// Read content in different formats
+const json: Document = editor.getJSON();
+const html: string = editor.getHTML();
+const text: string = editor.getText();
+
+// Write content
+editor.setJSON(doc);
+editor.setHTML('<h1>Hello</h1><p>World</p>');
+
+// Check if empty
+if (editor.isEmpty()) {
+  console.log('No content');
+}
+```
+
+## Programmatic Commands
+
+```ts
+// Toggle formatting
+editor.commands.toggleBold();
+editor.commands.toggleItalic();
+editor.commands.undo();
+editor.commands.redo();
+
+// Execute any registered command by name
+editor.executeCommand('toggleStrikethrough');
+editor.executeCommand('insertHorizontalRule');
+
+// Check command availability
+if (editor.can().toggleBold()) {
+  editor.commands.toggleBold();
+}
+```
+
+## Full-Featured Example
+
+A production-ready editor with all plugins:
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  NotectlEditorComponent,
+  TextFormattingPlugin,
+  HeadingPlugin,
+  ListPlugin,
+  LinkPlugin,
+  BlockquotePlugin,
+  CodeBlockPlugin,
+  TablePlugin,
+  HorizontalRulePlugin,
+  StrikethroughPlugin,
+  HighlightPlugin,
+  TextColorPlugin,
+  FontPlugin,
+  FontSizePlugin,
+  AlignmentPlugin,
+  SuperSubPlugin,
+  STARTER_FONTS,
+  ThemePreset,
+} from '@notectl/angular';
+import type { Plugin } from '@notectl/angular';
+
+@Component({
+  selector: 'app-full-editor',
+  imports: [NotectlEditorComponent],
+  template: `
+    <ntl-editor
+      [toolbar]="toolbar"
+      [theme]="theme()"
+      [autofocus]="true"
+      placeholder="Start writing..."
+    />
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class FullEditorComponent {
+  protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
+    [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
+    [new HeadingPlugin()],
+    [new BlockquotePlugin(), new LinkPlugin()],
+    [new ListPlugin()],
+    [new TablePlugin()],
+    [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
+    [new HighlightPlugin(), new SuperSubPlugin()],
+    [new CodeBlockPlugin()],
+    [
+      new AlignmentPlugin(),
+      new FontPlugin({ fonts: [...STARTER_FONTS] }),
+      new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 16 }),
+    ],
+  ];
+}
+```
+
+## Default Configuration
+
+Use `provideNotectl()` to set app-wide defaults. Component-level inputs override these:
+
+```ts
+provideNotectl({
+  config: {
+    theme: ThemePreset.Dark,
+    placeholder: 'Write something...',
+    readonly: false,
+  },
+  contentFormat: 'json',
+})
+```
+
+## Testing
+
+The `@notectl/angular/testing` package provides a test harness:
+
+```ts
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NotectlEditorComponent } from '@notectl/angular';
+import { NotectlTestHarness } from '@notectl/angular/testing';
+
+describe('MyEditorComponent', () => {
+  let fixture: ComponentFixture<MyEditorComponent>;
+  let harness: NotectlTestHarness;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [MyEditorComponent],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(MyEditorComponent);
+    fixture.detectChanges();
+
+    // Wrap the editor component in the test harness
+    const editorComponent = fixture.debugElement
+      .query(By.directive(NotectlEditorComponent))
+      .componentInstance;
+    harness = new NotectlTestHarness(fixture);
+    await harness.whenReady();
+  });
+
+  it('should render content', () => {
+    harness.setHTML('<p>Hello</p>');
+    expect(harness.getText()).toBe('Hello');
+  });
+
+  it('should execute commands', () => {
+    harness.executeCommand('toggleBold');
+    // assert formatting applied
+  });
+});
+```
