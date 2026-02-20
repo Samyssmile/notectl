@@ -1,12 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACKAGES=(
-  "packages/core"
+ALL_PACKAGES=(
+  "core:packages/core"
+  "angular:packages/angular/dist"
 )
 
 ROOT_DIR="$(pwd)"
 trap 'cd "$ROOT_DIR"' EXIT
+
+# --- Filter packages ---
+FILTER="${1:-}"
+PACKAGES=()
+
+for entry in "${ALL_PACKAGES[@]}"; do
+  key="${entry%%:*}"
+  path="${entry#*:}"
+  if [[ -z "$FILTER" || "$key" == "$FILTER" ]]; then
+    PACKAGES+=("$path")
+  fi
+done
+
+if [[ ${#PACKAGES[@]} -eq 0 ]]; then
+  echo "❌ Unknown package: '$FILTER'"
+  echo "   Available: ${ALL_PACKAGES[*]%%:*}"
+  exit 1
+fi
 
 # --- Pre-flight checks ---
 echo "🔍 Running pre-flight checks..."
@@ -22,7 +41,6 @@ pnpm typecheck
 
 echo "  → Linting..."
 pnpm lint
-
 
 echo "✅ All checks passed."
 
