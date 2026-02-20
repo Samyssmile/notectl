@@ -118,7 +118,8 @@ export class ListPlugin implements Plugin {
 				const indent = node.attrs?.indent ?? 0;
 				const checked = node.attrs?.checked ?? false;
 
-				const li = createBlockElement('div', node.id);
+				const li = createBlockElement('li', node.id);
+				li.setAttribute('role', 'listitem');
 				li.setAttribute('data-list-type', listType);
 				li.setAttribute('data-indent', String(indent));
 				li.className = `notectl-list-item notectl-list-item--${listType}`;
@@ -130,16 +131,20 @@ export class ListPlugin implements Plugin {
 				if (listType === 'checklist') {
 					li.setAttribute('data-checked', String(checked));
 					li.setAttribute('aria-checked', String(checked));
-					li.setAttribute('aria-roledescription', 'checklist item');
-				} else {
-					li.setAttribute(
-						'aria-roledescription',
-						listType === 'ordered' ? 'numbered list item' : 'list item',
-					);
 				}
 				li.setAttribute('aria-level', String(indent + 1));
 
 				return li;
+			},
+			wrapper(node) {
+				const listType = node.attrs?.listType ?? 'bullet';
+				const tag = listType === 'ordered' ? 'ol' : 'ul';
+				return {
+					tag,
+					key: `list-${listType}`,
+					className: `notectl-list notectl-list--${listType}`,
+					attrs: { role: 'list' },
+				};
 			},
 			toHTML(_node, content) {
 				return `<li>${content || '<br>'}</li>`;
