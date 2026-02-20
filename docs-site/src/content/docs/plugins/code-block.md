@@ -46,8 +46,43 @@ interface CodeBlockConfig {
   readonly textColor?: string;
   /** Header/label text color (overrides --notectl-code-block-header-color). */
   readonly headerColor?: string;
+  /** Customize keyboard bindings for code block actions. */
+  readonly keymap?: CodeBlockKeymap;
+}
+
+interface CodeBlockKeymap {
+  /** Insert a paragraph below the code block. Default: 'Mod-Enter'. Set to null to disable. */
+  readonly insertAfter?: string | null;
+  /** Toggle between code block and paragraph. Default: 'Mod-Shift-M'. Set to null to disable. */
+  readonly toggle?: string | null;
 }
 ```
+
+### Custom Keybindings
+
+Override or disable the default code block shortcuts:
+
+```ts
+new CodeBlockPlugin({
+  keymap: {
+    insertAfter: 'Mod-Shift-Enter',  // override default Mod-Enter
+    toggle: 'Mod-Shift-C',           // override default Mod-Shift-M
+  },
+})
+```
+
+Set a binding to `null` to disable it entirely:
+
+```ts
+new CodeBlockPlugin({
+  keymap: {
+    insertAfter: null,  // disable insert-after shortcut
+    toggle: 'Mod-Shift-C',
+  },
+})
+```
+
+`Mod` resolves to Cmd on macOS and Ctrl on Windows/Linux.
 
 ## Theming
 
@@ -136,11 +171,12 @@ editor.executeCommand('toggleCodeBlock');
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+M` / `Cmd+Shift+M` | Toggle code block |
+| `Ctrl+Shift+M` / `Cmd+Shift+M` | Toggle code block (configurable via `keymap.toggle`) |
 | `Enter` | Insert newline within code block |
 | `Enter` (twice, on empty last line) | Exit code block, create paragraph below |
 | `Tab` | Insert indent (tab or spaces) |
 | `Shift+Tab` | Remove indent from current line |
+| `Ctrl+Enter` / `Cmd+Enter` | Insert paragraph below and move cursor there (configurable via `keymap.insertAfter`) |
 | `Escape` | Exit code block to next block or new paragraph |
 | `ArrowDown` (on last line) | Exit code block to next block or new paragraph |
 | `ArrowUp` (on first line) | Exit to previous block |
