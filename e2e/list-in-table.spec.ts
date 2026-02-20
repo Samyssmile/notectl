@@ -49,8 +49,9 @@ test.describe('Lists inside table cells — input rules', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		// The first cell should contain a list_item (not raw text "- Bullet item")
@@ -76,8 +77,9 @@ test.describe('Lists inside table cells — input rules', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
@@ -95,8 +97,9 @@ test.describe('Lists inside table cells — input rules', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
@@ -120,8 +123,9 @@ test.describe('Lists inside table cells — input rules', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItems: JsonChild[] = firstCell.filter((c) => c.type === 'list_item');
@@ -138,8 +142,9 @@ test.describe('Lists inside table cells — input rules', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
@@ -186,8 +191,9 @@ test.describe('Lists copy-paste into table cells', () => {
 		json = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		// The cell should contain the pasted text
@@ -224,8 +230,9 @@ test.describe('Lists copy-paste into table cells', () => {
 		json = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const allText: string = JSON.stringify(firstCell);
@@ -261,8 +268,9 @@ test.describe('Lists copy-paste into table cells', () => {
 		json = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const allText: string = JSON.stringify(firstCell);
