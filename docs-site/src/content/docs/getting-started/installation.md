@@ -32,9 +32,9 @@ bun add @notectl/core
 The `@notectl/core` package includes:
 
 - The `<notectl-editor>` Web Component
-- All 15 built-in plugins (text formatting, headings, lists, tables, fonts, etc.)
+- All 18 built-in plugins (text formatting, headings, lists, tables, fonts, etc.)
 - Full TypeScript type definitions
-- ESM and CJS builds
+- ESM and UMD builds
 
 ## Bundler Setup
 
@@ -80,4 +80,4 @@ You can use notectl directly from a CDN for prototyping:
 
 ## Next Steps
 
-Now that notectl is installed, head to the [Quick Start](/getting-started/quick-start/) guide to create your first editor.
+Now that notectl is installed, head to the [Quick Start](/notectl/getting-started/quick-start/) guide to create your first editor.

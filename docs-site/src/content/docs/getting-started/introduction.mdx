@@ -41,7 +41,7 @@ This architecture gives you:
 
 | Layer | Responsibility |
 |-------|---------------|
-| **Model** | Immutable data types: `Document`, `BlockNode`, `TextNode`, `Mark`, `Selection` |
+| **Model** | Immutable data types: `Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection` |
 | **State** | `EditorState` container, `Transaction` builder, `History` manager |
 | **View** | DOM reconciliation, selection sync, input handling |
 | **Commands** | High-level operations: `toggleMark`, `splitBlock`, `deleteBackward` |
@@ -51,7 +51,7 @@ This architecture gives you:
 
 ![Full toolbar with all plugins](../../../assets/screenshots/toolbar-full.png)
 
-notectl ships with 15 built-in plugins covering text formatting, headings, lists, tables, links, fonts, text color, alignment, and more. See the [Plugin Overview](/notectl/plugins/overview/) for the full list.
+notectl ships with 18 built-in plugins covering text formatting, headings, lists, tables, links, code blocks, images, fonts, text color, alignment, highlight, superscript/subscript, and more. See the [Plugin Overview](/notectl/plugins/overview/) for the full list.
 
 ## Screenshots
 

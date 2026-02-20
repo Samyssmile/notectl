@@ -49,11 +49,14 @@ Only the specified levels appear in the dropdown selector and respond to input r
 | `setHeading5` | Toggle heading level 5 | `boolean` |
 | `setHeading6` | Toggle heading level 6 | `boolean` |
 | `setParagraph` | Convert block back to paragraph | `boolean` |
+| `setTitle` | Set block as title (large H1 variant) | `boolean` |
+| `setSubtitle` | Set block as subtitle (large H2 variant) | `boolean` |
 | `toggleHeading` | Toggle H1 on current block | `boolean` |
 
 ```ts
 editor.executeCommand('setHeading2');
 editor.executeCommand('setParagraph');
+editor.executeCommand('setTitle');
 ```
 
 Each `setHeadingN` command acts as a toggle: if the block is already that heading level, it reverts to a paragraph.
@@ -138,10 +141,21 @@ Entries are sorted by `priority` (lower = first). The built-in entries use prior
 
 See the [Writing a Plugin](/notectl/guides/writing-plugins/#block-type-picker) guide for more details.
 
-## Node Spec
+## Keyboard Behavior
 
-| Type | HTML Tag | Attributes |
-|------|----------|-----------|
-| `heading` | `<h1>` - `<h6>` | `level: number` (1-6) |
+| Key | Action |
+|-----|--------|
+| `Enter` (empty heading) | Convert heading to paragraph |
+| `Enter` (at end of heading) | Split and convert new block to paragraph |
 
-The `level` attribute maps directly to the HTML heading tag. The `toDOM` method creates the correct `<hN>` element and sets the required `data-block-id` attribute.
+## Node Specs
+
+| Type | HTML Tag | Attributes | Description |
+|------|----------|-----------|-------------|
+| `heading` | `<h1>` - `<h6>` | `level: number` (1-6) | Standard heading |
+| `title` | `<h1>` (with class `notectl-title`) | — | Document title |
+| `subtitle` | `<h2>` (with class `notectl-subtitle`) | — | Document subtitle |
+
+The `level` attribute maps directly to the HTML heading tag. Title and Subtitle are styled variants that appear in the block type picker dropdown alongside heading levels.
+
+All heading, title, and subtitle node specs set `excludeMarks: ['fontSize']`. When converting a block to one of these types, any existing `fontSize` marks are automatically stripped to maintain consistent heading sizes.

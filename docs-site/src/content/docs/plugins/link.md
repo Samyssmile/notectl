@@ -33,7 +33,10 @@ interface LinkConfig {
 | Command | Description | Returns |
 |---------|-------------|---------|
 | `toggleLink` | Add or remove a link on the selection | `boolean` |
+| `setLink` | Set a link mark on the selection | `boolean` |
 | `removeLink` | Remove link mark from selection | `boolean` |
+
+The toolbar button is only enabled when there is a text range selection (not a collapsed cursor).
 
 ```ts
 editor.executeCommand('toggleLink');
@@ -50,7 +53,7 @@ editor.executeCommand('removeLink');
 
 The link button opens a **custom popup** with:
 - A URL input field with placeholder text
-- Apply/Cancel buttons
+- An Apply button to confirm the link
 - When the cursor is inside an existing link: pre-filled URL and a "Remove" button
 
 ## Mark Spec
@@ -66,13 +69,17 @@ When `openInNewTab` is `true`, the `toDOM` method adds `target="_blank"` and `re
 To add a link programmatically without the popup:
 
 ```ts
+import { markType } from '@notectl/core';
+
 // Select text first, then apply the link mark
 const state = editor.getState();
+const { anchor, head } = state.selection;
 const tr = state.transaction('api')
   .addMark(
-    state.selection.anchor,
-    state.selection.head,
-    { type: 'link', attrs: { href: 'https://example.com' } }
+    anchor.blockId,
+    anchor.offset,
+    head.offset,
+    { type: markType('link'), attrs: { href: 'https://example.com' } }
   )
   .build();
 editor.dispatch(tr);
