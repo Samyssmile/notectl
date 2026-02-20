@@ -67,8 +67,9 @@ test.describe('Copy list outside table → paste into table cell', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		// The cell must contain a list_item, not just a paragraph with text
@@ -106,8 +107,9 @@ test.describe('Copy list outside table → paste into table cell', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
@@ -143,8 +145,9 @@ test.describe('Copy list outside table → paste into table cell', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
@@ -181,8 +184,9 @@ test.describe('Copy list outside table → paste into table cell', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		// The empty paragraph should have been removed — only the list_item remains
@@ -235,7 +239,9 @@ test.describe('Copy list from table cell → paste outside table', () => {
 		const topLevelListItems: JsonChild[] = json.children.filter((c) => c.type === 'list_item');
 		expect(topLevelListItems.length).toBeGreaterThanOrEqual(1);
 
-		const pastedItem: JsonChild = topLevelListItems[topLevelListItems.length - 1]!;
+		const pastedItem: JsonChild | undefined = topLevelListItems[topLevelListItems.length - 1];
+		expect(pastedItem).toBeDefined();
+		if (!pastedItem) return;
 		expect(pastedItem.attrs?.listType).toBe('bullet');
 
 		const itemText: string = (pastedItem.children ?? []).map((c) => c.text ?? '').join('');
@@ -280,8 +286,9 @@ test.describe('Multiple list items copy-paste into table cell', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
+		if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table!);
+		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
 		const listItems: JsonChild[] = firstCell.filter((c) => c.type === 'list_item');
