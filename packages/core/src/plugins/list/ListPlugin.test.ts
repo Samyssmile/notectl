@@ -56,6 +56,8 @@ describe('ListPlugin', () => {
 			});
 			const el = spec?.toDOM(node);
 
+			expect(el?.tagName).toBe('LI');
+			expect(el?.getAttribute('role')).toBe('listitem');
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 			expect(el?.getAttribute('data-list-type')).toBe('bullet');
 			expect(el?.getAttribute('data-indent')).toBe('0');
@@ -97,6 +99,48 @@ describe('ListPlugin', () => {
 			const el = spec?.toDOM(node);
 
 			expect(el?.getAttribute('data-checked')).toBe('true');
+			expect(el?.getAttribute('aria-checked')).toBe('true');
+		});
+
+		it('wrapper returns ul for bullet list', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+			const node = createBlockNode('list_item', [createTextNode('item')], 'test', {
+				listType: 'bullet',
+				indent: 0,
+			});
+			const wrapper = spec?.wrapper?.(node);
+
+			expect(wrapper?.tag).toBe('ul');
+			expect(wrapper?.key).toBe('list-bullet');
+			expect(wrapper?.attrs?.role).toBe('list');
+		});
+
+		it('wrapper returns ol for ordered list', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+			const node = createBlockNode('list_item', [createTextNode('item')], 'test', {
+				listType: 'ordered',
+				indent: 0,
+			});
+			const wrapper = spec?.wrapper?.(node);
+
+			expect(wrapper?.tag).toBe('ol');
+			expect(wrapper?.key).toBe('list-ordered');
+		});
+
+		it('wrapper returns ul for checklist', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+			const node = createBlockNode('list_item', [createTextNode('task')], 'test', {
+				listType: 'checklist',
+				indent: 0,
+				checked: false,
+			});
+			const wrapper = spec?.wrapper?.(node);
+
+			expect(wrapper?.tag).toBe('ul');
+			expect(wrapper?.key).toBe('list-checklist');
 		});
 	});
 

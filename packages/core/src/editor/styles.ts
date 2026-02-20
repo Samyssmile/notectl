@@ -213,6 +213,18 @@ const EDITOR_CSS = `
 	margin-top: 0;
 }
 
+/* List Wrappers — suppress native markers, we use ::before pseudo-elements */
+.notectl-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+/* Ordered List — each <ol> wrapper resets the counter */
+.notectl-list--ordered {
+	counter-reset: notectl-ordered;
+}
+
 /* List Items */
 .notectl-list-item {
 	margin: 0;
@@ -235,24 +247,8 @@ const EDITOR_CSS = `
 	color: var(--notectl-fg);
 }
 
-/* Ordered List — uses CSS counters to auto-number */
-.notectl-content {
-	counter-reset: notectl-ordered;
-}
-
+/* Ordered List — counter increment per item */
 .notectl-list-item--ordered {
-	counter-increment: notectl-ordered;
-}
-
-/* Reset counter when a non-ordered item breaks the sequence */
-.notectl-list-item:not(.notectl-list-item--ordered) + .notectl-list-item--ordered {
-	counter-reset: notectl-ordered;
-	counter-increment: notectl-ordered;
-}
-
-:not(.notectl-list-item--ordered) + .notectl-list-item--ordered,
-.notectl-content > .notectl-list-item--ordered:first-child {
-	counter-reset: notectl-ordered;
 	counter-increment: notectl-ordered;
 }
 

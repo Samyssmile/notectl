@@ -17,6 +17,7 @@ import {
 	markSetsEqual,
 } from '../model/Document.js';
 import { createBlockElement } from '../model/NodeSpec.js';
+import type { WrapperSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
@@ -45,6 +46,10 @@ export function reconcile(
 	const newBlocks = newState.doc.children;
 	const registry = options?.registry;
 	const nodeViews = options?.nodeViews;
+
+	// Unwrap blocks from existing wrapper elements (e.g. <ul>/<ol>)
+	// so the main reconciliation loop sees all blocks as direct children.
+	unwrapBlocks(container);
 
 	const oldBlockMap = new Map<BlockId, HTMLElement>();
 	for (const child of Array.from(container.children)) {
@@ -168,6 +173,9 @@ export function reconcile(
 			nested.selectNode?.();
 		}
 	}
+
+	// Group consecutive blocks into wrapper elements (e.g. <ul>/<ol> for list items)
+	wrapBlocks(container, newBlocks, registry);
 }
 
 /** Checks whether a block has changed by comparing its children, attrs, and decorations. */
@@ -621,6 +629,97 @@ function applyNodeDecorations(el: HTMLElement, bid: BlockId, options?: Reconcile
 		if (deco.attrs.style) {
 			const current: string = el.style.cssText;
 			el.style.cssText = current ? `${current}; ${deco.attrs.style}` : deco.attrs.style;
+		}
+	}
+}
+
+// --- Block Wrapper Management ---
+
+/**
+ * Moves block elements out of wrapper elements (e.g. `<ul>`, `<ol>`) so the
+ * main reconciliation loop sees all blocks as direct children of the container.
+ */
+function unwrapBlocks(container: HTMLElement): void {
+	const wrappers: Element[] = Array.from(
+		container.querySelectorAll(':scope > [data-block-wrapper]'),
+	);
+	for (const wrapper of wrappers) {
+		while (wrapper.firstChild) {
+			container.insertBefore(wrapper.firstChild, wrapper);
+		}
+		wrapper.remove();
+	}
+}
+
+/**
+ * Groups consecutive blocks that declare the same wrapper key into shared
+ * wrapper elements (`<ul>`, `<ol>`, etc.). Called after the main reconcile loop.
+ */
+function wrapBlocks(
+	container: HTMLElement,
+	blocks: readonly BlockNode[],
+	registry?: SchemaRegistry,
+): void {
+	if (!registry) return;
+
+	// Compute wrapper groups from the block model
+	interface WrapperGroup {
+		readonly spec: WrapperSpec;
+		readonly blockIds: readonly BlockId[];
+	}
+
+	const groups: WrapperGroup[] = [];
+	let currentSpec: WrapperSpec | null = null;
+	let currentIds: BlockId[] = [];
+
+	for (const block of blocks) {
+		const nodeSpec = registry.getNodeSpec(block.type);
+		const wSpec: WrapperSpec | undefined = nodeSpec?.wrapper?.(block as never);
+
+		if (wSpec && currentSpec && wSpec.key === currentSpec.key) {
+			currentIds.push(block.id);
+		} else if (wSpec) {
+			if (currentSpec && currentIds.length > 0) {
+				groups.push({ spec: currentSpec, blockIds: currentIds });
+			}
+			currentSpec = wSpec;
+			currentIds = [block.id];
+		} else {
+			if (currentSpec && currentIds.length > 0) {
+				groups.push({ spec: currentSpec, blockIds: currentIds });
+			}
+			currentSpec = null;
+			currentIds = [];
+		}
+	}
+	if (currentSpec && currentIds.length > 0) {
+		groups.push({ spec: currentSpec, blockIds: currentIds });
+	}
+
+	// Apply wrapper elements to the DOM
+	for (const group of groups) {
+		const firstEl: HTMLElement | null = container.querySelector(
+			`[data-block-id="${group.blockIds[0]}"]`,
+		);
+		if (!firstEl) continue;
+
+		const wrapper: HTMLElement = document.createElement(group.spec.tag);
+		wrapper.setAttribute('data-block-wrapper', group.spec.key);
+		if (group.spec.className) {
+			wrapper.className = group.spec.className;
+		}
+		if (group.spec.attrs) {
+			for (const [key, value] of Object.entries(group.spec.attrs)) {
+				wrapper.setAttribute(key, value);
+			}
+		}
+
+		firstEl.before(wrapper);
+		for (const bid of group.blockIds) {
+			const el: HTMLElement | null = container.querySelector(`[data-block-id="${bid}"]`);
+			if (el) {
+				wrapper.appendChild(el);
+			}
 		}
 	}
 }

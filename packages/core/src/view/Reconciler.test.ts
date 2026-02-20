@@ -332,6 +332,170 @@ describe('Void block rendering', () => {
 	});
 });
 
+describe('Block wrapper reconciliation', () => {
+	function makeListSpec(): NodeSpec {
+		return {
+			type: 'list_item',
+			toDOM(node) {
+				const el = createBlockElement('li', node.id);
+				el.setAttribute('data-list-type', String(node.attrs?.listType ?? 'bullet'));
+				return el;
+			},
+			wrapper(node) {
+				const listType = String(node.attrs?.listType ?? 'bullet');
+				const tag = listType === 'ordered' ? 'ol' : 'ul';
+				return {
+					tag,
+					key: `list-${listType}`,
+					className: `notectl-list notectl-list--${listType}`,
+					attrs: { role: 'list' },
+				};
+			},
+		};
+	}
+
+	it('wraps consecutive list items in a ul element', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const blocks = [
+			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('b')], 'b2', { listType: 'bullet' }),
+		];
+		const state = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const wrapper = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapper).not.toBeNull();
+		expect(wrapper?.getAttribute('role')).toBe('list');
+		expect(wrapper?.children.length).toBe(2);
+		expect(wrapper?.children[0]?.tagName).toBe('LI');
+		expect(wrapper?.children[1]?.tagName).toBe('LI');
+	});
+
+	it('wraps ordered list items in an ol element', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const blocks = [
+			createBlockNode('list_item', [createTextNode('1')], 'b1', { listType: 'ordered' }),
+			createBlockNode('list_item', [createTextNode('2')], 'b2', { listType: 'ordered' }),
+		];
+		const state = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const wrapper = container.querySelector('ol[data-block-wrapper]');
+		expect(wrapper).not.toBeNull();
+		expect(wrapper?.getAttribute('data-block-wrapper')).toBe('list-ordered');
+	});
+
+	it('creates separate wrappers for different list types', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const pSpec: NodeSpec = {
+			type: 'paragraph',
+			toDOM(node) {
+				return createBlockElement('p', node.id);
+			},
+		};
+		registry.registerNodeSpec(pSpec);
+
+		const blocks = [
+			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('1')], 'b2', { listType: 'ordered' }),
+		];
+		const state = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const uls = container.querySelectorAll('ul[data-block-wrapper]');
+		const ols = container.querySelectorAll('ol[data-block-wrapper]');
+		expect(uls.length).toBe(1);
+		expect(ols.length).toBe(1);
+	});
+
+	it('non-list blocks break wrapper grouping', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM(node) {
+				return createBlockElement('p', node.id);
+			},
+		});
+
+		const blocks = [
+			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+			createBlockNode('paragraph', [createTextNode('p')], 'b2'),
+			createBlockNode('list_item', [createTextNode('b')], 'b3', { listType: 'bullet' }),
+		];
+		const state = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const wrappers = container.querySelectorAll('ul[data-block-wrapper]');
+		expect(wrappers.length).toBe(2);
+		expect(wrappers[0]?.children.length).toBe(1);
+		expect(wrappers[1]?.children.length).toBe(1);
+
+		// Paragraph is between the two wrappers
+		const p = container.querySelector('p');
+		expect(p).not.toBeNull();
+	});
+
+	it('preserves wrappers across incremental reconcile', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const blocks1 = [
+			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+		];
+		const blocks2 = [
+			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('b')], 'b2', { listType: 'bullet' }),
+		];
+
+		const state1 = EditorState.create({
+			doc: createDocument(blocks1),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const state2 = EditorState.create({
+			doc: createDocument(blocks2),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state1, { registry });
+
+		let wrapper = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapper?.children.length).toBe(1);
+
+		reconcile(container, state1, state2, { registry });
+
+		wrapper = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapper?.children.length).toBe(2);
+	});
+});
+
 describe('Selectable block rendering', () => {
 	it('renderBlock sets data-selectable when NodeSpec has selectable', () => {
 		const registry = new SchemaRegistry();

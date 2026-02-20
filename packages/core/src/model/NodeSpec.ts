@@ -12,6 +12,18 @@ export interface AttrSpec {
 	readonly default?: string | number | boolean;
 }
 
+/** Describes a wrapper element that groups consecutive blocks of the same kind. */
+export interface WrapperSpec {
+	/** The HTML tag for the wrapper element (e.g., 'ul', 'ol'). */
+	readonly tag: string;
+	/** A key to group consecutive blocks. Blocks with the same key share a wrapper. */
+	readonly key: string;
+	/** Optional CSS class for the wrapper element. */
+	readonly className?: string;
+	/** Optional attributes for the wrapper element. */
+	readonly attrs?: Readonly<Record<string, string>>;
+}
+
 /** Describes which children a node type is allowed to contain. */
 export interface ContentRule {
 	/** Allowed child types or group names. */
@@ -54,4 +66,10 @@ export interface NodeSpec<T extends string = string> {
 	readonly parseHTML?: readonly ParseRule[];
 	/** Tags and attributes this spec needs through DOMPurify sanitization. */
 	readonly sanitize?: SanitizeConfig;
+	/**
+	 * If provided, the Reconciler groups consecutive blocks with the same
+	 * wrapper key into a shared wrapper element. Useful for semantic list
+	 * wrappers (`<ul>`, `<ol>`) around `<li>` block elements.
+	 */
+	wrapper?(node: Omit<BlockNode, 'attrs'> & { readonly attrs: NodeAttrsFor<T> }): WrapperSpec;
 }
