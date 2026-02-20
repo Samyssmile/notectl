@@ -45,6 +45,7 @@ When `sizes` is not specified:
 
 | Command | Description | Returns |
 |---------|-------------|---------|
+| `setFontSize` | Reserved — font size is applied via the toolbar popup | `false` |
 | `removeFontSize` | Remove font size mark (reset to default) | `boolean` |
 | `increaseFontSize` | Step up to next preset size | `boolean` |
 | `decreaseFontSize` | Step down to previous preset size | `boolean` |

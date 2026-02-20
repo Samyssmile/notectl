@@ -50,14 +50,16 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		import { createEditor } from '@notectl/core';
 
 		const editor = await createEditor({
-		  root: document.getElementById('editor')!,
+		  placeholder: 'Start typing...',
 		});
+		document.getElementById('editor')!.appendChild(editor);
 		```
 	</TabItem>
 	<TabItem label="Full-Featured">
 		```ts
 		import {
 		  createEditor,
+		  TextFormattingPlugin,
 		  HeadingPlugin,
 		  ListPlugin,
 		  TablePlugin,
@@ -73,8 +75,8 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		} from '@notectl/core';
 
 		const editor = await createEditor({
-		  root: document.getElementById('editor')!,
 		  toolbar: [
+		    [new TextFormattingPlugin()],
 		    [new HeadingPlugin()],
 		    [new ListPlugin(), new BlockquotePlugin()],
 		    [new LinkPlugin(), new TablePlugin()],
@@ -85,6 +87,7 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		    [new StrikethroughPlugin(), new HorizontalRulePlugin()],
 		  ],
 		});
+		document.getElementById('editor')!.appendChild(editor);
 		```
 	</TabItem>
 	<TabItem label="Read Content">
@@ -99,8 +102,8 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		editor.setJSON(savedDocument);
 
 		// Listen for changes
-		editor.on('stateChange', ({ state }) => {
-		  save(state.doc.toJSON());
+		editor.on('stateChange', ({ newState }) => {
+		  save(newState.doc);
 		});
 		```
 	</TabItem>
@@ -109,8 +112,8 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 ## Why teams choose notectl
 
 <CardGrid stagger>
-	<Card title="15 built-in plugins" icon="puzzle">
-		Text formatting, headings, lists, tables, links, fonts, font sizes, text colors, alignment, blockquotes, strikethrough, horizontal rules, and a declarative toolbar. Every plugin ships with keyboard shortcuts, input rules, and accessible toolbar items.
+	<Card title="18 built-in plugins" icon="puzzle">
+		Text formatting, headings, lists, tables, links, code blocks, images, fonts, font sizes, text colors, alignment, blockquotes, strikethrough, superscript/subscript, highlight, horizontal rules, hard breaks, and a declarative toolbar. Every plugin ships with keyboard shortcuts, input rules, and accessible toolbar items.
 	</Card>
 	<Card title="Markdown-style shortcuts" icon="pencil">
 		Type `# ` for headings, `- ` for bullet lists, `1. ` for numbered lists, `> ` for blockquotes, `---` for horizontal rules, `[ ] ` for checklists. Your power users will feel right at home.
@@ -145,7 +148,7 @@ This gives you predictable updates, built-in undo/redo, plugin interception poin
 
 <CardGrid>
 	<LinkCard title="Installation" href="/notectl/getting-started/installation/" description="npm install, one import, and you have a working editor. Takes under 2 minutes." />
-	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 15 built-in plugins with their APIs, commands, keyboard shortcuts, and screenshots." />
+	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 18 built-in plugins with their APIs, commands, keyboard shortcuts, and screenshots." />
 	<LinkCard title="Write Your Own Plugin" href="/notectl/guides/writing-plugins/" description="Full guide to building custom plugins with the PluginContext API." />
 	<LinkCard title="Architecture Deep Dive" href="/notectl/architecture/overview/" description="Understand the layered architecture and unidirectional data flow." />
 </CardGrid>

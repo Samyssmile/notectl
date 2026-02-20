@@ -162,6 +162,8 @@ When both methods are used, plugin config wins because it sets inline CSS custom
 | `toggleCodeBlock` | Toggle between paragraph and code block | `boolean` |
 | `insertCodeBlock` | Convert the current block to a code block | `boolean` |
 | `exitCodeBlock` | Exit the code block (same as Escape) | `boolean` |
+| `setCodeBlockLanguage` | Reserved — use the [Service API](#service-api) instead | `false` |
+| `setCodeBlockBackground` | Reserved — use the [Service API](#service-api) instead | `false` |
 
 ```ts
 editor.executeCommand('toggleCodeBlock');
@@ -180,6 +182,8 @@ editor.executeCommand('toggleCodeBlock');
 | `Escape` | Exit code block to next block or new paragraph |
 | `ArrowDown` (on last line) | Exit code block to next block or new paragraph |
 | `ArrowUp` (on first line) | Exit to previous block |
+| `ArrowRight` (at end) | Exit code block to next block |
+| `ArrowLeft` (at start) | Exit code block to previous block |
 | `Backspace` (at position 0) | Convert code block back to paragraph |
 
 ## Input Rules
@@ -206,7 +210,7 @@ The plugin registers a typed service for programmatic access:
 ```ts
 import { CODE_BLOCK_SERVICE_KEY } from '@notectl/core';
 
-const service = editor.getService(CODE_BLOCK_SERVICE_KEY);
+const service = context.getService(CODE_BLOCK_SERVICE_KEY);
 
 service.setLanguage(blockId, 'python');
 service.getLanguage(blockId);        // 'python'
