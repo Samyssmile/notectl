@@ -888,8 +888,8 @@ function matchBlockParseRule(
 	return null;
 }
 
-// Register custom element
-if (!customElements.get('notectl-editor')) {
+// Register custom element (guarded for SSR / non-browser environments)
+if (typeof customElements !== 'undefined' && !customElements.get('notectl-editor')) {
 	customElements.define('notectl-editor', NotectlEditor);
 }
 

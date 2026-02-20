@@ -152,7 +152,7 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Section One', { delay: 10 });
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Control+Shift+1'); // Reset to paragraph
+		// Enter at end of heading already creates a paragraph
 		await page.keyboard.type('First paragraph content.', { delay: 10 });
 		await page.keyboard.press('Enter');
 
@@ -212,7 +212,7 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Title', { delay: 10 });
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading already creates a paragraph
 
 		// Paragraph
 		await page.keyboard.type('Normal text here.', { delay: 10 });
@@ -260,7 +260,7 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Title', { delay: 10 });
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading already creates a paragraph
 
 		// Paragraph with bold
 		await page.keyboard.type('Normal ', { delay: 10 });
@@ -373,7 +373,7 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Document Title', { delay: 10 });
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading already creates a paragraph
 
 		// Paragraph
 		await page.keyboard.type('Introduction paragraph.', { delay: 10 });

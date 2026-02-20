@@ -4,7 +4,6 @@ import {
 	DestroyRef,
 	type ElementRef,
 	type ModelSignal,
-	NgZone,
 	afterNextRender,
 	computed,
 	effect,
@@ -59,7 +58,6 @@ import type { SelectionChangeEvent } from './types';
 export class NotectlEditorComponent {
 	// --- Injected dependencies ---
 
-	private readonly ngZone: NgZone = inject(NgZone);
 	private readonly destroyRef: DestroyRef = inject(DestroyRef);
 	private readonly defaultConfig: Partial<NotectlEditorConfig> | null = inject(
 		NOTECTL_DEFAULT_CONFIG,
@@ -124,8 +122,10 @@ export class NotectlEditorComponent {
 	private readonly readyPromise: Promise<void> = new Promise<void>((resolve) => {
 		this.readyResolve = resolve;
 	});
-	private initialized = false;
-	private suppressContentSync = false;
+	private readonly initialized = signal(false);
+
+	/** Tracks the last document set from within the editor to prevent feedback loops. */
+	private lastEditorDoc: Document | null = null;
 
 	constructor() {
 		// SSR-safe: only runs in the browser after first render
@@ -140,7 +140,7 @@ export class NotectlEditorComponent {
 			const currentReadonly: boolean = this.readonlyMode();
 
 			const editor: NotectlEditor | null = this.editorRef;
-			if (!this.initialized || !editor) return;
+			if (!this.initialized() || !editor) return;
 
 			editor.setTheme(currentTheme);
 			editor.configure({
@@ -149,11 +149,15 @@ export class NotectlEditorComponent {
 			});
 		});
 
-		// Sync external content model changes into the editor
+		// Sync external content model changes into the editor.
+		// Skips when the document was set by the editor itself (feedback loop prevention).
 		effect(() => {
 			const doc: Document | undefined = this.content();
 			const editor: NotectlEditor | null = this.editorRef;
-			if (!this.initialized || !editor || !doc || this.suppressContentSync) return;
+			if (!this.initialized() || !editor || !doc) return;
+
+			// Skip if this document originated from the editor's own state change
+			if (doc === this.lastEditorDoc) return;
 
 			editor.setJSON(doc);
 		});
@@ -247,62 +251,50 @@ export class NotectlEditorComponent {
 		const hostElement: HTMLDivElement = this.hostRef().nativeElement;
 		const config: NotectlEditorConfig = this.buildConfig();
 
-		this.ngZone.runOutsideAngular(() => {
-			const editor: NotectlEditor = new NotectlEditor();
-			this.editorRef = editor;
+		const editor: NotectlEditor = new NotectlEditor();
+		this.editorRef = editor;
 
-			// Register event listeners BEFORE appending to DOM, because
-			// appendChild triggers connectedCallback → init() synchronously.
-			editor.on('stateChange', (event: StateChangeEvent) => {
-				this.ngZone.run(() => {
-					this.editorState.set(event.newState);
-					this.syncContentModel(event.newState.doc);
-					this.stateChange.emit(event);
-				});
-			});
-
-			editor.on('selectionChange', (event: { selection: EditorSelection }) => {
-				this.ngZone.run(() => {
-					this.selectionChange.emit(event);
-				});
-			});
-
-			editor.on('focus', () => {
-				this.ngZone.run(() => {
-					this.editorFocus.emit();
-				});
-			});
-
-			editor.on('blur', () => {
-				this.ngZone.run(() => {
-					this.editorBlur.emit();
-				});
-			});
-
-			editor.on('ready', () => {
-				this.ngZone.run(() => {
-					this.initialized = true;
-					const state: EditorState = editor.getState();
-					this.editorState.set(state);
-
-					// Apply initial content model if set before editor was ready
-					const initialContent: Document | undefined = this.content();
-					if (initialContent) {
-						editor.setJSON(initialContent);
-					}
-
-					this.readyResolve?.();
-					this.ready.emit();
-				});
-			});
-
-			// Init with config BEFORE appending to DOM. appendChild triggers
-			// connectedCallback which calls init() without config — by calling
-			// init(config) first, the editor initializes with the full config
-			// and connectedCallback's init() becomes a no-op (already initialized).
-			editor.init(config);
-			hostElement.appendChild(editor);
+		// Register event listeners BEFORE appending to DOM, because
+		// appendChild triggers connectedCallback → init() synchronously.
+		editor.on('stateChange', (event: StateChangeEvent) => {
+			this.editorState.set(event.newState);
+			this.syncContentModel(event.newState.doc);
+			this.stateChange.emit(event);
 		});
+
+		editor.on('selectionChange', (event: { selection: EditorSelection }) => {
+			this.selectionChange.emit(event);
+		});
+
+		editor.on('focus', () => {
+			this.editorFocus.emit();
+		});
+
+		editor.on('blur', () => {
+			this.editorBlur.emit();
+		});
+
+		editor.on('ready', () => {
+			this.initialized.set(true);
+			const state: EditorState = editor.getState();
+			this.editorState.set(state);
+
+			// Apply initial content model if set before editor was ready
+			const initialContent: Document | undefined = this.content();
+			if (initialContent) {
+				editor.setJSON(initialContent);
+			}
+
+			this.readyResolve?.();
+			this.ready.emit();
+		});
+
+		// Init with config BEFORE appending to DOM. appendChild triggers
+		// connectedCallback which calls init() without config — by calling
+		// init(config) first, the editor initializes with the full config
+		// and connectedCallback's init() becomes a no-op (already initialized).
+		editor.init(config);
+		hostElement.appendChild(editor);
 	}
 
 	private buildConfig(): NotectlEditorConfig {
@@ -335,9 +327,8 @@ export class NotectlEditorComponent {
 
 	/** Syncs editor document changes to the content model without feedback loops. */
 	private syncContentModel(doc: Document): void {
-		this.suppressContentSync = true;
+		this.lastEditorDoc = doc;
 		this.content.set(doc);
-		this.suppressContentSync = false;
 	}
 
 	private destroyEditor(): void {
@@ -345,7 +336,7 @@ export class NotectlEditorComponent {
 			this.editorRef.destroy();
 			this.editorRef = null;
 		}
-		this.initialized = false;
+		this.initialized.set(false);
 	}
 
 	private requireEditor(): NotectlEditor {
