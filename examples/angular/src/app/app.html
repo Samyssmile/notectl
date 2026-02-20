@@ -5,5 +5,11 @@
     [plugins]="plugins"
     [theme]="theme()"
     [autofocus]="true"
+    (stateChange)="onStateChange($event)"
+  />
+  <app-state-inspector
+    [state]="currentState()"
+    [lastTransaction]="lastTransaction()"
+    [transactionCount]="transactionCount()"
   />
 </main>
