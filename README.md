@@ -28,6 +28,7 @@ Most editors bolt formatting on top of `contenteditable` and hope for the best. 
 - **Immutable state** — predictable updates, time-travel undo/redo, zero mutation bugs
 - **Transaction system** — atomic, invertible steps with middleware support
 - **Zero framework lock-in** — works with React, Vue, Svelte, Angular, or plain JS
+- **Native Angular integration** — available as [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular) for idiomatic Angular usage
 - **Tiny dependency footprint** — single runtime dependency (DOMPurify)
 
 <br />
@@ -37,6 +38,7 @@ Check out the [live playground](https://samyssmile.github.io/notectl/playground/
 
 ## Wanna see full working example?
 `examples/vanillajs/` is a great place to see everything in action.
+`examples/angular/` shows how to use notectl in Angular with the `@notectl/angular` package.
 
 ## Quick Start
 

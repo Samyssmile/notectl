@@ -271,12 +271,23 @@ export function renderBlock(
 			} else {
 				// Container blocks: recursively render block children
 				const blockChildren = getBlockChildren(block);
+				const contentDOMChildren = new Map<HTMLElement, BlockNode[]>();
 				for (const child of blockChildren) {
 					const contentDOM = nv.getContentDOM?.(child.id) ?? nv.contentDOM;
 					if (contentDOM) {
 						const childEl = renderBlock(child, registry, nodeViews, options);
 						contentDOM.appendChild(childEl);
+						let arr = contentDOMChildren.get(contentDOM);
+						if (!arr) {
+							arr = [];
+							contentDOMChildren.set(contentDOM, arr);
+						}
+						arr.push(child);
 					}
+				}
+				// Wrap blocks in each contentDOM (e.g., list items in table cells → <ul>/<ol>)
+				for (const [dom, children] of contentDOMChildren) {
+					wrapBlocks(dom, children, registry);
 				}
 			}
 
@@ -308,6 +319,8 @@ export function renderBlock(
 						const childEl = renderBlock(child, registry, nodeViews, options);
 						el.appendChild(childEl);
 					}
+					// Wrap blocks (e.g., list items → <ul>/<ol>)
+					wrapBlocks(el, blockChildren, registry);
 				}
 			}
 			applyNodeDecorations(el, block.id, options);
