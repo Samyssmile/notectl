@@ -5,6 +5,7 @@
 
 import type { InputRule } from '../input/InputRule.js';
 import type { Keymap } from '../input/Keymap.js';
+import type { BlockTypePickerEntry } from '../plugins/heading/BlockTypePickerEntry.js';
 import type { ToolbarItem } from '../plugins/toolbar/ToolbarItem.js';
 import type { NodeViewFactory } from '../view/NodeView.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
@@ -33,6 +34,7 @@ export class SchemaRegistry {
 	private readonly _toolbarItems = new Map<string, ToolbarItem>();
 	private readonly _toolbarItemPluginMap = new Map<string, string[]>();
 	private readonly _fileHandlers: FileHandlerEntry[] = [];
+	private readonly _blockTypePickerEntries = new Map<string, BlockTypePickerEntry>();
 
 	// --- NodeSpec ---
 
@@ -223,6 +225,23 @@ export class SchemaRegistry {
 		if (idx !== -1) this._fileHandlers.splice(idx, 1);
 	}
 
+	// --- BlockTypePickerEntry ---
+
+	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void {
+		if (this._blockTypePickerEntries.has(entry.id)) {
+			throw new Error(`BlockTypePickerEntry with id "${entry.id}" is already registered.`);
+		}
+		this._blockTypePickerEntries.set(entry.id, entry);
+	}
+
+	getBlockTypePickerEntries(): readonly BlockTypePickerEntry[] {
+		return [...this._blockTypePickerEntries.values()].sort((a, b) => a.priority - b.priority);
+	}
+
+	removeBlockTypePickerEntry(id: string): void {
+		this._blockTypePickerEntries.delete(id);
+	}
+
 	// --- Parse Rules & Sanitize Config ---
 
 	/** Returns all NodeSpec parseHTML rules, sorted by priority descending. */
@@ -318,6 +337,7 @@ export class SchemaRegistry {
 		this._toolbarItems.clear();
 		this._toolbarItemPluginMap.clear();
 		this._fileHandlers.length = 0;
+		this._blockTypePickerEntries.clear();
 	}
 }
 

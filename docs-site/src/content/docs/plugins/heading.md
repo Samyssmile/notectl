@@ -90,6 +90,54 @@ Input rules only fire for levels included in the `levels` config.
 
 The heading plugin renders as a **dropdown selector** in the toolbar. The dropdown label reflects the current block type ("Paragraph", "Heading 1", "Heading 2", etc.). Each option is styled with the corresponding heading font size for visual preview.
 
+### Extending the Block Type Picker
+
+The dropdown is backed by a shared registry. Any plugin can add entries that automatically appear in the picker by calling `registerBlockTypePickerEntry()`:
+
+```ts
+import type { Plugin, PluginContext } from '@notectl/core';
+
+class FooterPlugin implements Plugin {
+  readonly id = 'footer';
+  readonly name = 'Footer';
+  readonly dependencies = ['heading']; // ensures picker exists
+
+  init(context: PluginContext): void {
+    context.registerNodeSpec({
+      type: 'footer',
+      group: 'block',
+      content: { allow: ['text'] },
+      toDOM(node) {
+        const el = document.createElement('footer');
+        el.setAttribute('data-block-id', node.id);
+        return el;
+      },
+    });
+
+    context.registerCommand('setFooter', () => {
+      // toggle logic...
+      return true;
+    });
+
+    context.registerBlockTypePickerEntry({
+      id: 'footer',
+      label: 'Footer',
+      command: 'setFooter',
+      priority: 200,
+      style: { fontSize: '0.85em', fontWeight: '400' },
+      isActive: (state) => {
+        const block = state.getBlock(state.selection.anchor.blockId);
+        return block?.type === 'footer';
+      },
+    });
+  }
+}
+```
+
+Entries are sorted by `priority` (lower = first). The built-in entries use priorities 10–106. Use a higher value (e.g. 200+) to append custom entries.
+
+See the [Writing a Plugin](/notectl/guides/writing-plugins/#block-type-picker) guide for more details.
+
 ## Node Spec
 
 | Type | HTML Tag | Attributes |

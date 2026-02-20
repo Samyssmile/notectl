@@ -55,6 +55,32 @@ export interface SyntaxHighlighter {
 
 // --- Configuration ---
 
+/**
+ * Configurable keyboard bindings for CodeBlockPlugin actions.
+ * Omit a slot to use the default; set to `null` to disable the binding.
+ *
+ * Key descriptor format: `'Mod-Enter'`, `'Mod-Shift-M'`, etc.
+ * `Mod` resolves to Cmd on macOS, Ctrl on Windows/Linux.
+ */
+export interface CodeBlockKeymap {
+	/**
+	 * Insert a new paragraph below the code block and move the cursor there.
+	 * @default 'Mod-Enter'
+	 */
+	readonly insertAfter?: string | null;
+
+	/**
+	 * Toggle the current block between code block and paragraph.
+	 * @default 'Mod-Shift-M'
+	 */
+	readonly toggle?: string | null;
+}
+
+const DEFAULT_KEYMAP: Readonly<Record<keyof CodeBlockKeymap, string>> = {
+	insertAfter: 'Mod-Enter',
+	toggle: 'Mod-Shift-M',
+};
+
 export interface CodeBlockConfig {
 	readonly highlighter?: SyntaxHighlighter;
 	readonly defaultLanguage?: string;
@@ -70,6 +96,8 @@ export interface CodeBlockConfig {
 	readonly textColor?: string;
 	/** Default header/label text color (overrides --notectl-code-block-header-color). */
 	readonly headerColor?: string;
+	/** Customize keyboard bindings for code block actions. */
+	readonly keymap?: CodeBlockKeymap;
 }
 
 const DEFAULT_CONFIG: CodeBlockConfig = {
@@ -105,10 +133,12 @@ export class CodeBlockPlugin implements Plugin {
 	readonly priority = 36;
 
 	private readonly config: CodeBlockConfig;
+	private readonly resolvedKeymap: Readonly<Record<keyof CodeBlockKeymap, string | null>>;
 	private context: PluginContext | null = null;
 
 	constructor(config?: Partial<CodeBlockConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
+		this.resolvedKeymap = { ...DEFAULT_KEYMAP, ...config?.keymap };
 	}
 
 	init(context: PluginContext): void {
@@ -267,7 +297,7 @@ export class CodeBlockPlugin implements Plugin {
 	// --- Keymaps ---
 
 	private registerKeymaps(context: PluginContext): void {
-		context.registerKeymap({
+		const keymap: Record<string, () => boolean> = {
 			Enter: () => this.handleEnter(context),
 			Backspace: () => this.handleBackspace(context),
 			Tab: () => this.handleTab(context),
@@ -277,9 +307,18 @@ export class CodeBlockPlugin implements Plugin {
 			ArrowUp: () => this.handleArrowUp(context),
 			ArrowRight: () => this.handleArrowRight(context),
 			ArrowLeft: () => this.handleArrowLeft(context),
-			'Mod-Enter': () => this.handleModEnter(context),
-			'Mod-Shift-M': () => context.executeCommand('toggleCodeBlock'),
-		});
+		};
+
+		const { insertAfter, toggle } = this.resolvedKeymap;
+
+		if (insertAfter) {
+			keymap[insertAfter] = () => this.handleModEnter(context);
+		}
+		if (toggle) {
+			keymap[toggle] = () => context.executeCommand('toggleCodeBlock');
+		}
+
+		context.registerKeymap(keymap);
 	}
 
 	// --- Input Rule ---
@@ -319,7 +358,9 @@ export class CodeBlockPlugin implements Plugin {
 			group: 'block',
 			icon: CODE_BLOCK_ICON,
 			label: 'Code Block',
-			tooltip: `Code Block (${formatShortcut('Mod-Shift-M')})`,
+			tooltip: this.resolvedKeymap.toggle
+				? `Code Block (${formatShortcut(this.resolvedKeymap.toggle)})`
+				: 'Code Block',
 			command: 'toggleCodeBlock',
 			priority: 56,
 			separatorAfter: this.config.separatorAfter,
