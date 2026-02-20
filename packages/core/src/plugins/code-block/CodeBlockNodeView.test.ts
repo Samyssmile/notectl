@@ -257,4 +257,81 @@ describe('CodeBlockNodeView', () => {
 			expect(view.dom.classList.contains('notectl-code-block--selected')).toBe(false);
 		});
 	});
+
+	describe('ARIA attributes', () => {
+		it('sets role="group" on pre element', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.getAttribute('role')).toBe('group');
+		});
+
+		it('sets aria-roledescription="code block"', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			expect(view.dom.getAttribute('aria-roledescription')).toBe('code block');
+		});
+
+		it('aria-label includes language name and escape hint', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({ language: 'typescript' });
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const label: string | null = view.dom.getAttribute('aria-label');
+			expect(label).toBe('typescript code block. Press Escape to exit.');
+		});
+
+		it('aria-label shows "plain" when no language set', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({ language: '' });
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const label: string | null = view.dom.getAttribute('aria-label');
+			expect(label).toBe('plain code block. Press Escape to exit.');
+		});
+
+		it('aria-label updates when language changes via update()', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({ language: 'javascript' });
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const updated = makeCodeBlock({ language: 'python' });
+			view.update?.(updated);
+
+			expect(view.dom.getAttribute('aria-label')).toBe('python code block. Press Escape to exit.');
+		});
+	});
+
+	describe('escape hint', () => {
+		it('escape hint element exists with aria-hidden="true"', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const hint = view.dom.querySelector('.notectl-code-block__esc-hint');
+			expect(hint).not.toBeNull();
+			expect(hint?.getAttribute('aria-hidden')).toBe('true');
+		});
+
+		it('escape hint has correct class and text', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const hint = view.dom.querySelector('.notectl-code-block__esc-hint');
+			expect(hint?.textContent).toBe('Esc to exit');
+		});
+
+		it('escape hint has contenteditable="false"', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const hint = view.dom.querySelector('.notectl-code-block__esc-hint');
+			expect(hint?.getAttribute('contenteditable')).toBe('false');
+		});
+	});
 });

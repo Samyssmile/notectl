@@ -53,6 +53,8 @@ export interface PluginManagerInitOptions {
 	dispatch(transaction: Transaction): void;
 	getContainer(): HTMLElement;
 	getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
+	/** Pushes a screen reader announcement via the editor's aria-live region. */
+	announce?(text: string): void;
 	/** Called after all plugin init() calls complete, before onReady(). */
 	onBeforeReady?(): void | Promise<void>;
 }
@@ -423,6 +425,10 @@ export class PluginManager {
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,
+
+			announce: (text: string) => {
+				options.announce?.(text);
+			},
 		};
 	}
 
