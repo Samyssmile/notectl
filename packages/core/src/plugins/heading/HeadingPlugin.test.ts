@@ -513,6 +513,88 @@ describe('HeadingPlugin', () => {
 		});
 	});
 
+	describe('block type picker entries', () => {
+		it('registers entries for paragraph, title, subtitle, and all heading levels', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const entries = h.getBlockTypePickerEntries();
+
+			const ids: string[] = entries.map((e) => e.id);
+			expect(ids).toContain('paragraph');
+			expect(ids).toContain('title');
+			expect(ids).toContain('subtitle');
+			for (let level = 1; level <= 6; level++) {
+				expect(ids).toContain(`heading-${level}`);
+			}
+		});
+
+		it('entries are sorted by priority', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const entries = h.getBlockTypePickerEntries();
+
+			expect(entries[0]?.id).toBe('paragraph');
+			expect(entries[1]?.id).toBe('title');
+			expect(entries[2]?.id).toBe('subtitle');
+			expect(entries[3]?.id).toBe('heading-1');
+			expect(entries[entries.length - 1]?.id).toBe('heading-6');
+		});
+
+		it('isActive returns true for matching block type', async () => {
+			const state = makeState([{ type: 'title', text: 'Hello', id: 'b1' }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const entries = h.getBlockTypePickerEntries();
+
+			const titleEntry = entries.find((e) => e.id === 'title');
+			expect(titleEntry?.isActive(h.getState())).toBe(true);
+
+			const paragraphEntry = entries.find((e) => e.id === 'paragraph');
+			expect(paragraphEntry?.isActive(h.getState())).toBe(false);
+		});
+
+		it('heading entry isActive matches correct level', async () => {
+			const state = makeState([{ type: 'heading', text: 'Hello', id: 'b1', attrs: { level: 3 } }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const entries = h.getBlockTypePickerEntries();
+
+			const h3Entry = entries.find((e) => e.id === 'heading-3');
+			expect(h3Entry?.isActive(h.getState())).toBe(true);
+
+			const h1Entry = entries.find((e) => e.id === 'heading-1');
+			expect(h1Entry?.isActive(h.getState())).toBe(false);
+		});
+
+		it('respects configured levels', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin({ levels: [1, 2] }), state);
+			const entries = h.getBlockTypePickerEntries();
+
+			const ids: string[] = entries.map((e) => e.id);
+			expect(ids).toContain('heading-1');
+			expect(ids).toContain('heading-2');
+			expect(ids).not.toContain('heading-3');
+			expect(ids).not.toContain('heading-4');
+		});
+
+		it('third-party entry appears when registered on SchemaRegistry', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+
+			h.pm.schemaRegistry.registerBlockTypePickerEntry({
+				id: 'footer',
+				label: 'Footer',
+				command: 'setFooter',
+				priority: 200,
+				isActive: () => false,
+			});
+
+			const entries = h.getBlockTypePickerEntries();
+			const ids: string[] = entries.map((e) => e.id);
+			expect(ids).toContain('footer');
+			expect(entries[entries.length - 1]?.id).toBe('footer');
+		});
+	});
+
 	describe('excludeMarks', () => {
 		it('NodeSpecs declare excludeMarks for fontSize', async () => {
 			const h = await pluginHarness(new HeadingPlugin());

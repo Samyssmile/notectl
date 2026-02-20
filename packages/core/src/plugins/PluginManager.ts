@@ -46,6 +46,7 @@ interface PluginRegistrations {
 	inputRules: InputRule[];
 	toolbarItems: string[];
 	fileHandlers: FileHandler[];
+	blockTypePickerEntries: string[];
 }
 
 export interface PluginManagerInitOptions {
@@ -294,6 +295,9 @@ export class PluginManager {
 		for (const handler of reg.fileHandlers) {
 			this.schemaRegistry.removeFileHandler(handler);
 		}
+		for (const id of reg.blockTypePickerEntries) {
+			this.schemaRegistry.removeBlockTypePickerEntry(id);
+		}
 
 		this.middlewareSorted = null;
 		this.registrations.delete(id);
@@ -320,6 +324,7 @@ export class PluginManager {
 			inputRules: [],
 			toolbarItems: [],
 			fileHandlers: [],
+			blockTypePickerEntries: [],
 		};
 		this.registrations.set(pluginId, reg);
 
@@ -422,6 +427,11 @@ export class PluginManager {
 			registerFileHandler: (pattern, handler) => {
 				this.schemaRegistry.registerFileHandler(pattern, handler);
 				reg.fileHandlers.push(handler);
+			},
+
+			registerBlockTypePickerEntry: (entry) => {
+				this.schemaRegistry.registerBlockTypePickerEntry(entry);
+				reg.blockTypePickerEntries.push(entry.id);
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,

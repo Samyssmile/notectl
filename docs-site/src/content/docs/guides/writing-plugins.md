@@ -152,6 +152,29 @@ context.registerToolbarItem({
 });
 ```
 
+### Block Type Picker
+
+Add custom entries to the block type dropdown (the "Paragraph / Heading / Title" picker provided by `HeadingPlugin`). Your plugin must declare `dependencies: ['heading']` so the picker exists when entries are registered.
+
+```ts
+context.registerBlockTypePickerEntry({
+  id: 'footer',
+  label: 'Footer',
+  command: 'setFooter',     // Must be a registered command
+  priority: 200,            // Higher = further down the list
+  style: {                  // Optional: preview styling in the dropdown
+    fontSize: '0.85em',
+    fontWeight: '400',
+  },
+  isActive: (state) => {
+    const block = state.getBlock(state.selection.anchor.blockId);
+    return block?.type === 'footer';
+  },
+});
+```
+
+Built-in entries use priorities 10–106 (paragraph=10, title=20, subtitle=30, headings=101–106). Use 200+ to place entries after the built-in block types.
+
 ### Event Bus
 
 Communicate between plugins:

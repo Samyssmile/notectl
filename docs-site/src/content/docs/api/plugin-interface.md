@@ -61,6 +61,7 @@ interface PluginContext {
 
   // --- Toolbar ---
   registerToolbarItem(item: ToolbarItem): void;
+  registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 
   // --- Middleware ---
   registerMiddleware(middleware: TransactionMiddleware, priority?: number): void;
@@ -123,3 +124,31 @@ type TransactionMiddleware = (
 ```
 
 Call `next(tr)` to continue the chain. Skip `next()` to cancel the transaction.
+
+## BlockTypePickerEntry
+
+Entries registered via `registerBlockTypePickerEntry()` appear in the HeadingPlugin's block type dropdown.
+
+```ts
+interface BlockTypePickerEntry {
+  /** Unique identifier, e.g. 'heading-1', 'footer'. */
+  readonly id: string;
+  /** Display label shown in the picker, e.g. 'Heading 1'. */
+  readonly label: string;
+  /** Command to execute when selected. */
+  readonly command: string;
+  /** Sort order — lower values appear first. */
+  readonly priority: number;
+  /** Optional styling for the label in the dropdown. */
+  readonly style?: PickerEntryStyle;
+  /** Returns true when this entry matches the current block type. */
+  isActive(state: EditorState): boolean;
+}
+
+interface PickerEntryStyle {
+  readonly fontSize: string;
+  readonly fontWeight: string;
+}
+```
+
+The HeadingPlugin registers its built-in entries at priorities 10–106 (paragraph=10, title=20, subtitle=30, headings=101–106). Use a higher priority value (e.g. 200+) to append entries after the built-in ones.

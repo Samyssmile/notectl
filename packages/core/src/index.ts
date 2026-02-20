@@ -232,6 +232,11 @@ export {
 	type HeadingLevel,
 } from './plugins/heading/HeadingPlugin.js';
 
+export type {
+	BlockTypePickerEntry,
+	PickerEntryStyle,
+} from './plugins/heading/BlockTypePickerEntry.js';
+
 export {
 	LinkPlugin,
 	type LinkConfig,
@@ -331,6 +336,7 @@ export {
 	CodeBlockPlugin,
 	CODE_BLOCK_SERVICE_KEY,
 	type CodeBlockConfig,
+	type CodeBlockKeymap,
 	type CodeBlockService,
 	type SyntaxHighlighter,
 	type SyntaxToken,
