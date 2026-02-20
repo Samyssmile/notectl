@@ -63,7 +63,7 @@ In this mode, no toolbar UI is rendered. You control formatting through the comm
 
 ```ts
 editor.executeCommand('toggleBold');
-editor.executeCommand('setHeading');
+editor.executeCommand('setHeading1');
 ```
 
 ## Mixing Toolbar and Extra Plugins
@@ -99,10 +99,14 @@ import {
   CodeBlockPlugin,
   HorizontalRulePlugin,
   StrikethroughPlugin,
+  SuperSubPlugin,
+  HighlightPlugin,
   TextColorPlugin,
   AlignmentPlugin,
   FontPlugin,
   FontSizePlugin,
+  ImagePlugin,
+  HardBreakPlugin,
   STARTER_FONTS,
 } from '@notectl/core';
 
@@ -116,12 +120,18 @@ const editor = await createEditor({
     [new BlockquotePlugin(), new LinkPlugin()],
     // Lists: Ordered and Unordered
     [new ListPlugin()],
-    // Tables
-    [new TablePlugin()],
+    // Tables and Images
+    [new TablePlugin(), new ImagePlugin()],
     // Code blocks
     [new CodeBlockPlugin()],
     // Additional inline formatting
-    [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
+    [
+      new HorizontalRulePlugin(),
+      new StrikethroughPlugin(),
+      new SuperSubPlugin(),
+      new HighlightPlugin(),
+      new TextColorPlugin(),
+    ],
     // Typography: Alignment, Font, Size
     [
       new AlignmentPlugin(),
@@ -129,6 +139,7 @@ const editor = await createEditor({
       new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 16 }),
     ],
   ],
+  plugins: [new HardBreakPlugin()], // No toolbar UI needed
   placeholder: 'Start typing...',
   autofocus: true,
 });
@@ -140,16 +151,20 @@ Each plugin has a `priority` number that determines its rendering order within a
 
 | Plugin | Default Priority |
 |--------|-----------------|
-| TextFormattingPlugin | 10 |
-| HeadingPlugin | 15 |
+| HardBreakPlugin | 10 |
+| TextFormattingPlugin | 20 |
 | FontSizePlugin | 21 |
 | FontPlugin | 22 |
-| BlockquotePlugin | 25 |
-| LinkPlugin | 30 |
+| StrikethroughPlugin | 22 |
+| SuperSubPlugin | 23 |
+| TextColorPlugin | 23 |
+| HighlightPlugin | 24 |
+| LinkPlugin | 25 |
+| HeadingPlugin | 30 |
+| BlockquotePlugin | 35 |
 | ListPlugin | 35 |
 | CodeBlockPlugin | 36 |
+| HorizontalRulePlugin | 40 |
 | TablePlugin | 40 |
-| HorizontalRulePlugin | 50 |
-| StrikethroughPlugin | 20 |
-| TextColorPlugin | 45 |
-| AlignmentPlugin | 55 |
+| ImagePlugin | 45 |
+| AlignmentPlugin | 90 |

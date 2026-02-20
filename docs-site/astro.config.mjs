@@ -69,6 +69,7 @@ export default defineConfig({
 						{ label: 'Table', slug: 'plugins/table' },
 					{ label: 'Code Block', slug: 'plugins/code-block' },
 						{ label: 'Blockquote', slug: 'plugins/blockquote' },
+						{ label: 'Image', slug: 'plugins/image' },
 						{ label: 'Font', slug: 'plugins/font' },
 						{ label: 'Font Size', slug: 'plugins/font-size' },
 						{ label: 'Text Color', slug: 'plugins/text-color' },
@@ -77,6 +78,7 @@ export default defineConfig({
 						{ label: 'Superscript & Subscript', slug: 'plugins/super-sub' },
 						{ label: 'Highlight', slug: 'plugins/highlight' },
 						{ label: 'Horizontal Rule', slug: 'plugins/horizontal-rule' },
+						{ label: 'Hard Break', slug: 'plugins/hard-break' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
 					],
 				},
@@ -89,6 +91,7 @@ export default defineConfig({
 						{ label: 'Document Model', slug: 'api/document-model' },
 						{ label: 'Plugin Interface', slug: 'api/plugin-interface' },
 						{ label: 'Selection', slug: 'api/selection' },
+						{ label: 'Decorations', slug: 'api/decorations' },
 					],
 				},
 				{

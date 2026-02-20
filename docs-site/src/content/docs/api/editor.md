@@ -80,7 +80,7 @@ Returns `true` if the editor contains only a single empty paragraph.
 
 ### `commands`
 
-Object with convenience methods:
+Object with convenience methods for common operations. These are a fixed set of shortcuts — for plugin-registered commands, use `executeCommand()`:
 
 ```ts
 editor.commands.toggleBold();
@@ -93,7 +93,7 @@ editor.commands.selectAll();
 
 ### `can()`
 
-Returns an object with methods that check if commands can be executed:
+Returns an object that checks if the built-in convenience commands can be executed. For plugin-registered commands, use `executeCommand()` directly.
 
 ```ts
 const can = editor.can();
@@ -140,7 +140,7 @@ Unsubscribe from an event.
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `stateChange` | `{ oldState, newState, transaction }` | Every state change |
-| `selectionChange` | `{ selection }` | Cursor/selection moved |
+| `selectionChange` | `{ selection: EditorSelection }` | Cursor/selection moved |
 | `focus` | `undefined` | Editor gained focus |
 | `blur` | `undefined` | Editor lost focus |
 | `ready` | `undefined` | Initialization complete |
@@ -176,7 +176,7 @@ Updates configuration at runtime (placeholder, readonly).
 
 ### `registerPlugin(plugin: Plugin): void`
 
-Registers a plugin before initialization.
+Registers a plugin. Must be called **before** `init()` or before the element is added to the DOM.
 
 ### `destroy(): Promise<void>`
 

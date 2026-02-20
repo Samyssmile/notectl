@@ -22,9 +22,11 @@ new AlignmentPlugin({ alignments: ['left', 'center', 'right'] })
 ```ts
 interface AlignmentConfig {
   /** Enabled alignment options. Default: ['left', 'center', 'right', 'justify'] */
-  readonly alignments: BlockAlignment[];
-  /** Block types that support alignment. Default: ['paragraph', 'heading', 'title', 'subtitle'] */
-  readonly alignableTypes: string[];
+  readonly alignments: readonly BlockAlignment[];
+  /** Block types that support alignment. Default: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell', 'image'] */
+  readonly alignableTypes: readonly string[];
+  /** Per-type default alignment. E.g. { image: 'center' } */
+  readonly defaults: Readonly<Record<string, BlockAlignment>>;
   /** Render separator after toolbar item. */
   readonly separatorAfter?: boolean;
 }

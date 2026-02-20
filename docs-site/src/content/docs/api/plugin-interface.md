@@ -6,7 +6,7 @@ description: Complete reference for the Plugin and PluginContext APIs.
 ## Plugin Interface
 
 ```ts
-interface Plugin<TConfig = Record<string, unknown>> {
+interface Plugin<TConfig extends Record<string, unknown> = Record<string, unknown>> {
   /** Unique identifier. */
   readonly id: string;
   /** Human-readable name. */
@@ -52,12 +52,17 @@ interface PluginContext {
   // --- Schema ---
   registerNodeSpec<T extends string>(spec: NodeSpec<T>): void;
   registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
+  registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
   registerNodeView(type: string, factory: NodeViewFactory): void;
   getSchemaRegistry(): SchemaRegistry;
 
   // --- Input ---
   registerKeymap(keymap: Keymap): void;
   registerInputRule(rule: InputRule): void;
+  registerFileHandler(pattern: string, handler: FileHandler): void;
+
+  // --- Accessibility ---
+  announce(text: string): void;
 
   // --- Toolbar ---
   registerToolbarItem(item: ToolbarItem): void;
@@ -88,9 +93,10 @@ import { EventKey } from '@notectl/core';
 const MyEvent = new EventKey<{ value: string }>('my-event');
 
 bus.emit(MyEvent, { value: 'hello' });    // Type-checked
-bus.on(MyEvent, (payload) => {
+const unsubscribe = bus.on(MyEvent, (payload) => {
   payload.value; // string — type-safe
 });
+unsubscribe(); // Remove the listener
 ```
 
 ### ServiceKey
