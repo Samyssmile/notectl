@@ -213,6 +213,88 @@ describe('CodeBlockPlugin', () => {
 		});
 	});
 
+	describe('configurable keymap', () => {
+		it('uses default keybindings when no keymap provided', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'Mod-Enter');
+			expectKeyBinding(h, 'Mod-Shift-M');
+		});
+
+		it('custom insertAfter key registers under the custom key', async () => {
+			const h = await pluginHarness(
+				new CodeBlockPlugin({ keymap: { insertAfter: 'Mod-Shift-Enter' } }),
+			);
+			expectKeyBinding(h, 'Mod-Shift-Enter');
+
+			const keymaps = h.getKeymaps();
+			const hasDefault: boolean = keymaps.some((km) => 'Mod-Enter' in km);
+			expect(hasDefault).toBe(false);
+		});
+
+		it('custom toggle key registers under the custom key', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ keymap: { toggle: 'Mod-Shift-C' } }));
+			expectKeyBinding(h, 'Mod-Shift-C');
+
+			const keymaps = h.getKeymaps();
+			const hasDefault: boolean = keymaps.some((km) => 'Mod-Shift-M' in km);
+			expect(hasDefault).toBe(false);
+		});
+
+		it('null insertAfter disables the binding', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ keymap: { insertAfter: null } }));
+
+			const keymaps = h.getKeymaps();
+			const hasInsertAfter: boolean = keymaps.some((km) => 'Mod-Enter' in km);
+			expect(hasInsertAfter).toBe(false);
+		});
+
+		it('null toggle disables the binding', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ keymap: { toggle: null } }));
+
+			const keymaps = h.getKeymaps();
+			const hasToggle: boolean = keymaps.some((km) => 'Mod-Shift-M' in km);
+			expect(hasToggle).toBe(false);
+		});
+
+		it('Escape is always registered regardless of keymap config', async () => {
+			const h = await pluginHarness(
+				new CodeBlockPlugin({ keymap: { insertAfter: null, toggle: null } }),
+			);
+			expectKeyBinding(h, 'Escape');
+		});
+
+		it('custom insertAfter key dispatches insertParagraphAfter', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(
+				new CodeBlockPlugin({ keymap: { insertAfter: 'Mod-Shift-Enter' } }),
+				state,
+			);
+
+			const handler = h.getKeymaps().find((km) => km['Mod-Shift-Enter'])?.['Mod-Shift-Enter'];
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('custom toggle key updates toolbar tooltip', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ keymap: { toggle: 'Mod-Shift-C' } }));
+			const item = h.getToolbarItem('code_block');
+			assertDefined(item);
+			expect(item.tooltip).toContain('Shift+C');
+			expect(item.tooltip).not.toContain('Shift+M');
+		});
+
+		it('null toggle removes shortcut from toolbar tooltip', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ keymap: { toggle: null } }));
+			const item = h.getToolbarItem('code_block');
+			assertDefined(item);
+			expect(item.tooltip).toBe('Code Block');
+		});
+	});
+
 	describe('keyboard: Backspace', () => {
 		it('Backspace at start of code block converts to paragraph', async () => {
 			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);

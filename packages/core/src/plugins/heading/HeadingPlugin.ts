@@ -20,6 +20,7 @@ import type { Transaction, TransactionBuilder } from '../../state/Transaction.js
 import type { Plugin, PluginContext } from '../Plugin.js';
 import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
+import type { PickerEntryStyle } from './BlockTypePickerEntry.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -72,14 +73,6 @@ const TITLE_LABEL = 'Title';
 const SUBTITLE_LABEL = 'Subtitle';
 const PARAGRAPH_LABEL = 'Paragraph';
 
-// --- Picker Item Styling ---
-
-interface PickerItemStyle {
-	readonly fontSize: string;
-	readonly fontWeight: string;
-	readonly color?: string;
-}
-
 // --- Plugin ---
 
 export class HeadingPlugin implements Plugin {
@@ -101,6 +94,7 @@ export class HeadingPlugin implements Plugin {
 		this.registerCommands(context);
 		this.registerKeymaps(context);
 		this.registerInputRules(context);
+		this.registerPickerEntries(context);
 		this.registerToolbarItem(context);
 	}
 
@@ -244,6 +238,61 @@ export class HeadingPlugin implements Plugin {
 		}
 	}
 
+	private registerPickerEntries(context: PluginContext): void {
+		context.registerBlockTypePickerEntry({
+			id: 'paragraph',
+			label: PARAGRAPH_LABEL,
+			command: 'setParagraph',
+			priority: 10,
+			isActive: (state) => {
+				if (isNodeSelection(state.selection)) return false;
+				const block = state.getBlock(state.selection.anchor.blockId);
+				return block?.type === 'paragraph';
+			},
+		});
+
+		context.registerBlockTypePickerEntry({
+			id: 'title',
+			label: TITLE_LABEL,
+			command: 'setTitle',
+			priority: 20,
+			style: { fontSize: '1.6em', fontWeight: '700' },
+			isActive: (state) => {
+				if (isNodeSelection(state.selection)) return false;
+				const block = state.getBlock(state.selection.anchor.blockId);
+				return block?.type === 'title';
+			},
+		});
+
+		context.registerBlockTypePickerEntry({
+			id: 'subtitle',
+			label: SUBTITLE_LABEL,
+			command: 'setSubtitle',
+			priority: 30,
+			style: { fontSize: '1.3em', fontWeight: '500' },
+			isActive: (state) => {
+				if (isNodeSelection(state.selection)) return false;
+				const block = state.getBlock(state.selection.anchor.blockId);
+				return block?.type === 'subtitle';
+			},
+		});
+
+		for (const level of this.config.levels) {
+			context.registerBlockTypePickerEntry({
+				id: `heading-${level}`,
+				label: HEADING_LABELS[level],
+				command: `setHeading${level}`,
+				priority: 100 + level,
+				style: { fontSize: `${1.4 - level * 0.1}em`, fontWeight: '600' },
+				isActive: (state) => {
+					if (isNodeSelection(state.selection)) return false;
+					const block = state.getBlock(state.selection.anchor.blockId);
+					return block?.type === 'heading' && block.attrs?.level === level;
+				},
+			});
+		}
+	}
+
 	private registerToolbarItem(context: PluginContext): void {
 		const icon: string = `<span class="notectl-heading-select__label" data-heading-label>${PARAGRAPH_LABEL}</span><span class="notectl-heading-select__arrow">\u25BE</span>`;
 
@@ -261,9 +310,8 @@ export class HeadingPlugin implements Plugin {
 				this.renderHeadingPopup(container, ctx);
 			},
 			isActive: (state) => {
-				if (isNodeSelection(state.selection)) return false;
-				const block = state.getBlock(state.selection.anchor.blockId);
-				return block?.type === 'heading' || block?.type === 'title' || block?.type === 'subtitle';
+				const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
+				return entries.some((entry) => entry.id !== 'paragraph' && entry.isActive(state));
 			},
 		});
 	}
@@ -283,18 +331,10 @@ export class HeadingPlugin implements Plugin {
 
 	private getActiveLabel(state: EditorState): string {
 		if (isNodeSelection(state.selection)) return PARAGRAPH_LABEL;
-		const block = state.getBlock(state.selection.anchor.blockId);
-		if (!block) return PARAGRAPH_LABEL;
-
-		if (block.type === 'title') return TITLE_LABEL;
-		if (block.type === 'subtitle') return SUBTITLE_LABEL;
-
-		if (block.type === 'heading') {
-			const level = block.attrs?.level as HeadingLevel | undefined;
-			if (!level) return HEADING_LABELS[1];
-			return HEADING_LABELS[level] ?? HEADING_LABELS[1];
+		const entries = this.context?.getSchemaRegistry().getBlockTypePickerEntries() ?? [];
+		for (const entry of entries) {
+			if (entry.isActive(state)) return entry.label;
 		}
-
 		return PARAGRAPH_LABEL;
 	}
 
@@ -310,58 +350,28 @@ export class HeadingPlugin implements Plugin {
 
 		const state: EditorState = context.getState();
 		if (isNodeSelection(state.selection)) return;
-		const block = state.getBlock(state.selection.anchor.blockId);
-		const currentType: string = block?.type ?? 'paragraph';
-		const activeLevel: HeadingLevel | null =
-			currentType === 'heading' ? ((block?.attrs?.level as HeadingLevel) ?? 1) : null;
 
 		const list: HTMLDivElement = document.createElement('div');
 		list.className = 'notectl-heading-picker__list';
 		list.setAttribute('role', 'listbox');
 		list.setAttribute('aria-label', 'Block types');
 
-		const addItem = (
-			label: string,
-			active: boolean,
-			command: string,
-			style?: PickerItemStyle,
-		): void => {
+		const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
+		for (const entry of entries) {
+			const active: boolean = entry.isActive(state);
 			list.appendChild(
 				this.createPickerItem(
-					label,
+					entry.label,
 					active,
 					(e: MouseEvent) => {
 						e.preventDefault();
 						e.stopPropagation();
-						context.executeCommand(command);
+						context.executeCommand(entry.command);
 						this.dismissPopup();
 					},
-					style,
+					entry.style,
 				),
 			);
-		};
-
-		// Paragraph
-		addItem(PARAGRAPH_LABEL, currentType === 'paragraph', 'setParagraph');
-
-		// Title
-		addItem(TITLE_LABEL, currentType === 'title', 'setTitle', {
-			fontSize: '1.6em',
-			fontWeight: '700',
-		});
-
-		// Subtitle
-		addItem(SUBTITLE_LABEL, currentType === 'subtitle', 'setSubtitle', {
-			fontSize: '1.3em',
-			fontWeight: '500',
-		});
-
-		// Heading levels
-		for (const level of this.config.levels) {
-			addItem(HEADING_LABELS[level], activeLevel === level, `setHeading${level}`, {
-				fontSize: `${1.4 - level * 0.1}em`,
-				fontWeight: '600',
-			});
 		}
 
 		container.appendChild(list);
@@ -371,7 +381,7 @@ export class HeadingPlugin implements Plugin {
 		label: string,
 		isActive: boolean,
 		handler: (e: MouseEvent) => void,
-		style?: PickerItemStyle,
+		style?: PickerEntryStyle,
 	): HTMLButtonElement {
 		const item: HTMLButtonElement = document.createElement('button');
 		item.type = 'button';
@@ -394,9 +404,6 @@ export class HeadingPlugin implements Plugin {
 		if (style) {
 			labelSpan.style.fontSize = style.fontSize;
 			labelSpan.style.fontWeight = style.fontWeight;
-			if (style.color) {
-				labelSpan.style.color = style.color;
-			}
 		}
 		item.appendChild(labelSpan);
 
