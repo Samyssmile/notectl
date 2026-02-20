@@ -112,9 +112,9 @@ test.describe('Code Block Plugin', () => {
 
 	// ── Keyboard shortcut ──────────────────────────────────────
 
-	test('Ctrl+Shift+M toggles code block', async ({ editor, page }) => {
+	test('Ctrl+Shift+C toggles code block', async ({ editor, page }) => {
 		await editor.typeText('some text');
-		await page.keyboard.press('Control+Shift+M');
+		await page.keyboard.press('Control+Shift+C');
 
 		const json = await editor.getJSON();
 		expect(json.children[0]?.type).toBe('code_block');
@@ -379,13 +379,13 @@ test.describe('Code Block Accessibility', () => {
 		expect(json.children[0]?.children?.[0]?.text).toContain('edited');
 	});
 
-	test('Mod+Enter creates paragraph below', async ({ editor, page }) => {
+	test('Mod+Shift+Enter creates paragraph below', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
 		await page.keyboard.type('code here', { delay: 10 });
 
-		// Press Mod+Enter to create paragraph below
-		await page.keyboard.press('Control+Enter');
+		// Press Mod+Shift+Enter to create paragraph below
+		await page.keyboard.press('Control+Shift+Enter');
 		await page.keyboard.type('new paragraph', { delay: 10 });
 
 		const json = await editor.getJSON();
