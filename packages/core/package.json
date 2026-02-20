@@ -1,6 +1,6 @@
 {
 	"name": "@notectl/core",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "A modern and accessable rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
