@@ -1407,6 +1407,23 @@ const EDITOR_CSS = `
 	outline-offset: 2px;
 }
 
+.notectl-code-block__esc-hint {
+	display: none;
+	position: absolute;
+	bottom: 4px;
+	right: 8px;
+	font-size: 11px;
+	color: var(--notectl-code-block-header-color);
+	opacity: 0.5;
+	pointer-events: none;
+	user-select: none;
+	font-family: system-ui, sans-serif;
+}
+
+.notectl-code-block--focused .notectl-code-block__esc-hint {
+	display: block;
+}
+
 /* Node selection */
 .notectl-node-selected {
 	outline: 2px solid var(--notectl-primary);

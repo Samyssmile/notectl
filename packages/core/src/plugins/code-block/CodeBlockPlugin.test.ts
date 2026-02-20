@@ -823,4 +823,235 @@ describe('CodeBlockPlugin', () => {
 			expect(decos.isEmpty).toBe(false);
 		});
 	});
+
+	describe('keymap registration: ArrowRight, ArrowLeft, Mod-Enter', () => {
+		it('registers ArrowRight keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'ArrowRight');
+		});
+
+		it('registers ArrowLeft keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'ArrowLeft');
+		});
+
+		it('registers Mod-Enter keymap', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			expectKeyBinding(h, 'Mod-Enter');
+		});
+	});
+
+	describe('keyboard: ArrowRight', () => {
+		it('at end of text exits to next block', async () => {
+			const state = makeState(
+				[
+					{ type: 'code_block', text: 'code', id: 'b1' },
+					{ type: 'paragraph', text: 'next', id: 'b2' },
+				],
+				'b1',
+				4,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowRight)?.ArrowRight;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b2');
+				expect(sel.anchor.offset).toBe(0);
+			}
+		});
+
+		it('at end of text (last block) creates paragraph', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 4);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowRight)?.ArrowRight;
+			assertDefined(handler);
+			handler();
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('not at end returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowRight)?.ArrowRight;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('on non-code block returns false', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 4);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowRight)?.ArrowRight;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('keyboard: ArrowLeft', () => {
+		it('at offset 0 exits to previous block', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'code_block', text: 'code', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowLeft)?.ArrowLeft;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b1');
+				expect(sel.anchor.offset).toBe(4);
+			}
+		});
+
+		it('at offset 0 (first block) returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowLeft)?.ArrowLeft;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('not at offset 0 returns false', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowLeft)?.ArrowLeft;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('on non-code block returns false', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowLeft)?.ArrowLeft;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('keyboard: Mod-Enter', () => {
+		it('creates paragraph after code block and moves cursor', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km['Mod-Enter'])?.['Mod-Enter'];
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[0]?.type).toBe('code_block');
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('works even if not at end of text', async () => {
+			const state = makeState([{ type: 'code_block', text: 'hello world', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km['Mod-Enter'])?.['Mod-Enter'];
+			assertDefined(handler);
+			handler();
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('returns false on non-code block', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km['Mod-Enter'])?.['Mod-Enter'];
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('onStateChange: focus tracking and announcements', () => {
+		it('runs without error when entering code block', async () => {
+			const oldState = makeState(
+				[
+					{ type: 'paragraph', text: 'text', id: 'b1' },
+					{ type: 'code_block', text: 'code', id: 'b2' },
+				],
+				'b1',
+				0,
+			);
+			const newState = makeState(
+				[
+					{ type: 'paragraph', text: 'text', id: 'b1' },
+					{ type: 'code_block', text: 'code', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+
+			const plugin = new CodeBlockPlugin();
+			await pluginHarness(plugin, oldState);
+
+			const tr = oldState.transaction('command').setSelection(newState.selection).build();
+			plugin.onStateChange(oldState, newState, tr);
+		});
+
+		it('runs without error when leaving code block', async () => {
+			const oldState = makeState(
+				[
+					{ type: 'code_block', text: 'code', id: 'b1' },
+					{ type: 'paragraph', text: 'text', id: 'b2' },
+				],
+				'b1',
+				0,
+			);
+			const newState = makeState(
+				[
+					{ type: 'code_block', text: 'code', id: 'b1' },
+					{ type: 'paragraph', text: 'text', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+
+			const plugin = new CodeBlockPlugin();
+			await pluginHarness(plugin, oldState);
+
+			const tr = oldState.transaction('command').setSelection(newState.selection).build();
+			plugin.onStateChange(oldState, newState, tr);
+		});
+
+		it('does not throw when context is null', () => {
+			const plugin = new CodeBlockPlugin();
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const tr = state.transaction('command').setSelection(state.selection).build();
+
+			// Plugin not initialized, context is null — should return early
+			plugin.onStateChange(state, state, tr);
+		});
+	});
 });

@@ -128,6 +128,38 @@ export class CodeBlockPlugin implements Plugin {
 		this.context = null;
 	}
 
+	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
+		if (!this.context) return;
+
+		const oldBlockId: BlockId | null = isNodeSelection(oldState.selection)
+			? null
+			: oldState.selection.anchor.blockId;
+		const newBlockId: BlockId | null = isNodeSelection(newState.selection)
+			? null
+			: newState.selection.anchor.blockId;
+
+		const oldBlock: BlockNode | undefined = oldBlockId ? oldState.getBlock(oldBlockId) : undefined;
+		const newBlock: BlockNode | undefined = newBlockId ? newState.getBlock(newBlockId) : undefined;
+
+		const wasInCode: boolean = oldBlock?.type === 'code_block';
+		const nowInCode: boolean = newBlock?.type === 'code_block';
+
+		// Toggle focused class on DOM
+		if (wasInCode && oldBlockId) {
+			this.setBlockFocused(oldBlockId, false);
+		}
+		if (nowInCode && newBlockId) {
+			this.setBlockFocused(newBlockId, true);
+		}
+
+		// Announce transitions
+		if (!wasInCode && nowInCode) {
+			this.context.announce('Entered code block. Press Escape to exit.');
+		} else if (wasInCode && !nowInCode) {
+			this.context.announce('Left code block.');
+		}
+	}
+
 	decorations(state: EditorState): DecorationSet {
 		if (!this.config.highlighter) return DecorationSetClass.empty;
 
@@ -243,6 +275,9 @@ export class CodeBlockPlugin implements Plugin {
 			Escape: () => this.handleEscape(context),
 			ArrowDown: () => this.handleArrowDown(context),
 			ArrowUp: () => this.handleArrowUp(context),
+			ArrowRight: () => this.handleArrowRight(context),
+			ArrowLeft: () => this.handleArrowLeft(context),
+			'Mod-Enter': () => this.handleModEnter(context),
 			'Mod-Shift-M': () => context.executeCommand('toggleCodeBlock'),
 		});
 	}
@@ -599,7 +634,95 @@ export class CodeBlockPlugin implements Plugin {
 		return false;
 	}
 
+	/**
+	 * Handles ArrowRight at the end of a code block.
+	 * Exits to the next block or creates a paragraph below.
+	 */
+	private handleArrowRight(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+
+		const text: string = getBlockText(block);
+		if (sel.anchor.offset !== text.length) return false;
+
+		const blockOrder: readonly BlockId[] = state.getBlockOrder();
+		const idx: number = blockOrder.indexOf(sel.anchor.blockId);
+
+		if (idx < blockOrder.length - 1) {
+			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
+			const tr: Transaction = state
+				.transaction('command')
+				.setSelection(createCollapsedSelection(nextId, 0))
+				.build();
+			context.dispatch(tr);
+		} else {
+			this.insertParagraphAfter(context, sel.anchor.blockId);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handles ArrowLeft at the start of a code block.
+	 * Exits to the previous block at end.
+	 */
+	private handleArrowLeft(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+		if (!isCollapsed(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+
+		if (sel.anchor.offset !== 0) return false;
+
+		const blockOrder: readonly BlockId[] = state.getBlockOrder();
+		const idx: number = blockOrder.indexOf(sel.anchor.blockId);
+
+		if (idx > 0) {
+			const prevId: BlockId = blockOrder[idx - 1] as BlockId;
+			const prevBlock: BlockNode | undefined = state.getBlock(prevId);
+			const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
+			const tr: Transaction = state
+				.transaction('command')
+				.setSelection(createCollapsedSelection(prevId, prevLen))
+				.build();
+			context.dispatch(tr);
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Handles Mod+Enter: always creates a paragraph below and moves cursor there.
+	 */
+	private handleModEnter(context: PluginContext): boolean {
+		const state: EditorState = context.getState();
+		const sel = state.selection;
+		if (isNodeSelection(sel)) return false;
+
+		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+		if (!block || block.type !== 'code_block') return false;
+
+		this.insertParagraphAfter(context, sel.anchor.blockId);
+		return true;
+	}
+
 	// --- Helpers ---
+
+	private setBlockFocused(bid: BlockId, focused: boolean): void {
+		if (!this.context) return;
+		const container: HTMLElement = this.context.getContainer();
+		const el: Element | null = container.querySelector(`[data-block-id="${bid}"]`);
+		if (el) el.classList.toggle('notectl-code-block--focused', focused);
+	}
 
 	private toggleCodeBlock(context: PluginContext): boolean {
 		const state: EditorState = context.getState();

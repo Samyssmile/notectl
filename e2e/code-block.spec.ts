@@ -306,3 +306,146 @@ test.describe('Code Block Plugin', () => {
 		expect(headerBg).toBe('rgb(240, 240, 240)');
 	});
 });
+
+// ── Code Block Accessibility ─────────────────────────────────
+
+test.describe('Code Block Accessibility', () => {
+	test('Escape exits code block (no keyboard trap)', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('some code', { delay: 10 });
+
+		await page.keyboard.press('Escape');
+		await page.keyboard.type('escaped', { delay: 10 });
+
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(2);
+		expect(json.children[0]?.type).toBe('code_block');
+		expect(json.children[1]?.type).toBe('paragraph');
+		expect(json.children[1]?.children?.[0]?.text).toContain('escaped');
+	});
+
+	test('ArrowDown at last line exits code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('line1', { delay: 10 });
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('line2', { delay: 10 });
+
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.type('outside', { delay: 10 });
+
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(2);
+		expect(json.children[0]?.type).toBe('code_block');
+		expect(json.children[1]?.type).toBe('paragraph');
+
+		const text = await editor.getText();
+		expect(text).toContain('outside');
+	});
+
+	test('ArrowRight at end exits code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('code', { delay: 10 });
+
+		// Cursor is at end after typing. Press ArrowRight to exit.
+		await page.keyboard.press('ArrowRight');
+		await page.keyboard.type('next', { delay: 10 });
+
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(2);
+		expect(json.children[0]?.type).toBe('code_block');
+		expect(json.children[1]?.type).toBe('paragraph');
+		expect(json.children[1]?.children?.[0]?.text).toContain('next');
+	});
+
+	test('ArrowLeft at start exits code block', async ({ editor, page }) => {
+		// Create a paragraph first, then an empty code block
+		await editor.typeText('above');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('``` ', { delay: 10 });
+
+		// Cursor is at offset 0 in the empty code block.
+		// Press ArrowLeft to exit to previous block.
+		await page.keyboard.press('ArrowLeft');
+
+		// Verify cursor is now in the paragraph above
+		await page.keyboard.press('End');
+		await page.keyboard.type(' edited', { delay: 10 });
+
+		const json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('paragraph');
+		expect(json.children[0]?.children?.[0]?.text).toContain('edited');
+	});
+
+	test('Mod+Enter creates paragraph below', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('code here', { delay: 10 });
+
+		// Press Mod+Enter to create paragraph below
+		await page.keyboard.press('Control+Enter');
+		await page.keyboard.type('new paragraph', { delay: 10 });
+
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(2);
+		expect(json.children[0]?.type).toBe('code_block');
+		expect(json.children[1]?.type).toBe('paragraph');
+		expect(json.children[1]?.children?.[0]?.text).toContain('new paragraph');
+	});
+
+	test('code block has ARIA attributes', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('```typescript ', { delay: 10 });
+		await page.keyboard.type('code', { delay: 10 });
+
+		const pre = editor.content.locator('pre.notectl-code-block');
+		await expect(pre).toHaveAttribute('role', 'group');
+		await expect(pre).toHaveAttribute('aria-roledescription', 'code block');
+		await expect(pre).toHaveAttribute('aria-label', 'typescript code block. Press Escape to exit.');
+	});
+
+	test('escape hint visible when focused', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('code', { delay: 10 });
+
+		// Wait for focused class to be applied via onStateChange
+		await page.waitForTimeout(100);
+
+		const hint = editor.content.locator('.notectl-code-block__esc-hint');
+		await expect(hint).toBeVisible();
+
+		// Exit code block
+		await page.keyboard.press('Escape');
+		await page.waitForTimeout(100);
+
+		// Hint should be hidden now (no --focused class)
+		await expect(hint).not.toBeVisible();
+	});
+
+	test('screen reader announces entering code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.waitForTimeout(100);
+
+		const announcer = editor.announcer();
+		const text: string = await announcer.evaluate((el) => el.textContent ?? '');
+		expect(text).toContain('Entered code block');
+	});
+
+	test('screen reader announces leaving code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('code', { delay: 10 });
+		await page.waitForTimeout(100);
+
+		await page.keyboard.press('Escape');
+		await page.waitForTimeout(100);
+
+		const announcer = editor.announcer();
+		const text: string = await announcer.evaluate((el) => el.textContent ?? '');
+		expect(text).toContain('Left code block');
+	});
+});

@@ -427,6 +427,7 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerInlineNodeSpec: vi.fn(),
 		registerFileHandler: vi.fn(),
 		getSchemaRegistry: vi.fn() as never,
+		announce: overrides?.announce ?? vi.fn(),
 		...overrides,
 	} as PluginContext;
 }
