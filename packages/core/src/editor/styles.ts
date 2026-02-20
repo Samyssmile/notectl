@@ -1383,7 +1383,7 @@ const EDITOR_CSS = `
 }
 
 .notectl-code-block__copy:hover {
-	background: rgba(255, 255, 255, 0.1);
+	background: rgba(128, 128, 128, 0.15);
 	color: var(--notectl-code-block-color);
 }
 

@@ -41,9 +41,15 @@
 	const container = document.getElementById('playground-editor');
 	const output = document.getElementById('playground-output');
 
+	function getStarlightTheme(): ThemePreset {
+		return document.documentElement.dataset.theme === 'dark'
+			? ThemePreset.Dark
+			: ThemePreset.Light;
+	}
+
 	if (container && output) {
 		const editor = await createEditor({
-			theme: ThemePreset.Light,
+			theme: getStarlightTheme(),
 			toolbar: [
 				[
 					new FontPlugin({ fonts: [...STARTER_FONTS] }),
@@ -116,6 +122,15 @@
 
 		editor.on('ready', () => {
 			updateOutput();
+		});
+
+		// Sync notectl theme with Starlight's light/dark toggle
+		const observer = new MutationObserver(() => {
+			editor.setTheme(getStarlightTheme());
+		});
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-theme'],
 		});
 	}
 </script>

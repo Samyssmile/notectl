@@ -93,11 +93,11 @@ export const LIGHT_THEME: Theme = {
 		focusRing: 'rgba(74, 144, 217, 0.2)',
 	},
 	codeBlock: {
-		background: '#1e1e2e',
-		foreground: '#cdd6f4',
-		headerBackground: 'rgba(255, 255, 255, 0.06)',
-		headerForeground: '#7f849c',
-		headerBorder: 'rgba(255, 255, 255, 0.08)',
+		background: '#f8fafc',
+		foreground: '#334155',
+		headerBackground: '#f1f5f9',
+		headerForeground: '#64748b',
+		headerBorder: '#e2e8f0',
 	},
 	tooltip: {
 		background: '#1a1a1a',
@@ -130,9 +130,9 @@ export const DARK_THEME: Theme = {
 	codeBlock: {
 		background: '#11111b',
 		foreground: '#cdd6f4',
-		headerBackground: 'rgba(255, 255, 255, 0.04)',
+		headerBackground: '#181825',
 		headerForeground: '#7f849c',
-		headerBorder: 'rgba(255, 255, 255, 0.06)',
+		headerBorder: 'rgba(205, 214, 244, 0.08)',
 	},
 	tooltip: {
 		background: '#585b70',
