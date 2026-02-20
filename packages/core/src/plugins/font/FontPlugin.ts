@@ -12,6 +12,7 @@ import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -408,10 +409,8 @@ export class FontPlugin implements Plugin {
 	// --- Popup Rendering ---
 
 	private dismissPopup(): void {
-		// Trigger the ToolbarPlugin's outside-click handler to close the popup.
-		setTimeout(() => {
-			document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-		}, 0);
+		const toolbar = this.context?.getService(ToolbarServiceKey);
+		toolbar?.closePopup();
 	}
 
 	private renderFontPopup(container: HTMLElement, context: PluginContext): void {

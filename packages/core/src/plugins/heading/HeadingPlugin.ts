@@ -19,6 +19,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
+import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -300,9 +301,8 @@ export class HeadingPlugin implements Plugin {
 	// --- Custom Popup ---
 
 	private dismissPopup(): void {
-		setTimeout(() => {
-			document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-		}, 0);
+		const toolbar = this.context?.getService(ToolbarServiceKey);
+		toolbar?.closePopup();
 	}
 
 	private renderHeadingPopup(container: HTMLElement, context: PluginContext): void {
