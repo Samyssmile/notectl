@@ -21,7 +21,15 @@ import {
 	TextFormattingPlugin,
 	ThemePreset,
 } from '@notectl/angular';
-import type { FontDefinition, Plugin } from '@notectl/angular';
+import type {
+	EditorState,
+	FontDefinition,
+	Plugin,
+	StateChangeEvent,
+	Transaction,
+} from '@notectl/angular';
+
+import { StateInspectorComponent } from './state-inspector/state-inspector';
 
 const INTER: FontDefinition = {
 	name: 'Inter',
@@ -38,7 +46,7 @@ const INTER: FontDefinition = {
 
 @Component({
 	selector: 'app-root',
-	imports: [NotectlEditorComponent],
+	imports: [NotectlEditorComponent, StateInspectorComponent],
 	templateUrl: './app.html',
 	styleUrl: './app.css',
 	changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +54,10 @@ const INTER: FontDefinition = {
 export class App {
 	protected readonly title = signal('notectl Angular Example');
 	protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+
+	protected readonly currentState = signal<EditorState | null>(null);
+	protected readonly lastTransaction = signal<Transaction | null>(null);
+	protected readonly transactionCount = signal(0);
 
 	protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
 		[
@@ -65,4 +77,10 @@ export class App {
 	];
 
 	protected readonly plugins: Plugin[] = [new HardBreakPlugin()];
+
+	protected onStateChange(event: StateChangeEvent): void {
+		this.currentState.set(event.newState);
+		this.lastTransaction.set(event.transaction);
+		this.transactionCount.update((count) => count + 1);
+	}
 }
