@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"declaration": true,
+		"declarationDir": "./dist",
+		"importHelpers": true
+	},
+	"angularCompilerOptions": {
+		"compilationMode": "partial"
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/**/*.spec.ts", "node_modules", "dist"]
+}

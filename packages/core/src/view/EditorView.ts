@@ -302,8 +302,11 @@ export class EditorView {
 	 * appends a new paragraph after the last block and focuses it.
 	 */
 	private handleClickBelowContent(e: MouseEvent): void {
+		const blockOrder: readonly BlockId[] = this.state.getBlockOrder();
+		const lastBlockId: BlockId | undefined = blockOrder[blockOrder.length - 1];
+		if (!lastBlockId) return;
 		const lastBlockEl: Element | null = this.contentElement.querySelector(
-			':scope > [data-block-id]:last-child',
+			`[data-block-id="${lastBlockId}"]`,
 		);
 		if (!lastBlockEl) return;
 
@@ -312,16 +315,12 @@ export class EditorView {
 		if (e.clientY <= lastRect.bottom) return;
 
 		// Check if the last block is already an empty paragraph we can focus
-		const blockOrder: readonly BlockId[] = this.state.getBlockOrder();
-		const lastId: BlockId | undefined = blockOrder[blockOrder.length - 1];
-		if (!lastId) return;
-
-		const lastBlock = this.state.getBlock(lastId);
+		const lastBlock = this.state.getBlock(lastBlockId);
 		if (lastBlock?.type === 'paragraph' && getBlockLength(lastBlock) === 0) {
 			// Focus the existing empty paragraph
 			const tr: Transaction = this.state
 				.transaction('input')
-				.setSelection(createCollapsedSelection(lastId, 0))
+				.setSelection(createCollapsedSelection(lastBlockId, 0))
 				.build();
 			this.dispatch(tr);
 			e.preventDefault();
@@ -337,7 +336,7 @@ export class EditorView {
 
 		const tr: Transaction = this.state
 			.transaction('input')
-			.splitBlock(lastId, lastLen, newId)
+			.splitBlock(lastBlockId, lastLen, newId)
 			.setBlockType(newId, nodeType('paragraph'))
 			.setSelection(createCollapsedSelection(newId, 0))
 			.build();

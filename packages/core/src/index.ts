@@ -96,7 +96,7 @@ export type {
 export { isNodeOfType, isMarkOfType, isInlineNodeOfType } from './model/AttrRegistry.js';
 
 // --- NodeSpec & MarkSpec ---
-export type { NodeSpec, AttrSpec, ContentRule } from './model/NodeSpec.js';
+export type { NodeSpec, AttrSpec, ContentRule, WrapperSpec } from './model/NodeSpec.js';
 export { createBlockElement } from './model/NodeSpec.js';
 export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
