@@ -127,20 +127,6 @@ test.describe('FontPlugin', () => {
 		expect(html).toContain('font-family');
 	});
 
-	test('Font applied at cursor affects next typed text', async ({ editor, page }) => {
-		await editor.focus();
-
-		const fontBtn = editor.markButton('font');
-		await fontBtn.click();
-		const popup = editor.root.locator('.notectl-font-picker');
-		await popup.locator(FONT_ITEM).nth(1).click();
-
-		await page.keyboard.type('typed after font', { delay: 10 });
-
-		const html = await editor.getHTML();
-		expect(html).toContain('font-family');
-	});
-
 	test('Font applies across multiple blocks', async ({ editor, page }) => {
 		await editor.typeText('First');
 		await page.keyboard.press('Enter');

@@ -65,7 +65,8 @@ test.describe('History', () => {
 	test('Multiple undo', async ({ editor, page }) => {
 		await editor.typeText('First');
 		await editor.waitForUndoGroup();
-		await editor.typeText(' Second');
+		// Use page.keyboard.type directly to avoid focus() re-click creating extra undo group
+		await page.keyboard.type(' Second', { delay: 10 });
 		await editor.waitForUndoGroup();
 
 		await page.keyboard.press('Control+z');

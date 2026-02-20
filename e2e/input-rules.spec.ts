@@ -272,14 +272,13 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Title', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Enter on heading creates new heading; toggle back to paragraph
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading already creates a paragraph
 
 		// Heading 2
 		await page.keyboard.type('## ', { delay: 10 });
 		await page.keyboard.type('Subtitle', { delay: 10 });
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Control+Shift+2');
+		// Enter at end of heading already creates a paragraph
 
 		// Heading 3
 		await page.keyboard.type('### ', { delay: 10 });
@@ -302,8 +301,7 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 		await page.keyboard.type('# ', { delay: 10 });
 		await page.keyboard.type('Heading', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Reset to paragraph so next input rules can trigger
-		await page.keyboard.press('Control+Shift+1');
+		// Enter at end of heading already creates a paragraph
 
 		// Blockquote
 		await page.keyboard.type('> ', { delay: 10 });

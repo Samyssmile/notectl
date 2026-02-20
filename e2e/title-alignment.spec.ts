@@ -22,7 +22,7 @@ test.describe('Title block text alignment', () => {
 		await expect(popup).toBeVisible();
 
 		// Click the "Title" item (exact match to avoid matching "Subtitle")
-		const titleItem = popup.getByRole('button', { name: 'Title', exact: true });
+		const titleItem = popup.getByRole('option', { name: 'Title', exact: true });
 		await titleItem.click();
 
 		// 4. Verify the block is now a title
