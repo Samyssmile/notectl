@@ -38,8 +38,10 @@
 			"**/*.d.ts",
 			"**/.turbo/**",
 			"**/.claude/**",
+			"**/.angular/**",
 			"docs-site/**",
-			"scripts/**"
+			"scripts/**",
+			"examples/angular/**"
 		]
 	}
 }
