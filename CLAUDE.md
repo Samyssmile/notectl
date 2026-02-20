@@ -84,6 +84,18 @@ Enforced via `biome.json` and `code-style-requirements.md`:
 - **Tests** co-located (`Foo.ts` + `Foo.test.ts`), Arrange-Act-Assert, test public API not internals
 - **Commits**: conventional (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`)
 
+## Clean Code Principles
+The Code follows always follow clean code principles, such as:
+- SOLID
+- DRY
+- TESTABILITY
+- SEPARATION OF CONCERNS
+- Always avoid big classes/files. If something is getting too big or complex, it's a sign that it should be refactored into smaller, more focused modules or functions.
+
+## Accessibility
+- All interactive elements must be keyboard accessible (tab order, ARIA roles/labels)
+- All new Plugins/Features must be accessible by default, with no extra configuration needed
+- 
 ## Key Constraints
 
 - DOM manipulation only in `view/` — model and state are DOM-free

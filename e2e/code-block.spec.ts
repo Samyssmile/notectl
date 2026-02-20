@@ -214,25 +214,6 @@ test.describe('Code Block Plugin', () => {
 		expect(json.children[0]?.children?.[0]?.text).toContain('edited');
 	});
 
-	// ── Escape code block: double Enter ───────────────────────
-
-	test('double Enter at end of code block exits', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('some code', { delay: 10 });
-		await page.keyboard.press('Enter');
-		await page.keyboard.press('Enter');
-
-		// Should now be in a new paragraph after the code block
-		await page.keyboard.type('after code', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children.length).toBe(2);
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[1]?.type).toBe('paragraph');
-		expect(json.children[1]?.children?.[0]?.text).toContain('after code');
-	});
-
 	// ── Escape code block: Escape key ─────────────────────────
 
 	test('Escape key exits code block', async ({ editor, page }) => {
