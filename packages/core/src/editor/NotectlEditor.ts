@@ -234,6 +234,7 @@ export class NotectlEditor extends HTMLElement {
 		const bottomContainer = this.bottomPluginContainer;
 		if (!contentEl || !pluginMgr || !topContainer || !bottomContainer) return;
 
+		const announcer = this.announcer;
 		await pluginMgr.init({
 			getState: () => {
 				if (!this.view) throw new Error('View not initialized');
@@ -242,6 +243,9 @@ export class NotectlEditor extends HTMLElement {
 			dispatch: (tr) => this.dispatch(tr),
 			getContainer: () => contentEl,
 			getPluginContainer: (position) => (position === 'top' ? topContainer : bottomContainer),
+			announce: (text: string) => {
+				if (announcer) announcer.textContent = text;
+			},
 			onBeforeReady: () => {
 				const schema = schemaFromRegistry(pluginMgr.schemaRegistry);
 				const state = EditorState.create({ schema });
@@ -583,7 +587,10 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	private onStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
-		// Notify plugins (with transaction)
+		// Clear announcer so plugin announcements can be detected
+		if (this.announcer) this.announcer.textContent = '';
+
+		// Notify plugins (with transaction) — plugins may call context.announce()
 		this.pluginManager?.notifyStateChange(oldState, newState, tr);
 
 		// Update empty state
@@ -596,8 +603,10 @@ export class NotectlEditor extends HTMLElement {
 			this.emit('selectionChange', { selection: newState.selection });
 		}
 
-		// Announce state changes for screen readers (priority-ordered)
-		this.announceStateChange(oldState, newState, tr);
+		// Announce state changes for screen readers (skip if a plugin already announced)
+		if (!this.announcer?.textContent) {
+			this.announceStateChange(oldState, newState, tr);
+		}
 	}
 
 	private updateEmptyState(): void {

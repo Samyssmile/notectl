@@ -26,6 +26,8 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		const pre: HTMLElement = document.createElement('pre');
 		pre.className = 'notectl-code-block';
 		pre.setAttribute('data-block-id', node.id);
+		pre.setAttribute('role', 'group');
+		pre.setAttribute('aria-roledescription', 'code block');
 
 		// Header (non-editable)
 		const header: HTMLDivElement = document.createElement('div');
@@ -62,8 +64,16 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		const code: HTMLElement = document.createElement('code');
 		code.className = 'notectl-code-block__content';
 
+		// Escape hint (visible only when focused, CSS-driven)
+		const escHint: HTMLDivElement = document.createElement('div');
+		escHint.className = 'notectl-code-block__esc-hint';
+		escHint.setAttribute('contenteditable', 'false');
+		escHint.setAttribute('aria-hidden', 'true');
+		escHint.textContent = 'Esc to exit';
+
 		pre.appendChild(header);
 		pre.appendChild(code);
+		pre.appendChild(escHint);
 
 		// Apply config-level color overrides as CSS custom properties
 		if (config.background) {
@@ -85,7 +95,9 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 
 		function applyAttrs(n: BlockNode): void {
 			const lang: string = (n.attrs?.language as string) ?? '';
-			langLabel.textContent = lang || 'plain';
+			const langName: string = lang || 'plain';
+			langLabel.textContent = langName;
+			pre.setAttribute('aria-label', `${langName} code block. Press Escape to exit.`);
 
 			if (lang) {
 				code.setAttribute('data-language', lang);

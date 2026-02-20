@@ -87,6 +87,9 @@ export interface PluginContext {
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	getSchemaRegistry(): SchemaRegistry;
+
+	/** Pushes a screen reader announcement via the editor's aria-live region. */
+	announce(text: string): void;
 }
 
 // --- Plugin Interface ---
