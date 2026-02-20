@@ -6,26 +6,27 @@ description: Try notectl live in your browser. No installation required.
 import EditorPlayground from '../../../components/EditorPlayground.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-Try the full-featured notectl editor right here in your browser. All 15 built-in plugins are active.
+Try the full-featured notectl editor right here in your browser. All 18 built-in plugins are active.
 
 <Aside type="tip">
-Use keyboard shortcuts like `Ctrl+B` for bold, `Ctrl+I` for italic, or type `# ` to create a heading. See the [Plugin Overview](/notectl/plugins/overview/) for all available shortcuts.
+Use keyboard shortcuts like `Ctrl+B` for bold, `Ctrl+I` for italic, or type `# ` to create a heading. Use `Shift+Enter` for a hard line break. See the [Plugin Overview](/notectl/plugins/overview/) for all available shortcuts.
 </Aside>
 
 <EditorPlayground />
 
 ## What you see here
 
-This playground runs the exact same `@notectl/core` package you would install in your project. The editor is configured with all built-in plugins:
+This playground runs the exact same `@notectl/core` package you would install in your project. The editor is configured with every built-in plugin:
 
 | Group | Plugins |
 |-------|---------|
 | **Typography** | Font, Font Size |
 | **Formatting** | Bold, Italic, Underline, Strikethrough, Superscript, Subscript |
 | **Color** | Text Color, Highlight |
-| **Structure** | Heading, Blockquote |
+| **Structure** | Heading, Blockquote, Code Block |
 | **Alignment** | Left, Center, Right, Justify |
 | **Lists** | Bullet List, Numbered List |
-| **Insert** | Link, Table, Horizontal Rule |
+| **Insert** | Link, Table, Horizontal Rule, Image |
+| **Utility** | Hard Break (Shift+Enter) |
 
 The output panel below the editor shows the live document state in JSON, HTML, or plain text format.
