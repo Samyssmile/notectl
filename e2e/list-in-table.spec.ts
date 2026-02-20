@@ -154,7 +154,87 @@ test.describe('Lists inside table cells — input rules', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// Part 2: Copy-pasting lists into table cells
+// Part 2: List wrapper rendering inside table cells
+// ══════════════════════════════════════════════════════════════════════════
+
+test.describe('Lists inside table cells — DOM wrappers', () => {
+	test('bullet list item in table cell is wrapped in <ul>', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Bullet item', { delay: 10 });
+
+		// The <li> should be inside a <ul> wrapper with the notectl-list class
+		const wrapperInfo = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const shadow = el?.shadowRoot;
+			const li = shadow?.querySelector('td .notectl-list-item--bullet');
+			if (!li) return { found: false, parentTag: '', hasListClass: false };
+			const parent = li.parentElement;
+			return {
+				found: true,
+				parentTag: parent?.tagName ?? '',
+				hasListClass: parent?.classList.contains('notectl-list') ?? false,
+			};
+		});
+
+		expect(wrapperInfo.found).toBe(true);
+		expect(wrapperInfo.parentTag).toBe('UL');
+		expect(wrapperInfo.hasListClass).toBe(true);
+	});
+
+	test('ordered list item in table cell is wrapped in <ol>', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		await page.keyboard.type('1. ', { delay: 10 });
+		await page.keyboard.type('Ordered item', { delay: 10 });
+
+		const wrapperInfo = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const shadow = el?.shadowRoot;
+			const li = shadow?.querySelector('td .notectl-list-item--ordered');
+			if (!li) return { found: false, parentTag: '', hasListClass: false };
+			const parent = li.parentElement;
+			return {
+				found: true,
+				parentTag: parent?.tagName ?? '',
+				hasListClass: parent?.classList.contains('notectl-list') ?? false,
+			};
+		});
+
+		expect(wrapperInfo.found).toBe(true);
+		expect(wrapperInfo.parentTag).toBe('OL');
+		expect(wrapperInfo.hasListClass).toBe(true);
+	});
+
+	test('bullet list in table cell does not show double bullet markers', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Single bullet', { delay: 10 });
+
+		// The native list-style must be suppressed (set to 'none' by .notectl-list wrapper).
+		// Without the wrapper, the browser renders a native bullet PLUS the custom ::before.
+		const listStyleType = await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor');
+			const shadow = el?.shadowRoot;
+			const li = shadow?.querySelector('td .notectl-list-item--bullet');
+			if (!li) return 'not-found';
+			return getComputedStyle(li).listStyleType;
+		});
+
+		expect(listStyleType).toBe('none');
+	});
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Part 3: Copy-pasting lists into table cells
 // ══════════════════════════════════════════════════════════════════════════
 
 test.describe('Lists copy-paste into table cells', () => {
