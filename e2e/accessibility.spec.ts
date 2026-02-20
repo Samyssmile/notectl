@@ -431,24 +431,92 @@ test.describe('ARIA Enhancements', () => {
 		await page.keyboard.press('Escape');
 	});
 
-	test('List items have aria-roledescription and aria-level', async ({ editor, page }) => {
+	test('Bullet list items use semantic <li> inside <ul>', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('- ', { delay: 10 });
 		await page.keyboard.type('Item', { delay: 10 });
 
-		// Check that the list item element has the right ARIA attributes
-		const listItem = editor.root.locator('[aria-roledescription="list item"]');
+		const wrapper = editor.root.locator('ul[role="list"]');
+		await expect(wrapper).toBeVisible();
+
+		const listItem = wrapper.locator('li[role="listitem"]');
 		await expect(listItem).toBeVisible();
 		await expect(listItem).toHaveAttribute('aria-level', '1');
 	});
 
-	test('Checklist items have aria-roledescription and aria-checked', async ({ editor, page }) => {
+	test('Ordered list items use semantic <li> inside <ol>', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('1. ', { delay: 10 });
+		await page.keyboard.type('First', { delay: 10 });
+
+		const wrapper = editor.root.locator('ol[role="list"]');
+		await expect(wrapper).toBeVisible();
+
+		const listItem = wrapper.locator('li[role="listitem"]');
+		await expect(listItem).toBeVisible();
+		await expect(listItem).toHaveAttribute('aria-level', '1');
+	});
+
+	test('Checklist items use semantic <li> with aria-checked', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('[ ] ', { delay: 10 });
 		await page.keyboard.type('Task', { delay: 10 });
 
-		const checkbox = editor.root.locator('[aria-roledescription="checklist item"]');
-		await expect(checkbox).toBeVisible();
-		await expect(checkbox).toHaveAttribute('aria-checked', 'false');
+		const wrapper = editor.root.locator('ul[role="list"]');
+		await expect(wrapper).toBeVisible();
+
+		const listItem = wrapper.locator('li[role="listitem"]');
+		await expect(listItem).toBeVisible();
+		await expect(listItem).toHaveAttribute('aria-checked', 'false');
+	});
+
+	test('Switching list type changes wrapper element', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Item', { delay: 10 });
+
+		// Should start as <ul>
+		await expect(editor.root.locator('ul[role="list"]')).toBeVisible();
+		await expect(editor.root.locator('ol[role="list"]')).not.toBeVisible();
+
+		// Switch to ordered list
+		const orderedBtn = editor.markButton('list-ordered');
+		await orderedBtn.click();
+
+		// Should now be <ol>
+		await expect(editor.root.locator('ol[role="list"]')).toBeVisible();
+		await expect(editor.root.locator('ul[role="list"]')).not.toBeVisible();
+	});
+
+	test('Multiple consecutive list items share a single wrapper', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('First', { delay: 10 });
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Second', { delay: 10 });
+
+		const wrapper = editor.root.locator('ul[role="list"]');
+		await expect(wrapper).toBeVisible();
+
+		const items = wrapper.locator('li[role="listitem"]');
+		await expect(items).toHaveCount(2);
+	});
+
+	test('Paragraph between lists creates separate wrappers', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Item', { delay: 10 });
+		// Enter on non-empty → new list item; Enter on empty → exit to paragraph
+		await page.keyboard.press('Enter');
+		await page.keyboard.press('Enter');
+		// Type text so the paragraph persists (not converted back to list by input rule)
+		await page.keyboard.type('Break', { delay: 10 });
+		await page.keyboard.press('Enter');
+		// Now on a new paragraph — type another list
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Another', { delay: 10 });
+
+		const wrappers = editor.root.locator('ul[role="list"]');
+		await expect(wrappers).toHaveCount(2);
 	});
 });

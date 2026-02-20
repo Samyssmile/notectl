@@ -52,15 +52,16 @@ npm install @notectl/core
 ```ts
 import {
   createEditor,
+  ThemePreset,
   TextFormattingPlugin,
   HeadingPlugin,
   ListPlugin,
   LinkPlugin,
   TablePlugin,
-  ToolbarPlugin,
 } from '@notectl/core';
 
 const editor = await createEditor({
+  theme: ThemePreset.Light,
   toolbar: [
     [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
     [new HeadingPlugin()],
@@ -74,7 +75,7 @@ const editor = await createEditor({
 document.body.appendChild(editor);
 ```
 
-That's it. A full-featured editor in 15 lines.
+That's it. A full-featured editor in 16 lines. `ThemePreset.Light` and `ThemePreset.Dark` are available out of the box.
 
 <br />
 
