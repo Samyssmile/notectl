@@ -142,8 +142,15 @@ test.describe('Code Block Plugin', () => {
 		await page.keyboard.press('Enter');
 		await page.keyboard.type('line 2', { delay: 10 });
 
-		// Now press ArrowDown — should exit code block
+		// Wait for typed text to settle before navigating
+		await page.waitForTimeout(50);
+
+		// Now press ArrowDown — should exit code block and create paragraph
 		await page.keyboard.press('ArrowDown');
+
+		// Wait for the new paragraph block to appear in the DOM
+		await page.waitForTimeout(50);
+
 		await page.keyboard.type('outside', { delay: 10 });
 
 		const json = await editor.getJSON();
@@ -161,6 +168,7 @@ test.describe('Code Block Plugin', () => {
 		await page.keyboard.type('single line', { delay: 10 });
 
 		await page.keyboard.press('ArrowDown');
+		await page.waitForTimeout(50);
 		await page.keyboard.type('new paragraph', { delay: 10 });
 
 		const json = await editor.getJSON();
