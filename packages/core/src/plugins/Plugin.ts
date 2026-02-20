@@ -13,6 +13,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewFactory } from '../view/NodeView.js';
+import type { BlockTypePickerEntry } from './heading/BlockTypePickerEntry.js';
 import type { ToolbarItem } from './toolbar/ToolbarItem.js';
 
 // --- Type-Safe Keys ---
@@ -86,6 +87,7 @@ export interface PluginContext {
 	registerToolbarItem(item: ToolbarItem): void;
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
 	registerFileHandler(pattern: string, handler: FileHandler): void;
+	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 	getSchemaRegistry(): SchemaRegistry;
 
 	/** Pushes a screen reader announcement via the editor's aria-live region. */

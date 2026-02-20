@@ -31,6 +31,7 @@ import {
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../plugins/Plugin.js';
 import { PluginManager, type PluginManagerInitOptions } from '../plugins/PluginManager.js';
+import type { BlockTypePickerEntry } from '../plugins/heading/BlockTypePickerEntry.js';
 import type { ToolbarItem } from '../plugins/toolbar/ToolbarItem.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -288,6 +289,8 @@ export interface PluginHarnessResult {
 	getKeymaps(): readonly Keymap[];
 	/** Get all registered input rules. */
 	getInputRules(): readonly InputRule[];
+	/** Get all registered block type picker entries, sorted by priority. */
+	getBlockTypePickerEntries(): readonly BlockTypePickerEntry[];
 }
 
 /** Options for pluginHarness. */
@@ -363,6 +366,7 @@ export async function pluginHarness(
 		getNodeSpec: (name: string) => pm.schemaRegistry.getNodeSpec(name),
 		getKeymaps: () => pm.schemaRegistry.getKeymaps(),
 		getInputRules: () => pm.schemaRegistry.getInputRules(),
+		getBlockTypePickerEntries: () => pm.schemaRegistry.getBlockTypePickerEntries(),
 	};
 }
 
@@ -426,6 +430,7 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerToolbarItem: vi.fn(),
 		registerInlineNodeSpec: vi.fn(),
 		registerFileHandler: vi.fn(),
+		registerBlockTypePickerEntry: vi.fn(),
 		getSchemaRegistry: vi.fn() as never,
 		announce: overrides?.announce ?? vi.fn(),
 		...overrides,
