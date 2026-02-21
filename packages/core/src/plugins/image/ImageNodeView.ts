@@ -136,7 +136,8 @@ export function createImageNodeViewFactory(
 			const height: number | undefined = n.attrs?.height as number | undefined;
 			const align: string = (n.attrs?.align as string | undefined) ?? 'center';
 
-			img.src = src;
+			// Only update src when it changes to avoid re-triggering load events
+			if (img.src !== src) img.src = src;
 			img.alt = alt;
 
 			if (width !== undefined) {
@@ -181,6 +182,46 @@ export function createImageNodeViewFactory(
 		}
 
 		applyAttrs(node);
+
+		// --- Commit natural dimensions on first load ---
+
+		let dimensionsCommitted = false;
+
+		img.addEventListener('load', () => {
+			if (dimensionsCommitted) return;
+
+			const state: EditorState = getState();
+			const block: BlockNode | undefined = state.getBlock(currentNodeId);
+			if (!block || block.type !== 'image') return;
+
+			const hasWidth: boolean = block.attrs?.width !== undefined;
+			const hasHeight: boolean = block.attrs?.height !== undefined;
+			if (hasWidth && hasHeight) {
+				dimensionsCommitted = true;
+				return;
+			}
+
+			const naturalW: number = img.naturalWidth;
+			const naturalH: number = img.naturalHeight;
+			if (naturalW === 0 || naturalH === 0) return;
+
+			const clampedW: number = Math.min(naturalW, config.maxWidth);
+			const ratio: number = naturalW > 0 ? naturalH / naturalW : 1;
+			const clampedH: number = Math.round(clampedW * ratio);
+
+			const path: BlockId[] | undefined = state.getNodePath(currentNodeId);
+			if (!path) return;
+
+			const merged: BlockAttrs = {
+				...(block.attrs ?? {}),
+				width: clampedW,
+				height: clampedH,
+			};
+
+			const tr: Transaction = state.transaction('command').setNodeAttr(path, merged).build();
+			dispatch(tr);
+			dimensionsCommitted = true;
+		});
 
 		// --- Resize Logic ---
 

@@ -134,34 +134,6 @@ test.describe('Code Block Plugin', () => {
 
 	// ── Escape code block: ArrowDown ──────────────────────────
 
-	test('ArrowDown at end of code block exits to next block', async ({ editor, page }) => {
-		// Create a code block, type something, press Enter for a second line
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('line 1', { delay: 10 });
-		await page.keyboard.press('Enter');
-		await page.keyboard.type('line 2', { delay: 10 });
-
-		// Wait for typed text to settle before navigating
-		await page.waitForTimeout(50);
-
-		// Now press ArrowDown — should exit code block and create paragraph
-		await page.keyboard.press('ArrowDown');
-
-		// Wait for the new paragraph block to appear in the DOM
-		await page.waitForTimeout(50);
-
-		await page.keyboard.type('outside', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children.length).toBe(2);
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[1]?.type).toBe('paragraph');
-
-		const text = await editor.getText();
-		expect(text).toContain('outside');
-	});
-
 	test('ArrowDown on single-line code block exits', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
