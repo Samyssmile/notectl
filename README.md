@@ -2,9 +2,10 @@
 
 # notectl
 
-## **A framework-agnostic rich text editor as a Web Component — ship only what you use.**
+### The rich text editor that gets out of your way.
 
-Built on immutable state, a transaction-based architecture, and a plugin system that powers every feature — from bold text to full table editing.
+A modular, accessible rich text editor — shipped as a Web Component.
+Use what you need, nothing more.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Web Component](https://img.shields.io/badge/Web_Component-%3Cnotectl--editor%3E-purple)](https://developer.mozilla.org/en-US/docs/Web/API/Web_components)
@@ -15,41 +16,32 @@ Built on immutable state, a transaction-based architecture, and a plugin system 
 
 <img src="docs-site/src/assets/screenshots/hero-editor-rich.png" alt="notectl editor with rich content" width="720" />
 
+[Documentation](https://samyssmile.github.io/notectl/) &bull; [Playground](https://samyssmile.github.io/notectl/playground/) &bull; [npm](https://www.npmjs.com/package/@notectl/core)
+
 </div>
+
+<br />
+
+**Try it live** — [Open the playground](https://samyssmile.github.io/notectl/playground/) (no install required)
 
 <br />
 
 ## Why notectl?
 
-Most editors bolt formatting on top of `contenteditable` and hope for the best. notectl takes a different approach: every keystroke produces an immutable transaction, every feature is a plugin, and the DOM is a projection of state — never the source of truth.
-
-- **Web Component** — drop `<notectl-editor>` into any framework or vanilla HTML
-- **Plugin architecture** — every feature (bold, tables, lists, ...) is a plugin; add only what you need
+- **Web Component** — drop `<notectl-editor>` into React, Vue, Svelte, Angular, or plain HTML
+- **Plugin architecture** — every feature is a plugin; add only what you need
+- **Accessible by default** — full keyboard navigation, ARIA roles and labels, screen reader support
 - **Immutable state** — predictable updates, time-travel undo/redo, zero mutation bugs
-- **Transaction system** — atomic, invertible steps with middleware support
-- **Zero framework lock-in** — works with React, Vue, Svelte, Angular, or plain JS
-- **Native Angular integration** — available as [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular) for idiomatic Angular usage
-- **Tiny dependency footprint** — single runtime dependency (DOMPurify)
+- **Native Angular integration** — available as [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular)
+- **Single dependency** — only DOMPurify at runtime
 
 <br />
 
-## Wanna try? 
-Check out the [live playground](https://samyssmile.github.io/notectl/playground/) — no install required.
-
-## Wanna see full working example?
-`examples/vanillajs/` is a great place to see everything in action.
-`examples/angular/` shows how to use notectl in Angular with the `@notectl/angular` package.
-
 ## Quick Start
-
-
-### Install
 
 ```bash
 npm install @notectl/core
 ```
-
-### Use
 
 ```ts
 import {
@@ -77,17 +69,30 @@ const editor = await createEditor({
 document.body.appendChild(editor);
 ```
 
-That's it. A full-featured editor in 16 lines. `ThemePreset.Light` and `ThemePreset.Dark` are available out of the box.
+A full-featured editor in 16 lines.
+
+<br />
+
+## Accessibility
+
+notectl is built with accessibility as a first-class concern, not an afterthought.
+
+- Full **keyboard navigation** — every feature reachable without a mouse
+- Semantic **ARIA roles and labels** on all interactive elements
+- Proper **focus management** across toolbar, dialogs, and editor content
+- **Screen reader** friendly — announces formatting changes and editor state
+- **High-contrast** compatible with `ThemePreset.Light` and `ThemePreset.Dark`
 
 <br />
 
 ## Plugins
 
 Every capability is a plugin. Compose exactly the editor you need.
+See the [plugin documentation](https://samyssmile.github.io/notectl/) for configuration details and examples.
 
 | Plugin | What it does |
 |---|---|
-| **TextFormattingPlugin** | Bold, italic, underline — individually toggleable |
+| **TextFormattingPlugin** | Bold, italic, underline |
 | **StrikethroughPlugin** | ~~Strikethrough~~ text |
 | **HeadingPlugin** | H1 – H6 headings |
 | **BlockquotePlugin** | Block quotes |
@@ -95,158 +100,55 @@ Every capability is a plugin. Compose exactly the editor you need.
 | **LinkPlugin** | Hyperlink insertion and editing |
 | **TablePlugin** | Full table support with row/column controls |
 | **TextColorPlugin** | Text color picker |
+| **HighlightPlugin** | Text highlighting / background color |
 | **AlignmentPlugin** | Left, center, right, justify |
-| **FontPlugin** | Font family selection with custom font support |
+| **FontPlugin** | Font family selection with custom fonts |
 | **FontSizePlugin** | Configurable font sizes |
 | **HorizontalRulePlugin** | Horizontal dividers |
 | **SuperSubPlugin** | Superscript and subscript |
-| **HighlightPlugin** | Text highlighting / background color |
-| **ToolbarPlugin** | Visual toolbar with grouped items |
 
-### Tables
+<br />
 
-Full table editing — add/remove rows and columns, navigate with Tab, resize, and select.
+## Full Working Examples
 
-<div align="center">
-<img src="docs-site/src/assets/screenshots/editor-table-showcase.png" alt="Table editing in notectl" width="720" />
-</div>
+See notectl in action with every plugin, custom fonts, and the complete API:
+
+- [`examples/vanillajs`](examples/vanillajs) — Vanilla JavaScript
+- [`examples/angular`](examples/angular) — Angular with `@notectl/angular`
+
+```bash
+git clone https://github.com/Samyssmile/notectl.git
+cd notectl && pnpm install && pnpm dev
+```
 
 <br />
 
 ## Content API
 
-Read and write content in multiple formats:
-
 ```ts
-// JSON (immutable Document)
-const doc = editor.getJSON();
-editor.setJSON(doc);
-
-// HTML (sanitized via DOMPurify)
-const html = editor.getHTML();
-editor.setHTML('<p>Hello <strong>world</strong></p>');
-
-// Plain text
-const text = editor.getText();
-
-// State
-editor.isEmpty(); // true | false
-```
-
-## Command API
-
-```ts
-editor.commands.toggleBold();
-editor.commands.toggleItalic();
-editor.commands.toggleUnderline();
-editor.commands.undo();
-editor.commands.redo();
-editor.commands.selectAll();
-```
-
-## Events
-
-```ts
-editor.on('stateChange', ({ oldState, newState, transaction }) => { /* ... */ });
-editor.on('selectionChange', ({ selection }) => { /* ... */ });
-editor.on('ready', () => { /* ... */ });
-editor.on('focus', () => { /* ... */ });
-editor.on('blur', () => { /* ... */ });
+editor.getHTML();                                        // read HTML
+editor.setHTML('<p>Hello <strong>world</strong></p>');    // write HTML
+editor.getJSON();                                        // read JSON
+editor.getText();                                        // read plain text
+editor.isEmpty();                                        // check if empty
 ```
 
 <br />
 
-## Custom Fonts
+## Documentation
 
-Bring your own fonts — notectl handles `@font-face` injection automatically.
-
-```ts
-import { FontPlugin, STARTER_FONTS } from '@notectl/core';
-
-const Inter = {
-  name: 'Inter',
-  family: "'Inter', sans-serif",
-  category: 'sans-serif',
-  fontFaces: [
-    {
-      src: "url('/fonts/Inter-Variable.ttf') format('truetype')",
-      weight: '100 900',
-      style: 'normal',
-    },
-  ],
-};
-
-new FontPlugin({ fonts: [...STARTER_FONTS, Inter] });
-```
+Full guides, API reference, and plugin docs are available at **[samyssmile.github.io/notectl](https://samyssmile.github.io/notectl/)**.
 
 <br />
 
-## Toolbar Configuration
-
-Group plugins into toolbar sections for a clean UI:
-
-```ts
-const editor = await createEditor({
-  toolbar: [
-    [new FontPlugin(), new FontSizePlugin()],
-    [new TextFormattingPlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
-    [new HeadingPlugin(), new BlockquotePlugin()],
-    [new AlignmentPlugin()],
-    [new ListPlugin()],
-    [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin()],
-  ],
-});
-```
-
-Each inner array becomes a visually separated group in the toolbar.
-
-<br />
-
-## Examples
-
-Check out the full working example in [`examples/vanillajs`](examples/vanillajs) — it demonstrates every plugin, custom font loading, toolbar grouping, and the complete content API.
-
-```bash
-git clone https://github.com/Samyssmile/notectl.git
-cd notectl
-pnpm install
-pnpm dev
-```
-
-<br />
-
-## Architecture
-
-```
-Input Event → InputHandler / KeyboardHandler
-  → Transaction with atomic Steps
-  → Middleware chain (priority-ordered)
-  → EditorState.apply(tr) → new immutable EditorState
-  → Reconciler patches DOM (block-level diffing)
-  → Plugins notified via onStateChange()
-```
-
-| Layer | Responsibility |
-|---|---|
-| `model/` | Immutable data — Document, BlockNode, TextNode, Mark, Selection |
-| `state/` | EditorState, Transaction, StepApplication, History |
-| `view/` | DOM rendering, Reconciler, SelectionSync |
-| `input/` | Keyboard/input handling, paste, input rules |
-| `commands/` | High-level operations (toggleMark, splitBlock, ...) |
-| `plugins/` | All features — every capability is a plugin |
-| `editor/` | `<notectl-editor>` Web Component public API |
-
-<br />
-
-## Development
+## Contributing
 
 ```bash
 pnpm install          # install dependencies
 pnpm build            # build all packages
-pnpm test             # run unit tests (vitest + happy-dom)
-pnpm test:e2e         # run e2e tests (playwright)
-pnpm lint             # lint (biome)
-pnpm typecheck        # type check
+pnpm test             # run unit tests
+pnpm test:e2e         # run e2e tests
+pnpm lint             # lint
 ```
 
 <br />
