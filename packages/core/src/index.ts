@@ -159,6 +159,7 @@ export type { HistoryResult } from './state/History.js';
 // --- Commands ---
 export type { FeatureConfig } from './commands/Commands.js';
 export {
+	forEachBlockInRange,
 	toggleMark,
 	toggleBold,
 	toggleItalic,

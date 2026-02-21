@@ -3,6 +3,7 @@
  * toolbar button with a color picker popup, and removeTextColor command.
  */
 
+import { forEachBlockInRange } from '../../commands/Commands.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
@@ -294,34 +295,14 @@ export class TextColorPlugin implements Plugin {
 		}
 
 		// Range selection: remove existing textColor, then add new one
-		const blockOrder = state.getBlockOrder();
-		const range = selectionRange(sel, blockOrder);
+		const range = selectionRange(sel, state.getBlockOrder());
 		const builder = state.transaction('command');
-
-		const fromIdx = blockOrder.indexOf(range.from.blockId);
-		const toIdx = blockOrder.indexOf(range.to.blockId);
-
 		const mark = { type: markType('textColor'), attrs: { color } };
 
-		for (let i = fromIdx; i <= toIdx; i++) {
-			const blockId = blockOrder[i];
-			if (!blockId) continue;
-			const block = state.getBlock(blockId);
-			if (!block) continue;
-			const blockLen = block.children.reduce(
-				(sum, c) => sum + ('text' in c ? c.text.length : 0),
-				0,
-			);
-
-			const from = i === fromIdx ? range.from.offset : 0;
-			const to = i === toIdx ? range.to.offset : blockLen;
-
-			if (from !== to) {
-				// Remove existing textColor first, then add new one
-				builder.removeMark(blockId, from, to, { type: markType('textColor') });
-				builder.addMark(blockId, from, to, mark);
-			}
-		}
+		forEachBlockInRange(state, range, (blockId, from, to) => {
+			builder.removeMark(blockId, from, to, { type: markType('textColor') });
+			builder.addMark(blockId, from, to, mark);
+		});
 
 		builder.setSelection(sel);
 		context.dispatch(builder.build());
@@ -351,30 +332,12 @@ export class TextColorPlugin implements Plugin {
 		}
 
 		// Range selection: remove textColor from range
-		const blockOrder = state.getBlockOrder();
-		const range = selectionRange(sel, blockOrder);
+		const range = selectionRange(sel, state.getBlockOrder());
 		const builder = state.transaction('command');
 
-		const fromIdx = blockOrder.indexOf(range.from.blockId);
-		const toIdx = blockOrder.indexOf(range.to.blockId);
-
-		for (let i = fromIdx; i <= toIdx; i++) {
-			const blockId = blockOrder[i];
-			if (!blockId) continue;
-			const block = state.getBlock(blockId);
-			if (!block) continue;
-			const blockLen = block.children.reduce(
-				(sum, c) => sum + ('text' in c ? c.text.length : 0),
-				0,
-			);
-
-			const from = i === fromIdx ? range.from.offset : 0;
-			const to = i === toIdx ? range.to.offset : blockLen;
-
-			if (from !== to) {
-				builder.removeMark(blockId, from, to, { type: markType('textColor') });
-			}
-		}
+		forEachBlockInRange(state, range, (blockId, from, to) => {
+			builder.removeMark(blockId, from, to, { type: markType('textColor') });
+		});
 
 		builder.setSelection(sel);
 		context.dispatch(builder.build());
