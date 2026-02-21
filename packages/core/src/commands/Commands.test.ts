@@ -16,6 +16,7 @@ import {
 	createNodeSelection,
 	createSelection,
 	isNodeSelection,
+	selectionRange,
 } from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
@@ -27,6 +28,7 @@ import {
 	deleteSelectionCommand,
 	deleteWordBackward,
 	deleteWordForward,
+	forEachBlockInRange,
 	insertTextCommand,
 	isMarkActive,
 	isVoidBlock,
@@ -195,6 +197,65 @@ describe('Commands', () => {
 			expect(newState.selection.anchor.offset).toBe(0);
 			expect(newState.selection.head.blockId).toBe('b2');
 			expect(newState.selection.head.offset).toBe(5);
+		});
+	});
+
+	describe('forEachBlockInRange', () => {
+		it('invokes callback with correct offsets for single-block range', () => {
+			const state = stateBuilder()
+				.paragraph('hello world', 'b1')
+				.selection({ blockId: 'b1', offset: 2 }, { blockId: 'b1', offset: 8 })
+				.build();
+
+			const range = selectionRange(state.selection, state.getBlockOrder());
+			const calls: { blockId: string; from: number; to: number }[] = [];
+
+			forEachBlockInRange(state, range, (blockId, from, to) => {
+				calls.push({ blockId, from, to });
+			});
+
+			expect(calls).toEqual([{ blockId: 'b1', from: 2, to: 8 }]);
+		});
+
+		it('invokes callback per block with correct offsets for multi-block range', () => {
+			const state = stateBuilder()
+				.paragraph('aaa', 'b1')
+				.paragraph('bbb', 'b2')
+				.paragraph('ccc', 'b3')
+				.selection({ blockId: 'b1', offset: 1 }, { blockId: 'b3', offset: 2 })
+				.build();
+
+			const range = selectionRange(state.selection, state.getBlockOrder());
+			const calls: { blockId: string; from: number; to: number }[] = [];
+
+			forEachBlockInRange(state, range, (blockId, from, to) => {
+				calls.push({ blockId, from, to });
+			});
+
+			expect(calls).toEqual([
+				{ blockId: 'b1', from: 1, to: 3 },
+				{ blockId: 'b2', from: 0, to: 3 },
+				{ blockId: 'b3', from: 0, to: 2 },
+			]);
+		});
+
+		it('skips blocks where from === to', () => {
+			const state = stateBuilder()
+				.paragraph('aaa', 'b1')
+				.paragraph('bbb', 'b2')
+				.selection({ blockId: 'b1', offset: 3 }, { blockId: 'b2', offset: 2 })
+				.build();
+
+			const range = selectionRange(state.selection, state.getBlockOrder());
+			const calls: { blockId: string; from: number; to: number }[] = [];
+
+			forEachBlockInRange(state, range, (blockId, from, to) => {
+				calls.push({ blockId, from, to });
+			});
+
+			// b1: from=3, to=3 (end of block) → skipped
+			// b2: from=0, to=2 → included
+			expect(calls).toEqual([{ blockId: 'b2', from: 0, to: 2 }]);
 		});
 	});
 
