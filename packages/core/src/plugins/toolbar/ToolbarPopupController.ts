@@ -47,7 +47,7 @@ export class ToolbarPopupController {
 				);
 				break;
 			case 'custom':
-				item.renderPopup(popup, context);
+				item.renderPopup(popup, context, () => this.close());
 				break;
 		}
 

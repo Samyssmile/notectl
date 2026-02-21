@@ -18,8 +18,11 @@ test.describe('Image copy & paste into table cells', () => {
 		const imageBtn = editor.markButton('image');
 		await imageBtn.click();
 
-		const fileInput = page.locator('notectl-editor input[type="file"]');
-		await fileInput.setInputFiles('e2e/fixtures/mage.png');
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
 
 		const imageLocator = page.locator('notectl-editor .notectl-image__img');
 		await imageLocator.waitFor({ state: 'visible', timeout: 5000 });

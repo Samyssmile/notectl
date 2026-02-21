@@ -465,6 +465,29 @@ const EDITOR_CSS = `
 	opacity: 1;
 }
 
+/* Keyboard resize hint (shown on selection, hidden during drag) */
+.notectl-image__keyboard-hint {
+	display: none;
+	position: absolute;
+	bottom: -28px;
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 2px 8px;
+	font-size: 11px;
+	color: var(--notectl-fg-muted);
+	white-space: nowrap;
+	pointer-events: none;
+	z-index: 3;
+}
+
+.notectl-image--selected .notectl-image__keyboard-hint {
+	display: block;
+}
+
+.notectl-image--resizing .notectl-image__keyboard-hint {
+	display: none;
+}
+
 /* Resizing feedback */
 .notectl-image--resizing .notectl-image__img {
 	opacity: 0.85;

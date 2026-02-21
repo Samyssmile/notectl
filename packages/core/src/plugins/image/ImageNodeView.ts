@@ -1,7 +1,8 @@
 /**
  * NodeView factory for image blocks.
  * Renders <figure> with <img>, handles selection state, upload overlay,
- * and resize with 4 corner handles + live size indicator.
+ * resize with 4 corner handles + live size indicator, and a keyboard-hint
+ * showing resize shortcuts when the image is selected.
  */
 
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
@@ -9,7 +10,8 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
-import type { ImagePluginConfig, UploadState } from './ImageUpload.js';
+import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import type { ImageKeymap, ImagePluginConfig, UploadState } from './ImageUpload.js';
 
 const ALIGNMENT_CLASSES: Record<string, string> = {
 	left: 'notectl-image--left',
@@ -61,10 +63,21 @@ function clearGlobalResizeCursor(): void {
 	}
 }
 
+/** Builds the keyboard-hint text from the resolved keymap. */
+function buildKeyboardHintText(
+	resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>>,
+): string {
+	const shrink: string | null = resolvedKeymap.shrinkWidth ?? null;
+	const grow: string | null = resolvedKeymap.growWidth ?? null;
+	if (!shrink || !grow) return '';
+	return `${formatShortcut(shrink)} / ${formatShortcut(grow)} to resize`;
+}
+
 /** Creates a NodeViewFactory for image blocks. */
 export function createImageNodeViewFactory(
 	config: ImagePluginConfig,
 	uploadStates: Map<BlockId, UploadState>,
+	resolvedKeymap?: Readonly<Record<keyof ImageKeymap, string | null>>,
 ): NodeViewFactory {
 	return (
 		node: BlockNode,
@@ -94,6 +107,25 @@ export function createImageNodeViewFactory(
 
 		let currentNodeId: BlockId = node.id;
 		let resizeOverlay: HTMLDivElement | null = null;
+
+		// --- ARIA Label ---
+
+		function updateAriaLabel(n: BlockNode): void {
+			const alt: string = (n.attrs?.alt as string | undefined) ?? '';
+			const width: number | undefined = n.attrs?.width as number | undefined;
+			const height: number | undefined = n.attrs?.height as number | undefined;
+
+			const parts: string[] = [];
+			if (alt) {
+				parts.push(alt);
+			} else {
+				parts.push('Image');
+			}
+			if (width !== undefined && height !== undefined) {
+				parts.push(`${width} by ${height} pixels`);
+			}
+			figure.setAttribute('aria-label', parts.join(', '));
+		}
 
 		// --- Attribute Application ---
 
@@ -130,13 +162,22 @@ export function createImageNodeViewFactory(
 			const isUploading: boolean = uploadState === 'uploading';
 			overlay.classList.toggle('notectl-image__overlay--uploading', isUploading);
 			overlay.classList.toggle('notectl-image__overlay--error', uploadState === 'error');
-			overlay.textContent = isUploading ? 'Uploading...' : '';
+
+			if (isUploading) {
+				overlay.textContent = 'Uploading...';
+			} else if (uploadState === 'error') {
+				overlay.textContent = 'Upload failed';
+			} else {
+				overlay.textContent = '';
+			}
 
 			if (isUploading) {
 				figure.setAttribute('aria-busy', 'true');
 			} else {
 				figure.removeAttribute('aria-busy');
 			}
+
+			updateAriaLabel(n);
 		}
 
 		applyAttrs(node);
@@ -240,10 +281,22 @@ export function createImageNodeViewFactory(
 			for (const pos of positions) {
 				const handle: HTMLDivElement = document.createElement('div');
 				handle.className = `notectl-image__resize-handle notectl-image__resize-handle--${pos}`;
+				handle.setAttribute('role', 'separator');
 				handle.setAttribute('aria-label', HANDLE_LABELS[pos]);
-				handle.setAttribute('aria-roledescription', 'resize handle');
 				attachHandleListeners(handle, pos, nodeId, sizeIndicator);
 				resizeOverlay.appendChild(handle);
+			}
+
+			// Keyboard hint (hidden from screenreaders, visual only)
+			if (resolvedKeymap) {
+				const hintText: string = buildKeyboardHintText(resolvedKeymap);
+				if (hintText) {
+					const hint: HTMLDivElement = document.createElement('div');
+					hint.className = 'notectl-image__keyboard-hint';
+					hint.setAttribute('aria-hidden', 'true');
+					hint.textContent = hintText;
+					resizeOverlay.appendChild(hint);
+				}
 			}
 
 			container.appendChild(resizeOverlay);

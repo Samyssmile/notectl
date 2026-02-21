@@ -12,8 +12,11 @@ test.describe('Image cut & paste into table', () => {
 		const imageBtn = editor.markButton('image');
 		await imageBtn.click();
 
-		const fileInput = page.locator('notectl-editor input[type="file"]');
-		await fileInput.setInputFiles('e2e/fixtures/mage.png');
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
 
 		// Wait for the image to appear and fully load
 		const imageLocator = page.locator('notectl-editor .notectl-image__img');

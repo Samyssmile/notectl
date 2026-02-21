@@ -235,4 +235,177 @@ describe('ImageCommands', () => {
 			expect(cellBlockChildren).toHaveLength(0);
 		});
 	});
+
+	describe('resizeImageByDelta', () => {
+		it('grows image width while preserving aspect ratio', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 200, height: 100 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('resizeImageGrow');
+			expect(result).toBe(true);
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBe(210);
+			expect(block?.attrs?.height).toBe(105);
+		});
+
+		it('shrinks image width while preserving aspect ratio', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 200, height: 100 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('resizeImageShrink');
+			expect(result).toBe(true);
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBe(190);
+			expect(block?.attrs?.height).toBe(95);
+		});
+
+		it('clamps to MIN_IMAGE_WIDTH', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 55, height: 55 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('resizeImageShrink');
+			expect(result).toBe(true);
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBeGreaterThanOrEqual(50);
+		});
+
+		it('clamps to maxWidth', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 795, height: 795 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('resizeImageGrow');
+			expect(result).toBe(true);
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBeLessThanOrEqual(800);
+		});
+
+		it('returns false when no NodeSelection', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.cursor('b1', 0)
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm } = await pluginHarness(plugin, state);
+
+			expect(pm.executeCommand('resizeImageGrow')).toBe(false);
+		});
+
+		it('returns false when image has no width/height', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center' },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm } = await pluginHarness(plugin, state);
+
+			expect(pm.executeCommand('resizeImageGrow')).toBe(false);
+		});
+
+		it('uses large step for growLarge command', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 200, height: 100 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			pm.executeCommand('resizeImageGrowLarge');
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBe(250);
+		});
+	});
+
+	describe('resetImageSize', () => {
+		it('removes width and height attributes', async () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.block('image', '', 'img1', {
+					attrs: { src: 'test.png', alt: '', align: 'center', width: 200, height: 100 },
+				})
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('resetImageSize');
+			expect(result).toBe(true);
+
+			const block = getState().getBlock('img1' as BlockId);
+			expect(block?.attrs?.width).toBeUndefined();
+			expect(block?.attrs?.height).toBeUndefined();
+			expect(block?.attrs?.src).toBe('test.png');
+		});
+
+		it('returns false when no NodeSelection', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.cursor('b1', 0)
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm } = await pluginHarness(plugin, state);
+
+			expect(pm.executeCommand('resetImageSize')).toBe(false);
+		});
+
+		it('returns false when selected block is not image', async () => {
+			const state = stateBuilder()
+				.paragraph('Before', 'b1')
+				.paragraph('After', 'b2')
+				.nodeSelection('b1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm } = await pluginHarness(plugin, state);
+
+			expect(pm.executeCommand('resetImageSize')).toBe(false);
+		});
+	});
 });
