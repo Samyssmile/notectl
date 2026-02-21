@@ -4,6 +4,7 @@
  * with a URL input popup.
  */
 
+import { forEachBlockInRange } from '../../commands/Commands.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
@@ -165,32 +166,13 @@ export class LinkPlugin implements Plugin {
 		if (isNodeSelection(sel)) return false;
 		if (isCollapsed(sel)) return false;
 
-		const blockOrder = state.getBlockOrder();
-		const range = selectionRange(sel, blockOrder);
+		const range = selectionRange(sel, state.getBlockOrder());
 		const builder = state.transaction('command');
-
-		const fromIdx = blockOrder.indexOf(range.from.blockId);
-		const toIdx = blockOrder.indexOf(range.to.blockId);
-
 		const mark = { type: markType('link'), attrs: { href } };
 
-		for (let i = fromIdx; i <= toIdx; i++) {
-			const blockId = blockOrder[i];
-			if (!blockId) continue;
-			const block = state.getBlock(blockId);
-			if (!block) continue;
-			const blockLen = block.children.reduce(
-				(sum, c) => sum + ('text' in c ? c.text.length : 0),
-				0,
-			);
-
-			const from = i === fromIdx ? range.from.offset : 0;
-			const to = i === toIdx ? range.to.offset : blockLen;
-
-			if (from !== to) {
-				builder.addMark(blockId, from, to, mark);
-			}
-		}
+		forEachBlockInRange(state, range, (blockId, from, to) => {
+			builder.addMark(blockId, from, to, mark);
+		});
 
 		builder.setSelection(sel);
 		context.dispatch(builder.build());
@@ -253,26 +235,9 @@ export class LinkPlugin implements Plugin {
 			builder.removeMark(sel.anchor.blockId, linkStart, linkEnd, { type: markType('link') });
 		} else {
 			// Remove link from selection range
-			const fromIdx = blockOrder.indexOf(range.from.blockId);
-			const toIdx = blockOrder.indexOf(range.to.blockId);
-
-			for (let i = fromIdx; i <= toIdx; i++) {
-				const blockId = blockOrder[i];
-				if (!blockId) continue;
-				const block = state.getBlock(blockId);
-				if (!block) continue;
-				const blockLen = block.children.reduce(
-					(sum, c) => sum + ('text' in c ? c.text.length : 0),
-					0,
-				);
-
-				const from = i === fromIdx ? range.from.offset : 0;
-				const to = i === toIdx ? range.to.offset : blockLen;
-
-				if (from !== to) {
-					builder.removeMark(blockId, from, to, { type: markType('link') });
-				}
-			}
+			forEachBlockInRange(state, range, (blockId, from, to) => {
+				builder.removeMark(blockId, from, to, { type: markType('link') });
+			});
 		}
 
 		builder.setSelection(sel);

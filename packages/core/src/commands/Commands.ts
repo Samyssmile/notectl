@@ -20,7 +20,7 @@ import {
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import { isMarkAllowed } from '../model/Schema.js';
-import type { NodeSelection } from '../model/Selection.js';
+import type { NodeSelection, SelectionRange } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -148,6 +148,36 @@ function findLastLeafBlockId(node: BlockNode): BlockId {
 	}
 }
 
+// --- Range Iteration ---
+
+/**
+ * Iterates over each block in the given selection range, invoking the callback
+ * with the block ID, per-block start offset, and per-block end offset.
+ * Blocks where `from === to` are skipped automatically.
+ */
+export function forEachBlockInRange(
+	state: EditorState,
+	range: SelectionRange,
+	callback: (blockId: BlockId, from: number, to: number) => void,
+): void {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const fromIdx: number = blockOrder.indexOf(range.from.blockId);
+	const toIdx: number = blockOrder.indexOf(range.to.blockId);
+
+	for (let i: number = fromIdx; i <= toIdx; i++) {
+		const blockId: BlockId | undefined = blockOrder[i];
+		if (!blockId) continue;
+		const block = state.getBlock(blockId);
+		if (!block) continue;
+
+		const from: number = i === fromIdx ? range.from.offset : 0;
+		const to: number = i === toIdx ? range.to.offset : getBlockLength(block);
+
+		if (from === to) continue;
+		callback(blockId, from, to);
+	}
+}
+
 // --- Mark Commands ---
 
 /**
@@ -184,34 +214,19 @@ export function toggleMark(
 	}
 
 	// Range selection — apply/remove mark to all blocks in range
-	const blockOrder = state.getBlockOrder();
-	const range = selectionRange(sel, blockOrder);
+	const range = selectionRange(sel, state.getBlockOrder());
 	const builder = state.transaction('command');
-
-	const fromIdx = blockOrder.indexOf(range.from.blockId);
-	const toIdx = blockOrder.indexOf(range.to.blockId);
 
 	// Determine if we should add or remove
 	const shouldRemove = isMarkActiveInRange(state, markType);
 
-	for (let i = fromIdx; i <= toIdx; i++) {
-		const blockId = blockOrder[i];
-		if (!blockId) continue;
-		const block = state.getBlock(blockId);
-		if (!block) continue;
-		const blockLen = getBlockLength(block);
-
-		const from = i === fromIdx ? range.from.offset : 0;
-		const to = i === toIdx ? range.to.offset : blockLen;
-
-		if (from === to) continue;
-
+	forEachBlockInRange(state, range, (blockId, from, to) => {
 		if (shouldRemove) {
 			builder.removeMark(blockId, from, to, mark);
 		} else {
 			builder.addMark(blockId, from, to, mark);
 		}
-	}
+	});
 
 	builder.setSelection(sel);
 	return builder.build();
