@@ -411,6 +411,7 @@ export class ImagePlugin implements Plugin {
 			if (file) {
 				this.handleFileInsert(context, file);
 				onClose();
+				context.getContainer().focus();
 			}
 		});
 
@@ -458,6 +459,7 @@ export class ImagePlugin implements Plugin {
 			if (src) {
 				insertImage(context, { src });
 				onClose();
+				context.getContainer().focus();
 			}
 		};
 
