@@ -1,13 +1,15 @@
 /**
  * HorizontalRulePlugin: registers a horizontal rule (divider) void block type
- * with NodeSpec, insert command, input rule, and toolbar button.
+ * with NodeSpec, insert command, input rule, keyboard shortcut, and toolbar button.
  */
 
 import { createBlockNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
+import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { formatShortcut } from '../toolbar/ToolbarItem.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -26,6 +28,15 @@ export interface HorizontalRuleConfig {
 
 const DEFAULT_CONFIG: HorizontalRuleConfig = {};
 
+// --- Helpers ---
+
+/** Finds the index of the cursor's block among top-level document children. */
+function findBlockIndexForCursor(state: EditorState): number {
+	const sel = state.selection;
+	if (isNodeSelection(sel)) return -1;
+	return state.doc.children.findIndex((b) => b.id === sel.anchor.blockId);
+}
+
 // --- Plugin ---
 
 export class HorizontalRulePlugin implements Plugin {
@@ -42,6 +53,7 @@ export class HorizontalRulePlugin implements Plugin {
 	init(context: PluginContext): void {
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
+		this.registerKeymap(context);
 		this.registerInputRule(context);
 		this.registerToolbarItem(context);
 	}
@@ -68,6 +80,12 @@ export class HorizontalRulePlugin implements Plugin {
 		});
 	}
 
+	private registerKeymap(context: PluginContext): void {
+		context.registerKeymap({
+			'Mod-Shift-H': () => context.executeCommand('insertHorizontalRule'),
+		});
+	}
+
 	private registerInputRule(context: PluginContext): void {
 		context.registerInputRule({
 			pattern: /^-{3,} $/,
@@ -79,7 +97,7 @@ export class HorizontalRulePlugin implements Plugin {
 				const block = state.getBlock(sel.anchor.blockId);
 				if (!block || block.type !== 'paragraph') return null;
 
-				const blockIndex = state.doc.children.findIndex((b) => b.id === sel.anchor.blockId);
+				const blockIndex: number = findBlockIndexForCursor(state);
 				if (blockIndex === -1) return null;
 
 				const newParagraph = createBlockNode(nodeType('paragraph'));
@@ -104,10 +122,11 @@ export class HorizontalRulePlugin implements Plugin {
 			group: 'block',
 			icon,
 			label: 'Horizontal Rule',
-			tooltip: 'Horizontal Rule (--- + Space)',
+			tooltip: `Horizontal Rule (${formatShortcut('Mod-Shift-H')})`,
 			command: 'insertHorizontalRule',
 			priority: 60,
 			separatorAfter: this.config.separatorAfter,
+			isActive: () => false,
 		});
 	}
 
@@ -116,13 +135,9 @@ export class HorizontalRulePlugin implements Plugin {
 	 * followed by a new paragraph for continued editing.
 	 */
 	private insertHorizontalRule(context: PluginContext): boolean {
-		const state = context.getState();
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-
-		const blockIndex = state.doc.children.findIndex((b) => b.id === sel.anchor.blockId);
+		const state: EditorState = context.getState();
+		if (isNodeSelection(state.selection)) return false;
+		const blockIndex: number = findBlockIndexForCursor(state);
 		if (blockIndex === -1) return false;
 
 		const hrBlock = createBlockNode(nodeType('horizontal_rule'));
