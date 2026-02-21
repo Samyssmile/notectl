@@ -208,6 +208,60 @@ export function setImageAttr(context: PluginContext, attrs: Partial<ImageAttrs>)
 	return true;
 }
 
+/** Minimum image width in pixels (shared with NodeView). */
+export const MIN_IMAGE_WIDTH = 50;
+
+/**
+ * Resizes the currently selected image by a pixel delta, preserving aspect ratio.
+ * Returns false if no image is selected or the image has no width/height attributes.
+ */
+export function resizeImageByDelta(
+	context: PluginContext,
+	delta: number,
+	maxWidth: number,
+): boolean {
+	const state = context.getState();
+	const sel = state.selection;
+	if (!isNodeSelection(sel)) return false;
+
+	const block: BlockNode | undefined = state.getBlock(sel.nodeId);
+	if (!block || block.type !== 'image') return false;
+
+	const currentWidth: number | undefined = block.attrs?.width as number | undefined;
+	const currentHeight: number | undefined = block.attrs?.height as number | undefined;
+	if (currentWidth === undefined || currentHeight === undefined) return false;
+
+	const aspectRatio: number = currentHeight > 0 ? currentWidth / currentHeight : 1;
+	const clampedWidth: number = Math.max(MIN_IMAGE_WIDTH, Math.min(maxWidth, currentWidth + delta));
+	const newHeight: number = Math.round(clampedWidth / aspectRatio);
+
+	if (clampedWidth === currentWidth && newHeight === currentHeight) return false;
+
+	return setImageAttr(context, { width: clampedWidth, height: newHeight });
+}
+
+/** Resets the currently selected image to its natural size by removing width/height. */
+export function resetImageSize(context: PluginContext): boolean {
+	const state = context.getState();
+	const sel = state.selection;
+	if (!isNodeSelection(sel)) return false;
+
+	const block: BlockNode | undefined = state.getBlock(sel.nodeId);
+	if (!block || block.type !== 'image') return false;
+
+	const path: BlockId[] | undefined = state.getNodePath(sel.nodeId);
+	if (!path) return false;
+
+	const attrs: BlockAttrs = { ...(block.attrs ?? {}) };
+	const cleaned: BlockAttrs = Object.fromEntries(
+		Object.entries(attrs).filter(([k]) => k !== 'width' && k !== 'height'),
+	);
+
+	const tr = state.transaction('command').setNodeAttr(path, cleaned).build();
+	context.dispatch(tr);
+	return true;
+}
+
 /** Registers all image commands on the plugin context. */
 export function registerImageCommands(context: PluginContext): void {
 	context.registerCommand('insertImage', () => {

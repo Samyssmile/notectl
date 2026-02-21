@@ -343,11 +343,13 @@ export {
 } from './plugins/code-block/CodeBlockPlugin.js';
 
 export {
+	DEFAULT_IMAGE_KEYMAP,
 	IMAGE_UPLOAD_SERVICE,
-	type ImagePluginConfig,
-	type ImageUploadService,
-	type ImageUploadResult,
 	type ImageAttrs,
+	type ImageKeymap,
+	type ImagePluginConfig,
+	type ImageUploadResult,
+	type ImageUploadService,
 } from './plugins/image/ImageUpload.js';
 
 // --- Decorations ---
