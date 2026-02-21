@@ -51,9 +51,7 @@ test.describe('Angular — Client Bootstrap', () => {
 		await content(page).click();
 		await page.keyboard.type('Bootstrap check', { delay: 10 });
 
-		const realErrors = errors.filter(
-			(e) => !e.includes('favicon') && !e.includes('404'),
-		);
+		const realErrors = errors.filter((e) => !e.includes('favicon') && !e.includes('404'));
 		expect(realErrors).toEqual([]);
 	});
 });
