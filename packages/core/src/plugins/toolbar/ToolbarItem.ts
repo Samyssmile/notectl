@@ -59,7 +59,7 @@ interface ToolbarItemDropdown extends ToolbarItemBase {
 
 interface ToolbarItemCustomPopup extends ToolbarItemBase {
 	readonly popupType: 'custom';
-	renderPopup(container: HTMLElement, context: PluginContext): void;
+	renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
 }
 
 export type ToolbarItem =

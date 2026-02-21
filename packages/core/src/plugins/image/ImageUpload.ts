@@ -30,6 +30,31 @@ export const IMAGE_UPLOAD_SERVICE = new ServiceKey<ImageUploadService>('image:up
 
 export type UploadState = 'idle' | 'uploading' | 'complete' | 'error';
 
+// --- Keyboard Bindings ---
+
+/**
+ * Configurable keyboard bindings for image resize actions.
+ * Omit a slot to use the default; set to `null` to disable the binding.
+ *
+ * Key descriptor format: `'Mod-Shift-ArrowRight'`, etc.
+ * `Mod` resolves to Cmd on macOS, Ctrl on Windows/Linux.
+ */
+export interface ImageKeymap {
+	readonly growWidth?: string | null;
+	readonly shrinkWidth?: string | null;
+	readonly growWidthLarge?: string | null;
+	readonly shrinkWidthLarge?: string | null;
+	readonly resetSize?: string | null;
+}
+
+export const DEFAULT_IMAGE_KEYMAP: Readonly<Record<keyof ImageKeymap, string>> = {
+	growWidth: 'Mod-Shift-ArrowRight',
+	shrinkWidth: 'Mod-Shift-ArrowLeft',
+	growWidthLarge: 'Mod-Shift-Alt-ArrowRight',
+	shrinkWidthLarge: 'Mod-Shift-Alt-ArrowLeft',
+	resetSize: 'Mod-Shift-0',
+};
+
 // --- Configuration ---
 
 export interface ImagePluginConfig {
@@ -38,6 +63,12 @@ export interface ImagePluginConfig {
 	readonly acceptedTypes: readonly string[];
 	readonly resizable: boolean;
 	readonly separatorAfter?: boolean;
+	/** Pixels to grow/shrink per small resize step. @default 10 */
+	readonly resizeStep?: number;
+	/** Pixels to grow/shrink per large resize step. @default 50 */
+	readonly resizeStepLarge?: number;
+	/** Customize keyboard bindings for image resize actions. */
+	readonly keymap?: ImageKeymap;
 }
 
 export const DEFAULT_IMAGE_CONFIG: ImagePluginConfig = {
@@ -45,4 +76,6 @@ export const DEFAULT_IMAGE_CONFIG: ImagePluginConfig = {
 	maxFileSize: 10 * 1024 * 1024,
 	acceptedTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
 	resizable: true,
+	resizeStep: 10,
+	resizeStepLarge: 50,
 };

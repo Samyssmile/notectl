@@ -21,6 +21,9 @@ test.describe('Image', () => {
 		const figure = page.locator('notectl-editor figure.notectl-image');
 		await figure.waitFor({ state: 'visible', timeout: 5000 });
 
+		// The image popup must close after insertion
+		await expect(urlInput).toBeHidden({ timeout: 2000 });
+
 		const img = page.locator('notectl-editor .notectl-image__img');
 		await expect(img).toBeVisible();
 
@@ -34,11 +37,19 @@ test.describe('Image', () => {
 		const imageBtn = editor.markButton('image');
 		await imageBtn.click();
 
-		const fileInput = page.locator('notectl-editor input[type="file"]');
-		await fileInput.setInputFiles('e2e/fixtures/mage.png');
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		await uploadBtn.waitFor({ state: 'visible' });
+
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
 
 		const img = page.locator('notectl-editor .notectl-image__img');
 		await img.waitFor({ state: 'visible', timeout: 5000 });
+
+		// The image popup must close after a file is inserted
+		await expect(uploadBtn).toBeHidden({ timeout: 2000 });
 
 		const imgState = await page.evaluate(() => {
 			const el = document.querySelector('notectl-editor');
@@ -62,8 +73,11 @@ test.describe('Image', () => {
 		const imageBtn = editor.markButton('image');
 		await imageBtn.click();
 
-		const fileInput = page.locator('notectl-editor input[type="file"]');
-		await fileInput.setInputFiles('e2e/fixtures/mage.png');
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
 
 		const figure = page.locator('notectl-editor figure.notectl-image');
 		await figure.waitFor({ state: 'visible', timeout: 5000 });
@@ -86,8 +100,11 @@ test.describe('Image', () => {
 		const imageBtn = editor.markButton('image');
 		await imageBtn.click();
 
-		const fileInput = page.locator('notectl-editor input[type="file"]');
-		await fileInput.setInputFiles('e2e/fixtures/mage.png');
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
 
 		const img = page.locator('notectl-editor .notectl-image__img');
 		await img.waitFor({ state: 'visible', timeout: 5000 });

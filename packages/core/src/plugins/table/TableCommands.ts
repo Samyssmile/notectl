@@ -1,6 +1,10 @@
 /**
  * Table commands: insert table, add/remove rows and columns, delete table.
  * All commands are registered via PluginContext and operate through transactions.
+ *
+ * Shared transaction builders (`build*Transaction`) are pure functions that take
+ * EditorState + explicit indices and return a Transaction or null. They are used
+ * by both commands (via PluginContext) and controls (via getState/dispatch).
  */
 
 import { createBlockNode, getBlockChildren } from '../../model/Document.js';
@@ -23,6 +27,155 @@ import {
 	getCellAt,
 	getFirstLeafInCell,
 } from './TableHelpers.js';
+
+// --- Shared Transaction Builders ---
+
+/** Builds a transaction that inserts a new row at the given index. */
+export function buildInsertRowTransaction(
+	state: EditorState,
+	tableId: BlockId,
+	rowIndex: number,
+): Transaction | null {
+	const table = state.getBlock(tableId);
+	if (!table) return null;
+
+	const rows = getBlockChildren(table);
+	const numCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
+	if (numCols === 0) return null;
+
+	const newRow = createTableRow(numCols);
+	const tr = state.transaction('command').insertNode([tableId], rowIndex, newRow);
+
+	const firstCell = getBlockChildren(newRow)[0];
+	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
+	if (firstLeaf) {
+		tr.setSelection(createCollapsedSelection(firstLeaf.id, 0));
+	} else if (firstCell) {
+		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
+	}
+
+	return tr.build();
+}
+
+/** Builds a transaction that inserts a new column at the given index. */
+export function buildInsertColumnTransaction(
+	state: EditorState,
+	tableId: BlockId,
+	colIndex: number,
+): Transaction | null {
+	const table = state.getBlock(tableId);
+	if (!table) return null;
+
+	const rows = getBlockChildren(table);
+	const tr = state.transaction('command');
+
+	for (const row of rows) {
+		const newCell = createTableCell();
+		tr.insertNode([tableId, row.id], colIndex, newCell);
+	}
+
+	tr.setSelection(state.selection);
+	return tr.build();
+}
+
+/**
+ * Builds a transaction that deletes the row at the given index.
+ * If it's the last row, delegates to `createDeleteTableTransaction`.
+ * @param preferredCol Column index to place the cursor in after deletion (default 0).
+ */
+export function buildDeleteRowTransaction(
+	state: EditorState,
+	tableId: BlockId,
+	rowIndex: number,
+	preferredCol = 0,
+): Transaction | null {
+	const table = state.getBlock(tableId);
+	if (!table) return null;
+
+	const rows = getBlockChildren(table);
+	if (rows.length <= 1) {
+		return createDeleteTableTransaction(state, tableId);
+	}
+
+	const tr = state.transaction('command').removeNode([tableId], rowIndex);
+
+	const targetRow: number = rowIndex > 0 ? rowIndex - 1 : 1;
+	const cellId: BlockId | null = getCellAt(state, tableId, targetRow, preferredCol);
+	if (cellId) {
+		const leafId: BlockId = getFirstLeafInCell(state, cellId);
+		tr.setSelection(createCollapsedSelection(leafId, 0));
+	}
+
+	return tr.build();
+}
+
+/**
+ * Builds a transaction that deletes the column at the given index.
+ * If it's the last column, delegates to `createDeleteTableTransaction`.
+ * @param preferredRow Row index to place the cursor in after deletion (default 0).
+ */
+export function buildDeleteColumnTransaction(
+	state: EditorState,
+	tableId: BlockId,
+	colIndex: number,
+	preferredRow = 0,
+): Transaction | null {
+	const table = state.getBlock(tableId);
+	if (!table) return null;
+
+	const rows = getBlockChildren(table);
+	const numCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
+
+	if (numCols <= 1) {
+		return createDeleteTableTransaction(state, tableId);
+	}
+
+	const tr = state.transaction('command');
+
+	for (let r: number = rows.length - 1; r >= 0; r--) {
+		const row = rows[r];
+		if (!row) continue;
+		tr.removeNode([tableId, row.id], colIndex);
+	}
+
+	const targetCol: number = colIndex > 0 ? colIndex - 1 : 1;
+	const cellId: BlockId | null = getCellAt(state, tableId, preferredRow, targetCol);
+	if (cellId) {
+		const leafId: BlockId = getFirstLeafInCell(state, cellId);
+		tr.setSelection(createCollapsedSelection(leafId, 0));
+	}
+
+	return tr.build();
+}
+
+/**
+ * Creates a transaction that removes the given root-level table node.
+ * Cursor placement prefers the next root block, then previous.
+ */
+export function createDeleteTableTransaction(
+	state: EditorState,
+	tableId: BlockId,
+): Transaction | null {
+	const tableIndex: number = state.doc.children.findIndex((block) => block.id === tableId);
+	if (tableIndex === -1) return null;
+
+	const tr = state.transaction('command').removeNode([], tableIndex);
+
+	const nextRoot = state.doc.children[tableIndex + 1];
+	if (nextRoot) {
+		tr.setSelection(createCollapsedSelection(nextRoot.id, 0));
+		return tr.build();
+	}
+
+	const prevRoot = state.doc.children[tableIndex - 1];
+	if (prevRoot) {
+		tr.setSelection(createCollapsedSelection(prevRoot.id, 0));
+	}
+
+	return tr.build();
+}
+
+// --- Commands ---
 
 interface TableDeletionTarget {
 	readonly tableId: BlockId;
@@ -91,22 +244,10 @@ export function addRowAbove(context: PluginContext): boolean {
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	const table = state.getBlock(tableCtx.tableId);
-	if (!table) return false;
+	const tr = buildInsertRowTransaction(state, tableCtx.tableId, tableCtx.rowIndex);
+	if (!tr) return false;
 
-	const newRow = createTableRow(tableCtx.totalCols);
-	const tr = state.transaction('command').insertNode([tableCtx.tableId], tableCtx.rowIndex, newRow);
-
-	// Move cursor to first paragraph inside first cell of new row
-	const firstCell = getBlockChildren(newRow)[0];
-	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
-	if (firstLeaf) {
-		tr.setSelection(createCollapsedSelection(firstLeaf.id, 0));
-	} else if (firstCell) {
-		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
-	}
-
-	context.dispatch(tr.build());
+	context.dispatch(tr);
 	return true;
 }
 
@@ -117,21 +258,10 @@ export function addRowBelow(context: PluginContext): boolean {
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	const newRow = createTableRow(tableCtx.totalCols);
-	const tr = state
-		.transaction('command')
-		.insertNode([tableCtx.tableId], tableCtx.rowIndex + 1, newRow);
+	const tr = buildInsertRowTransaction(state, tableCtx.tableId, tableCtx.rowIndex + 1);
+	if (!tr) return false;
 
-	// Move cursor to first paragraph inside first cell of new row
-	const firstCell = getBlockChildren(newRow)[0];
-	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
-	if (firstLeaf) {
-		tr.setSelection(createCollapsedSelection(firstLeaf.id, 0));
-	} else if (firstCell) {
-		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
-	}
-
-	context.dispatch(tr.build());
+	context.dispatch(tr);
 	return true;
 }
 
@@ -151,99 +281,49 @@ function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	const table = state.getBlock(tableCtx.tableId);
-	if (!table) return false;
-
-	const rows = getBlockChildren(table);
 	const insertColIndex: number = side === 'left' ? tableCtx.colIndex : tableCtx.colIndex + 1;
+	const tr = buildInsertColumnTransaction(state, tableCtx.tableId, insertColIndex);
+	if (!tr) return false;
 
-	const tr = state.transaction('command');
-
-	// Insert a new cell in each row at the column index
-	for (const row of rows) {
-		const newCell = createTableCell();
-		tr.insertNode([tableCtx.tableId, row.id], insertColIndex, newCell);
-	}
-
-	tr.setSelection(state.selection);
-	context.dispatch(tr.build());
+	context.dispatch(tr);
 	return true;
 }
 
-/**
- * Deletes the current row. If it's the last row, deletes the entire table.
- */
+/** Deletes the current row. If it's the last row, deletes the entire table. */
 export function deleteRow(context: PluginContext): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	if (tableCtx.totalRows <= 1) {
-		return deleteTable(context);
-	}
-
-	const tr = state.transaction('command').removeNode([tableCtx.tableId], tableCtx.rowIndex);
-
-	// Move cursor to cell in adjacent row
-	const targetRowIndex: number = tableCtx.rowIndex > 0 ? tableCtx.rowIndex - 1 : 0;
-	const targetCellId: BlockId | null = getCellAt(
+	const tr = buildDeleteRowTransaction(
 		state,
 		tableCtx.tableId,
-		targetRowIndex === tableCtx.rowIndex ? targetRowIndex + 1 : targetRowIndex,
-		Math.min(tableCtx.colIndex, tableCtx.totalCols - 1),
+		tableCtx.rowIndex,
+		tableCtx.colIndex,
 	);
+	if (!tr) return false;
 
-	if (targetCellId) {
-		const leafId: BlockId = getFirstLeafInCell(state, targetCellId);
-		tr.setSelection(createCollapsedSelection(leafId, 0));
-	}
-
-	context.dispatch(tr.build());
+	context.dispatch(tr);
 	return true;
 }
 
-/**
- * Deletes the current column. If it's the last column, deletes the entire table.
- */
+/** Deletes the current column. If it's the last column, deletes the entire table. */
 export function deleteColumn(context: PluginContext): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	if (tableCtx.totalCols <= 1) {
-		return deleteTable(context);
-	}
-
-	const table = state.getBlock(tableCtx.tableId);
-	if (!table) return false;
-
-	const rows = getBlockChildren(table);
-	const tr = state.transaction('command');
-
-	// Remove the cell at colIndex from each row (reverse order for index stability)
-	for (let r = rows.length - 1; r >= 0; r--) {
-		const row = rows[r];
-		if (!row) continue;
-		tr.removeNode([tableCtx.tableId, row.id], tableCtx.colIndex);
-	}
-
-	// Move cursor to adjacent cell
-	const targetColIndex: number = tableCtx.colIndex > 0 ? tableCtx.colIndex - 1 : 0;
-	const targetCellId: BlockId | null = getCellAt(
+	const tr = buildDeleteColumnTransaction(
 		state,
 		tableCtx.tableId,
+		tableCtx.colIndex,
 		tableCtx.rowIndex,
-		targetColIndex === tableCtx.colIndex ? targetColIndex + 1 : targetColIndex,
 	);
+	if (!tr) return false;
 
-	if (targetCellId) {
-		const leafId: BlockId = getFirstLeafInCell(state, targetCellId);
-		tr.setSelection(createCollapsedSelection(leafId, 0));
-	}
-
-	context.dispatch(tr.build());
+	context.dispatch(tr);
 	return true;
 }
 
@@ -294,33 +374,6 @@ export function registerTableCommands(context: PluginContext): void {
 	context.registerCommand('deleteColumn', () => deleteColumn(context));
 	context.registerCommand('selectTable', () => selectTable(context));
 	context.registerCommand('deleteTable', () => deleteTable(context));
-}
-
-/**
- * Creates a transaction that removes the given root-level table node.
- * Cursor placement prefers the next root block, then previous.
- */
-export function createDeleteTableTransaction(
-	state: EditorState,
-	tableId: BlockId,
-): Transaction | null {
-	const tableIndex: number = state.doc.children.findIndex((block) => block.id === tableId);
-	if (tableIndex === -1) return null;
-
-	const tr = state.transaction('command').removeNode([], tableIndex);
-
-	const nextRoot = state.doc.children[tableIndex + 1];
-	if (nextRoot) {
-		tr.setSelection(createCollapsedSelection(nextRoot.id, 0));
-		return tr.build();
-	}
-
-	const prevRoot = state.doc.children[tableIndex - 1];
-	if (prevRoot) {
-		tr.setSelection(createCollapsedSelection(prevRoot.id, 0));
-	}
-
-	return tr.build();
 }
 
 function resolveTableDeletionTarget(

@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	type BlockNode,
-	createBlockNode,
-	createDocument,
-	createTextNode,
+	createCollapsedSelection,
 	getBlockChildren,
 	getBlockText,
-} from '../../model/Document.js';
-import { createCollapsedSelection } from '../../model/Selection.js';
-import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
-import { nodeType } from '../../model/TypeBrands.js';
+} from '../../index.js';
+import type { BlockId } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import { expectToolbarItem } from '../../test/PluginTestUtils.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
@@ -23,43 +19,9 @@ import {
 	isInsideTable,
 } from './TableHelpers.js';
 import { TablePlugin } from './TablePlugin.js';
+import { createTableStateWithRandomIds } from './TableTestUtils.js';
 
 // --- Helpers ---
-
-function makeTableState(rows = 2, cols = 3, cursorRow = 0, cursorCol = 0): EditorState {
-	const table: BlockNode = createTable(rows, cols);
-	const para: BlockNode = createBlockNode(
-		nodeType('paragraph') as NodeTypeName,
-		[createTextNode('')],
-		'para-after' as BlockId,
-	);
-
-	const doc = createDocument([table, para]);
-
-	// Find the paragraph inside the cell to place cursor in
-	const tableRows: readonly BlockNode[] = getBlockChildren(table);
-	const row = tableRows[cursorRow];
-	const cells: readonly BlockNode[] = getBlockChildren(row);
-	const cell = cells[cursorCol];
-	const cellParagraph = getBlockChildren(cell)[0];
-
-	const schema = {
-		nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
-		markTypes: ['bold', 'italic', 'underline'],
-		getNodeSpec: (type: string) => {
-			if (type === 'table' || type === 'table_cell') {
-				return { type, isolating: true, toDOM: () => document.createElement('div') };
-			}
-			return { type, toDOM: () => document.createElement('div') };
-		},
-	};
-
-	return EditorState.create({
-		doc,
-		selection: createCollapsedSelection(cellParagraph.id, 0),
-		schema,
-	});
-}
 
 function makeState(
 	blocks?: {
@@ -119,6 +81,7 @@ describe('TablePlugin', () => {
 		});
 
 		it('table NodeSpec toDOM creates element with data-block-id', async () => {
+			const { createBlockNode } = await import('../../model/Document.js');
 			const h = await pluginHarness(new TablePlugin());
 			const spec = h.getNodeSpec('table');
 			const el = spec?.toDOM(createBlockNode('table', [], 'tbl-1' as BlockId));
@@ -126,6 +89,7 @@ describe('TablePlugin', () => {
 		});
 
 		it('table_cell NodeSpec toDOM creates td element', async () => {
+			const { createBlockNode, createTextNode } = await import('../../model/Document.js');
 			const h = await pluginHarness(new TablePlugin());
 			const spec = h.getNodeSpec('table_cell');
 			const el = spec?.toDOM(createBlockNode('table_cell', [createTextNode('')], 'c1' as BlockId));
@@ -169,7 +133,7 @@ describe('TablePlugin', () => {
 		});
 
 		it('registers addRowAbove command', async () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			const h = await pluginHarness(new TablePlugin(), state);
 			// Command exists but needs table context (returns false without)
 			expect(h.executeCommand('addRowAbove')).toBeDefined();
@@ -268,7 +232,7 @@ describe('TableHelpers', () => {
 
 	describe('findTableContext', () => {
 		it('returns context when cursor is in a table cell', () => {
-			const state = makeTableState(2, 3, 1, 2);
+			const state = createTableStateWithRandomIds(2, 3, 1, 2);
 			const ctx = findTableContext(state, state.selection.anchor.blockId);
 			expect(ctx).not.toBeNull();
 			expect(ctx?.rowIndex).toBe(1);
@@ -278,7 +242,7 @@ describe('TableHelpers', () => {
 		});
 
 		it('returns null when cursor is outside table', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			// Cursor on para-after
 			const paraState: EditorState = EditorState.create({
 				doc: state.doc,
@@ -292,7 +256,7 @@ describe('TableHelpers', () => {
 
 	describe('getCellAt', () => {
 		it('returns correct cell ID', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			const table = state.doc.children[0];
 			const rows: readonly BlockNode[] = getBlockChildren(table);
 			const expectedCell = getBlockChildren(rows[1])[2];
@@ -302,7 +266,7 @@ describe('TableHelpers', () => {
 		});
 
 		it('returns null for out-of-bounds', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			const table = state.doc.children[0];
 			expect(getCellAt(state, table?.id, 5, 0)).toBeNull();
 		});
@@ -310,7 +274,7 @@ describe('TableHelpers', () => {
 
 	describe('getAllCellIds', () => {
 		it('returns all cell IDs in row-major order', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			const table = state.doc.children[0];
 			const ids = getAllCellIds(state, table?.id);
 			expect(ids.length).toBe(6);
@@ -319,12 +283,12 @@ describe('TableHelpers', () => {
 
 	describe('isInsideTable', () => {
 		it('returns true for cell inside table', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			expect(isInsideTable(state, state.selection.anchor.blockId)).toBe(true);
 		});
 
 		it('returns false for block outside table', () => {
-			const state = makeTableState(2, 3);
+			const state = createTableStateWithRandomIds(2, 3);
 			expect(isInsideTable(state, 'para-after' as BlockId)).toBe(false);
 		});
 	});
