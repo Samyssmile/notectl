@@ -94,6 +94,44 @@ test.describe('Image', () => {
 		expect(hasImage).toBe(false);
 	});
 
+	test('resize image with keyboard shortcut after file upload', async ({ editor, page }) => {
+		await editor.focus();
+
+		const imageBtn = editor.markButton('image');
+		await imageBtn.click();
+
+		const uploadBtn = page.locator(
+			'notectl-editor button[aria-label="Upload image from computer"]',
+		);
+		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
+		await fileChooser.setFiles('e2e/fixtures/mage.png');
+
+		const img = page.locator('notectl-editor .notectl-image__img');
+		await img.waitFor({ state: 'visible', timeout: 5000 });
+
+		// Wait for image to load and dimensions to be committed
+		type JsonChild = { type: string; attrs?: Record<string, unknown> };
+		await expect(async () => {
+			const json: { children: JsonChild[] } = await editor.getJSON();
+			const imageBlock = json.children.find((c) => c.type === 'image');
+			expect(imageBlock?.attrs?.width).toBeDefined();
+		}).toPass({ timeout: 3000 });
+
+		const jsonBefore: { children: JsonChild[] } = await editor.getJSON();
+		const imageBefore = jsonBefore.children.find((c) => c.type === 'image');
+		const widthBefore = imageBefore?.attrs?.width as number;
+
+		// Image should be selected and editor focused after insertion — no extra click needed.
+		// Press Ctrl+Shift+ArrowLeft to shrink image (image is already at maxWidth)
+		await page.keyboard.press('Control+Shift+ArrowLeft');
+
+		const jsonAfter: { children: JsonChild[] } = await editor.getJSON();
+		const imageAfter = jsonAfter.children.find((c) => c.type === 'image');
+		const widthAfter = imageAfter?.attrs?.width as number;
+
+		expect(widthAfter).toBeLessThan(widthBefore);
+	});
+
 	test('undo image insertion', async ({ editor, page }) => {
 		await editor.focus();
 
@@ -109,12 +147,19 @@ test.describe('Image', () => {
 		const img = page.locator('notectl-editor .notectl-image__img');
 		await img.waitFor({ state: 'visible', timeout: 5000 });
 
-		// Ensure focus is in editor before undo
-		await editor.focus();
+		// Wait for onload dimension commit to settle before undoing
+		type JsonChild = { type: string; attrs?: Record<string, unknown>; children?: JsonChild[] };
+		await expect(async () => {
+			const json: { children: JsonChild[] } = await editor.getJSON();
+			const imageBlock = json.children.find((c) => c.type === 'image');
+			expect(imageBlock?.attrs?.width).toBeDefined();
+		}).toPass({ timeout: 3000 });
+
+		// Editor should be focused after insertion — Ctrl+Z should work directly.
+		// Two undos: dimension commit (onload) + image insertion.
 		await page.keyboard.press('Control+z');
 		await page.keyboard.press('Control+z');
 
-		type JsonChild = { type: string; children?: JsonChild[] };
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const hasImage = json.children.some((c) => c.type === 'image');
 		expect(hasImage).toBe(false);
