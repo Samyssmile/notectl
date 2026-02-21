@@ -3,8 +3,8 @@ import { createBlockNode } from '../../model/Document.js';
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import { stateBuilder } from '../../test/TestUtils.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
-import type { UploadState } from './ImageUpload.js';
-import { DEFAULT_IMAGE_CONFIG } from './ImageUpload.js';
+import type { ImageKeymap, UploadState } from './ImageUpload.js';
+import { DEFAULT_IMAGE_CONFIG, DEFAULT_IMAGE_KEYMAP } from './ImageUpload.js';
 
 function makeImageBlock(
 	attrs: Record<string, string | number | boolean> = {},
@@ -200,6 +200,20 @@ describe('ImageNodeView', () => {
 			expect(handles).toHaveLength(4);
 		});
 
+		it('resize handles have role="separator" and aria-label', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const handles = view.dom.querySelectorAll('.notectl-image__resize-handle');
+			for (const handle of handles) {
+				expect(handle.getAttribute('role')).toBe('separator');
+				expect(handle.getAttribute('aria-label')).toBeTruthy();
+			}
+		});
+
 		it('creates handles with position modifier classes', () => {
 			const uploadStates = new Map<BlockId, UploadState>();
 			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
@@ -287,7 +301,7 @@ describe('ImageNodeView', () => {
 			expect(overlayEl?.textContent).toBe('Uploading...');
 		});
 
-		it('shows error overlay when upload state is error', () => {
+		it('shows error overlay with text when upload state is error', () => {
 			const uploadStates = new Map<BlockId, UploadState>();
 			uploadStates.set(blockId('img1'), 'error');
 			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
@@ -296,6 +310,174 @@ describe('ImageNodeView', () => {
 
 			const overlayEl = view.dom.querySelector('.notectl-image__overlay');
 			expect(overlayEl?.classList.contains('notectl-image__overlay--error')).toBe(true);
+			expect(overlayEl?.textContent).toBe('Upload failed');
+		});
+
+		it('sets aria-busy during upload', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			uploadStates.set(blockId('img1'), 'uploading');
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			expect(view.dom.getAttribute('aria-busy')).toBe('true');
+		});
+
+		it('removes aria-busy after upload completes', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			uploadStates.set(blockId('img1'), 'complete');
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			expect(view.dom.getAttribute('aria-busy')).toBeNull();
+		});
+	});
+
+	describe('keyboard hint', () => {
+		it('creates keyboard hint element when resolvedKeymap is provided', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>> =
+				DEFAULT_IMAGE_KEYMAP;
+			const factory = createImageNodeViewFactory(
+				DEFAULT_IMAGE_CONFIG,
+				uploadStates,
+				resolvedKeymap,
+			);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint).not.toBeNull();
+		});
+
+		it('keyboard hint has aria-hidden="true"', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>> =
+				DEFAULT_IMAGE_KEYMAP;
+			const factory = createImageNodeViewFactory(
+				DEFAULT_IMAGE_CONFIG,
+				uploadStates,
+				resolvedKeymap,
+			);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint?.getAttribute('aria-hidden')).toBe('true');
+		});
+
+		it('keyboard hint contains shortcut text', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>> =
+				DEFAULT_IMAGE_KEYMAP;
+			const factory = createImageNodeViewFactory(
+				DEFAULT_IMAGE_CONFIG,
+				uploadStates,
+				resolvedKeymap,
+			);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint?.textContent).toContain('to resize');
+		});
+
+		it('does not create hint when resolvedKeymap is not provided', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint).toBeNull();
+		});
+
+		it('does not create hint when grow/shrink keys are null', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>> = {
+				growWidth: null,
+				shrinkWidth: null,
+				growWidthLarge: null,
+				shrinkWidthLarge: null,
+				resetSize: null,
+			};
+			const factory = createImageNodeViewFactory(
+				DEFAULT_IMAGE_CONFIG,
+				uploadStates,
+				resolvedKeymap,
+			);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint).toBeNull();
+		});
+
+		it('hint is removed on deselectNode', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>> =
+				DEFAULT_IMAGE_KEYMAP;
+			const factory = createImageNodeViewFactory(
+				DEFAULT_IMAGE_CONFIG,
+				uploadStates,
+				resolvedKeymap,
+			);
+			const node = makeImageBlock();
+			const view = factory(node, makeState, vi.fn());
+
+			view.selectNode?.();
+			view.deselectNode?.();
+			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
+			expect(hint).toBeNull();
+		});
+	});
+
+	describe('ARIA label', () => {
+		it('sets aria-label with alt text and dimensions', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock({ alt: 'A sunset', width: 400, height: 300 });
+			const view = factory(node, makeState, vi.fn());
+
+			const label: string | null = view.dom.getAttribute('aria-label');
+			expect(label).toContain('A sunset');
+			expect(label).toContain('400 by 300 pixels');
+		});
+
+		it('sets aria-label to "Image" when alt is empty', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock({ alt: '' });
+			const view = factory(node, makeState, vi.fn());
+
+			const label: string | null = view.dom.getAttribute('aria-label');
+			expect(label).toContain('Image');
+		});
+
+		it('updates aria-label on update()', () => {
+			const uploadStates = new Map<BlockId, UploadState>();
+			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
+			const node = makeImageBlock({ alt: 'Old' });
+			const view = factory(node, makeState, vi.fn());
+
+			const updated = createBlockNode(nodeType('image'), [], blockId('img1'), {
+				src: 'test.png',
+				alt: 'New label',
+				align: 'center',
+				width: 200,
+				height: 100,
+			});
+			view.update?.(updated);
+
+			const label: string | null = view.dom.getAttribute('aria-label');
+			expect(label).toContain('New label');
+			expect(label).toContain('200 by 100 pixels');
 		});
 	});
 });

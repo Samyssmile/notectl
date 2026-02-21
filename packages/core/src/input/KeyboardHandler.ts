@@ -114,8 +114,14 @@ export class KeyboardHandler {
 
 		const key = e.key;
 
-		// Arrow keys: navigate away from NodeSelection
-		if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'ArrowRight' || key === 'ArrowDown') {
+		// Arrow keys: navigate away from NodeSelection (only unmodified arrows)
+		if (
+			(key === 'ArrowLeft' || key === 'ArrowUp' || key === 'ArrowRight' || key === 'ArrowDown') &&
+			!e.shiftKey &&
+			!e.metaKey &&
+			!e.ctrlKey &&
+			!e.altKey
+		) {
 			const direction =
 				key === 'ArrowLeft'
 					? 'left'

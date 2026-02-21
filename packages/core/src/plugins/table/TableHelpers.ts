@@ -72,35 +72,21 @@ export function findTableContext(state: EditorState, blockId: BlockId): TableCon
 	const path = state.getNodePath(blockId);
 	if (!path) return null;
 
-	// Find table node in the path
+	// Collect table, row, and cell in a single pass
 	let tableId: BlockId | null = null;
 	let tableNode: BlockNode | null = null;
+	let rowId: BlockId | null = null;
+	let cellId: BlockId | null = null;
 
 	for (const id of path) {
 		const node = state.getBlock(id as BlockId);
-		if (node?.type === 'table') {
+		if (!node) continue;
+		if (node.type === 'table') {
 			tableId = id as BlockId;
 			tableNode = node;
-			break;
-		}
-	}
-
-	if (!tableId || !tableNode) return null;
-
-	// Find table index in document
-	const tableIndex: number = state.doc.children.findIndex((b) => b.id === tableId);
-
-	// Find the cell — could be the block itself or an ancestor
-	let cellId: BlockId | null = null;
-	let rowId: BlockId | null = null;
-
-	// Walk path to identify row and cell
-	for (const id of path) {
-		const node = state.getBlock(id as BlockId);
-		if (node?.type === 'table_row') {
+		} else if (node.type === 'table_row') {
 			rowId = id as BlockId;
-		}
-		if (node?.type === 'table_cell') {
+		} else if (node.type === 'table_cell') {
 			cellId = id as BlockId;
 		}
 	}
@@ -111,7 +97,10 @@ export function findTableContext(state: EditorState, blockId: BlockId): TableCon
 		cellId = blockId;
 	}
 
-	if (!cellId || !rowId) return null;
+	if (!tableId || !tableNode || !cellId || !rowId) return null;
+
+	// Find table index in document
+	const tableIndex: number = state.doc.children.findIndex((b) => b.id === tableId);
 
 	const rows: readonly BlockNode[] = getBlockChildren(tableNode);
 	const rowIndex: number = rows.findIndex((r) => r.id === rowId);

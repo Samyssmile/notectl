@@ -1,6 +1,7 @@
 /**
  * ImagePlugin: registers an image void block type with NodeSpec,
- * NodeView, commands, file handler, and toolbar button.
+ * NodeView, commands, file handler, toolbar button, and accessible
+ * keyboard resize with screenreader announcements.
  */
 
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
@@ -11,11 +12,19 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { insertImage, registerImageCommands } from './ImageCommands.js';
+import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import {
+	insertImage,
+	registerImageCommands,
+	resetImageSize,
+	resizeImageByDelta,
+} from './ImageCommands.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
 import {
 	DEFAULT_IMAGE_CONFIG,
+	DEFAULT_IMAGE_KEYMAP,
 	IMAGE_UPLOAD_SERVICE,
+	type ImageKeymap,
 	type ImagePluginConfig,
 	type UploadState,
 } from './ImageUpload.js';
@@ -42,17 +51,23 @@ export class ImagePlugin implements Plugin {
 	readonly priority = 45;
 
 	private readonly config: ImagePluginConfig;
+	private readonly resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>>;
 	private readonly uploadStates = new Map<BlockId, UploadState>();
 	private readonly blobUrls = new Set<string>();
+	private context: PluginContext | null = null;
 
 	constructor(config?: Partial<ImagePluginConfig>) {
 		this.config = { ...DEFAULT_IMAGE_CONFIG, ...config };
+		this.resolvedKeymap = { ...DEFAULT_IMAGE_KEYMAP, ...config?.keymap };
 	}
 
 	init(context: PluginContext): void {
+		this.context = context;
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
 		registerImageCommands(context);
+		this.registerResizeCommands(context);
+		this.registerResizeKeymaps(context);
 		this.registerFileHandler(context);
 		this.registerToolbarItem(context);
 	}
@@ -63,14 +78,25 @@ export class ImagePlugin implements Plugin {
 		}
 		this.blobUrls.clear();
 		this.uploadStates.clear();
+		this.context = null;
 	}
 
-	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
+	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
+		if (!this.context) return;
+
 		// Clean up upload states for removed blocks (searches full tree)
 		for (const id of this.uploadStates.keys()) {
 			if (!newState.getBlock(id)) {
 				this.uploadStates.delete(id);
 			}
+		}
+
+		// Announce image selection for screenreaders
+		const oldIsImage: boolean = this.isImageSelected(oldState);
+		const nowIsImage: boolean = this.isImageSelected(newState);
+
+		if (!oldIsImage && nowIsImage) {
+			this.announceImageSelection(newState);
 		}
 	}
 
@@ -94,14 +120,16 @@ export class ImagePlugin implements Plugin {
 				const imgContainer: HTMLDivElement = document.createElement('div');
 				imgContainer.className = 'notectl-image__container';
 
+				const alt: string = (node.attrs?.alt as string | undefined) ?? '';
+				const width: number | undefined = node.attrs?.width as number | undefined;
+				const height: number | undefined = node.attrs?.height as number | undefined;
+
 				const img: HTMLImageElement = document.createElement('img');
 				img.className = 'notectl-image__img';
 				img.src = (node.attrs?.src as string | undefined) ?? '';
-				img.alt = (node.attrs?.alt as string | undefined) ?? '';
+				img.alt = alt;
 				img.draggable = false;
 
-				const width: number | undefined = node.attrs?.width as number | undefined;
-				const height: number | undefined = node.attrs?.height as number | undefined;
 				if (width !== undefined) img.style.width = `${width}px`;
 				if (height !== undefined) img.style.height = `${height}px`;
 
@@ -112,6 +140,12 @@ export class ImagePlugin implements Plugin {
 					right: 'notectl-image--right',
 				}[align];
 				if (alignClass) figure.classList.add(alignClass);
+
+				const parts: string[] = [alt || 'Image'];
+				if (width !== undefined && height !== undefined) {
+					parts.push(`${width} by ${height} pixels`);
+				}
+				figure.setAttribute('aria-label', parts.join(', '));
 
 				imgContainer.appendChild(img);
 				figure.appendChild(imgContainer);
@@ -175,7 +209,68 @@ export class ImagePlugin implements Plugin {
 	}
 
 	private registerNodeView(context: PluginContext): void {
-		context.registerNodeView('image', createImageNodeViewFactory(this.config, this.uploadStates));
+		context.registerNodeView(
+			'image',
+			createImageNodeViewFactory(this.config, this.uploadStates, this.resolvedKeymap),
+		);
+	}
+
+	private registerResizeCommands(context: PluginContext): void {
+		const step: number = this.config.resizeStep ?? 10;
+		const stepLarge: number = this.config.resizeStepLarge ?? 50;
+		const maxWidth: number = this.config.maxWidth;
+
+		context.registerCommand('resizeImageGrow', () => {
+			const result: boolean = resizeImageByDelta(context, step, maxWidth);
+			if (result) this.announceCurrentSize(context);
+			return result;
+		});
+
+		context.registerCommand('resizeImageShrink', () => {
+			const result: boolean = resizeImageByDelta(context, -step, maxWidth);
+			if (result) this.announceCurrentSize(context);
+			return result;
+		});
+
+		context.registerCommand('resizeImageGrowLarge', () => {
+			const result: boolean = resizeImageByDelta(context, stepLarge, maxWidth);
+			if (result) this.announceCurrentSize(context);
+			return result;
+		});
+
+		context.registerCommand('resizeImageShrinkLarge', () => {
+			const result: boolean = resizeImageByDelta(context, -stepLarge, maxWidth);
+			if (result) this.announceCurrentSize(context);
+			return result;
+		});
+
+		context.registerCommand('resetImageSize', () => {
+			const result: boolean = resetImageSize(context);
+			if (result) context.announce('Image reset to natural size.');
+			return result;
+		});
+	}
+
+	private registerResizeKeymaps(context: PluginContext): void {
+		const bindings: Record<string, () => boolean> = {};
+		const commands: Record<keyof ImageKeymap, string> = {
+			growWidth: 'resizeImageGrow',
+			shrinkWidth: 'resizeImageShrink',
+			growWidthLarge: 'resizeImageGrowLarge',
+			shrinkWidthLarge: 'resizeImageShrinkLarge',
+			resetSize: 'resetImageSize',
+		};
+
+		for (const [slot, commandName] of Object.entries(commands)) {
+			const binding: string | null = this.resolvedKeymap[slot as keyof ImageKeymap] ?? null;
+			if (binding) {
+				bindings[binding] = () => context.executeCommand(commandName);
+			}
+		}
+
+		if (Object.keys(bindings).length > 0) {
+			context.registerKeymap(bindings);
+		}
 	}
 
 	private registerFileHandler(context: PluginContext): void {
@@ -257,6 +352,7 @@ export class ImagePlugin implements Plugin {
 			this.blobUrls.delete(blobUrl);
 		} catch {
 			this.uploadStates.set(imageBlockId, 'error');
+			context.announce('Image upload failed.');
 		}
 	}
 
@@ -274,13 +370,17 @@ export class ImagePlugin implements Plugin {
 			priority: 50,
 			popupType: 'custom',
 			separatorAfter: this.config.separatorAfter,
-			renderPopup: (container, ctx) => {
-				this.renderImagePopup(container, ctx);
+			renderPopup: (container, ctx, onClose) => {
+				this.renderImagePopup(container, ctx, onClose);
 			},
 		});
 	}
 
-	private renderImagePopup(container: HTMLElement, context: PluginContext): void {
+	private renderImagePopup(
+		container: HTMLElement,
+		context: PluginContext,
+		onClose: () => void,
+	): void {
 		container.style.padding = '8px';
 		container.style.minWidth = '240px';
 
@@ -290,28 +390,32 @@ export class ImagePlugin implements Plugin {
 		fileInput.accept = this.config.acceptedTypes.join(',');
 		fileInput.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;';
 
-		const uploadLabel: HTMLLabelElement = document.createElement('label');
-		uploadLabel.textContent = 'Upload from computer';
-		uploadLabel.setAttribute('aria-label', 'Upload image from computer');
-		uploadLabel.style.cssText =
+		const uploadBtn: HTMLButtonElement = document.createElement('button');
+		uploadBtn.type = 'button';
+		uploadBtn.textContent = 'Upload from computer';
+		uploadBtn.setAttribute('aria-label', 'Upload image from computer');
+		uploadBtn.style.cssText =
 			'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
 			'text-align:center;box-sizing:border-box;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +
 			'background:var(--notectl-surface-raised);color:var(--notectl-fg);';
-		uploadLabel.appendChild(fileInput);
 
-		uploadLabel.addEventListener('mousedown', (e: MouseEvent) => {
+		uploadBtn.addEventListener('mousedown', (e: MouseEvent) => {
+			e.preventDefault();
 			e.stopPropagation();
+			fileInput.click();
 		});
 
 		fileInput.addEventListener('change', () => {
 			const file: File | undefined = fileInput.files?.[0];
 			if (file) {
 				this.handleFileInsert(context, file);
+				onClose();
 			}
 		});
 
-		container.appendChild(uploadLabel);
+		container.appendChild(fileInput);
+		container.appendChild(uploadBtn);
 
 		// --- Separator ---
 		const separator: HTMLDivElement = document.createElement('div');
@@ -353,6 +457,7 @@ export class ImagePlugin implements Plugin {
 			const src: string = urlInput.value.trim();
 			if (src) {
 				insertImage(context, { src });
+				onClose();
 			}
 		};
 
@@ -381,5 +486,54 @@ export class ImagePlugin implements Plugin {
 				accepted === mimeType ||
 				(accepted.endsWith('/*') && mimeType.startsWith(accepted.slice(0, -1))),
 		);
+	}
+
+	private isImageSelected(state: EditorState): boolean {
+		const sel = state.selection;
+		if (!isNodeSelection(sel)) return false;
+		const block: BlockNode | undefined = state.getBlock(sel.nodeId);
+		return block?.type === 'image';
+	}
+
+	private announceImageSelection(state: EditorState): void {
+		if (!this.context) return;
+		const sel = state.selection;
+		if (!isNodeSelection(sel)) return;
+
+		const block: BlockNode | undefined = state.getBlock(sel.nodeId);
+		if (!block || block.type !== 'image') return;
+
+		const alt: string = (block.attrs?.alt as string | undefined) ?? '';
+		const width: number | undefined = block.attrs?.width as number | undefined;
+		const height: number | undefined = block.attrs?.height as number | undefined;
+
+		const parts: string[] = ['Image selected.'];
+		if (alt) parts.push(`Alt text: ${alt}.`);
+		if (width !== undefined && height !== undefined) {
+			parts.push(`Size: ${width} by ${height} pixels.`);
+		}
+
+		const shrinkKey: string | null = this.resolvedKeymap.shrinkWidth ?? null;
+		const growKey: string | null = this.resolvedKeymap.growWidth ?? null;
+		if (shrinkKey && growKey) {
+			parts.push(`${formatShortcut(shrinkKey)} / ${formatShortcut(growKey)} to resize.`);
+		}
+
+		this.context.announce(parts.join(' '));
+	}
+
+	private announceCurrentSize(context: PluginContext): void {
+		const state = context.getState();
+		const sel = state.selection;
+		if (!isNodeSelection(sel)) return;
+
+		const block: BlockNode | undefined = state.getBlock(sel.nodeId);
+		if (!block || block.type !== 'image') return;
+
+		const width: number | undefined = block.attrs?.width as number | undefined;
+		const height: number | undefined = block.attrs?.height as number | undefined;
+		if (width !== undefined && height !== undefined) {
+			context.announce(`Image resized to ${width} by ${height} pixels.`);
+		}
 	}
 }
