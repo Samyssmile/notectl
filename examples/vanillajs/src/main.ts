@@ -11,7 +11,6 @@ import {
 	ImagePlugin,
 	LinkPlugin,
 	ListPlugin,
-	STARTER_FONTS,
 	StrikethroughPlugin,
 	SuperSubPlugin,
 	TablePlugin,
@@ -22,6 +21,7 @@ import {
 	createEditor,
 } from '@notectl/core';
 import type { FontDefinition, StateChangeEvent } from '@notectl/core';
+import { STARTER_FONTS } from '@notectl/core/fonts';
 
 declare global {
 	interface Window {
