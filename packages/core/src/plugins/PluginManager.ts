@@ -47,6 +47,7 @@ interface PluginRegistrations {
 	toolbarItems: string[];
 	fileHandlers: FileHandler[];
 	blockTypePickerEntries: string[];
+	stylesheetIndices: number[];
 }
 
 export interface PluginManagerInitOptions {
@@ -67,6 +68,7 @@ export class PluginManager {
 	private readonly middlewares: MiddlewareEntry[] = [];
 	private readonly registrations = new Map<string, PluginRegistrations>();
 	private readonly eventBus = new EventBus();
+	private readonly pluginStyleSheets: CSSStyleSheet[] = [];
 	readonly schemaRegistry = new SchemaRegistry();
 	private middlewareSorted: MiddlewareEntry[] | null = null;
 	private initOrder: string[] = [];
@@ -238,6 +240,11 @@ export class PluginManager {
 		return this.services.get(key.id) as T | undefined;
 	}
 
+	/** Returns all plugin-registered stylesheets. */
+	getPluginStyleSheets(): readonly CSSStyleSheet[] {
+		return this.pluginStyleSheets;
+	}
+
 	/** Destroys all plugins in reverse init order. */
 	async destroy(): Promise<void> {
 		const reversed = [...this.initOrder].reverse();
@@ -249,6 +256,7 @@ export class PluginManager {
 		this.services.clear();
 		this.middlewares.length = 0;
 		this.middlewareSorted = null;
+		this.pluginStyleSheets.length = 0;
 		this.eventBus.clear();
 		this.registrations.clear();
 		this.schemaRegistry.clear();
@@ -325,6 +333,7 @@ export class PluginManager {
 			toolbarItems: [],
 			fileHandlers: [],
 			blockTypePickerEntries: [],
+			stylesheetIndices: [],
 		};
 		this.registrations.set(pluginId, reg);
 
@@ -435,6 +444,14 @@ export class PluginManager {
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,
+
+			registerStyleSheet: (css: string) => {
+				const sheet: CSSStyleSheet = new CSSStyleSheet();
+				sheet.replaceSync(css);
+				const index: number = this.pluginStyleSheets.length;
+				this.pluginStyleSheets.push(sheet);
+				reg.stylesheetIndices.push(index);
+			},
 
 			announce: (text: string) => {
 				options.announce?.(text);
