@@ -1,0 +1,33 @@
+<div class="app">
+  <h1>Notectl</h1>
+  <p class="subtitle">State-driven rich text editing — Angular Playground</p>
+
+  <div class="editor-container">
+    <ntl-editor
+      #editor
+      [toolbar]="toolbar"
+      [plugins]="plugins"
+      [theme]="theme()"
+      [placeholder]="'Start typing...'"
+      [autofocus]="true"
+      (stateChange)="onStateChange($event)"
+      (ready)="onReady()"
+    />
+  </div>
+
+  <div class="controls">
+    <button (click)="getJSON()">Get JSON</button>
+    <button (click)="getHTML()">Get HTML</button>
+    <button (click)="getText()">Get Text</button>
+    <button (click)="isEmpty()">Is Empty?</button>
+    <button (click)="toggleBold()">API: Toggle Bold</button>
+    <button (click)="undo()">API: Undo</button>
+    <button (click)="redo()">API: Redo</button>
+    <button (click)="toggleTheme()">{{ themeButtonLabel() }}</button>
+  </div>
+
+  <div class="output">
+    <h3>Output</h3>
+    <pre>{{ output() }}</pre>
+  </div>
+</div>
