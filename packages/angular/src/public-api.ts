@@ -64,7 +64,8 @@ export type {
 export type { FontDefinition } from '@notectl/core';
 
 // Starter fonts
-export { STARTER_FONTS } from '@notectl/core';
+/** @deprecated Import from '@notectl/core/fonts' instead. */
+export { STARTER_FONTS } from '@notectl/core/fonts';
 
 // Plugins (tree-shakable re-exports)
 export {
