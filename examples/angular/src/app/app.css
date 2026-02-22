@@ -1,0 +1,89 @@
+.app {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.editor-container {
+  margin-bottom: 24px;
+}
+
+:host ::ng-deep notectl-editor {
+  --notectl-content-min-height: 400px;
+}
+
+:host ::ng-deep notectl-editor th,
+:host ::ng-deep notectl-editor td {
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  min-width: 60px;
+  vertical-align: top;
+}
+
+:host ::ng-deep notectl-editor th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+:host ::ng-deep notectl-editor td {
+  background: #fff;
+}
+
+:host ::ng-deep notectl-editor th p,
+:host ::ng-deep notectl-editor td p {
+  margin: 0;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.controls button {
+  padding: 6px 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.controls button:hover {
+  background: #f0f0f0;
+}
+
+.output {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.output h3 {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.output pre {
+  font-size: 12px;
+  background: #f8f8f8;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
