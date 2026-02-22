@@ -295,6 +295,7 @@ export {
 	type FontSizeConfig,
 } from './plugins/font-size/FontSizePlugin.js';
 
+/** @deprecated Import from '@notectl/core/fonts' instead. */
 export {
 	FIRA_CODE,
 	FIRA_SANS,
