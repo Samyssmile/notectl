@@ -33,6 +33,7 @@ Use what you need, nothing more.
 - **Accessible by default** — full keyboard navigation, ARIA roles and labels, screen reader support
 - **Immutable state** — predictable updates, time-travel undo/redo, zero mutation bugs
 - **Native Angular integration** — available as [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular)
+- **Lightweight** — bundle size of notectl core is 29kb
 - **Single dependency** — only DOMPurify at runtime
 
 <br />
