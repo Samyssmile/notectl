@@ -11,6 +11,7 @@ export class EditorThemeController {
 	private themeStyleSheet: CSSStyleSheet = new CSSStyleSheet();
 	private systemThemeQuery: MediaQueryList | null = null;
 	private systemThemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
+	private pluginSheets: readonly CSSStyleSheet[] = [];
 	private readonly shadow: ShadowRoot;
 
 	constructor(shadow: ShadowRoot) {
@@ -30,6 +31,12 @@ export class EditorThemeController {
 		}
 	}
 
+	/** Updates the plugin-registered stylesheets and refreshes adoptedStyleSheets. */
+	setPluginStyleSheets(sheets: readonly CSSStyleSheet[]): void {
+		this.pluginSheets = sheets;
+		this.refreshAdoptedStyleSheets();
+	}
+
 	/** Removes the system-theme listener. */
 	destroy(): void {
 		this.cleanupSystemThemeListener();
@@ -37,7 +44,15 @@ export class EditorThemeController {
 
 	private setThemeStyleSheet(theme: Theme): void {
 		this.themeStyleSheet.replaceSync(generateThemeCSS(theme));
-		this.shadow.adoptedStyleSheets = [this.themeStyleSheet, getEditorStyleSheet()];
+		this.refreshAdoptedStyleSheets();
+	}
+
+	private refreshAdoptedStyleSheets(): void {
+		this.shadow.adoptedStyleSheets = [
+			this.themeStyleSheet,
+			getEditorStyleSheet(),
+			...this.pluginSheets,
+		];
 	}
 
 	private setupSystemThemeListener(): void {
