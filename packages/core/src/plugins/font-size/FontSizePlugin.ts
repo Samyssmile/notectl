@@ -5,6 +5,7 @@
  */
 
 import { forEachBlockInRange } from '../../commands/Commands.js';
+import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
@@ -75,6 +76,7 @@ export class FontSizePlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
 		this.context = context;
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
