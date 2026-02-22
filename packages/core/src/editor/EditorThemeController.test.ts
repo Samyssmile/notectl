@@ -69,6 +69,21 @@ describe('EditorThemeController', () => {
 		expect(removeSpy).toHaveBeenCalledWith('change', expect.any(Function));
 	});
 
+	it('includes plugin stylesheets in adoptedStyleSheets', () => {
+		const shadow: ShadowRoot = createShadow();
+		const controller = new EditorThemeController(shadow);
+
+		controller.apply(ThemePreset.Light);
+		const baseCount: number = shadow.adoptedStyleSheets.length;
+
+		const sheet: CSSStyleSheet = new CSSStyleSheet();
+		sheet.replaceSync('.plugin { color: red; }');
+		controller.setPluginStyleSheets([sheet]);
+
+		expect(shadow.adoptedStyleSheets).toHaveLength(baseCount + 1);
+		expect(shadow.adoptedStyleSheets).toContain(sheet);
+	});
+
 	it('switches from system to preset without leaking listeners', () => {
 		const shadow: ShadowRoot = createShadow();
 		const controller = new EditorThemeController(shadow);
