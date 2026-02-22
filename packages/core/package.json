@@ -4,14 +4,91 @@
 	"description": "A modern and accessable rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
-	"main": "./dist/notectl-core.js",
+	"sideEffects": false,
+	"main": "./dist/notectl-core.umd.js",
 	"module": "./dist/notectl-core.mjs",
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/notectl-core.mjs",
-			"require": "./dist/notectl-core.js"
+			"require": "./dist/notectl-core.umd.js"
+		},
+		"./fonts": {
+			"types": "./dist/fonts.d.ts",
+			"import": "./dist/fonts.mjs"
+		},
+		"./plugins/text-formatting": {
+			"types": "./dist/plugins/text-formatting/index.d.ts",
+			"import": "./dist/plugins/text-formatting.mjs"
+		},
+		"./plugins/heading": {
+			"types": "./dist/plugins/heading/index.d.ts",
+			"import": "./dist/plugins/heading.mjs"
+		},
+		"./plugins/toolbar": {
+			"types": "./dist/plugins/toolbar/index.d.ts",
+			"import": "./dist/plugins/toolbar.mjs"
+		},
+		"./plugins/table": {
+			"types": "./dist/plugins/table/index.d.ts",
+			"import": "./dist/plugins/table.mjs"
+		},
+		"./plugins/image": {
+			"types": "./dist/plugins/image/index.d.ts",
+			"import": "./dist/plugins/image.mjs"
+		},
+		"./plugins/code-block": {
+			"types": "./dist/plugins/code-block/index.d.ts",
+			"import": "./dist/plugins/code-block.mjs"
+		},
+		"./plugins/link": {
+			"types": "./dist/plugins/link/index.d.ts",
+			"import": "./dist/plugins/link.mjs"
+		},
+		"./plugins/list": {
+			"types": "./dist/plugins/list/index.d.ts",
+			"import": "./dist/plugins/list.mjs"
+		},
+		"./plugins/blockquote": {
+			"types": "./dist/plugins/blockquote/index.d.ts",
+			"import": "./dist/plugins/blockquote.mjs"
+		},
+		"./plugins/strikethrough": {
+			"types": "./dist/plugins/strikethrough/index.d.ts",
+			"import": "./dist/plugins/strikethrough.mjs"
+		},
+		"./plugins/text-color": {
+			"types": "./dist/plugins/text-color/index.d.ts",
+			"import": "./dist/plugins/text-color.mjs"
+		},
+		"./plugins/horizontal-rule": {
+			"types": "./dist/plugins/horizontal-rule/index.d.ts",
+			"import": "./dist/plugins/horizontal-rule.mjs"
+		},
+		"./plugins/alignment": {
+			"types": "./dist/plugins/alignment/index.d.ts",
+			"import": "./dist/plugins/alignment.mjs"
+		},
+		"./plugins/font": {
+			"types": "./dist/plugins/font/index.d.ts",
+			"import": "./dist/plugins/font.mjs"
+		},
+		"./plugins/font-size": {
+			"types": "./dist/plugins/font-size/index.d.ts",
+			"import": "./dist/plugins/font-size.mjs"
+		},
+		"./plugins/highlight": {
+			"types": "./dist/plugins/highlight/index.d.ts",
+			"import": "./dist/plugins/highlight.mjs"
+		},
+		"./plugins/super-sub": {
+			"types": "./dist/plugins/super-sub/index.d.ts",
+			"import": "./dist/plugins/super-sub.mjs"
+		},
+		"./plugins/hard-break": {
+			"types": "./dist/plugins/hard-break/index.d.ts",
+			"import": "./dist/plugins/hard-break.mjs"
 		}
 	},
 	"files": ["dist", "README.md"],
@@ -36,19 +113,44 @@
 		"url": "https://github.com/Samyssmile/notectl/issues"
 	},
 	"scripts": {
-		"build": "vite build",
+		"build": "vite build && vite build --config vite.config.umd.ts",
 		"prepack": "cp ../../README.md ./README.md",
 		"postpack": "rm -f ./README.md",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit",
-		"dev": "vite build --watch"
+		"dev": "vite build --watch",
+		"size": "size-limit",
+		"size:check": "size-limit --limit"
 	},
+	"size-limit": [
+		{
+			"name": "Core (main entry, includes deprecated fonts)",
+			"path": "dist/notectl-core.mjs",
+			"limit": "350 KB",
+			"gzip": true
+		},
+		{
+			"name": "Fonts (standalone)",
+			"path": "dist/fonts.mjs",
+			"limit": "300 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Table",
+			"path": "dist/plugins/table.mjs",
+			"limit": "15 KB",
+			"gzip": true
+		}
+	],
 	"dependencies": {
 		"dompurify": "^3.3.1"
 	},
 	"devDependencies": {
+		"@rollup/plugin-terser": "^0.4.4",
+		"@size-limit/preset-small-lib": "^12.0.0",
 		"happy-dom": "^20.6.3",
+		"size-limit": "^12.0.0",
 		"vite": "^7.3.1",
 		"vite-plugin-dts": "^4.5.4",
 		"vitest": "^4.0.18"

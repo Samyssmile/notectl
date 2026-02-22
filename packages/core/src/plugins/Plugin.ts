@@ -90,6 +90,9 @@ export interface PluginContext {
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 	getSchemaRegistry(): SchemaRegistry;
 
+	/** Registers a CSS string to be added to the editor's adopted stylesheets. */
+	registerStyleSheet(css: string): void;
+
 	/** Pushes a screen reader announcement via the editor's aria-live region. */
 	announce(text: string): void;
 }

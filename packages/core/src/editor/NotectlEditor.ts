@@ -213,6 +213,12 @@ export class NotectlEditor extends HTMLElement {
 					},
 				});
 				this.updateEmptyState();
+
+				// Inject plugin-registered stylesheets into adopted stylesheets
+				const pluginSheets = pluginMgr.getPluginStyleSheets();
+				if (pluginSheets.length > 0) {
+					this.themeController?.setPluginStyleSheets(pluginSheets);
+				}
 			},
 		});
 
