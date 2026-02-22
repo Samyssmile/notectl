@@ -4,6 +4,7 @@
  * grid picker, multi-cell selection, and context menu.
  */
 
+import { TABLE_CSS } from '../../editor/styles/table.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -72,6 +73,7 @@ export class TablePlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(TABLE_CSS);
 		this.context = context;
 
 		this.registerNodeSpecs(context);

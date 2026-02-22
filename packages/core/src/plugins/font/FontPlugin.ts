@@ -5,6 +5,7 @@
  */
 
 import { forEachBlockInRange } from '../../commands/Commands.js';
+import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
@@ -92,6 +93,7 @@ export class FontPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(FONT_SELECT_CSS);
 		this.context = context;
 		this.registerMarkSpec(context);
 		this.registerCommands(context);

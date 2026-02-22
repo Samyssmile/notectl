@@ -4,6 +4,7 @@
  */
 
 import { forEachBlockInRange } from '../../commands/Commands.js';
+import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
@@ -151,6 +152,7 @@ export class HighlightPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerToolbarItem(context);
