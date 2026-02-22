@@ -4,6 +4,7 @@
  * keyboard resize with screenreader announcements.
  */
 
+import { IMAGE_CSS } from '../../editor/styles/image.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -62,6 +63,7 @@ export class ImagePlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(IMAGE_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
