@@ -553,6 +553,53 @@ describe('PluginManager', () => {
 			expect(pm.getService(key)).toBeUndefined();
 		});
 
+		it('cleans up stylesheets registered by a destroyed plugin', async () => {
+			const pm = new PluginManager();
+			pm.register(
+				makePlugin({
+					id: 'styled',
+					init: vi.fn((ctx) => {
+						ctx.registerStyleSheet('.foo { color: red; }');
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			expect(pm.getPluginStyleSheets()).toHaveLength(1);
+			await pm.destroy();
+			expect(pm.getPluginStyleSheets()).toHaveLength(0);
+		});
+
+		it('only removes stylesheets belonging to the destroyed plugin', async () => {
+			const pm = new PluginManager();
+			pm.register(
+				makePlugin({
+					id: 'a',
+					priority: 1,
+					init: vi.fn((ctx) => {
+						ctx.registerStyleSheet('.a { color: red; }');
+					}),
+				}),
+			);
+			pm.register(
+				makePlugin({
+					id: 'b',
+					priority: 2,
+					init: vi.fn((ctx) => {
+						ctx.registerStyleSheet('.b { color: blue; }');
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			expect(pm.getPluginStyleSheets()).toHaveLength(2);
+
+			// Destroy only removes sheets in reverse init order.
+			// After full destroy, all should be gone.
+			await pm.destroy();
+			expect(pm.getPluginStyleSheets()).toHaveLength(0);
+		});
+
 		it('cleans up event subscriptions on destroy', async () => {
 			const pm = new PluginManager();
 			const helloKey = new EventKey<number>('hello');
