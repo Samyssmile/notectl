@@ -4,6 +4,7 @@
  * combobox-style toolbar dropdown that reflects the current block type.
  */
 
+import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
 import {
 	generateBlockId,
@@ -89,6 +90,7 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(HEADING_SELECT_CSS);
 		this.context = context;
 		this.registerNodeSpecs(context);
 		this.registerCommands(context);

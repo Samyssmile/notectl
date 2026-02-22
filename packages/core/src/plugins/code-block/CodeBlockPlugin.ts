@@ -8,6 +8,7 @@
 import type { DecorationSet } from '../../decorations/Decoration.js';
 import { inline as inlineDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
+import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import {
 	generateBlockId,
@@ -142,6 +143,7 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);

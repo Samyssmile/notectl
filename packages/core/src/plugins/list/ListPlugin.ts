@@ -7,6 +7,7 @@
  * allowing simple nesting representation without deep tree structures.
  */
 
+import { LIST_CSS } from '../../editor/styles/list.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -96,6 +97,7 @@ export class ListPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymaps(context);

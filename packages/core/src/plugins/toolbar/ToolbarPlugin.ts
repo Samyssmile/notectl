@@ -5,6 +5,7 @@
  * Implements WAI-ARIA Toolbar pattern with roving tabindex.
  */
 
+import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
@@ -63,6 +64,7 @@ export class ToolbarPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
 
 		this.popupController = new ToolbarPopupController(() => this.getActiveElement());
