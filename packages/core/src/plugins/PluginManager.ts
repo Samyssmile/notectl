@@ -47,7 +47,7 @@ interface PluginRegistrations {
 	toolbarItems: string[];
 	fileHandlers: FileHandler[];
 	blockTypePickerEntries: string[];
-	stylesheetIndices: number[];
+	stylesheets: CSSStyleSheet[];
 }
 
 export interface PluginManagerInitOptions {
@@ -306,6 +306,10 @@ export class PluginManager {
 		for (const id of reg.blockTypePickerEntries) {
 			this.schemaRegistry.removeBlockTypePickerEntry(id);
 		}
+		for (const sheet of reg.stylesheets) {
+			const idx = this.pluginStyleSheets.indexOf(sheet);
+			if (idx !== -1) this.pluginStyleSheets.splice(idx, 1);
+		}
 
 		this.middlewareSorted = null;
 		this.registrations.delete(id);
@@ -333,7 +337,7 @@ export class PluginManager {
 			toolbarItems: [],
 			fileHandlers: [],
 			blockTypePickerEntries: [],
-			stylesheetIndices: [],
+			stylesheets: [],
 		};
 		this.registrations.set(pluginId, reg);
 
@@ -448,9 +452,8 @@ export class PluginManager {
 			registerStyleSheet: (css: string) => {
 				const sheet: CSSStyleSheet = new CSSStyleSheet();
 				sheet.replaceSync(css);
-				const index: number = this.pluginStyleSheets.length;
 				this.pluginStyleSheets.push(sheet);
-				reg.stylesheetIndices.push(index);
+				reg.stylesheets.push(sheet);
 			},
 
 			announce: (text: string) => {
