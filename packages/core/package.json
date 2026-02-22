@@ -125,9 +125,9 @@
 	},
 	"size-limit": [
 		{
-			"name": "Core (main entry, includes deprecated fonts)",
+			"name": "Core (main entry)",
 			"path": "dist/notectl-core.mjs",
-			"limit": "350 KB",
+			"limit": "75 KB",
 			"gzip": true
 		},
 		{
