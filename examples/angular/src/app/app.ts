@@ -4,6 +4,7 @@ import {
   type Plugin,
   type FontDefinition,
   type StateChangeEvent,
+  type SelectionChangeEvent,
   TextFormattingPlugin,
   StrikethroughPlugin,
   SuperSubPlugin,
@@ -54,7 +55,10 @@ export class App {
   protected readonly editor = viewChild<NotectlEditorComponent>('editor');
 
   protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+  protected readonly readonlyMode = signal(false);
   protected readonly output = signal('Click a button above to inspect editor state.');
+  protected readonly stateChangeCount = signal(0);
+  protected readonly lastEvent = signal('');
 
   protected readonly isDark = computed(() => this.theme() === ThemePreset.Dark);
   protected readonly themeButtonLabel = computed(() =>
@@ -90,11 +94,43 @@ export class App {
   protected readonly plugins: Plugin[] = [new HardBreakPlugin()];
 
   onStateChange(_event: StateChangeEvent): void {
-    // Optionally update output in real-time
+    this.stateChangeCount.update((c) => c + 1);
+  }
+
+  onSelectionChange(_event: SelectionChangeEvent): void {
+    this.lastEvent.set('selectionChange');
+  }
+
+  onFocus(): void {
+    this.lastEvent.set('focus');
+  }
+
+  onBlur(): void {
+    this.lastEvent.set('blur');
   }
 
   onReady(): void {
     this.output.set('Editor ready!');
+  }
+
+  toggleReadonly(): void {
+    this.readonlyMode.update((v) => !v);
+    this.output.set(`Readonly: ${this.readonlyMode()}`);
+  }
+
+  setJSONSample(): void {
+    const editorRef = this.editor();
+    if (!editorRef) return;
+    editorRef.setJSON({
+      children: [
+        {
+          id: 'sample-1',
+          type: 'paragraph',
+          children: [{ type: 'text', text: 'Content set via setJSON', marks: [] }],
+        },
+      ],
+    } as never);
+    this.output.set('Content set via setJSON');
   }
 
   getJSON(): void {

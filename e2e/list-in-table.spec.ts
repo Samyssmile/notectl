@@ -74,17 +74,19 @@ test.describe('Lists inside table cells — input rules', () => {
 		await page.keyboard.type('1. ', { delay: 10 });
 		await page.keyboard.type('Ordered item', { delay: 10 });
 
-		const json: { children: JsonChild[] } = await editor.getJSON();
-		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
-		expect(table).toBeDefined();
-		if (!table) return;
+		await expect(async () => {
+			const json: { children: JsonChild[] } = await editor.getJSON();
+			const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
+			expect(table).toBeDefined();
+			if (!table) return;
 
-		const cellContents: JsonChild[][] = getCellContents(table);
-		const firstCell: JsonChild[] = cellContents[0] ?? [];
+			const cellContents: JsonChild[][] = getCellContents(table);
+			const firstCell: JsonChild[] = cellContents[0] ?? [];
 
-		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
-		expect(listItem).toBeDefined();
-		expect(listItem?.attrs?.listType).toBe('ordered');
+			const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
+			expect(listItem).toBeDefined();
+			expect(listItem?.attrs?.listType).toBe('ordered');
+		}).toPass({ timeout: 5_000 });
 	});
 
 	test('typing "[ ] " in a table cell creates a checklist item', async ({ editor, page }) => {

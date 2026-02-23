@@ -8,9 +8,13 @@
       [toolbar]="toolbar"
       [plugins]="plugins"
       [theme]="theme()"
+      [readonlyMode]="readonlyMode()"
       [placeholder]="'Start typing...'"
       [autofocus]="true"
       (stateChange)="onStateChange($event)"
+      (selectionChange)="onSelectionChange($event)"
+      (editorFocus)="onFocus()"
+      (editorBlur)="onBlur()"
       (ready)="onReady()"
     />
   </div>
@@ -24,7 +28,16 @@
     <button (click)="undo()">API: Undo</button>
     <button (click)="redo()">API: Redo</button>
     <button (click)="toggleTheme()">{{ themeButtonLabel() }}</button>
+    <button (click)="toggleReadonly()">Toggle Readonly</button>
+    <button (click)="setJSONSample()">Set JSON</button>
   </div>
+
+  <span
+    class="test-indicators"
+    [attr.data-state-change-count]="stateChangeCount()"
+    [attr.data-last-event]="lastEvent()"
+    aria-hidden="true"
+  ></span>
 
   <div class="output">
     <h3>Output</h3>
