@@ -65,9 +65,16 @@ export class EditorPage {
 	// ── Navigation ──────────────────────────────────────────────
 
 	async goto(): Promise<void> {
-		await this.page.goto('/', { waitUntil: 'networkidle' });
-		await this.root.waitFor({ timeout: 15_000 });
-		await this.content.waitFor({ timeout: 10_000 });
+		for (let attempt = 0; attempt < 3; attempt++) {
+			await this.page.goto('/', { waitUntil: 'networkidle' });
+			try {
+				await this.root.waitFor({ state: 'visible', timeout: 10_000 });
+				await this.content.waitFor({ state: 'visible', timeout: 5_000 });
+				return;
+			} catch {
+				if (attempt === 2) throw new Error('Editor failed to initialize after 3 attempts');
+			}
+		}
 	}
 
 	/** Destroys the current editor and creates a fresh one with the given config. */
