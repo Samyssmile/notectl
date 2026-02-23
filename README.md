@@ -89,7 +89,7 @@ notectl is built with accessibility as a first-class concern, not an afterthough
 ## Plugins
 
 Every capability is a plugin. Compose exactly the editor you need.
-See the [plugin documentation](https://samyssmile.github.io/notectl/) for configuration details and examples.
+See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/overview/) for configuration details and examples.
 
 | Plugin | What it does |
 |---|---|

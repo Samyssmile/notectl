@@ -9,7 +9,13 @@ import { type Document, getBlockText } from '../model/Document.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
 import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
-import type { Plugin, PluginConfig } from '../plugins/Plugin.js';
+import type {
+	EventKey,
+	Plugin,
+	PluginConfig,
+	PluginEventCallback,
+	ServiceKey,
+} from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
@@ -322,6 +328,16 @@ export class NotectlEditor extends HTMLElement {
 	/** Configures a plugin at runtime. */
 	configurePlugin(pluginId: string, config: PluginConfig): void {
 		this.pluginManager?.configurePlugin(pluginId, config);
+	}
+
+	/** Returns a registered plugin service by typed key. */
+	getService<T>(key: ServiceKey<T>): T | undefined {
+		return this.pluginManager?.getService(key);
+	}
+
+	/** Subscribes to a plugin event. Returns an unsubscribe function. */
+	onPluginEvent<T>(key: EventKey<T>, callback: PluginEventCallback<T>): () => void {
+		return this.pluginManager?.onEvent(key, callback) ?? (() => {});
 	}
 
 	// --- State API ---

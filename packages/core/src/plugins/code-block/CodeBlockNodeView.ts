@@ -44,6 +44,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 			copyBtn = document.createElement('button');
 			copyBtn.className = 'notectl-code-block__copy';
 			copyBtn.setAttribute('aria-label', 'Copy code');
+			copyBtn.setAttribute('data-notectl-no-print', '');
 			copyBtn.type = 'button';
 			copyBtn.innerHTML = COPY_ICON;
 		}
@@ -69,6 +70,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		escHint.className = 'notectl-code-block__esc-hint';
 		escHint.setAttribute('contenteditable', 'false');
 		escHint.setAttribute('aria-hidden', 'true');
+		escHint.setAttribute('data-notectl-no-print', '');
 		escHint.textContent = 'Esc to exit';
 
 		pre.appendChild(header);

@@ -55,7 +55,7 @@ interface ToolbarLayoutConfig {
 Plugins register toolbar items via `context.registerToolbarItem()`:
 
 ```ts
-interface ToolbarItem {
+interface ToolbarItemBase {
   /** Unique identifier. */
   readonly id: string;
   /** Logical group for auto-grouping (e.g., 'format', 'block'). */
@@ -68,21 +68,45 @@ interface ToolbarItem {
   readonly tooltip?: string;
   /** Command to execute on click. */
   readonly command: string;
-  /** Ordering within group (lower = further left). */
-  readonly priority: number;
-  /** Render a separator after this button. */
+  /**
+   * Ordering within group (lower = further left).
+   * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
+   */
+  readonly priority?: number;
+  /**
+   * Render a separator after this button.
+   * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
+   */
   readonly separatorAfter?: boolean;
-  /** Popup type: 'dropdown', 'gridPicker', or 'custom'. */
-  readonly popupType?: 'dropdown' | 'gridPicker' | 'custom';
-  /** Configuration for dropdown or gridPicker popups. */
-  readonly popupConfig?: GridPickerConfig | DropdownConfig;
-  /** Custom popup render function. */
-  renderPopup?(container: HTMLElement, context: PluginContext): void;
   /** Returns true when the item should appear active/pressed. */
   isActive?(state: EditorState): boolean;
   /** Returns true when the item should be enabled. */
   isEnabled?(state: EditorState): boolean;
 }
+
+// Discriminated union — popupType determines which extra fields are available:
+interface ToolbarItemGridPicker extends ToolbarItemBase {
+  readonly popupType: 'gridPicker';
+  readonly popupConfig: GridPickerConfig;
+}
+interface ToolbarItemDropdown extends ToolbarItemBase {
+  readonly popupType: 'dropdown';
+  readonly popupConfig: DropdownConfig;
+}
+interface ToolbarItemCustomPopup extends ToolbarItemBase {
+  readonly popupType: 'custom';
+  /** Called to render arbitrary popup content. Use onClose() to dismiss. */
+  renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+}
+interface ToolbarItemNoPopup extends ToolbarItemBase {
+  readonly popupType?: undefined;
+}
+
+type ToolbarItem =
+  | ToolbarItemNoPopup
+  | ToolbarItemGridPicker
+  | ToolbarItemDropdown
+  | ToolbarItemCustomPopup;
 ```
 
 ## Popup Types

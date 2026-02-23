@@ -291,6 +291,7 @@ export function renderBlock(
 				}
 			}
 
+			nv.dom.setAttribute('data-block-type', block.type);
 			applyNodeDecorations(nv.dom, block.id, options);
 			return nv.dom;
 		}
@@ -323,6 +324,7 @@ export function renderBlock(
 					wrapBlocks(el, blockChildren, registry);
 				}
 			}
+			el.setAttribute('data-block-type', block.type);
 			applyNodeDecorations(el, block.id, options);
 			return el;
 		}
@@ -383,6 +385,7 @@ function renderParagraphFallback(
 	inlineDecos?: readonly InlineDecoration[],
 ): HTMLElement {
 	const p = createBlockElement('p', block.id);
+	p.setAttribute('data-block-type', block.type);
 	renderBlockContent(p, block, registry, inlineDecos);
 	return p;
 }

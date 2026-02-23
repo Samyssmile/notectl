@@ -313,6 +313,7 @@ export function createImageNodeViewFactory(
 
 			resizeOverlay = document.createElement('div');
 			resizeOverlay.className = 'notectl-image__resize-overlay';
+			resizeOverlay.setAttribute('data-notectl-no-print', '');
 
 			const sizeIndicator: HTMLDivElement = document.createElement('div');
 			sizeIndicator.className = 'notectl-image__size-indicator';
