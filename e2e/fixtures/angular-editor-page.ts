@@ -12,6 +12,7 @@ interface NotectlEditorElement extends HTMLElement {
 	getHTML(): string;
 	setHTML(html: string): void;
 	setJSON(doc: unknown): void;
+	getState(): { doc: unknown };
 }
 
 type El = NotectlEditorElement;
@@ -46,6 +47,10 @@ export class AngularEditorPage {
 
 	controlButton(name: string): Locator {
 		return this.page.locator('.controls').getByRole('button', { name });
+	}
+
+	testIndicators(): Locator {
+		return this.page.locator('.test-indicators');
 	}
 
 	// -- Navigation ------------------------------------------------------
@@ -128,6 +133,42 @@ export class AngularEditorPage {
 			(h) => (document.querySelector('ntl-editor notectl-editor') as unknown as El).setHTML(h),
 			html,
 		);
+	}
+
+	async setJSON(doc: unknown): Promise<void> {
+		await this.page.evaluate(
+			(d) => (document.querySelector('ntl-editor notectl-editor') as unknown as El).setJSON(d),
+			doc,
+		);
+	}
+
+	// -- Test Indicators (Angular-side data attributes) ------------------
+
+	async getStateChangeCount(): Promise<number> {
+		const value: string | null =
+			await this.testIndicators().getAttribute('data-state-change-count');
+		return Number(value ?? '0');
+	}
+
+	async getLastEvent(): Promise<string> {
+		const value: string | null = await this.testIndicators().getAttribute('data-last-event');
+		return value ?? '';
+	}
+
+	// -- Shadow DOM inspection -------------------------------------------
+
+	async getThemeCSSVariable(name: string): Promise<string> {
+		return this.page.evaluate((varName) => {
+			const editor: Element | null = document.querySelector('ntl-editor notectl-editor');
+			if (!editor?.shadowRoot) return '';
+			const host: Element = editor;
+			return getComputedStyle(host).getPropertyValue(varName).trim();
+		}, name);
+	}
+
+	async isContentEditable(): Promise<boolean> {
+		const value: string | null = await this.content.getAttribute('contenteditable');
+		return value === 'true';
 	}
 
 	// -- Output area (Angular-rendered <pre>) ----------------------------

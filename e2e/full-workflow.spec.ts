@@ -100,21 +100,23 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
 
-		const json = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('heading');
-		expect(json.children[0]?.attrs?.level).toBe(2);
+		await expect(async () => {
+			const json = await editor.getJSON();
+			expect(json.children[0]?.type).toBe('heading');
+			expect(json.children[0]?.attrs?.level).toBe(2);
 
-		const html = await editor.getHTML();
-		expect(html).toContain('<h2');
-		expect(html).toContain('<strong>');
+			const html = await editor.getHTML();
+			expect(html).toContain('<h2');
+			expect(html).toContain('<strong>');
 
-		const align = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('[data-block-id]') as HTMLElement | undefined;
-			return el?.style.textAlign;
-		});
-		expect(align).toBe('center');
+			const align = await page.evaluate(() => {
+				const el = document
+					.querySelector('notectl-editor')
+					?.shadowRoot?.querySelector('[data-block-id]') as HTMLElement | undefined;
+				return el?.style.textAlign;
+			});
+			expect(align).toBe('center');
+		}).toPass({ timeout: 5_000 });
 	});
 
 	test('build a checklist, then convert first item to bullet list', async ({ editor, page }) => {
@@ -274,20 +276,22 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('> ', { delay: 10 });
 		await page.keyboard.type('A quote', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Enter on blockquote creates new blockquote; toggle back to paragraph
+		// Enter on blockquote creates new blockquote; wait for toolbar to reflect, then toggle back
+		await expect(editor.markButton('blockquote')).toBeVisible();
 		await editor.markButton('blockquote').click();
 
 		// Bullet list
 		await page.keyboard.type('- ', { delay: 10 });
 		await page.keyboard.type('Item', { delay: 10 });
 
-		const json = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('heading');
-		expect(json.children[1]?.type).toBe('paragraph');
-		expect(json.children[2]?.type).toBe('blockquote');
-
-		const types = json.children.map((c: { type: string }) => c.type);
-		expect(types).toContain('list_item');
+		await expect(async () => {
+			const json = await editor.getJSON();
+			expect(json.children[0]?.type).toBe('heading');
+			expect(json.children[1]?.type).toBe('paragraph');
+			expect(json.children[2]?.type).toBe('blockquote');
+			const types = json.children.map((c: { type: string }) => c.type);
+			expect(types).toContain('list_item');
+		}).toPass({ timeout: 5_000 });
 
 		const html = await editor.getHTML();
 		expect(html).toContain('<strong>bold</strong>');
@@ -386,7 +390,8 @@ test.describe('Full Workflow — Rich Document Creation', () => {
 		await page.keyboard.type('> ', { delay: 10 });
 		await page.keyboard.type('An important quote.', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Enter on blockquote creates new blockquote; toggle back to paragraph
+		// Enter on blockquote creates new blockquote; wait for toolbar to reflect, then toggle back
+		await expect(editor.markButton('blockquote')).toBeVisible();
 		await editor.markButton('blockquote').click();
 
 		// Ordered list

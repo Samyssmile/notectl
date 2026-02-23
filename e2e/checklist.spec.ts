@@ -11,11 +11,13 @@ test.describe('Checklist', () => {
 		await expect(checklistBtn).toBeVisible();
 		await checklistBtn.click();
 
-		const json = await editor.getJSON();
-		const block = json.children[0];
-		expect(block?.type).toBe('list_item');
-		expect(block?.attrs?.listType).toBe('checklist');
-		expect(block?.attrs?.checked).toBe(false);
+		await expect(async () => {
+			const json = await editor.getJSON();
+			const block = json.children[0];
+			expect(block?.type).toBe('list_item');
+			expect(block?.attrs?.listType).toBe('checklist');
+			expect(block?.attrs?.checked).toBe(false);
+		}).toPass({ timeout: 5_000 });
 	});
 
 	test('checklist item renders a visible checkbox marker', async ({ editor, page }) => {

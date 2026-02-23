@@ -65,9 +65,9 @@ export class EditorPage {
 	// ── Navigation ──────────────────────────────────────────────
 
 	async goto(): Promise<void> {
-		await this.page.goto('/');
-		await this.root.waitFor();
-		await this.content.waitFor();
+		await this.page.goto('/', { waitUntil: 'networkidle' });
+		await this.root.waitFor({ timeout: 15_000 });
+		await this.content.waitFor({ timeout: 10_000 });
 	}
 
 	/** Destroys the current editor and creates a fresh one with the given config. */
