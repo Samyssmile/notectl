@@ -17,11 +17,13 @@ import { EventBus } from './EventBus.js';
 import type {
 	CommandEntry,
 	CommandHandler,
+	EventKey,
 	MiddlewareNext,
 	Plugin,
 	PluginConfig,
 	PluginContext,
 	PluginEventBus,
+	PluginEventCallback,
 	ServiceKey,
 	TransactionMiddleware,
 } from './Plugin.js';
@@ -238,6 +240,11 @@ export class PluginManager {
 	/** Gets a registered service by typed key. */
 	getService<T>(key: ServiceKey<T>): T | undefined {
 		return this.services.get(key.id) as T | undefined;
+	}
+
+	/** Subscribes to a plugin event from outside the plugin system. Returns an unsubscribe function. */
+	onEvent<T>(key: EventKey<T>, callback: PluginEventCallback<T>): () => void {
+		return this.eventBus.on(key, callback);
 	}
 
 	/** Returns all plugin-registered stylesheets. */

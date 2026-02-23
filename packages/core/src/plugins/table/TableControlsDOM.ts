@@ -51,6 +51,7 @@ export function buildInsertLine(orientation: 'horizontal' | 'vertical'): HTMLDiv
 	const line: HTMLDivElement = document.createElement('div');
 	line.className = `ntbl-insert-line ntbl-insert-line--${orientation}`;
 	line.setAttribute('contenteditable', 'false');
+	line.setAttribute('data-notectl-no-print', '');
 
 	const title: string = orientation === 'horizontal' ? 'Insert row' : 'Insert column';
 	const btn: HTMLButtonElement = createButton('ntbl-insert-btn', PLUS_SVG, title);
@@ -66,6 +67,7 @@ export function buildAddButton(className: string, title: string): HTMLButtonElem
 	btn.type = 'button';
 	btn.setAttribute('contenteditable', 'false');
 	btn.setAttribute('aria-label', title);
+	btn.setAttribute('data-notectl-no-print', '');
 	btn.title = title;
 
 	const icon: HTMLSpanElement = document.createElement('span');
@@ -86,6 +88,7 @@ export function buildHandleBar(className: string): HTMLDivElement {
 	const bar: HTMLDivElement = document.createElement('div');
 	bar.className = className;
 	bar.setAttribute('contenteditable', 'false');
+	bar.setAttribute('data-notectl-no-print', '');
 	return bar;
 }
 

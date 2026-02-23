@@ -23,6 +23,7 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 
 	const topPluginContainer: HTMLElement = document.createElement('div');
 	topPluginContainer.className = 'notectl-plugin-container--top';
+	topPluginContainer.setAttribute('data-notectl-no-print', '');
 
 	const content: HTMLElement = document.createElement('div');
 	content.className = 'notectl-content';
@@ -38,10 +39,12 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 
 	const bottomPluginContainer: HTMLElement = document.createElement('div');
 	bottomPluginContainer.className = 'notectl-plugin-container--bottom';
+	bottomPluginContainer.setAttribute('data-notectl-no-print', '');
 
 	// Screen reader announcer
 	const announcer: HTMLElement = document.createElement('div');
 	announcer.className = 'notectl-sr-only';
+	announcer.setAttribute('data-notectl-no-print', '');
 	announcer.setAttribute('aria-live', 'polite');
 	announcer.setAttribute('aria-atomic', 'true');
 
