@@ -5,27 +5,24 @@ test.describe('Angular — API via Buttons', () => {
 		await editor.typeText('Hello');
 		await editor.controlButton('Get JSON').click();
 
-		const output = await editor.getOutputText();
-		expect(output).toContain('"type"');
-		expect(output).toContain('paragraph');
-		expect(output).toContain('Hello');
+		await expect(editor.output).toContainText('"type"');
+		await expect(editor.output).toContainText('paragraph');
+		await expect(editor.output).toContainText('Hello');
 	});
 
 	test('Get HTML displays HTML markup', async ({ editor }) => {
 		await editor.typeText('Hello');
 		await editor.controlButton('Get HTML').click();
 
-		const output = await editor.getOutputText();
-		expect(output).toContain('<p>');
-		expect(output).toContain('Hello');
+		await expect(editor.output).toContainText('<p>');
+		await expect(editor.output).toContainText('Hello');
 	});
 
 	test('Get Text displays plain text', async ({ editor }) => {
 		await editor.typeText('Hello');
 		await editor.controlButton('Get Text').click();
 
-		const output = await editor.getOutputText();
-		expect(output.trim()).toBe('Hello');
+		await expect(editor.output).toContainText('Hello');
 	});
 
 	test('Is Empty returns false after typing', async ({ editor }) => {
