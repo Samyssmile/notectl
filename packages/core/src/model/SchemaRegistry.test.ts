@@ -132,9 +132,9 @@ describe('SchemaRegistry', () => {
 			expect(registry.getKeymaps()).toEqual([]);
 		});
 
-		it('warns when a keymap shortcut collides with an existing one', () => {
+		it('logs debug message when a keymap shortcut collides with an existing one', () => {
 			const registry = new SchemaRegistry();
-			const spy: MockInstance = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
 			registry.registerKeymap({ 'Mod-B': () => true });
 			registry.registerKeymap({ 'Mod-B': () => false });
@@ -147,9 +147,9 @@ describe('SchemaRegistry', () => {
 			spy.mockRestore();
 		});
 
-		it('does not warn for non-overlapping keymaps', () => {
+		it('does not log for non-overlapping keymaps', () => {
 			const registry = new SchemaRegistry();
-			const spy: MockInstance = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
 			registry.registerKeymap({ 'Mod-B': () => true });
 			registry.registerKeymap({ 'Mod-I': () => true });
@@ -159,9 +159,9 @@ describe('SchemaRegistry', () => {
 			spy.mockRestore();
 		});
 
-		it('warning includes the colliding key descriptor', () => {
+		it('debug message includes the colliding key descriptor', () => {
 			const registry = new SchemaRegistry();
-			const spy: MockInstance = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
 			registry.registerKeymap({ 'Mod-Shift-1': () => true });
 			registry.registerKeymap({ 'Mod-Shift-1': () => false, 'Mod-Shift-2': () => true });
