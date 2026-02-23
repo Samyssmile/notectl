@@ -496,6 +496,69 @@ describe('Block wrapper reconciliation', () => {
 	});
 });
 
+describe('data-block-type attribute', () => {
+	it('sets data-block-type on fallback-rendered blocks', () => {
+		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const el = renderBlock(block);
+
+		expect(el.getAttribute('data-block-type')).toBe('paragraph');
+	});
+
+	it('sets data-block-type on NodeSpec-rendered blocks', () => {
+		const registry = new SchemaRegistry();
+		const pSpec: NodeSpec = {
+			type: 'paragraph',
+			toDOM(node) {
+				return createBlockElement('p', node.id);
+			},
+		};
+		registry.registerNodeSpec(pSpec);
+
+		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const el = renderBlock(block, registry);
+
+		expect(el.getAttribute('data-block-type')).toBe('paragraph');
+	});
+
+	it('sets data-block-type on NodeView-rendered blocks', () => {
+		const registry = new SchemaRegistry();
+		const nodeViews = new Map();
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode('custom', [createTextNode('hi')], blockId('c1'))]),
+			selection: createCollapsedSelection('c1', 0),
+		});
+		registry.registerNodeView('custom', (node) => {
+			const dom = document.createElement('div');
+			dom.setAttribute('data-block-id', node.id);
+			const contentDOM = document.createElement('div');
+			dom.appendChild(contentDOM);
+			return { dom, contentDOM };
+		});
+
+		const block = createBlockNode('custom', [createTextNode('hi')], blockId('c1'));
+		const el = renderBlock(block, registry, nodeViews, {
+			getState: () => state,
+			dispatch: () => {},
+		});
+
+		expect(el.getAttribute('data-block-type')).toBe('custom');
+	});
+
+	it('sets data-block-type during full reconcile', () => {
+		const block = createBlockNode('paragraph', [createTextNode('text')], blockId('b1'));
+		const state = EditorState.create({
+			doc: createDocument([block]),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state);
+
+		const el = container.firstChild as HTMLElement;
+		expect(el.getAttribute('data-block-type')).toBe('paragraph');
+	});
+});
+
 describe('Selectable block rendering', () => {
 	it('renderBlock sets data-selectable when NodeSpec has selectable', () => {
 		const registry = new SchemaRegistry();

@@ -125,6 +125,7 @@ class TableControls implements TableControlsHandle {
 		this.addRowZone = buildAddButton('ntbl-add-row', 'Add row');
 		this.addColZone = buildAddButton('ntbl-add-col', 'Add column');
 		this.deleteTableBtn = createButton('ntbl-delete-table-btn', TABLE_DELETE_SVG, 'Delete table');
+		this.deleteTableBtn.setAttribute('data-notectl-no-print', '');
 
 		container.append(
 			this.colBar,

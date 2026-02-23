@@ -124,6 +124,7 @@ export class ToolbarPlugin implements Plugin {
 		this.toolbarElement = document.createElement('div');
 		this.toolbarElement.setAttribute('role', 'toolbar');
 		this.toolbarElement.setAttribute('aria-label', 'Formatting options');
+		this.toolbarElement.setAttribute('data-notectl-no-print', '');
 		this.toolbarElement.className = 'notectl-toolbar';
 
 		this.toolbarElement.addEventListener('keydown', (e) => this.handleToolbarKeydown(e));
