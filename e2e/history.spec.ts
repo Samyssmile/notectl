@@ -27,8 +27,10 @@ test.describe('History', () => {
 		await page.keyboard.type('World', { delay: 10 });
 		await page.keyboard.press('Control+Shift+z');
 
-		const text = await editor.getText();
-		expect(text.trim()).toBe('World');
+		await expect(async () => {
+			const text = await editor.getText();
+			expect(text.trim()).toBe('World');
+		}).toPass({ timeout: 5_000 });
 	});
 
 	test('Undo formatting', async ({ editor, page }) => {

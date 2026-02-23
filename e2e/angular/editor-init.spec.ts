@@ -26,4 +26,9 @@ test.describe('Angular — Editor Initialization', () => {
 		const placeholder = editor.root.locator('[data-placeholder="Start typing..."]');
 		await expect(placeholder).toBeVisible();
 	});
+
+	test('autofocus gives editor focus on page load', async ({ editor }) => {
+		const lastEvent: string = await editor.getLastEvent();
+		expect(lastEvent).toBe('focus');
+	});
 });
