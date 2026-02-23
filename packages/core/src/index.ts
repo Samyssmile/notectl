@@ -347,6 +347,18 @@ export {
 	type ImageUploadService,
 } from './plugins/image/ImageUpload.js';
 
+export { PrintPlugin } from './plugins/print/PrintPlugin.js';
+export {
+	PRINT_SERVICE_KEY,
+	BEFORE_PRINT,
+	AFTER_PRINT,
+	type PrintService,
+	type PrintOptions,
+	type PrintPluginConfig,
+	type BeforePrintEvent,
+	type AfterPrintEvent,
+} from './plugins/print/PrintTypes.js';
+
 // --- Decorations ---
 export type {
 	Decoration,

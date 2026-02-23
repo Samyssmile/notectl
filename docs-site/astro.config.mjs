@@ -79,6 +79,7 @@ export default defineConfig({
 						{ label: 'Highlight', slug: 'plugins/highlight' },
 						{ label: 'Horizontal Rule', slug: 'plugins/horizontal-rule' },
 						{ label: 'Hard Break', slug: 'plugins/hard-break' },
+						{ label: 'Print', slug: 'plugins/print' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
 					],
 				},
