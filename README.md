@@ -107,6 +107,7 @@ See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/over
 | **FontSizePlugin** | Configurable font sizes |
 | **HorizontalRulePlugin** | Horizontal dividers |
 | **SuperSubPlugin** | Superscript and subscript |
+| **PrintPlugin** | Provides an API for printing editor content with configurable options |
 
 <br />
 
