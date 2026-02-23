@@ -256,6 +256,176 @@ test.describe('Code Block Plugin', () => {
 		expect(json.children[1]?.children?.[0]?.text).toContain('clicked below');
 	});
 
+	// ── Tab indentation ──────────────────────────────────────
+
+	test('Tab inserts tab character in code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.press('Tab');
+		await page.keyboard.type('indented', { delay: 10 });
+
+		const json = await editor.getJSON();
+		const text: string = json.children[0]?.children?.[0]?.text ?? '';
+		expect(text).toContain('\tindented');
+	});
+
+	test('Shift-Tab removes leading tab from current line', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.press('Tab');
+		await page.keyboard.type('indented line', { delay: 10 });
+
+		// Shift-Tab should remove the leading tab
+		await page.keyboard.press('Shift+Tab');
+
+		const json = await editor.getJSON();
+		const text: string = json.children[0]?.children?.[0]?.text ?? '';
+		// Tab should be removed, only text remains
+		expect(text).toBe('indented line');
+	});
+
+	// ── Toggle code block ↔ paragraph ────────────────────────
+
+	test('Ctrl+Shift+C toggles code block back to paragraph', async ({ editor, page }) => {
+		await editor.typeText('plain text');
+
+		// Toggle to code block
+		await page.keyboard.press('Control+Shift+C');
+		let json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('code_block');
+
+		// Toggle back to paragraph
+		await page.keyboard.press('Control+Shift+C');
+		json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('paragraph');
+		expect(json.children[0]?.children?.[0]?.text).toContain('plain text');
+	});
+
+	test('toolbar toggle: code block → paragraph preserves text', async ({ editor }) => {
+		await editor.focus();
+		const btn = editor.markButton('code_block');
+
+		// Toggle to code block, type text
+		await btn.click();
+		await editor.page.keyboard.type('code content', { delay: 10 });
+
+		let json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('code_block');
+
+		// Toggle back to paragraph
+		await btn.click();
+		json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('paragraph');
+		expect(json.children[0]?.children?.[0]?.text).toContain('code content');
+	});
+
+	// ── Mark prevention ──────────────────────────────────────
+
+	test('bold shortcut has no effect inside code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('plain code', { delay: 10 });
+
+		// Select all text in the code block
+		await page.keyboard.press('Home');
+		await page.keyboard.press('Shift+End');
+
+		// Try to apply bold
+		await page.keyboard.press('Control+b');
+
+		const json = await editor.getJSON();
+		const block = json.children[0];
+		expect(block?.type).toBe('code_block');
+		// Text should have no marks
+		const marks = block?.children?.[0]?.marks ?? [];
+		expect(marks.length).toBe(0);
+	});
+
+	test('italic shortcut has no effect inside code block', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('plain code', { delay: 10 });
+
+		// Select all text
+		await page.keyboard.press('Home');
+		await page.keyboard.press('Shift+End');
+
+		// Try to apply italic
+		await page.keyboard.press('Control+i');
+
+		const json = await editor.getJSON();
+		const marks = json.children[0]?.children?.[0]?.marks ?? [];
+		expect(marks.length).toBe(0);
+	});
+
+	test('converting bold text to code block strips marks', async ({ editor, page }) => {
+		await editor.focus();
+
+		// Type bold text
+		await page.keyboard.press('Control+b');
+		await page.keyboard.type('bold text', { delay: 10 });
+		await page.keyboard.press('Control+b');
+
+		// Verify bold is applied
+		let json = await editor.getJSON();
+		expect(json.children[0]?.children?.[0]?.marks?.length).toBeGreaterThan(0);
+
+		// Convert to code block via shortcut
+		await page.keyboard.press('Control+Shift+C');
+
+		json = await editor.getJSON();
+		expect(json.children[0]?.type).toBe('code_block');
+		// Marks must be stripped
+		const marks = json.children[0]?.children?.[0]?.marks ?? [];
+		expect(marks.length).toBe(0);
+	});
+
+	// ── Copy button ──────────────────────────────────────────
+
+	test('copy button is visible in code block header', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('copyable code', { delay: 10 });
+
+		const copyBtn = editor.content.locator('.notectl-code-block__copy');
+		await expect(copyBtn).toBeVisible();
+		await expect(copyBtn).toHaveAttribute('aria-label', 'Copy code');
+	});
+
+	test('copy button copies code block text to clipboard', async ({ editor, page, context }) => {
+		// Grant clipboard permissions
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('const x = 42;', { delay: 10 });
+
+		const copyBtn = editor.content.locator('.notectl-code-block__copy');
+		await copyBtn.click();
+
+		// Read clipboard content
+		const clipboardText: string = await page.evaluate(() => navigator.clipboard.readText());
+		expect(clipboardText).toBe('const x = 42;');
+	});
+
+	test('copy button announces to screen reader', async ({ editor, page, context }) => {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+		await editor.focus();
+		await page.keyboard.type('``` ', { delay: 10 });
+		await page.keyboard.type('code', { delay: 10 });
+
+		const copyBtn = editor.content.locator('.notectl-code-block__copy');
+		await copyBtn.click();
+		await page.waitForTimeout(100);
+
+		// Check the live region inside the code block header for copy feedback
+		const srText: string = await editor.content
+			.locator('.notectl-code-block__header .notectl-sr-only')
+			.evaluate((el) => el.textContent ?? '');
+		expect(srText).toContain('Copied to clipboard');
+	});
+
 	// ── CSS Custom Properties ─────────────────────────────────
 
 	test('code block respects CSS custom properties for theming', async ({ editor, page }) => {
