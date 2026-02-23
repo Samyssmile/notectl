@@ -122,7 +122,7 @@ export class SchemaRegistry {
 		for (const key of Object.keys(keymap)) {
 			for (const existing of this._keymaps) {
 				if (key in existing) {
-					console.warn(
+					console.debug(
 						`[notectl] Keymap shortcut "${key}" is already registered and will be overridden.`,
 					);
 					break;

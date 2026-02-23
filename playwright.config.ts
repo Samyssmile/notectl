@@ -26,7 +26,7 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:4200',
 			},
-			testMatch: /angular/,
+			testMatch: /angular\/.*\.spec\.ts/,
 		},
 	],
 	webServer: [
@@ -37,7 +37,7 @@ export default defineConfig({
 			timeout: 10000,
 		},
 		{
-			command: 'pnpm --filter angular start',
+			command: 'pnpm --filter examples-angular start',
 			url: 'http://localhost:4200',
 			reuseExistingServer: !process.env.CI,
 			timeout: 60000,
