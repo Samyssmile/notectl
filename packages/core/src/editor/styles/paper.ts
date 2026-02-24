@@ -1,9 +1,14 @@
 /** Paper mode styles — viewport, surface, content overrides, and scale transitions. */
 
-import { PAPER_MARGIN_HORIZONTAL_PX, PAPER_MARGIN_TOP_PX } from '../PaperSize.js';
+import {
+	PAPER_MARGIN_HORIZONTAL_PX,
+	PAPER_MARGIN_TOP_PX,
+	PAPER_VIEWPORT_PADDING_PX,
+} from '../PaperSize.js';
 
 const PT: number = PAPER_MARGIN_TOP_PX;
 const PH: number = PAPER_MARGIN_HORIZONTAL_PX;
+const VP: number = PAPER_VIEWPORT_PADDING_PX;
 
 export const PAPER_CSS: string = `
 /* Paper viewport: scroll container with centered gray background */
@@ -12,7 +17,7 @@ export const PAPER_CSS: string = `
 	overflow-y: auto;
 	overflow-x: hidden;
 	background: var(--notectl-paper-viewport-bg, #e8e8e8);
-	padding: 24px 0;
+	padding: ${VP}px 0;
 }
 
 /* Paper surface: white page with shadow, centered */

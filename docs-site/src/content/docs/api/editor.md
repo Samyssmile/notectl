@@ -49,6 +49,8 @@ interface NotectlEditorConfig {
   theme?: ThemePreset | Theme;
   /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
   paperSize?: PaperSize;
+  /** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
+  locale?: Locale;
 }
 ```
 
@@ -180,6 +182,23 @@ editor.getPaperSize(); // 'din-a4'
 ```
 
 See the [Paper Size guide](/notectl/guides/paper-size/) for full details on WYSIWYG page layout and print integration.
+
+## Locale API
+
+### `locale` Config Option
+
+Sets the editor language for all plugins. Defaults to `Locale.BROWSER` which auto-detects from `navigator.language`.
+
+```ts
+import { createEditor, Locale } from '@notectl/core';
+
+const editor = await createEditor({
+  locale: Locale.DE,
+  toolbar: [/* ... */],
+});
+```
+
+See the [Internationalization guide](/notectl/guides/internationalization/) for full details on global and per-plugin locale configuration, custom locales, and available languages.
 
 ## Lifecycle
 

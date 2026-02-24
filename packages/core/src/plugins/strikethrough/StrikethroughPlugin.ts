@@ -4,9 +4,11 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { STRIKETHROUGH_LOCALES, type StrikethroughLocale } from './StrikethroughLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -21,6 +23,7 @@ declare module '../../model/AttrRegistry.js' {
 export interface StrikethroughConfig {
 	/** When true, a separator is rendered after the strikethrough toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: StrikethroughLocale;
 }
 
 const DEFAULT_CONFIG: StrikethroughConfig = {};
@@ -33,12 +36,14 @@ export class StrikethroughPlugin implements Plugin {
 	readonly priority = 22;
 
 	private readonly config: StrikethroughConfig;
+	private locale!: StrikethroughLocale;
 
 	constructor(config?: Partial<StrikethroughConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(STRIKETHROUGH_LOCALES, context, this.config.locale);
 		this.registerMarkSpec(context);
 		this.registerCommand(context);
 		this.registerKeymap(context);
@@ -83,8 +88,8 @@ export class StrikethroughPlugin implements Plugin {
 			id: 'strikethrough',
 			group: 'format',
 			icon,
-			label: 'Strikethrough',
-			tooltip: `Strikethrough (${formatShortcut('Mod-Shift-X')})`,
+			label: this.locale.label,
+			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-X')),
 			command: 'toggleStrikethrough',
 			priority: 40,
 			separatorAfter: this.config.separatorAfter,

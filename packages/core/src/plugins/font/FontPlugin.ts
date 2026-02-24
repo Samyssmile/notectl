@@ -6,6 +6,7 @@
 
 import { forEachBlockInRange } from '../../commands/Commands.js';
 import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
@@ -15,6 +16,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
+import { FONT_LOCALES, type FontLocale } from './FontLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -74,6 +76,7 @@ export interface FontConfig {
 	readonly defaultFont?: string;
 	/** When true, a separator is rendered after the font toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: FontLocale;
 }
 
 // --- Plugin ---
@@ -84,6 +87,7 @@ export class FontPlugin implements Plugin {
 	readonly priority = 22;
 
 	private readonly config: FontConfig;
+	private locale!: FontLocale;
 	private injectedStyleElement: HTMLStyleElement | null = null;
 	private context: PluginContext | null = null;
 	private comboLabel: HTMLSpanElement | null = null;
@@ -93,6 +97,8 @@ export class FontPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(FONT_LOCALES, context, this.config.locale);
+
 		context.registerStyleSheet(FONT_SELECT_CSS);
 		this.context = context;
 		this.registerMarkSpec(context);
@@ -187,8 +193,8 @@ export class FontPlugin implements Plugin {
 			id: 'font',
 			group: 'format',
 			icon,
-			label: 'Font',
-			tooltip: 'Font Family',
+			label: this.locale.label,
+			tooltip: this.locale.tooltip,
 			command: 'removeFont',
 			priority: 5,
 			popupType: 'custom',

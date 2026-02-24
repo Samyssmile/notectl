@@ -6,6 +6,7 @@
  */
 
 import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
@@ -17,6 +18,7 @@ import {
 	findLastEnabled,
 	findNextEnabled,
 } from './ToolbarKeyboardNav.js';
+import { TOOLBAR_LOCALES, type ToolbarLocale } from './ToolbarLocale.js';
 import { ToolbarPopupController } from './ToolbarPopupController.js';
 import { createSeparator } from './ToolbarRenderers.js';
 import { ToolbarTooltip } from './ToolbarTooltip.js';
@@ -58,12 +60,14 @@ export class ToolbarPlugin implements Plugin {
 	private focusedIndex = 0;
 	private tooltip: ToolbarTooltip | null = null;
 	private popupController: ToolbarPopupController | null = null;
+	private locale!: ToolbarLocale;
 
 	constructor(layoutConfig?: ToolbarLayoutConfig) {
 		this.layoutConfig = layoutConfig ?? null;
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(TOOLBAR_LOCALES, context);
 		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
 
@@ -123,7 +127,7 @@ export class ToolbarPlugin implements Plugin {
 		const container: HTMLElement = this.context.getPluginContainer('top');
 		this.toolbarElement = document.createElement('div');
 		this.toolbarElement.setAttribute('role', 'toolbar');
-		this.toolbarElement.setAttribute('aria-label', 'Formatting options');
+		this.toolbarElement.setAttribute('aria-label', this.locale.formattingOptionsAria);
 		this.toolbarElement.setAttribute('data-notectl-no-print', '');
 		this.toolbarElement.className = 'notectl-toolbar';
 

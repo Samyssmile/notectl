@@ -4,11 +4,13 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { resolveColors } from '../shared/ColorValidation.js';
+import { TEXT_COLOR_LOCALES, type TextColorLocale } from './TextColorLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -30,6 +32,7 @@ export interface TextColorConfig {
 	readonly colors?: readonly string[];
 	/** When true, a separator is rendered after the textColor toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: TextColorLocale;
 }
 
 // --- Color Palette (Google Docs style: 10 columns x 7 rows) ---
@@ -123,6 +126,7 @@ export class TextColorPlugin implements Plugin {
 
 	private readonly config: TextColorConfig;
 	private readonly colors: readonly string[];
+	private locale!: TextColorLocale;
 
 	constructor(config?: Partial<TextColorConfig>) {
 		this.config = { ...config };
@@ -130,6 +134,8 @@ export class TextColorPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(TEXT_COLOR_LOCALES, context, this.config.locale);
+
 		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
@@ -189,8 +195,8 @@ export class TextColorPlugin implements Plugin {
 			id: 'textColor',
 			group: 'format',
 			icon,
-			label: 'Text Color',
-			tooltip: 'Text Color',
+			label: this.locale.label,
+			tooltip: this.locale.tooltip,
 			command: 'removeTextColor',
 			priority: 45,
 			popupType: 'custom',
@@ -200,9 +206,9 @@ export class TextColorPlugin implements Plugin {
 					markType: 'textColor',
 					colors: this.colors,
 					columns: 10,
-					resetLabel: 'Default',
+					resetLabel: this.locale.resetLabel,
 					resetCommand: 'removeTextColor',
-					ariaLabelPrefix: 'Text color',
+					ariaLabelPrefix: this.locale.ariaLabelPrefix,
 					onClose,
 				});
 			},

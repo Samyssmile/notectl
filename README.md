@@ -80,7 +80,7 @@ One `<notectl-editor>` tag works in every framework. No wrapper libraries, no ad
 
 **Stay lean**
 
-29 KB core. One runtime dependency (DOMPurify). Every feature is a plugin — bundle only what you use.
+34 KB core. One runtime dependency (DOMPurify). Every feature is a plugin — bundle only what you use.
 
 </td>
 </tr>
@@ -101,28 +101,6 @@ Immutable state, step-based transactions, time-travel undo/redo. Every change is
 </td>
 </tr>
 </table>
-
-<br />
-
-## See it in action
-
-> Rich documents with tables, colors, formatting, and lists — all out of the box.
-
-<p align="center">
-<img src="docs-site/src/assets/screenshots/hero-editor-rich.png" alt="Rich document with table and formatting" width="720" />
-</p>
-
-> Tables with full keyboard navigation, row/column controls, and formatted cells.
-
-<p align="center">
-<img src="docs-site/src/assets/screenshots/plugin-table.png" alt="Table plugin" width="720" />
-</p>
-
-> Bullet lists, ordered lists, and interactive checklists.
-
-<p align="center">
-<img src="docs-site/src/assets/screenshots/plugin-list.png" alt="List plugin" width="720" />
-</p>
 
 <br />
 

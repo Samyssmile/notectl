@@ -5,8 +5,10 @@
  * and PrintContentPreparer.
  */
 
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { PRINT_LOCALES, type PrintLocale } from './PrintLocale.js';
 import { createPrintService } from './PrintServiceImpl.js';
 import type { PrintOptions, PrintPluginConfig, PrintService } from './PrintTypes.js';
 import { PRINT_SERVICE_KEY } from './PrintTypes.js';
@@ -31,12 +33,14 @@ export class PrintPlugin implements Plugin {
 
 	private readonly config: PrintPluginConfig;
 	private service: PrintService | null = null;
+	private locale!: PrintLocale;
 
 	constructor(config?: PrintPluginConfig) {
 		this.config = config ?? {};
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(PRINT_LOCALES, context, this.config.locale);
 		const container: HTMLElement = context.getContainer();
 		const rootNode: Node = container.getRootNode();
 
@@ -53,8 +57,9 @@ export class PrintPlugin implements Plugin {
 		const defaults: PrintOptions = this.config.defaults ?? {};
 		const service: PrintService = this.service;
 
+		const printLocale = this.locale;
 		context.registerCommand('print', () => {
-			context.announce('Printing');
+			context.announce(printLocale.printingAnnouncement);
 			service.print(defaults);
 			return true;
 		});
@@ -72,8 +77,8 @@ export class PrintPlugin implements Plugin {
 			context.registerToolbarItem({
 				id: 'print',
 				group: 'actions',
-				label: 'Print',
-				tooltip: `Print (${shortcut})`,
+				label: this.locale.label,
+				tooltip: this.locale.tooltip(shortcut),
 				icon: PRINT_ICON,
 				command: 'print',
 				priority: 900,

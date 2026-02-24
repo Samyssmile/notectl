@@ -4,11 +4,13 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { resolveColors } from '../shared/ColorValidation.js';
+import { HIGHLIGHT_LOCALES, type HighlightLocale } from './HighlightLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -30,6 +32,7 @@ export interface HighlightConfig {
 	readonly colors?: readonly string[];
 	/** When true, a separator is rendered after the highlight toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: HighlightLocale;
 }
 
 // --- Color Palette (Highlight-optimized: 10 columns x 5 rows) ---
@@ -101,6 +104,7 @@ export class HighlightPlugin implements Plugin {
 
 	private readonly config: HighlightConfig;
 	private readonly colors: readonly string[];
+	private locale!: HighlightLocale;
 
 	constructor(config?: Partial<HighlightConfig>) {
 		this.config = { ...config };
@@ -108,6 +112,8 @@ export class HighlightPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(HIGHLIGHT_LOCALES, context, this.config.locale);
+
 		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
@@ -167,8 +173,8 @@ export class HighlightPlugin implements Plugin {
 			id: 'highlight',
 			group: 'format',
 			icon,
-			label: 'Highlight',
-			tooltip: 'Highlight Color',
+			label: this.locale.label,
+			tooltip: this.locale.tooltip,
 			command: 'removeHighlight',
 			priority: 46,
 			popupType: 'custom',
@@ -178,9 +184,9 @@ export class HighlightPlugin implements Plugin {
 					markType: 'highlight',
 					colors: this.colors,
 					columns: 10,
-					resetLabel: 'None',
+					resetLabel: this.locale.resetLabel,
 					resetCommand: 'removeHighlight',
-					ariaLabelPrefix: 'Highlight color',
+					ariaLabelPrefix: this.locale.ariaLabelPrefix,
 					onClose,
 				});
 			},

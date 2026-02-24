@@ -11,13 +11,13 @@ import {
 	ImagePlugin,
 	LinkPlugin,
 	ListPlugin,
+	Locale,
 	PrintPlugin,
 	StrikethroughPlugin,
 	SuperSubPlugin,
 	TablePlugin,
 	TextColorPlugin,
 	TextFormattingPlugin,
-	PaperSize,
 	ThemePreset,
 	ToolbarPlugin,
 	createEditor,
@@ -88,8 +88,8 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const editor = await createEditor({
+		locale: Locale.BROWSER,
 		theme: ThemePreset.Light,
-		paperSize: PaperSize.DINA4,
 		toolbar: [
 			[
 				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),

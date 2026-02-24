@@ -10,6 +10,7 @@ import type { DecorationSet } from '../../decorations/Decoration.js';
 import { inline as inlineDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
@@ -23,6 +24,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
+import { CODE_BLOCK_LOCALES, type CodeBlockLocale } from './CodeBlockLocale.js';
 import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
 import type { CodeBlockConfig, CodeBlockKeymap, SyntaxToken } from './CodeBlockTypes.js';
@@ -46,6 +48,7 @@ export class CodeBlockPlugin implements Plugin {
 	private readonly config: CodeBlockConfig;
 	private readonly resolvedKeymap: Readonly<Record<keyof CodeBlockKeymap, string | null>>;
 	private context: PluginContext | null = null;
+	private locale!: CodeBlockLocale;
 
 	constructor(config?: Partial<CodeBlockConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -56,6 +59,7 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(CODE_BLOCK_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 
@@ -98,9 +102,9 @@ export class CodeBlockPlugin implements Plugin {
 		}
 
 		if (!wasInCode && nowInCode) {
-			this.context.announce('Entered code block. Press Escape to exit.');
+			this.context.announce(this.locale.enteredCodeBlock);
 		} else if (wasInCode && !nowInCode) {
-			this.context.announce('Left code block.');
+			this.context.announce(this.locale.leftCodeBlock);
 		}
 	}
 
@@ -222,10 +226,10 @@ export class CodeBlockPlugin implements Plugin {
 			id: 'code_block',
 			group: 'block',
 			icon: CODE_BLOCK_ICON,
-			label: 'Code Block',
-			tooltip: this.resolvedKeymap.toggle
-				? `Code Block (${formatShortcut(this.resolvedKeymap.toggle)})`
-				: 'Code Block',
+			label: this.locale.label,
+			tooltip: this.locale.tooltip(
+				this.resolvedKeymap.toggle ? formatShortcut(this.resolvedKeymap.toggle) : undefined,
+			),
 			command: 'toggleCodeBlock',
 			priority: 56,
 			separatorAfter: this.config.separatorAfter,

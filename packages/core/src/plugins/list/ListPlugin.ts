@@ -8,6 +8,7 @@
  */
 
 import { LIST_CSS } from '../../editor/styles/list.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -15,6 +16,7 @@ import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../mo
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { LIST_LOCALES, type ListLocale } from './ListLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -35,6 +37,7 @@ export interface ListConfig {
 	readonly maxIndent: number;
 	/** When true, a separator is rendered after the last list toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: ListLocale;
 }
 
 const DEFAULT_CONFIG: ListConfig = {
@@ -91,12 +94,14 @@ export class ListPlugin implements Plugin {
 	readonly priority = 35;
 
 	private readonly config: ListConfig;
+	private locale!: ListLocale;
 
 	constructor(config?: Partial<ListConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(LIST_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
@@ -224,6 +229,15 @@ export class ListPlugin implements Plugin {
 		}
 	}
 
+	private getListLabel(type: ListType): string {
+		const labels: Record<ListType, string> = {
+			bullet: this.locale.bulletList,
+			ordered: this.locale.numberedList,
+			checklist: this.locale.checklist,
+		};
+		return labels[type];
+	}
+
 	private registerToolbarItems(context: PluginContext): void {
 		const enabledTypes = this.getEnabledTypes();
 		const lastType = enabledTypes.at(-1);
@@ -233,7 +247,7 @@ export class ListPlugin implements Plugin {
 				id: `list-${def.type}`,
 				group: 'block',
 				icon: def.icon,
-				label: def.label,
+				label: this.getListLabel(def.type),
 				command: `toggleList:${def.type}`,
 				priority: def.type === 'bullet' ? 70 : def.type === 'ordered' ? 71 : 72,
 				separatorAfter: this.config.separatorAfter && def === lastType,
