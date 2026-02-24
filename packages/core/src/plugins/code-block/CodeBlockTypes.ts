@@ -74,6 +74,8 @@ export interface CodeBlockConfig {
 	readonly headerColor?: string;
 	/** Customize keyboard bindings for code block actions. */
 	readonly keymap?: CodeBlockKeymap;
+	/** Locale override for user-facing strings. */
+	readonly locale?: import('./CodeBlockLocale.js').CodeBlockLocale;
 }
 
 export const DEFAULT_CONFIG: CodeBlockConfig = {

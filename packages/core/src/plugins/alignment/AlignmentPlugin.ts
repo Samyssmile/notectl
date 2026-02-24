@@ -6,12 +6,14 @@
  * and a toolbar dropdown. Handles both TextSelection and NodeSelection.
  */
 
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { BlockNode } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
 import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { ALIGNMENT_LOCALES, type AlignmentLocale } from './AlignmentLocale.js';
 
 // --- Public Types ---
 
@@ -26,6 +28,7 @@ export interface AlignmentConfig {
 	readonly defaults: Readonly<Record<string, BlockAlignment>>;
 	/** When true, a separator is rendered after the toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: AlignmentLocale;
 }
 
 // --- Constants ---
@@ -34,13 +37,6 @@ const DEFAULT_CONFIG: AlignmentConfig = {
 	alignments: ['left', 'center', 'right', 'justify'],
 	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell', 'image'],
 	defaults: { image: 'center' },
-};
-
-const ALIGNMENT_LABELS: Readonly<Record<BlockAlignment, string>> = {
-	left: 'Align Left',
-	center: 'Align Center',
-	right: 'Align Right',
-	justify: 'Justify',
 };
 
 export const ALIGNMENT_ICONS: Readonly<Record<BlockAlignment, string>> = {
@@ -61,6 +57,7 @@ export class AlignmentPlugin implements Plugin {
 	readonly priority = 90;
 
 	private readonly config: AlignmentConfig;
+	private locale!: AlignmentLocale;
 	private alignableTypes!: ReadonlySet<string>;
 
 	constructor(config?: Partial<AlignmentConfig>) {
@@ -72,6 +69,8 @@ export class AlignmentPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(ALIGNMENT_LOCALES, context, this.config.locale);
+
 		this.alignableTypes = new Set(this.config.alignableTypes);
 		this.patchNodeSpecs(context);
 		this.registerCommands(context);
@@ -153,7 +152,7 @@ export class AlignmentPlugin implements Plugin {
 
 	private registerToolbarItem(context: PluginContext): void {
 		const dropdownItems = this.config.alignments.map((alignment) => ({
-			label: ALIGNMENT_LABELS[alignment],
+			label: this.getAlignmentLabel(alignment),
 			command: `align${capitalize(alignment)}`,
 			icon: ALIGNMENT_ICONS[alignment],
 		}));
@@ -162,8 +161,8 @@ export class AlignmentPlugin implements Plugin {
 			id: 'alignment',
 			group: 'block',
 			icon: ALIGNMENT_ICONS.left,
-			label: 'Alignment',
-			tooltip: 'Alignment',
+			label: this.locale.toolbarLabel,
+			tooltip: this.locale.toolbarTooltip,
 			command: 'alignLeft',
 			priority: 60,
 			popupType: 'dropdown',
@@ -172,6 +171,16 @@ export class AlignmentPlugin implements Plugin {
 			isActive: (state) => this.isNonDefaultAlignment(state),
 			isEnabled: (state) => this.isAlignable(state),
 		});
+	}
+
+	private getAlignmentLabel(alignment: BlockAlignment): string {
+		const labels: Record<BlockAlignment, string> = {
+			left: this.locale.alignLeft,
+			center: this.locale.alignCenter,
+			right: this.locale.alignRight,
+			justify: this.locale.justify,
+		};
+		return labels[alignment];
 	}
 
 	// --- Middleware ---

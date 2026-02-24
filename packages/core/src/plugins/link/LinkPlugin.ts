@@ -5,6 +5,7 @@
  */
 
 import { forEachBlockInRange } from '../../commands/Commands.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
@@ -12,6 +13,7 @@ import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { LINK_LOCALES, type LinkLocale } from './LinkLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -28,6 +30,7 @@ export interface LinkConfig {
 	readonly openInNewTab: boolean;
 	/** When true, a separator is rendered after the link toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: LinkLocale;
 }
 
 const DEFAULT_CONFIG: LinkConfig = {
@@ -42,12 +45,14 @@ export class LinkPlugin implements Plugin {
 	readonly priority = 25;
 
 	private readonly config: LinkConfig;
+	private locale!: LinkLocale;
 
 	constructor(config?: Partial<LinkConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(LINK_LOCALES, context, this.config.locale);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -122,8 +127,8 @@ export class LinkPlugin implements Plugin {
 			id: 'link',
 			group: 'insert',
 			icon,
-			label: 'Link',
-			tooltip: `Insert Link (${formatShortcut('Mod-K')})`,
+			label: this.locale.label,
+			tooltip: this.locale.tooltip(formatShortcut('Mod-K')),
 			command: 'toggleLink',
 			priority: 60,
 			popupType: 'custom',
@@ -260,8 +265,8 @@ export class LinkPlugin implements Plugin {
 			// Show remove link button
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';
-			removeBtn.textContent = 'Remove Link';
-			removeBtn.setAttribute('aria-label', 'Remove link');
+			removeBtn.textContent = this.locale.removeLink;
+			removeBtn.setAttribute('aria-label', this.locale.removeLinkAria);
 			removeBtn.style.cssText = 'width:100%;padding:6px 12px;cursor:pointer;';
 			removeBtn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
@@ -275,14 +280,14 @@ export class LinkPlugin implements Plugin {
 			// Show URL input
 			const input = document.createElement('input');
 			input.type = 'url';
-			input.placeholder = 'https://...';
-			input.setAttribute('aria-label', 'Link URL');
+			input.placeholder = this.locale.urlPlaceholder;
+			input.setAttribute('aria-label', this.locale.urlAria);
 			input.style.cssText = 'width:100%;padding:4px;box-sizing:border-box;';
 
 			const applyBtn = document.createElement('button');
 			applyBtn.type = 'button';
-			applyBtn.textContent = 'Apply';
-			applyBtn.setAttribute('aria-label', 'Apply link');
+			applyBtn.textContent = this.locale.apply;
+			applyBtn.setAttribute('aria-label', this.locale.applyAria);
 			applyBtn.style.cssText = 'width:100%;padding:6px 12px;margin-top:4px;cursor:pointer;';
 
 			const applyLink = (): void => {

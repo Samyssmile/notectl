@@ -27,6 +27,7 @@ import {
 	getCellAt,
 	getFirstLeafInCell,
 } from './TableHelpers.js';
+import type { TableLocale } from './TableLocale.js';
 
 // --- Shared Transaction Builders ---
 
@@ -238,7 +239,7 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 }
 
 /** Adds a row above the current row. */
-export function addRowAbove(context: PluginContext): boolean {
+export function addRowAbove(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
@@ -248,12 +249,12 @@ export function addRowAbove(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce('Row inserted above');
+	context.announce(locale?.announceRowInsertedAbove ?? 'Row inserted above');
 	return true;
 }
 
 /** Adds a row below the current row. */
-export function addRowBelow(context: PluginContext): boolean {
+export function addRowBelow(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
@@ -263,21 +264,21 @@ export function addRowBelow(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce('Row inserted below');
+	context.announce(locale?.announceRowInsertedBelow ?? 'Row inserted below');
 	return true;
 }
 
 /** Adds a column to the left of the current column. */
-export function addColumnLeft(context: PluginContext): boolean {
-	return addColumn(context, 'left');
+export function addColumnLeft(context: PluginContext, locale?: TableLocale): boolean {
+	return addColumn(context, 'left', locale);
 }
 
 /** Adds a column to the right of the current column. */
-export function addColumnRight(context: PluginContext): boolean {
-	return addColumn(context, 'right');
+export function addColumnRight(context: PluginContext, locale?: TableLocale): boolean {
+	return addColumn(context, 'right', locale);
 }
 
-function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
+function addColumn(context: PluginContext, side: 'left' | 'right', locale?: TableLocale): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
@@ -288,12 +289,12 @@ function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce(`Column inserted ${side}`);
+	context.announce(locale?.announceColumnInserted(side) ?? `Column inserted ${side}`);
 	return true;
 }
 
 /** Deletes the current row. If it's the last row, deletes the entire table. */
-export function deleteRow(context: PluginContext): boolean {
+export function deleteRow(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
@@ -308,12 +309,12 @@ export function deleteRow(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce('Row deleted');
+	context.announce(locale?.announceRowDeleted ?? 'Row deleted');
 	return true;
 }
 
 /** Deletes the current column. If it's the last column, deletes the entire table. */
-export function deleteColumn(context: PluginContext): boolean {
+export function deleteColumn(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
@@ -328,12 +329,12 @@ export function deleteColumn(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce('Column deleted');
+	context.announce(locale?.announceColumnDeleted ?? 'Column deleted');
 	return true;
 }
 
 /** Deletes the entire table and moves cursor to surrounding block. */
-export function deleteTable(context: PluginContext): boolean {
+export function deleteTable(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
 	const target = resolveTableDeletionTarget(state);
 	if (!target) return false;
@@ -341,7 +342,7 @@ export function deleteTable(context: PluginContext): boolean {
 	const tr = createDeleteTableTransaction(state, target.tableId);
 	if (!tr) return false;
 	context.dispatch(tr);
-	context.announce('Table deleted');
+	context.announce(locale?.announceTableDeleted ?? 'Table deleted');
 	return true;
 }
 
@@ -370,16 +371,16 @@ export function selectTable(context: PluginContext): boolean {
 }
 
 /** Registers all table commands on the given plugin context. */
-export function registerTableCommands(context: PluginContext): void {
+export function registerTableCommands(context: PluginContext, locale?: TableLocale): void {
 	context.registerCommand('insertTable', () => insertTable(context, 3, 3));
-	context.registerCommand('addRowAbove', () => addRowAbove(context));
-	context.registerCommand('addRowBelow', () => addRowBelow(context));
-	context.registerCommand('addColumnLeft', () => addColumnLeft(context));
-	context.registerCommand('addColumnRight', () => addColumnRight(context));
-	context.registerCommand('deleteRow', () => deleteRow(context));
-	context.registerCommand('deleteColumn', () => deleteColumn(context));
+	context.registerCommand('addRowAbove', () => addRowAbove(context, locale));
+	context.registerCommand('addRowBelow', () => addRowBelow(context, locale));
+	context.registerCommand('addColumnLeft', () => addColumnLeft(context, locale));
+	context.registerCommand('addColumnRight', () => addColumnRight(context, locale));
+	context.registerCommand('deleteRow', () => deleteRow(context, locale));
+	context.registerCommand('deleteColumn', () => deleteColumn(context, locale));
 	context.registerCommand('selectTable', () => selectTable(context));
-	context.registerCommand('deleteTable', () => deleteTable(context));
+	context.registerCommand('deleteTable', () => deleteTable(context, locale));
 }
 
 function resolveTableDeletionTarget(

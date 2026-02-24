@@ -549,7 +549,13 @@ test.describe('Documentation screenshots', () => {
 
 	test('hero-editor-rich', async ({ page }) => {
 		await setEditorJSON(page, RICH_CONTENT);
-		await shot(page, 'hero-editor-rich.png');
+		// 2x zoom effect — clip top-left half; deviceScaleFactor:2 doubles resolution
+		const box = await page.locator('notectl-editor').boundingBox();
+		if (!box) throw new Error('editor not found');
+		await page.screenshot({
+			path: `${DIR}/hero-editor-rich.png`,
+			clip: { x: box.x, y: box.y, width: box.width / 2, height: box.height / 2 },
+		});
 	});
 
 	test('editor-table-showcase', async ({ page }) => {
@@ -586,6 +592,62 @@ test.describe('Documentation screenshots', () => {
 		await setMinHeight(page, '120px');
 		await setEditorJSON(page, TABLE_PLUGIN_CONTENT);
 		await shot(page, 'plugin-table.png');
+	});
+
+	test('table-context-menu', async ({ page }) => {
+		await setMinHeight(page, '500px');
+		await setEditorJSON(page, TABLE_PLUGIN_CONTENT);
+		// Click a cell in the middle of the table (not the first cell) for better positioning
+		const cell = page.locator('notectl-editor td').nth(4);
+		await cell.click();
+		await page.waitForTimeout(200);
+		await cell.click({ button: 'right' });
+		await page.waitForTimeout(500);
+		// Use page screenshot to capture the context menu (which uses position:fixed)
+		const box = await page.locator('notectl-editor').boundingBox();
+		if (!box) throw new Error('editor not found');
+		await page.screenshot({
+			path: `${DIR}/table-context-menu.png`,
+			clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+		});
+	});
+
+	test('table-border-color', async ({ page }) => {
+		// Increase viewport to fit the full color picker
+		await page.setViewportSize({ width: 1000, height: 1000 });
+		await setMinHeight(page, '600px');
+		await setEditorJSON(page, TABLE_PLUGIN_CONTENT);
+		// Hide any elements below the editor (e.g. theme toggle button)
+		await page.evaluate(() => {
+			const editor: HTMLElement | null = document.querySelector('notectl-editor');
+			if (editor?.nextElementSibling) {
+				(editor.nextElementSibling as HTMLElement).style.display = 'none';
+			}
+		});
+		// Click a cell for better positioning
+		const cell = page.locator('notectl-editor td').nth(4);
+		await cell.click();
+		await page.waitForTimeout(200);
+		await cell.click({ button: 'right' });
+		await page.waitForTimeout(500);
+		// Use keyboard to navigate down to "Border Color..." item
+		// Menu items: Insert Row Above, Insert Row Below, Insert Column Left,
+		// Insert Column Right, Delete Row, Delete Column, Border Color..., Delete Table
+		// Navigate: 6 ArrowDowns to reach Border Color...
+		for (let i = 0; i < 6; i++) {
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(50);
+		}
+		// Open submenu with ArrowRight
+		await page.keyboard.press('ArrowRight');
+		await page.waitForTimeout(500);
+		// Use page screenshot to capture both menus (which use position:fixed)
+		const box = await page.locator('notectl-editor').boundingBox();
+		if (!box) throw new Error('editor not found');
+		await page.screenshot({
+			path: `${DIR}/table-border-color.png`,
+			clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+		});
 	});
 
 	test('plugin-blockquote', async ({ page }) => {

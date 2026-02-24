@@ -5,6 +5,7 @@
  */
 
 import { IMAGE_CSS } from '../../editor/styles/image.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -20,6 +21,7 @@ import {
 	resetImageSize,
 	resizeImageByDelta,
 } from './ImageCommands.js';
+import { IMAGE_LOCALES, type ImageLocale } from './ImageLocale.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
 import {
 	DEFAULT_IMAGE_CONFIG,
@@ -56,6 +58,7 @@ export class ImagePlugin implements Plugin {
 	private readonly uploadStates = new Map<BlockId, UploadState>();
 	private readonly blobUrls = new Set<string>();
 	private context: PluginContext | null = null;
+	private locale!: ImageLocale;
 
 	constructor(config?: Partial<ImagePluginConfig>) {
 		this.config = { ...DEFAULT_IMAGE_CONFIG, ...config };
@@ -63,6 +66,7 @@ export class ImagePlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(IMAGE_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(IMAGE_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
@@ -103,6 +107,7 @@ export class ImagePlugin implements Plugin {
 	}
 
 	private registerNodeSpec(context: PluginContext): void {
+		const locale = this.locale;
 		context.registerNodeSpec({
 			type: 'image',
 			group: 'block',
@@ -143,11 +148,7 @@ export class ImagePlugin implements Plugin {
 				}[align];
 				if (alignClass) figure.classList.add(alignClass);
 
-				const parts: string[] = [alt || 'Image'];
-				if (width !== undefined && height !== undefined) {
-					parts.push(`${width} by ${height} pixels`);
-				}
-				figure.setAttribute('aria-label', parts.join(', '));
+				figure.setAttribute('aria-label', locale.imageAria(alt, width, height));
 
 				imgContainer.appendChild(img);
 				figure.appendChild(imgContainer);
@@ -248,7 +249,7 @@ export class ImagePlugin implements Plugin {
 
 		context.registerCommand('resetImageSize', () => {
 			const result: boolean = resetImageSize(context);
-			if (result) context.announce('Image reset to natural size.');
+			if (result) context.announce(this.locale.resetToNaturalSize);
 			return result;
 		});
 	}
@@ -354,7 +355,7 @@ export class ImagePlugin implements Plugin {
 			this.blobUrls.delete(blobUrl);
 		} catch {
 			this.uploadStates.set(imageBlockId, 'error');
-			context.announce('Image upload failed.');
+			context.announce(this.locale.uploadFailed);
 		}
 	}
 
@@ -366,8 +367,8 @@ export class ImagePlugin implements Plugin {
 			id: 'image',
 			group: 'insert',
 			icon,
-			label: 'Insert Image',
-			tooltip: 'Insert Image',
+			label: this.locale.insertImage,
+			tooltip: this.locale.insertImageTooltip,
 			command: 'insertImage',
 			priority: 50,
 			popupType: 'custom',
@@ -394,8 +395,8 @@ export class ImagePlugin implements Plugin {
 
 		const uploadBtn: HTMLButtonElement = document.createElement('button');
 		uploadBtn.type = 'button';
-		uploadBtn.textContent = 'Upload from computer';
-		uploadBtn.setAttribute('aria-label', 'Upload image from computer');
+		uploadBtn.textContent = this.locale.uploadFromComputer;
+		uploadBtn.setAttribute('aria-label', this.locale.uploadAria);
 		uploadBtn.style.cssText =
 			'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
 			'text-align:center;box-sizing:border-box;' +
@@ -428,7 +429,7 @@ export class ImagePlugin implements Plugin {
 		const line1: HTMLSpanElement = document.createElement('span');
 		line1.style.cssText = 'flex:1;height:1px;background:var(--notectl-border);';
 		const orText: HTMLSpanElement = document.createElement('span');
-		orText.textContent = 'or';
+		orText.textContent = this.locale.separator;
 		orText.style.cssText = 'padding:0 8px;';
 		const line2: HTMLSpanElement = document.createElement('span');
 		line2.style.cssText = 'flex:1;height:1px;background:var(--notectl-border);';
@@ -440,8 +441,8 @@ export class ImagePlugin implements Plugin {
 		// --- URL input ---
 		const urlInput: HTMLInputElement = document.createElement('input');
 		urlInput.type = 'url';
-		urlInput.placeholder = 'https://...';
-		urlInput.setAttribute('aria-label', 'Image URL');
+		urlInput.placeholder = this.locale.urlPlaceholder;
+		urlInput.setAttribute('aria-label', this.locale.urlAria);
 		urlInput.style.cssText =
 			'width:100%;padding:6px 8px;box-sizing:border-box;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +
@@ -449,8 +450,8 @@ export class ImagePlugin implements Plugin {
 
 		const insertBtn: HTMLButtonElement = document.createElement('button');
 		insertBtn.type = 'button';
-		insertBtn.textContent = 'Insert';
-		insertBtn.setAttribute('aria-label', 'Insert image');
+		insertBtn.textContent = this.locale.insertButton;
+		insertBtn.setAttribute('aria-label', this.locale.insertAria);
 		insertBtn.style.cssText =
 			'width:100%;padding:8px 12px;margin-top:4px;cursor:pointer;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +

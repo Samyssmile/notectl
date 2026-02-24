@@ -57,6 +57,9 @@ export interface PrintPluginConfig {
 
 	/** Show toolbar button (default: true). */
 	readonly showToolbarItem?: boolean;
+
+	/** Locale override for user-facing strings. */
+	readonly locale?: import('./PrintLocale.js').PrintLocale;
 }
 
 // --- Service Interface ---

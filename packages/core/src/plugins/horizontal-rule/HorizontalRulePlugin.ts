@@ -3,6 +3,7 @@
  * with NodeSpec, insert command, input rule, keyboard shortcut, and toolbar button.
  */
 
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { createBlockNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
@@ -10,6 +11,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { HORIZONTAL_RULE_LOCALES, type HorizontalRuleLocale } from './HorizontalRuleLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -24,6 +26,8 @@ declare module '../../model/AttrRegistry.js' {
 export interface HorizontalRuleConfig {
 	/** When true, a separator is rendered after the toolbar item. */
 	readonly separatorAfter?: boolean;
+	/** Locale override for user-facing strings. */
+	readonly locale?: HorizontalRuleLocale;
 }
 
 const DEFAULT_CONFIG: HorizontalRuleConfig = {};
@@ -45,12 +49,14 @@ export class HorizontalRulePlugin implements Plugin {
 	readonly priority = 40;
 
 	private readonly config: HorizontalRuleConfig;
+	private locale!: HorizontalRuleLocale;
 
 	constructor(config?: Partial<HorizontalRuleConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(HORIZONTAL_RULE_LOCALES, context, this.config.locale);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -121,8 +127,8 @@ export class HorizontalRulePlugin implements Plugin {
 			id: 'horizontal-rule',
 			group: 'block',
 			icon,
-			label: 'Horizontal Rule',
-			tooltip: `Horizontal Rule (${formatShortcut('Mod-Shift-H')})`,
+			label: this.locale.label,
+			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-H')),
 			command: 'insertHorizontalRule',
 			priority: 60,
 			separatorAfter: this.config.separatorAfter,

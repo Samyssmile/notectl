@@ -8,6 +8,7 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { Mark } from '../../model/Document.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
@@ -15,6 +16,7 @@ import { markType as mkType } from '../../model/TypeBrands.js';
 import type { RemoveMarkStep, Step } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { SUPER_SUB_LOCALES, type SuperSubLocale } from './SuperSubLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -40,6 +42,7 @@ export interface SuperSubConfig {
 	readonly toolbar?: SuperSubToolbarConfig;
 	/** When true, a separator is rendered after the last toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: SuperSubLocale;
 }
 
 const DEFAULT_CONFIG: SuperSubConfig = {
@@ -52,7 +55,7 @@ const DEFAULT_CONFIG: SuperSubConfig = {
 interface MarkDefinition {
 	readonly type: 'superscript' | 'subscript';
 	readonly opposite: 'superscript' | 'subscript';
-	readonly configKey: keyof Omit<SuperSubConfig, 'toolbar' | 'separatorAfter'>;
+	readonly configKey: keyof Omit<SuperSubConfig, 'toolbar' | 'separatorAfter' | 'locale'>;
 	readonly rank: number;
 	readonly tag: string;
 	readonly label: string;
@@ -144,12 +147,15 @@ export class SuperSubPlugin implements Plugin {
 	readonly priority = 23;
 
 	private readonly config: SuperSubConfig;
+	private locale!: SuperSubLocale;
 
 	constructor(config?: Partial<SuperSubConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(SUPER_SUB_LOCALES, context, this.config.locale);
+
 		const enabledMarks: MarkDefinition[] = MARK_DEFINITIONS.filter(
 			(def) => this.config[def.configKey],
 		);
@@ -194,12 +200,18 @@ export class SuperSubPlugin implements Plugin {
 		});
 
 		if (toolbarVisible) {
+			const label: string =
+				def.type === 'superscript' ? this.locale.superscriptLabel : this.locale.subscriptLabel;
+			const tooltip: string =
+				def.type === 'superscript'
+					? this.locale.superscriptTooltip(formatShortcut(def.keyBinding))
+					: this.locale.subscriptTooltip(formatShortcut(def.keyBinding));
 			context.registerToolbarItem({
 				id: def.type,
 				group: 'format',
 				icon: def.icon,
-				label: def.label,
-				tooltip: `${def.label} (${formatShortcut(def.keyBinding)})`,
+				label,
+				tooltip,
 				command: commandName,
 				priority: def.toolbarPriority,
 				separatorAfter,
@@ -300,11 +312,13 @@ export class SuperSubPlugin implements Plugin {
 			const toolbarVisible: boolean = this.config.toolbar[def.configKey] ?? true;
 
 			if (!featureEnabled && toolbarVisible) {
+				const label: string =
+					def.type === 'superscript' ? this.locale.superscriptLabel : this.locale.subscriptLabel;
 				context.registerToolbarItem({
 					id: def.type,
 					group: 'format',
 					icon: def.icon,
-					label: def.label,
+					label,
 					command: toCommandName(def.type),
 					priority: def.toolbarPriority,
 					isEnabled: () => false,
@@ -314,7 +328,7 @@ export class SuperSubPlugin implements Plugin {
 	}
 
 	private isToolbarVisible(
-		configKey: keyof Omit<SuperSubConfig, 'toolbar' | 'separatorAfter'>,
+		configKey: keyof Omit<SuperSubConfig, 'toolbar' | 'separatorAfter' | 'locale'>,
 	): boolean {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;

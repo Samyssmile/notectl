@@ -4,6 +4,7 @@
  */
 
 import type { PluginContext } from '../Plugin.js';
+import type { FontSizeLocale } from './FontSizeLocale.js';
 import { getActiveSizeNumeric, selectSize } from './FontSizeOperations.js';
 
 // --- Constants ---
@@ -17,6 +18,7 @@ export interface FontSizePopupConfig {
 	readonly sizes: readonly number[];
 	readonly defaultSize: number;
 	readonly dismissPopup: () => void;
+	readonly locale?: FontSizeLocale;
 }
 
 // --- Public Entry Point ---
@@ -31,7 +33,7 @@ export function renderFontSizePopup(
 
 	const currentSize: number = getActiveSizeNumeric(context.getState(), config.defaultSize);
 
-	const input: HTMLInputElement = buildCustomInput(currentSize);
+	const input: HTMLInputElement = buildCustomInput(currentSize, config);
 	appendInputWrapper(container, input);
 
 	const { list, items } = buildSizeList(config.sizes, currentSize, context, config);
@@ -43,14 +45,14 @@ export function renderFontSizePopup(
 
 // --- Custom Input ---
 
-function buildCustomInput(currentSize: number): HTMLInputElement {
+function buildCustomInput(currentSize: number, config: FontSizePopupConfig): HTMLInputElement {
 	const input: HTMLInputElement = document.createElement('input');
 	input.type = 'number';
 	input.className = 'notectl-font-size-picker__input';
 	input.min = String(MIN_CUSTOM_SIZE);
 	input.max = String(MAX_CUSTOM_SIZE);
 	input.value = String(currentSize);
-	input.setAttribute('aria-label', 'Custom font size');
+	input.setAttribute('aria-label', config.locale?.customFontSizeAria ?? 'Custom font size');
 	return input;
 }
 
@@ -77,7 +79,7 @@ function buildSizeList(
 	const list: HTMLDivElement = document.createElement('div');
 	list.className = 'notectl-font-size-picker__list';
 	list.setAttribute('role', 'listbox');
-	list.setAttribute('aria-label', 'Font sizes');
+	list.setAttribute('aria-label', config.locale?.fontSizesAria ?? 'Font sizes');
 
 	const items: HTMLButtonElement[] = [];
 
