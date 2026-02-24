@@ -17,6 +17,7 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
+import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import { ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
@@ -29,6 +30,8 @@ import { parseHTMLToDocument } from './DocumentParser.js';
 import { serializeDocumentToHTML } from './DocumentSerializer.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
+import { PaperLayoutController } from './PaperLayoutController.js';
+import type { PaperSize } from './PaperSize.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 export interface NotectlEditorConfig {
@@ -47,6 +50,8 @@ export interface NotectlEditorConfig {
 	maxHistoryDepth?: number;
 	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
 	theme?: ThemePreset | Theme;
+	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
+	paperSize?: PaperSize;
 }
 
 export interface StateChangeEvent {
@@ -80,6 +85,7 @@ export class NotectlEditor extends HTMLElement {
 	private initialized = false;
 	private preInitPlugins: Plugin[] = [];
 	private themeController: EditorThemeController | null = null;
+	private paperLayout: PaperLayoutController | null = null;
 
 	constructor() {
 		super();
@@ -90,7 +96,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	static get observedAttributes(): string[] {
-		return ['placeholder', 'readonly', 'theme'];
+		return ['placeholder', 'readonly', 'theme', 'paper-size'];
 	}
 
 	connectedCallback(): void {
@@ -117,6 +123,9 @@ export class NotectlEditor extends HTMLElement {
 		}
 		if (name === 'theme' && this.themeController) {
 			this.themeController.apply((newValue as ThemePreset) ?? ThemePreset.Light);
+		}
+		if (name === 'paper-size') {
+			this.configure({ paperSize: (newValue as PaperSize) ?? undefined });
 		}
 	}
 
@@ -156,6 +165,12 @@ export class NotectlEditor extends HTMLElement {
 		this.announcer = dom.announcer;
 
 		shadow.appendChild(this.editorWrapper);
+
+		// Apply paper layout if configured (before plugins, so initial render is correct)
+		if (this.config.paperSize) {
+			this.paperLayout = new PaperLayoutController(this.editorWrapper, this.contentElement);
+			this.paperLayout.apply(this.config.paperSize);
+		}
 
 		// 2. Create PluginManager (SchemaRegistry is available)
 		this.pluginManager = new PluginManager();
@@ -226,6 +241,13 @@ export class NotectlEditor extends HTMLElement {
 					this.themeController?.setPluginStyleSheets(pluginSheets);
 				}
 			},
+		});
+
+		// Register BEFORE_PRINT listener to inject paperSize as fallback
+		this.pluginManager.onEvent(BEFORE_PRINT, (event) => {
+			if (!event.options.paperSize && this.config.paperSize) {
+				event.options = { ...event.options, paperSize: this.config.paperSize };
+			}
 		});
 
 		if (this.config.autofocus) {
@@ -393,6 +415,10 @@ export class NotectlEditor extends HTMLElement {
 			}
 		}
 
+		if (config.paperSize !== undefined) {
+			this.applyPaperSize(config.paperSize);
+		}
+
 		this.config = { ...this.config, ...config };
 	}
 
@@ -409,8 +435,17 @@ export class NotectlEditor extends HTMLElement {
 		return this.config.theme ?? ThemePreset.Light;
 	}
 
+	// --- Paper Size API ---
+
+	/** Returns the currently configured paper size, or undefined if fluid layout. */
+	getPaperSize(): PaperSize | undefined {
+		return this.config.paperSize;
+	}
+
 	/** Cleans up the editor. Awaiting ensures async plugin teardown completes. */
 	destroy(): Promise<void> {
+		this.paperLayout?.destroy();
+		this.paperLayout = null;
 		this.themeController?.destroy();
 		this.themeController = null;
 		this.view?.destroy();
@@ -459,6 +494,20 @@ export class NotectlEditor extends HTMLElement {
 		};
 
 		this.pluginManager.register(new TextFormattingPlugin(features));
+	}
+
+	private applyPaperSize(paperSize: PaperSize | undefined): void {
+		if (!this.editorWrapper || !this.contentElement) return;
+
+		if (!paperSize) {
+			this.paperLayout?.apply(null);
+			return;
+		}
+
+		if (!this.paperLayout) {
+			this.paperLayout = new PaperLayoutController(this.editorWrapper, this.contentElement);
+		}
+		this.paperLayout.apply(paperSize);
 	}
 
 	private emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void {
