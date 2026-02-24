@@ -19,6 +19,13 @@ playwright-report/
 test-results/
 coverage/
 
+# Playwright CLI sessions
+.playwright-cli/
+
+# Generated screenshots
+test-screenshots/
+e2e/screenshots/
+
 # Logs
 *.log
 npm-debug.log*
@@ -47,5 +54,6 @@ Desktop.ini
 
 # Misc
 .cache/
+code-style-requirements.md
 
 /docs/*
