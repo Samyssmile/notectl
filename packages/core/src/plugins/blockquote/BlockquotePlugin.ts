@@ -3,11 +3,13 @@
  * toggle command, keyboard shortcut, input rule, and a toolbar button.
  */
 
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { isCollapsed, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { BLOCKQUOTE_LOCALES, type BlockquoteLocale } from './BlockquoteLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -22,6 +24,7 @@ declare module '../../model/AttrRegistry.js' {
 export interface BlockquoteConfig {
 	/** When true, a separator is rendered after the blockquote toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: BlockquoteLocale;
 }
 
 const DEFAULT_CONFIG: BlockquoteConfig = {};
@@ -34,12 +37,14 @@ export class BlockquotePlugin implements Plugin {
 	readonly priority = 35;
 
 	private readonly config: BlockquoteConfig;
+	private locale!: BlockquoteLocale;
 
 	constructor(config?: Partial<BlockquoteConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(BLOCKQUOTE_LOCALES, context, this.config.locale);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -108,8 +113,8 @@ export class BlockquotePlugin implements Plugin {
 			id: 'blockquote',
 			group: 'block',
 			icon,
-			label: 'Blockquote',
-			tooltip: `Blockquote (${formatShortcut('Mod-Shift->')})`,
+			label: this.locale.label,
+			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift->')),
 			command: 'toggleBlockquote',
 			priority: 55,
 			separatorAfter: this.config.separatorAfter,

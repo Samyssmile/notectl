@@ -77,6 +77,17 @@ export class PluginManager {
 	private initialized = false;
 	private initializing = false;
 
+	/**
+	 * Registers a system-level service before plugin init.
+	 * Used by the editor to provide global services (e.g. LocaleService).
+	 */
+	registerService<T>(key: ServiceKey<T>, service: T): void {
+		if (this.services.has(key.id)) {
+			throw new Error(`Service "${key.id}" is already registered.`);
+		}
+		this.services.set(key.id, service);
+	}
+
 	/** Registers a plugin. Must be called before init(). */
 	register(plugin: Plugin): void {
 		if (this.initialized || this.initializing) {

@@ -14,11 +14,13 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { TEXT_FORMATTING_LOCALES, type TextFormattingLocale } from './TextFormattingLocale.js';
 
 // --- Configuration ---
 
@@ -37,6 +39,7 @@ export interface TextFormattingConfig {
 	readonly toolbar?: TextFormattingToolbarConfig;
 	/** When true, a separator is rendered after the last text-formatting toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: TextFormattingLocale;
 }
 
 const DEFAULT_CONFIG: TextFormattingConfig = {
@@ -49,7 +52,7 @@ const DEFAULT_CONFIG: TextFormattingConfig = {
 
 interface MarkDefinition {
 	readonly type: string;
-	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter'>;
+	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter' | 'locale'>;
 	readonly rank: number;
 	readonly tag: string;
 	readonly label: string;
@@ -114,12 +117,15 @@ export class TextFormattingPlugin implements Plugin {
 	readonly priority = 20;
 
 	private readonly config: TextFormattingConfig;
+	private locale!: TextFormattingLocale;
 
 	constructor(config?: Partial<TextFormattingConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(TEXT_FORMATTING_LOCALES, context, this.config.locale);
+
 		const enabledMarks = MARK_DEFINITIONS.filter((def) => this.config[def.configKey]);
 
 		// Determine which marks will have visible toolbar items
@@ -167,12 +173,13 @@ export class TextFormattingPlugin implements Plugin {
 		});
 
 		if (toolbarVisible) {
+			const label: string = this.getMarkLabel(def.type);
 			context.registerToolbarItem({
 				id: def.type,
 				group: 'format',
 				icon: def.icon,
-				label: def.label,
-				tooltip: `${def.label} (${formatShortcut(def.keyBinding)})`,
+				label,
+				tooltip: `${label} (${formatShortcut(def.keyBinding)})`,
 				command: commandName,
 				priority: def.rank * 10 + 10,
 				separatorAfter,
@@ -208,7 +215,7 @@ export class TextFormattingPlugin implements Plugin {
 					id: def.type,
 					group: 'format',
 					icon: def.icon,
-					label: def.label,
+					label: this.getMarkLabel(def.type),
 					command: toCommandName(def.type),
 					priority: def.rank * 10 + 10,
 					isEnabled: () => false,
@@ -217,9 +224,14 @@ export class TextFormattingPlugin implements Plugin {
 		}
 	}
 
+	private getMarkLabel(type: string): string {
+		const key = `${type}Label` as keyof TextFormattingLocale;
+		return this.locale[key] as string;
+	}
+
 	/** Checks if a toolbar button should be visible for a given mark. */
 	private isToolbarVisible(
-		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter'>,
+		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter' | 'locale'>,
 	): boolean {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;

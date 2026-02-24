@@ -5,10 +5,12 @@
  */
 
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
+import { FONT_SIZE_LOCALES, type FontSizeLocale } from './FontSizeLocale.js';
 import {
 	getActiveSizeNumeric,
 	isFontSizeActive,
@@ -52,6 +54,7 @@ export interface FontSizeConfig {
 	readonly defaultSize?: number;
 	/** When true, a separator is rendered after the fontSize toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: FontSizeLocale;
 }
 
 // --- Plugin ---
@@ -64,6 +67,7 @@ export class FontSizePlugin implements Plugin {
 	private readonly config: FontSizeConfig;
 	private readonly sizes: readonly number[];
 	private readonly defaultSize: number;
+	private locale!: FontSizeLocale;
 	private context: PluginContext | null = null;
 	private comboLabel: HTMLSpanElement | null = null;
 
@@ -74,6 +78,8 @@ export class FontSizePlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(FONT_SIZE_LOCALES, context, this.config.locale);
+
 		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
 		this.context = context;
 		this.registerMarkSpec(context);
@@ -170,8 +176,8 @@ export class FontSizePlugin implements Plugin {
 			id: 'fontSize',
 			group: 'format',
 			icon,
-			label: 'Font Size',
-			tooltip: 'Font Size',
+			label: this.locale.label,
+			tooltip: this.locale.tooltip,
 			command: 'removeFontSize',
 			priority: 6,
 			popupType: 'custom',
@@ -181,6 +187,7 @@ export class FontSizePlugin implements Plugin {
 					sizes: this.sizes,
 					defaultSize: this.defaultSize,
 					dismissPopup: () => this.dismissPopup(),
+					locale: this.locale,
 				});
 			},
 			isActive: (state) => isFontSizeActive(state),

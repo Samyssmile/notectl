@@ -4,6 +4,7 @@ import {
 	PaperSize,
 	getPaperCSSSize,
 	getPaperDimensions,
+	isValidPaperSize,
 } from './PaperSize.js';
 
 describe('PaperSize', () => {
@@ -72,5 +73,21 @@ describe('getPaperCSSSize', () => {
 
 	it('throws for unknown paper size', () => {
 		expect(() => getPaperCSSSize('unknown' as PaperSize)).toThrow('Unknown paper size');
+	});
+});
+
+describe('isValidPaperSize', () => {
+	it('returns true for all valid paper sizes', () => {
+		expect(isValidPaperSize('din-a4')).toBe(true);
+		expect(isValidPaperSize('din-a5')).toBe(true);
+		expect(isValidPaperSize('us-letter')).toBe(true);
+		expect(isValidPaperSize('us-legal')).toBe(true);
+	});
+
+	it('returns false for invalid values', () => {
+		expect(isValidPaperSize('unknown')).toBe(false);
+		expect(isValidPaperSize('')).toBe(false);
+		expect(isValidPaperSize('A4')).toBe(false);
+		expect(isValidPaperSize('din-a3')).toBe(false);
 	});
 });

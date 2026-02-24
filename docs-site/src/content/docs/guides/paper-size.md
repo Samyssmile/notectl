@@ -98,6 +98,18 @@ const printService = editor.getService(PRINT_SERVICE_KEY);
 printService.print({ paperSize: PaperSize.USLetter });
 ```
 
+## Paper Margins
+
+The paper mode uses fixed margins for consistent WYSIWYG layout:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `PAPER_MARGIN_TOP_PX` | `48px` | Top margin inside the paper surface |
+| `PAPER_MARGIN_HORIZONTAL_PX` | `56px` | Left and right margins inside the paper surface |
+| `PAPER_VIEWPORT_PADDING_PX` | `24px` | Padding between the viewport edge and the paper |
+
+These are exported from `@notectl/core` for use in custom layouts or print stylesheets.
+
 ## Exports
 
 All paper-size-related exports from `@notectl/core`:
@@ -108,3 +120,6 @@ All paper-size-related exports from `@notectl/core`:
 | `getPaperDimensions(size)` | Function | Returns `PaperDimensions` with mm and px values |
 | `getPaperCSSSize(size)` | Function | Returns CSS `@page` size keyword (`'A4'`, `'letter'`, etc.) |
 | `PaperDimensions` | Type | `{ widthMm, heightMm, widthPx, heightPx }` |
+| `PAPER_MARGIN_TOP_PX` | Constant | Top margin in pixels |
+| `PAPER_MARGIN_HORIZONTAL_PX` | Constant | Horizontal margin in pixels |
+| `PAPER_VIEWPORT_PADDING_PX` | Constant | Viewport padding in pixels |
