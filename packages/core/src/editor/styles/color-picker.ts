@@ -30,6 +30,10 @@ export const COLOR_PICKER_CSS = `
 	gap: 3px;
 }
 
+.notectl-color-picker__grid [role="row"] {
+	display: contents;
+}
+
 .notectl-color-picker__swatch {
 	width: 22px;
 	height: 22px;
