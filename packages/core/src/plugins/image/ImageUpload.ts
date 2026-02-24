@@ -3,6 +3,7 @@
  */
 
 import { ServiceKey } from '../Plugin.js';
+import type { ImageLocale } from './ImageLocale.js';
 
 // --- Image Attributes ---
 
@@ -69,6 +70,8 @@ export interface ImagePluginConfig {
 	readonly resizeStepLarge?: number;
 	/** Customize keyboard bindings for image resize actions. */
 	readonly keymap?: ImageKeymap;
+	/** Locale override for user-facing strings. */
+	readonly locale?: ImageLocale;
 }
 
 export const DEFAULT_IMAGE_CONFIG: ImagePluginConfig = {

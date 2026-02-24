@@ -5,6 +5,7 @@
  */
 
 import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
 import {
 	generateBlockId,
@@ -22,6 +23,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import type { PickerEntryStyle } from './BlockTypePickerEntry.js';
+import { HEADING_LOCALES, type HeadingLocale } from './HeadingLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -42,6 +44,7 @@ export interface HeadingConfig {
 	readonly levels: readonly HeadingLevel[];
 	/** When true, a separator is rendered after the heading toolbar item. */
 	readonly separatorAfter?: boolean;
+	readonly locale?: HeadingLocale;
 }
 
 const DEFAULT_CONFIG: HeadingConfig = {
@@ -59,21 +62,6 @@ const HEADING_TAGS: Record<HeadingLevel, string> = {
 	6: 'h6',
 };
 
-// --- Display Labels ---
-
-const HEADING_LABELS: Record<HeadingLevel, string> = {
-	1: 'Heading 1',
-	2: 'Heading 2',
-	3: 'Heading 3',
-	4: 'Heading 4',
-	5: 'Heading 5',
-	6: 'Heading 6',
-};
-
-const TITLE_LABEL = 'Title';
-const SUBTITLE_LABEL = 'Subtitle';
-const PARAGRAPH_LABEL = 'Paragraph';
-
 // --- Plugin ---
 
 export class HeadingPlugin implements Plugin {
@@ -82,6 +70,7 @@ export class HeadingPlugin implements Plugin {
 	readonly priority = 30;
 
 	private readonly config: HeadingConfig;
+	private locale!: HeadingLocale;
 	private context: PluginContext | null = null;
 	private comboLabel: HTMLSpanElement | null = null;
 
@@ -90,6 +79,7 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(HEADING_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(HEADING_SELECT_CSS);
 		this.context = context;
 		this.registerNodeSpecs(context);
@@ -243,7 +233,7 @@ export class HeadingPlugin implements Plugin {
 	private registerPickerEntries(context: PluginContext): void {
 		context.registerBlockTypePickerEntry({
 			id: 'paragraph',
-			label: PARAGRAPH_LABEL,
+			label: this.locale.paragraph,
 			command: 'setParagraph',
 			priority: 10,
 			isActive: (state) => {
@@ -255,7 +245,7 @@ export class HeadingPlugin implements Plugin {
 
 		context.registerBlockTypePickerEntry({
 			id: 'title',
-			label: TITLE_LABEL,
+			label: this.locale.title,
 			command: 'setTitle',
 			priority: 20,
 			style: { fontSize: '1.6em', fontWeight: '700' },
@@ -268,7 +258,7 @@ export class HeadingPlugin implements Plugin {
 
 		context.registerBlockTypePickerEntry({
 			id: 'subtitle',
-			label: SUBTITLE_LABEL,
+			label: this.locale.subtitle,
 			command: 'setSubtitle',
 			priority: 30,
 			style: { fontSize: '1.3em', fontWeight: '500' },
@@ -282,7 +272,7 @@ export class HeadingPlugin implements Plugin {
 		for (const level of this.config.levels) {
 			context.registerBlockTypePickerEntry({
 				id: `heading-${level}`,
-				label: HEADING_LABELS[level],
+				label: this.getHeadingLabel(level),
 				command: `setHeading${level}`,
 				priority: 100 + level,
 				style: { fontSize: `${1.4 - level * 0.1}em`, fontWeight: '600' },
@@ -296,14 +286,14 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	private registerToolbarItem(context: PluginContext): void {
-		const icon: string = `<span class="notectl-heading-select__label" data-heading-label>${PARAGRAPH_LABEL}</span><span class="notectl-heading-select__arrow">\u25BE</span>`;
+		const icon: string = `<span class="notectl-heading-select__label" data-heading-label>${this.locale.paragraph}</span><span class="notectl-heading-select__arrow">\u25BE</span>`;
 
 		context.registerToolbarItem({
 			id: 'heading',
 			group: 'block',
 			icon,
-			label: 'Block Type',
-			tooltip: 'Block Type',
+			label: this.locale.blockTypeLabel,
+			tooltip: this.locale.blockTypeLabel,
 			command: 'setParagraph',
 			priority: 50,
 			popupType: 'custom',
@@ -316,6 +306,11 @@ export class HeadingPlugin implements Plugin {
 				return entries.some((entry) => entry.id !== 'paragraph' && entry.isActive(state));
 			},
 		});
+	}
+
+	private getHeadingLabel(level: HeadingLevel): string {
+		const key = `heading${level}` as keyof HeadingLocale;
+		return this.locale[key] as string;
 	}
 
 	// --- Combo Label ---
@@ -332,12 +327,12 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	private getActiveLabel(state: EditorState): string {
-		if (isNodeSelection(state.selection)) return PARAGRAPH_LABEL;
+		if (isNodeSelection(state.selection)) return this.locale.paragraph;
 		const entries = this.context?.getSchemaRegistry().getBlockTypePickerEntries() ?? [];
 		for (const entry of entries) {
 			if (entry.isActive(state)) return entry.label;
 		}
-		return PARAGRAPH_LABEL;
+		return this.locale.paragraph;
 	}
 
 	// --- Custom Popup ---
@@ -356,7 +351,7 @@ export class HeadingPlugin implements Plugin {
 		const list: HTMLDivElement = document.createElement('div');
 		list.className = 'notectl-heading-picker__list';
 		list.setAttribute('role', 'listbox');
-		list.setAttribute('aria-label', 'Block types');
+		list.setAttribute('aria-label', this.locale.blockTypesAria);
 
 		const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
 		for (const entry of entries) {

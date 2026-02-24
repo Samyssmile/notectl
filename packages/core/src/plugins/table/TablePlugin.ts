@@ -5,6 +5,7 @@
  */
 
 import { TABLE_CSS } from '../../editor/styles/table.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -12,7 +13,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
-import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
+import { TABLE_LOCALES, type TableLocale } from './TableLocale.js';
 import { registerTableKeymaps } from './TableNavigation.js';
 import {
 	createTableCellNodeViewFactory,
@@ -68,27 +69,27 @@ export class TablePlugin implements Plugin {
 	readonly priority = 40;
 
 	private readonly config: TableConfig;
-	private readonly locale: TableLocale;
+	private locale!: TableLocale;
 	private selectionService: TableSelectionService | null = null;
 	private cleanupMouseSelection: (() => void) | null = null;
 	private context: PluginContext | null = null;
 
 	constructor(config?: Partial<TableConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
-		this.locale = config?.locale ?? TABLE_LOCALE_EN;
 	}
 
 	init(context: PluginContext): void {
+		this.locale = resolvePluginLocale(TABLE_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(TABLE_CSS);
 		this.context = context;
 
 		this.registerNodeSpecs(context);
 		this.registerNodeViews(context);
-		registerTableCommands(context);
+		registerTableCommands(context, this.locale);
 		context.registerCommand('resetTableBorderColor', () =>
 			resetTableBorderColor(context, this.locale),
 		);
-		registerTableKeymaps(context);
+		registerTableKeymaps(context, this.locale);
 		this.registerToolbarItem(context);
 		this.selectionService = createTableSelectionService(context);
 	}

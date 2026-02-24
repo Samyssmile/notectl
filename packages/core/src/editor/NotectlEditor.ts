@@ -4,6 +4,8 @@
 
 import { selectAll } from '../commands/Commands.js';
 import { DecorationSet } from '../decorations/Decoration.js';
+import type { Locale } from '../i18n/Locale.js';
+import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
 import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
 import { type Document, getBlockText } from '../model/Document.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
@@ -31,7 +33,7 @@ import { serializeDocumentToHTML } from './DocumentSerializer.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
-import type { PaperSize } from './PaperSize.js';
+import { type PaperSize, isValidPaperSize } from './PaperSize.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 export interface NotectlEditorConfig {
@@ -52,6 +54,8 @@ export interface NotectlEditorConfig {
 	theme?: ThemePreset | Theme;
 	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
 	paperSize?: PaperSize;
+	/** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
+	locale?: Locale;
 }
 
 export interface StateChangeEvent {
@@ -125,7 +129,11 @@ export class NotectlEditor extends HTMLElement {
 			this.themeController.apply((newValue as ThemePreset) ?? ThemePreset.Light);
 		}
 		if (name === 'paper-size') {
-			this.configure({ paperSize: (newValue as PaperSize) ?? undefined });
+			if (newValue === null) {
+				this.configure({ paperSize: undefined });
+			} else if (isValidPaperSize(newValue)) {
+				this.configure({ paperSize: newValue });
+			}
 		}
 	}
 
@@ -174,6 +182,10 @@ export class NotectlEditor extends HTMLElement {
 
 		// 2. Create PluginManager (SchemaRegistry is available)
 		this.pluginManager = new PluginManager();
+
+		// Register global LocaleService before plugins so they can resolve locale
+		const localeService = new LocaleService(this.config.locale ?? 'browser');
+		this.pluginManager.registerService(LocaleServiceKey, localeService);
 
 		// 3. Register built-in specs on the registry
 		registerBuiltinSpecs(this.pluginManager.schemaRegistry);
@@ -415,7 +427,7 @@ export class NotectlEditor extends HTMLElement {
 			}
 		}
 
-		if (config.paperSize !== undefined) {
+		if ('paperSize' in config) {
 			this.applyPaperSize(config.paperSize);
 		}
 

@@ -70,6 +70,12 @@ export function getPaperDimensions(size: PaperSize): PaperDimensions {
  */
 export const PAPER_MARGIN_TOP_PX: number = 48;
 export const PAPER_MARGIN_HORIZONTAL_PX: number = 56;
+export const PAPER_VIEWPORT_PADDING_PX: number = 24;
+
+/** Type guard: returns true if the value is a valid PaperSize string. */
+export function isValidPaperSize(value: string): value is PaperSize {
+	return (Object.values(PaperSize) as string[]).includes(value);
+}
 
 /** Returns the CSS @page size keyword (e.g. 'A4', 'letter') for a paper size. */
 export function getPaperCSSSize(size: PaperSize): string {

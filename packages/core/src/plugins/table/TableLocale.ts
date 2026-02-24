@@ -37,6 +37,14 @@ export interface TableLocale {
 	readonly announceBorderReset: string;
 	readonly borderSwatchLabel: (colorName: string) => string;
 
+	// Command Announcements
+	readonly announceRowInsertedAbove: string;
+	readonly announceRowInsertedBelow: string;
+	readonly announceColumnInserted: (side: string) => string;
+	readonly announceRowDeleted: string;
+	readonly announceColumnDeleted: string;
+	readonly announceTableDeleted: string;
+
 	// Toolbar
 	readonly insertTable: string;
 
@@ -79,6 +87,14 @@ export const TABLE_LOCALE_EN: TableLocale = {
 	announceBorderReset: 'Table borders reset to default',
 	borderSwatchLabel: (colorName: string) => `Border ${colorName}`,
 
+	// Command Announcements
+	announceRowInsertedAbove: 'Row inserted above',
+	announceRowInsertedBelow: 'Row inserted below',
+	announceColumnInserted: (side: string) => `Column inserted ${side}`,
+	announceRowDeleted: 'Row deleted',
+	announceColumnDeleted: 'Column deleted',
+	announceTableDeleted: 'Table deleted',
+
 	// Toolbar
 	insertTable: 'Insert Table',
 
@@ -118,6 +134,13 @@ export const TABLE_LOCALE_DE: TableLocale = {
 	announceBorderReset: 'Tabellenrahmen auf Standard zur\u00fcckgesetzt',
 	borderSwatchLabel: (colorName: string) => `Rahmen ${colorName}`,
 
+	announceRowInsertedAbove: 'Zeile oberhalb eingef\u00fcgt',
+	announceRowInsertedBelow: 'Zeile unterhalb eingef\u00fcgt',
+	announceColumnInserted: (side: string) => `Spalte ${side} eingef\u00fcgt`,
+	announceRowDeleted: 'Zeile gel\u00f6scht',
+	announceColumnDeleted: 'Spalte gel\u00f6scht',
+	announceTableDeleted: 'Tabelle gel\u00f6scht',
+
 	insertTable: 'Tabelle einf\u00fcgen',
 
 	tableAriaLabel: (rows: number, cols: number) => `Tabelle mit ${rows} Zeilen und ${cols} Spalten`,
@@ -154,6 +177,13 @@ export const TABLE_LOCALE_ES: TableLocale = {
 		`Color del borde de tabla establecido en ${colorName}`,
 	announceBorderReset: 'Bordes de tabla restablecidos a predeterminado',
 	borderSwatchLabel: (colorName: string) => `Borde ${colorName}`,
+
+	announceRowInsertedAbove: 'Fila insertada arriba',
+	announceRowInsertedBelow: 'Fila insertada abajo',
+	announceColumnInserted: (side: string) => `Columna insertada ${side}`,
+	announceRowDeleted: 'Fila eliminada',
+	announceColumnDeleted: 'Columna eliminada',
+	announceTableDeleted: 'Tabla eliminada',
 
 	insertTable: 'Insertar tabla',
 
@@ -193,6 +223,13 @@ export const TABLE_LOCALE_FR: TableLocale = {
 	announceBorderReset: 'Bordures du tableau r\u00e9initialis\u00e9es par d\u00e9faut',
 	borderSwatchLabel: (colorName: string) => `Bordure ${colorName}`,
 
+	announceRowInsertedAbove: 'Ligne ins\u00e9r\u00e9e au-dessus',
+	announceRowInsertedBelow: 'Ligne ins\u00e9r\u00e9e en dessous',
+	announceColumnInserted: (side: string) => `Colonne ins\u00e9r\u00e9e \u00e0 ${side}`,
+	announceRowDeleted: 'Ligne supprim\u00e9e',
+	announceColumnDeleted: 'Colonne supprim\u00e9e',
+	announceTableDeleted: 'Tableau supprim\u00e9',
+
 	insertTable: 'Ins\u00e9rer un tableau',
 
 	tableAriaLabel: (rows: number, cols: number) => `Tableau avec ${rows} lignes et ${cols} colonnes`,
@@ -229,6 +266,13 @@ export const TABLE_LOCALE_ZH: TableLocale = {
 		`\u8868\u683c\u8fb9\u6846\u989c\u8272\u5df2\u8bbe\u7f6e\u4e3a${colorName}`,
 	announceBorderReset: '\u8868\u683c\u8fb9\u6846\u5df2\u91cd\u7f6e\u4e3a\u9ed8\u8ba4',
 	borderSwatchLabel: (colorName: string) => `\u8fb9\u6846 ${colorName}`,
+
+	announceRowInsertedAbove: '\u5df2\u5728\u4e0a\u65b9\u63d2\u5165\u884c',
+	announceRowInsertedBelow: '\u5df2\u5728\u4e0b\u65b9\u63d2\u5165\u884c',
+	announceColumnInserted: (side: string) => `\u5df2\u63d2\u5165\u5217\u5230${side}`,
+	announceRowDeleted: '\u884c\u5df2\u5220\u9664',
+	announceColumnDeleted: '\u5217\u5df2\u5220\u9664',
+	announceTableDeleted: '\u8868\u683c\u5df2\u5220\u9664',
 
 	insertTable: '\u63d2\u5165\u8868\u683c',
 
@@ -283,6 +327,19 @@ export const TABLE_LOCALE_RU: TableLocale = {
 	borderSwatchLabel: (colorName: string) =>
 		`\u0413\u0440\u0430\u043d\u0438\u0446\u0430 ${colorName}`,
 
+	announceRowInsertedAbove:
+		'\u0421\u0442\u0440\u043e\u043a\u0430 \u0432\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u0430 \u0441\u0432\u0435\u0440\u0445\u0443',
+	announceRowInsertedBelow:
+		'\u0421\u0442\u0440\u043e\u043a\u0430 \u0432\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u0430 \u0441\u043d\u0438\u0437\u0443',
+	announceColumnInserted: (side: string) =>
+		`\u0421\u0442\u043e\u043b\u0431\u0435\u0446 \u0432\u0441\u0442\u0430\u0432\u043b\u0435\u043d ${side}`,
+	announceRowDeleted:
+		'\u0421\u0442\u0440\u043e\u043a\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0430',
+	announceColumnDeleted:
+		'\u0421\u0442\u043e\u043b\u0431\u0435\u0446 \u0443\u0434\u0430\u043b\u0435\u043d',
+	announceTableDeleted:
+		'\u0422\u0430\u0431\u043b\u0438\u0446\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0430',
+
 	insertTable:
 		'\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044c \u0442\u0430\u0431\u043b\u0438\u0446\u0443',
 
@@ -329,6 +386,16 @@ export const TABLE_LOCALE_AR: TableLocale = {
 	announceBorderReset:
 		'\u062a\u0645 \u0625\u0639\u0627\u062f\u0629 \u062a\u0639\u064a\u064a\u0646 \u062d\u062f\u0648\u062f \u0627\u0644\u062c\u062f\u0648\u0644 \u0625\u0644\u0649 \u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a',
 	borderSwatchLabel: (colorName: string) => `\u062d\u062f\u0648\u062f ${colorName}`,
+
+	announceRowInsertedAbove:
+		'\u062a\u0645 \u0625\u062f\u0631\u0627\u062c \u0635\u0641 \u0623\u0639\u0644\u0649',
+	announceRowInsertedBelow:
+		'\u062a\u0645 \u0625\u062f\u0631\u0627\u062c \u0635\u0641 \u0623\u0633\u0641\u0644',
+	announceColumnInserted: (side: string) =>
+		`\u062a\u0645 \u0625\u062f\u0631\u0627\u062c \u0639\u0645\u0648\u062f ${side}`,
+	announceRowDeleted: '\u062a\u0645 \u062d\u0630\u0641 \u0627\u0644\u0635\u0641',
+	announceColumnDeleted: '\u062a\u0645 \u062d\u0630\u0641 \u0627\u0644\u0639\u0645\u0648\u062f',
+	announceTableDeleted: '\u062a\u0645 \u062d\u0630\u0641 \u0627\u0644\u062c\u062f\u0648\u0644',
 
 	insertTable: '\u0625\u062f\u0631\u0627\u062c \u062c\u062f\u0648\u0644',
 
@@ -379,10 +446,35 @@ export const TABLE_LOCALE_HI: TableLocale = {
 		'\u0924\u093e\u0932\u093f\u0915\u093e \u092c\u0949\u0930\u094d\u0921\u0930 \u0921\u093f\u092b\u093c\u0949\u0932\u094d\u091f \u092a\u0930 \u0930\u0940\u0938\u0947\u091f \u0915\u093f\u092f\u093e \u0917\u092f\u093e',
 	borderSwatchLabel: (colorName: string) => `\u092c\u0949\u0930\u094d\u0921\u0930 ${colorName}`,
 
+	announceRowInsertedAbove:
+		'\u090a\u092a\u0930 \u092a\u0902\u0915\u094d\u0924\u093f \u0921\u093e\u0932\u0940 \u0917\u0908',
+	announceRowInsertedBelow:
+		'\u0928\u0940\u091a\u0947 \u092a\u0902\u0915\u094d\u0924\u093f \u0921\u093e\u0932\u0940 \u0917\u0908',
+	announceColumnInserted: (side: string) =>
+		`\u0938\u094d\u0924\u0902\u092d ${side} \u0921\u093e\u0932\u093e \u0917\u092f\u093e`,
+	announceRowDeleted: '\u092a\u0902\u0915\u094d\u0924\u093f \u0939\u091f\u093e\u0908 \u0917\u0908',
+	announceColumnDeleted:
+		'\u0938\u094d\u0924\u0902\u092d \u0939\u091f\u093e\u092f\u093e \u0917\u092f\u093e',
+	announceTableDeleted:
+		'\u0924\u093e\u0932\u093f\u0915\u093e \u0939\u091f\u093e\u0908 \u0917\u0908',
+
 	insertTable: '\u0924\u093e\u0932\u093f\u0915\u093e \u0921\u093e\u0932\u0947\u0902',
 
 	tableAriaLabel: (rows: number, cols: number) =>
 		`\u0924\u093e\u0932\u093f\u0915\u093e: ${rows} \u092a\u0902\u0915\u094d\u0924\u093f\u092f\u093e\u0902 \u0914\u0930 ${cols} \u0938\u094d\u0924\u0902\u092d`,
 	tableAriaDescription:
 		'\u0924\u093e\u0932\u093f\u0915\u093e \u0915\u094d\u0930\u093f\u092f\u093e\u0913\u0902 \u0915\u0947 \u0932\u093f\u090f \u0930\u093e\u0907\u091f-\u0915\u094d\u0932\u093f\u0915 \u092f\u093e Shift+F10',
+};
+
+// --- Locale Map ---
+
+export const TABLE_LOCALES: Record<string, TableLocale> = {
+	en: TABLE_LOCALE_EN,
+	de: TABLE_LOCALE_DE,
+	es: TABLE_LOCALE_ES,
+	fr: TABLE_LOCALE_FR,
+	zh: TABLE_LOCALE_ZH,
+	ru: TABLE_LOCALE_RU,
+	ar: TABLE_LOCALE_AR,
+	hi: TABLE_LOCALE_HI,
 };

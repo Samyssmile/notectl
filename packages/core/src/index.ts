@@ -409,10 +409,100 @@ export {
 	PaperSize,
 	getPaperDimensions,
 	getPaperCSSSize,
+	isValidPaperSize,
 	PAPER_MARGIN_TOP_PX,
 	PAPER_MARGIN_HORIZONTAL_PX,
+	PAPER_VIEWPORT_PADDING_PX,
 } from './editor/PaperSize.js';
 export type { PaperDimensions } from './editor/PaperSize.js';
+
+// --- i18n ---
+export { Locale } from './i18n/Locale.js';
+export type { Locale as LocaleType } from './i18n/Locale.js';
+export { LocaleService, LocaleServiceKey } from './i18n/LocaleService.js';
+export { resolvePluginLocale } from './i18n/resolvePluginLocale.js';
+
+// --- Plugin Locales ---
+export type { TextFormattingLocale } from './plugins/text-formatting/TextFormattingLocale.js';
+export {
+	TEXT_FORMATTING_LOCALE_EN,
+	TEXT_FORMATTING_LOCALES,
+} from './plugins/text-formatting/TextFormattingLocale.js';
+
+export type { HeadingLocale } from './plugins/heading/HeadingLocale.js';
+export { HEADING_LOCALE_EN, HEADING_LOCALES } from './plugins/heading/HeadingLocale.js';
+
+export type { ListLocale } from './plugins/list/ListLocale.js';
+export { LIST_LOCALE_EN, LIST_LOCALES } from './plugins/list/ListLocale.js';
+
+export type { LinkLocale } from './plugins/link/LinkLocale.js';
+export { LINK_LOCALE_EN, LINK_LOCALES } from './plugins/link/LinkLocale.js';
+
+export type { BlockquoteLocale } from './plugins/blockquote/BlockquoteLocale.js';
+export {
+	BLOCKQUOTE_LOCALE_EN,
+	BLOCKQUOTE_LOCALES,
+} from './plugins/blockquote/BlockquoteLocale.js';
+
+export type { StrikethroughLocale } from './plugins/strikethrough/StrikethroughLocale.js';
+export {
+	STRIKETHROUGH_LOCALE_EN,
+	STRIKETHROUGH_LOCALES,
+} from './plugins/strikethrough/StrikethroughLocale.js';
+
+export type { SuperSubLocale } from './plugins/super-sub/SuperSubLocale.js';
+export { SUPER_SUB_LOCALE_EN, SUPER_SUB_LOCALES } from './plugins/super-sub/SuperSubLocale.js';
+
+export type { TextColorLocale } from './plugins/text-color/TextColorLocale.js';
+export {
+	TEXT_COLOR_LOCALE_EN,
+	TEXT_COLOR_LOCALES,
+} from './plugins/text-color/TextColorLocale.js';
+
+export type { HighlightLocale } from './plugins/highlight/HighlightLocale.js';
+export {
+	HIGHLIGHT_LOCALE_EN,
+	HIGHLIGHT_LOCALES,
+} from './plugins/highlight/HighlightLocale.js';
+
+export type { AlignmentLocale } from './plugins/alignment/AlignmentLocale.js';
+export {
+	ALIGNMENT_LOCALE_EN,
+	ALIGNMENT_LOCALE_DE,
+	ALIGNMENT_LOCALES,
+} from './plugins/alignment/AlignmentLocale.js';
+
+export type { FontLocale } from './plugins/font/FontLocale.js';
+export { FONT_LOCALE_EN, FONT_LOCALES } from './plugins/font/FontLocale.js';
+
+export type { FontSizeLocale } from './plugins/font-size/FontSizeLocale.js';
+export {
+	FONT_SIZE_LOCALE_EN,
+	FONT_SIZE_LOCALES,
+} from './plugins/font-size/FontSizeLocale.js';
+
+export type { HorizontalRuleLocale } from './plugins/horizontal-rule/HorizontalRuleLocale.js';
+export {
+	HORIZONTAL_RULE_LOCALE_EN,
+	HORIZONTAL_RULE_LOCALES,
+} from './plugins/horizontal-rule/HorizontalRuleLocale.js';
+
+export type { ImageLocale } from './plugins/image/ImageLocale.js';
+export { IMAGE_LOCALE_EN, IMAGE_LOCALES } from './plugins/image/ImageLocale.js';
+
+export type { CodeBlockLocale } from './plugins/code-block/CodeBlockLocale.js';
+export {
+	CODE_BLOCK_LOCALE_EN,
+	CODE_BLOCK_LOCALES,
+} from './plugins/code-block/CodeBlockLocale.js';
+
+export type { PrintLocale } from './plugins/print/PrintLocale.js';
+export { PRINT_LOCALE_EN, PRINT_LOCALES } from './plugins/print/PrintLocale.js';
+
+export type { ToolbarLocale } from './plugins/toolbar/ToolbarLocale.js';
+export { TOOLBAR_LOCALE_EN, TOOLBAR_LOCALES } from './plugins/toolbar/ToolbarLocale.js';
+
+export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
 
 // --- Editor ---
 export type { NotectlEditorConfig, StateChangeEvent } from './editor/NotectlEditor.js';

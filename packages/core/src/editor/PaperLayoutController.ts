@@ -7,10 +7,7 @@
  * the paper, producing a Google Docs-like shrink-to-fit effect.
  */
 
-import { type PaperSize, getPaperDimensions } from './PaperSize.js';
-
-/** Horizontal padding (each side) inside the viewport around the paper surface. */
-const VIEWPORT_PADDING: number = 24;
+import { PAPER_VIEWPORT_PADDING_PX, type PaperSize, getPaperDimensions } from './PaperSize.js';
 
 export class PaperLayoutController {
 	private readonly wrapper: HTMLElement;
@@ -25,6 +22,7 @@ export class PaperLayoutController {
 	private currentSize: PaperSize | null = null;
 	private currentPaperWidthPx = 0;
 	private currentPaperHeightPx = 0;
+	private currentScale = 1;
 
 	constructor(wrapper: HTMLElement, content: HTMLElement) {
 		this.wrapper = wrapper;
@@ -132,6 +130,7 @@ export class PaperLayoutController {
 		this.currentSize = null;
 		this.currentPaperWidthPx = 0;
 		this.currentPaperHeightPx = 0;
+		this.currentScale = 1;
 		this.wrapper.removeAttribute('data-paper-mode');
 	}
 
@@ -144,8 +143,9 @@ export class PaperLayoutController {
 	private onViewportResize(viewportWidth: number): void {
 		if (!this.surface || this.currentPaperWidthPx === 0) return;
 
-		const availableWidth: number = viewportWidth - 2 * VIEWPORT_PADDING;
+		const availableWidth: number = viewportWidth - 2 * PAPER_VIEWPORT_PADDING_PX;
 		const scale: number = Math.min(1, availableWidth / this.currentPaperWidthPx);
+		this.currentScale = scale;
 
 		this.surface.style.transform = scale < 1 ? `scale(${scale})` : '';
 
@@ -155,12 +155,7 @@ export class PaperLayoutController {
 
 	private onSurfaceResize(_height: number): void {
 		if (!this.surface || !this.viewport) return;
-
-		// Re-read current scale and recalculate compensation
-		const transform: string = this.surface.style.transform;
-		const scaleMatch: RegExpMatchArray | null = transform.match(/scale\(([\d.]+)\)/);
-		const scale: number = scaleMatch ? Number.parseFloat(scaleMatch[1] ?? '1') : 1;
-		this.updateHeightCompensation(scale);
+		this.updateHeightCompensation(this.currentScale);
 	}
 
 	private updateHeightCompensation(scale: number): void {
