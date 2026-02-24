@@ -65,6 +65,8 @@ export class InputHandler {
 	}
 
 	private onBeforeInput(e: InputEvent): void {
+		if (this.element.contentEditable === 'false') return;
+
 		// During composition, let the browser handle it
 		if (this.composing && e.inputType === 'insertCompositionText') {
 			return;
@@ -159,6 +161,7 @@ export class InputHandler {
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		this.composing = false;
+		if (this.element.contentEditable === 'false') return;
 		const composedText = e.data;
 		if (!composedText) return;
 
