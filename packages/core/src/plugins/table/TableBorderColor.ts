@@ -12,6 +12,7 @@ import type { PluginContext } from '../Plugin.js';
 import { getColorName, isLightColor } from '../shared/ColorNames.js';
 import { navigateGrid } from '../toolbar/ToolbarKeyboardNav.js';
 import { findTableContext } from './TableHelpers.js';
+import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 
 // --- Border Color Palette ---
 
@@ -89,7 +90,11 @@ export function buildSetBorderColorTransaction(
 // --- Commands ---
 
 /** Sets the border color on the table surrounding the cursor. */
-export function setTableBorderColor(context: PluginContext, color: string): boolean {
+export function setTableBorderColor(
+	context: PluginContext,
+	color: string,
+	locale: TableLocale = TABLE_LOCALE_EN,
+): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx = findTableContext(state, state.selection.anchor.blockId);
@@ -100,12 +105,15 @@ export function setTableBorderColor(context: PluginContext, color: string): bool
 
 	context.dispatch(tr);
 	const colorName: string = color === 'none' ? 'none' : getColorName(color);
-	context.announce(`Table border color set to ${colorName}`);
+	context.announce(locale.announceBorderColorSet(colorName));
 	return true;
 }
 
 /** Resets the border color to theme default. */
-export function resetTableBorderColor(context: PluginContext): boolean {
+export function resetTableBorderColor(
+	context: PluginContext,
+	locale: TableLocale = TABLE_LOCALE_EN,
+): boolean {
 	const state = context.getState();
 	if (isNodeSelection(state.selection)) return false;
 	const tableCtx = findTableContext(state, state.selection.anchor.blockId);
@@ -115,7 +123,7 @@ export function resetTableBorderColor(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
-	context.announce('Table borders reset to default');
+	context.announce(locale.announceBorderReset);
 	return true;
 }
 
@@ -137,6 +145,7 @@ export function renderBorderColorPicker(
 	context: PluginContext,
 	tableId: BlockId,
 	onClose: () => void,
+	locale: TableLocale = TABLE_LOCALE_EN,
 ): void {
 	container.classList.add('notectl-color-picker');
 
@@ -148,11 +157,11 @@ export function renderBorderColorPicker(
 	const defaultBtn: HTMLButtonElement = document.createElement('button');
 	defaultBtn.type = 'button';
 	defaultBtn.className = 'notectl-color-picker__default';
-	defaultBtn.textContent = 'Default';
+	defaultBtn.textContent = locale.defaultColor;
 	defaultBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
-		resetTableBorderColor(context);
+		resetTableBorderColor(context, locale);
 		onClose();
 	});
 	defaultBtn.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -167,11 +176,11 @@ export function renderBorderColorPicker(
 	const noBordersBtn: HTMLButtonElement = document.createElement('button');
 	noBordersBtn.type = 'button';
 	noBordersBtn.className = 'notectl-color-picker__default';
-	noBordersBtn.textContent = 'No borders';
+	noBordersBtn.textContent = locale.noBorders;
 	noBordersBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
-		setTableBorderColor(context, 'none');
+		setTableBorderColor(context, 'none', locale);
 		onClose();
 	});
 	noBordersBtn.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -186,7 +195,7 @@ export function renderBorderColorPicker(
 	const grid: HTMLDivElement = document.createElement('div');
 	grid.className = 'notectl-color-picker__grid';
 	grid.setAttribute('role', 'grid');
-	grid.setAttribute('aria-label', 'Border color picker');
+	grid.setAttribute('aria-label', locale.borderColorPicker);
 
 	const swatches: HTMLButtonElement[] = [];
 	let focusedIndex = 0;
@@ -208,11 +217,11 @@ export function renderBorderColorPicker(
 			swatch.type = 'button';
 			swatch.className = 'notectl-color-picker__swatch';
 			swatch.setAttribute('role', 'gridcell');
-			swatch.setAttribute('aria-label', `Border ${colorName}`);
+			swatch.setAttribute('aria-label', locale.borderSwatchLabel(colorName));
 			swatch.setAttribute('aria-selected', String(isActive));
 			swatch.dataset.index = String(swatchIdx);
 			swatch.style.backgroundColor = color;
-			swatch.title = color;
+			swatch.title = colorName;
 
 			if (isLightColor(color)) {
 				swatch.style.border = '1px solid #d0d0d0';
@@ -226,7 +235,7 @@ export function renderBorderColorPicker(
 			swatch.addEventListener('mousedown', (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
-				setTableBorderColor(context, color);
+				setTableBorderColor(context, color, locale);
 				onClose();
 			});
 
@@ -253,7 +262,7 @@ export function renderBorderColorPicker(
 			if (idx !== undefined) {
 				const color: string | undefined = BORDER_COLOR_PALETTE[Number(idx)];
 				if (color) {
-					setTableBorderColor(context, color);
+					setTableBorderColor(context, color, locale);
 					onClose();
 				}
 			}

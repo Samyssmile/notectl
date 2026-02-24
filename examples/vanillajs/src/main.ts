@@ -111,7 +111,12 @@ const output = document.getElementById('output') as HTMLElement;
 			],
 			[new AlignmentPlugin()],
 			[new ListPlugin()],
-			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
+			[
+				new LinkPlugin(),
+				new TablePlugin(),
+				new HorizontalRulePlugin(),
+				new ImagePlugin(),
+			],
 			[new PrintPlugin()],
 		],
 		plugins: [new HardBreakPlugin()],
@@ -124,6 +129,7 @@ const output = document.getElementById('output') as HTMLElement;
 	// Event listeners
 	editor.on('stateChange', ({ newState }: StateChangeEvent) => {
 		// Optionally update output in real-time
+		console.debug('stateChange', newState);
 	});
 
 	editor.on('ready', () => {

@@ -13,6 +13,7 @@ import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
 import type { PluginContext } from '../Plugin.js';
 import { type TableContextMenuHandle, createTableContextMenu } from './TableContextMenu.js';
 import { type TableControlsHandle, createTableControls } from './TableControls.js';
+import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 
 /**
  * Creates a NodeViewFactory for the table node type.
@@ -21,6 +22,7 @@ import { type TableControlsHandle, createTableControls } from './TableControls.j
 export function createTableNodeViewFactory(
 	_registry: SchemaRegistry,
 	pluginContext?: PluginContext,
+	locale: TableLocale = TABLE_LOCALE_EN,
 ): NodeViewFactory {
 	return (
 		node: BlockNode,
@@ -44,8 +46,8 @@ export function createTableNodeViewFactory(
 		const rows: readonly BlockNode[] = getBlockChildren(node);
 		const totalRows: number = rows.length;
 		const totalCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
-		table.setAttribute('aria-label', `Table with ${totalRows} rows and ${totalCols} columns`);
-		table.setAttribute('aria-description', 'Right-click or press Shift+F10 for table actions');
+		table.setAttribute('aria-label', locale.tableAriaLabel(totalRows, totalCols));
+		table.setAttribute('aria-description', locale.tableAriaDescription);
 
 		const tbody: HTMLTableSectionElement = document.createElement('tbody');
 		table.appendChild(tbody);
@@ -70,6 +72,7 @@ export function createTableNodeViewFactory(
 			getState,
 			dispatch,
 			pluginContext,
+			locale,
 		);
 
 		// Context menu on right-click
@@ -92,6 +95,7 @@ export function createTableNodeViewFactory(
 				() => {
 					activeContextMenu = null;
 				},
+				locale,
 			);
 		};
 		table.addEventListener('contextmenu', onContextMenu);
@@ -107,10 +111,7 @@ export function createTableNodeViewFactory(
 				const updatedRows: readonly BlockNode[] = getBlockChildren(updatedNode);
 				const newTotalRows: number = updatedRows.length;
 				const newTotalCols: number = updatedRows[0] ? getBlockChildren(updatedRows[0]).length : 0;
-				table.setAttribute(
-					'aria-label',
-					`Table with ${newTotalRows} rows and ${newTotalCols} columns`,
-				);
+				table.setAttribute('aria-label', locale.tableAriaLabel(newTotalRows, newTotalCols));
 
 				// Update border color CSS variable
 				applyBorderColor(table, updatedNode.attrs?.borderColor as string | undefined);
