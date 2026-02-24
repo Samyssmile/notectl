@@ -59,6 +59,21 @@ test.describe('FontSizePlugin', () => {
 		expect(count).toBeGreaterThan(0);
 	});
 
+	test('Clicking font size input field does not close popup', async ({ editor, page }) => {
+		const sizeBtn = editor.markButton('fontSize');
+		await sizeBtn.click();
+
+		const popup = editor.root.locator('.notectl-font-size-picker');
+		await expect(popup).toBeVisible();
+
+		// Click the input field inside the popup
+		const input = popup.locator('input');
+		await expect(input).toBeVisible();
+		await input.click();
+		// Popup should remain open after clicking its input
+		await expect(popup).toBeVisible();
+	});
+
 	test('Selecting default size (12) removes font-size mark', async ({ editor, page }) => {
 		await recreateWithDefaultSize12(page);
 
