@@ -91,7 +91,8 @@
 			"import": "./dist/plugins/hard-break.mjs"
 		}
 	},
-	"files": ["dist", "README.md"],
+	"customElements": "custom-elements.json",
+	"files": ["dist", "README.md", "custom-elements.json"],
 	"keywords": [
 		"rich-text-editor",
 		"web-component",

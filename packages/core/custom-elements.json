@@ -1,0 +1,344 @@
+{
+	"schemaVersion": "1.0.0",
+	"readme": "",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "dist/notectl-core.mjs",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "NotectlEditor",
+					"superclass": {
+						"name": "HTMLElement"
+					},
+					"tagName": "notectl-editor",
+					"description": "A modern, accessible rich text editor shipped as a single Web Component. Features immutable state, transaction-based architecture, and a plugin system that powers every feature.",
+					"members": [
+						{
+							"kind": "field",
+							"name": "commands",
+							"type": {
+								"text": "{ toggleBold(): boolean | undefined; toggleItalic(): boolean | undefined; toggleUnderline(): boolean | undefined; undo(): void; redo(): void; selectAll(): void; }"
+							},
+							"description": "Convenience accessors for common formatting commands.",
+							"readonly": true
+						},
+						{
+							"kind": "method",
+							"name": "getHTML",
+							"return": {
+								"type": {
+									"text": "string"
+								}
+							},
+							"description": "Returns sanitized HTML representation of the document."
+						},
+						{
+							"kind": "method",
+							"name": "setHTML",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "html",
+									"type": {
+										"text": "string"
+									},
+									"description": "HTML string to set as content."
+								}
+							],
+							"description": "Sets the editor content from an HTML string (sanitized via DOMPurify)."
+						},
+						{
+							"kind": "method",
+							"name": "getJSON",
+							"return": {
+								"type": {
+									"text": "Document"
+								}
+							},
+							"description": "Returns the document as an immutable JSON-serializable Document object."
+						},
+						{
+							"kind": "method",
+							"name": "setJSON",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "doc",
+									"type": {
+										"text": "Document"
+									},
+									"description": "A Document object to set as editor content."
+								}
+							],
+							"description": "Replaces the editor content with the given Document object."
+						},
+						{
+							"kind": "method",
+							"name": "getText",
+							"return": {
+								"type": {
+									"text": "string"
+								}
+							},
+							"description": "Returns the plain text content of the editor."
+						},
+						{
+							"kind": "method",
+							"name": "isEmpty",
+							"return": {
+								"type": {
+									"text": "boolean"
+								}
+							},
+							"description": "Returns true if the editor contains only a single empty paragraph."
+						},
+						{
+							"kind": "method",
+							"name": "executeCommand",
+							"return": {
+								"type": {
+									"text": "boolean"
+								}
+							},
+							"parameters": [
+								{
+									"name": "name",
+									"type": {
+										"text": "string"
+									},
+									"description": "The name of a registered command."
+								}
+							],
+							"description": "Executes a named command registered by a plugin."
+						},
+						{
+							"kind": "method",
+							"name": "setTheme",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "theme",
+									"type": {
+										"text": "ThemePreset | Theme"
+									},
+									"description": "A built-in preset ('light' | 'dark' | 'system') or a custom Theme object."
+								}
+							],
+							"description": "Changes the editor theme at runtime."
+						},
+						{
+							"kind": "method",
+							"name": "getTheme",
+							"return": {
+								"type": {
+									"text": "ThemePreset | Theme"
+								}
+							},
+							"description": "Returns the current theme setting."
+						},
+						{
+							"kind": "method",
+							"name": "destroy",
+							"return": {
+								"type": {
+									"text": "Promise<void>"
+								}
+							},
+							"description": "Tears down the editor, disconnects plugins, and cleans up DOM resources."
+						}
+					],
+					"attributes": [
+						{
+							"name": "placeholder",
+							"type": {
+								"text": "string"
+							},
+							"description": "Placeholder text shown when the editor is empty."
+						},
+						{
+							"name": "readonly",
+							"type": {
+								"text": "string"
+							},
+							"description": "When present, puts the editor into read-only mode."
+						},
+						{
+							"name": "theme",
+							"type": {
+								"text": "'light' | 'dark' | 'system'"
+							},
+							"description": "Sets the built-in theme preset. Defaults to 'light'."
+						}
+					],
+					"events": [
+						{
+							"name": "ready",
+							"type": {
+								"text": "CustomEvent<undefined>"
+							},
+							"description": "Fired when the editor has been fully initialized and is ready for interaction."
+						},
+						{
+							"name": "focus",
+							"type": {
+								"text": "CustomEvent<undefined>"
+							},
+							"description": "Fired when the editor content area receives focus."
+						},
+						{
+							"name": "blur",
+							"type": {
+								"text": "CustomEvent<undefined>"
+							},
+							"description": "Fired when the editor content area loses focus."
+						},
+						{
+							"name": "stateChange",
+							"type": {
+								"text": "CustomEvent<{ oldState: EditorState; newState: EditorState; transaction: Transaction }>"
+							},
+							"description": "Fired after every state transition, providing the old state, new state, and the applied transaction."
+						},
+						{
+							"name": "selectionChange",
+							"type": {
+								"text": "CustomEvent<{ selection: EditorSelection }>"
+							},
+							"description": "Fired when the cursor or selection changes."
+						}
+					],
+					"cssProperties": [
+						{
+							"name": "--notectl-bg",
+							"description": "Editor background color."
+						},
+						{
+							"name": "--notectl-fg",
+							"description": "Editor foreground (text) color."
+						},
+						{
+							"name": "--notectl-fg-muted",
+							"description": "Muted foreground color for secondary text."
+						},
+						{
+							"name": "--notectl-border",
+							"description": "Default border color."
+						},
+						{
+							"name": "--notectl-border-focus",
+							"description": "Border color when the editor is focused."
+						},
+						{
+							"name": "--notectl-primary",
+							"description": "Primary accent color (buttons, links)."
+						},
+						{
+							"name": "--notectl-primary-fg",
+							"description": "Foreground color on primary backgrounds."
+						},
+						{
+							"name": "--notectl-primary-muted",
+							"description": "Muted variant of the primary color."
+						},
+						{
+							"name": "--notectl-surface-raised",
+							"description": "Background for raised surfaces (toolbar, popups)."
+						},
+						{
+							"name": "--notectl-surface-overlay",
+							"description": "Background for overlay surfaces (modals, dropdowns)."
+						},
+						{
+							"name": "--notectl-hover-bg",
+							"description": "Background color on hover."
+						},
+						{
+							"name": "--notectl-active-bg",
+							"description": "Background color on active/pressed state."
+						},
+						{
+							"name": "--notectl-danger",
+							"description": "Danger/error accent color."
+						},
+						{
+							"name": "--notectl-danger-muted",
+							"description": "Muted variant of the danger color."
+						},
+						{
+							"name": "--notectl-success",
+							"description": "Success accent color."
+						},
+						{
+							"name": "--notectl-shadow",
+							"description": "Box shadow color for elevated surfaces."
+						},
+						{
+							"name": "--notectl-focus-ring",
+							"description": "Focus ring color for keyboard navigation."
+						}
+					]
+				},
+				{
+					"kind": "function",
+					"name": "createEditor",
+					"return": {
+						"type": {
+							"text": "Promise<NotectlEditor>"
+						}
+					},
+					"parameters": [
+						{
+							"name": "config",
+							"optional": true,
+							"type": {
+								"text": "NotectlEditorConfig"
+							},
+							"description": "Optional editor configuration (plugins, theme, placeholder, etc.)."
+						}
+					],
+					"description": "Factory function that creates and initializes a <notectl-editor> element."
+				}
+			],
+			"exports": [
+				{
+					"kind": "js",
+					"name": "NotectlEditor",
+					"declaration": {
+						"name": "NotectlEditor",
+						"module": "dist/notectl-core.mjs"
+					}
+				},
+				{
+					"kind": "js",
+					"name": "createEditor",
+					"declaration": {
+						"name": "createEditor",
+						"module": "dist/notectl-core.mjs"
+					}
+				},
+				{
+					"kind": "custom-element-definition",
+					"name": "notectl-editor",
+					"declaration": {
+						"name": "NotectlEditor",
+						"module": "dist/notectl-core.mjs"
+					}
+				}
+			]
+		}
+	]
+}
