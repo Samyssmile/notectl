@@ -54,6 +54,7 @@ export default defineConfig({
 						{ label: 'Theming', slug: 'guides/styling' },
 						{ label: 'Working with Content', slug: 'guides/content' },
 						{ label: 'Events & Lifecycle', slug: 'guides/events' },
+						{ label: 'Paper Size', slug: 'guides/paper-size' },
 						{ label: 'Angular Integration', slug: 'guides/angular' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },
 					],
