@@ -255,6 +255,9 @@ export class NotectlEditor extends HTMLElement {
 			},
 		});
 
+		// Guard: editor may have been destroyed during async plugin init
+		if (!this.pluginManager) return;
+
 		// Register BEFORE_PRINT listener to inject paperSize as fallback
 		this.pluginManager.onEvent(BEFORE_PRINT, (event) => {
 			if (!event.options.paperSize && this.config.paperSize) {
