@@ -149,10 +149,11 @@ describe('TextColorPlugin', () => {
 					getState: () => defaultState(),
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(70);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(70);
 		});
 
 		it('restricts palette to custom colors', async () => {
@@ -170,10 +171,11 @@ describe('TextColorPlugin', () => {
 					getState: () => defaultState(),
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(3);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(3);
 		});
 
 		it('accepts shorthand hex colors (#RGB)', () => {
@@ -196,10 +198,11 @@ describe('TextColorPlugin', () => {
 					getState: () => defaultState(),
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(2);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(2);
 		});
 
 		it('throws on invalid hex color', () => {
@@ -233,10 +236,11 @@ describe('TextColorPlugin', () => {
 					getState: () => defaultState(),
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(70);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(70);
 		});
 	});
 
@@ -261,12 +265,14 @@ describe('TextColorPlugin', () => {
 					getState: () => state,
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
-			// Verify grid was rendered
-			const grid = container.querySelector('.notectl-color-picker__grid');
+			// Verify grid was rendered with ARIA structure
+			const grid = container.querySelector('[role="grid"]');
 			expect(grid).toBeDefined();
-			expect(grid?.children.length).toBe(70); // 10x7
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(70); // 10x7
 		});
 
 		it('replaces color on already-colored text', async () => {
@@ -292,6 +298,7 @@ describe('TextColorPlugin', () => {
 					getState: () => state,
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
 			// Check the active swatch is highlighted
@@ -322,6 +329,7 @@ describe('TextColorPlugin', () => {
 					getState: () => state,
 					dispatch: vi.fn(),
 				}),
+				vi.fn(),
 			);
 
 			const defaultBtn = container.querySelector('.notectl-color-picker__default');

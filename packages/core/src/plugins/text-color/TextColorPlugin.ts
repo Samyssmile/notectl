@@ -3,14 +3,12 @@
  * toolbar button with a color picker popup, and removeTextColor command.
  */
 
-import { forEachBlockInRange } from '../../commands/Commands.js';
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { isMarkOfType } from '../../model/AttrRegistry.js';
-import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
-import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
+import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
+import { resolveColors } from '../shared/ColorValidation.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -32,44 +30,6 @@ export interface TextColorConfig {
 	readonly colors?: readonly string[];
 	/** When true, a separator is rendered after the textColor toolbar item. */
 	readonly separatorAfter?: boolean;
-}
-
-const DEFAULT_CONFIG: TextColorConfig = {};
-
-// --- Color Validation ---
-
-const HEX_COLOR_PATTERN: RegExp = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
-
-function isValidHexColor(value: string): boolean {
-	return HEX_COLOR_PATTERN.test(value);
-}
-
-/**
- * Validates, deduplicates, and normalizes the user-supplied color list.
- * Returns the default palette when no custom colors are provided.
- *
- * @throws {Error} if any value is not a valid hex color code.
- */
-function resolveColors(colors: readonly string[] | undefined): readonly string[] {
-	if (!colors || colors.length === 0) return COLOR_PALETTE;
-
-	const invalid: string[] = colors.filter((c) => !isValidHexColor(c));
-	if (invalid.length > 0) {
-		throw new Error(
-			`TextColorPlugin: invalid hex color(s): ${invalid.join(', ')}. Expected format: #RGB or #RRGGBB.`,
-		);
-	}
-
-	const seen: Set<string> = new Set();
-	const unique: string[] = [];
-	for (const color of colors) {
-		const normalized: string = color.toLowerCase();
-		if (!seen.has(normalized)) {
-			seen.add(normalized);
-			unique.push(normalized);
-		}
-	}
-	return unique;
 }
 
 // --- Color Palette (Google Docs style: 10 columns x 7 rows) ---
@@ -165,8 +125,8 @@ export class TextColorPlugin implements Plugin {
 	private readonly colors: readonly string[];
 
 	constructor(config?: Partial<TextColorConfig>) {
-		this.config = { ...DEFAULT_CONFIG, ...config };
-		this.colors = resolveColors(config?.colors);
+		this.config = { ...config };
+		this.colors = resolveColors(config?.colors, COLOR_PALETTE, 'TextColorPlugin');
 	}
 
 	init(context: PluginContext): void {
@@ -209,8 +169,7 @@ export class TextColorPlugin implements Plugin {
 
 	private registerCommands(context: PluginContext): void {
 		context.registerCommand('removeTextColor', () => {
-			const state = context.getState();
-			return this.removeColor(context, state);
+			return removeColorMark(context, context.getState(), 'textColor');
 		});
 	}
 
@@ -236,163 +195,18 @@ export class TextColorPlugin implements Plugin {
 			priority: 45,
 			popupType: 'custom',
 			separatorAfter: this.config.separatorAfter,
-			renderPopup: (container, ctx) => {
-				this.renderColorPopup(container, ctx);
+			renderPopup: (container, ctx, onClose) => {
+				renderColorPickerPopup(container, ctx, {
+					markType: 'textColor',
+					colors: this.colors,
+					columns: 10,
+					resetLabel: 'Default',
+					resetCommand: 'removeTextColor',
+					ariaLabelPrefix: 'Text color',
+					onClose,
+				});
 			},
-			isActive: (state) => this.isTextColorActive(state),
+			isActive: (state: EditorState) => isColorMarkActive(state, 'textColor'),
 		});
-	}
-
-	// --- State Queries ---
-
-	private isTextColorActive(state: EditorState): boolean {
-		return this.getActiveColor(state) !== null;
-	}
-
-	private getActiveColor(state: EditorState): string | null {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return null;
-
-		if (isCollapsed(sel)) {
-			if (state.storedMarks) {
-				const mark = state.storedMarks.find((m) => m.type === 'textColor');
-				return mark && isMarkOfType(mark, 'textColor') ? (mark.attrs.color ?? null) : null;
-			}
-			const block = state.getBlock(sel.anchor.blockId);
-			if (!block) return null;
-			const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-			const mark = marks.find((m) => m.type === 'textColor');
-			return mark && isMarkOfType(mark, 'textColor') ? (mark.attrs.color ?? null) : null;
-		}
-
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return null;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		const mark = marks.find((m) => m.type === 'textColor');
-		return mark && isMarkOfType(mark, 'textColor') ? (mark.attrs.color ?? null) : null;
-	}
-
-	// --- Color Application ---
-
-	private applyColor(context: PluginContext, state: EditorState, color: string): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-
-		if (isCollapsed(sel)) {
-			// Set stored marks with the new color
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			const withoutColor = currentMarks.filter((m) => m.type !== 'textColor');
-			const newMarks = [...withoutColor, { type: markType('textColor'), attrs: { color } }];
-
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		// Range selection: remove existing textColor, then add new one
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-		const mark = { type: markType('textColor'), attrs: { color } };
-
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			builder.removeMark(blockId, from, to, { type: markType('textColor') });
-			builder.addMark(blockId, from, to, mark);
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	private removeColor(context: PluginContext, state: EditorState): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-
-		if (isCollapsed(sel)) {
-			// Remove textColor from stored marks
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			if (!hasMark(currentMarks, markType('textColor'))) return false;
-
-			const newMarks = currentMarks.filter((m) => m.type !== 'textColor');
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		// Range selection: remove textColor from range
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			builder.removeMark(blockId, from, to, { type: markType('textColor') });
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	// --- Popup Rendering ---
-
-	private renderColorPopup(container: HTMLElement, context: PluginContext): void {
-		container.classList.add('notectl-color-picker');
-
-		const state = context.getState();
-		const activeColor = this.getActiveColor(state);
-
-		// "Default" button to remove color
-		const defaultBtn = document.createElement('button');
-		defaultBtn.type = 'button';
-		defaultBtn.className = 'notectl-color-picker__default';
-		defaultBtn.textContent = 'Default';
-		defaultBtn.addEventListener('mousedown', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			context.executeCommand('removeTextColor');
-		});
-		container.appendChild(defaultBtn);
-
-		// Color grid
-		const grid = document.createElement('div');
-		grid.className = 'notectl-color-picker__grid';
-
-		for (const color of this.colors) {
-			const swatch = document.createElement('button');
-			swatch.type = 'button';
-			swatch.className = 'notectl-color-picker__swatch';
-			if (activeColor && activeColor.toLowerCase() === color.toLowerCase()) {
-				swatch.classList.add('notectl-color-picker__swatch--active');
-			}
-			swatch.style.backgroundColor = color;
-			if (color === '#ffffff') {
-				swatch.style.border = '1px solid #d0d0d0';
-			}
-			swatch.title = color;
-			swatch.setAttribute('aria-label', `Text color ${color}`);
-
-			swatch.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this.applyColor(context, context.getState(), color);
-			});
-
-			grid.appendChild(swatch);
-		}
-
-		container.appendChild(grid);
 	}
 }

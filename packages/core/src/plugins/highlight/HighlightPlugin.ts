@@ -3,14 +3,12 @@
  * toolbar button with a color picker popup, and removeHighlight command.
  */
 
-import { forEachBlockInRange } from '../../commands/Commands.js';
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { isMarkOfType } from '../../model/AttrRegistry.js';
-import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
-import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
+import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
+import { resolveColors } from '../shared/ColorValidation.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -34,44 +32,6 @@ export interface HighlightConfig {
 	readonly separatorAfter?: boolean;
 }
 
-const DEFAULT_CONFIG: HighlightConfig = {};
-
-// --- Color Validation ---
-
-const HEX_COLOR_PATTERN: RegExp = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
-
-function isValidHexColor(value: string): boolean {
-	return HEX_COLOR_PATTERN.test(value);
-}
-
-/**
- * Validates, deduplicates, and normalizes the user-supplied color list.
- * Returns the default palette when no custom colors are provided.
- *
- * @throws {Error} if any value is not a valid hex color code.
- */
-function resolveColors(colors: readonly string[] | undefined): readonly string[] {
-	if (!colors || colors.length === 0) return HIGHLIGHT_PALETTE;
-
-	const invalid: string[] = colors.filter((c) => !isValidHexColor(c));
-	if (invalid.length > 0) {
-		throw new Error(
-			`HighlightPlugin: invalid hex color(s): ${invalid.join(', ')}. Expected format: #RGB or #RRGGBB.`,
-		);
-	}
-
-	const seen: Set<string> = new Set();
-	const unique: string[] = [];
-	for (const color of colors) {
-		const normalized: string = color.toLowerCase();
-		if (!seen.has(normalized)) {
-			seen.add(normalized);
-			unique.push(normalized);
-		}
-	}
-	return unique;
-}
-
 // --- Color Palette (Highlight-optimized: 10 columns x 5 rows) ---
 
 const HIGHLIGHT_PALETTE: readonly string[] = [
@@ -86,7 +46,6 @@ const HIGHLIGHT_PALETTE: readonly string[] = [
 	'#ff8a65',
 	'#e6ee9c',
 	'#80cbc4',
-
 	// Row 2 — Light pastels
 	'#fff9c4',
 	'#dcedc8',
@@ -98,7 +57,6 @@ const HIGHLIGHT_PALETTE: readonly string[] = [
 	'#fbe9e7',
 	'#f9fbe7',
 	'#e0f2f1',
-
 	// Row 3 — Medium pastels
 	'#fff59d',
 	'#c5e1a5',
@@ -110,7 +68,6 @@ const HIGHLIGHT_PALETTE: readonly string[] = [
 	'#ffab91',
 	'#e6ee9c',
 	'#a5d6a7',
-
 	// Row 4 — Bold pastels
 	'#ffee58',
 	'#9ccc65',
@@ -122,7 +79,6 @@ const HIGHLIGHT_PALETTE: readonly string[] = [
 	'#ff7043',
 	'#d4e157',
 	'#66bb6a',
-
 	// Row 5 — Grays and neutral highlights
 	'#ffffff',
 	'#fafafa',
@@ -147,8 +103,8 @@ export class HighlightPlugin implements Plugin {
 	private readonly colors: readonly string[];
 
 	constructor(config?: Partial<HighlightConfig>) {
-		this.config = { ...DEFAULT_CONFIG, ...config };
-		this.colors = resolveColors(config?.colors);
+		this.config = { ...config };
+		this.colors = resolveColors(config?.colors, HIGHLIGHT_PALETTE, 'HighlightPlugin');
 	}
 
 	init(context: PluginContext): void {
@@ -191,8 +147,7 @@ export class HighlightPlugin implements Plugin {
 
 	private registerCommands(context: PluginContext): void {
 		context.registerCommand('removeHighlight', () => {
-			const state = context.getState();
-			return this.removeHighlight(context, state);
+			return removeColorMark(context, context.getState(), 'highlight');
 		});
 	}
 
@@ -218,157 +173,18 @@ export class HighlightPlugin implements Plugin {
 			priority: 46,
 			popupType: 'custom',
 			separatorAfter: this.config.separatorAfter,
-			renderPopup: (container, ctx) => {
-				this.renderHighlightPopup(container, ctx);
+			renderPopup: (container, ctx, onClose) => {
+				renderColorPickerPopup(container, ctx, {
+					markType: 'highlight',
+					colors: this.colors,
+					columns: 10,
+					resetLabel: 'None',
+					resetCommand: 'removeHighlight',
+					ariaLabelPrefix: 'Highlight color',
+					onClose,
+				});
 			},
-			isActive: (state) => this.isHighlightActive(state),
+			isActive: (state: EditorState) => isColorMarkActive(state, 'highlight'),
 		});
-	}
-
-	// --- State Queries ---
-
-	private isHighlightActive(state: EditorState): boolean {
-		return this.getActiveColor(state) !== null;
-	}
-
-	private getActiveColor(state: EditorState): string | null {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return null;
-
-		if (isCollapsed(sel)) {
-			if (state.storedMarks) {
-				const mark = state.storedMarks.find((m) => m.type === 'highlight');
-				return mark && isMarkOfType(mark, 'highlight') ? (mark.attrs.color ?? null) : null;
-			}
-			const block = state.getBlock(sel.anchor.blockId);
-			if (!block) return null;
-			const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-			const mark = marks.find((m) => m.type === 'highlight');
-			return mark && isMarkOfType(mark, 'highlight') ? (mark.attrs.color ?? null) : null;
-		}
-
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return null;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		const mark = marks.find((m) => m.type === 'highlight');
-		return mark && isMarkOfType(mark, 'highlight') ? (mark.attrs.color ?? null) : null;
-	}
-
-	// --- Highlight Application ---
-
-	private applyHighlight(context: PluginContext, state: EditorState, color: string): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-
-		if (isCollapsed(sel)) {
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			const withoutHighlight = currentMarks.filter((m) => m.type !== 'highlight');
-			const newMarks = [...withoutHighlight, { type: markType('highlight'), attrs: { color } }];
-
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-		const mark = { type: markType('highlight'), attrs: { color } };
-
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			builder.removeMark(blockId, from, to, { type: markType('highlight') });
-			builder.addMark(blockId, from, to, mark);
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	private removeHighlight(context: PluginContext, state: EditorState): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
-
-		if (isCollapsed(sel)) {
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			if (!hasMark(currentMarks, markType('highlight'))) return false;
-
-			const newMarks = currentMarks.filter((m) => m.type !== 'highlight');
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			builder.removeMark(blockId, from, to, { type: markType('highlight') });
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	// --- Popup Rendering ---
-
-	private renderHighlightPopup(container: HTMLElement, context: PluginContext): void {
-		container.classList.add('notectl-color-picker');
-
-		const state = context.getState();
-		const activeColor = this.getActiveColor(state);
-
-		const defaultBtn = document.createElement('button');
-		defaultBtn.type = 'button';
-		defaultBtn.className = 'notectl-color-picker__default';
-		defaultBtn.textContent = 'None';
-		defaultBtn.addEventListener('mousedown', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			context.executeCommand('removeHighlight');
-		});
-		container.appendChild(defaultBtn);
-
-		const grid = document.createElement('div');
-		grid.className = 'notectl-color-picker__grid';
-
-		for (const color of this.colors) {
-			const swatch = document.createElement('button');
-			swatch.type = 'button';
-			swatch.className = 'notectl-color-picker__swatch';
-			if (activeColor && activeColor.toLowerCase() === color.toLowerCase()) {
-				swatch.classList.add('notectl-color-picker__swatch--active');
-			}
-			swatch.style.backgroundColor = color;
-			if (color === '#ffffff') {
-				swatch.style.border = '1px solid #d0d0d0';
-			}
-			swatch.title = color;
-			swatch.setAttribute('aria-label', `Highlight color ${color}`);
-
-			swatch.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this.applyHighlight(context, context.getState(), color);
-			});
-
-			grid.appendChild(swatch);
-		}
-
-		container.appendChild(grid);
 	}
 }
