@@ -382,7 +382,8 @@ export class HTMLParser {
 		if (upperTag === 'STRONG' || upperTag === 'B') {
 			const fw: string = element.style.fontWeight;
 			const numeric: number = Number.parseInt(fw, 10);
-			const isExplicitlyNotBold: boolean = fw === 'normal' || (!isNaN(numeric) && numeric < 700);
+			const isExplicitlyNotBold: boolean =
+				fw === 'normal' || (!Number.isNaN(numeric) && numeric < 700);
 			if (!isExplicitlyNotBold) {
 				marks.push({ type: markType('bold') });
 			}
