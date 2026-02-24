@@ -17,6 +17,7 @@ import {
 	TablePlugin,
 	TextColorPlugin,
 	TextFormattingPlugin,
+	PaperSize,
 	ThemePreset,
 	ToolbarPlugin,
 	createEditor,
@@ -88,6 +89,7 @@ const output = document.getElementById('output') as HTMLElement;
 (async () => {
 	const editor = await createEditor({
 		theme: ThemePreset.Light,
+		paperSize: PaperSize.DINA4,
 		toolbar: [
 			[
 				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
@@ -111,12 +113,7 @@ const output = document.getElementById('output') as HTMLElement;
 			],
 			[new AlignmentPlugin()],
 			[new ListPlugin()],
-			[
-				new LinkPlugin(),
-				new TablePlugin(),
-				new HorizontalRulePlugin(),
-				new ImagePlugin(),
-			],
+			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 			[new PrintPlugin()],
 		],
 		plugins: [new HardBreakPlugin()],
