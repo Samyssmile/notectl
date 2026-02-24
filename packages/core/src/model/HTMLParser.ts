@@ -103,6 +103,10 @@ export class HTMLParser {
 					this.flushPendingSegments(blocks, pendingSegments);
 					pendingSegments = [];
 					blocks.push(...this.parseBlockElement(el));
+				} else if (el.children.length > 0 && this.containsBlockDescendants(el)) {
+					this.flushPendingSegments(blocks, pendingSegments);
+					pendingSegments = [];
+					blocks.push(...this.parseContainerWithMarks(el, this.marksFromElement(el)));
 				} else {
 					pendingSegments.push(...this.parseInlineNode(child, []));
 				}
@@ -137,12 +141,7 @@ export class HTMLParser {
 		switch (tag) {
 			case 'P':
 			case 'DIV':
-				return [
-					{
-						type: this.resolveBlockType(nodeType('paragraph')),
-						segments: this.ensureSegments(this.parseInlineChildren(element, [])),
-					},
-				];
+				return this.parseBlockWithLineBreaks(element, this.resolveBlockType(nodeType('paragraph')));
 
 			case 'BLOCKQUOTE':
 				return this.parseBlockquote(element);
@@ -381,7 +380,12 @@ export class HTMLParser {
 		// Fallback to hardcoded logic when no registry is provided
 		const upperTag: string = element.tagName;
 		if (upperTag === 'STRONG' || upperTag === 'B') {
-			marks.push({ type: markType('bold') });
+			const fw: string = element.style.fontWeight;
+			const numeric: number = Number.parseInt(fw, 10);
+			const isExplicitlyNotBold: boolean = fw === 'normal' || (!isNaN(numeric) && numeric < 700);
+			if (!isExplicitlyNotBold) {
+				marks.push({ type: markType('bold') });
+			}
 		}
 		if (upperTag === 'EM' || upperTag === 'I') {
 			marks.push({ type: markType('italic') });
@@ -474,6 +478,86 @@ export class HTMLParser {
 	private isCheckboxChecked(element: HTMLElement): boolean {
 		const input: HTMLInputElement | null = element.querySelector('input[type="checkbox"]');
 		return input?.hasAttribute('checked') ?? false;
+	}
+
+	/** Checks whether an element contains any block-level descendants. */
+	private containsBlockDescendants(el: HTMLElement): boolean {
+		for (const child of Array.from(el.children)) {
+			if (this.isBlockElement(child as HTMLElement)) return true;
+			if (this.containsBlockDescendants(child as HTMLElement)) return true;
+		}
+		return false;
+	}
+
+	/** Parses a container element, prepending inherited marks to all resulting blocks. */
+	private parseContainerWithMarks(
+		container: HTMLElement,
+		inheritedMarks: readonly Mark[],
+	): SliceBlock[] {
+		const innerBlocks: SliceBlock[] = this.parseContainer(container);
+		if (inheritedMarks.length === 0) return innerBlocks;
+
+		return innerBlocks.map(
+			(block: SliceBlock): SliceBlock => ({
+				...block,
+				segments: this.prependMarks(block.segments, inheritedMarks),
+			}),
+		);
+	}
+
+	/** Merges inherited marks into each segment's mark list. */
+	private prependMarks(
+		segments: readonly TextSegment[],
+		marks: readonly Mark[],
+	): readonly TextSegment[] {
+		return segments.map(
+			(s: TextSegment): TextSegment => ({
+				text: s.text,
+				marks: this.mergeMarks(marks, s.marks),
+			}),
+		);
+	}
+
+	/**
+	 * Parses a block element, splitting into multiple blocks at `<br>` boundaries.
+	 * `<br>` may appear at any nesting depth (e.g. inside `<b>` or `<span>`),
+	 * so we parse inline content first, then split the resulting segments at
+	 * the `\n` characters produced by `<br>`.
+	 */
+	private parseBlockWithLineBreaks(element: HTMLElement, blockType: NodeTypeName): SliceBlock[] {
+		const segments: readonly TextSegment[] = this.parseInlineChildren(element, []);
+		const hasLineBreak: boolean = segments.some((s: TextSegment) => s.text.includes('\n'));
+
+		if (!hasLineBreak) {
+			return [{ type: blockType, segments: this.ensureSegments(segments) }];
+		}
+
+		const blocks: SliceBlock[] = [];
+		let current: TextSegment[] = [];
+
+		for (const segment of segments) {
+			const parts: readonly string[] = segment.text.split('\n');
+			for (let i = 0; i < parts.length; i++) {
+				if (i > 0) {
+					blocks.push({
+						type: blockType,
+						segments: this.ensureSegments(this.normalizeSegments(current)),
+					});
+					current = [];
+				}
+				const part: string = parts[i] ?? '';
+				if (part) {
+					current.push({ text: part, marks: segment.marks });
+				}
+			}
+		}
+
+		blocks.push({
+			type: blockType,
+			segments: this.ensureSegments(this.normalizeSegments(current)),
+		});
+
+		return blocks;
 	}
 
 	private flushPendingSegments(blocks: SliceBlock[], segments: TextSegment[]): void {
