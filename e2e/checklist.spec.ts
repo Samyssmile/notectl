@@ -271,4 +271,63 @@ test.describe('Checklist', () => {
 		expect(json.children[0]?.attrs?.listType).toBe('bullet');
 		expect(json.children[1]?.attrs?.listType).toBe('bullet');
 	});
+
+	test('clicking checkbox area toggles checked state', async ({ editor, page }) => {
+		await editor.typeText('Toggle me');
+
+		const checklistBtn = editor.markButton('list-checklist');
+		await checklistBtn.click();
+
+		const listItem = editor.content.locator('.notectl-list-item--checklist');
+		await expect(listItem).toBeVisible();
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+
+		// Click in the checkbox area (left edge of the list item)
+		const box = await listItem.boundingBox();
+		if (!box) throw new Error('bounding box not available');
+		await page.mouse.click(box.x + 10, box.y + box.height / 2);
+
+		await expect(listItem).toHaveAttribute('data-checked', 'true');
+	});
+
+	test('clicking text area does not toggle checked state', async ({ editor, page }) => {
+		await editor.typeText('Do not toggle');
+
+		const checklistBtn = editor.markButton('list-checklist');
+		await checklistBtn.click();
+
+		const listItem = editor.content.locator('.notectl-list-item--checklist');
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+
+		// Click in the text area (well past the checkbox region)
+		const box = await listItem.boundingBox();
+		if (!box) throw new Error('bounding box not available');
+		await page.mouse.click(box.x + 100, box.y + box.height / 2);
+
+		// Should still be unchecked
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+	});
+
+	test('clicking checkbox of non-selected item toggles it', async ({ editor, page }) => {
+		await editor.typeText('First task');
+
+		const checklistBtn = editor.markButton('list-checklist');
+		await checklistBtn.click();
+
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Second task', { delay: 10 });
+
+		const items = editor.content.locator('.notectl-list-item--checklist');
+		await expect(items).toHaveCount(2);
+
+		// Cursor is on second item; click checkbox of first item
+		const firstItem = items.nth(0);
+		const box = await firstItem.boundingBox();
+		if (!box) throw new Error('bounding box not available');
+		await page.mouse.click(box.x + 10, box.y + box.height / 2);
+
+		await expect(firstItem).toHaveAttribute('data-checked', 'true');
+		// Second item should remain unchecked
+		await expect(items.nth(1)).toHaveAttribute('data-checked', 'false');
+	});
 });

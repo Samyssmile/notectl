@@ -7,13 +7,13 @@
  * allowing simple nesting representation without deep tree structures.
  */
 
-import { LIST_CSS } from '../../editor/styles/list.js';
+import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
-import { nodeType } from '../../model/TypeBrands.js';
+import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { LIST_LOCALES, type ListLocale } from './ListLocale.js';
@@ -95,12 +95,15 @@ export class ListPlugin implements Plugin {
 
 	private readonly config: ListConfig;
 	private locale!: ListLocale;
+	private context: PluginContext | null = null;
+	private checkboxClickHandler: ((e: MouseEvent) => void) | null = null;
 
 	constructor(config?: Partial<ListConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
 	init(context: PluginContext): void {
+		this.context = context;
 		this.locale = resolvePluginLocale(LIST_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
@@ -108,6 +111,16 @@ export class ListPlugin implements Plugin {
 		this.registerKeymaps(context);
 		this.registerInputRules(context);
 		this.registerToolbarItems(context);
+		this.registerCheckboxClickHandler(context);
+	}
+
+	destroy(): void {
+		if (this.checkboxClickHandler && this.context) {
+			const container: HTMLElement = this.context.getContainer();
+			container.removeEventListener('mousedown', this.checkboxClickHandler);
+		}
+		this.checkboxClickHandler = null;
+		this.context = null;
 	}
 
 	private registerNodeSpec(context: PluginContext): void {
@@ -132,7 +145,7 @@ export class ListPlugin implements Plugin {
 				li.className = `notectl-list-item notectl-list-item--${listType}`;
 
 				if (indent > 0) {
-					li.style.marginLeft = `${indent * 24}px`;
+					li.style.marginLeft = `${indent * LIST_MARKER_WIDTH}px`;
 				}
 
 				if (listType === 'checklist') {
@@ -333,20 +346,23 @@ export class ListPlugin implements Plugin {
 		return true;
 	}
 
-	private toggleChecked(context: PluginContext): boolean {
+	private toggleChecked(context: PluginContext, targetId?: BlockId): boolean {
 		const state = context.getState();
-		if (isNodeSelection(state.selection)) return false;
-		const block = state.getBlock(state.selection.anchor.blockId);
+		const bid: BlockId | null =
+			targetId ?? (isNodeSelection(state.selection) ? null : state.selection.anchor.blockId);
+		if (!bid) return false;
+
+		const block = state.getBlock(bid);
 		if (!block || block.type !== 'list_item' || block.attrs?.listType !== 'checklist') {
 			return false;
 		}
 
-		const checked = !block.attrs?.checked;
+		const checked: boolean = !block.attrs?.checked;
 		const attrs = { ...block.attrs, checked } as Record<string, string | number | boolean>;
 
 		const tr = state
 			.transaction('command')
-			.setBlockType(state.selection.anchor.blockId, nodeType('list_item'), attrs)
+			.setBlockType(bid, nodeType('list_item'), attrs)
 			.setSelection(state.selection)
 			.build();
 		context.dispatch(tr);
@@ -421,6 +437,33 @@ export class ListPlugin implements Plugin {
 			.build();
 		context.dispatch(tr);
 		return true;
+	}
+
+	// --- Checkbox Click Handling ---
+
+	private registerCheckboxClickHandler(context: PluginContext): void {
+		if (!this.config.types.includes('checklist')) return;
+
+		this.checkboxClickHandler = (e: MouseEvent) => {
+			const target: EventTarget | null = e.target;
+			if (!(target instanceof HTMLElement)) return;
+
+			const li: HTMLElement | null = target.closest('.notectl-list-item--checklist');
+			if (!li) return;
+
+			const rect: DOMRect = li.getBoundingClientRect();
+			if (e.clientX - rect.left >= LIST_MARKER_WIDTH) return;
+
+			e.preventDefault();
+
+			const bid: string | null = li.getAttribute('data-block-id');
+			if (!bid) return;
+
+			this.toggleChecked(context, blockId(bid));
+		};
+
+		const container: HTMLElement = context.getContainer();
+		container.addEventListener('mousedown', this.checkboxClickHandler);
 	}
 
 	// --- Helpers ---
