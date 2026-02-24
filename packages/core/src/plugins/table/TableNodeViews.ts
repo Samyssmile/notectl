@@ -10,13 +10,18 @@ import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
+import type { PluginContext } from '../Plugin.js';
+import { type TableContextMenuHandle, createTableContextMenu } from './TableContextMenu.js';
 import { type TableControlsHandle, createTableControls } from './TableControls.js';
 
 /**
  * Creates a NodeViewFactory for the table node type.
  * Renders as outer container with controls + table + tbody.
  */
-export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewFactory {
+export function createTableNodeViewFactory(
+	_registry: SchemaRegistry,
+	pluginContext?: PluginContext,
+): NodeViewFactory {
 	return (
 		node: BlockNode,
 		getState: () => EditorState,
@@ -40,11 +45,15 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 		const totalRows: number = rows.length;
 		const totalCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
 		table.setAttribute('aria-label', `Table with ${totalRows} rows and ${totalCols} columns`);
+		table.setAttribute('aria-description', 'Right-click or press Shift+F10 for table actions');
 
 		const tbody: HTMLTableSectionElement = document.createElement('tbody');
 		table.appendChild(tbody);
 		wrapper.appendChild(table);
 		container.appendChild(wrapper);
+
+		// Apply border color CSS variable from node attrs
+		applyBorderColor(table, node.attrs?.borderColor as string | undefined);
 
 		// Live region for screen reader announcements
 		const liveRegion: HTMLDivElement = document.createElement('div');
@@ -60,13 +69,39 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 			node,
 			getState,
 			dispatch,
+			pluginContext,
 		);
+
+		// Context menu on right-click
+		let activeContextMenu: TableContextMenuHandle | null = null;
+		let currentTableId = node.id;
+
+		const onContextMenu = (e: MouseEvent): void => {
+			if (!pluginContext) return;
+			e.preventDefault();
+			e.stopPropagation();
+
+			activeContextMenu?.close();
+
+			const rect: DOMRect = new DOMRect(e.clientX, e.clientY, 0, 0);
+			activeContextMenu = createTableContextMenu(
+				container,
+				pluginContext,
+				currentTableId,
+				rect,
+				() => {
+					activeContextMenu = null;
+				},
+			);
+		};
+		table.addEventListener('contextmenu', onContextMenu);
 
 		return {
 			dom: container,
 			contentDOM: tbody,
 			update(updatedNode: BlockNode): boolean {
 				if (updatedNode.type !== 'table') return false;
+				currentTableId = updatedNode.id;
 				container.setAttribute('data-block-id', updatedNode.id);
 				container.setAttribute('data-selectable', 'true');
 				const updatedRows: readonly BlockNode[] = getBlockChildren(updatedNode);
@@ -77,12 +112,17 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 					`Table with ${newTotalRows} rows and ${newTotalCols} columns`,
 				);
 
+				// Update border color CSS variable
+				applyBorderColor(table, updatedNode.attrs?.borderColor as string | undefined);
+
 				// Update controls to reflect new structure
 				controls.update(updatedNode);
 
 				return false;
 			},
 			destroy(): void {
+				activeContextMenu?.destroy();
+				table.removeEventListener('contextmenu', onContextMenu);
 				controls.destroy();
 			},
 			selectNode(): void {
@@ -93,6 +133,20 @@ export function createTableNodeViewFactory(_registry: SchemaRegistry): NodeViewF
 			},
 		};
 	};
+}
+
+/** Applies border color CSS variable and borderless class to a table element. */
+function applyBorderColor(table: HTMLTableElement, borderColor: string | undefined): void {
+	if (borderColor === 'none') {
+		table.style.setProperty('--ntbl-border-color', 'transparent');
+		table.classList.add('notectl-table--borderless');
+	} else if (borderColor) {
+		table.style.setProperty('--ntbl-border-color', borderColor);
+		table.classList.remove('notectl-table--borderless');
+	} else {
+		table.style.removeProperty('--ntbl-border-color');
+		table.classList.remove('notectl-table--borderless');
+	}
 }
 
 /**

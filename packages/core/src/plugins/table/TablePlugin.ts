@@ -9,6 +9,7 @@ import { isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
 import { registerTableKeymaps } from './TableNavigation.js';
@@ -27,7 +28,7 @@ import {
 
 declare module '../../model/AttrRegistry.js' {
 	interface NodeAttrRegistry {
-		table: Record<string, never>;
+		table: { borderColor?: string };
 		table_row: Record<string, never>;
 		table_cell: { colspan?: number; rowspan?: number };
 	}
@@ -79,6 +80,7 @@ export class TablePlugin implements Plugin {
 		this.registerNodeSpecs(context);
 		this.registerNodeViews(context);
 		registerTableCommands(context);
+		context.registerCommand('resetTableBorderColor', () => resetTableBorderColor(context));
 		registerTableKeymaps(context);
 		this.registerToolbarItem(context);
 		this.selectionService = createTableSelectionService(context);
@@ -153,7 +155,7 @@ export class TablePlugin implements Plugin {
 	private registerNodeViews(context: PluginContext): void {
 		const registry = context.getSchemaRegistry();
 
-		context.registerNodeView('table', createTableNodeViewFactory(registry));
+		context.registerNodeView('table', createTableNodeViewFactory(registry, context));
 		context.registerNodeView('table_row', createTableRowNodeViewFactory(registry));
 		context.registerNodeView('table_cell', createTableCellNodeViewFactory(registry));
 	}

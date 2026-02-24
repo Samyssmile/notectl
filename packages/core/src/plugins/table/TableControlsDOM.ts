@@ -92,6 +92,74 @@ export function buildHandleBar(className: string): HTMLDivElement {
 	return bar;
 }
 
+/** SVG icon for kebab menu (three vertical dots). */
+export const ACTIONS_SVG: string =
+	'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" ' +
+	'viewBox="0 0 24 24" fill="currentColor">' +
+	'<circle cx="12" cy="5" r="2"/>' +
+	'<circle cx="12" cy="12" r="2"/>' +
+	'<circle cx="12" cy="19" r="2"/></svg>';
+
+/** Builds the table actions button (kebab menu icon). */
+export function buildActionsButton(): HTMLButtonElement {
+	const btn: HTMLButtonElement = createButton(
+		'ntbl-actions-btn',
+		ACTIONS_SVG,
+		'Table actions (Right-click or Shift+F10)',
+	);
+	btn.setAttribute('data-notectl-no-print', '');
+	return btn;
+}
+
+/** Builds the context menu discovery hint shown on first focus. */
+export function buildContextHint(): HTMLDivElement {
+	const hint: HTMLDivElement = document.createElement('div');
+	hint.className = 'ntbl-context-hint';
+	hint.setAttribute('aria-hidden', 'true');
+	hint.setAttribute('contenteditable', 'false');
+	hint.setAttribute('data-notectl-no-print', '');
+	hint.textContent = 'Right-click or Shift+F10 for table actions';
+	return hint;
+}
+
+/** SVG icon for border/grid. */
+export const BORDER_COLOR_SVG: string =
+	'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" ' +
+	'viewBox="0 0 24 24" fill="none">' +
+	'<path d="M3 3h18v18H3V3zm0 6h18M3 15h18M9 3v18M15 3v18" ' +
+	'stroke="currentColor" stroke-width="1.5"/></svg>';
+
+/** Builds the border color button with a color indicator swatch. */
+export function buildBorderColorButton(currentColor?: string): HTMLButtonElement {
+	const btn: HTMLButtonElement = createButton(
+		'ntbl-border-color-btn',
+		BORDER_COLOR_SVG,
+		'Border color',
+	);
+	btn.setAttribute('data-notectl-no-print', '');
+
+	const swatch: HTMLSpanElement = document.createElement('span');
+	swatch.className = 'ntbl-border-color-swatch';
+	updateBorderColorSwatch(swatch, currentColor);
+	btn.appendChild(swatch);
+
+	return btn;
+}
+
+/** Updates the swatch indicator to reflect the current border color. */
+export function updateBorderColorSwatch(swatch: HTMLElement, color?: string): void {
+	if (color === 'none') {
+		swatch.style.backgroundColor = 'transparent';
+		swatch.style.border = '1px dashed rgba(128,128,128,0.4)';
+	} else if (color) {
+		swatch.style.backgroundColor = color;
+		swatch.style.border = '1px solid rgba(0,0,0,0.15)';
+	} else {
+		swatch.style.backgroundColor = 'var(--notectl-border)';
+		swatch.style.border = '1px solid rgba(0,0,0,0.15)';
+	}
+}
+
 /** Builds a single column or row handle with a delete button. */
 export function buildHandle(
 	className: string,

@@ -16,6 +16,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { addRowBelow } from './TableCommands.js';
+import { type TableContextMenuHandle, createTableContextMenu } from './TableContextMenu.js';
 import {
 	type TableContext,
 	findTableContext,
@@ -37,6 +38,7 @@ export function registerTableKeymaps(context: PluginContext): void {
 		ArrowRight: () => handleArrowRight(context),
 		ArrowLeft: () => handleArrowLeft(context),
 		Escape: () => handleEscape(context),
+		'Shift-F10': () => handleContextMenu(context),
 	};
 
 	context.registerKeymap(keymap);
@@ -264,6 +266,50 @@ function handleEscape(context: PluginContext): boolean {
 		return true;
 	});
 }
+
+/** Shift-F10: open context menu at current cell. */
+function handleContextMenu(context: PluginContext): boolean {
+	return withTableContext(context, (_state, _sel, tableCtx) => {
+		const container: HTMLElement = context.getContainer();
+
+		// Find the cell element in the DOM
+		const cellEl = container.querySelector(
+			`[data-block-id="${tableCtx.cellId}"]`,
+		) as HTMLElement | null;
+		if (!cellEl) return false;
+
+		const cellRect: DOMRect = cellEl.getBoundingClientRect();
+		const anchorRect: DOMRect = new DOMRect(
+			cellRect.left + cellRect.width / 2,
+			cellRect.bottom,
+			0,
+			0,
+		);
+
+		// Find the table container to append the menu
+		const tableContainer = container.querySelector(
+			`[data-block-id="${tableCtx.tableId}"].ntbl-container`,
+		) as HTMLElement | null;
+
+		const menuContainer: HTMLElement = tableContainer ?? container;
+
+		activeContextMenu?.close();
+		activeContextMenu = createTableContextMenu(
+			menuContainer,
+			context,
+			tableCtx.tableId,
+			anchorRect,
+			() => {
+				activeContextMenu = null;
+			},
+		);
+
+		return true;
+	});
+}
+
+/** Tracks active context menu for Shift-F10 (one at a time). */
+let activeContextMenu: TableContextMenuHandle | null = null;
 
 // --- Cell navigation helpers ---
 
