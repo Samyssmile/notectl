@@ -166,6 +166,73 @@ export class EditorPage {
 		}, html);
 	}
 
+	// ── Touch ──────────────────────────────────────────────────
+
+	async tapFocus(): Promise<void> {
+		await this.content.tap();
+	}
+
+	async tapMarkButton(type: string): Promise<void> {
+		await this.markButton(type).tap();
+	}
+
+	/**
+	 * Sets a DOM selection range on a block within the editor.
+	 * Uses `page.evaluate()` to programmatically create a Selection,
+	 * simulating what a touch long-press selection would produce.
+	 */
+	async selectRange(blockIndex: number, startOffset: number, endOffset: number): Promise<void> {
+		await this.page.evaluate(
+			({ blockIdx, start, end }) => {
+				const editor = document.querySelector('notectl-editor');
+				const content = editor?.shadowRoot?.querySelector('.notectl-content');
+				if (!content) return;
+				const blocks = content.querySelectorAll('[data-block-id]');
+				const block = blocks[blockIdx];
+				if (!block) return;
+
+				// Find the text node within the block
+				const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+				let accumulated = 0;
+				let startNode: Text | null = null;
+				let startOff = 0;
+				let endNode: Text | null = null;
+				let endOff = 0;
+
+				let next = walker.nextNode() as Text | null;
+				while (next) {
+					const len = next.length;
+					if (!startNode && accumulated + len >= start) {
+						startNode = next;
+						startOff = start - accumulated;
+					}
+					if (!endNode && accumulated + len >= end) {
+						endNode = next;
+						endOff = end - accumulated;
+						break;
+					}
+					accumulated += len;
+					next = walker.nextNode() as Text | null;
+				}
+
+				if (!startNode || !endNode) return;
+
+				const range = document.createRange();
+				range.setStart(startNode, startOff);
+				range.setEnd(endNode, endOff);
+				const sel = window.getSelection();
+				sel?.removeAllRanges();
+				sel?.addRange(range);
+
+				// Dispatch a selectionchange event so the editor picks it up
+				document.dispatchEvent(new Event('selectionchange'));
+			},
+			{ blockIdx: blockIndex, start: startOffset, end: endOffset },
+		);
+		// Allow the editor's selection sync to process
+		await this.page.waitForTimeout(150);
+	}
+
 	// ── Content ─────────────────────────────────────────────────
 
 	async getText(): Promise<string> {
