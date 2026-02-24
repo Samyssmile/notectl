@@ -404,6 +404,16 @@ export type {
 } from './editor/theme/ThemeTokens.js';
 export { generateThemeCSS, createThemeStyleSheet } from './editor/theme/ThemeEngine.js';
 
+// --- Paper Size ---
+export {
+	PaperSize,
+	getPaperDimensions,
+	getPaperCSSSize,
+	PAPER_MARGIN_TOP_PX,
+	PAPER_MARGIN_HORIZONTAL_PX,
+} from './editor/PaperSize.js';
+export type { PaperDimensions } from './editor/PaperSize.js';
+
 // --- Editor ---
 export type { NotectlEditorConfig, StateChangeEvent } from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';

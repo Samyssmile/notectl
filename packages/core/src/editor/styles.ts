@@ -9,13 +9,14 @@
  */
 
 import { BASE_CSS } from './styles/base.js';
+import { PAPER_CSS } from './styles/paper.js';
 import { REDUCED_MOTION_CSS } from './styles/reduced-motion.js';
 
 /**
  * Combined CSS for the core editor shell.
  * Plugin styles are added separately via the plugin system.
  */
-const EDITOR_CSS: string = [BASE_CSS, REDUCED_MOTION_CSS].join('\n');
+const EDITOR_CSS: string = [BASE_CSS, REDUCED_MOTION_CSS, PAPER_CSS].join('\n');
 
 let cachedStyleSheet: CSSStyleSheet | null = null;
 
