@@ -3,6 +3,8 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { createTableContextMenu } from './TableContextMenu.js';
+import type { TableLocale } from './TableLocale.js';
+import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { createTableState } from './TableTestUtils.js';
 
 // --- Mock context ---
@@ -331,6 +333,30 @@ describe('TableContextMenu', () => {
 			handle.destroy();
 			expect(container.querySelector('[role="menu"]')).toBeNull();
 			expect(handle.isOpen()).toBe(false);
+		});
+	});
+
+	describe('i18n / locale', () => {
+		it('uses custom locale for menu item labels', () => {
+			const customLocale: TableLocale = {
+				...TABLE_LOCALE_EN,
+				insertRowAbove: 'Zeile oben einfügen',
+				deleteTable: 'Tabelle löschen',
+				tableActions: 'Tabellenaktionen',
+			};
+			const state = createTableState({ rows: 2, cols: 2 });
+			const ctx = createMockContext(state);
+			const el: HTMLDivElement = document.createElement('div');
+			const anchorRect: DOMRect = new DOMRect(100, 100, 0, 0);
+
+			createTableContextMenu(el, ctx, 't1' as BlockId, anchorRect, vi.fn(), customLocale);
+			const menu = el.querySelector('[role="menu"]') as HTMLDivElement;
+
+			expect(menu.getAttribute('aria-label')).toBe('Tabellenaktionen');
+			const items = menu.querySelectorAll('[role="menuitem"]');
+			const labels: string[] = Array.from(items).map((item) => item.textContent ?? '');
+			expect(labels).toContain('Zeile oben einfügen');
+			expect(labels).toContain('Tabelle löschen');
 		});
 	});
 });
