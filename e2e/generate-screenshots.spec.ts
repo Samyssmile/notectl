@@ -131,6 +131,16 @@ async function setEditorHTML(page: Page, html: string): Promise<void> {
 	await page.waitForTimeout(500);
 }
 
+async function setPaperSize(page: Page, size: string | null): Promise<void> {
+	await page.evaluate((s) => {
+		const el = document.querySelector('notectl-editor') as unknown as {
+			configure(c: Record<string, unknown>): void;
+		};
+		el.configure({ paperSize: s ?? undefined });
+	}, size);
+	await page.waitForTimeout(300);
+}
+
 async function setMinHeight(page: Page, px: string): Promise<void> {
 	await page.evaluate((h) => {
 		const el: HTMLElement | null = document.querySelector('notectl-editor');
@@ -613,6 +623,22 @@ test.describe('Documentation screenshots', () => {
 		await setEditorJSON(page, HR_CONTENT);
 		await shot(page, 'plugin-horizontal-rule.png');
 	});
+
+	// ── Paper Mode Screenshots ────────────────────────
+
+	test('paper-mode-a4', async ({ page }) => {
+		await setPaperSize(page, 'din-a4');
+		await setEditorJSON(page, RICH_CONTENT);
+		await shot(page, 'paper-mode-a4.png');
+	});
+
+	test('editor-fluid', async ({ page }) => {
+		await setPaperSize(page, null);
+		await setEditorJSON(page, RICH_CONTENT);
+		await shot(page, 'editor-fluid.png');
+	});
+
+	// ── Toolbar ──────────────────────────────────────
 
 	test('toolbar-full', async ({ page }) => {
 		await toolbarShot(page, 'toolbar-full.png');
