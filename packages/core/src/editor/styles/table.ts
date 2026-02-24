@@ -14,11 +14,21 @@ export const TABLE_CSS = `
 }
 
 .notectl-table td {
-	border: 1px solid var(--notectl-border);
+	border: 1px solid var(--ntbl-border-color, var(--notectl-border));
 	padding: 8px 12px;
 	min-width: 60px;
 	vertical-align: top;
 	min-height: 1.6em;
+}
+
+.notectl-table--borderless td {
+	border: 1px dashed rgba(128, 128, 128, 0.15);
+}
+
+@media print {
+	.notectl-table--borderless td {
+		border: none;
+	}
 }
 
 .notectl-table td:focus-within {
@@ -345,6 +355,136 @@ export const TABLE_CSS = `
 .ntbl-delete-table-btn:focus-visible {
 	outline: none;
 	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+}
+
+/* --- Context Menu Discovery Hint --- */
+.ntbl-context-hint {
+	position: absolute;
+	top: 4px;
+	right: 0;
+	font-size: 11px;
+	color: var(--notectl-fg-muted);
+	padding: 2px 8px;
+	border-radius: 4px;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	pointer-events: none;
+	white-space: nowrap;
+	z-index: 5;
+}
+
+.ntbl-container:hover .ntbl-context-hint,
+.ntbl-container:focus-within .ntbl-context-hint,
+.ntbl-container.notectl-table--selected .ntbl-context-hint {
+	opacity: 1;
+}
+
+/* --- Table Actions Button --- */
+.ntbl-actions-btn {
+	position: absolute;
+	top: 0;
+	left: 48px;
+	width: 20px;
+	height: 20px;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-bg);
+	color: var(--notectl-fg-muted);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.2s ease, background 0.15s, border-color 0.15s;
+	z-index: 7;
+	cursor: pointer;
+	padding: 0;
+}
+
+.ntbl-container:hover .ntbl-actions-btn,
+.ntbl-container:focus-within .ntbl-actions-btn,
+.ntbl-container.notectl-table--selected .ntbl-actions-btn {
+	opacity: 1;
+}
+
+.ntbl-actions-btn:hover,
+.ntbl-actions-btn:focus-visible {
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-primary);
+}
+
+.ntbl-actions-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+}
+
+/* --- Border Color Button --- */
+.ntbl-border-color-btn {
+	position: absolute;
+	top: 0;
+	left: 24px;
+	width: 20px;
+	height: 20px;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-bg);
+	color: var(--notectl-fg-muted);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.2s ease, background 0.15s, border-color 0.15s;
+	z-index: 7;
+	cursor: pointer;
+	padding: 0;
+}
+
+.ntbl-container:hover .ntbl-border-color-btn,
+.ntbl-container:focus-within .ntbl-border-color-btn,
+.ntbl-container.notectl-table--selected .ntbl-border-color-btn {
+	opacity: 1;
+}
+
+.ntbl-border-color-btn:hover,
+.ntbl-border-color-btn:focus-visible {
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-primary);
+}
+
+.ntbl-border-color-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+}
+
+.ntbl-border-color-swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+/* --- Context Menu Keyboard Hint --- */
+.notectl-table-context-menu__hint {
+	padding: 4px 12px 6px;
+	font-size: 11px;
+	color: var(--notectl-fg-muted);
+	border-top: 1px solid var(--notectl-border);
+	margin-top: 4px;
+	text-align: center;
+	user-select: none;
+}
+
+/* --- Context Menu Focus --- */
+.notectl-table-context-menu button:focus-visible {
+	outline: none;
+	background: var(--notectl-primary-muted);
+	box-shadow: inset 0 0 0 2px var(--notectl-focus-ring);
+}
+
+.notectl-table-context-menu [role="separator"] {
+	border: none;
+	border-top: 1px solid var(--notectl-border);
+	margin: 4px 0;
+	height: 0;
 }
 
 .ntbl-add-row {
