@@ -1,9 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../../model/Selection.js';
+import { createSelection } from '../../model/Selection.js';
 import { EditorState } from '../../state/EditorState.js';
 import {
-	expectCommandRegistered,
 	expectMarkSpec,
 	expectToolbarActive,
 	expectToolbarItem,
@@ -135,10 +134,14 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({ getState: () => defaultState() }),
+				vi.fn(),
+			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(50);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(50);
 		});
 
 		it('restricts palette to custom colors', async () => {
@@ -151,10 +154,14 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({ getState: () => defaultState() }),
+				vi.fn(),
+			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(3);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(3);
 		});
 
 		it('accepts shorthand hex colors (#RGB)', () => {
@@ -172,10 +179,14 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({ getState: () => defaultState() }),
+				vi.fn(),
+			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(2);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(2);
 		});
 
 		it('throws on invalid hex color', () => {
@@ -202,10 +213,14 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({ getState: () => defaultState() }),
+				vi.fn(),
+			);
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
-			expect(grid?.children.length).toBe(50);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(50);
 		});
 	});
 
@@ -222,11 +237,12 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }));
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }), vi.fn());
 
-			const grid = container.querySelector('.notectl-color-picker__grid');
+			const grid = container.querySelector('[role="grid"]');
 			expect(grid).toBeDefined();
-			expect(grid?.children.length).toBe(50);
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			expect(swatches.length).toBe(50);
 		});
 
 		it('replaces highlight on already-highlighted text', async () => {
@@ -248,7 +264,7 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }));
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }), vi.fn());
 
 			const activeSwatch = container.querySelector('.notectl-color-picker__swatch--active');
 			expect(activeSwatch).toBeDefined();
@@ -273,7 +289,7 @@ describe('HighlightPlugin', () => {
 			const item = h.getToolbarItem('highlight');
 
 			const container = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }));
+			item?.renderPopup?.(container, mockPluginContext({ getState: () => state }), vi.fn());
 
 			const defaultBtn = container.querySelector('.notectl-color-picker__default');
 			expect(defaultBtn).toBeDefined();
