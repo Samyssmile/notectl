@@ -1,3 +1,6 @@
+/** Width of the list marker / checkbox area in pixels. */
+export const LIST_MARKER_WIDTH = 24;
+
 /** List styles — bullet, ordered, checklist items. */
 export const LIST_CSS = `
 /* List Wrappers — suppress native markers, we use ::before pseudo-elements */
@@ -15,7 +18,7 @@ export const LIST_CSS = `
 /* List Items */
 .notectl-list-item {
 	margin: 0;
-	padding: 2px 0 2px 24px;
+	padding: 2px 0 2px ${LIST_MARKER_WIDTH}px;
 	min-height: 1.6em;
 	position: relative;
 }
@@ -24,7 +27,7 @@ export const LIST_CSS = `
 	position: absolute;
 	left: 0;
 	display: inline-block;
-	width: 24px;
+	width: ${LIST_MARKER_WIDTH}px;
 	text-align: center;
 }
 
