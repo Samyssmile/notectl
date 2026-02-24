@@ -128,8 +128,8 @@ export class LinkPlugin implements Plugin {
 			priority: 60,
 			popupType: 'custom',
 			separatorAfter: this.config.separatorAfter,
-			renderPopup: (container, ctx) => {
-				this.renderLinkPopup(container, ctx);
+			renderPopup: (container, ctx, onClose) => {
+				this.renderLinkPopup(container, ctx, onClose);
 			},
 			isActive: (state) => this.isLinkActive(state),
 			isEnabled: (state) => !isCollapsed(state.selection),
@@ -245,7 +245,11 @@ export class LinkPlugin implements Plugin {
 		return true;
 	}
 
-	private renderLinkPopup(container: HTMLElement, context: PluginContext): void {
+	private renderLinkPopup(
+		container: HTMLElement,
+		context: PluginContext,
+		onClose: () => void,
+	): void {
 		container.style.padding = '8px';
 		container.style.minWidth = '200px';
 
@@ -263,6 +267,8 @@ export class LinkPlugin implements Plugin {
 				e.preventDefault();
 				e.stopPropagation();
 				context.executeCommand('removeLink');
+				onClose();
+				context.getContainer().focus();
 			});
 			container.appendChild(removeBtn);
 		} else {
@@ -270,7 +276,7 @@ export class LinkPlugin implements Plugin {
 			const input = document.createElement('input');
 			input.type = 'url';
 			input.placeholder = 'https://...';
-			input.setAttribute('aria-label', 'URL');
+			input.setAttribute('aria-label', 'Link URL');
 			input.style.cssText = 'width:100%;padding:4px;box-sizing:border-box;';
 
 			const applyBtn = document.createElement('button');
@@ -279,22 +285,25 @@ export class LinkPlugin implements Plugin {
 			applyBtn.setAttribute('aria-label', 'Apply link');
 			applyBtn.style.cssText = 'width:100%;padding:6px 12px;margin-top:4px;cursor:pointer;';
 
-			applyBtn.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
+			const applyLink = (): void => {
 				const href = input.value.trim();
 				if (href) {
 					this.addLink(context, context.getState(), href);
+					onClose();
+					context.getContainer().focus();
 				}
+			};
+
+			applyBtn.addEventListener('mousedown', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				applyLink();
 			});
 
 			input.addEventListener('keydown', (e) => {
 				if (e.key === 'Enter') {
 					e.preventDefault();
-					const href = input.value.trim();
-					if (href) {
-						this.addLink(context, context.getState(), href);
-					}
+					applyLink();
 				}
 			});
 
