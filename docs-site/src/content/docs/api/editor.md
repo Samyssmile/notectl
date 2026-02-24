@@ -47,6 +47,8 @@ interface NotectlEditorConfig {
   maxHistoryDepth?: number;
   /** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
   theme?: ThemePreset | Theme;
+  /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
+  paperSize?: PaperSize;
 }
 ```
 
@@ -164,6 +166,21 @@ Returns the current theme setting.
 
 See the [Theming guide](/notectl/guides/styling/) for full details on presets, custom themes, and CSS custom properties.
 
+## Paper Size API
+
+### `getPaperSize(): PaperSize | undefined`
+
+Returns the currently configured paper size, or `undefined` if the editor uses fluid layout.
+
+```ts
+import { PaperSize } from '@notectl/core';
+
+editor.configure({ paperSize: PaperSize.DINA4 });
+editor.getPaperSize(); // 'din-a4'
+```
+
+See the [Paper Size guide](/notectl/guides/paper-size/) for full details on WYSIWYG page layout and print integration.
+
 ## Lifecycle
 
 ### `whenReady(): Promise<void>`
@@ -172,7 +189,7 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime (placeholder, readonly).
+Updates configuration at runtime (placeholder, readonly, paperSize).
 
 ### `registerPlugin(plugin: Plugin): void`
 
@@ -189,3 +206,4 @@ Cleans up the editor. The editor can be re-initialized after destruction.
 | `placeholder` | Placeholder text (reflected) |
 | `readonly` | Read-only mode (reflected) |
 | `theme` | Theme preset: `"light"`, `"dark"`, or `"system"` |
+| `paper-size` | Paper size: `"din-a4"`, `"din-a5"`, `"us-letter"`, or `"us-legal"` |
