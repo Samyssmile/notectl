@@ -12,6 +12,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
+import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 import { registerTableKeymaps } from './TableNavigation.js';
 import {
 	createTableCellNodeViewFactory,
@@ -43,6 +44,8 @@ export interface TableConfig {
 	readonly maxPickerCols?: number;
 	/** When true, a separator is rendered after the table toolbar item. */
 	readonly separatorAfter?: boolean;
+	/** Locale for all user-facing strings. Defaults to English. */
+	readonly locale?: TableLocale;
 }
 
 const DEFAULT_CONFIG: TableConfig = {
@@ -65,12 +68,14 @@ export class TablePlugin implements Plugin {
 	readonly priority = 40;
 
 	private readonly config: TableConfig;
+	private readonly locale: TableLocale;
 	private selectionService: TableSelectionService | null = null;
 	private cleanupMouseSelection: (() => void) | null = null;
 	private context: PluginContext | null = null;
 
 	constructor(config?: Partial<TableConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
+		this.locale = config?.locale ?? TABLE_LOCALE_EN;
 	}
 
 	init(context: PluginContext): void {
@@ -80,7 +85,9 @@ export class TablePlugin implements Plugin {
 		this.registerNodeSpecs(context);
 		this.registerNodeViews(context);
 		registerTableCommands(context);
-		context.registerCommand('resetTableBorderColor', () => resetTableBorderColor(context));
+		context.registerCommand('resetTableBorderColor', () =>
+			resetTableBorderColor(context, this.locale),
+		);
 		registerTableKeymaps(context);
 		this.registerToolbarItem(context);
 		this.selectionService = createTableSelectionService(context);
@@ -155,7 +162,7 @@ export class TablePlugin implements Plugin {
 	private registerNodeViews(context: PluginContext): void {
 		const registry = context.getSchemaRegistry();
 
-		context.registerNodeView('table', createTableNodeViewFactory(registry, context));
+		context.registerNodeView('table', createTableNodeViewFactory(registry, context, this.locale));
 		context.registerNodeView('table_row', createTableRowNodeViewFactory(registry));
 		context.registerNodeView('table_cell', createTableCellNodeViewFactory(registry));
 	}
@@ -168,8 +175,8 @@ export class TablePlugin implements Plugin {
 			id: 'table',
 			group: 'insert',
 			icon: TABLE_ICON,
-			label: 'Insert Table',
-			tooltip: 'Insert Table',
+			label: this.locale.insertTable,
+			tooltip: this.locale.insertTable,
 			command: 'insertTable',
 			priority: 80,
 			separatorAfter: this.config.separatorAfter,

@@ -301,6 +301,18 @@ export {
 } from './plugins/table/TablePlugin.js';
 
 export {
+	TABLE_LOCALE_EN,
+	TABLE_LOCALE_DE,
+	TABLE_LOCALE_ES,
+	TABLE_LOCALE_FR,
+	TABLE_LOCALE_ZH,
+	TABLE_LOCALE_RU,
+	TABLE_LOCALE_AR,
+	TABLE_LOCALE_HI,
+	type TableLocale,
+} from './plugins/table/TableLocale.js';
+
+export {
 	HighlightPlugin,
 	type HighlightConfig,
 } from './plugins/highlight/HighlightPlugin.js';

@@ -42,6 +42,7 @@ import {
 	positionColHandles,
 	positionRowHandles,
 } from './TableControlsLayout.js';
+import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 
 // --- Types ---
 
@@ -78,6 +79,7 @@ class TableControls implements TableControlsHandle {
 	private readonly getState: () => EditorState;
 	private readonly dispatchFn: (tr: Transaction) => void;
 	private readonly pluginContext: PluginContext | null;
+	private readonly locale: TableLocale;
 
 	private readonly onMouseMove = (e: MouseEvent): void => {
 		const tableRect: DOMRect = this.tableEl.getBoundingClientRect();
@@ -121,12 +123,14 @@ class TableControls implements TableControlsHandle {
 		getState: () => EditorState,
 		dispatch: (tr: Transaction) => void,
 		pluginContext?: PluginContext,
+		locale: TableLocale = TABLE_LOCALE_EN,
 	) {
 		this.container = container;
 		this.tableEl = tableEl;
 		this.getState = getState;
 		this.dispatchFn = dispatch;
 		this.pluginContext = pluginContext ?? null;
+		this.locale = locale;
 
 		this.tableId = initialNode.id;
 		this.numRows = getBlockChildren(initialNode).length;
@@ -135,18 +139,22 @@ class TableControls implements TableControlsHandle {
 		// Create DOM elements
 		this.colBar = buildHandleBar('ntbl-col-bar');
 		this.rowBar = buildHandleBar('ntbl-row-bar');
-		this.insertLineH = buildInsertLine('horizontal');
-		this.insertLineV = buildInsertLine('vertical');
-		this.addRowZone = buildAddButton('ntbl-add-row', 'Add row');
-		this.addColZone = buildAddButton('ntbl-add-col', 'Add column');
-		this.deleteTableBtn = createButton('ntbl-delete-table-btn', TABLE_DELETE_SVG, 'Delete table');
+		this.insertLineH = buildInsertLine('horizontal', locale.insertRow);
+		this.insertLineV = buildInsertLine('vertical', locale.insertColumn);
+		this.addRowZone = buildAddButton('ntbl-add-row', locale.addRow);
+		this.addColZone = buildAddButton('ntbl-add-col', locale.addColumn);
+		this.deleteTableBtn = createButton(
+			'ntbl-delete-table-btn',
+			TABLE_DELETE_SVG,
+			locale.deleteTable,
+		);
 		this.deleteTableBtn.setAttribute('data-notectl-no-print', '');
 
 		// Border color button and actions button (only when plugin context available)
 		if (pluginContext) {
 			const currentColor: string | undefined = getTableBorderColor(getState(), this.tableId);
 			this.borderColorBtn = buildBorderColorButton(currentColor);
-			this.actionsBtn = buildActionsButton();
+			this.actionsBtn = buildActionsButton(locale.tableActionsHint);
 		} else {
 			this.borderColorBtn = null;
 			this.actionsBtn = null;
@@ -168,7 +176,7 @@ class TableControls implements TableControlsHandle {
 			container.appendChild(this.actionsBtn);
 		}
 
-		this.contextHint = buildContextHint();
+		this.contextHint = buildContextHint(locale.contextMenuHint);
 		container.appendChild(this.contextHint);
 
 		this.rebuildColHandles();
@@ -298,6 +306,7 @@ class TableControls implements TableControlsHandle {
 			() => {
 				this.activeContextMenu = null;
 			},
+			this.locale,
 		);
 	}
 
@@ -315,9 +324,15 @@ class TableControls implements TableControlsHandle {
 		this.borderColorPopup.style.zIndex = '10000';
 		this.borderColorPopup.setAttribute('contenteditable', 'false');
 
-		renderBorderColorPicker(this.borderColorPopup, context, this.tableId, () => {
-			this.closeBorderColorPopup();
-		});
+		renderBorderColorPicker(
+			this.borderColorPopup,
+			context,
+			this.tableId,
+			() => {
+				this.closeBorderColorPopup();
+			},
+			this.locale,
+		);
 
 		this.container.appendChild(this.borderColorPopup);
 	}
@@ -420,6 +435,15 @@ export function createTableControls(
 	getState: () => EditorState,
 	dispatch: (tr: Transaction) => void,
 	pluginContext?: PluginContext,
+	locale?: TableLocale,
 ): TableControlsHandle {
-	return new TableControls(container, tableEl, initialNode, getState, dispatch, pluginContext);
+	return new TableControls(
+		container,
+		tableEl,
+		initialNode,
+		getState,
+		dispatch,
+		pluginContext,
+		locale,
+	);
 }

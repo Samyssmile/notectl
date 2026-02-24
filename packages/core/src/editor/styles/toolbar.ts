@@ -116,6 +116,11 @@ export const TOOLBAR_CSS = `
 	outline-offset: -1px;
 }
 
+.notectl-grid-picker__cell--highlighted {
+	background: var(--notectl-primary-muted);
+	border-color: var(--notectl-primary);
+}
+
 /* Dropdown */
 .notectl-dropdown {
 	min-width: 160px;
