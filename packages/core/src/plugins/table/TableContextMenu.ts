@@ -8,6 +8,7 @@
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import { renderBorderColorPicker } from './TableBorderColor.js';
+import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 
 // --- Types ---
 
@@ -37,20 +38,22 @@ type MenuDefinition = MenuEntry | MenuSeparator | MenuSubmenu;
 
 // --- Menu Structure ---
 
-const MENU_ITEMS: readonly MenuDefinition[] = [
-	{ type: 'item', label: 'Insert Row Above', command: 'addRowAbove' },
-	{ type: 'item', label: 'Insert Row Below', command: 'addRowBelow' },
-	{ type: 'separator' },
-	{ type: 'item', label: 'Insert Column Left', command: 'addColumnLeft' },
-	{ type: 'item', label: 'Insert Column Right', command: 'addColumnRight' },
-	{ type: 'separator' },
-	{ type: 'item', label: 'Delete Row', command: 'deleteRow' },
-	{ type: 'item', label: 'Delete Column', command: 'deleteColumn' },
-	{ type: 'separator' },
-	{ type: 'submenu', label: 'Border Color...', id: 'borderColor' },
-	{ type: 'separator' },
-	{ type: 'item', label: 'Delete Table', command: 'deleteTable' },
-];
+function buildMenuItems(locale: TableLocale): readonly MenuDefinition[] {
+	return [
+		{ type: 'item', label: locale.insertRowAbove, command: 'addRowAbove' },
+		{ type: 'item', label: locale.insertRowBelow, command: 'addRowBelow' },
+		{ type: 'separator' },
+		{ type: 'item', label: locale.insertColumnLeft, command: 'addColumnLeft' },
+		{ type: 'item', label: locale.insertColumnRight, command: 'addColumnRight' },
+		{ type: 'separator' },
+		{ type: 'item', label: locale.deleteRow, command: 'deleteRow' },
+		{ type: 'item', label: locale.deleteColumn, command: 'deleteColumn' },
+		{ type: 'separator' },
+		{ type: 'submenu', label: locale.borderColorLabel, id: 'borderColor' },
+		{ type: 'separator' },
+		{ type: 'item', label: locale.deleteTable, command: 'deleteTable' },
+	];
+}
 
 // --- Factory ---
 
@@ -64,6 +67,7 @@ export function createTableContextMenu(
 	tableId: BlockId,
 	anchorRect: DOMRect,
 	onClosed?: () => void,
+	locale: TableLocale = TABLE_LOCALE_EN,
 ): TableContextMenuHandle {
 	let open = true;
 	let subPopup: HTMLDivElement | null = null;
@@ -72,14 +76,15 @@ export function createTableContextMenu(
 	const menu: HTMLDivElement = document.createElement('div');
 	menu.className = 'notectl-table-context-menu';
 	menu.setAttribute('role', 'menu');
-	menu.setAttribute('aria-label', 'Table actions');
+	menu.setAttribute('aria-label', locale.tableActions);
 	menu.setAttribute('contenteditable', 'false');
 
 	// --- Build menu items ---
 	const menuItems: HTMLButtonElement[] = [];
 	let focusedIndex = 0;
 
-	for (const def of MENU_ITEMS) {
+	const menuDefs: readonly MenuDefinition[] = buildMenuItems(locale);
+	for (const def of menuDefs) {
 		if (def.type === 'separator') {
 			const sep: HTMLDivElement = document.createElement('div');
 			sep.setAttribute('role', 'separator');
@@ -125,7 +130,7 @@ export function createTableContextMenu(
 	const hint: HTMLDivElement = document.createElement('div');
 	hint.className = 'notectl-table-context-menu__hint';
 	hint.setAttribute('aria-hidden', 'true');
-	hint.textContent = '\u2191\u2193 Navigate \u00b7 Enter Select \u00b7 Esc Close';
+	hint.textContent = locale.menuKeyboardHint;
 	menu.appendChild(hint);
 
 	applyMenuTabindex(menuItems, focusedIndex);
@@ -227,9 +232,15 @@ export function createTableContextMenu(
 			}
 		});
 
-		renderBorderColorPicker(subPopup, context, tableId, () => {
-			close();
-		});
+		renderBorderColorPicker(
+			subPopup,
+			context,
+			tableId,
+			() => {
+				close();
+			},
+			locale,
+		);
 
 		container.appendChild(subPopup);
 

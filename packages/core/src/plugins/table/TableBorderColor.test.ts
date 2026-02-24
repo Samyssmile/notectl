@@ -12,6 +12,8 @@ import {
 	resetTableBorderColor,
 	setTableBorderColor,
 } from './TableBorderColor.js';
+import type { TableLocale } from './TableLocale.js';
+import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { createTableState } from './TableTestUtils.js';
 
 // --- Mock context ---
@@ -246,6 +248,64 @@ describe('TableBorderColor', () => {
 			const cells = container.querySelectorAll('[role="gridcell"]');
 			const tabindexZero = Array.from(cells).filter((c) => c.getAttribute('tabindex') === '0');
 			expect(tabindexZero.length).toBe(1);
+		});
+
+		it('uses color name (not hex) for swatch title', () => {
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context } = createMockContext(state);
+			const container: HTMLDivElement = document.createElement('div');
+
+			renderBorderColorPicker(container, context, 't1' as BlockId, vi.fn());
+
+			const firstSwatch = container.querySelector('[role="gridcell"]') as HTMLElement;
+			// Title should be a human-readable name, not a hex code
+			expect(firstSwatch.title).not.toMatch(/^#[0-9a-fA-F]{6}$/);
+		});
+	});
+
+	describe('i18n / locale', () => {
+		it('uses custom locale strings for Default and No borders buttons', () => {
+			const customLocale: TableLocale = {
+				...TABLE_LOCALE_EN,
+				defaultColor: 'Standard',
+				noBorders: 'Keine Rahmen',
+			};
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context } = createMockContext(state);
+			const container: HTMLDivElement = document.createElement('div');
+
+			renderBorderColorPicker(container, context, 't1' as BlockId, vi.fn(), customLocale);
+
+			const buttons = container.querySelectorAll('button.notectl-color-picker__default');
+			expect(buttons[0]?.textContent).toBe('Standard');
+			expect(buttons[1]?.textContent).toBe('Keine Rahmen');
+		});
+
+		it('uses custom locale for grid aria-label', () => {
+			const customLocale: TableLocale = {
+				...TABLE_LOCALE_EN,
+				borderColorPicker: 'Farbauswahl',
+			};
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context } = createMockContext(state);
+			const container: HTMLDivElement = document.createElement('div');
+
+			renderBorderColorPicker(container, context, 't1' as BlockId, vi.fn(), customLocale);
+
+			const grid = container.querySelector('[role="grid"]');
+			expect(grid?.getAttribute('aria-label')).toBe('Farbauswahl');
+		});
+
+		it('uses custom locale for announcements', () => {
+			const customLocale: TableLocale = {
+				...TABLE_LOCALE_EN,
+				announceBorderReset: 'Rahmen zurückgesetzt',
+			};
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context } = createMockContext(state);
+
+			resetTableBorderColor(context, customLocale);
+			expect(context.announce).toHaveBeenCalledWith('Rahmen zurückgesetzt');
 		});
 	});
 });

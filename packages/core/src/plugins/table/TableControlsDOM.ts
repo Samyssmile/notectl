@@ -47,13 +47,16 @@ export function createButton(
 }
 
 /** Builds the insert-line element (horizontal or vertical) with a plus-icon button. */
-export function buildInsertLine(orientation: 'horizontal' | 'vertical'): HTMLDivElement {
+export function buildInsertLine(
+	orientation: 'horizontal' | 'vertical',
+	label?: string,
+): HTMLDivElement {
 	const line: HTMLDivElement = document.createElement('div');
 	line.className = `ntbl-insert-line ntbl-insert-line--${orientation}`;
 	line.setAttribute('contenteditable', 'false');
 	line.setAttribute('data-notectl-no-print', '');
 
-	const title: string = orientation === 'horizontal' ? 'Insert row' : 'Insert column';
+	const title: string = label ?? (orientation === 'horizontal' ? 'Insert row' : 'Insert column');
 	const btn: HTMLButtonElement = createButton('ntbl-insert-btn', PLUS_SVG, title);
 	line.appendChild(btn);
 
@@ -101,24 +104,24 @@ export const ACTIONS_SVG: string =
 	'<circle cx="12" cy="19" r="2"/></svg>';
 
 /** Builds the table actions button (kebab menu icon). */
-export function buildActionsButton(): HTMLButtonElement {
+export function buildActionsButton(label?: string): HTMLButtonElement {
 	const btn: HTMLButtonElement = createButton(
 		'ntbl-actions-btn',
 		ACTIONS_SVG,
-		'Table actions (Right-click or Shift+F10)',
+		label ?? 'Table actions (Right-click or Shift+F10)',
 	);
 	btn.setAttribute('data-notectl-no-print', '');
 	return btn;
 }
 
 /** Builds the context menu discovery hint shown on first focus. */
-export function buildContextHint(): HTMLDivElement {
+export function buildContextHint(label?: string): HTMLDivElement {
 	const hint: HTMLDivElement = document.createElement('div');
 	hint.className = 'ntbl-context-hint';
 	hint.setAttribute('aria-hidden', 'true');
 	hint.setAttribute('contenteditable', 'false');
 	hint.setAttribute('data-notectl-no-print', '');
-	hint.textContent = 'Right-click or Shift+F10 for table actions';
+	hint.textContent = label ?? 'Right-click or Shift+F10 for table actions';
 	return hint;
 }
 
