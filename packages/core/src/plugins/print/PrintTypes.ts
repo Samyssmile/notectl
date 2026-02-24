@@ -2,6 +2,7 @@
  * Type definitions, service keys, and event keys for the PrintPlugin.
  */
 
+import type { PaperSize } from '../../editor/PaperSize.js';
 import type { NodeTypeName } from '../../model/TypeBrands.js';
 import { EventKey, ServiceKey } from '../Plugin.js';
 
@@ -40,6 +41,9 @@ export interface PrintOptions {
 
 	/** Page orientation. */
 	readonly orientation?: 'portrait' | 'landscape';
+
+	/** Paper size for @page CSS rule. When set, overrides the default A4 page size. */
+	readonly paperSize?: PaperSize;
 }
 
 // --- Plugin Configuration ---
