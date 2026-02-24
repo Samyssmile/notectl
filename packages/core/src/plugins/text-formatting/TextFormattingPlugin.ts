@@ -96,7 +96,7 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 					if (!fw) return false;
 					if (fw === 'bold') return {};
 					const numeric: number = Number.parseInt(fw, 10);
-					return !isNaN(numeric) && numeric >= 700 ? {} : false;
+					return !Number.isNaN(numeric) && numeric >= 700 ? {} : false;
 				},
 			},
 		],
