@@ -109,7 +109,11 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	disconnectedCallback(): void {
-		this.destroy();
+		setTimeout(() => {
+			if (!this.isConnected) {
+				this.destroy();
+			}
+		}, 0);
 	}
 
 	attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
@@ -468,6 +472,12 @@ export class NotectlEditor extends HTMLElement {
 		this.view = null;
 		this.pluginManager = null;
 		this.initialized = false;
+		this.editorWrapper?.remove();
+		this.editorWrapper = null;
+		this.contentElement = null;
+		this.topPluginContainer = null;
+		this.bottomPluginContainer = null;
+		this.announcer = null;
 		return pluginTeardown;
 	}
 

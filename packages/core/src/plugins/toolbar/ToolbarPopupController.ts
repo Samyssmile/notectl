@@ -63,8 +63,8 @@ export class ToolbarPopupController {
 		popup.addEventListener('keydown', (e: KeyboardEvent) => this.handlePopupKeydown(e));
 
 		this.closePopupHandler = (e: MouseEvent) => {
-			const target: EventTarget | null = e.target;
-			if (target instanceof Node && !popup.contains(target) && target !== button) {
+			const path: EventTarget[] = e.composedPath();
+			if (!path.includes(popup) && !path.includes(button)) {
 				this.close();
 			}
 		};
