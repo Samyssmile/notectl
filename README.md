@@ -19,7 +19,7 @@ React, Vue, Angular, Svelte, or plain HTML. Zero config, full power.
 
 <br />
 
-<img src="e2e/screenshots/demo.gif" alt="notectl editor demo" width="720" />
+<img src="e2e/demo.gif" alt="notectl editor demo" width="720" />
 
 <br />
 

@@ -101,12 +101,47 @@ describe('ColorPickerPopup', () => {
 			}
 		});
 
-		it('each swatch has aria-label', () => {
+		it('each swatch has aria-label with human-readable color name', () => {
 			const { container } = renderPopup({ ariaLabelPrefix: 'Highlight' });
 			const swatch = container.querySelector('.notectl-color-picker__swatch');
-			expect(swatch?.getAttribute('aria-label')).toBe('Highlight #ff0000');
+			// #ff0000 → "Red" (not raw hex)
+			expect(swatch?.getAttribute('aria-label')).toBe('Highlight Red');
 		});
 
+		it('grid has aria-label with prefix', () => {
+			const { container } = renderPopup({ ariaLabelPrefix: 'Text color' });
+			const grid = container.querySelector('[role="grid"]');
+			expect(grid?.getAttribute('aria-label')).toBe('Text color color picker');
+		});
+	});
+
+	describe('aria-selected', () => {
+		it('active swatch has aria-selected="true"', () => {
+			const state = stateBuilder()
+				.blockWithInlines(
+					'paragraph',
+					[createTextNode('hello', [{ type: 'textColor', attrs: { color: '#ff0000' } }])],
+					'b1',
+				)
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['textColor'])
+				.build();
+
+			const { container } = renderPopup({ markType: 'textColor' }, state);
+			const active = container.querySelector('.notectl-color-picker__swatch--active');
+			expect(active?.getAttribute('aria-selected')).toBe('true');
+		});
+
+		it('inactive swatches have aria-selected="false"', () => {
+			const { container } = renderPopup();
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			for (const swatch of swatches) {
+				expect(swatch.getAttribute('aria-selected')).toBe('false');
+			}
+		});
+	});
+
+	describe('light color borders', () => {
 		it('white swatch gets a visible border', () => {
 			const { container } = renderPopup();
 			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
@@ -116,10 +151,22 @@ describe('ColorPickerPopup', () => {
 			expect(whiteSwatch?.style.border).toBe('1px solid #d0d0d0');
 		});
 
-		it('grid has aria-label with prefix', () => {
-			const { container } = renderPopup({ ariaLabelPrefix: 'Text color' });
-			const grid = container.querySelector('[role="grid"]');
-			expect(grid?.getAttribute('aria-label')).toBe('Text color color picker');
+		it('yellow swatch gets a visible border (low contrast on white bg)', () => {
+			const { container } = renderPopup();
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			const yellowSwatch = Array.from(swatches).find(
+				(s) => (s as HTMLElement).title === '#ffff00',
+			) as HTMLElement | undefined;
+			expect(yellowSwatch?.style.border).toBe('1px solid #d0d0d0');
+		});
+
+		it('dark colors do not get a border', () => {
+			const { container } = renderPopup();
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+			const blackSwatch = Array.from(swatches).find(
+				(s) => (s as HTMLElement).title === '#000000',
+			) as HTMLElement | undefined;
+			expect(blackSwatch?.style.border).not.toBe('1px solid #d0d0d0');
 		});
 	});
 
@@ -296,6 +343,51 @@ describe('ColorPickerPopup', () => {
 
 			// Navigate down: row 2, col 3 = index 5, which is past end → clamp to 4
 			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			expect(swatches[4]?.getAttribute('tabindex')).toBe('0');
+		});
+
+		it('Home moves to first swatch in current row', () => {
+			const { container } = renderPopup();
+			const grid = container.querySelector('[role="grid"]') as HTMLElement;
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+
+			// Navigate to index 3
+			(swatches[0] as HTMLElement).focus();
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			expect(swatches[3]?.getAttribute('tabindex')).toBe('0');
+
+			// Home should go to index 0 (first in row 1)
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+			expect(swatches[0]?.getAttribute('tabindex')).toBe('0');
+		});
+
+		it('End moves to last swatch in current row', () => {
+			const { container } = renderPopup();
+			const grid = container.querySelector('[role="grid"]') as HTMLElement;
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+
+			(swatches[0] as HTMLElement).focus();
+
+			// End should go to index 9 (last in row 1 with 10 columns)
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+			expect(swatches[9]?.getAttribute('tabindex')).toBe('0');
+		});
+
+		it('End clamps to last swatch on partial last row', () => {
+			const fiveColors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+			const { container } = renderPopup({ colors: fiveColors, columns: 3 });
+			const grid = container.querySelector('[role="grid"]') as HTMLElement;
+			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
+
+			// Navigate to row 2 (index 3)
+			(swatches[0] as HTMLElement).focus();
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			expect(swatches[3]?.getAttribute('tabindex')).toBe('0');
+
+			// End on row 2: rowStart=3, rowEnd=min(5,4)=4
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
 			expect(swatches[4]?.getAttribute('tabindex')).toBe('0');
 		});
 	});
