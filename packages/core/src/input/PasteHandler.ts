@@ -29,6 +29,7 @@ import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
+import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
 
 export interface PasteHandlerOptions {
 	getState: GetStateFn;
@@ -91,13 +92,19 @@ export class PasteHandler {
 				return;
 			}
 
+			// Normalize legacy elements (e.g. <font>) before sanitization
+			const preTemplate: HTMLTemplateElement = document.createElement('template');
+			preTemplate.innerHTML = html;
+			normalizeLegacyHTML(preTemplate.content);
+			const normalizedHTML: string = preTemplate.innerHTML;
+
 			const allowedTags: string[] = this.schemaRegistry
 				? this.schemaRegistry.getAllowedTags()
 				: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'];
 			const allowedAttrs: string[] = this.schemaRegistry
 				? this.schemaRegistry.getAllowedAttrs()
 				: [];
-			const sanitized = DOMPurify.sanitize(html, {
+			const sanitized = DOMPurify.sanitize(normalizedHTML, {
 				ALLOWED_TAGS: allowedTags,
 				ALLOWED_ATTR: allowedAttrs,
 			});

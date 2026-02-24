@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HTMLParser } from '../../model/HTMLParser.js';
 import {
 	expectCommandDispatches,
 	expectCommandRegistered,
@@ -96,6 +97,33 @@ describe('StrikethroughPlugin', () => {
 		it('respects separatorAfter config', async () => {
 			const h = await pluginHarness(new StrikethroughPlugin({ separatorAfter: true }));
 			expectToolbarItem(h, 'strikethrough', { separatorAfter: true });
+		});
+	});
+
+	describe('parseHTML rules', () => {
+		async function parseViaPlugin(html: string): Promise<ReturnType<HTMLParser['parse']>> {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.schema(['paragraph'], ['strikethrough'])
+				.build();
+			const h = await pluginHarness(new StrikethroughPlugin(), state);
+			const schema = h.getState().schema;
+			const parser = new HTMLParser({
+				schema,
+				schemaRegistry: h.pm.schemaRegistry,
+			});
+			const template = document.createElement('template');
+			template.innerHTML = html;
+			return parser.parse(template.content);
+		}
+
+		it('detects <span style="text-decoration:line-through"> as strikethrough', async () => {
+			const slice = await parseViaPlugin(
+				'<p><span style="text-decoration:line-through">struck</span></p>',
+			);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ text: 'struck', marks: [{ type: 'strikethrough' }] },
+			]);
 		});
 	});
 });

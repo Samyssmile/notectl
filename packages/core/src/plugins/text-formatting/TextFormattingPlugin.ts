@@ -80,7 +80,26 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		icon: BOLD_ICON,
 		keyBinding: 'Mod-B',
 		toHTMLString: (content) => `<strong>${content}</strong>`,
-		parseHTML: [{ tag: 'strong' }, { tag: 'b' }],
+		parseHTML: [
+			{ tag: 'strong' },
+			{
+				tag: 'b',
+				getAttrs: (el: HTMLElement) => {
+					const fw: string = el.style.fontWeight;
+					return fw === 'normal' || fw === '400' ? false : {};
+				},
+			},
+			{
+				tag: 'span',
+				getAttrs: (el: HTMLElement) => {
+					const fw: string = el.style.fontWeight;
+					if (!fw) return false;
+					if (fw === 'bold') return {};
+					const numeric: number = Number.parseInt(fw, 10);
+					return !isNaN(numeric) && numeric >= 700 ? {} : false;
+				},
+			},
+		],
 		sanitize: { tags: ['strong', 'b'] },
 	},
 	{
@@ -92,7 +111,16 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		icon: ITALIC_ICON,
 		keyBinding: 'Mod-I',
 		toHTMLString: (content) => `<em>${content}</em>`,
-		parseHTML: [{ tag: 'em' }, { tag: 'i' }],
+		parseHTML: [
+			{ tag: 'em' },
+			{ tag: 'i' },
+			{
+				tag: 'span',
+				getAttrs: (el: HTMLElement) => {
+					return el.style.fontStyle === 'italic' ? {} : false;
+				},
+			},
+		],
 		sanitize: { tags: ['em', 'i'] },
 	},
 	{
@@ -104,7 +132,15 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		icon: UNDERLINE_ICON,
 		keyBinding: 'Mod-U',
 		toHTMLString: (content) => `<u>${content}</u>`,
-		parseHTML: [{ tag: 'u' }],
+		parseHTML: [
+			{ tag: 'u' },
+			{
+				tag: 'span',
+				getAttrs: (el: HTMLElement) => {
+					return el.style.textDecoration.includes('underline') ? {} : false;
+				},
+			},
+		],
 		sanitize: { tags: ['u'] },
 	},
 ];

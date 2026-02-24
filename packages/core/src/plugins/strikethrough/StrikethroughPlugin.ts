@@ -58,7 +58,17 @@ export class StrikethroughPlugin implements Plugin {
 				return document.createElement('s');
 			},
 			toHTMLString: (_mark, content) => `<s>${content}</s>`,
-			parseHTML: [{ tag: 's' }, { tag: 'strike' }, { tag: 'del' }],
+			parseHTML: [
+				{ tag: 's' },
+				{ tag: 'strike' },
+				{ tag: 'del' },
+				{
+					tag: 'span',
+					getAttrs: (el: HTMLElement) => {
+						return el.style.textDecoration.includes('line-through') ? {} : false;
+					},
+				},
+			],
 			sanitize: { tags: ['s'] },
 		});
 	}
