@@ -56,6 +56,7 @@ export class PasteHandler {
 
 	private onPaste(e: ClipboardEvent): void {
 		e.preventDefault();
+		if (this.element.contentEditable === 'false') return;
 
 		const clipboardData = e.clipboardData;
 		if (!clipboardData) return;

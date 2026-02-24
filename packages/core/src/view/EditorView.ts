@@ -22,7 +22,7 @@ import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeView } from './NodeView.js';
-import { reconcile } from './Reconciler.js';
+import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
@@ -302,6 +302,7 @@ export class EditorView {
 	 * appends a new paragraph after the last block and focuses it.
 	 */
 	private handleClickBelowContent(e: MouseEvent): void {
+		if (this.contentElement.contentEditable === 'false') return;
 		const blockOrder: readonly BlockId[] = this.state.getBlockOrder();
 		const lastBlockId: BlockId | undefined = blockOrder[blockOrder.length - 1];
 		if (!lastBlockId) return;
@@ -436,7 +437,9 @@ export class EditorView {
 		this.syncSelectionFromDOM();
 	}
 
-	private reconcileOptions(oldSelection?: import('../model/Selection.js').EditorSelection) {
+	private reconcileOptions(
+		oldSelection?: import('../model/Selection.js').EditorSelection,
+	): ReconcileOptions {
 		const selectedNodeId = isNodeSelection(this.state.selection)
 			? this.state.selection.nodeId
 			: undefined;

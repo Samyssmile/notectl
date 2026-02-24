@@ -56,6 +56,12 @@ export class KeyboardHandler {
 		// Handle arrow key navigation into void blocks
 		if (this.handleArrowIntoVoid(e)) return;
 
+		// In readonly mode, allow navigation and escape but block editing
+		if (this.element.contentEditable === 'false') {
+			if (this.handleEscape(e)) return;
+			return;
+		}
+
 		// Try plugin keymaps first (last registered has highest precedence)
 		if (this.schemaRegistry) {
 			const descriptor = normalizeKeyDescriptor(e);
@@ -141,6 +147,7 @@ export class KeyboardHandler {
 
 		// Backspace / Delete: remove the selected void block
 		if (key === 'Backspace' || key === 'Delete') {
+			if (this.element.contentEditable === 'false') return true;
 			e.preventDefault();
 			const tr = deleteNodeSelection(state, sel);
 			if (tr) this.dispatch(tr);
@@ -149,6 +156,7 @@ export class KeyboardHandler {
 
 		// Enter: insert paragraph after
 		if (key === 'Enter') {
+			if (this.element.contentEditable === 'false') return true;
 			e.preventDefault();
 			const tr = splitBlockCommand(state);
 			if (tr) this.dispatch(tr);

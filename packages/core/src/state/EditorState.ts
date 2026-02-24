@@ -109,7 +109,7 @@ export class EditorState {
 	}
 
 	/** Serializes the state to JSON. */
-	toJSON(): object {
+	toJSON(): { readonly doc: Document; readonly selection: EditorSelection } {
 		return {
 			doc: this.doc,
 			selection: this.selection,

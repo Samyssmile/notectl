@@ -54,11 +54,11 @@ const COMPONENT_FALLBACKS: ReadonlyMap<string, string> = new Map([
 /** Resolves a dotted path like 'primitives.background' from a Theme. */
 function resolvePath(theme: Theme, path: string): string | undefined {
 	const parts: string[] = path.split('.');
-	// biome-ignore lint/suspicious/noExplicitAny: dynamic path resolution
-	let current: any = theme;
+	let current: unknown = theme;
 	for (const part of parts) {
 		if (current === undefined || current === null) return undefined;
-		current = current[part];
+		if (typeof current !== 'object') return undefined;
+		current = (current as Record<string, unknown>)[part];
 	}
 	return typeof current === 'string' ? current : undefined;
 }
