@@ -102,9 +102,31 @@ describe('HTMLParser', () => {
 			]);
 		});
 
-		it('handles <br> as newline', () => {
+		it('splits <br> into separate blocks', () => {
 			const slice = parseHTML('<p>line1<br>line2</p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'line1\nline2', marks: [] }]);
+			expect(slice.blocks).toHaveLength(2);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'line1', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ text: 'line2', marks: [] }]);
+		});
+
+		it('splits multiple <br> into separate blocks', () => {
+			const slice = parseHTML('<p>a<br>b<br>c</p>');
+			expect(slice.blocks).toHaveLength(3);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'a', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ text: 'b', marks: [] }]);
+			expect(slice.blocks[2]?.segments).toEqual([{ text: 'c', marks: [] }]);
+		});
+
+		it('preserves marks across <br> split', () => {
+			const slice = parseHTML('<p><b>bold<br>more</b></p>');
+			expect(slice.blocks).toHaveLength(2);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'bold', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ text: 'more', marks: [{ type: 'bold' }] }]);
+		});
+
+		it('does not apply bold for <b style="font-weight:normal">', () => {
+			const slice = parseHTML('<p><b style="font-weight:normal">text</b></p>');
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'text', marks: [] }]);
 		});
 	});
 
@@ -273,6 +295,13 @@ describe('HTMLParser', () => {
 					marks: [{ type: 'link', attrs: { href: 'https://example.com' } }, { type: 'bold' }],
 				},
 			]);
+		});
+
+		it('handles inline element wrapping block descendants', () => {
+			const slice = parseHTML('<b><p>para one</p><p>para two</p></b>');
+			expect(slice.blocks).toHaveLength(2);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'para one', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ text: 'para two', marks: [{ type: 'bold' }] }]);
 		});
 	});
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HTMLParser } from '../../model/HTMLParser.js';
 import {
 	expectCommandDispatches,
 	expectCommandNotRegistered,
@@ -266,6 +267,48 @@ describe('TextFormattingPlugin', () => {
 			expect(h.getMarkSpec('bold')).toBeDefined();
 			expect(h.getMarkSpec('italic')).toBeUndefined();
 			expect(h.getMarkSpec('underline')).toBeDefined();
+		});
+	});
+
+	describe('parseHTML rules', () => {
+		async function parseViaPlugin(html: string): Promise<ReturnType<HTMLParser['parse']>> {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.schema(['paragraph'], ['bold', 'italic', 'underline'])
+				.build();
+			const h = await pluginHarness(new TextFormattingPlugin(), state);
+			const schema = h.getState().schema;
+			const parser = new HTMLParser({
+				schema,
+				schemaRegistry: h.pm.schemaRegistry,
+			});
+			const template = document.createElement('template');
+			template.innerHTML = html;
+			return parser.parse(template.content);
+		}
+
+		it('rejects <b style="font-weight:normal"> as bold', async () => {
+			const slice = await parseViaPlugin('<p><b style="font-weight:normal">not bold</b></p>');
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'not bold', marks: [] }]);
+		});
+
+		it('detects <span style="font-weight:700"> as bold', async () => {
+			const slice = await parseViaPlugin('<p><span style="font-weight:700">bold</span></p>');
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'bold', marks: [{ type: 'bold' }] }]);
+		});
+
+		it('detects <span style="font-style:italic"> as italic', async () => {
+			const slice = await parseViaPlugin('<p><span style="font-style:italic">italic</span></p>');
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'italic', marks: [{ type: 'italic' }] }]);
+		});
+
+		it('detects <span style="text-decoration:underline"> as underline', async () => {
+			const slice = await parseViaPlugin(
+				'<p><span style="text-decoration:underline">underlined</span></p>',
+			);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ text: 'underlined', marks: [{ type: 'underline' }] },
+			]);
 		});
 	});
 });
