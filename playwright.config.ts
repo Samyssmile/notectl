@@ -18,7 +18,7 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:3000',
 			},
-			testIgnore: /angular|demo-showcase/,
+			testIgnore: /angular|demo-showcase|touch/,
 		},
 		{
 			name: 'angular',
@@ -27,6 +27,14 @@ export default defineConfig({
 				baseURL: 'http://localhost:4200',
 			},
 			testMatch: /angular\/.*\.spec\.ts/,
+		},
+		{
+			name: 'touch',
+			use: {
+				...devices['Pixel 5'],
+				baseURL: 'http://localhost:3000',
+			},
+			testMatch: /touch.*\.spec\.ts/,
 		},
 	],
 	webServer: [
