@@ -237,11 +237,13 @@ describe('LinkPlugin', () => {
 			item?.renderPopup?.(
 				container,
 				mockPluginContext({ getState: () => state, dispatch: vi.fn() }),
+				vi.fn(),
 			);
 
 			const input = container.querySelector('input');
 			expect(input).not.toBeNull();
 			expect(input?.type).toBe('url');
+			expect(input?.getAttribute('aria-label')).toBe('Link URL');
 		});
 
 		it('renderPopup shows remove button for linked text', async () => {
@@ -263,11 +265,119 @@ describe('LinkPlugin', () => {
 			item?.renderPopup?.(
 				container,
 				mockPluginContext({ getState: () => state, dispatch: vi.fn() }),
+				vi.fn(),
 			);
 
 			const button = container.querySelector('button');
 			expect(button).not.toBeNull();
 			expect(button?.textContent).toBe('Remove Link');
+		});
+
+		it('onClose called after Apply button mousedown', async () => {
+			const state = makeState([{ text: 'text', id: 'b1' }], {
+				anchorBlock: 'b1',
+				anchorOffset: 0,
+				headBlock: 'b1',
+				headOffset: 4,
+			});
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: vi.fn(),
+					getContainer: () => mockContainer,
+				}),
+				onClose,
+			);
+
+			const input = container.querySelector('input') as HTMLInputElement;
+			input.value = 'https://example.com';
+
+			const applyBtn = container.querySelector(
+				'button[aria-label="Apply link"]',
+			) as HTMLButtonElement;
+			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('onClose called after Enter in URL input', async () => {
+			const state = makeState([{ text: 'text', id: 'b1' }], {
+				anchorBlock: 'b1',
+				anchorOffset: 0,
+				headBlock: 'b1',
+				headOffset: 4,
+			});
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: vi.fn(),
+					getContainer: () => mockContainer,
+				}),
+				onClose,
+			);
+
+			const input = container.querySelector('input') as HTMLInputElement;
+			input.value = 'https://example.com';
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('onClose called after Remove Link button', async () => {
+			const state = makeState(
+				[
+					{
+						text: 'linked',
+						id: 'b1',
+						marks: [{ type: 'link', attrs: { href: 'https://example.com' } }],
+					},
+				],
+				{
+					anchorBlock: 'b1',
+					anchorOffset: 0,
+					headBlock: 'b1',
+					headOffset: 6,
+				},
+			);
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: vi.fn(),
+					getContainer: () => mockContainer,
+				}),
+				onClose,
+			);
+
+			const removeBtn = container.querySelector(
+				'button[aria-label="Remove link"]',
+			) as HTMLButtonElement;
+			removeBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			expect(onClose).toHaveBeenCalledOnce();
 		});
 	});
 });

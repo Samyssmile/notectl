@@ -423,7 +423,7 @@ test.describe('ARIA Enhancements', () => {
 		await page.waitForTimeout(150);
 
 		const input = editor.root.locator('.notectl-toolbar-popup input[type="url"]');
-		await expect(input).toHaveAttribute('aria-label', 'URL');
+		await expect(input).toHaveAttribute('aria-label', 'Link URL');
 
 		const applyBtn = editor.root.locator('.notectl-toolbar-popup button[aria-label="Apply link"]');
 		await expect(applyBtn).toBeVisible();
