@@ -56,6 +56,8 @@ interface PrintOptions {
   readonly printBackground?: boolean;
   /** Page orientation. */
   readonly orientation?: 'portrait' | 'landscape';
+  /** Paper size for @page CSS rule. Overrides default A4. */
+  readonly paperSize?: PaperSize;
 }
 ```
 
@@ -128,6 +130,27 @@ editor.on(AFTER_PRINT, (event) => {
 |-------|---------|-------------|
 | `BEFORE_PRINT` | `{ options: PrintOptions, cancelled: boolean }` | Fired before print. Mutate `options` or set `cancelled = true`. |
 | `AFTER_PRINT` | `{ html: string }` | Fired after HTML generation with the final HTML string. |
+
+## WYSIWYG Print with Paper Size
+
+When the editor has a [`paperSize`](/notectl/guides/paper-size/) configured, the print output automatically matches the editor layout pixel-for-pixel:
+
+- The `@page` rule uses the correct paper size keyword (e.g. `A4`, `letter`)
+- Page margins are set to zero with document margins applied as content padding
+- Typography (font, size, line height) is preserved from the editor
+
+No extra configuration is needed — the editor injects `paperSize` into the print options automatically via the `BEFORE_PRINT` event.
+
+```ts
+import { createEditor, PaperSize, PrintPlugin } from '@notectl/core';
+
+const editor = await createEditor({
+  paperSize: PaperSize.DINA4,
+  toolbar: [[new PrintPlugin()]],
+});
+
+// Ctrl+P / Cmd+P — print output matches the editor 1:1
+```
 
 ## Configuration Examples
 
