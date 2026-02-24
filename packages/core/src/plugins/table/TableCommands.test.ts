@@ -30,6 +30,7 @@ function createMockContext(initialState: EditorState) {
 			dispatch: (tr: Transaction) => {
 				currentState = currentState.apply(tr);
 			},
+			announce: () => {},
 		} as unknown as PluginContext,
 		getState: () => currentState,
 	};
@@ -345,6 +346,7 @@ describe('deleteTable', () => {
 			dispatch: (tr: Transaction) => {
 				currentState = currentState.apply(tr);
 			},
+			announce: () => {},
 		} as unknown as PluginContext;
 
 		expect(deleteTable(context)).toBe(true);

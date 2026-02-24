@@ -14,3 +14,15 @@ export {
 	isInsideTable,
 	type TableContext,
 } from './TableHelpers.js';
+
+export {
+	type TableContextMenuHandle,
+	createTableContextMenu,
+} from './TableContextMenu.js';
+
+export {
+	BORDER_COLOR_PALETTE,
+	getTableBorderColor,
+	setTableBorderColor,
+	resetTableBorderColor,
+} from './TableBorderColor.js';

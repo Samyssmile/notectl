@@ -31,6 +31,8 @@ function createContextWithKeymaps(initialState: EditorState) {
 		registerKeymap: (km: Record<string, () => boolean>) => {
 			Object.assign(keymaps, km);
 		},
+		announce: () => {},
+		getContainer: () => document.createElement('div'),
 	} as unknown as PluginContext;
 
 	registerTableKeymaps(context);

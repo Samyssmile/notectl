@@ -248,6 +248,7 @@ export function addRowAbove(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
+	context.announce('Row inserted above');
 	return true;
 }
 
@@ -262,6 +263,7 @@ export function addRowBelow(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
+	context.announce('Row inserted below');
 	return true;
 }
 
@@ -286,6 +288,7 @@ function addColumn(context: PluginContext, side: 'left' | 'right'): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
+	context.announce(`Column inserted ${side}`);
 	return true;
 }
 
@@ -305,6 +308,7 @@ export function deleteRow(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
+	context.announce('Row deleted');
 	return true;
 }
 
@@ -324,6 +328,7 @@ export function deleteColumn(context: PluginContext): boolean {
 	if (!tr) return false;
 
 	context.dispatch(tr);
+	context.announce('Column deleted');
 	return true;
 }
 
@@ -336,6 +341,7 @@ export function deleteTable(context: PluginContext): boolean {
 	const tr = createDeleteTableTransaction(state, target.tableId);
 	if (!tr) return false;
 	context.dispatch(tr);
+	context.announce('Table deleted');
 	return true;
 }
 
