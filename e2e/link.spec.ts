@@ -8,7 +8,7 @@ test.describe('Link', () => {
 
 		await editor.markButton('link').click();
 
-		const urlInput = page.locator('notectl-editor input[aria-label="URL"]');
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
 		await urlInput.waitFor({ state: 'visible' });
 		await urlInput.fill('https://example.com');
 
@@ -27,7 +27,7 @@ test.describe('Link', () => {
 
 		await editor.markButton('link').click();
 
-		const urlInput = page.locator('notectl-editor input[aria-label="URL"]');
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
 		await urlInput.waitFor({ state: 'visible' });
 		await urlInput.fill('https://enter.example.com');
 		await urlInput.press('Enter');
@@ -50,7 +50,7 @@ test.describe('Link', () => {
 		await page.waitForTimeout(100);
 
 		await editor.markButton('link').click();
-		const urlInput = page.locator('notectl-editor input[aria-label="URL"]');
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
 		await urlInput.waitFor({ state: 'visible' });
 		await urlInput.fill('https://remove.example.com');
 		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
@@ -81,13 +81,79 @@ test.describe('Link', () => {
 		await expect(linkBtn).toHaveAttribute('aria-disabled', 'true');
 	});
 
+	test('popup closes after clicking Apply', async ({ editor, page }) => {
+		await editor.typeText('Close popup');
+		await page.keyboard.press('Control+a');
+		await page.waitForTimeout(100);
+
+		await editor.markButton('link').click();
+
+		const popup = editor.popup();
+		await popup.waitFor({ state: 'visible' });
+
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
+		await urlInput.fill('https://close.example.com');
+
+		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
+		await applyBtn.click();
+
+		await expect(popup).toBeHidden();
+	});
+
+	test('popup closes after pressing Enter in URL input', async ({ editor, page }) => {
+		await editor.typeText('Enter close');
+		await page.keyboard.press('Control+a');
+		await page.waitForTimeout(100);
+
+		await editor.markButton('link').click();
+
+		const popup = editor.popup();
+		await popup.waitFor({ state: 'visible' });
+
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
+		await urlInput.fill('https://enter-close.example.com');
+		await urlInput.press('Enter');
+
+		await expect(popup).toBeHidden();
+	});
+
+	test('popup closes after clicking Remove Link', async ({ editor, page }) => {
+		// Apply a link first
+		await editor.typeText('Remove close');
+		await page.keyboard.press('Control+a');
+		await page.waitForTimeout(100);
+
+		await editor.markButton('link').click();
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
+		await urlInput.waitFor({ state: 'visible' });
+		await urlInput.fill('https://remove-close.example.com');
+		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
+		await applyBtn.click();
+
+		// Re-select the linked text
+		await editor.focus();
+		await page.keyboard.press('Control+a');
+		await page.waitForTimeout(100);
+
+		await editor.markButton('link').click();
+
+		const popup = editor.popup();
+		await popup.waitFor({ state: 'visible' });
+
+		const removeBtn = page.locator('notectl-editor button[aria-label="Remove link"]');
+		await removeBtn.waitFor({ state: 'visible' });
+		await removeBtn.click();
+
+		await expect(popup).toBeHidden();
+	});
+
 	test('undo link application', async ({ editor, page }) => {
 		await editor.typeText('Undo link');
 		await page.keyboard.press('Control+a');
 		await page.waitForTimeout(100);
 
 		await editor.markButton('link').click();
-		const urlInput = page.locator('notectl-editor input[aria-label="URL"]');
+		const urlInput = page.locator('notectl-editor input[aria-label="Link URL"]');
 		await urlInput.waitFor({ state: 'visible' });
 		await urlInput.fill('https://undo.example.com');
 		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');

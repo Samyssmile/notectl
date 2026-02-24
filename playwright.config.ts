@@ -18,7 +18,7 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:3000',
 			},
-			testIgnore: /angular/,
+			testIgnore: /angular|demo-showcase/,
 		},
 		{
 			name: 'angular',
