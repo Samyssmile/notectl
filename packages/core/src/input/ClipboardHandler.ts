@@ -82,6 +82,8 @@ export class ClipboardHandler {
 	}
 
 	private onCut(e: ClipboardEvent): void {
+		if (this.element.contentEditable === 'false') return;
+
 		// Sync DOM selection → state first; selectionchange may lag behind
 		this.syncSelection?.();
 
