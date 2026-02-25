@@ -157,7 +157,7 @@ The table toolbar button shows a **grid picker popup**. Hover over cells to sele
 |------|----------|-----------|-------------|
 | `table` | `<table>` | `borderColor?: string` | Table container |
 | `table_row` | `<tr>` | - | Table row |
-| `table_cell` | `<td>` | `colspan?: number`, `rowspan?: number` | Table cell |
+| `table_cell` | `<td>` | `colspan?: number`, `rowspan?: number` | Table cell (allows paragraph, list_item, heading, blockquote, image, horizontal_rule) |
 
 ## Multi-Cell Selection
 

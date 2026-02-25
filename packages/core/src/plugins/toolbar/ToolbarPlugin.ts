@@ -19,6 +19,11 @@ import {
 	findNextEnabled,
 } from './ToolbarKeyboardNav.js';
 import { TOOLBAR_LOCALES, type ToolbarLocale } from './ToolbarLocale.js';
+import {
+	ToolbarOverflowBehavior,
+	type ToolbarOverflowBehavior as ToolbarOverflowBehaviorType,
+} from './ToolbarOverflowBehavior.js';
+import { ToolbarOverflowController } from './ToolbarOverflowController.js';
 import { ToolbarPopupController } from './ToolbarPopupController.js';
 import { createSeparator } from './ToolbarRenderers.js';
 import { ToolbarTooltip } from './ToolbarTooltip.js';
@@ -27,6 +32,11 @@ import { ToolbarTooltip } from './ToolbarTooltip.js';
 
 export interface ToolbarLayoutConfig {
 	readonly groups: ReadonlyArray<ReadonlyArray<string>>;
+	/**
+	 * Controls responsive overflow behavior when toolbar items exceed available width.
+	 * Defaults to `ToolbarOverflowBehavior.BurgerMenu`.
+	 */
+	readonly overflow?: ToolbarOverflowBehaviorType;
 }
 
 // --- Typed Service API ---
@@ -57,13 +67,17 @@ export class ToolbarPlugin implements Plugin {
 	private buttons: ToolbarButton[] = [];
 	private readonly hiddenItems = new Set<string>();
 	private readonly layoutConfig: ToolbarLayoutConfig | null;
+	private overflowBehavior: ToolbarOverflowBehaviorType;
 	private focusedIndex = 0;
 	private tooltip: ToolbarTooltip | null = null;
 	private popupController: ToolbarPopupController | null = null;
+	private overflowController: ToolbarOverflowController | null = null;
+	private visibleElements: HTMLButtonElement[] = [];
 	private locale!: ToolbarLocale;
 
 	constructor(layoutConfig?: ToolbarLayoutConfig) {
 		this.layoutConfig = layoutConfig ?? null;
+		this.overflowBehavior = layoutConfig?.overflow ?? ToolbarOverflowBehavior.BurgerMenu;
 	}
 
 	init(context: PluginContext): void {
@@ -82,11 +96,27 @@ export class ToolbarPlugin implements Plugin {
 		this.createToolbarElement();
 	}
 
+	/** Returns the current overflow behavior. */
+	getOverflowBehavior(): ToolbarOverflowBehaviorType {
+		return this.overflowBehavior;
+	}
+
+	/** Switches the overflow behavior at runtime. */
+	setOverflowBehavior(behavior: ToolbarOverflowBehaviorType): void {
+		if (behavior === this.overflowBehavior) return;
+
+		this.overflowBehavior = behavior;
+		this.applyOverflowBehavior();
+		this.renderItems();
+	}
+
 	onReady(): void {
 		this.renderItems();
 	}
 
 	destroy(): void {
+		this.overflowController?.destroy();
+		this.overflowController = null;
 		this.popupController?.destroy();
 		this.popupController = null;
 		this.tooltip?.destroy();
@@ -96,11 +126,18 @@ export class ToolbarPlugin implements Plugin {
 			this.toolbarElement = null;
 		}
 		this.buttons = [];
+		this.visibleElements = [];
 		this.context = null;
 	}
 
 	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
 		this.updateButtonStates(newState);
+	}
+
+	onReadOnlyChange(readonly: boolean): void {
+		if (this.toolbarElement) {
+			this.toolbarElement.hidden = readonly;
+		}
 	}
 
 	onConfigure(config: PluginConfig): void {
@@ -133,7 +170,40 @@ export class ToolbarPlugin implements Plugin {
 
 		this.toolbarElement.addEventListener('keydown', (e) => this.handleToolbarKeydown(e));
 
+		this.applyOverflowBehavior();
 		container.appendChild(this.toolbarElement);
+	}
+
+	/** Applies the current overflow behavior: creates/destroys the overflow controller and sets the data attribute. */
+	private applyOverflowBehavior(): void {
+		if (!this.toolbarElement || !this.context) return;
+
+		// Tear down existing overflow controller
+		this.overflowController?.destroy();
+		this.overflowController = null;
+
+		this.toolbarElement.setAttribute('data-overflow', this.overflowBehavior);
+
+		if (this.overflowBehavior === ToolbarOverflowBehavior.BurgerMenu) {
+			this.overflowController = new ToolbarOverflowController({
+				toolbar: this.toolbarElement,
+				ariaLabel: this.locale.moreToolsAria,
+				context: this.context,
+				onOverflowChange: (visibleButtons, overflowBtn) => {
+					this.visibleElements = overflowBtn
+						? [...visibleButtons, overflowBtn]
+						: [...visibleButtons];
+					this.initRovingTabindex();
+				},
+				onItemActivated: (btn: HTMLButtonElement, item: ToolbarItem) => {
+					this.activateButton(btn, item);
+				},
+				getActiveElement: () => this.getActiveElement(),
+			});
+		} else {
+			// Flow and None modes: all buttons are visible for roving tabindex
+			this.visibleElements = [];
+		}
 	}
 
 	private renderItems(): void {
@@ -159,23 +229,30 @@ export class ToolbarPlugin implements Plugin {
 			container.appendChild(this.toolbarElement);
 		}
 
+		this.overflowController?.update(this.buttons);
 		this.initRovingTabindex();
 		this.updateButtonStates(this.context.getState());
 	}
 
 	// --- Roving Tabindex ---
 
+	private getTabElements(): HTMLButtonElement[] {
+		return this.visibleElements.length > 0
+			? this.visibleElements
+			: this.buttons.map((b) => b.element);
+	}
+
 	private initRovingTabindex(): void {
-		const elements: HTMLButtonElement[] = this.buttons.map((b) => b.element);
+		const elements: HTMLButtonElement[] = this.getTabElements();
 		const first: number = findFirstEnabled(elements);
 		this.focusedIndex = first >= 0 ? first : 0;
 		applyRovingTabindex(elements, this.focusedIndex);
 	}
 
 	private setRovingFocus(index: number): void {
-		if (index < 0 || index >= this.buttons.length) return;
+		const elements: HTMLButtonElement[] = this.getTabElements();
+		if (index < 0 || index >= elements.length) return;
 		this.focusedIndex = index;
-		const elements: HTMLButtonElement[] = this.buttons.map((b) => b.element);
 		applyRovingTabindex(elements, index);
 		elements[index]?.focus();
 	}
@@ -191,7 +268,8 @@ export class ToolbarPlugin implements Plugin {
 
 	private syncFocusedIndex(): void {
 		const active: Element | null = this.getActiveElement();
-		const idx: number = this.buttons.findIndex((b) => b.element === active);
+		const elements: HTMLButtonElement[] = this.getTabElements();
+		const idx: number = elements.findIndex((el) => el === active);
 		if (idx >= 0) {
 			this.focusedIndex = idx;
 		}
@@ -200,7 +278,7 @@ export class ToolbarPlugin implements Plugin {
 	// --- Toolbar Keyboard ---
 
 	private handleToolbarKeydown(e: KeyboardEvent): void {
-		const elements: HTMLButtonElement[] = this.buttons.map((b) => b.element);
+		const elements: HTMLButtonElement[] = this.getTabElements();
 		if (elements.length === 0) return;
 
 		this.syncFocusedIndex();
@@ -233,7 +311,8 @@ export class ToolbarPlugin implements Plugin {
 			case 'Enter':
 			case ' ': {
 				e.preventDefault();
-				const btn: ToolbarButton | undefined = this.buttons[this.focusedIndex];
+				const focused: HTMLButtonElement | undefined = elements[this.focusedIndex];
+				const btn: ToolbarButton | undefined = this.buttons.find((b) => b.element === focused);
 				if (btn) this.activateButton(btn.element, btn.item);
 				break;
 			}
@@ -390,5 +469,6 @@ export class ToolbarPlugin implements Plugin {
 				btn.element.removeAttribute('aria-disabled');
 			}
 		}
+		this.overflowController?.updateItemStates(state);
 	}
 }

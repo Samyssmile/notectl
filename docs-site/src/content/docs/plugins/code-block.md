@@ -48,6 +48,8 @@ interface CodeBlockConfig {
   readonly headerColor?: string;
   /** Customize keyboard bindings for code block actions. */
   readonly keymap?: CodeBlockKeymap;
+  /** Locale override for user-facing strings. */
+  readonly locale?: CodeBlockLocale;
 }
 
 interface CodeBlockKeymap {

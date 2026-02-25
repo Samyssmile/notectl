@@ -13,7 +13,7 @@ import type { Plugin, PluginContext } from '@notectl/core';
 class MyPlugin implements Plugin {
   readonly id = 'my-plugin';
   readonly name = 'My Plugin';
-  readonly priority = 50;              // Optional: controls toolbar order
+  readonly priority = 50;              // Optional: controls init order
   readonly dependencies = [];          // Optional: plugin IDs this depends on
 
   init(context: PluginContext): void {
@@ -30,6 +30,14 @@ class MyPlugin implements Plugin {
 
   onReady(): void {
     // Called after ALL plugins are initialized
+  }
+
+  onReadOnlyChange(readonly: boolean): void {
+    // Called when the editor's read-only mode changes
+  }
+
+  decorations(state: EditorState, tr?: Transaction): DecorationSet {
+    // Return decorations for the current state
   }
 }
 ```
@@ -245,6 +253,66 @@ const contentEl = context.getContainer();
 // Plugin container areas (above/below the content)
 const topArea = context.getPluginContainer('top');
 const bottomArea = context.getPluginContainer('bottom');
+```
+
+### Inline Node Specs
+
+Register atomic inline elements (like hard breaks, emoji, or mentions):
+
+```ts
+context.registerInlineNodeSpec({
+  type: 'emoji',
+  attrs: {
+    code: { default: '' },
+  },
+  toDOM(node) {
+    const span = document.createElement('span');
+    span.textContent = node.attrs.code;
+    span.setAttribute('contenteditable', 'false');
+    return span;
+  },
+});
+```
+
+### File Handlers
+
+Register handlers for drag-and-drop or paste of files:
+
+```ts
+context.registerFileHandler('image/*', async (files, position) => {
+  for (const file of files) {
+    // Process each file
+  }
+  return true; // Return true if handled
+});
+```
+
+### Style Sheets
+
+Inject CSS into the editor's adopted stylesheets:
+
+```ts
+context.registerStyleSheet(`
+  .callout { padding: 12px; border-left: 4px solid blue; }
+`);
+```
+
+### Accessibility Announcements
+
+Push announcements to screen readers via the aria-live region:
+
+```ts
+context.announce('Image resized to 400 by 300 pixels.');
+```
+
+### Read-Only State
+
+Check whether the editor is currently in read-only mode:
+
+```ts
+if (context.isReadOnly()) {
+  return false; // Skip mutation in read-only mode
+}
 ```
 
 ## Complete Example: Highlight Plugin

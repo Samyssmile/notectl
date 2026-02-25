@@ -55,6 +55,7 @@ export default defineConfig({
 						{ label: 'Working with Content', slug: 'guides/content' },
 						{ label: 'Events & Lifecycle', slug: 'guides/events' },
 						{ label: 'Paper Size', slug: 'guides/paper-size' },
+						{ label: 'Read-Only Checklist', slug: 'guides/readonly-checklist' },
 						{ label: 'Internationalization', slug: 'guides/internationalization' },
 						{ label: 'Angular Integration', slug: 'guides/angular' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },

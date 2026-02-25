@@ -79,6 +79,7 @@ The HTML is parsed into the document model. Supported elements:
 | `<h1>` - `<h6>` | `heading` (level 1-6) |
 | `<ul><li>` | `list_item` (bullet) |
 | `<ol><li>` | `list_item` (ordered) |
+| `<li>` with checkbox | `list_item` (checklist) |
 | `<hr>` | `horizontal_rule` |
 | `<blockquote>` | `blockquote` |
 

@@ -47,8 +47,12 @@ const editor = await createEditor({
 interface ToolbarLayoutConfig {
   /** Plugin ID groups — each inner array is a visual toolbar group */
   readonly groups: ReadonlyArray<ReadonlyArray<string>>;
+  /** Controls responsive overflow. Default: ToolbarOverflowBehavior.BurgerMenu */
+  readonly overflow?: ToolbarOverflowBehavior;
 }
 ```
+
+The `overflow` field controls how items behave when the toolbar is too narrow. See the [Toolbar Configuration guide](/notectl/guides/toolbar/#responsive-overflow-behavior) for the available modes (`BurgerMenu`, `Flow`, `None`).
 
 ## Toolbar Items
 
@@ -117,6 +121,23 @@ type ToolbarItem =
 | `gridPicker` | 2D grid for dimension selection | TablePlugin |
 | `custom` | Full control over popup rendering | FontPlugin, FontSizePlugin, TextColorPlugin, LinkPlugin |
 
+## Runtime API
+
+### `getOverflowBehavior(): ToolbarOverflowBehavior`
+
+Returns the current overflow behavior mode.
+
+### `setOverflowBehavior(behavior: ToolbarOverflowBehavior): void`
+
+Switches the overflow behavior at runtime. Triggers an immediate re-layout.
+
+```ts
+import { ToolbarOverflowBehavior } from '@notectl/core';
+
+// Switch to flow mode at runtime
+toolbarPlugin.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
+```
+
 ## ToolbarService
 
 The toolbar exposes a typed service for programmatic control:
@@ -139,6 +160,10 @@ interface ToolbarServiceAPI {
 }
 ```
 
+## Read-Only Mode
+
+When the editor enters read-only mode, the toolbar automatically hides itself. When read-only mode is disabled, the toolbar reappears.
+
 ## Button States
 
 The toolbar automatically updates button states on every state change:
@@ -148,8 +173,37 @@ The toolbar automatically updates button states on every state change:
 
 ## Accessibility
 
+### Toolbar
+
 The toolbar element has:
 - `role="toolbar"` for screen readers
-- `aria-label="Formatting options"`
+- Localized `aria-label` (defaults to "Formatting options" in English)
 - Individual buttons with `aria-pressed` and `aria-label`
 - Tooltip on hover (500ms delay)
+
+**Keyboard navigation** (roving tabindex):
+
+| Key | Action |
+|-----|--------|
+| `ArrowRight` | Move focus to next button |
+| `ArrowLeft` | Move focus to previous button |
+| `Home` | Move focus to first enabled button |
+| `End` | Move focus to last enabled button |
+| `Enter` / `Space` | Activate the focused button |
+
+### Overflow Dropdown
+
+When the "..." overflow button is visible:
+- The button has `aria-haspopup="true"` and `aria-expanded` toggled on open/close
+- Localized `aria-label` (defaults to "More tools" in English)
+- The dropdown menu has `role="menu"` with `role="menuitem"` children
+- Group separators use `role="separator"`
+
+**Dropdown keyboard navigation:**
+
+| Key | Action |
+|-----|--------|
+| `ArrowDown` | Move focus to next menu item |
+| `ArrowUp` | Move focus to previous menu item |
+| `Enter` / `Space` | Activate the focused item |
+| `Escape` / `Tab` | Close dropdown, return focus to overflow button |

@@ -37,6 +37,11 @@ export interface ListConfig {
 	readonly maxIndent: number;
 	/** When true, a separator is rendered after the last list toolbar item. */
 	readonly separatorAfter?: boolean;
+	/**
+	 * When true, checklist checkboxes remain interactive even in read-only mode.
+	 * Defaults to false (checkboxes are fully read-only).
+	 */
+	readonly interactiveCheckboxes?: boolean;
 	readonly locale?: ListLocale;
 }
 
@@ -192,8 +197,8 @@ export class ListPlugin implements Plugin {
 		});
 
 		if (this.config.types.includes('checklist')) {
-			context.registerCommand('toggleChecklistItem', () => {
-				return this.toggleChecked(context);
+			context.registerCommand('toggleChecklistItem', () => this.toggleChecked(context), {
+				readonlyAllowed: true,
 			});
 		}
 	}
@@ -347,6 +352,8 @@ export class ListPlugin implements Plugin {
 	}
 
 	private toggleChecked(context: PluginContext, targetId?: BlockId): boolean {
+		if (context.isReadOnly() && !this.config.interactiveCheckboxes) return false;
+
 		const state = context.getState();
 		const bid: BlockId | null =
 			targetId ?? (isNodeSelection(state.selection) ? null : state.selection.anchor.blockId);
@@ -445,6 +452,8 @@ export class ListPlugin implements Plugin {
 		if (!this.config.types.includes('checklist')) return;
 
 		this.checkboxClickHandler = (e: MouseEvent) => {
+			if (context.isReadOnly() && !this.config.interactiveCheckboxes) return;
+
 			const target: EventTarget | null = e.target;
 			if (!(target instanceof HTMLElement)) return;
 

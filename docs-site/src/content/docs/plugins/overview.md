@@ -43,7 +43,7 @@ interface Plugin {
   readonly id: string;
   /** Human-readable name. */
   readonly name: string;
-  /** Toolbar ordering (lower = further left). */
+  /** Plugin initialization order (lower = first). */
   readonly priority?: number;
   /** Required plugin IDs that must be loaded first. */
   readonly dependencies?: readonly string[];
@@ -58,6 +58,8 @@ interface Plugin {
   onConfigure?(config: TConfig): void;
   /** Called once after all plugins are initialized. */
   onReady?(): void | Promise<void>;
+  /** Called when the editor's read-only mode changes. */
+  onReadOnlyChange?(readonly: boolean): void;
   /** Returns decorations for the current state. */
   decorations?(state: EditorState, tr?: Transaction): DecorationSet;
 }
@@ -83,6 +85,10 @@ Plugins register through the `PluginContext`:
 | `registerFileHandler()` | File paste/drop handlers | Image upload on drag-and-drop |
 | `registerStyleSheet()` | Inject plugin CSS | Table grid styles, code block theme |
 | `announce()` | Screen reader announcements | "Image resized", "Entered code block" |
+| `executeCommand()` | Execute a registered command | Trigger toggleBold from keyboard handler |
+| `getEventBus()` | Access typed event bus | Emit/subscribe to plugin events |
+| `isReadOnly()` | Check read-only state | Skip mutations in read-only mode |
+| `updateConfig()` | Push runtime config updates | Dynamic plugin reconfiguration |
 
 ## Plugin Composition
 

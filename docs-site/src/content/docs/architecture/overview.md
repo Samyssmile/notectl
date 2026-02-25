@@ -30,6 +30,7 @@ The foundation. Immutable data types with no DOM dependency:
 - **`Document`** — Root container with `children: BlockNode[]`
 - **`BlockNode`** — Block-level nodes (paragraph, heading, list_item, etc.)
 - **`TextNode`** — Inline text segments with marks
+- **`InlineNode`** — Atomic inline elements (hard break, emoji, mention, etc.)
 - **`Mark`** — Inline annotations (bold, italic, link, etc.)
 - **`Selection`** — Anchor + head positions
 - **`Schema`** — Describes valid node and mark types
