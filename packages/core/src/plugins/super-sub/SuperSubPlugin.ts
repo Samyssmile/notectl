@@ -247,57 +247,62 @@ export class SuperSubPlugin implements Plugin {
 
 		if (!bothEnabled) return;
 
-		context.registerMiddleware((tr, _state, next) => {
-			let patched = false;
+		context.registerMiddleware(
+			(tr, _state, next) => {
+				let patched = false;
 
-			// Handle addMark steps: inject removeMark for the opposite type
-			const patchedSteps: Step[] = [];
-			for (const step of tr.steps) {
-				if (step.type !== 'addMark') {
-					patchedSteps.push(step);
-					continue;
-				}
+				// Handle addMark steps: inject removeMark for the opposite type
+				const patchedSteps: Step[] = [];
+				for (const step of tr.steps) {
+					if (step.type !== 'addMark') {
+						patchedSteps.push(step);
+						continue;
+					}
 
-				const markName: string = step.mark.type;
-				const def: MarkDefinition | undefined = MARK_DEFINITIONS.find((d) => d.type === markName);
-				if (!def) {
-					patchedSteps.push(step);
-					continue;
-				}
+					const markName: string = step.mark.type;
+					const def: MarkDefinition | undefined = MARK_DEFINITIONS.find((d) => d.type === markName);
+					if (!def) {
+						patchedSteps.push(step);
+						continue;
+					}
 
-				patched = true;
-				const removeStep: RemoveMarkStep = {
-					type: 'removeMark',
-					blockId: step.blockId,
-					from: step.from,
-					to: step.to,
-					mark: { type: mkType(def.opposite) },
-					...(step.path ? { path: step.path } : {}),
-				};
-				patchedSteps.push(removeStep, step);
-			}
-
-			// Handle stored marks: remove the opposite mark
-			let storedMarksAfter: readonly Mark[] | null = tr.storedMarksAfter;
-			if (storedMarksAfter) {
-				const hasSup: boolean = storedMarksAfter.some((m) => m.type === 'superscript');
-				const hasSub: boolean = storedMarksAfter.some((m) => m.type === 'subscript');
-
-				if (hasSup && hasSub) {
-					// Keep the one that was most recently added (last in array)
-					const lastSupIdx: number = storedMarksAfter.findLastIndex(
-						(m) => m.type === 'superscript',
-					);
-					const lastSubIdx: number = storedMarksAfter.findLastIndex((m) => m.type === 'subscript');
-					const removeType: string = lastSupIdx > lastSubIdx ? 'subscript' : 'superscript';
-
-					storedMarksAfter = storedMarksAfter.filter((m) => m.type !== removeType);
 					patched = true;
+					const removeStep: RemoveMarkStep = {
+						type: 'removeMark',
+						blockId: step.blockId,
+						from: step.from,
+						to: step.to,
+						mark: { type: mkType(def.opposite) },
+						...(step.path ? { path: step.path } : {}),
+					};
+					patchedSteps.push(removeStep, step);
 				}
-			}
 
-			next(patched ? { ...tr, steps: patchedSteps, storedMarksAfter } : tr);
-		});
+				// Handle stored marks: remove the opposite mark
+				let storedMarksAfter: readonly Mark[] | null = tr.storedMarksAfter;
+				if (storedMarksAfter) {
+					const hasSup: boolean = storedMarksAfter.some((m) => m.type === 'superscript');
+					const hasSub: boolean = storedMarksAfter.some((m) => m.type === 'subscript');
+
+					if (hasSup && hasSub) {
+						// Keep the one that was most recently added (last in array)
+						const lastSupIdx: number = storedMarksAfter.findLastIndex(
+							(m) => m.type === 'superscript',
+						);
+						const lastSubIdx: number = storedMarksAfter.findLastIndex(
+							(m) => m.type === 'subscript',
+						);
+						const removeType: string = lastSupIdx > lastSubIdx ? 'subscript' : 'superscript';
+
+						storedMarksAfter = storedMarksAfter.filter((m) => m.type !== removeType);
+						patched = true;
+					}
+				}
+
+				next(patched ? { ...tr, steps: patchedSteps, storedMarksAfter } : tr);
+			},
+			{ name: 'super-sub:exclusivity' },
+		);
 	}
 
 	/**
