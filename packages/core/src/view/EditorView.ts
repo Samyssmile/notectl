@@ -166,7 +166,9 @@ export class EditorView {
 					? (this.compositionTracker.activeBlockId ?? undefined)
 					: undefined,
 			});
-			syncSelectionToDOM(this.contentElement, newState.selection);
+			if (!this.compositionTracker.isComposing) {
+				syncSelectionToDOM(this.contentElement, newState.selection);
+			}
 
 			for (const cb of this.stateChangeCallbacks) {
 				cb(oldState, newState, tr);
@@ -228,7 +230,9 @@ export class EditorView {
 					? (this.compositionTracker.activeBlockId ?? undefined)
 					: undefined,
 			});
-			syncSelectionToDOM(this.contentElement, newState.selection);
+			if (!this.compositionTracker.isComposing) {
+				syncSelectionToDOM(this.contentElement, newState.selection);
+			}
 		} finally {
 			this.isUpdating = false;
 		}
