@@ -17,6 +17,7 @@ import {
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
+import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
 
 export interface KeyboardHandlerOptions {
@@ -26,6 +27,7 @@ export interface KeyboardHandlerOptions {
 	redo: RedoFn;
 	schemaRegistry?: SchemaRegistry;
 	isReadOnly?: () => boolean;
+	compositionTracker?: CompositionTracker;
 }
 
 export class KeyboardHandler {
@@ -35,6 +37,7 @@ export class KeyboardHandler {
 	private readonly redo: RedoFn;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly isReadOnly: () => boolean;
+	private readonly compositionTracker?: CompositionTracker;
 	private readonly handleKeydown: (e: KeyboardEvent) => void;
 
 	constructor(
@@ -47,12 +50,16 @@ export class KeyboardHandler {
 		this.redo = options.redo;
 		this.schemaRegistry = options.schemaRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.compositionTracker = options.compositionTracker;
 
 		this.handleKeydown = this.onKeydown.bind(this);
 		element.addEventListener('keydown', this.handleKeydown);
 	}
 
 	private onKeydown(e: KeyboardEvent): void {
+		// During IME composition, let the browser handle all keys
+		if (this.compositionTracker?.isComposing) return;
+
 		// Handle NodeSelection keys before plugin keymaps
 		if (this.handleNodeSelectionKeys(e)) return;
 
@@ -65,16 +72,18 @@ export class KeyboardHandler {
 			return;
 		}
 
-		// Try plugin keymaps first (last registered has highest precedence)
+		// Try plugin keymaps in priority order: context > navigation > default.
+		// Within each priority, iterate in reverse so later-registered keymaps take precedence.
 		if (this.schemaRegistry) {
 			const descriptor = normalizeKeyDescriptor(e);
-			const keymaps = this.schemaRegistry.getKeymaps();
-			// Iterate in reverse so later-registered keymaps take precedence
-			for (let i = keymaps.length - 1; i >= 0; i--) {
-				const handler = keymaps[i]?.[descriptor];
-				if (handler?.()) {
-					e.preventDefault();
-					return;
+			const groups = this.schemaRegistry.getKeymapsByPriority();
+			for (const keymaps of [groups.context, groups.navigation, groups.default]) {
+				for (let i = keymaps.length - 1; i >= 0; i--) {
+					const handler = keymaps[i]?.[descriptor];
+					if (handler?.()) {
+						e.preventDefault();
+						return;
+					}
 				}
 			}
 		}

@@ -73,7 +73,7 @@ export function registerCodeBlockKeymaps(
 		keymap[toggle] = () => context.executeCommand('toggleCodeBlock');
 	}
 
-	context.registerKeymap(keymap);
+	context.registerKeymap(keymap, { priority: 'context' });
 }
 
 // --- Handler Functions ---

@@ -42,7 +42,7 @@ export function registerTableKeymaps(context: PluginContext, locale?: TableLocal
 		'Shift-F10': () => handleContextMenu(context),
 	};
 
-	context.registerKeymap(keymap);
+	context.registerKeymap(keymap, { priority: 'context' });
 }
 
 /**
