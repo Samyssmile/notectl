@@ -20,6 +20,7 @@ import { isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { EditorState } from '../state/EditorState.js';
+import { CompositionTracker } from './CompositionTracker.js';
 
 export type DispatchFn = (tr: Transaction) => void;
 export type GetStateFn = () => EditorState;
@@ -34,6 +35,7 @@ export interface InputHandlerOptions {
 	syncSelection: SyncSelectionFn;
 	schemaRegistry?: SchemaRegistry;
 	isReadOnly?: () => boolean;
+	compositionTracker?: CompositionTracker;
 }
 
 export class InputHandler {
@@ -42,7 +44,7 @@ export class InputHandler {
 	private readonly syncSelection: SyncSelectionFn;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly isReadOnly: () => boolean;
-	private composing = false;
+	private readonly compositionTracker: CompositionTracker;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
 	private readonly handleCompositionStart: (e: CompositionEvent) => void;
@@ -57,6 +59,7 @@ export class InputHandler {
 		this.syncSelection = options.syncSelection;
 		this.schemaRegistry = options.schemaRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
@@ -71,7 +74,7 @@ export class InputHandler {
 		if (this.isReadOnly()) return;
 
 		// During composition, let the browser handle it
-		if (this.composing && e.inputType === 'insertCompositionText') {
+		if (this.compositionTracker.isComposing && e.inputType === 'insertCompositionText') {
 			return;
 		}
 
@@ -159,11 +162,13 @@ export class InputHandler {
 	}
 
 	private onCompositionStart(_e: CompositionEvent): void {
-		this.composing = true;
+		const state = this.getState();
+		if (isNodeSelection(state.selection)) return;
+		this.compositionTracker.start(state.selection.anchor.blockId);
 	}
 
 	private onCompositionEnd(e: CompositionEvent): void {
-		this.composing = false;
+		this.compositionTracker.end();
 		if (this.isReadOnly()) return;
 		const composedText = e.data;
 		if (!composedText) return;
