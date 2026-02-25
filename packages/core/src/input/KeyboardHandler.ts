@@ -63,19 +63,27 @@ export class KeyboardHandler {
 		// Handle NodeSelection keys before plugin keymaps
 		if (this.handleNodeSelectionKeys(e)) return;
 
-		// Handle arrow key navigation into void blocks
-		if (this.handleArrowIntoVoid(e)) return;
-
-		// In readonly mode, allow navigation and escape but block editing
+		// Readonly mode: allow navigation keymaps + escape, block everything else
 		if (this.isReadOnly()) {
+			if (this.schemaRegistry) {
+				const descriptor: string = normalizeKeyDescriptor(e);
+				const navKeymaps = this.schemaRegistry.getKeymapsByPriority().navigation;
+				for (let i = navKeymaps.length - 1; i >= 0; i--) {
+					const handler = navKeymaps[i]?.[descriptor];
+					if (handler?.()) {
+						e.preventDefault();
+						return;
+					}
+				}
+			}
 			if (this.handleEscape(e)) return;
 			return;
 		}
 
-		// Try plugin keymaps in priority order: context > navigation > default.
+		// Normal mode: try plugin keymaps in priority order (context > navigation > default).
 		// Within each priority, iterate in reverse so later-registered keymaps take precedence.
 		if (this.schemaRegistry) {
-			const descriptor = normalizeKeyDescriptor(e);
+			const descriptor: string = normalizeKeyDescriptor(e);
 			const groups = this.schemaRegistry.getKeymapsByPriority();
 			for (const keymaps of [groups.context, groups.navigation, groups.default]) {
 				for (let i = keymaps.length - 1; i >= 0; i--) {
@@ -214,35 +222,6 @@ export class KeyboardHandler {
 
 		this.element.blur();
 		return true;
-	}
-
-	/** Handles arrow key navigation from text blocks into adjacent void blocks. */
-	private handleArrowIntoVoid(e: KeyboardEvent): boolean {
-		const key = e.key;
-		if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'ArrowUp' && key !== 'ArrowDown') {
-			return false;
-		}
-
-		// Don't intercept modified arrows (selection extension, word jump)
-		if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return false;
-
-		const state = this.getState();
-		const direction =
-			key === 'ArrowLeft'
-				? 'left'
-				: key === 'ArrowRight'
-					? 'right'
-					: key === 'ArrowUp'
-						? 'up'
-						: 'down';
-
-		const tr = navigateArrowIntoVoid(state, direction);
-		if (tr) {
-			e.preventDefault();
-			this.dispatch(tr);
-			return true;
-		}
-		return false;
 	}
 
 	destroy(): void {
