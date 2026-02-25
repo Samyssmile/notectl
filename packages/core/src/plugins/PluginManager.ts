@@ -20,6 +20,7 @@ import type {
 	CommandOptions,
 	EventKey,
 	MiddlewareNext,
+	MiddlewareOptions,
 	Plugin,
 	PluginConfig,
 	PluginContext,
@@ -32,8 +33,17 @@ import type {
 const DEFAULT_PRIORITY = 100;
 
 interface MiddlewareEntry {
-	middleware: TransactionMiddleware;
-	priority: number;
+	readonly name: string;
+	readonly pluginId: string;
+	readonly middleware: TransactionMiddleware;
+	readonly priority: number;
+}
+
+/** Describes a registered middleware for introspection. */
+export interface MiddlewareInfo {
+	readonly name: string;
+	readonly priority: number;
+	readonly pluginId: string;
 }
 
 interface PluginRegistrations {
@@ -203,7 +213,7 @@ export class PluginManager {
 				try {
 					entry.middleware(currentTr, state, guardedNext);
 				} catch (err) {
-					console.error('[PluginManager] Middleware error:', err);
+					console.error(`[PluginManager] Middleware "${entry.name}" error:`, err);
 					guardedNext(currentTr);
 				}
 			} else if (!dispatched) {
@@ -275,6 +285,15 @@ export class PluginManager {
 	/** Returns all registered plugin IDs. */
 	getPluginIds(): string[] {
 		return [...this.plugins.keys()];
+	}
+
+	/** Returns the middleware chain in execution order, for debugging and introspection. */
+	getMiddlewareChain(): readonly MiddlewareInfo[] {
+		return this.getSortedMiddleware().map((entry) => ({
+			name: entry.name,
+			priority: entry.priority,
+			pluginId: entry.pluginId,
+		}));
 	}
 
 	/** Gets a plugin by ID. */
@@ -426,8 +445,10 @@ export class PluginManager {
 
 			getEventBus: () => pluginEventBus,
 
-			registerMiddleware: (middleware: TransactionMiddleware, priority = DEFAULT_PRIORITY) => {
-				const entry: MiddlewareEntry = { middleware, priority };
+			registerMiddleware: (middleware: TransactionMiddleware, options?: MiddlewareOptions) => {
+				const name: string = options?.name ?? (middleware.name || 'anonymous');
+				const priority: number = options?.priority ?? DEFAULT_PRIORITY;
+				const entry: MiddlewareEntry = { name, pluginId, middleware, priority };
 				this.middlewares.push(entry);
 				reg.middlewares.push(entry);
 				this.middlewareSorted = null;

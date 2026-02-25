@@ -69,6 +69,13 @@ export type TransactionMiddleware = (
 	next: MiddlewareNext,
 ) => void;
 
+export interface MiddlewareOptions {
+	/** Human-readable name for debugging and introspection. */
+	readonly name?: string;
+	/** Execution priority (lower values run first). Defaults to 100. */
+	readonly priority?: number;
+}
+
 // --- Plugin Context ---
 
 export interface PluginContext {
@@ -79,7 +86,7 @@ export interface PluginContext {
 	registerCommand(name: string, handler: CommandHandler, options?: CommandOptions): void;
 	executeCommand(name: string): boolean;
 	getEventBus(): PluginEventBus;
-	registerMiddleware(middleware: TransactionMiddleware, priority?: number): void;
+	registerMiddleware(middleware: TransactionMiddleware, options?: MiddlewareOptions): void;
 	registerService<T>(key: ServiceKey<T>, service: T): void;
 	getService<T>(key: ServiceKey<T>): T | undefined;
 	updateConfig(config: PluginConfig): void;
