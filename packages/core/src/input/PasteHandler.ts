@@ -23,6 +23,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
+	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
@@ -185,7 +186,11 @@ export class PasteHandler {
 		const sel = state.selection;
 
 		// Find anchor block to insert after
-		const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
+		const anchorBlockId: BlockId = isNodeSelection(sel)
+			? sel.nodeId
+			: isGapCursor(sel)
+				? sel.blockId
+				: sel.anchor.blockId;
 
 		const newBlockId: BlockId = generateBlockId();
 		const attrs: BlockAttrs | undefined = sanitizeAttrs(parsed.attrs, spec?.attrs) as
@@ -231,8 +236,9 @@ export class PasteHandler {
 		const index: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
 		if (index < 0) return;
 
+		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
 		const builder = state.transaction('paste');
-		builder.insertNode(parentPath, index + 1, newBlock);
+		builder.insertNode(parentPath, index + insertOffset, newBlock);
 		builder.setSelection(createNodeSelection(newBlockId, [...parentPath, newBlockId]));
 
 		this.dispatch(builder.build());
@@ -265,7 +271,11 @@ export class PasteHandler {
 
 		const state = this.getState();
 		const sel = state.selection;
-		const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
+		const anchorBlockId: BlockId = isNodeSelection(sel)
+			? sel.nodeId
+			: isGapCursor(sel)
+				? sel.blockId
+				: sel.anchor.blockId;
 
 		const cellId: BlockId | undefined = this.findTableCellAncestor(state, anchorBlockId);
 
@@ -367,7 +377,9 @@ export class PasteHandler {
 			anchorBlock.type === 'paragraph' &&
 			getBlockText(anchorBlock) === '';
 
-		let insertIndex: number = anchorIndex + 1;
+		const sel = state.selection;
+		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
+		let insertIndex: number = anchorIndex + insertOffset;
 		const builder = state.transaction('paste');
 		let lastBlockId: BlockId | undefined;
 		let lastTextLen = 0;
@@ -396,8 +408,8 @@ export class PasteHandler {
 			lastTextLen = text.length;
 		}
 
-		// Remove the empty anchor paragraph
-		if (isAnchorEmpty) {
+		// Remove the empty anchor paragraph (don't remove void blocks at gap cursor)
+		if (isAnchorEmpty && !isGapCursor(sel)) {
 			builder.removeNode(parentPath, anchorIndex);
 		}
 

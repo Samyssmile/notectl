@@ -18,6 +18,7 @@ import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 	isTextSelection,
 	selectionRange,
@@ -70,6 +71,9 @@ export class ClipboardHandler {
 		const state = this.getState();
 		const sel = state.selection;
 
+		// GapCursor: nothing to copy
+		if (isGapCursor(sel)) return;
+
 		// Collapsed selection: let the browser handle it
 		if (isTextSelection(sel) && isCollapsed(sel)) return;
 
@@ -92,6 +96,9 @@ export class ClipboardHandler {
 
 		const state = this.getState();
 		const sel = state.selection;
+
+		// GapCursor: nothing to cut
+		if (isGapCursor(sel)) return;
 
 		// Collapsed selection: nothing to cut
 		if (isTextSelection(sel) && isCollapsed(sel)) return;
@@ -141,6 +148,7 @@ export class ClipboardHandler {
 	private writeTextSelectionToClipboard(clipboardData: DataTransfer, state: EditorState): void {
 		const sel = state.selection;
 		if (isNodeSelection(sel)) return;
+		if (isGapCursor(sel)) return;
 		if (isCollapsed(sel)) return;
 
 		const blockOrder = state.getBlockOrder();

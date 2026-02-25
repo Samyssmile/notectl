@@ -5,7 +5,7 @@
 
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockLength, getInlineChildren, isTextNode } from '../../model/Document.js';
-import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
+import { createCollapsedSelection, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
@@ -29,7 +29,7 @@ export function registerCodeBlockCommands(context: PluginContext, config: CodeBl
 
 function toggleCodeBlock(context: PluginContext, config: CodeBlockConfig): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 
 	const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
 	if (!block) return false;
@@ -50,7 +50,7 @@ function toggleCodeBlock(context: PluginContext, config: CodeBlockConfig): boole
 function insertCodeBlock(context: PluginContext, config: CodeBlockConfig): boolean {
 	const state = context.getState();
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
 	if (!block || block.type === 'code_block') return false;

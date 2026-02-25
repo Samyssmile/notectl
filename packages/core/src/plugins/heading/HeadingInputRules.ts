@@ -3,7 +3,12 @@
  * Converts `# `, `## `, etc. at the start of a paragraph into headings.
  */
 
-import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import type { HeadingConfig } from './HeadingPlugin.js';
@@ -18,7 +23,7 @@ export function registerHeadingInputRules(context: PluginContext, config: Headin
 			pattern,
 			handler(state, _match, start, _end) {
 				const sel = state.selection;
-				if (isNodeSelection(sel)) return null;
+				if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block = state.getBlock(sel.anchor.blockId);

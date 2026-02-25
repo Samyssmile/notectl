@@ -33,6 +33,7 @@
 		TablePlugin,
 		TextColorPlugin,
 		TextFormattingPlugin,
+		ToolbarOverflowBehavior,
 		ThemePreset,
 		createEditor,
 	} from '@notectl/core';
@@ -50,34 +51,37 @@
 	if (container && output) {
 		const editor = await createEditor({
 			theme: getStarlightTheme(),
-			toolbar: [
-				[
-					new FontPlugin({ fonts: [...STARTER_FONTS] }),
-					new FontSizePlugin({
-						sizes: [10, 12, 14, 16, 18, 20, 24, 28, 32, 48],
-						defaultSize: 14,
-					}),
+			toolbar: {
+				groups: [
+					[
+						new FontPlugin({ fonts: [...STARTER_FONTS] }),
+						new FontSizePlugin({
+							sizes: [10, 12, 14, 16, 18, 20, 24, 28, 32, 48],
+							defaultSize: 14,
+						}),
+					],
+					[
+						new TextFormattingPlugin({
+							bold: true,
+							italic: true,
+							underline: true,
+						}),
+						new StrikethroughPlugin(),
+						new SuperSubPlugin(),
+					],
+					[new TextColorPlugin(), new HighlightPlugin()],
+					[new HeadingPlugin(), new BlockquotePlugin(), new CodeBlockPlugin()],
+					[new AlignmentPlugin()],
+					[new ListPlugin()],
+					[
+						new LinkPlugin(),
+						new TablePlugin(),
+						new HorizontalRulePlugin(),
+						new ImagePlugin(),
+					],
 				],
-				[
-					new TextFormattingPlugin({
-						bold: true,
-						italic: true,
-						underline: true,
-					}),
-					new StrikethroughPlugin(),
-					new SuperSubPlugin(),
-				],
-				[new TextColorPlugin(), new HighlightPlugin()],
-				[new HeadingPlugin(), new BlockquotePlugin(), new CodeBlockPlugin()],
-				[new AlignmentPlugin()],
-				[new ListPlugin()],
-				[
-					new LinkPlugin(),
-					new TablePlugin(),
-					new HorizontalRulePlugin(),
-					new ImagePlugin(),
-				],
-			],
+				overflow: ToolbarOverflowBehavior.Flow,
+			},
 			plugins: [new HardBreakPlugin()],
 			placeholder: 'Start typing to try notectl...',
 			autofocus: false,

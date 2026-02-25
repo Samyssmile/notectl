@@ -47,6 +47,7 @@ export type {
 	Selection,
 	SelectionRange,
 	NodeSelection,
+	GapCursorSelection,
 	EditorSelection,
 } from './model/Selection.js';
 export {
@@ -54,10 +55,12 @@ export {
 	createSelection,
 	createCollapsedSelection,
 	createNodeSelection,
+	createGapCursor,
 	isCollapsed,
 	isForward,
 	selectionRange,
 	isNodeSelection,
+	isGapCursor,
 	isTextSelection,
 	selectionsEqual,
 } from './model/Selection.js';
@@ -180,6 +183,8 @@ export {
 	isIsolatingBlock,
 	isVoidBlock,
 	deleteNodeSelection,
+	deleteBackwardAtGap,
+	deleteForwardAtGap,
 	navigateArrowIntoVoid,
 } from './commands/Commands.js';
 
@@ -194,7 +199,12 @@ export { CompositionTracker } from './input/CompositionTracker.js';
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 
 // --- Caret Navigation ---
-export { endOfTextblock, navigateAcrossBlocks } from './view/CaretNavigation.js';
+export {
+	endOfTextblock,
+	navigateAcrossBlocks,
+	navigateFromGapCursor,
+	skipInlineNode,
+} from './view/CaretNavigation.js';
 export type { CaretDirection } from './view/CaretNavigation.js';
 
 // --- Plugins ---
@@ -354,6 +364,8 @@ export {
 export { ImagePlugin } from './plugins/image/ImagePlugin.js';
 
 export { HardBreakPlugin } from './plugins/hard-break/HardBreakPlugin.js';
+
+export { GapCursorPlugin } from './plugins/gap-cursor/GapCursorPlugin.js';
 
 export {
 	CodeBlockPlugin,

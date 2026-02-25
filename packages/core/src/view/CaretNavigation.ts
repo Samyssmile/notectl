@@ -11,12 +11,13 @@ import {
 	isVoidBlock,
 	sharesParent,
 } from '../commands/Commands.js';
-import { getBlockLength } from '../model/Document.js';
+import { getBlockLength, getContentAtOffset } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -40,7 +41,7 @@ export function endOfTextblock(
 ): boolean {
 	const sel = state.selection;
 
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 
 	const block = state.getBlock(sel.anchor.blockId);
@@ -79,7 +80,7 @@ export function navigateAcrossBlocks(
 ): Transaction | null {
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
 	const currentIdx: number = blockOrder.indexOf(sel.anchor.blockId);
 	if (currentIdx < 0) return null;
@@ -114,6 +115,65 @@ export function navigateAcrossBlocks(
 }
 
 /**
+ * Skips over an InlineNode atomically when arrowing left/right.
+ *
+ * Returns a transaction moving the cursor past the InlineNode,
+ * or `null` if the adjacent content is not an InlineNode (or
+ * the direction is vertical).
+ */
+export function skipInlineNode(state: EditorState, direction: CaretDirection): Transaction | null {
+	if (direction === 'up' || direction === 'down') return null;
+
+	const sel = state.selection;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isCollapsed(sel)) return null;
+
+	const blockId: BlockId = sel.anchor.blockId;
+	const block = state.getBlock(blockId);
+	if (!block) return null;
+
+	const offset: number = sel.anchor.offset;
+
+	return direction === 'right'
+		? skipInlineNodeRight(state, blockId, block, offset)
+		: skipInlineNodeLeft(state, blockId, block, offset);
+}
+
+function skipInlineNodeRight(
+	state: EditorState,
+	blockId: BlockId,
+	block: Parameters<typeof getContentAtOffset>[0],
+	offset: number,
+): Transaction | null {
+	const content = getContentAtOffset(block, offset);
+	if (!content || content.kind !== 'inline') return null;
+
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(blockId, offset + 1))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
+
+function skipInlineNodeLeft(
+	state: EditorState,
+	blockId: BlockId,
+	block: Parameters<typeof getContentAtOffset>[0],
+	offset: number,
+): Transaction | null {
+	if (offset === 0) return null;
+
+	const content = getContentAtOffset(block, offset - 1);
+	if (!content || content.kind !== 'inline') return null;
+
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(blockId, offset - 1))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
+
+/**
  * Checks whether navigation between two blocks is allowed.
  * Prevents crossing isolating boundaries (e.g. table cells).
  */
@@ -131,6 +191,60 @@ function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockI
 	if (fromInside && toInside) return sharesParent(state, fromId, toId);
 
 	return true;
+}
+
+/**
+ * Navigates from a GapCursor position.
+ *
+ * - Arrow toward the adjacent void block → NodeSelection of that block.
+ * - Arrow away from the void block → find next block: void → NodeSelection,
+ *   text → TextSelection, document boundary → no-op.
+ */
+export function navigateFromGapCursor(
+	state: EditorState,
+	direction: CaretDirection,
+): Transaction | null {
+	const sel = state.selection;
+	if (!isGapCursor(sel)) return null;
+
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const blockIdx: number = blockOrder.indexOf(sel.blockId);
+	if (blockIdx < 0) return null;
+
+	const towardVoid: boolean =
+		(sel.side === 'before' && (direction === 'right' || direction === 'down')) ||
+		(sel.side === 'after' && (direction === 'left' || direction === 'up'));
+
+	if (towardVoid) {
+		// Move into the adjacent void block → NodeSelection
+		const path = (findNodePath(state.doc, sel.blockId) ?? []) as BlockId[];
+		return state.transaction('input').setSelection(createNodeSelection(sel.blockId, path)).build();
+	}
+
+	// Moving away from the void block — find the neighbor in the other direction
+	const awayIdx: number = sel.side === 'before' ? blockIdx - 1 : blockIdx + 1;
+
+	if (awayIdx < 0 || awayIdx >= blockOrder.length) return null;
+
+	const targetId: BlockId | undefined = blockOrder[awayIdx];
+	if (!targetId) return null;
+
+	if (isVoidBlock(state, targetId)) {
+		const path = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
+		return state.transaction('input').setSelection(createNodeSelection(targetId, path)).build();
+	}
+
+	// Text block: place cursor at start or end
+	const targetBlock = state.getBlock(targetId);
+	if (!targetBlock) return null;
+
+	const targetOffset: number =
+		direction === 'left' || direction === 'up' ? getBlockLength(targetBlock) : 0;
+
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(targetId, targetOffset))
+		.build();
 }
 
 /**
