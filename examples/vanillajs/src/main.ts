@@ -112,7 +112,7 @@ const output = document.getElementById('output') as HTMLElement;
 				}),
 			],
 			[new AlignmentPlugin()],
-			[new ListPlugin({interactiveCheckboxes: true})],
+			[new ListPlugin({ interactiveCheckboxes: true })],
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 			[new PrintPlugin()],
 		],

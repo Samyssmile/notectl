@@ -958,6 +958,97 @@ describe('PluginManager', () => {
 			errSpy.mockRestore();
 		});
 
+		it('readonlyAllowed command sets bypass flag during execution', async () => {
+			const pm = new PluginManager();
+			let bypassDuringExecution = false;
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand(
+							'toggleItem',
+							() => {
+								bypassDuringExecution = pm.isReadonlyBypassed();
+								return true;
+							},
+							{ readonlyAllowed: true },
+						);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			pm.executeCommand('toggleItem');
+			expect(bypassDuringExecution).toBe(true);
+		});
+
+		it('bypass flag does not leak after command completes', async () => {
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('toggle', () => true, { readonlyAllowed: true });
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			pm.executeCommand('toggle');
+			expect(pm.isReadonlyBypassed()).toBe(false);
+		});
+
+		it('bypass flag resets on command error', async () => {
+			const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand(
+							'crash',
+							() => {
+								throw new Error('boom');
+							},
+							{ readonlyAllowed: true },
+						);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			pm.executeCommand('crash');
+			expect(pm.isReadonlyBypassed()).toBe(false);
+			errSpy.mockRestore();
+		});
+
+		it('bypass flag is not set for non-readonlyAllowed commands', async () => {
+			const pm = new PluginManager();
+			let bypassDuringExecution = false;
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('normalCmd', () => {
+							bypassDuringExecution = pm.isReadonlyBypassed();
+							return true;
+						});
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.executeCommand('normalCmd');
+			expect(bypassDuringExecution).toBe(false);
+		});
+
 		it('executeCommand returns false in readonly mode', async () => {
 			const pm = new PluginManager();
 			const handler = vi.fn(() => true);

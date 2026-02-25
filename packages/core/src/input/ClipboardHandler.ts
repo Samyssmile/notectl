@@ -32,6 +32,7 @@ export interface ClipboardHandlerOptions {
 	readonly schemaRegistry?: SchemaRegistry;
 	/** Force-sync DOM selection to state (selectionchange may fire async). */
 	readonly syncSelection?: () => void;
+	readonly isReadOnly?: () => boolean;
 }
 
 /** Custom MIME type for internal block copy/paste round-trips (void/NodeSelection). */
@@ -42,6 +43,7 @@ export class ClipboardHandler {
 	private readonly dispatch: DispatchFn;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly syncSelection?: () => void;
+	private readonly isReadOnly: () => boolean;
 	private readonly handleCopy: (e: ClipboardEvent) => void;
 	private readonly handleCut: (e: ClipboardEvent) => void;
 
@@ -53,6 +55,7 @@ export class ClipboardHandler {
 		this.dispatch = options.dispatch;
 		this.schemaRegistry = options.schemaRegistry;
 		this.syncSelection = options.syncSelection;
+		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.handleCopy = this.onCopy.bind(this);
 		this.handleCut = this.onCut.bind(this);
@@ -82,7 +85,7 @@ export class ClipboardHandler {
 	}
 
 	private onCut(e: ClipboardEvent): void {
-		if (this.element.contentEditable === 'false') return;
+		if (this.isReadOnly()) return;
 
 		// Sync DOM selection → state first; selectionchange may lag behind
 		this.syncSelection?.();
