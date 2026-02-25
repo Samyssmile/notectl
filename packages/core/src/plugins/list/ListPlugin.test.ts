@@ -327,6 +327,53 @@ describe('ListPlugin', () => {
 
 			expect(h.executeCommand('toggleChecklistItem')).toBe(false);
 		});
+
+		it('toggleChecklistItem is blocked in readonly mode', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin(), state);
+			h.pm.setReadOnly(true);
+
+			expect(h.executeCommand('toggleChecklistItem')).toBe(false);
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(false);
+		});
+
+		it('toggleChecklistItem works in readonly with interactiveCheckboxes', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin({ interactiveCheckboxes: true }), state);
+			h.pm.setReadOnly(true);
+
+			h.executeCommand('toggleChecklistItem');
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
+
+		it('toggleChecklistItem works in non-readonly mode (regression)', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin(), state);
+
+			h.executeCommand('toggleChecklistItem');
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
 	});
 
 	describe('keymap', () => {

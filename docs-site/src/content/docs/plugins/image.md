@@ -34,10 +34,32 @@ interface ImagePluginConfig {
   readonly resizable: boolean;
   /** Render separator after toolbar item. */
   readonly separatorAfter?: boolean;
+  /** Pixels to grow/shrink per small resize step. @default 10 */
+  readonly resizeStep?: number;
+  /** Pixels to grow/shrink per large resize step. @default 50 */
+  readonly resizeStepLarge?: number;
+  /** Customize keyboard bindings for image resize actions. */
+  readonly keymap?: ImageKeymap;
+  /** Locale override for user-facing strings. */
+  readonly locale?: ImageLocale;
 }
 ```
 
-Defaults: `maxWidth: 800`, `maxFileSize: 10 MB`, `acceptedTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']`, `resizable: true`.
+Defaults: `maxWidth: 800`, `maxFileSize: 10 MB`, `acceptedTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']`, `resizable: true`, `resizeStep: 10`, `resizeStepLarge: 50`.
+
+### `ImageKeymap`
+
+Customize or disable individual keyboard resize bindings. Set a slot to `null` to disable it.
+
+```ts
+interface ImageKeymap {
+  readonly growWidth?: string | null;
+  readonly shrinkWidth?: string | null;
+  readonly growWidthLarge?: string | null;
+  readonly shrinkWidthLarge?: string | null;
+  readonly resetSize?: string | null;
+}
+```
 
 ## Commands
 
@@ -45,11 +67,31 @@ Defaults: `maxWidth: 800`, `maxFileSize: 10 MB`, `acceptedTypes: ['image/png', '
 |---------|-------------|---------|
 | `insertImage` | Open the image insertion popup | `boolean` |
 | `removeImage` | Remove the currently selected image | `boolean` |
+| `resizeImageGrow` | Increase width by `resizeStep` (default 10px) | `boolean` |
+| `resizeImageShrink` | Decrease width by `resizeStep` (default 10px) | `boolean` |
+| `resizeImageGrowLarge` | Increase width by `resizeStepLarge` (default 50px) | `boolean` |
+| `resizeImageShrinkLarge` | Decrease width by `resizeStepLarge` (default 50px) | `boolean` |
+| `resetImageSize` | Reset image to natural size | `boolean` |
 
 ```ts
 editor.executeCommand('insertImage');
 editor.executeCommand('removeImage');
+editor.executeCommand('resizeImageGrow');
 ```
+
+## Keyboard Shortcuts
+
+When an image is selected (node selection):
+
+| Shortcut | Command | Description |
+|----------|---------|-------------|
+| `Mod-Shift-ArrowRight` | `resizeImageGrow` | Grow width by small step (10px) |
+| `Mod-Shift-ArrowLeft` | `resizeImageShrink` | Shrink width by small step (10px) |
+| `Mod-Shift-Alt-ArrowRight` | `resizeImageGrowLarge` | Grow width by large step (50px) |
+| `Mod-Shift-Alt-ArrowLeft` | `resizeImageShrinkLarge` | Shrink width by large step (50px) |
+| `Mod-Shift-0` | `resetImageSize` | Reset to natural size |
+
+All shortcuts are customizable via the `keymap` config option.
 
 ## Toolbar
 
@@ -100,3 +142,10 @@ The image block uses a custom `NodeView` for:
 - Upload progress state visualization
 - Blob URL lifecycle management (automatic cleanup on destroy)
 - Responsive image sizing with width/height preservation
+
+## Accessibility
+
+- When an image is selected, a screen reader announcement is made including alt text, pixel dimensions, and available resize shortcuts
+- After each resize operation, the new dimensions are announced
+- The image `<figure>` has a localized `aria-label` with alt text and dimensions
+- All resize shortcuts work via keyboard — no mouse required

@@ -135,7 +135,7 @@ Every step is invertible for undo support:
 | `AddMarkStep` | Add inline mark to range |
 | `RemoveMarkStep` | Remove inline mark from range |
 | `SetBlockTypeStep` | Change block type |
-| `SetStoredMarksStep` | Set stored marks (for mark continuity) |
+| `SetStoredMarksStep` | Set stored marks (for mark continuity) — internal, not exported |
 | `InsertNodeStep` | Insert a block node into a parent |
 | `RemoveNodeStep` | Remove a block node from a parent |
 | `SetNodeAttrStep` | Change a node's attributes |

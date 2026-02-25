@@ -34,10 +34,16 @@ export class ServiceKey<T> {
 
 export type CommandHandler = () => boolean;
 
+export interface CommandOptions {
+	/** When true, the command may execute even if the editor is in read-only mode. */
+	readonly readonlyAllowed?: boolean;
+}
+
 export interface CommandEntry {
 	readonly name: string;
 	readonly handler: CommandHandler;
 	readonly pluginId: string;
+	readonly readonlyAllowed: boolean;
 }
 
 // --- Event System ---
@@ -70,7 +76,7 @@ export interface PluginContext {
 	dispatch(transaction: Transaction): void;
 	getContainer(): HTMLElement;
 	getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
-	registerCommand(name: string, handler: CommandHandler): void;
+	registerCommand(name: string, handler: CommandHandler, options?: CommandOptions): void;
 	executeCommand(name: string): boolean;
 	getEventBus(): PluginEventBus;
 	registerMiddleware(middleware: TransactionMiddleware, priority?: number): void;
@@ -93,6 +99,9 @@ export interface PluginContext {
 	/** Registers a CSS string to be added to the editor's adopted stylesheets. */
 	registerStyleSheet(css: string): void;
 
+	/** Returns whether the editor is currently in read-only mode. */
+	isReadOnly(): boolean;
+
 	/** Pushes a screen reader announcement via the editor's aria-live region. */
 	announce(text: string): void;
 }
@@ -111,6 +120,8 @@ export interface Plugin<TConfig extends Record<string, unknown> = Record<string,
 	onConfigure?(config: TConfig): void;
 	/** Called after ALL plugins have been initialized. */
 	onReady?(): void | Promise<void>;
+	/** Called when the editor's read-only mode changes. */
+	onReadOnlyChange?(readonly: boolean): void;
 	/**
 	 * Returns decorations for the given state.
 	 * Called after state.apply() but BEFORE reconciliation.

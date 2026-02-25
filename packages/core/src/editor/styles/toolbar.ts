@@ -4,7 +4,7 @@ export const TOOLBAR_CSS = `
 .notectl-plugin-container--top {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	border-bottom: 1px solid var(--notectl-border);
 	background: var(--notectl-toolbar-bg, var(--notectl-surface-raised));
 	min-height: 40px;
@@ -13,9 +13,16 @@ export const TOOLBAR_CSS = `
 .notectl-toolbar {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
 	gap: 2px;
 	padding: 4px 8px;
+}
+
+.notectl-toolbar[hidden] {
+	display: none;
 }
 
 .notectl-toolbar-btn {
@@ -32,6 +39,7 @@ export const TOOLBAR_CSS = `
 	font-size: 14px;
 	line-height: 1;
 	padding: 0;
+	flex-shrink: 0;
 	transition: background 0.1s, border-color 0.1s;
 }
 
@@ -164,5 +172,84 @@ export const TOOLBAR_CSS = `
 
 .notectl-dropdown__item-label {
 	flex: 1;
+}
+
+/* Overflow behavior: flow mode — toolbar wraps to additional rows */
+.notectl-toolbar[data-overflow="flow"] {
+	flex-wrap: wrap;
+	overflow: visible;
+}
+
+/* Overflow behavior: none — toolbar clips without any responsive behavior */
+.notectl-toolbar[data-overflow="none"] {
+	flex-wrap: nowrap;
+	overflow: hidden;
+}
+
+/* Overflow: hidden items (burger-menu mode) */
+.notectl-toolbar-btn--overflow-hidden,
+.notectl-toolbar-separator--overflow-hidden {
+	display: none;
+}
+
+/* Overflow "more" button */
+.notectl-toolbar-overflow-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	cursor: pointer;
+	color: var(--notectl-fg);
+	font-size: 16px;
+	line-height: 1;
+	padding: 0;
+	flex-shrink: 0;
+	margin-left: auto;
+	transition: background 0.1s, border-color 0.1s;
+}
+
+.notectl-toolbar-overflow-btn:hover {
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-border);
+}
+
+.notectl-toolbar-overflow-btn--hidden {
+	display: none;
+}
+
+.notectl-toolbar-overflow-btn:focus-visible {
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+	outline: none;
+}
+
+/* Dropdown item states shared by all dropdown menus (including overflow) */
+.notectl-dropdown__item:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.notectl-dropdown__item:disabled:hover {
+	background: none;
+}
+
+.notectl-dropdown__item--active {
+	color: var(--notectl-primary-fg);
+}
+
+.notectl-dropdown__item-icon svg {
+	display: block;
+	width: 16px;
+	height: 16px;
+	fill: currentColor;
+}
+
+.notectl-dropdown__separator {
+	height: 1px;
+	background: var(--notectl-border);
+	margin: 4px 0;
 }
 `;

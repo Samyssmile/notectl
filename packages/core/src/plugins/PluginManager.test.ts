@@ -863,4 +863,146 @@ describe('PluginManager', () => {
 			expect(received).toEqual([42]);
 		});
 	});
+
+	describe('readonly mode', () => {
+		it('isReadOnly returns false by default', () => {
+			const pm = new PluginManager();
+			expect(pm.isReadOnly()).toBe(false);
+		});
+
+		it('setReadOnly updates the readonly state', async () => {
+			const pm = new PluginManager();
+			pm.register(makePlugin({ id: 'a' }));
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			expect(pm.isReadOnly()).toBe(true);
+
+			pm.setReadOnly(false);
+			expect(pm.isReadOnly()).toBe(false);
+		});
+
+		it('setReadOnly calls onReadOnlyChange on plugins', async () => {
+			const pm = new PluginManager();
+			const onReadOnlyChange = vi.fn();
+
+			pm.register(makePlugin({ id: 'a', onReadOnlyChange }));
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			expect(onReadOnlyChange).toHaveBeenCalledWith(true);
+
+			pm.setReadOnly(false);
+			expect(onReadOnlyChange).toHaveBeenCalledWith(false);
+		});
+
+		it('setReadOnly skips notification when value unchanged', async () => {
+			const pm = new PluginManager();
+			const onReadOnlyChange = vi.fn();
+
+			pm.register(makePlugin({ id: 'a', onReadOnlyChange }));
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			pm.setReadOnly(true);
+			expect(onReadOnlyChange).toHaveBeenCalledTimes(1);
+		});
+
+		it('setReadOnly calls plugins in init order', async () => {
+			const order: string[] = [];
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'b',
+					priority: 50,
+					onReadOnlyChange: () => {
+						order.push('b');
+					},
+				}),
+			);
+			pm.register(
+				makePlugin({
+					id: 'a',
+					priority: 10,
+					onReadOnlyChange: () => {
+						order.push('a');
+					},
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			expect(order).toEqual(['a', 'b']);
+		});
+
+		it('isolates onReadOnlyChange errors', async () => {
+			const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const pm = new PluginManager();
+			const goodCb = vi.fn();
+
+			pm.register(
+				makePlugin({
+					id: 'bad',
+					priority: 1,
+					onReadOnlyChange: () => {
+						throw new Error('readonly fail');
+					},
+				}),
+			);
+			pm.register(makePlugin({ id: 'good', priority: 2, onReadOnlyChange: goodCb }));
+			await pm.init(makePluginOptions());
+
+			pm.setReadOnly(true);
+			expect(goodCb).toHaveBeenCalledWith(true);
+			errSpy.mockRestore();
+		});
+
+		it('executeCommand returns false in readonly mode', async () => {
+			const pm = new PluginManager();
+			const handler = vi.fn(() => true);
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('doSomething', handler);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			expect(pm.executeCommand('doSomething')).toBe(true);
+			expect(handler).toHaveBeenCalledTimes(1);
+
+			pm.setReadOnly(true);
+			expect(pm.executeCommand('doSomething')).toBe(false);
+			expect(handler).toHaveBeenCalledTimes(1);
+
+			pm.setReadOnly(false);
+			expect(pm.executeCommand('doSomething')).toBe(true);
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+
+		it('context.isReadOnly() reflects current state', async () => {
+			const pm = new PluginManager();
+			let capturedContext: PluginContext | null = null;
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						capturedContext = ctx;
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			expect(capturedContext?.isReadOnly()).toBe(false);
+			pm.setReadOnly(true);
+			expect(capturedContext?.isReadOnly()).toBe(true);
+			pm.setReadOnly(false);
+			expect(capturedContext?.isReadOnly()).toBe(false);
+		});
+	});
 });

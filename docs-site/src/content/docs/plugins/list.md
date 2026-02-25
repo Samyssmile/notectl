@@ -27,6 +27,10 @@ interface ListConfig {
   readonly maxIndent: number;
   /** Render separator after toolbar item. */
   readonly separatorAfter?: boolean;
+  /** Allow checkbox toggling in read-only mode. Default: false */
+  readonly interactiveCheckboxes?: boolean;
+  /** Override the plugin locale independently from the global editor locale. */
+  readonly locale?: ListLocale;
 }
 
 type ListType = 'bullet' | 'ordered' | 'checklist';
@@ -44,6 +48,31 @@ new ListPlugin({ types: ['bullet', 'ordered'] })
 new ListPlugin({ maxIndent: 8 })
 ```
 
+### Example: Interactive checkboxes in read-only mode
+
+When `interactiveCheckboxes` is enabled, checklist checkboxes remain clickable even when the editor is in read-only mode. All other editing is still blocked.
+
+```ts
+const editor = await createEditor({
+  readonly: true,
+  plugins: [new ListPlugin({ interactiveCheckboxes: true })],
+});
+```
+
+See the [Read-Only Checklist guide](/notectl/guides/readonly-checklist/) for a full walkthrough.
+
+### Locale Override
+
+Each plugin resolves its locale automatically from the editor's global `locale` setting. To override independently:
+
+```ts
+import { ListPlugin, LIST_LOCALE_DE } from '@notectl/core';
+
+new ListPlugin({ locale: LIST_LOCALE_DE })
+```
+
+See the [Internationalization guide](/notectl/guides/internationalization/) for details.
+
 ## Commands
 
 | Command | Description | Returns |
@@ -53,7 +82,7 @@ new ListPlugin({ maxIndent: 8 })
 | `toggleList:checklist` | Toggle checklist on current block | `boolean` |
 | `indentListItem` | Increase indent level (up to `maxIndent`) | `boolean` |
 | `outdentListItem` | Decrease indent level | `boolean` |
-| `toggleChecklistItem` | Toggle checked state on checklist item | `boolean` |
+| `toggleChecklistItem` | Toggle checked state on checklist item (no-op in read-only mode unless `interactiveCheckboxes` is enabled) | `boolean` |
 
 ```ts
 // Create a bullet list
@@ -71,7 +100,7 @@ editor.executeCommand('toggleChecklistItem');
 | Shortcut | Action |
 |----------|--------|
 | `Enter` | Split list item; exit list if the item is empty |
-| `Backspace` | Convert to paragraph when cursor is at start of item |
+| `Backspace` | Convert to paragraph when cursor is collapsed at start of item |
 | `Tab` | Indent list item (increase nesting) |
 | `Shift+Tab` | Outdent list item (decrease nesting) |
 
