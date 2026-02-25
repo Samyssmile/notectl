@@ -4,7 +4,7 @@
 
 import type { DecorationSet } from '../decorations/Decoration.js';
 import type { InputRule } from '../input/InputRule.js';
-import type { Keymap } from '../input/Keymap.js';
+import type { Keymap, KeymapOptions } from '../input/Keymap.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
@@ -95,7 +95,7 @@ export interface PluginContext {
 	registerNodeSpec<T extends string>(spec: NodeSpec<T>): void;
 	registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
 	registerNodeView(type: string, factory: NodeViewFactory): void;
-	registerKeymap(keymap: Keymap): void;
+	registerKeymap(keymap: Keymap, options?: KeymapOptions): void;
 	registerInputRule(rule: InputRule): void;
 	registerToolbarItem(item: ToolbarItem): void;
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;

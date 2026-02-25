@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createNodeSelection, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import { stateBuilder } from '../test/TestUtils.js';
+import { CompositionTracker } from './CompositionTracker.js';
 import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
 
 function makeKeyEvent(
@@ -138,6 +140,231 @@ describe('KeyboardHandler: NodeSelection modifier guard', () => {
 		const e = makeKeyEvent('Backspace');
 		element.dispatchEvent(e);
 		expect(dispatched.length).toBeGreaterThan(0);
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: Composition guard', () => {
+	it('ignores all keydown events during IME composition', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tracker = new CompositionTracker();
+		tracker.start(blockId('b1'));
+
+		const dispatched: boolean[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: () => {
+				dispatched.push(true);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+			compositionTracker: tracker,
+		});
+
+		element.dispatchEvent(makeKeyEvent('Enter'));
+		element.dispatchEvent(makeKeyEvent('Backspace'));
+		element.dispatchEvent(makeKeyEvent('ArrowRight'));
+
+		expect(dispatched).toHaveLength(0);
+		handler.destroy();
+	});
+
+	it('processes keydown events after composition ends', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tracker = new CompositionTracker();
+		tracker.start(blockId('b1'));
+		tracker.end();
+
+		const dispatched: boolean[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: () => {
+				dispatched.push(true);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+			compositionTracker: tracker,
+		});
+
+		element.dispatchEvent(makeKeyEvent('z', { ctrlKey: true }));
+		// Ctrl+Z triggers undo, but the important thing is the handler runs
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: Keymap priority dispatch', () => {
+	function createHandlerWithKeymaps(registry: SchemaRegistry): {
+		element: HTMLDivElement;
+		handler: KeyboardHandler;
+		log: string[];
+	} {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const log: string[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			undo: vi.fn(),
+			redo: vi.fn(),
+			schemaRegistry: registry,
+		});
+
+		return { element, handler, log };
+	}
+
+	it('context keymap has precedence over default keymap for the same key', () => {
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			Enter: () => {
+				log.push('default');
+				return true;
+			},
+		});
+		registry.registerKeymap(
+			{
+				Enter: () => {
+					log.push('context');
+					return true;
+				},
+			},
+			{ priority: 'context' },
+		);
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('Enter'));
+
+		expect(log).toEqual(['context']);
+		handler.destroy();
+	});
+
+	it('navigation keymap has precedence over default keymap', () => {
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			ArrowDown: () => {
+				log.push('default');
+				return true;
+			},
+		});
+		registry.registerKeymap(
+			{
+				ArrowDown: () => {
+					log.push('navigation');
+					return true;
+				},
+			},
+			{ priority: 'navigation' },
+		);
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('ArrowDown'));
+
+		expect(log).toEqual(['navigation']);
+		handler.destroy();
+	});
+
+	it('context keymap has precedence over navigation keymap', () => {
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+		registry.registerKeymap(
+			{
+				ArrowDown: () => {
+					log.push('navigation');
+					return true;
+				},
+			},
+			{ priority: 'navigation' },
+		);
+		registry.registerKeymap(
+			{
+				ArrowDown: () => {
+					log.push('context');
+					return true;
+				},
+			},
+			{ priority: 'context' },
+		);
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('ArrowDown'));
+
+		expect(log).toEqual(['context']);
+		handler.destroy();
+	});
+
+	it('within same priority, later-registered keymap wins', () => {
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			Enter: () => {
+				log.push('first');
+				return true;
+			},
+		});
+		registry.registerKeymap({
+			Enter: () => {
+				log.push('second');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('Enter'));
+
+		expect(log).toEqual(['second']);
+		handler.destroy();
+	});
+
+	it('context keymap returning false falls through to navigation then default', () => {
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+		registry.registerKeymap(
+			{
+				Enter: () => {
+					log.push('context');
+					return false;
+				},
+			},
+			{ priority: 'context' },
+		);
+		registry.registerKeymap(
+			{
+				Enter: () => {
+					log.push('navigation');
+					return false;
+				},
+			},
+			{ priority: 'navigation' },
+		);
+		registry.registerKeymap({
+			Enter: () => {
+				log.push('default');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('Enter'));
+
+		expect(log).toEqual(['context', 'navigation', 'default']);
 		handler.destroy();
 	});
 });

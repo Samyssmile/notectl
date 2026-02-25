@@ -9,7 +9,7 @@
 
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { InputRule } from '../input/InputRule.js';
-import type { Keymap } from '../input/Keymap.js';
+import type { Keymap, KeymapOptions } from '../input/Keymap.js';
 import { type FileHandler, SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -492,8 +492,8 @@ export class PluginManager {
 				reg.nodeViews.push(type);
 			},
 
-			registerKeymap: (keymap) => {
-				this.schemaRegistry.registerKeymap(keymap);
+			registerKeymap: (keymap: Keymap, options?: KeymapOptions) => {
+				this.schemaRegistry.registerKeymap(keymap, options);
 				reg.keymaps.push(keymap);
 			},
 

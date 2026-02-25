@@ -33,6 +33,8 @@ export interface ReconcileOptions {
 	oldDecorations?: DecorationSet;
 	selectedNodeId?: BlockId;
 	previousSelectedNodeId?: BlockId;
+	/** When set, the block with this ID is skipped during reconciliation to preserve IME composition. */
+	compositionBlockId?: BlockId;
 }
 
 /** Reconciles the DOM container to match the new state. */
@@ -92,6 +94,12 @@ export function reconcile(
 	for (const block of newBlocks) {
 		const existingEl = oldBlockMap.get(block.id);
 		const oldBlock = oldBlockById.get(block.id);
+
+		// Skip reconciliation for the block under active IME composition
+		if (options?.compositionBlockId === block.id && existingEl) {
+			previousSibling = existingEl;
+			continue;
+		}
 
 		const oldDecos = options?.oldDecorations?.find(block.id);
 		const newDecos = options?.decorations?.find(block.id);
