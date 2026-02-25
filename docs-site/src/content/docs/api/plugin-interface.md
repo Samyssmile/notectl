@@ -11,7 +11,7 @@ interface Plugin<TConfig extends Record<string, unknown> = Record<string, unknow
   readonly id: string;
   /** Human-readable name. */
   readonly name: string;
-  /** Toolbar ordering priority (lower = first). */
+  /** Plugin initialization order priority (lower = first). */
   readonly priority?: number;
   /** IDs of plugins that must be registered before this one. */
   readonly dependencies?: readonly string[];
@@ -26,6 +26,8 @@ interface Plugin<TConfig extends Record<string, unknown> = Record<string, unknow
   onConfigure?(config: TConfig): void;
   /** Called after ALL plugins are initialized. */
   onReady?(): void | Promise<void>;
+  /** Called when the editor's read-only mode changes. */
+  onReadOnlyChange?(readonly: boolean): void;
   /** Returns decorations for the current state. */
   decorations?(state: EditorState, tr?: Transaction): DecorationSet;
 }
@@ -63,6 +65,12 @@ interface PluginContext {
 
   // --- Accessibility ---
   announce(text: string): void;
+
+  // --- Read-Only ---
+  isReadOnly(): boolean;
+
+  // --- Styling ---
+  registerStyleSheet(css: string): void;
 
   // --- Toolbar ---
   registerToolbarItem(item: ToolbarItem): void;

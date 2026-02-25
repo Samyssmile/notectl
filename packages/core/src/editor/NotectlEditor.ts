@@ -22,6 +22,7 @@ import { PluginManager } from '../plugins/PluginManager.js';
 import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
+import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
 import { ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
 import { EditorState } from '../state/EditorState.js';
@@ -36,16 +37,35 @@ import { PaperLayoutController } from './PaperLayoutController.js';
 import { type PaperSize, isValidPaperSize } from './PaperSize.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
+/**
+ * Expanded toolbar configuration for `createEditor`.
+ * Allows specifying both the plugin layout and overflow behavior.
+ */
+export interface ToolbarConfig {
+	/**
+	 * Plugin groups defining toolbar layout. Each inner array is a visual group;
+	 * separators are rendered between groups. Order = array order.
+	 */
+	readonly groups: ReadonlyArray<ReadonlyArray<Plugin>>;
+	/**
+	 * Controls responsive overflow behavior when items exceed available width.
+	 * Defaults to `ToolbarOverflowBehavior.BurgerMenu`.
+	 */
+	readonly overflow?: ToolbarOverflowBehavior;
+}
+
 export interface NotectlEditorConfig {
 	/** Controls which inline marks are enabled. Used to auto-configure TextFormattingPlugin. */
 	features?: Partial<TextFormattingConfig>;
 	plugins?: Plugin[];
 	/**
-	 * Declarative toolbar layout. Each inner array is a visual group;
-	 * separators are rendered between groups. Order = array order.
+	 * Toolbar configuration. Accepts either:
+	 * - A shorthand array of plugin groups: `[[BoldPlugin, ItalicPlugin], [HeadingPlugin]]`
+	 * - A full config object: `{ groups: [...], overflow: ToolbarOverflowBehavior.Flow }`
+	 *
 	 * When set, a ToolbarPlugin is created internally — do not add one to `plugins`.
 	 */
-	toolbar?: ReadonlyArray<ReadonlyArray<Plugin>>;
+	toolbar?: ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
 	placeholder?: string;
 	readonly?: boolean;
 	autofocus?: boolean;
@@ -128,6 +148,8 @@ export class NotectlEditor extends HTMLElement {
 			} else {
 				this.contentElement.removeAttribute('aria-readonly');
 			}
+			this.config = { ...this.config, readonly: isReadonly };
+			this.pluginManager?.setReadOnly(isReadonly);
 		}
 		if (name === 'theme' && this.themeController) {
 			this.themeController.apply((newValue as ThemePreset) ?? ThemePreset.Light);
@@ -262,6 +284,11 @@ export class NotectlEditor extends HTMLElement {
 		// Guard: editor may have been destroyed during async plugin init
 		if (!this.pluginManager) return;
 
+		// Notify plugins of initial readonly state
+		if (this.config.readonly) {
+			this.pluginManager.setReadOnly(true);
+		}
+
 		// Register BEFORE_PRINT listener to inject paperSize as fallback
 		this.pluginManager.onEvent(BEFORE_PRINT, (event) => {
 			if (!event.options.paperSize && this.config.paperSize) {
@@ -275,6 +302,11 @@ export class NotectlEditor extends HTMLElement {
 
 		this.readyPromiseResolve?.();
 		this.emit('ready', undefined);
+	}
+
+	/** Returns whether the editor is in read-only mode. */
+	get isReadOnly(): boolean {
+		return this.config.readonly ?? false;
 	}
 
 	// --- Content API ---
@@ -432,6 +464,7 @@ export class NotectlEditor extends HTMLElement {
 			} else {
 				this.contentElement.removeAttribute('aria-readonly');
 			}
+			this.pluginManager?.setReadOnly(config.readonly);
 		}
 
 		if ('paperSize' in config) {
@@ -484,12 +517,22 @@ export class NotectlEditor extends HTMLElement {
 	/**
 	 * Processes the declarative `toolbar` config: registers a ToolbarPlugin
 	 * with layout groups, then registers all plugins from the toolbar groups.
+	 * Accepts both the shorthand array and the full ToolbarConfig object.
 	 */
 	private processToolbarConfig(): void {
 		if (!this.pluginManager || !this.config.toolbar) return;
 
+		const toolbarCfg = this.config.toolbar;
+		const isShorthand: boolean = Array.isArray(toolbarCfg);
+		const pluginGroups: ReadonlyArray<ReadonlyArray<Plugin>> = isShorthand
+			? (toolbarCfg as ReadonlyArray<ReadonlyArray<Plugin>>)
+			: (toolbarCfg as ToolbarConfig).groups;
+		const overflow: ToolbarOverflowBehavior | undefined = isShorthand
+			? undefined
+			: (toolbarCfg as ToolbarConfig).overflow;
+
 		const groups: string[][] = [];
-		for (const group of this.config.toolbar) {
+		for (const group of pluginGroups) {
 			const pluginIds: string[] = [];
 			for (const plugin of group) {
 				pluginIds.push(plugin.id);
@@ -498,7 +541,7 @@ export class NotectlEditor extends HTMLElement {
 			groups.push(pluginIds);
 		}
 
-		const layoutConfig: ToolbarLayoutConfig = { groups };
+		const layoutConfig: ToolbarLayoutConfig = { groups, overflow };
 		this.pluginManager.register(new ToolbarPlugin(layoutConfig));
 	}
 

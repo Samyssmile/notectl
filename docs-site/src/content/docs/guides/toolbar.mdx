@@ -107,8 +107,8 @@ import {
   FontSizePlugin,
   ImagePlugin,
   HardBreakPlugin,
-  STARTER_FONTS,
 } from '@notectl/core';
+import { STARTER_FONTS } from '@notectl/core/fonts';
 
 const editor = await createEditor({
   toolbar: [
@@ -144,6 +144,71 @@ const editor = await createEditor({
   autofocus: true,
 });
 ```
+
+## Responsive Overflow Behavior
+
+When the viewport is too narrow to display all toolbar items, notectl can handle the overflow automatically. Three modes are available via `ToolbarOverflowBehavior`:
+
+### `BurgerMenu` (Default)
+
+Items that don't fit are hidden behind a **"..."** dropdown button. The overflow controller measures available width using a `ResizeObserver` and redistributes items dynamically.
+
+![Toolbar with overflow burger button](../../../assets/screenshots/toolbar-overflow-burger.png)
+
+Click the "..." button to reveal the hidden items in a dropdown menu:
+
+![Toolbar overflow dropdown open](../../../assets/screenshots/toolbar-overflow-burger-open.png)
+
+```ts
+import { createEditor, ToolbarOverflowBehavior } from '@notectl/core';
+
+const editor = await createEditor({
+  toolbar: {
+    groups: [
+      [new TextFormattingPlugin()],
+      [new HeadingPlugin()],
+      [new ListPlugin()],
+    ],
+    overflow: ToolbarOverflowBehavior.BurgerMenu, // default
+  },
+});
+```
+
+### `Flow`
+
+The toolbar wraps to multiple rows when items overflow. This is a pure CSS solution — no JavaScript measurement is needed.
+
+![Toolbar with flow overflow wrapping to multiple rows](../../../assets/screenshots/toolbar-overflow-flow.png)
+
+```ts
+const editor = await createEditor({
+  toolbar: {
+    groups: [
+      [new TextFormattingPlugin()],
+      [new HeadingPlugin()],
+      [new ListPlugin()],
+    ],
+    overflow: ToolbarOverflowBehavior.Flow,
+  },
+});
+```
+
+### `None`
+
+No responsive behavior. Items that exceed the container width are clipped. Use this when you control the layout externally or know the toolbar will always fit.
+
+```ts
+const editor = await createEditor({
+  toolbar: {
+    groups: [[new TextFormattingPlugin()]],
+    overflow: ToolbarOverflowBehavior.None,
+  },
+});
+```
+
+<Aside type="tip">
+You can also use the shorthand array syntax (`toolbar: [[...], [...]]`) — it defaults to `BurgerMenu` overflow. Switch to the object syntax only when you need a different overflow mode.
+</Aside>
 
 ## Plugin Priority
 
