@@ -36,7 +36,11 @@ export interface PrintOptions {
 	/** Exclude these block types from print output. */
 	readonly excludeBlockTypes?: readonly NodeTypeName[];
 
-	/** Print background colors and images. */
+	/**
+	 * Whether to preserve background colors and images in print output.
+	 * Defaults to `true` (WYSIWYG). Set to `false` to let the browser strip
+	 * backgrounds (e.g. to save ink).
+	 */
 	readonly printBackground?: boolean;
 
 	/** Page orientation. */
