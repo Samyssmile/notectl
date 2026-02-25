@@ -277,14 +277,9 @@ export class ImagePlugin implements Plugin {
 	}
 
 	private registerFileHandler(context: PluginContext): void {
-		context.registerFileHandler('image/*', async (files, _position) => {
-			const imageFiles: File[] = files.filter((f) => this.isAcceptedType(f.type));
-			if (imageFiles.length === 0) return false;
-
-			for (const file of imageFiles) {
-				this.handleFileInsert(context, file);
-			}
-
+		context.registerFileHandler('image/*', async (file, _position) => {
+			if (!this.isAcceptedType(file.type)) return false;
+			this.handleFileInsert(context, file);
 			return true;
 		});
 	}
