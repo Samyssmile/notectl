@@ -117,8 +117,9 @@ export function generatePrintCSS(options: PrintOptions): string {
 	// Tables: avoid page breaks
 	printRules.push('.notectl-table { break-inside: avoid; }');
 
-	// Print background colors
-	if (options.printBackground) {
+	// Preserve background colors and images in print output (WYSIWYG default).
+	// Only omitted when the consumer explicitly opts out via printBackground: false.
+	if (options.printBackground !== false) {
 		printRules.push(
 			'* { -webkit-print-color-adjust: exact !important; ' +
 				'print-color-adjust: exact !important; }',
