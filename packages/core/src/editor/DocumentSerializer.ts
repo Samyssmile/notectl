@@ -10,6 +10,9 @@ import { getInlineChildren, isInlineNode } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 
+/** Known-safe alignment values accepted by the serializer (defense-in-depth). */
+const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['left', 'center', 'right', 'justify']);
+
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
 export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
 	const parts: string[] = [];
@@ -59,11 +62,11 @@ function serializeBlock(block: BlockNode, registry?: SchemaRegistry): string {
 		html = `<p>${inlineContent || '<br>'}</p>`;
 	}
 
-	// Inject align style into the first opening tag
+	// Inject align style into the first opening tag (validated against allowlist)
 	const align: string | undefined = (block.attrs as Record<string, unknown>)?.align as
 		| string
 		| undefined;
-	if (align && align !== 'left') {
+	if (align && align !== 'left' && VALID_ALIGNMENTS.has(align)) {
 		html = html.replace(/>/, ` style="text-align: ${align}">`);
 	}
 
