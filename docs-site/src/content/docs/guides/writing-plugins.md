@@ -279,10 +279,8 @@ context.registerInlineNodeSpec({
 Register handlers for drag-and-drop or paste of files:
 
 ```ts
-context.registerFileHandler('image/*', async (files, position) => {
-  for (const file of files) {
-    // Process each file
-  }
+context.registerFileHandler('image/*', async (file, position) => {
+  // Process the matched file
   return true; // Return true if handled
 });
 ```
