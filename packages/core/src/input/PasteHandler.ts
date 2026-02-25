@@ -17,6 +17,7 @@ import {
 import { generateBlockId } from '../model/Document.js';
 import { HTMLParser } from '../model/HTMLParser.js';
 import { findNodePath } from '../model/NodeResolver.js';
+import type { AttrSpec } from '../model/NodeSpec.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -30,6 +31,34 @@ import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
+
+/**
+ * Validates incoming attributes against the declared AttrSpec.
+ * Only keys declared in the spec are kept; non-primitive values fall back to defaults.
+ */
+function sanitizeAttrs(
+	incoming: Record<string, unknown> | undefined,
+	specAttrs: Readonly<Record<string, AttrSpec>> | undefined,
+): Record<string, string | number | boolean> | undefined {
+	if (!specAttrs) return undefined;
+
+	const result: Record<string, string | number | boolean> = {};
+	let hasKeys = false;
+
+	for (const key of Object.keys(specAttrs)) {
+		const spec: AttrSpec = specAttrs[key] as AttrSpec;
+		const raw: unknown = incoming?.[key];
+
+		if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+			result[key] = raw;
+		} else if (spec.default !== undefined) {
+			result[key] = spec.default;
+		}
+		if (key in result) hasKeys = true;
+	}
+
+	return hasKeys ? result : undefined;
+}
 
 export interface PasteHandlerOptions {
 	getState: GetStateFn;
@@ -149,7 +178,8 @@ export class PasteHandler {
 		if (!typeName) return;
 
 		// Validate that this type is known (if we have a registry)
-		if (this.schemaRegistry && !this.schemaRegistry.getNodeSpec(typeName)) return;
+		const spec = this.schemaRegistry?.getNodeSpec(typeName);
+		if (this.schemaRegistry && !spec) return;
 
 		const state = this.getState();
 		const sel = state.selection;
@@ -158,9 +188,9 @@ export class PasteHandler {
 		const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
 
 		const newBlockId: BlockId = generateBlockId();
-		const attrs: Record<string, string | number | boolean> | undefined = parsed.attrs
-			? (parsed.attrs as Record<string, string | number | boolean>)
-			: undefined;
+		const attrs: BlockAttrs | undefined = sanitizeAttrs(parsed.attrs, spec?.attrs) as
+			| BlockAttrs
+			| undefined;
 		const newBlock: BlockNode = createBlockNode(
 			nodeType(typeName) as NodeTypeName,
 			[],
@@ -274,8 +304,9 @@ export class PasteHandler {
 		let lastBlockId: BlockId | undefined;
 		let lastTextLen = 0;
 
-		for (const blockData of blocks) {
-			if (!blockData.type) continue;
+		for (const raw of blocks) {
+			const blockData: RichBlockData | undefined = this.validateRichBlockData(raw);
+			if (!blockData) continue;
 
 			const newId: BlockId = generateBlockId();
 			const text: string = blockData.text ?? '';
@@ -341,8 +372,9 @@ export class PasteHandler {
 		let lastBlockId: BlockId | undefined;
 		let lastTextLen = 0;
 
-		for (const blockData of blocks) {
-			if (!blockData.type) continue;
+		for (const raw of blocks) {
+			const blockData: RichBlockData | undefined = this.validateRichBlockData(raw);
+			if (!blockData) continue;
 
 			const newId: BlockId = generateBlockId();
 			const text: string = blockData.text ?? '';
@@ -375,6 +407,23 @@ export class PasteHandler {
 
 		this.dispatch(builder.build());
 		return true;
+	}
+
+	/** Validates a rich block against the schema registry. Returns undefined for invalid blocks. */
+	private validateRichBlockData(raw: RichBlockData): RichBlockData | undefined {
+		if (!raw.type) return undefined;
+
+		if (!this.schemaRegistry) return raw;
+
+		const spec = this.schemaRegistry.getNodeSpec(raw.type);
+		if (!spec) return undefined;
+
+		const attrs: Record<string, string | number | boolean> | undefined = sanitizeAttrs(
+			raw.attrs,
+			spec.attrs,
+		);
+
+		return { ...raw, attrs };
 	}
 
 	/** Finds a table_cell ancestor for the given block (or the block itself). */
