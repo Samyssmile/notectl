@@ -77,12 +77,18 @@ describe('PrintStyleCollector', () => {
 			expect(result).toContain('display: none !important');
 		});
 
+		it('includes print-color-adjust by default for WYSIWYG fidelity', () => {
+			const result: string = generatePrintCSS({});
+			expect(result).toContain('print-color-adjust: exact');
+			expect(result).toContain('-webkit-print-color-adjust: exact');
+		});
+
 		it('includes print-color-adjust when printBackground is true', () => {
 			const result: string = generatePrintCSS({ printBackground: true });
 			expect(result).toContain('print-color-adjust: exact');
 		});
 
-		it('does not include print-color-adjust when printBackground is false', () => {
+		it('does not include print-color-adjust when printBackground is explicitly false', () => {
 			const result: string = generatePrintCSS({ printBackground: false });
 			expect(result).not.toContain('print-color-adjust');
 		});
