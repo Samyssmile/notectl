@@ -177,6 +177,7 @@ export {
 	isMarkActive,
 	sharesParent,
 	isInsideIsolating,
+	isIsolatingBlock,
 	isVoidBlock,
 	deleteNodeSelection,
 	navigateArrowIntoVoid,
@@ -191,6 +192,10 @@ export { CompositionTracker } from './input/CompositionTracker.js';
 
 // --- View ---
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
+
+// --- Caret Navigation ---
+export { endOfTextblock, navigateAcrossBlocks } from './view/CaretNavigation.js';
+export type { CaretDirection } from './view/CaretNavigation.js';
 
 // --- Plugins ---
 export type {

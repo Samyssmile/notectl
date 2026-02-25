@@ -35,9 +35,12 @@ test.describe('Arrow Navigation', () => {
 			await page.keyboard.type('Line 2', { delay: 10 });
 			// Move up to first block
 			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(100);
 			// Move down to second block
 			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(100);
 			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
 			await page.keyboard.type('!', { delay: 10 });
 
 			const json = await editor.getJSON();
@@ -156,6 +159,244 @@ test.describe('Arrow Navigation', () => {
 			const text: string = await editor.getText();
 			expect(text).toContain('Before');
 			expect(text).toContain('X');
+		});
+	});
+
+	test.describe('Cross-block Text→Text (Phase 1)', () => {
+		test('ArrowRight at end of paragraph moves to start of next', async ({ editor, page }) => {
+			await editor.typeText('ABC');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('DEF', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Move to end of first block
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
+
+			// ArrowRight should cross to start of second block
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(50);
+
+			// Type to verify position (should insert at start of 'DEF')
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const secondText: string =
+				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(secondText).toBe('XDEF');
+		});
+
+		test('ArrowLeft at start of paragraph moves to end of previous', async ({ editor, page }) => {
+			await editor.typeText('ABC');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('DEF', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Move to start of second block
+			await page.keyboard.press('Home');
+			await page.waitForTimeout(50);
+
+			// ArrowLeft should cross to end of first block
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(50);
+
+			// Type to verify position (should insert at end of 'ABC')
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const firstText: string =
+				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(firstText).toBe('ABCX');
+		});
+	});
+
+	test.describe('Cross-block Text→Void (Phase 1)', () => {
+		const DATA_URI_PNG =
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+		test('ArrowRight at end of paragraph selects next image', async ({ editor, page }) => {
+			await editor.typeText('Before');
+			await page.keyboard.press('Enter');
+			await page.waitForTimeout(100);
+
+			// Insert an image via toolbar
+			const imageBtn = editor.markButton('image');
+			await imageBtn.click();
+			const urlInput = page.locator('notectl-editor input[aria-label="Image URL"]');
+			await urlInput.waitFor({ state: 'visible' });
+			await urlInput.fill(DATA_URI_PNG);
+			const insertBtn = page.locator('notectl-editor button[aria-label="Insert image"]');
+			await insertBtn.click();
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Navigate to end of 'Before' paragraph
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
+
+			// ArrowRight should create NodeSelection on image
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(100);
+
+			// Backspace should remove the image (proves NodeSelection was active)
+			await page.keyboard.press('Backspace');
+			await page.waitForTimeout(100);
+			await expect(figure).toBeHidden({ timeout: 2000 });
+		});
+
+		test('ArrowDown from paragraph before image selects image', async ({ editor, page }) => {
+			await editor.typeText('X');
+			await page.keyboard.press('Enter');
+			await page.waitForTimeout(100);
+
+			// Insert an image via toolbar
+			const imageBtn = editor.markButton('image');
+			await imageBtn.click();
+			const urlInput = page.locator('notectl-editor input[aria-label="Image URL"]');
+			await urlInput.waitFor({ state: 'visible' });
+			await urlInput.fill(DATA_URI_PNG);
+			const insertBtn = page.locator('notectl-editor button[aria-label="Insert image"]');
+			await insertBtn.click();
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Navigate to end of 'X'
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
+
+			// ArrowDown at end of textblock should go to next block (image)
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(100);
+
+			// Delete confirms NodeSelection
+			await page.keyboard.press('Delete');
+			await page.waitForTimeout(100);
+			await expect(figure).toBeHidden({ timeout: 2000 });
+		});
+	});
+
+	test.describe('Cross-block Void→Text (Phase 1)', () => {
+		const DATA_URI_PNG =
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+		test('ArrowRight from NodeSelection on image moves to next text block', async ({
+			editor,
+			page,
+		}) => {
+			// Use setHTML for a deterministic 3-block structure: paragraph | image | paragraph
+			await editor.setHTML(`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`);
+			await page.waitForTimeout(200);
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Click image to select it (NodeSelection)
+			await figure.click();
+			await page.waitForTimeout(200);
+
+			// ArrowRight should move from NodeSelection to next text block
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(50);
+
+			// Type to verify cursor moved past image
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			// X should appear after the image, before or at start of 'After'
+			expect(text).toContain('XAfter');
+		});
+
+		test('ArrowLeft from NodeSelection on image moves to end of previous text block', async ({
+			editor,
+			page,
+		}) => {
+			// Use setHTML for a deterministic 3-block structure: paragraph | image | paragraph
+			await editor.setHTML(`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`);
+			await page.waitForTimeout(200);
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Click image to select it (NodeSelection)
+			await figure.click();
+			await page.waitForTimeout(200);
+
+			// ArrowLeft should move from NodeSelection to end of 'Before'
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(50);
+
+			// Type to verify cursor is at end of 'Before'
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			// X should appear at end of 'Before', before the image
+			expect(text).toContain('BeforeX');
+		});
+	});
+
+	test.describe('Readonly navigation (Phase 1)', () => {
+		test('arrow keys navigate between blocks in readonly mode', async ({ editor, page }) => {
+			await editor.typeText('First');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Second', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			await editor.configure({ readonly: true });
+			await editor.content.click({ force: true });
+			await page.waitForTimeout(100);
+
+			// Navigate around — should not crash
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('ArrowLeft');
+			await page.keyboard.press('ArrowRight');
+
+			// Editor content should be unchanged
+			const text: string = await editor.getText();
+			expect(text).toContain('First');
+			expect(text).toContain('Second');
+		});
+	});
+
+	test.describe('Soft-wrap boundary (Phase 1)', () => {
+		test('ArrowDown from middle of wrapped line stays in same block', async ({ editor, page }) => {
+			// Narrow editor + long text forces soft-wrap
+			await editor.content.evaluate((el) => {
+				(el as HTMLElement).style.width = '200px';
+			});
+			await page.waitForTimeout(50);
+
+			// Type enough text to force wrapping
+			const longText = 'The quick brown fox jumps over the lazy dog and keeps running';
+			await editor.typeText(longText);
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Next block', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Move to first block, position at start
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('Home');
+			await page.waitForTimeout(50);
+
+			// Move to roughly middle of first visual line
+			for (let i = 0; i < 10; i++) {
+				await page.keyboard.press('ArrowRight');
+			}
+			await page.waitForTimeout(50);
+
+			// ArrowDown should stay within first block (move to next visual line)
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(50);
+
+			// Type to verify we're still in the first block
+			await page.keyboard.type('Z', { delay: 10 });
+			const json = await editor.getJSON();
+			const firstText: string =
+				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(firstText).toContain('Z');
+			expect(firstText).toContain('fox');
 		});
 	});
 
