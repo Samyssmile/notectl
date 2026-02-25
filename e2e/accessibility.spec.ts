@@ -91,16 +91,16 @@ test.describe('Accessibility', () => {
 test.describe('Toolbar Keyboard Navigation', () => {
 	test('First enabled button has tabindex="0", others have tabindex="-1"', async ({ editor }) => {
 		const toolbar = editor.toolbar();
-		const buttons = toolbar.locator('button');
+		const buttons = toolbar.locator('button[data-toolbar-item]');
 		const count = await buttons.count();
 		expect(count).toBeGreaterThan(1);
 
 		// Exactly one button should have tabindex="0"
-		const tabindex0 = toolbar.locator('button[tabindex="0"]');
+		const tabindex0 = toolbar.locator('button[data-toolbar-item][tabindex="0"]');
 		await expect(tabindex0).toHaveCount(1);
 
 		// All others should have tabindex="-1"
-		const tabindexMinus1 = toolbar.locator('button[tabindex="-1"]');
+		const tabindexMinus1 = toolbar.locator('button[data-toolbar-item][tabindex="-1"]');
 		await expect(tabindexMinus1).toHaveCount(count - 1);
 	});
 
@@ -168,7 +168,7 @@ test.describe('Toolbar Keyboard Navigation', () => {
 
 	test('End moves focus to last button', async ({ editor, page }) => {
 		const toolbar = editor.toolbar();
-		const buttons = toolbar.locator('button');
+		const buttons = toolbar.locator('button[data-toolbar-item]');
 		const firstBtn = buttons.first();
 		const lastBtn = buttons.last();
 		await firstBtn.focus();
