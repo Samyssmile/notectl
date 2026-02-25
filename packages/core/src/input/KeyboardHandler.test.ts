@@ -187,19 +187,17 @@ describe('KeyboardHandler: Composition guard', () => {
 		tracker.start(blockId('b1'));
 		tracker.end();
 
-		const dispatched: boolean[] = [];
+		const undoFn = vi.fn();
 		const handler = new KeyboardHandler(element, {
 			getState: () => state,
-			dispatch: () => {
-				dispatched.push(true);
-			},
-			undo: vi.fn(),
+			dispatch: vi.fn(),
+			undo: undoFn,
 			redo: vi.fn(),
 			compositionTracker: tracker,
 		});
 
 		element.dispatchEvent(makeKeyEvent('z', { ctrlKey: true }));
-		// Ctrl+Z triggers undo, but the important thing is the handler runs
+		expect(undoFn).toHaveBeenCalledOnce();
 		handler.destroy();
 	});
 });
