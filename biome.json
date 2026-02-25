@@ -41,6 +41,7 @@
 			"**/.angular/**",
 			"docs-site/**",
 			"test-results/**",
+			"playwright-report/**",
 			"scripts/**",
 			"examples/angular/**"
 		]
