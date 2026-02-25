@@ -12,6 +12,7 @@ test.describe('Angular — Readonly Mode', () => {
 		const textBefore: string = await editor.getText();
 
 		await editor.controlButton('Toggle Readonly').click();
+		await expect(editor.content).toHaveAttribute('contenteditable', 'false');
 		await editor.content.click({ force: true });
 		await page.keyboard.type('After', { delay: 10 });
 
