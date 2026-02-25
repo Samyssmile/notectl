@@ -4,6 +4,7 @@
 
 import { DecorationSet } from '../decorations/Decoration.js';
 import { ClipboardHandler } from '../input/ClipboardHandler.js';
+import { CompositionTracker } from '../input/CompositionTracker.js';
 import { InputHandler } from '../input/InputHandler.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import { PasteHandler } from '../input/PasteHandler.js';
@@ -60,6 +61,7 @@ export class EditorView {
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
+	readonly compositionTracker: CompositionTracker = new CompositionTracker();
 
 	constructor(contentElement: HTMLElement, options: EditorViewOptions) {
 		this.state = options.state;
@@ -82,6 +84,7 @@ export class EditorView {
 			syncSelection: () => this.syncSelectionFromDOM(),
 			schemaRegistry: this.schemaRegistry,
 			isReadOnly: this.isReadOnly,
+			compositionTracker: this.compositionTracker,
 		});
 		this.keyboardHandler = new KeyboardHandler(contentElement, {
 			getState: () => this.state,
@@ -90,6 +93,7 @@ export class EditorView {
 			redo: () => this.redo(),
 			schemaRegistry: this.schemaRegistry,
 			isReadOnly: this.isReadOnly,
+			compositionTracker: this.compositionTracker,
 		});
 		this.pasteHandler = new PasteHandler(contentElement, {
 			getState: () => this.state,
@@ -158,6 +162,9 @@ export class EditorView {
 				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
+				compositionBlockId: this.compositionTracker.isComposing
+					? (this.compositionTracker.activeBlockId ?? undefined)
+					: undefined,
 			});
 			syncSelectionToDOM(this.contentElement, newState.selection);
 
@@ -217,6 +224,9 @@ export class EditorView {
 				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
+				compositionBlockId: this.compositionTracker.isComposing
+					? (this.compositionTracker.activeBlockId ?? undefined)
+					: undefined,
 			});
 			syncSelectionToDOM(this.contentElement, newState.selection);
 		} finally {
@@ -226,6 +236,9 @@ export class EditorView {
 
 	/** Syncs the DOM selection to the editor state. */
 	private syncSelectionFromDOM(): void {
+		// During IME composition, do not override the DOM selection
+		if (this.compositionTracker.isComposing) return;
+
 		// If NodeSelection is active, preserve it — DOM selectionchange should not override.
 		// Exception: after mousedown on a non-selectable block, allow the DOM selection to take over.
 		if (isNodeSelection(this.state.selection) && !this.pendingNodeSelectionClear) return;

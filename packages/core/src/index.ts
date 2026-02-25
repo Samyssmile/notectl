@@ -184,9 +184,10 @@ export {
 
 // --- Input ---
 export type { InputRule } from './input/InputRule.js';
-export type { Keymap, KeymapHandler } from './input/Keymap.js';
+export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './input/Keymap.js';
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
+export { CompositionTracker } from './input/CompositionTracker.js';
 
 // --- View ---
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
