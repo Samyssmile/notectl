@@ -37,6 +37,7 @@ export interface EditorViewOptions {
 	maxHistoryDepth?: number;
 	onStateChange?: StateChangeCallback;
 	getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
+	isReadOnly?: () => boolean;
 }
 
 export class EditorView {
@@ -58,12 +59,14 @@ export class EditorView {
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
+	private readonly isReadOnly: () => boolean;
 
 	constructor(contentElement: HTMLElement, options: EditorViewOptions) {
 		this.state = options.state;
 		this.contentElement = contentElement;
 		this.schemaRegistry = options.schemaRegistry;
 		this.getDecorations = options.getDecorations;
+		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.history = new HistoryManager({
 			maxDepth: options.maxHistoryDepth ?? 100,
@@ -78,6 +81,7 @@ export class EditorView {
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			syncSelection: () => this.syncSelectionFromDOM(),
 			schemaRegistry: this.schemaRegistry,
+			isReadOnly: this.isReadOnly,
 		});
 		this.keyboardHandler = new KeyboardHandler(contentElement, {
 			getState: () => this.state,
@@ -85,17 +89,20 @@ export class EditorView {
 			undo: () => this.undo(),
 			redo: () => this.redo(),
 			schemaRegistry: this.schemaRegistry,
+			isReadOnly: this.isReadOnly,
 		});
 		this.pasteHandler = new PasteHandler(contentElement, {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			schemaRegistry: this.schemaRegistry,
+			isReadOnly: this.isReadOnly,
 		});
 		this.clipboardHandler = new ClipboardHandler(contentElement, {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			schemaRegistry: this.schemaRegistry,
 			syncSelection: () => this.syncSelectionFromDOM(),
+			isReadOnly: this.isReadOnly,
 		});
 
 		this.handleSelectionChange = this.onSelectionChange.bind(this);
@@ -170,8 +177,7 @@ export class EditorView {
 
 	/** Performs undo. */
 	undo(): void {
-		// Guard needed here: history.undo() mutates stacks before applyUpdate runs
-		if (this.isUpdating) return;
+		if (this.isUpdating || this.isReadOnly()) return;
 		const result = this.history.undo(this.state);
 		if (!result) return;
 		this.applyUpdate(result.state, result.transaction);
@@ -179,8 +185,7 @@ export class EditorView {
 
 	/** Performs redo. */
 	redo(): void {
-		// Guard needed here: history.redo() mutates stacks before applyUpdate runs
-		if (this.isUpdating) return;
+		if (this.isUpdating || this.isReadOnly()) return;
 		const result = this.history.redo(this.state);
 		if (!result) return;
 		this.applyUpdate(result.state, result.transaction);
@@ -302,7 +307,7 @@ export class EditorView {
 	 * appends a new paragraph after the last block and focuses it.
 	 */
 	private handleClickBelowContent(e: MouseEvent): void {
-		if (this.contentElement.contentEditable === 'false') return;
+		if (this.isReadOnly()) return;
 		const blockOrder: readonly BlockId[] = this.state.getBlockOrder();
 		const lastBlockId: BlockId | undefined = blockOrder[blockOrder.length - 1];
 		if (!lastBlockId) return;
@@ -369,6 +374,7 @@ export class EditorView {
 
 	/** Handles file drop by delegating to registered file handlers. */
 	private onDrop(e: DragEvent): void {
+		if (this.isReadOnly()) return;
 		if (!this.schemaRegistry) return;
 		if (!e.dataTransfer) return;
 
