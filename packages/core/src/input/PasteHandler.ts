@@ -412,20 +412,19 @@ export class PasteHandler {
 
 		if (files.length === 0) return false;
 
+		let handled = false;
 		for (const file of files) {
 			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
 			for (const handler of handlers) {
-				const result = handler(files, null);
-				if (result === true) return true;
-				// If handler returns a Promise, treat as handled
-				if (result instanceof Promise) {
-					// Fire-and-forget for async handlers
-					return true;
+				const result = handler(file, null);
+				if (result === true || result instanceof Promise) {
+					handled = true;
+					break;
 				}
 			}
 		}
 
-		return false;
+		return handled;
 	}
 
 	/** Extracts embedded rich block JSON from HTML (data-notectl-rich attribute). */

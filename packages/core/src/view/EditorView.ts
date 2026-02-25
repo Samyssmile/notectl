@@ -383,19 +383,19 @@ export class EditorView {
 
 		const position: Position | null = this.getPositionFromPoint(e.clientX, e.clientY);
 
+		let handled = false;
 		for (const file of files) {
 			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
 			for (const handler of handlers) {
-				const result = handler(files, position);
-				if (result === true) {
-					e.preventDefault();
-					return;
-				}
-				if (result instanceof Promise) {
-					e.preventDefault();
-					return;
+				const result = handler(file, position);
+				if (result === true || result instanceof Promise) {
+					handled = true;
+					break;
 				}
 			}
+		}
+		if (handled) {
+			e.preventDefault();
 		}
 	}
 
