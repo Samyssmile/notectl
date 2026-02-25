@@ -92,6 +92,73 @@ test.describe('Arrow Navigation', () => {
 		});
 	});
 
+	test.describe('Void block (image) navigation', () => {
+		const DATA_URI_PNG =
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+		test('clicking image selects it and Backspace removes it', async ({ editor, page }) => {
+			await editor.typeText('Before');
+			await page.keyboard.press('Enter');
+			await page.waitForTimeout(100);
+
+			// Insert an image via the toolbar
+			const imageBtn = editor.markButton('image');
+			await imageBtn.click();
+			const urlInput = page.locator('notectl-editor input[aria-label="Image URL"]');
+			await urlInput.waitFor({ state: 'visible' });
+			await urlInput.fill(DATA_URI_PNG);
+			const insertBtn = page.locator('notectl-editor button[aria-label="Insert image"]');
+			await insertBtn.click();
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Click the image to select it
+			await figure.click();
+			await page.waitForTimeout(200);
+
+			// Backspace should remove the image
+			await page.keyboard.press('Backspace');
+			await page.waitForTimeout(100);
+
+			// Image should be gone
+			await expect(figure).toBeHidden({ timeout: 2000 });
+			const text: string = await editor.getText();
+			expect(text).toContain('Before');
+		});
+
+		test('arrow keys near image do not crash', async ({ editor, page }) => {
+			await editor.typeText('Before');
+			await page.keyboard.press('Enter');
+			await page.waitForTimeout(100);
+
+			// Insert image via toolbar
+			const imageBtn = editor.markButton('image');
+			await imageBtn.click();
+			const urlInput = page.locator('notectl-editor input[aria-label="Image URL"]');
+			await urlInput.waitFor({ state: 'visible' });
+			await urlInput.fill(DATA_URI_PNG);
+			const insertBtn = page.locator('notectl-editor button[aria-label="Insert image"]');
+			await insertBtn.click();
+
+			const figure = page.locator('notectl-editor figure.notectl-image');
+			await figure.waitFor({ state: 'visible', timeout: 5000 });
+
+			// Press arrows near/around the image — should not crash
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(100);
+
+			// Editor should still be functional
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text).toContain('Before');
+			expect(text).toContain('X');
+		});
+	});
+
 	test.describe('Document boundaries', () => {
 		test('ArrowRight at document end does not crash', async ({ editor, page }) => {
 			await editor.typeText('Hello');

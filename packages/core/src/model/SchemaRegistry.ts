@@ -144,16 +144,16 @@ export class SchemaRegistry {
 		return [...this._contextKeymaps, ...this._navigationKeymaps, ...this._defaultKeymaps];
 	}
 
-	/** Returns keymaps grouped by priority level. */
+	/** Returns keymaps grouped by priority level (defensive copies). */
 	getKeymapsByPriority(): {
 		readonly context: readonly Keymap[];
 		readonly navigation: readonly Keymap[];
 		readonly default: readonly Keymap[];
 	} {
 		return {
-			context: this._contextKeymaps,
-			navigation: this._navigationKeymaps,
-			default: this._defaultKeymaps,
+			context: [...this._contextKeymaps],
+			navigation: [...this._navigationKeymaps],
+			default: [...this._defaultKeymaps],
 		};
 	}
 

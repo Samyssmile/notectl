@@ -51,15 +51,18 @@ export function reconcile(
 
 	// Unwrap blocks from existing wrapper elements (e.g. <ul>/<ol>)
 	// so the main reconciliation loop sees all blocks as direct children.
-	unwrapBlocks(container);
+	// Skip during active IME composition — moving DOM nodes breaks the browser's
+	// composition session. Wrappers are structural (based on block types) and
+	// don't change during text composition; the next non-composing reconcile will fix them.
+	const isComposing = options?.compositionBlockId != null;
+	if (!isComposing) {
+		unwrapBlocks(container);
+	}
 
 	const oldBlockMap = new Map<BlockId, HTMLElement>();
-	for (const child of Array.from(container.children)) {
-		const el = child as HTMLElement;
+	for (const el of getRenderedBlockElements(container)) {
 		const bid = el.getAttribute('data-block-id');
-		if (bid) {
-			oldBlockMap.set(toBlockId(bid), el);
-		}
+		if (bid) oldBlockMap.set(toBlockId(bid), el);
 	}
 
 	// Build set of new block IDs for removal detection
@@ -68,7 +71,7 @@ export function reconcile(
 	// Remove blocks that no longer exist
 	for (const [blockId, el] of oldBlockMap) {
 		if (!newBlockIds.has(blockId)) {
-			container.removeChild(el);
+			removeBlockElement(el);
 			oldBlockMap.delete(blockId);
 			// Destroy NodeView if exists
 			const nv = nodeViews?.get(blockId);
@@ -128,18 +131,12 @@ export function reconcile(
 			}
 
 			const newEl = renderBlock(block, registry, nodeViews, options);
-			container.replaceChild(newEl, existingEl);
+			replaceBlockElement(existingEl, newEl, container);
 			previousSibling = newEl;
 		} else {
 			// New block — insert after previousSibling
 			const newEl = renderBlock(block, registry, nodeViews, options);
-			if (previousSibling?.nextSibling) {
-				container.insertBefore(newEl, previousSibling.nextSibling);
-			} else if (!previousSibling && container.firstChild) {
-				container.insertBefore(newEl, container.firstChild);
-			} else {
-				container.appendChild(newEl);
-			}
+			insertAfterPreviousSibling(container, previousSibling, newEl);
 			previousSibling = newEl;
 		}
 
@@ -183,7 +180,9 @@ export function reconcile(
 	}
 
 	// Group consecutive blocks into wrapper elements (e.g. <ul>/<ol> for list items)
-	wrapBlocks(container, newBlocks, registry);
+	if (!isComposing) {
+		wrapBlocks(container, newBlocks, registry);
+	}
 }
 
 /** Checks whether a block has changed by comparing its children, attrs, and decorations. */
@@ -745,5 +744,70 @@ function wrapBlocks(
 				wrapper.appendChild(el);
 			}
 		}
+	}
+}
+
+/**
+ * Returns rendered top-level block elements in visual order.
+ * Includes direct children and immediate children of block wrappers.
+ */
+function getRenderedBlockElements(container: HTMLElement): readonly HTMLElement[] {
+	const blocks: HTMLElement[] = [];
+	for (const child of Array.from(container.children)) {
+		if (!(child instanceof HTMLElement)) continue;
+		if (child.hasAttribute('data-block-id')) {
+			blocks.push(child);
+			continue;
+		}
+		if (!child.hasAttribute('data-block-wrapper')) continue;
+
+		for (const wrappedChild of Array.from(child.children)) {
+			if (!(wrappedChild instanceof HTMLElement)) continue;
+			if (wrappedChild.hasAttribute('data-block-id')) {
+				blocks.push(wrappedChild);
+			}
+		}
+	}
+	return blocks;
+}
+
+/** Removes a rendered block from whichever parent currently owns it. */
+function removeBlockElement(el: HTMLElement): void {
+	el.parentElement?.removeChild(el);
+}
+
+/** Replaces a rendered block in-place, honoring wrapper parents when present. */
+function replaceBlockElement(oldEl: HTMLElement, newEl: HTMLElement, container: HTMLElement): void {
+	const parent = oldEl.parentElement;
+	if (parent) {
+		parent.replaceChild(newEl, oldEl);
+		return;
+	}
+	container.replaceChild(newEl, oldEl);
+}
+
+/**
+ * Inserts a new rendered block after the given sibling.
+ * If the sibling is inside a wrapper, insertion happens inside that wrapper.
+ */
+function insertAfterPreviousSibling(
+	container: HTMLElement,
+	previousSibling: Element | null,
+	newEl: HTMLElement,
+): void {
+	if (previousSibling?.parentElement) {
+		const parent = previousSibling.parentElement;
+		if (previousSibling.nextSibling) {
+			parent.insertBefore(newEl, previousSibling.nextSibling);
+		} else {
+			parent.appendChild(newEl);
+		}
+		return;
+	}
+
+	if (container.firstChild) {
+		container.insertBefore(newEl, container.firstChild);
+	} else {
+		container.appendChild(newEl);
 	}
 }
