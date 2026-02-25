@@ -174,6 +174,7 @@ export interface TransactionMetadata {
 	readonly origin: TransactionOrigin;
 	readonly timestamp: number;
 	readonly historyDirection?: 'undo' | 'redo';
+	readonly readonlyAllowed?: boolean;
 }
 
 export interface Transaction {
@@ -333,6 +334,7 @@ export class TransactionBuilder {
 	private readonly selectionBefore: EditorSelection;
 	private readonly origin: TransactionOrigin;
 	private workingDoc: Document | null;
+	private _readonlyAllowed = false;
 
 	constructor(
 		currentSelection: EditorSelection,
@@ -641,6 +643,12 @@ export class TransactionBuilder {
 		throw new Error(`No InlineNode at offset ${offset} in block "${blockId}".`);
 	}
 
+	/** Marks this transaction as allowed in readonly mode. */
+	readonlyAllowed(): this {
+		this._readonlyAllowed = true;
+		return this;
+	}
+
 	/** Sets the selection for the resulting state. */
 	setSelection(selection: EditorSelection): this {
 		this.selection = selection;
@@ -670,6 +678,7 @@ export class TransactionBuilder {
 			metadata: {
 				origin: this.origin,
 				timestamp: Date.now(),
+				...(this._readonlyAllowed ? { readonlyAllowed: true } : {}),
 			},
 		};
 	}

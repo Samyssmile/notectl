@@ -78,6 +78,7 @@ export class PluginManager {
 	private initialized = false;
 	private initializing = false;
 	private readOnly = false;
+	private readonlyBypassActive = false;
 
 	/**
 	 * Registers a system-level service before plugin init.
@@ -219,12 +220,22 @@ export class PluginManager {
 		const entry = this.commands.get(name);
 		if (!entry) return false;
 		if (this.readOnly && !entry.readonlyAllowed) return false;
+
+		const enableBypass: boolean = this.readOnly && entry.readonlyAllowed;
+		if (enableBypass) this.readonlyBypassActive = true;
 		try {
 			return entry.handler();
 		} catch (err) {
 			console.error(`[PluginManager] Command "${name}" error:`, err);
 			return false;
+		} finally {
+			if (enableBypass) this.readonlyBypassActive = false;
 		}
+	}
+
+	/** Returns true when a readonlyAllowed command is currently executing. */
+	isReadonlyBypassed(): boolean {
+		return this.readonlyBypassActive;
 	}
 
 	/** Configures a plugin at runtime via onConfigure(). */

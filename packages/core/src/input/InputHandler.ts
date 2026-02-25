@@ -33,6 +33,7 @@ export interface InputHandlerOptions {
 	dispatch: DispatchFn;
 	syncSelection: SyncSelectionFn;
 	schemaRegistry?: SchemaRegistry;
+	isReadOnly?: () => boolean;
 }
 
 export class InputHandler {
@@ -40,6 +41,7 @@ export class InputHandler {
 	private readonly dispatch: DispatchFn;
 	private readonly syncSelection: SyncSelectionFn;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly isReadOnly: () => boolean;
 	private composing = false;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
@@ -54,6 +56,7 @@ export class InputHandler {
 		this.dispatch = options.dispatch;
 		this.syncSelection = options.syncSelection;
 		this.schemaRegistry = options.schemaRegistry;
+		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
@@ -65,7 +68,7 @@ export class InputHandler {
 	}
 
 	private onBeforeInput(e: InputEvent): void {
-		if (this.element.contentEditable === 'false') return;
+		if (this.isReadOnly()) return;
 
 		// During composition, let the browser handle it
 		if (this.composing && e.inputType === 'insertCompositionText') {
@@ -161,7 +164,7 @@ export class InputHandler {
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		this.composing = false;
-		if (this.element.contentEditable === 'false') return;
+		if (this.isReadOnly()) return;
 		const composedText = e.data;
 		if (!composedText) return;
 

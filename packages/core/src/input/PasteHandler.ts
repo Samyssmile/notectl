@@ -35,12 +35,14 @@ export interface PasteHandlerOptions {
 	getState: GetStateFn;
 	dispatch: DispatchFn;
 	schemaRegistry?: SchemaRegistry;
+	isReadOnly?: () => boolean;
 }
 
 export class PasteHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly isReadOnly: () => boolean;
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 
 	constructor(
@@ -50,6 +52,7 @@ export class PasteHandler {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
 		this.schemaRegistry = options.schemaRegistry;
+		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.handlePaste = this.onPaste.bind(this);
 		element.addEventListener('paste', this.handlePaste);
@@ -57,7 +60,7 @@ export class PasteHandler {
 
 	private onPaste(e: ClipboardEvent): void {
 		e.preventDefault();
-		if (this.element.contentEditable === 'false') return;
+		if (this.isReadOnly()) return;
 
 		const clipboardData = e.clipboardData;
 		if (!clipboardData) return;

@@ -118,6 +118,101 @@ test.describe('Readonly Mode', () => {
 		expect(jsonAfter.children.length).toBe(jsonBefore.children.length);
 	});
 
+	test('undo keyboard shortcut is blocked in readonly mode', async ({ editor, page }) => {
+		await editor.typeText('Undoable text');
+		const textBefore: string = await editor.getText();
+
+		await editor.configure({ readonly: true });
+		await editor.content.click({ force: true });
+		await page.keyboard.press('Control+z');
+
+		const textAfter: string = await editor.getText();
+		expect(textAfter.trim()).toBe(textBefore.trim());
+	});
+
+	test('redo keyboard shortcut is blocked in readonly mode', async ({ editor, page }) => {
+		await editor.typeText('Hello');
+		// Undo to create a redo entry
+		await page.keyboard.press('Control+z');
+
+		await editor.configure({ readonly: true });
+		await editor.content.click({ force: true });
+		await page.keyboard.press('Control+Shift+z');
+
+		// Text should remain in the undone state
+		const textAfter: string = await editor.getText();
+		expect(textAfter.trim()).not.toContain('Hello');
+	});
+
+	test('programmatic undo is blocked in readonly mode', async ({ editor, page }) => {
+		await editor.typeText('Programmatic undo test');
+		const textBefore: string = await editor.getText();
+
+		await editor.configure({ readonly: true });
+
+		await page.evaluate(() => {
+			type EditorEl = HTMLElement & { commands: { undo: () => void } };
+			const el = document.querySelector('notectl-editor') as EditorEl | null;
+			el?.commands.undo();
+		});
+
+		const textAfter: string = await editor.getText();
+		expect(textAfter.trim()).toBe(textBefore.trim());
+	});
+
+	test('programmatic redo is blocked in readonly mode', async ({ editor, page }) => {
+		await editor.typeText('Redo test');
+		await page.keyboard.press('Control+z');
+		const textBeforeReadonly: string = await editor.getText();
+
+		await editor.configure({ readonly: true });
+
+		await page.evaluate(() => {
+			type EditorEl = HTMLElement & { commands: { redo: () => void } };
+			const el = document.querySelector('notectl-editor') as EditorEl | null;
+			el?.commands.redo();
+		});
+
+		const textAfter: string = await editor.getText();
+		expect(textAfter.trim()).toBe(textBeforeReadonly.trim());
+	});
+
+	test('programmatic dispatch of mutating transaction is blocked in readonly mode', async ({
+		editor,
+		page,
+	}) => {
+		await editor.typeText('Protected content');
+		const textBefore: string = await editor.getText();
+
+		await editor.configure({ readonly: true });
+
+		await page.evaluate(() => {
+			type EditorEl = HTMLElement & {
+				getState: () => { transaction: (origin: string) => unknown };
+				dispatch: (tr: unknown) => void;
+			};
+			const el = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!el) return;
+			const state = el.getState() as {
+				doc: { children: Array<{ id: string }> };
+				transaction: (origin: string) => {
+					insertText: (
+						blockId: string,
+						offset: number,
+						text: string,
+						marks: unknown[],
+					) => { build: () => unknown };
+				};
+			};
+			const blockId: string = state.doc.children[0]?.id ?? '';
+			const tr = state.transaction('api').insertText(blockId, 0, 'INJECTED', []).build();
+			el.dispatch(tr);
+		});
+
+		const textAfter: string = await editor.getText();
+		expect(textAfter.trim()).toBe(textBefore.trim());
+	});
+
 	test('editing resumes after disabling readonly', async ({ editor, page }) => {
 		await editor.typeText('Before');
 

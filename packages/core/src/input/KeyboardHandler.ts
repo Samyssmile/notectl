@@ -25,6 +25,7 @@ export interface KeyboardHandlerOptions {
 	undo: UndoFn;
 	redo: RedoFn;
 	schemaRegistry?: SchemaRegistry;
+	isReadOnly?: () => boolean;
 }
 
 export class KeyboardHandler {
@@ -33,6 +34,7 @@ export class KeyboardHandler {
 	private readonly undo: UndoFn;
 	private readonly redo: RedoFn;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly isReadOnly: () => boolean;
 	private readonly handleKeydown: (e: KeyboardEvent) => void;
 
 	constructor(
@@ -44,6 +46,7 @@ export class KeyboardHandler {
 		this.undo = options.undo;
 		this.redo = options.redo;
 		this.schemaRegistry = options.schemaRegistry;
+		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.handleKeydown = this.onKeydown.bind(this);
 		element.addEventListener('keydown', this.handleKeydown);
@@ -57,7 +60,7 @@ export class KeyboardHandler {
 		if (this.handleArrowIntoVoid(e)) return;
 
 		// In readonly mode, allow navigation and escape but block editing
-		if (this.element.contentEditable === 'false') {
+		if (this.isReadOnly()) {
 			if (this.handleEscape(e)) return;
 			return;
 		}
@@ -147,7 +150,7 @@ export class KeyboardHandler {
 
 		// Backspace / Delete: remove the selected void block
 		if (key === 'Backspace' || key === 'Delete') {
-			if (this.element.contentEditable === 'false') return true;
+			if (this.isReadOnly()) return true;
 			e.preventDefault();
 			const tr = deleteNodeSelection(state, sel);
 			if (tr) this.dispatch(tr);
@@ -156,7 +159,7 @@ export class KeyboardHandler {
 
 		// Enter: insert paragraph after
 		if (key === 'Enter') {
-			if (this.element.contentEditable === 'false') return true;
+			if (this.isReadOnly()) return true;
 			e.preventDefault();
 			const tr = splitBlockCommand(state);
 			if (tr) this.dispatch(tr);
