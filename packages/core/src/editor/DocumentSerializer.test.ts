@@ -61,4 +61,69 @@ describe('serializeDocumentToHTML', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('hello')])]);
 		expect(serializeDocumentToHTML(doc)).toBe('<p>hello</p>');
 	});
+
+	// Coverage for alignment validation in serializeBlock
+
+	it('injects text-align style for center alignment', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'center',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p style="text-align: center">hello</p>');
+	});
+
+	it('injects text-align style for right alignment', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'right',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p style="text-align: right">hello</p>');
+	});
+
+	it('injects text-align style for justify alignment', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'justify',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p style="text-align: justify">hello</p>');
+	});
+
+	it('does not inject style for left alignment (default)', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'left',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p>hello</p>');
+	});
+
+	it('ignores invalid alignment values', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: '"><script>alert(1)</script>',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).not.toContain('script');
+		expect(html).not.toContain('text-align');
+		expect(html).toBe('<p>hello</p>');
+	});
+
+	it('ignores unknown alignment values', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'start',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).not.toContain('text-align');
+		expect(html).toBe('<p>hello</p>');
+	});
 });
