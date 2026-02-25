@@ -203,12 +203,17 @@ export type {
 	PluginConfig,
 	TransactionMiddleware,
 	MiddlewareNext,
+	MiddlewareOptions,
 } from './plugins/Plugin.js';
 
 export { EventKey, ServiceKey } from './plugins/Plugin.js';
 
 export { EventBus } from './plugins/EventBus.js';
-export { PluginManager, type PluginManagerInitOptions } from './plugins/PluginManager.js';
+export {
+	PluginManager,
+	type PluginManagerInitOptions,
+	type MiddlewareInfo,
+} from './plugins/PluginManager.js';
 export {
 	ToolbarPlugin,
 	ToolbarServiceKey,

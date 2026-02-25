@@ -190,26 +190,29 @@ export class AlignmentPlugin implements Plugin {
 	 * type (e.g. paragraph → heading) via `setBlockType`, which replaces attrs.
 	 */
 	private registerMiddleware(context: PluginContext): void {
-		context.registerMiddleware((tr, _state, next) => {
-			let patched = false;
+		context.registerMiddleware(
+			(tr, _state, next) => {
+				let patched = false;
 
-			const patchedSteps = tr.steps.map((step) => {
-				if (step.type !== 'setBlockType') return step;
-				if (!this.alignableTypes.has(step.nodeType)) return step;
+				const patchedSteps = tr.steps.map((step) => {
+					if (step.type !== 'setBlockType') return step;
+					if (!this.alignableTypes.has(step.nodeType)) return step;
 
-				const prevAlign = step.previousAttrs?.align;
-				if (!prevAlign || prevAlign === 'left') return step;
+					const prevAlign = step.previousAttrs?.align;
+					if (!prevAlign || prevAlign === 'left') return step;
 
-				// Carry forward align into new attrs
-				patched = true;
-				return {
-					...step,
-					attrs: { ...step.attrs, align: prevAlign },
-				};
-			});
+					// Carry forward align into new attrs
+					patched = true;
+					return {
+						...step,
+						attrs: { ...step.attrs, align: prevAlign },
+					};
+				});
 
-			next(patched ? { ...tr, steps: patchedSteps } : tr);
-		});
+				next(patched ? { ...tr, steps: patchedSteps } : tr);
+			},
+			{ name: 'alignment:preserve-align' },
+		);
 	}
 
 	// --- Alignment Logic ---

@@ -244,26 +244,29 @@ export class CodeBlockPlugin implements Plugin {
 	// --- Middleware (Mark Prevention) ---
 
 	private registerMiddleware(context: PluginContext): void {
-		context.registerMiddleware((tr, state, next) => {
-			const hasMarkInCodeBlock: boolean = tr.steps.some((step) => {
-				if (step.type !== 'addMark') return false;
-				const block: BlockNode | undefined = state.getBlock(step.blockId);
-				return block?.type === 'code_block';
-			});
+		context.registerMiddleware(
+			(tr, state, next) => {
+				const hasMarkInCodeBlock: boolean = tr.steps.some((step) => {
+					if (step.type !== 'addMark') return false;
+					const block: BlockNode | undefined = state.getBlock(step.blockId);
+					return block?.type === 'code_block';
+				});
 
-			if (!hasMarkInCodeBlock) {
-				next(tr);
-				return;
-			}
+				if (!hasMarkInCodeBlock) {
+					next(tr);
+					return;
+				}
 
-			const filtered = tr.steps.filter((step) => {
-				if (step.type !== 'addMark') return true;
-				const block: BlockNode | undefined = state.getBlock(step.blockId);
-				return block?.type !== 'code_block';
-			});
+				const filtered = tr.steps.filter((step) => {
+					if (step.type !== 'addMark') return true;
+					const block: BlockNode | undefined = state.getBlock(step.blockId);
+					return block?.type !== 'code_block';
+				});
 
-			next({ ...tr, steps: filtered });
-		}, 50);
+				next({ ...tr, steps: filtered });
+			},
+			{ name: 'code-block:mark-guard', priority: 50 },
+		);
 	}
 
 	// --- Table Cell Patching ---
