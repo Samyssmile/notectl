@@ -483,8 +483,8 @@ test.describe('Code Block Accessibility', () => {
 		await page.keyboard.type('line2', { delay: 10 });
 
 		await page.keyboard.press('ArrowDown');
-		// Wait for the new paragraph block to be created
-		await page.waitForTimeout(100);
+		// Wait for the new paragraph block to appear in the DOM
+		await editor.content.locator('p[data-block-id]').waitFor({ state: 'attached' });
 		await page.keyboard.type('outside', { delay: 10 });
 
 		const json = await editor.getJSON();
