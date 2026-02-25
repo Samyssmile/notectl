@@ -16,7 +16,7 @@ import {
 } from '../commands/Commands.js';
 import { getBlockText } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { isNodeSelection } from '../model/Selection.js';
+import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { EditorState } from '../state/EditorState.js';
@@ -163,7 +163,7 @@ export class InputHandler {
 
 	private onCompositionStart(_e: CompositionEvent): void {
 		const state = this.getState();
-		if (isNodeSelection(state.selection)) return;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
 		this.compositionTracker.start(state.selection.anchor.blockId);
 	}
 
@@ -184,7 +184,7 @@ export class InputHandler {
 		if (rules.length === 0) return;
 
 		const state = this.getState();
-		if (isNodeSelection(state.selection)) return;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
 		const { anchor } = state.selection;
 		const block = state.getBlock(anchor.blockId);
 		if (!block) return;

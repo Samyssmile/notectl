@@ -29,12 +29,29 @@ export interface NodeSelection {
 	readonly path: readonly BlockId[];
 }
 
-/** Union type representing either a text selection or a node selection. */
-export type EditorSelection = Selection | NodeSelection;
+/** A virtual cursor at the boundary of a void block where no native caret can exist. */
+export interface GapCursorSelection {
+	readonly type: 'gap';
+	readonly side: 'before' | 'after';
+	readonly blockId: BlockId;
+	readonly path: readonly BlockId[];
+}
+
+/** Union type representing a text selection, node selection, or gap cursor. */
+export type EditorSelection = Selection | NodeSelection | GapCursorSelection;
 
 /** Creates a NodeSelection for the given block. */
 export function createNodeSelection(nodeId: BlockId, path: readonly BlockId[]): NodeSelection {
 	return { type: 'node', nodeId, path };
+}
+
+/** Creates a GapCursorSelection at the boundary of a void block. */
+export function createGapCursor(
+	blockId: BlockId,
+	side: 'before' | 'after',
+	path: readonly BlockId[],
+): GapCursorSelection {
+	return { type: 'gap', side, blockId, path };
 }
 
 /** Type guard: returns true if the selection is a NodeSelection. */
@@ -42,15 +59,23 @@ export function isNodeSelection(sel: EditorSelection): sel is NodeSelection {
 	return 'type' in sel && sel.type === 'node';
 }
 
+/** Type guard: returns true if the selection is a GapCursorSelection. */
+export function isGapCursor(sel: EditorSelection): sel is GapCursorSelection {
+	return 'type' in sel && sel.type === 'gap';
+}
+
 /** Type guard: returns true if the selection is a text Selection. */
 export function isTextSelection(sel: EditorSelection): sel is Selection {
-	return !isNodeSelection(sel);
+	return !('type' in sel);
 }
 
 /** Compares two EditorSelections for equality. */
 export function selectionsEqual(a: EditorSelection, b: EditorSelection): boolean {
 	if (isNodeSelection(a) && isNodeSelection(b)) {
 		return a.nodeId === b.nodeId;
+	}
+	if (isGapCursor(a) && isGapCursor(b)) {
+		return a.blockId === b.blockId && a.side === b.side;
 	}
 	if (isTextSelection(a) && isTextSelection(b)) {
 		return (
@@ -83,9 +108,9 @@ export function createCollapsedSelection(blockId: BlockId, offset: number): Sele
 	return { anchor: pos, head: pos };
 }
 
-/** Returns true if the selection is collapsed (cursor with no range). NodeSelection is never collapsed. */
+/** Returns true if the selection is collapsed (cursor with no range). NodeSelection and GapCursor are never collapsed. */
 export function isCollapsed(sel: EditorSelection): boolean {
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 	return sel.anchor.blockId === sel.head.blockId && sel.anchor.offset === sel.head.offset;
 }
 
@@ -96,7 +121,7 @@ export function isCollapsed(sel: EditorSelection): boolean {
  * For NodeSelection, always returns true.
  */
 export function isForward(sel: EditorSelection, blockOrder?: readonly BlockId[]): boolean {
-	if (isNodeSelection(sel)) return true;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return true;
 	if (sel.anchor.blockId === sel.head.blockId) {
 		return sel.anchor.offset <= sel.head.offset;
 	}

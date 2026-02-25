@@ -15,6 +15,7 @@ import {
 	createCollapsedSelection,
 	createNodeSelection,
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 	selectionsEqual,
 } from '../model/Selection.js';
@@ -23,7 +24,12 @@ import { nodeType, blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
-import { type CaretDirection, endOfTextblock, navigateAcrossBlocks } from './CaretNavigation.js';
+import {
+	type CaretDirection,
+	endOfTextblock,
+	navigateAcrossBlocks,
+	skipInlineNode,
+} from './CaretNavigation.js';
 import type { NodeView } from './NodeView.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
@@ -58,6 +64,7 @@ export class EditorView {
 	private readonly handleDrop: (e: DragEvent) => void;
 	private isUpdating = false;
 	private pendingNodeSelectionClear = false;
+	private pendingGapCursorClear = false;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
@@ -248,10 +255,12 @@ export class EditorView {
 		// During IME composition, do not override the DOM selection
 		if (this.compositionTracker.isComposing) return;
 
-		// If NodeSelection is active, preserve it — DOM selectionchange should not override.
+		// If NodeSelection or GapCursor is active, preserve it — DOM selectionchange should not override.
 		// Exception: after mousedown on a non-selectable block, allow the DOM selection to take over.
 		if (isNodeSelection(this.state.selection) && !this.pendingNodeSelectionClear) return;
+		if (isGapCursor(this.state.selection) && !this.pendingGapCursorClear) return;
 		this.pendingNodeSelectionClear = false;
+		this.pendingGapCursorClear = false;
 
 		const sel = readSelectionFromDOM(this.contentElement);
 		if (!sel) return;
@@ -289,10 +298,13 @@ export class EditorView {
 		const isNodeSelectable =
 			nearestBlockEl.hasAttribute('data-void') || nearestBlockEl.hasAttribute('data-selectable');
 		if (!isNodeSelectable) {
-			// When clicking a non-selectable block while NodeSelection is active,
-			// allow the next syncSelectionFromDOM to override the NodeSelection
+			// When clicking a non-selectable block while NodeSelection or GapCursor is active,
+			// allow the next syncSelectionFromDOM to override the selection
 			if (isNodeSelection(this.state.selection)) {
 				this.pendingNodeSelectionClear = true;
+			}
+			if (isGapCursor(this.state.selection)) {
+				this.pendingGapCursorClear = true;
 			}
 			return;
 		}
@@ -303,6 +315,9 @@ export class EditorView {
 		if (contentDOM?.contains(target)) {
 			if (isNodeSelection(this.state.selection)) {
 				this.pendingNodeSelectionClear = true;
+			}
+			if (isGapCursor(this.state.selection)) {
+				this.pendingGapCursorClear = true;
 			}
 			return;
 		}
@@ -507,10 +522,21 @@ export class EditorView {
 	private handleNavigationArrow(direction: CaretDirection): boolean {
 		// NodeSelection arrows are handled by handleNodeSelectionKeys
 		if (isNodeSelection(this.state.selection)) return false;
+		// GapCursor arrows are handled by GapCursorPlugin keymap
+		if (isGapCursor(this.state.selection)) return false;
 
 		// Non-collapsed selections are Phase 4 (Shift+Arrow)
 		if (!isCollapsed(this.state.selection)) return false;
 
+		// Phase 2: skip over InlineNodes atomically
+		const inlineSkipTr: Transaction | null = skipInlineNode(this.state, direction);
+		if (inlineSkipTr) {
+			this.dispatch(inlineSkipTr);
+			this.validateSelectionAfterInlineSkip();
+			return true;
+		}
+
+		// Phase 1: cross-block at textblock boundaries
 		if (!endOfTextblock(this.contentElement, this.state, direction)) return false;
 
 		const tr: Transaction | null = navigateAcrossBlocks(this.state, direction);
@@ -519,6 +545,28 @@ export class EditorView {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Validates the DOM cursor position after an InlineNode skip.
+	 *
+	 * Chrome can place the cursor inside a `contenteditable="false"` element
+	 * (phantom position), and Firefox may lose the cursor entirely next to such
+	 * elements. This read-back roundtrip detects drift between the model
+	 * selection and the actual DOM selection. If they diverge, we force
+	 * `syncSelectionToDOM()` a second time to correct the position.
+	 */
+	private validateSelectionAfterInlineSkip(): void {
+		const domSel = readSelectionFromDOM(this.contentElement);
+		if (!domSel) {
+			// DOM selection lost (Firefox) — force re-sync
+			syncSelectionToDOM(this.contentElement, this.state.selection);
+			return;
+		}
+		if (!selectionsEqual(domSel, this.state.selection)) {
+			// DOM position drifted (Chrome phantom) — force re-sync
+			syncSelectionToDOM(this.contentElement, this.state.selection);
+		}
 	}
 
 	/** Cleans up all event listeners and handlers. */

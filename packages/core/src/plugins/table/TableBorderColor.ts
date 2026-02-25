@@ -4,7 +4,7 @@
  */
 
 import type { BlockAttrs } from '../../model/Document.js';
-import { isNodeSelection } from '../../model/Selection.js';
+import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -96,7 +96,7 @@ export function setTableBorderColor(
 	locale: TableLocale = TABLE_LOCALE_EN,
 ): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -115,7 +115,7 @@ export function resetTableBorderColor(
 	locale: TableLocale = TABLE_LOCALE_EN,
 ): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 

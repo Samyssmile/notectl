@@ -8,6 +8,8 @@
  */
 
 import {
+	deleteBackwardAtGap,
+	deleteForwardAtGap,
 	deleteNodeSelection,
 	insertTextCommand,
 	navigateArrowIntoVoid,
@@ -15,8 +17,9 @@ import {
 	splitBlockCommand,
 } from '../commands/Commands.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { isNodeSelection } from '../model/Selection.js';
+import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
+import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
 
@@ -63,6 +66,9 @@ export class KeyboardHandler {
 		// Handle NodeSelection keys before plugin keymaps
 		if (this.handleNodeSelectionKeys(e)) return;
 
+		// Handle GapCursor keys (typing, Enter, Backspace, Delete)
+		if (this.handleGapCursorKeys(e)) return;
+
 		// Readonly mode: allow navigation keymaps + escape, block everything else
 		if (this.isReadOnly()) {
 			if (this.schemaRegistry) {
@@ -95,6 +101,10 @@ export class KeyboardHandler {
 				}
 			}
 		}
+
+		// GapCursor arrow fallback: if no plugin keymap handled the arrow,
+		// provide basic escape from GapCursor state.
+		if (this.handleGapCursorArrowFallback(e)) return;
 
 		// Tab fallback: insert tab character when no plugin handled it
 		if (this.handleTab(e)) return;
@@ -191,6 +201,102 @@ export class KeyboardHandler {
 			return true;
 		}
 
+		return false;
+	}
+
+	/**
+	 * Handles keyboard input when a GapCursor is active.
+	 *
+	 * Since the browser has no DOM selection at a GapCursor position,
+	 * no `beforeinput` events fire. This method intercepts printable
+	 * characters, Enter, Backspace, and Delete to dispatch the
+	 * corresponding editor commands.
+	 */
+	private handleGapCursorKeys(e: KeyboardEvent): boolean {
+		const state = this.getState();
+		const sel = state.selection;
+		if (!isGapCursor(sel)) return false;
+
+		const key: string = e.key;
+
+		// Arrow keys: let GapCursorPlugin keymaps handle them
+		if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' || key === 'ArrowDown') {
+			return false;
+		}
+
+		// Escape / Tab: pass through
+		if (key === 'Escape' || key === 'Tab') return false;
+
+		// Modifier combos (Ctrl/Meta/Alt): let shortcuts like Ctrl+Z through
+		if (e.ctrlKey || e.metaKey || e.altKey) return false;
+
+		// Enter: insert paragraph at gap
+		if (key === 'Enter') {
+			if (this.isReadOnly()) return true;
+			e.preventDefault();
+			const tr: Transaction | null = splitBlockCommand(state);
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		// Backspace: delete backward at gap
+		if (key === 'Backspace') {
+			if (this.isReadOnly()) return true;
+			e.preventDefault();
+			const tr: Transaction | null = deleteBackwardAtGap(state, sel);
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		// Delete: delete forward at gap
+		if (key === 'Delete') {
+			if (this.isReadOnly()) return true;
+			e.preventDefault();
+			const tr: Transaction | null = deleteForwardAtGap(state, sel);
+			if (tr) this.dispatch(tr);
+			return true;
+		}
+
+		// Printable characters: insert text in a new paragraph
+		if (key.length === 1) {
+			if (this.isReadOnly()) return true;
+			e.preventDefault();
+			const tr: Transaction = insertTextCommand(state, key);
+			this.dispatch(tr);
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Fallback arrow handler for GapCursor when no plugin keymap handled the arrow.
+	 * Provides basic escape from GapCursor state even without GapCursorPlugin.
+	 */
+	private handleGapCursorArrowFallback(e: KeyboardEvent): boolean {
+		const state = this.getState();
+		const sel = state.selection;
+		if (!isGapCursor(sel)) return false;
+
+		const key: string = e.key;
+		if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'ArrowUp' && key !== 'ArrowDown') {
+			return false;
+		}
+
+		const direction =
+			key === 'ArrowLeft'
+				? 'left'
+				: key === 'ArrowRight'
+					? 'right'
+					: key === 'ArrowUp'
+						? 'up'
+						: 'down';
+		const tr: Transaction | null = navigateFromGapCursor(state, direction);
+		if (tr && !selectionsEqual(tr.selectionAfter, sel)) {
+			e.preventDefault();
+			this.dispatch(tr);
+			return true;
+		}
 		return false;
 	}
 

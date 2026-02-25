@@ -6,7 +6,13 @@ import {
 	getBlockText,
 	getTextChildren,
 } from '../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createGapCursor,
+	createNodeSelection,
+	createSelection,
+	isTextSelection,
+} from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { TransactionBuilder } from './Transaction.js';
@@ -275,6 +281,56 @@ describe('EditorState', () => {
 
 			expect(getBlockText(restored.doc.children[0])).toBe('hello');
 			expect(restored.selection.anchor.offset).toBe(3);
+		});
+	});
+
+	describe('validateSelection fallback', () => {
+		it('GapCursor on deleted block falls back to first leaf block', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('Hello')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('World')], 'b2'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+
+			// Build a transaction that removes b2 but sets GapCursor on b2
+			const tr = state
+				.transaction('input')
+				.removeNode([], 1)
+				.setSelection(createGapCursor('b2' as BlockId, 'before', []))
+				.build();
+
+			const newState = state.apply(tr);
+			// b2 no longer exists, so selection should fall back
+			expect(isTextSelection(newState.selection)).toBe(true);
+			if (isTextSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+			}
+		});
+
+		it('NodeSelection on deleted block falls back to first leaf block', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('Hello')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('World')], 'b2'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+
+			const tr = state
+				.transaction('input')
+				.removeNode([], 1)
+				.setSelection(createNodeSelection('b2' as BlockId, []))
+				.build();
+
+			const newState = state.apply(tr);
+			expect(isTextSelection(newState.selection)).toBe(true);
+			if (isTextSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+			}
 		});
 	});
 });

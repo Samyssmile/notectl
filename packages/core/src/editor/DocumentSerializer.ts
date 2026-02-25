@@ -6,7 +6,12 @@
 import DOMPurify from 'dompurify';
 import { isNodeOfType } from '../model/AttrRegistry.js';
 import type { BlockNode, Document, InlineNode, Mark, TextNode } from '../model/Document.js';
-import { getInlineChildren, isInlineNode } from '../model/Document.js';
+import {
+	getBlockChildren,
+	getInlineChildren,
+	isInlineNode,
+	isLeafBlock,
+} from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 
@@ -15,10 +20,23 @@ const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['left', 'center', 'right'
 
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
 export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
+	const html: string = serializeBlocks(doc.children, registry);
+
+	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+
+	return DOMPurify.sanitize(html, {
+		ALLOWED_TAGS: allowedTags,
+		ALLOWED_ATTR: allowedAttrs,
+	});
+}
+
+/** Serializes a sequence of blocks to HTML, grouping consecutive list items into wrappers. */
+function serializeBlocks(blocks: readonly BlockNode[], registry?: SchemaRegistry): string {
 	const parts: string[] = [];
 	let currentListTag: string | null = null;
 
-	for (const block of doc.children) {
+	for (const block of blocks) {
 		if (isNodeOfType(block, 'list_item')) {
 			const listType = block.attrs.listType;
 			const tag: string = listType === 'ordered' ? 'ol' : 'ul';
@@ -41,25 +59,21 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
 
 	if (currentListTag) parts.push(`</${currentListTag}>`);
 
-	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
-
-	return DOMPurify.sanitize(parts.join(''), {
-		ALLOWED_TAGS: allowedTags,
-		ALLOWED_ATTR: allowedAttrs,
-	});
+	return parts.join('');
 }
 
 /** Serializes a single block to HTML using its NodeSpec. */
 function serializeBlock(block: BlockNode, registry?: SchemaRegistry): string {
-	const inlineContent: string = serializeInlineContent(block, registry);
+	const content: string = isLeafBlock(block)
+		? serializeInlineContent(block, registry)
+		: serializeBlocks(getBlockChildren(block), registry);
 	const spec = registry?.getNodeSpec(block.type);
 
 	let html: string;
 	if (spec?.toHTML) {
-		html = spec.toHTML(block, inlineContent);
+		html = spec.toHTML(block, content);
 	} else {
-		html = `<p>${inlineContent || '<br>'}</p>`;
+		html = `<p>${content || '<br>'}</p>`;
 	}
 
 	// Inject align style into the first opening tag (validated against allowlist)

@@ -10,6 +10,7 @@ import {
 	createCollapsedSelection,
 	createNodeSelection,
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -55,7 +56,7 @@ function withTableContext(
 	handler: (state: EditorState, sel: Selection, tableCtx: TableContext) => boolean,
 ): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const sel: Selection = state.selection;
 	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
 	if (!tableCtx) return false;
@@ -111,7 +112,7 @@ function handleShiftTab(context: PluginContext): boolean {
 /** Enter: move to same column in next row (spreadsheet behavior). */
 function handleEnter(context: PluginContext): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 
 	const block = state.getBlock(state.selection.anchor.blockId);
 	// Only intercept Enter for paragraphs inside table cells.

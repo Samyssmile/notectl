@@ -6,7 +6,7 @@
 
 import type { BlockNode, Mark } from '../../model/Document.js';
 import { getBlockLength, getInlineChildren, isTextNode } from '../../model/Document.js';
-import { isNodeSelection } from '../../model/Selection.js';
+import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { TransactionBuilder } from '../../state/Transaction.js';
@@ -36,7 +36,7 @@ export function registerHeadingCommands(context: PluginContext, config: HeadingC
  */
 function toggleSpecialBlock(context: PluginContext, type: string): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 
 	const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
 	if (!block) return false;
@@ -55,7 +55,7 @@ function toggleSpecialBlock(context: PluginContext, type: string): boolean {
 function toggleHeading(context: PluginContext, level: HeadingLevel): boolean {
 	const state: EditorState = context.getState();
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
 	if (!block) return false;
@@ -74,7 +74,7 @@ function setBlockType(
 ): boolean {
 	const state: EditorState = context.getState();
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
 	if (!block) return false;

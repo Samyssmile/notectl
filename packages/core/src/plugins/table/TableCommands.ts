@@ -11,6 +11,7 @@ import { createBlockNode, getBlockChildren } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
+	isGapCursor,
 	isNodeSelection,
 } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
@@ -190,7 +191,7 @@ interface TableDeletionTarget {
 export function insertTable(context: PluginContext, rows: number, cols: number): boolean {
 	const state = context.getState();
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const currentBlockId: BlockId = sel.anchor.blockId;
 
@@ -241,7 +242,7 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 /** Adds a row above the current row. */
 export function addRowAbove(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -256,7 +257,7 @@ export function addRowAbove(context: PluginContext, locale?: TableLocale): boole
 /** Adds a row below the current row. */
 export function addRowBelow(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -280,7 +281,7 @@ export function addColumnRight(context: PluginContext, locale?: TableLocale): bo
 
 function addColumn(context: PluginContext, side: 'left' | 'right', locale?: TableLocale): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -296,7 +297,7 @@ function addColumn(context: PluginContext, side: 'left' | 'right', locale?: Tabl
 /** Deletes the current row. If it's the last row, deletes the entire table. */
 export function deleteRow(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -316,7 +317,7 @@ export function deleteRow(context: PluginContext, locale?: TableLocale): boolean
 /** Deletes the current column. If it's the last column, deletes the entire table. */
 export function deleteColumn(context: PluginContext, locale?: TableLocale): boolean {
 	const state = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
@@ -355,6 +356,7 @@ export function selectTable(context: PluginContext): boolean {
 		const selectedNode = state.getBlock(sel.nodeId);
 		return selectedNode?.type === 'table';
 	}
+	if (isGapCursor(sel)) return false;
 
 	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
 	if (!tableCtx) return false;
@@ -391,6 +393,7 @@ function resolveTableDeletionTarget(
 		if (selectedNode?.type !== 'table') return null;
 		return { tableId: selectedNode.id };
 	}
+	if (isGapCursor(state.selection)) return null;
 
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return null;

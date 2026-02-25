@@ -6,7 +6,12 @@
 
 import type { BlockNode } from '../../model/Document.js';
 import { generateBlockId, getBlockLength, getBlockText } from '../../model/Document.js';
-import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -32,7 +37,7 @@ function withCodeBlockContext(
 	handler: (ctx: CodeBlockContext) => boolean,
 ): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection)) return false;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 
 	const sel = state.selection;
 	const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);

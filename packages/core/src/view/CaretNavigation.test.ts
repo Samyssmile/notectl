@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { createInlineNode, createTextNode } from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
-import { isCollapsed, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
+import { inlineType, markType } from '../model/TypeBrands.js';
 import type { Transaction } from '../state/Transaction.js';
 import { assertDefined, stateBuilder } from '../test/TestUtils.js';
-import { endOfTextblock, navigateAcrossBlocks } from './CaretNavigation.js';
+import {
+	endOfTextblock,
+	navigateAcrossBlocks,
+	navigateFromGapCursor,
+	skipInlineNode,
+} from './CaretNavigation.js';
 
 // --- Helpers ---
 
@@ -284,5 +291,500 @@ describe('canCrossBlockBoundary (via navigateAcrossBlocks)', () => {
 			.build();
 
 		expect(navigateAcrossBlocks(state, 'right')).toBeNull();
+	});
+});
+
+// --- skipInlineNode ---
+
+describe('skipInlineNode', () => {
+	const br = () => createInlineNode(inlineType('hard_break'));
+	const txt = (s: string) => createTextNode(s);
+
+	it('skips right over InlineNode at middle of block', () => {
+		// "He" + <br> + "llo" → cursor at offset 2 (on the br)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('He'), br(), txt('llo')], 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(3);
+		}
+	});
+
+	it('skips left over InlineNode at middle of block', () => {
+		// "He" + <br> + "llo" → cursor at offset 3 (just after br)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('He'), br(), txt('llo')], 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(2);
+		}
+	});
+
+	it('skips right over InlineNode at start of block', () => {
+		// <br> + "text" → cursor at offset 0
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [br(), txt('text')], 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(1);
+		}
+	});
+
+	it('skips left after InlineNode at start of block', () => {
+		// <br> + "text" → cursor at offset 1
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [br(), txt('text')], 'b1')
+			.cursor('b1', 1)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('skips right over InlineNode at end of block', () => {
+		// "text" + <br> → cursor at offset 4 (on the br)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('text'), br()], 'b1')
+			.cursor('b1', 4)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(5);
+		}
+	});
+
+	it('skips left from after InlineNode at end of block', () => {
+		// "text" + <br> → cursor at offset 5 (block end)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('text'), br()], 'b1')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(4);
+		}
+	});
+
+	it('skips first of adjacent InlineNodes rightward', () => {
+		// "A" + <br> + <br> + "B" → cursor at offset 1
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('A'), br(), br(), txt('B')], 'b1')
+			.cursor('b1', 1)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(2);
+		}
+	});
+
+	it('skips second of adjacent InlineNodes rightward', () => {
+		// "A" + <br> + <br> + "B" → cursor at offset 2 (between the two brs)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('A'), br(), br(), txt('B')], 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(3);
+		}
+	});
+
+	it('skips left from between adjacent InlineNodes', () => {
+		// "A" + <br> + <br> + "B" → cursor at offset 2 (between the two brs)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('A'), br(), br(), txt('B')], 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(1);
+		}
+	});
+
+	it('returns null for vertical directions (up)', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('A'), br(), txt('B')], 'b1')
+			.cursor('b1', 1)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'up')).toBeNull();
+	});
+
+	it('returns null for vertical directions (down)', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('A'), br(), txt('B')], 'b1')
+			.cursor('b1', 1)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'down')).toBeNull();
+	});
+
+	it('returns null when no InlineNode adjacent (ArrowRight)', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'right')).toBeNull();
+	});
+
+	it('returns null when no InlineNode adjacent (ArrowLeft)', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'left')).toBeNull();
+	});
+
+	it('returns null for NodeSelection', () => {
+		const state = stateBuilder()
+			.block('image', '', 'img1', { attrs: { src: 'x.png', alt: '' } })
+			.nodeSelection('img1')
+			.schema(['image'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'right')).toBeNull();
+	});
+
+	it('returns null for non-collapsed selection', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('He'), br(), txt('llo')], 'b1')
+			.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 3 })
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'right')).toBeNull();
+	});
+
+	it('skips right when block is only an InlineNode', () => {
+		// Just <br> → cursor at offset 0
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [br()], 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(1);
+		}
+	});
+
+	it('skips left when block is only an InlineNode', () => {
+		// Just <br> → cursor at offset 1 (end)
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [br()], 'b1')
+			.cursor('b1', 1)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr: Transaction | null = skipInlineNode(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(false);
+		expect(isCollapsed(newState.selection)).toBe(true);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('returns null at block boundary (offset 0, ArrowLeft)', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [br(), txt('x')], 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(skipInlineNode(state, 'left')).toBeNull();
+	});
+
+	it('returns null past block end (offset blockLength, ArrowRight)', () => {
+		// "text" + <br> → blockLength is 5, cursor at 5
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('text'), br()], 'b1')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		// At offset 5 (past the br at 4), getContentAtOffset returns null
+		expect(skipInlineNode(state, 'right')).toBeNull();
+	});
+
+	it('clears storedMarks after skip right', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('He'), br(), txt('llo')], 'b1')
+			.cursor('b1', 2)
+			.schema(['paragraph'], ['bold'])
+			.build();
+
+		// Simulate bold being toggled: set storedMarks on state
+		const boldMark = { type: markType('bold') };
+		const stateWithMarks = state.apply(
+			state.transaction('input').setStoredMarks([boldMark], null).build(),
+		);
+		expect(stateWithMarks.storedMarks).not.toBeNull();
+
+		const tr: Transaction | null = skipInlineNode(stateWithMarks, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = stateWithMarks.apply(tr);
+		expect(newState.storedMarks).toBeNull();
+	});
+
+	it('clears storedMarks after skip left', () => {
+		const state = stateBuilder()
+			.blockWithInlines('paragraph', [txt('He'), br(), txt('llo')], 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], ['bold'])
+			.build();
+
+		// Simulate bold being toggled: set storedMarks on state
+		const boldMark = { type: markType('bold') };
+		const stateWithMarks = state.apply(
+			state.transaction('input').setStoredMarks([boldMark], null).build(),
+		);
+		expect(stateWithMarks.storedMarks).not.toBeNull();
+
+		const tr: Transaction | null = skipInlineNode(stateWithMarks, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = stateWithMarks.apply(tr);
+		expect(newState.storedMarks).toBeNull();
+	});
+});
+
+// --- navigateFromGapCursor ---
+
+describe('navigateFromGapCursor', () => {
+	it('arrow toward void (side=before, right) → NodeSelection', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(true);
+		if (isNodeSelection(newState.selection)) {
+			expect(newState.selection.nodeId).toBe('img1');
+		}
+	});
+
+	it('arrow toward void (side=after, left) → NodeSelection', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'after')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(true);
+		if (isNodeSelection(newState.selection)) {
+			expect(newState.selection.nodeId).toBe('img1');
+		}
+	});
+
+	it('arrow away (side=before, left) → TextSelection at end of prev block', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'left');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isTextSelection(newState.selection)).toBe(true);
+		if (isTextSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(5);
+		}
+	});
+
+	it('arrow away (side=after, right) → TextSelection at start of next block', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'after')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isTextSelection(newState.selection)).toBe(true);
+		if (isTextSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b2');
+			expect(newState.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('returns null at document boundary (away direction)', () => {
+		const state = stateBuilder()
+			.voidBlock('image', 'img1')
+			.paragraph('Hello', 'b1')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'left');
+		expect(tr).toBeNull();
+	});
+
+	it('returns null for non-GapCursor selection', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		expect(navigateFromGapCursor(state, 'right')).toBeNull();
+	});
+
+	it('arrow away toward adjacent void → NodeSelection of that void', () => {
+		const state = stateBuilder()
+			.voidBlock('image', 'img1')
+			.voidBlock('image', 'img2')
+			.paragraph('Hello', 'b1')
+			.gapCursor('img2', 'after')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isTextSelection(newState.selection)).toBe(true);
+		if (isTextSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+		}
+	});
+
+	it('down from gap cursor before void → NodeSelection', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'down');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(true);
+	});
+
+	it('up from gap cursor after void → NodeSelection', () => {
+		const state = stateBuilder()
+			.voidBlock('image', 'img1')
+			.paragraph('Hello', 'b1')
+			.gapCursor('img1', 'after')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'up');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(true);
 	});
 });
