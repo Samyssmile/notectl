@@ -13,7 +13,7 @@ interface DOMPosition {
 }
 
 /** Gets the selection object, preferring shadow root's selection for Shadow DOM. */
-function getSelection(container: HTMLElement): globalThis.Selection | null {
+export function getSelection(container: HTMLElement): globalThis.Selection | null {
 	const root = container.getRootNode();
 	if (root instanceof ShadowRoot && 'getSelection' in root) {
 		return (root as ShadowRoot & { getSelection(): globalThis.Selection | null }).getSelection();

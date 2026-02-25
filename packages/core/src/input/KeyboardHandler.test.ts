@@ -202,6 +202,110 @@ describe('KeyboardHandler: Composition guard', () => {
 	});
 });
 
+describe('KeyboardHandler: Readonly mode', () => {
+	it('navigation keymaps run in readonly mode', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+
+		registry.registerKeymap(
+			{
+				ArrowDown: () => {
+					log.push('navigation');
+					return true;
+				},
+			},
+			{ priority: 'navigation' },
+		);
+
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			undo: vi.fn(),
+			redo: vi.fn(),
+			schemaRegistry: registry,
+			isReadOnly: () => true,
+		});
+
+		element.dispatchEvent(makeKeyEvent('ArrowDown'));
+		expect(log).toEqual(['navigation']);
+		handler.destroy();
+	});
+
+	it('default keymaps are blocked in readonly mode', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+
+		registry.registerKeymap({
+			Enter: () => {
+				log.push('default');
+				return true;
+			},
+		});
+
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			undo: vi.fn(),
+			redo: vi.fn(),
+			schemaRegistry: registry,
+			isReadOnly: () => true,
+		});
+
+		element.dispatchEvent(makeKeyEvent('Enter'));
+		expect(log).toEqual([]);
+		handler.destroy();
+	});
+
+	it('context keymaps are blocked in readonly mode', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const registry = new SchemaRegistry();
+		const log: string[] = [];
+
+		registry.registerKeymap(
+			{
+				Enter: () => {
+					log.push('context');
+					return true;
+				},
+			},
+			{ priority: 'context' },
+		);
+
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			undo: vi.fn(),
+			redo: vi.fn(),
+			schemaRegistry: registry,
+			isReadOnly: () => true,
+		});
+
+		element.dispatchEvent(makeKeyEvent('Enter'));
+		expect(log).toEqual([]);
+		handler.destroy();
+	});
+});
+
 describe('KeyboardHandler: Keymap priority dispatch', () => {
 	function createHandlerWithKeymaps(registry: SchemaRegistry): {
 		element: HTMLDivElement;
