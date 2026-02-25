@@ -8,6 +8,7 @@ import { createBlockNode, getBlockChildren, isBlockNode } from '../../model/Docu
 import {
 	createCollapsedSelection,
 	createNodeSelection,
+	isGapCursor,
 	isNodeSelection,
 } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -35,6 +36,8 @@ export function insertImage(
 		...(attrs.width !== undefined ? { width: attrs.width } : {}),
 		...(attrs.height !== undefined ? { height: attrs.height } : {}),
 	};
+
+	if (isGapCursor(sel)) return false;
 
 	const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
 

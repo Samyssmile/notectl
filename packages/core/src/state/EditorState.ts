@@ -20,6 +20,7 @@ import {
 	createCollapsedSelection,
 	createPosition,
 	createSelection,
+	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
@@ -146,15 +147,39 @@ function validateSelection(doc: Document, sel: EditorSelection): EditorSelection
 	if (isNodeSelection(sel)) {
 		const node = findNode(doc, sel.nodeId);
 		if (node) return sel;
-		// Node was deleted — fall back to first block
-		const firstBlock = doc.children[0];
-		if (!firstBlock) return sel;
-		return createCollapsedSelection(firstBlock.id, 0);
+		// Node was deleted — fall back to first leaf block
+		return fallbackSelection(doc, sel);
+	}
+	if (isGapCursor(sel)) {
+		const node = findNode(doc, sel.blockId);
+		if (node) return sel;
+		// Referenced block was deleted — fall back to first leaf block
+		return fallbackSelection(doc, sel);
 	}
 	const anchor = validatePosition(doc, sel.anchor);
 	const head = validatePosition(doc, sel.head);
 	if (anchor === sel.anchor && head === sel.head) return sel;
 	return createSelection(anchor, head);
+}
+
+/** Returns a collapsed selection on the first leaf block, or the original selection if no blocks exist. */
+function fallbackSelection(doc: Document, sel: EditorSelection): EditorSelection {
+	const leaf = findFirstLeafBlock(doc.children);
+	if (!leaf) return sel;
+	return createCollapsedSelection(leaf.id, 0);
+}
+
+/** Descends into the first child of each container block to find the first leaf block. */
+function findFirstLeafBlock(
+	children: readonly import('../model/Document.js').ChildNode[],
+): BlockNode | null {
+	for (const child of children) {
+		if (!isBlockNode(child)) continue;
+		if (isLeafBlock(child)) return child;
+		const nested: BlockNode | null = findFirstLeafBlock(child.children);
+		if (nested) return nested;
+	}
+	return null;
 }
 
 /** Recursively builds a Map of blockId → BlockNode for all nodes in the tree. */

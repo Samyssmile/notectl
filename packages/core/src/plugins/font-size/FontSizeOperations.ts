@@ -7,7 +7,12 @@ import { forEachBlockInRange } from '../../commands/Commands.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import type { Mark } from '../../model/Document.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
+import {
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+	selectionRange,
+} from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
@@ -17,7 +22,7 @@ import type { PluginContext } from '../Plugin.js';
 /** Returns the raw fontSize CSS value at the current selection, or null. */
 export function getActiveSize(state: EditorState): string | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
 	if (isCollapsed(sel) && state.storedMarks) {
 		return extractFontSize(state.storedMarks);
@@ -46,7 +51,7 @@ export function isFontSizeActive(state: EditorState): boolean {
 /** Applies a fontSize mark with the given CSS size string to the selection. */
 export function applyFontSize(context: PluginContext, state: EditorState, size: string): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	if (isCollapsed(sel)) {
 		const anchorBlock = state.getBlock(sel.anchor.blockId);
@@ -81,7 +86,7 @@ export function applyFontSize(context: PluginContext, state: EditorState, size: 
 /** Removes the fontSize mark from the current selection. */
 export function removeFontSize(context: PluginContext, state: EditorState): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	if (isCollapsed(sel)) {
 		const anchorBlock = state.getBlock(sel.anchor.blockId);

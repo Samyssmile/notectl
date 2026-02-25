@@ -6,7 +6,12 @@
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { createBlockNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
-import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -37,7 +42,7 @@ const DEFAULT_CONFIG: HorizontalRuleConfig = {};
 /** Finds the index of the cursor's block among top-level document children. */
 function findBlockIndexForCursor(state: EditorState): number {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return -1;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return -1;
 	return state.doc.children.findIndex((b) => b.id === sel.anchor.blockId);
 }
 
@@ -97,7 +102,7 @@ export class HorizontalRulePlugin implements Plugin {
 			pattern: /^-{3,} $/,
 			handler(state, _match, _start, end) {
 				const sel = state.selection;
-				if (isNodeSelection(sel)) return null;
+				if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block = state.getBlock(sel.anchor.blockId);
@@ -142,7 +147,7 @@ export class HorizontalRulePlugin implements Plugin {
 	 */
 	private insertHorizontalRule(context: PluginContext): boolean {
 		const state: EditorState = context.getState();
-		if (isNodeSelection(state.selection)) return false;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 		const blockIndex: number = findBlockIndexForCursor(state);
 		if (blockIndex === -1) return false;
 

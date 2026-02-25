@@ -38,21 +38,39 @@ interface NodeSelection {
 }
 ```
 
+## Gap Cursor
+
+A gap cursor is a virtual cursor at the boundary of a void block where no native caret can exist:
+
+```ts
+interface GapCursorSelection {
+  readonly type: 'gap';
+  readonly side: 'before' | 'after';
+  readonly blockId: BlockId;
+  readonly path: readonly BlockId[];
+}
+```
+
+- **`side`** — Whether the cursor is before or after the void block
+- **`blockId`** — The void block this gap cursor is adjacent to
+
 ## EditorSelection
 
 The union type used throughout the editor:
 
 ```ts
-type EditorSelection = Selection | NodeSelection;
+type EditorSelection = Selection | NodeSelection | GapCursorSelection;
 ```
 
 Use type guards to distinguish:
 
 ```ts
-import { isNodeSelection, isTextSelection } from '@notectl/core';
+import { isNodeSelection, isTextSelection, isGapCursor } from '@notectl/core';
 
 if (isNodeSelection(sel)) {
   console.log('Selected node:', sel.nodeId);
+} else if (isGapCursor(sel)) {
+  console.log('Gap cursor:', sel.side, sel.blockId);
 } else {
   console.log('Text selection:', sel.anchor, sel.head);
 }
@@ -66,6 +84,7 @@ import {
   createSelection,
   createCollapsedSelection,
   createNodeSelection,
+  createGapCursor,
 } from '@notectl/core';
 
 // Cursor at offset 5 in a block
@@ -82,6 +101,9 @@ const pos = createPosition(blockId('cell-1'), 0, [blockId('table-1'), blockId('r
 
 // Node selection (e.g., select an image block)
 const nodeSel = createNodeSelection(blockId('img-1'), []);
+
+// Gap cursor (before or after a void block)
+const gap = createGapCursor(blockId('hr-1'), 'before', []);
 ```
 
 ## Utility Functions

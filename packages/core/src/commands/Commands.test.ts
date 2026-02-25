@@ -13,9 +13,12 @@ import {
 import type { Schema } from '../model/Schema.js';
 import {
 	createCollapsedSelection,
+	createGapCursor,
 	createNodeSelection,
 	createSelection,
+	isGapCursor,
 	isNodeSelection,
+	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
@@ -23,7 +26,9 @@ import { EditorState } from '../state/EditorState.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import {
 	deleteBackward,
+	deleteBackwardAtGap,
 	deleteForward,
+	deleteForwardAtGap,
 	deleteNodeSelection,
 	deleteSelectionCommand,
 	deleteWordBackward,
@@ -936,6 +941,280 @@ describe('Commands', () => {
 			});
 
 			expect(deleteForward(state)).toBeNull();
+		});
+	});
+
+	describe('GapCursor command handling', () => {
+		it('insertTextCommand at GapCursor creates paragraph with text', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = insertTextCommand(state, 'X');
+			const newState = state.apply(tr);
+
+			// Should now have 4 blocks (new paragraph inserted before HR)
+			expect(newState.doc.children.length).toBe(4);
+			expect(isTextSelection(newState.selection)).toBe(true);
+			if (isTextSelection(newState.selection)) {
+				expect(newState.selection.anchor.offset).toBe(1);
+			}
+		});
+
+		it('splitBlockCommand at GapCursor creates empty paragraph', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+			]);
+			const sel = createGapCursor('hr1', 'after', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = splitBlockCommand(state);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children.length).toBe(3);
+			expect(isTextSelection(newState.selection)).toBe(true);
+		});
+
+		it('deleteBackward returns null at GapCursor', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			expect(deleteBackward(state)).toBeNull();
+		});
+
+		it('deleteForward returns null at GapCursor', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			expect(deleteForward(state)).toBeNull();
+		});
+
+		it('navigateArrowIntoVoid: NodeSelection→adjacent void creates GapCursor', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('horizontal_rule', [], 'hr2'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = navigateArrowIntoVoid(state, 'right');
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isGapCursor(newState.selection)).toBe(true);
+			if (isGapCursor(newState.selection)) {
+				expect(newState.selection.blockId).toBe('hr1');
+				expect(newState.selection.side).toBe('after');
+			}
+		});
+
+		it('navigateArrowIntoVoid: NodeSelection at doc start → GapCursor before', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('text')], 'b1'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = navigateArrowIntoVoid(state, 'left');
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isGapCursor(newState.selection)).toBe(true);
+			if (isGapCursor(newState.selection)) {
+				expect(newState.selection.blockId).toBe('hr1');
+				expect(newState.selection.side).toBe('before');
+			}
+		});
+
+		it('navigateArrowIntoVoid: NodeSelection at doc end → GapCursor after', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('text')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createNodeSelection('hr1', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = navigateArrowIntoVoid(state, 'right');
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isGapCursor(newState.selection)).toBe(true);
+			if (isGapCursor(newState.selection)) {
+				expect(newState.selection.blockId).toBe('hr1');
+				expect(newState.selection.side).toBe('after');
+			}
+		});
+	});
+
+	describe('GapCursor delete commands', () => {
+		it('deleteBackwardAtGap: side=after deletes the void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createGapCursor('hr1', 'after', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteBackwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(2);
+			expect(newState.doc.children[0]?.id).toBe('b1');
+			expect(newState.doc.children[1]?.id).toBe('b2');
+		});
+
+		it('deleteBackwardAtGap: side=before navigates to previous block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteBackwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			// Should navigate, not delete
+			expect(newState.doc.children).toHaveLength(2);
+			expect(isTextSelection(newState.selection)).toBe(true);
+			if (isTextSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+				expect(newState.selection.anchor.offset).toBe(5);
+			}
+		});
+
+		it('deleteBackwardAtGap: at document start returns null', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+			]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			expect(deleteBackwardAtGap(state, sel)).toBeNull();
+		});
+
+		it('deleteBackwardAtGap: previous block is also void → NodeSelection', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('horizontal_rule', [], 'hr2'),
+			]);
+			const sel = createGapCursor('hr2', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteBackwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr1');
+			}
+		});
+
+		it('deleteForwardAtGap: side=before deletes the void block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('world')], 'b2'),
+			]);
+			const sel = createGapCursor('hr1', 'before', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteForwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(2);
+			expect(newState.doc.children[0]?.id).toBe('b1');
+			expect(newState.doc.children[1]?.id).toBe('b2');
+		});
+
+		it('deleteForwardAtGap: side=after navigates to next block', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+			]);
+			const sel = createGapCursor('hr1', 'after', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteForwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			// Should navigate, not delete
+			expect(newState.doc.children).toHaveLength(2);
+			expect(isTextSelection(newState.selection)).toBe(true);
+			if (isTextSelection(newState.selection)) {
+				expect(newState.selection.anchor.blockId).toBe('b1');
+				expect(newState.selection.anchor.offset).toBe(0);
+			}
+		});
+
+		it('deleteForwardAtGap: at document end returns null', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('horizontal_rule', [], 'hr1'),
+			]);
+			const sel = createGapCursor('hr1', 'after', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			expect(deleteForwardAtGap(state, sel)).toBeNull();
+		});
+
+		it('deleteForwardAtGap: next block is also void → NodeSelection', () => {
+			const schema = createVoidSchema();
+			const doc = createDocument([
+				createBlockNode('horizontal_rule', [], 'hr1'),
+				createBlockNode('horizontal_rule', [], 'hr2'),
+			]);
+			const sel = createGapCursor('hr1', 'after', []);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteForwardAtGap(state, sel);
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			expect(isNodeSelection(newState.selection)).toBe(true);
+			if (isNodeSelection(newState.selection)) {
+				expect(newState.selection.nodeId).toBe('hr2');
+			}
 		});
 	});
 });

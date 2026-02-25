@@ -4,6 +4,7 @@ import {
 	CodeBlockPlugin,
 	FontPlugin,
 	FontSizePlugin,
+	GapCursorPlugin,
 	HardBreakPlugin,
 	HeadingPlugin,
 	HighlightPlugin,
@@ -116,7 +117,7 @@ const output = document.getElementById('output') as HTMLElement;
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 			[new PrintPlugin()],
 		],
-		plugins: [new HardBreakPlugin()],
+		plugins: [new HardBreakPlugin(), new GapCursorPlugin()],
 		placeholder: 'Start typing...',
 		autofocus: true,
 	});

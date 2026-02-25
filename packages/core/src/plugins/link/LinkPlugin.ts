@@ -8,7 +8,12 @@ import { forEachBlockInRange } from '../../commands/Commands.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
+import {
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+	selectionRange,
+} from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -143,7 +148,7 @@ export class LinkPlugin implements Plugin {
 
 	private isLinkActive(state: EditorState): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		if (isCollapsed(sel)) {
 			const block = state.getBlock(sel.anchor.blockId);
 			if (!block) return false;
@@ -168,7 +173,7 @@ export class LinkPlugin implements Plugin {
 
 	private addLink(context: PluginContext, state: EditorState, href: string): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		if (isCollapsed(sel)) return false;
 
 		const range = selectionRange(sel, state.getBlockOrder());
@@ -186,7 +191,7 @@ export class LinkPlugin implements Plugin {
 
 	private removeLink(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		const blockOrder = state.getBlockOrder();
 		const range = isCollapsed(sel)
 			? { from: sel.anchor, to: sel.anchor }

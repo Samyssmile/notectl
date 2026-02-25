@@ -8,11 +8,19 @@ import {
 	getBlockText,
 	getTextChildren,
 } from '../model/Document.js';
-import { createCollapsedSelection, createSelection } from '../model/Selection.js';
+import type { NodeSpec } from '../model/NodeSpec.js';
+import type { Schema } from '../model/Schema.js';
+import {
+	createCollapsedSelection,
+	createSelection,
+	isGapCursor,
+	isTextSelection,
+} from '../model/Selection.js';
 import type { NodeTypeName } from '../model/TypeBrands.js';
 import { markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import { invertTransaction } from '../state/Transaction.js';
+import { stateBuilder } from '../test/TestUtils.js';
 import { pasteSlice } from './PasteCommand.js';
 
 function nt(name: string): NodeTypeName {
@@ -239,6 +247,120 @@ describe('PasteCommand', () => {
 			const undoTr = invertTransaction(tr);
 			const undoneState = newState.apply(undoTr);
 			expect(getBlockText(undoneState.doc.children[0])).toBe('Hello');
+		});
+	});
+
+	describe('GapCursor paste', () => {
+		const hrSpec: NodeSpec = {
+			isVoid: true,
+			toDOM: (node) => {
+				const el: HTMLElement = document.createElement('hr');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		};
+
+		function makeGetNodeSpec(spec: NodeSpec): (type: string) => NodeSpec | undefined {
+			return (type: string): NodeSpec | undefined => {
+				if (type === 'horizontal_rule') return spec;
+				return undefined;
+			};
+		}
+
+		function createGapState(side: 'before' | 'after'): EditorState {
+			return stateBuilder()
+				.paragraph('Hello', 'b1')
+				.voidBlock('horizontal_rule', 'hr1')
+				.paragraph('World', 'b2')
+				.gapCursor('hr1', side)
+				.schema(
+					['paragraph', 'horizontal_rule'],
+					['bold'],
+					makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+				)
+				.build();
+		}
+
+		it('pasteInline at GapCursor side=before creates paragraph before void', () => {
+			const state = createGapState('before');
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'pasted text', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			// Should have 4 blocks: b1, new paragraph, hr1, b2
+			expect(newState.doc.children.length).toBe(4);
+			expect(getBlockText(newState.doc.children[1])).toBe('pasted text');
+			expect(isTextSelection(newState.selection)).toBe(true);
+		});
+
+		it('pasteInline at GapCursor side=after creates paragraph after void', () => {
+			const state = createGapState('after');
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'after text', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			expect(newState.doc.children.length).toBe(4);
+			expect(getBlockText(newState.doc.children[2])).toBe('after text');
+		});
+
+		it('pasteSingleBlock at GapCursor inserts the block at gap', () => {
+			const state = createGapState('before');
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('heading'),
+						attrs: { level: 1 },
+						segments: [{ text: 'Title', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			expect(newState.doc.children.length).toBe(4);
+			expect(newState.doc.children[1]?.type).toBe('heading');
+			expect(getBlockText(newState.doc.children[1])).toBe('Title');
+		});
+
+		it('pasteMultiBlock at GapCursor inserts all blocks at gap', () => {
+			const state = createGapState('after');
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'first', marks: [] }],
+					},
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'second', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			// Should have 5 blocks: b1, hr1, first, second, b2
+			expect(newState.doc.children.length).toBe(5);
+			expect(getBlockText(newState.doc.children[2])).toBe('first');
+			expect(getBlockText(newState.doc.children[3])).toBe('second');
 		});
 	});
 });

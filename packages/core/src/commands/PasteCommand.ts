@@ -5,14 +5,23 @@
 
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import { segmentsLength, segmentsToText } from '../model/ContentSlice.js';
-import { createBlockNode, createTextNode, generateBlockId } from '../model/Document.js';
+import {
+	createBlockNode,
+	createTextNode,
+	generateBlockId,
+	isBlockNode,
+} from '../model/Document.js';
 import type { TextSegment } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
+import type { GapCursorSelection } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 	selectionRange,
 } from '../model/Selection.js';
+import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
@@ -47,6 +56,9 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 	if (isNodeSelection(sel)) {
 		return state.transaction('paste').setSelection(sel).build();
 	}
+	if (isGapCursor(sel)) {
+		return pasteInlineAtGap(state, sel, segments);
+	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
 	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
@@ -71,6 +83,9 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	const sel = state.selection;
 	if (isNodeSelection(sel)) {
 		return state.transaction('paste').setSelection(sel).build();
+	}
+	if (isGapCursor(sel)) {
+		return pasteBlocksAtGap(state, sel, [block]);
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
@@ -97,6 +112,9 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	const sel = state.selection;
 	if (isNodeSelection(sel)) {
 		return state.transaction('paste').setSelection(sel).build();
+	}
+	if (isGapCursor(sel)) {
+		return pasteBlocksAtGap(state, sel, slice.blocks);
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
@@ -167,6 +185,104 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 
 	// 7. Set cursor to end of inserted content
 	builder.setSelection(createCollapsedSelection(tailBlockId, lastLen));
+
+	return builder.build();
+}
+
+// --- GapCursor Paste Helpers ---
+
+/**
+ * Resolves the insert position for a GapCursor: parent path and index
+ * within siblings where new blocks should be inserted.
+ */
+function gapInsertIndex(
+	state: EditorState,
+	sel: GapCursorSelection,
+): { parentPath: BlockId[]; insertIndex: number } | null {
+	const path = findNodePath(state.doc, sel.blockId);
+	if (!path) return null;
+
+	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => isBlockNode(c) && c.id === sel.blockId);
+	if (index < 0) return null;
+
+	const insertIndex: number = sel.side === 'before' ? index : index + 1;
+	return { parentPath, insertIndex };
+}
+
+/** Pastes inline segments (single paragraph) at a GapCursor position. */
+function pasteInlineAtGap(
+	state: EditorState,
+	sel: GapCursorSelection,
+	segments: readonly TextSegment[],
+): Transaction {
+	const gap = gapInsertIndex(state, sel);
+	if (!gap) {
+		return state.transaction('paste').setSelection(sel).build();
+	}
+
+	const newId: BlockId = generateBlockId();
+	const text: string = segmentsToText(segments);
+	const totalLength: number = segmentsLength(segments);
+	const builder: TransactionBuilder = state.transaction('paste');
+
+	builder.insertNode(
+		gap.parentPath,
+		gap.insertIndex,
+		createBlockNode(nodeType('paragraph') as NodeTypeName, [createTextNode('')], newId),
+	);
+	if (text.length > 0) {
+		builder.insertText(newId, 0, text, [], segments);
+	}
+	builder.setSelection(createCollapsedSelection(newId, totalLength));
+
+	return builder.build();
+}
+
+/** Pastes one or more blocks at a GapCursor position. */
+function pasteBlocksAtGap(
+	state: EditorState,
+	sel: GapCursorSelection,
+	blocks: readonly SliceBlock[],
+): Transaction {
+	const gap = gapInsertIndex(state, sel);
+	if (!gap) {
+		return state.transaction('paste').setSelection(sel).build();
+	}
+
+	const builder: TransactionBuilder = state.transaction('paste');
+	let insertAt: number = gap.insertIndex;
+	let lastBlockId: BlockId | undefined;
+	let lastTextLen = 0;
+
+	for (const block of blocks) {
+		const newId: BlockId = generateBlockId();
+		const text: string = segmentsToText(block.segments);
+		const textNodes = block.segments.map((s: TextSegment) => createTextNode(s.text, [...s.marks]));
+		const newBlock = createBlockNode(
+			block.type,
+			textNodes.length > 0 ? textNodes : [createTextNode('')],
+			newId,
+			block.attrs,
+		);
+		builder.insertNode(gap.parentPath, insertAt, newBlock);
+		insertAt++;
+		lastBlockId = newId;
+		lastTextLen = text.length;
+	}
+
+	if (lastBlockId) {
+		builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
+	}
 
 	return builder.build();
 }

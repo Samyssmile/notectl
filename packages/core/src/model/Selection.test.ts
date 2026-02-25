@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createCollapsedSelection,
+	createGapCursor,
 	createNodeSelection,
 	createSelection,
 	isCollapsed,
 	isForward,
+	isGapCursor,
 	isNodeSelection,
 	isTextSelection,
 	selectionRange,
@@ -197,6 +199,103 @@ describe('Selection model', () => {
 		it('returns true for a NodeSelection even with blockOrder provided', () => {
 			const sel = createNodeSelection('b1' as BlockId, ['root' as BlockId]);
 			expect(isForward(sel, ['b2' as BlockId, 'b1' as BlockId])).toBe(true);
+		});
+	});
+
+	describe('createGapCursor', () => {
+		it('creates a GapCursorSelection with correct fields', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', ['b1' as BlockId]);
+			expect(sel.type).toBe('gap');
+			expect(sel.side).toBe('before');
+			expect(sel.blockId).toBe('b1');
+			expect(sel.path).toEqual(['b1']);
+		});
+
+		it('creates a GapCursorSelection with "after" side', () => {
+			const sel = createGapCursor('b2' as BlockId, 'after', []);
+			expect(sel.type).toBe('gap');
+			expect(sel.side).toBe('after');
+			expect(sel.blockId).toBe('b2');
+			expect(sel.path).toEqual([]);
+		});
+	});
+
+	describe('isGapCursor', () => {
+		it('returns true for a GapCursorSelection', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', []);
+			expect(isGapCursor(sel)).toBe(true);
+		});
+
+		it('returns false for a NodeSelection', () => {
+			const sel = createNodeSelection('b1' as BlockId, []);
+			expect(isGapCursor(sel)).toBe(false);
+		});
+
+		it('returns false for a text Selection', () => {
+			const sel = createCollapsedSelection('b1', 0);
+			expect(isGapCursor(sel)).toBe(false);
+		});
+	});
+
+	describe('isTextSelection with GapCursor', () => {
+		it('returns false for a GapCursorSelection', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', []);
+			expect(isTextSelection(sel)).toBe(false);
+		});
+	});
+
+	describe('isNodeSelection with GapCursor', () => {
+		it('returns false for a GapCursorSelection', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', []);
+			expect(isNodeSelection(sel)).toBe(false);
+		});
+	});
+
+	describe('selectionsEqual with GapCursor', () => {
+		it('returns true for equal GapCursorSelections', () => {
+			const a = createGapCursor('b1' as BlockId, 'before', []);
+			const b = createGapCursor('b1' as BlockId, 'before', []);
+			expect(selectionsEqual(a, b)).toBe(true);
+		});
+
+		it('returns false for GapCursorSelections with different blockId', () => {
+			const a = createGapCursor('b1' as BlockId, 'before', []);
+			const b = createGapCursor('b2' as BlockId, 'before', []);
+			expect(selectionsEqual(a, b)).toBe(false);
+		});
+
+		it('returns false for GapCursorSelections with different side', () => {
+			const a = createGapCursor('b1' as BlockId, 'before', []);
+			const b = createGapCursor('b1' as BlockId, 'after', []);
+			expect(selectionsEqual(a, b)).toBe(false);
+		});
+
+		it('returns false when comparing GapCursor with NodeSelection', () => {
+			const gap = createGapCursor('b1' as BlockId, 'before', []);
+			const node = createNodeSelection('b1' as BlockId, []);
+			expect(selectionsEqual(gap, node)).toBe(false);
+			expect(selectionsEqual(node, gap)).toBe(false);
+		});
+
+		it('returns false when comparing GapCursor with text Selection', () => {
+			const gap = createGapCursor('b1' as BlockId, 'before', []);
+			const text = createCollapsedSelection('b1', 0);
+			expect(selectionsEqual(gap, text)).toBe(false);
+			expect(selectionsEqual(text, gap)).toBe(false);
+		});
+	});
+
+	describe('isCollapsed with GapCursor', () => {
+		it('returns false for a GapCursorSelection', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', []);
+			expect(isCollapsed(sel)).toBe(false);
+		});
+	});
+
+	describe('isForward with GapCursor', () => {
+		it('returns true for a GapCursorSelection', () => {
+			const sel = createGapCursor('b1' as BlockId, 'before', []);
+			expect(isForward(sel)).toBe(true);
 		});
 	});
 });
