@@ -14,6 +14,7 @@ import type { Position } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
+	isCollapsed,
 	isNodeSelection,
 	selectionsEqual,
 } from '../model/Selection.js';
@@ -22,6 +23,7 @@ import { nodeType, blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
+import { type CaretDirection, endOfTextblock, navigateAcrossBlocks } from './CaretNavigation.js';
 import type { NodeView } from './NodeView.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
@@ -61,6 +63,7 @@ export class EditorView {
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
+	private navigationKeymap: Record<string, () => boolean> | null = null;
 	readonly compositionTracker: CompositionTracker = new CompositionTracker();
 
 	constructor(contentElement: HTMLElement, options: EditorViewOptions) {
@@ -128,6 +131,8 @@ export class EditorView {
 			decorations: this.decorations,
 		});
 		syncSelectionToDOM(contentElement, this.state.selection);
+
+		this.registerNavigationKeymaps();
 	}
 
 	/** Returns the current editor state. */
@@ -478,6 +483,44 @@ export class EditorView {
 		};
 	}
 
+	/** Registers arrow-key keymaps with navigation priority for cross-block movement. */
+	private registerNavigationKeymaps(): void {
+		if (!this.schemaRegistry) return;
+
+		const directions: Record<string, CaretDirection> = {
+			ArrowLeft: 'left',
+			ArrowRight: 'right',
+			ArrowUp: 'up',
+			ArrowDown: 'down',
+		};
+
+		const keymap: Record<string, () => boolean> = {};
+		for (const [key, dir] of Object.entries(directions)) {
+			keymap[key] = () => this.handleNavigationArrow(dir);
+		}
+
+		this.navigationKeymap = keymap;
+		this.schemaRegistry.registerKeymap(keymap, { priority: 'navigation' });
+	}
+
+	/** Handles a navigation arrow key: cross-block movement if at textblock boundary. */
+	private handleNavigationArrow(direction: CaretDirection): boolean {
+		// NodeSelection arrows are handled by handleNodeSelectionKeys
+		if (isNodeSelection(this.state.selection)) return false;
+
+		// Non-collapsed selections are Phase 4 (Shift+Arrow)
+		if (!isCollapsed(this.state.selection)) return false;
+
+		if (!endOfTextblock(this.contentElement, this.state, direction)) return false;
+
+		const tr: Transaction | null = navigateAcrossBlocks(this.state, direction);
+		if (tr) {
+			this.dispatch(tr);
+			return true;
+		}
+		return false;
+	}
+
 	/** Cleans up all event listeners and handlers. */
 	destroy(): void {
 		this.inputHandler.destroy();
@@ -488,6 +531,11 @@ export class EditorView {
 		this.contentElement.removeEventListener('mousedown', this.handleMousedown);
 		this.contentElement.removeEventListener('dragover', this.handleDragover);
 		this.contentElement.removeEventListener('drop', this.handleDrop);
+		// Remove navigation keymaps from registry
+		if (this.navigationKeymap && this.schemaRegistry) {
+			this.schemaRegistry.removeKeymap(this.navigationKeymap);
+			this.navigationKeymap = null;
+		}
 		// Destroy all NodeViews
 		for (const nv of this.nodeViews.values()) {
 			nv.destroy?.();

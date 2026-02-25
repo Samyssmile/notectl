@@ -593,7 +593,7 @@ export function isInsideIsolating(state: EditorState, blockId: BlockId): boolean
 	return false;
 }
 
-function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean {
+export function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean {
 	const getNodeSpec = state.schema.getNodeSpec;
 	if (!getNodeSpec) return false;
 	const block = state.getBlock(blockId);
