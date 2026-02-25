@@ -147,6 +147,28 @@ The Web Component observes these HTML attributes:
 
 <!-- Readonly mode -->
 <notectl-editor readonly></notectl-editor>
+
+<!-- Theme preset -->
+<notectl-editor theme="dark"></notectl-editor>
+
+<!-- Paper size -->
+<notectl-editor paper-size="din-a4"></notectl-editor>
 ```
 
 Changes to these attributes are reflected immediately.
+
+## Additional Public API
+
+Beyond events and lifecycle, `NotectlEditor` exposes these methods:
+
+| Method | Description |
+|--------|-------------|
+| `setTheme(theme)` | Change theme at runtime |
+| `getTheme()` | Get the current theme |
+| `getPaperSize()` | Get the current paper size |
+| `get isReadOnly` | Check if the editor is in read-only mode |
+| `getService(key)` | Retrieve a typed plugin service |
+| `onPluginEvent(key, callback)` | Subscribe to typed plugin events (returns unsubscribe function) |
+| `registerPlugin(plugin)` | Register a plugin before initialization (throws if called after init) |
+
+See the [NotectlEditor API reference](/notectl/api/editor/) for full details.

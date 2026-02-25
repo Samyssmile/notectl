@@ -705,4 +705,74 @@ test.describe('Documentation screenshots', () => {
 	test('toolbar-full', async ({ page }) => {
 		await toolbarShot(page, 'toolbar-full.png');
 	});
+
+	// ── Toolbar Overflow ─────────────────────────────
+
+	test('toolbar-overflow-burger', async ({ page }) => {
+		await page.setViewportSize({ width: 500, height: 900 });
+		await page.waitForTimeout(500);
+		await shot(page, 'toolbar-overflow-burger.png');
+	});
+
+	test('toolbar-overflow-burger-open', async ({ page }) => {
+		await page.setViewportSize({ width: 500, height: 900 });
+		await page.waitForTimeout(500);
+		const overflowBtn = page.locator('notectl-editor .notectl-toolbar-overflow-btn');
+		await overflowBtn.click();
+		await page.waitForTimeout(500);
+		// Use page screenshot with clip to capture the overflow dropdown (position:fixed)
+		const box = await page.locator('notectl-editor').boundingBox();
+		if (!box) throw new Error('editor not found');
+		await page.screenshot({
+			path: `${DIR}/toolbar-overflow-burger-open.png`,
+			clip: { x: box.x, y: box.y, width: box.width, height: Math.min(box.height + 300, 850) },
+		});
+	});
+
+	test('toolbar-overflow-flow', async ({ page }) => {
+		await page.setViewportSize({ width: 500, height: 900 });
+		await page.waitForTimeout(500);
+		// Inject CSS into shadow root to simulate flow overflow mode
+		await page.evaluate(() => {
+			const editor: HTMLElement | null = document.querySelector('notectl-editor');
+			if (!editor?.shadowRoot) return;
+			const toolbar: HTMLElement | null = editor.shadowRoot.querySelector('[role="toolbar"]');
+			if (toolbar) toolbar.setAttribute('data-overflow', 'flow');
+			const style: HTMLStyleElement = document.createElement('style');
+			style.textContent = [
+				'.notectl-toolbar-btn--overflow-hidden { display: flex !important; }',
+				'.notectl-toolbar-separator--overflow-hidden { display: block !important; }',
+				'.notectl-toolbar-overflow-btn { display: none !important; }',
+			].join('\n');
+			editor.shadowRoot.appendChild(style);
+		});
+		await page.waitForTimeout(300);
+		await shot(page, 'toolbar-overflow-flow.png');
+	});
+
+	// ── Read-Only Checklist ──────────────────────────
+
+	test('readonly-checklist', async ({ page }) => {
+		const checklistContent: DocDef = {
+			children: [
+				heading(2, [txt('Sprint Tasks')]),
+				listItem('checklist', [txt('Set up project repository')], { checked: true }),
+				listItem('checklist', [txt('Write unit tests for core module')], { checked: true }),
+				listItem('checklist', [txt('Implement API endpoints')], { checked: false }),
+				listItem('checklist', [txt('Deploy to staging environment')], { checked: false }),
+				para([txt('Click the checkboxes — they remain interactive in read-only mode.')]),
+			],
+		};
+		await setEditorJSON(page, checklistContent);
+		// Inject CSS into shadow root to hide toolbar (simulates readonly mode)
+		await page.evaluate(() => {
+			const editor: HTMLElement | null = document.querySelector('notectl-editor');
+			if (!editor?.shadowRoot) return;
+			const style: HTMLStyleElement = document.createElement('style');
+			style.textContent = '[role="toolbar"] { display: none !important; }';
+			editor.shadowRoot.appendChild(style);
+		});
+		await page.waitForTimeout(300);
+		await shot(page, 'readonly-checklist.png');
+	});
 });

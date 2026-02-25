@@ -17,6 +17,7 @@ import { EventBus } from './EventBus.js';
 import type {
 	CommandEntry,
 	CommandHandler,
+	CommandOptions,
 	EventKey,
 	MiddlewareNext,
 	Plugin,
@@ -76,6 +77,7 @@ export class PluginManager {
 	private initOrder: string[] = [];
 	private initialized = false;
 	private initializing = false;
+	private readOnly = false;
 
 	/**
 	 * Registers a system-level service before plugin init.
@@ -212,10 +214,11 @@ export class PluginManager {
 		next(tr);
 	}
 
-	/** Executes a named command. Returns false if command not found. */
+	/** Executes a named command. Returns false if command not found or editor is read-only. */
 	executeCommand(name: string): boolean {
 		const entry = this.commands.get(name);
 		if (!entry) return false;
+		if (this.readOnly && !entry.readonlyAllowed) return false;
 		try {
 			return entry.handler();
 		} catch (err) {
@@ -235,6 +238,26 @@ export class PluginManager {
 			plugin.onConfigure(config);
 		} catch (err) {
 			console.error(`[PluginManager] Plugin "${pluginId}" error in onConfigure:`, err);
+		}
+	}
+
+	/** Returns the current read-only state. */
+	isReadOnly(): boolean {
+		return this.readOnly;
+	}
+
+	/** Updates read-only state and notifies all plugins. */
+	setReadOnly(readonly: boolean): void {
+		if (this.readOnly === readonly) return;
+		this.readOnly = readonly;
+		for (const id of this.initOrder) {
+			const plugin = this.plugins.get(id);
+			if (!plugin?.onReadOnlyChange) continue;
+			try {
+				plugin.onReadOnlyChange(readonly);
+			} catch (err) {
+				console.error(`[PluginManager] Plugin "${id}" error in onReadOnlyChange:`, err);
+			}
 		}
 	}
 
@@ -374,15 +397,17 @@ export class PluginManager {
 			dispatch: options.dispatch,
 			getContainer: options.getContainer,
 			getPluginContainer: options.getPluginContainer,
+			isReadOnly: () => this.readOnly,
 
-			registerCommand: (name: string, handler: CommandHandler) => {
+			registerCommand: (name: string, handler: CommandHandler, options?: CommandOptions) => {
 				if (this.commands.has(name)) {
 					const existing = this.commands.get(name);
 					throw new Error(
 						`Command "${name}" is already registered by plugin "${existing?.pluginId}".`,
 					);
 				}
-				this.commands.set(name, { name, handler, pluginId });
+				const readonlyAllowed: boolean = options?.readonlyAllowed ?? false;
+				this.commands.set(name, { name, handler, pluginId, readonlyAllowed });
 				reg.commands.push(name);
 			},
 

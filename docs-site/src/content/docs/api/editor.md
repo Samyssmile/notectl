@@ -35,8 +35,8 @@ interface NotectlEditorConfig {
   features?: Partial<TextFormattingConfig>;
   /** Plugins to register (headless mode — no toolbar). */
   plugins?: Plugin[];
-  /** Declarative toolbar layout. Each inner array is a visual group. */
-  toolbar?: ReadonlyArray<ReadonlyArray<Plugin>>;
+  /** Declarative toolbar layout — shorthand array or full ToolbarConfig. */
+  toolbar?: ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
   /** Placeholder text shown when editor is empty. */
   placeholder?: string;
   /** Read-only mode. */
@@ -53,6 +53,35 @@ interface NotectlEditorConfig {
   locale?: Locale;
 }
 ```
+
+### `ToolbarConfig`
+
+When you need control over responsive overflow behavior, pass a `ToolbarConfig` object instead of the shorthand array:
+
+```ts
+interface ToolbarConfig {
+  /** Plugin groups defining toolbar layout. */
+  readonly groups: ReadonlyArray<ReadonlyArray<Plugin>>;
+  /** Responsive overflow behavior. Default: ToolbarOverflowBehavior.BurgerMenu */
+  readonly overflow?: ToolbarOverflowBehavior;
+}
+```
+
+```ts
+import { createEditor, ToolbarOverflowBehavior } from '@notectl/core';
+
+const editor = await createEditor({
+  toolbar: {
+    groups: [
+      [new TextFormattingPlugin()],
+      [new HeadingPlugin()],
+    ],
+    overflow: ToolbarOverflowBehavior.Flow,
+  },
+});
+```
+
+See the [Toolbar Configuration guide](/notectl/guides/toolbar/) for details on overflow modes.
 
 ## Content API
 
@@ -125,6 +154,16 @@ Updates a plugin's configuration at runtime.
 
 Returns the current immutable editor state.
 
+### `get isReadOnly(): boolean`
+
+Returns the current read-only state.
+
+```ts
+if (editor.isReadOnly) {
+  console.log('Editor is in read-only mode');
+}
+```
+
 ### `dispatch(tr: Transaction): void`
 
 Dispatches a transaction through the middleware chain.
@@ -148,6 +187,33 @@ Unsubscribe from an event.
 | `focus` | `undefined` | Editor gained focus |
 | `blur` | `undefined` | Editor lost focus |
 | `ready` | `undefined` | Initialization complete |
+
+## Plugin Service API
+
+### `getService<T>(key: ServiceKey<T>): T | undefined`
+
+Retrieves a typed service registered by any plugin. Returns `undefined` if not found.
+
+```ts
+import { TableSelectionServiceKey } from '@notectl/core';
+
+const tableService = editor.getService(TableSelectionServiceKey);
+tableService?.getSelectedCells();
+```
+
+### `onPluginEvent<T>(key: EventKey<T>, callback: PluginEventCallback<T>): () => void`
+
+Subscribes to typed plugin events from outside the plugin system. Returns an unsubscribe function.
+
+```ts
+import { BEFORE_PRINT, AFTER_PRINT } from '@notectl/core';
+
+const unsubscribe = editor.onPluginEvent(BEFORE_PRINT, () => {
+  console.log('Printing...');
+});
+
+// Later: unsubscribe();
+```
 
 ## Theme API
 
@@ -208,11 +274,11 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime (placeholder, readonly, paperSize).
+Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, `locale`, and `theme`. The full `NotectlEditorConfig` is accepted.
 
 ### `registerPlugin(plugin: Plugin): void`
 
-Registers a plugin. Must be called **before** `init()` or before the element is added to the DOM.
+Registers a plugin. Must be called **before** `init()` or before the element is added to the DOM. **Throws** if called after initialization.
 
 ### `destroy(): Promise<void>`
 

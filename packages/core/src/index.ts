@@ -195,6 +195,7 @@ export type {
 	PluginContext,
 	CommandHandler,
 	CommandEntry,
+	CommandOptions,
 	PluginEventCallback,
 	PluginEventBus,
 	PluginConfig,
@@ -212,6 +213,8 @@ export {
 	type ToolbarServiceAPI,
 	type ToolbarLayoutConfig,
 } from './plugins/toolbar/ToolbarPlugin.js';
+export { ToolbarOverflowBehavior } from './plugins/toolbar/ToolbarOverflowBehavior.js';
+export type { ToolbarOverflowBehavior as ToolbarOverflowBehaviorType } from './plugins/toolbar/ToolbarOverflowBehavior.js';
 export type {
 	ToolbarItem,
 	ToolbarGroup,
@@ -505,5 +508,9 @@ export { TOOLBAR_LOCALE_EN, TOOLBAR_LOCALES } from './plugins/toolbar/ToolbarLoc
 export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
 
 // --- Editor ---
-export type { NotectlEditorConfig, StateChangeEvent } from './editor/NotectlEditor.js';
+export type {
+	NotectlEditorConfig,
+	ToolbarConfig,
+	StateChangeEvent,
+} from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';

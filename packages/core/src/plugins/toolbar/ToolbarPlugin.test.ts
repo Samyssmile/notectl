@@ -7,6 +7,7 @@ import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin } from '../Plugin.js';
 import { PluginManager } from '../PluginManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
+import { ToolbarOverflowBehavior } from './ToolbarOverflowBehavior.js';
 import { ToolbarPlugin } from './ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from './ToolbarPlugin.js';
 
@@ -159,7 +160,9 @@ describe('ToolbarPlugin', () => {
 		const children = [...(toolbarEl?.children ?? [])];
 
 		// Group 1: a1, a2 | separator | Group 2: b1, c1
-		const buttons = children.filter((el) => el.tagName === 'BUTTON') as HTMLButtonElement[];
+		const buttons = children.filter(
+			(el) => el.tagName === 'BUTTON' && el.classList.contains('notectl-toolbar-btn'),
+		) as HTMLButtonElement[];
 		const separators = children.filter((el) => el.classList.contains('notectl-toolbar-separator'));
 
 		expect(buttons).toHaveLength(4);
@@ -185,7 +188,7 @@ describe('ToolbarPlugin', () => {
 
 		const toolbarEl = container.querySelector('.notectl-toolbar');
 		const separators = toolbarEl?.querySelectorAll('.notectl-toolbar-separator');
-		const buttons = toolbarEl?.querySelectorAll('button');
+		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 
 		expect(buttons).toHaveLength(2);
 		expect(separators).toHaveLength(1);
@@ -208,7 +211,7 @@ describe('ToolbarPlugin', () => {
 		pm.configurePlugin('toolbar', { a1: false });
 
 		const toolbarEl = container.querySelector('.notectl-toolbar');
-		const buttons = toolbarEl?.querySelectorAll('button');
+		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 		expect(buttons).toHaveLength(1);
 		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a2');
 	});
@@ -223,7 +226,7 @@ describe('ToolbarPlugin', () => {
 		const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
 
 		const toolbarEl = container.querySelector('.notectl-toolbar');
-		const buttons = toolbarEl?.querySelectorAll('button');
+		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 
 		// b1 (priority 10) should come before a1 (priority 20)
 		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('b1');
@@ -245,10 +248,205 @@ describe('ToolbarPlugin', () => {
 		const { container } = await initWithPlugins([pluginA], toolbar);
 
 		const toolbarEl = container.querySelector('.notectl-toolbar');
-		const buttons = toolbarEl?.querySelectorAll('button');
+		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 
 		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a-low');
 		expect(buttons?.[1]?.getAttribute('data-toolbar-item')).toBe('a-mid');
 		expect(buttons?.[2]?.getAttribute('data-toolbar-item')).toBe('a-high');
+	});
+
+	describe('readonly mode', () => {
+		it('hides toolbar when onReadOnlyChange(true) is called', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbarEl.hidden).toBe(false);
+
+			toolbar.onReadOnlyChange(true);
+			expect(toolbarEl.hidden).toBe(true);
+		});
+
+		it('shows toolbar when onReadOnlyChange(false) is called', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			toolbar.onReadOnlyChange(true);
+			expect(toolbarEl.hidden).toBe(true);
+
+			toolbar.onReadOnlyChange(false);
+			expect(toolbarEl.hidden).toBe(false);
+		});
+
+		it('hides toolbar via PluginManager.setReadOnly()', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { pm, container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			pm.setReadOnly(true);
+			expect(toolbarEl.hidden).toBe(true);
+
+			pm.setReadOnly(false);
+			expect(toolbarEl.hidden).toBe(false);
+		});
+	});
+
+	describe('overflow behavior', () => {
+		it('defaults to BurgerMenu when no overflow is specified', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbar.getOverflowBehavior()).toBe(ToolbarOverflowBehavior.BurgerMenu);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('burger-menu');
+		});
+
+		it('sets data-overflow attribute to flow when configured', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.Flow,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbar.getOverflowBehavior()).toBe(ToolbarOverflowBehavior.Flow);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('flow');
+		});
+
+		it('sets data-overflow attribute to none when configured', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.None,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbar.getOverflowBehavior()).toBe(ToolbarOverflowBehavior.None);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('none');
+		});
+
+		it('does not create overflow controller in Flow mode', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.Flow,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			// No overflow button should exist in Flow mode
+			const overflowBtn = toolbarEl.querySelector('.notectl-toolbar-overflow-btn');
+			expect(overflowBtn).toBeNull();
+		});
+
+		it('does not create overflow controller in None mode', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.None,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			const overflowBtn = toolbarEl.querySelector('.notectl-toolbar-overflow-btn');
+			expect(overflowBtn).toBeNull();
+		});
+
+		it('switches overflow behavior at runtime via setOverflowBehavior()', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.BurgerMenu,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('burger-menu');
+
+			toolbar.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
+
+			expect(toolbar.getOverflowBehavior()).toBe(ToolbarOverflowBehavior.Flow);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('flow');
+			// Overflow button should be removed after switching to Flow
+			const overflowBtn = toolbarEl.querySelector('.notectl-toolbar-overflow-btn');
+			expect(overflowBtn).toBeNull();
+		});
+
+		it('switches from Flow to BurgerMenu at runtime', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.Flow,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('flow');
+
+			toolbar.setOverflowBehavior(ToolbarOverflowBehavior.BurgerMenu);
+
+			expect(toolbar.getOverflowBehavior()).toBe(ToolbarOverflowBehavior.BurgerMenu);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('burger-menu');
+		});
+
+		it('is a no-op when setting the same behavior', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.Flow,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			// Verify it doesn't re-render
+			const buttonsBefore = toolbarEl.querySelectorAll('button.notectl-toolbar-btn');
+			toolbar.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
+			const buttonsAfter = toolbarEl.querySelectorAll('button.notectl-toolbar-btn');
+
+			expect(buttonsBefore.length).toBe(buttonsAfter.length);
+			expect(toolbarEl.getAttribute('data-overflow')).toBe('flow');
+		});
+
+		it('preserves toolbar items when switching overflow behavior', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.BurgerMenu,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			const buttonsBefore = toolbarEl.querySelectorAll('button.notectl-toolbar-btn');
+			expect(buttonsBefore).toHaveLength(2);
+
+			toolbar.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
+
+			const buttonsAfter = toolbarEl.querySelectorAll('button.notectl-toolbar-btn');
+			expect(buttonsAfter).toHaveLength(2);
+			expect(buttonsAfter[0]?.getAttribute('data-toolbar-item')).toBe('a1');
+			expect(buttonsAfter[1]?.getAttribute('data-toolbar-item')).toBe('a2');
+		});
 	});
 });

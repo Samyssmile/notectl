@@ -215,3 +215,7 @@ Use `data-notectl-no-print` on any element to exclude it from print output:
 ```
 
 The plugin generates `@media print` rules that handle code block wrapping, image page breaks, and table layout. Additional styles can be injected via `customCSS`.
+
+## Requirements
+
+The PrintPlugin requires the editor to be inside a **ShadowRoot** (which is the default when using `<notectl-editor>`). If the editor is used outside a ShadowRoot, the print service will be a no-op.
