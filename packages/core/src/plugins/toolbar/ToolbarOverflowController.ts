@@ -193,7 +193,11 @@ export class ToolbarOverflowController {
 	// --- Overflow Button ---
 
 	private setOverflowButtonVisible(visible: boolean): void {
-		this.overflowButton?.classList.toggle(HIDDEN_OVERFLOW_CLASS, !visible);
+		if (!this.overflowButton) return;
+		this.overflowButton.classList.toggle(HIDDEN_OVERFLOW_CLASS, !visible);
+		if (!visible) {
+			this.overflowButton.removeAttribute('tabindex');
+		}
 	}
 
 	private ensureOverflowButton(): void {
