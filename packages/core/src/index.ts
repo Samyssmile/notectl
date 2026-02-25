@@ -153,6 +153,8 @@ export { TransactionBuilder, invertStep, invertTransaction } from './state/Trans
 
 export { applyStep } from './state/StepApplication.js';
 
+export { isAllowedInReadonly, isSelectionOnlyTransaction } from './state/ReadonlyGuard.js';
+
 export { HistoryManager } from './state/History.js';
 export type { HistoryResult } from './state/History.js';
 

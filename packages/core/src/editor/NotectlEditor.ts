@@ -26,6 +26,7 @@ import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflow
 import { ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
 import { EditorState } from '../state/EditorState.js';
+import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
@@ -270,6 +271,7 @@ export class NotectlEditor extends HTMLElement {
 					onStateChange: (oldState, newState, tr) => {
 						this.onStateChange(oldState, newState, tr);
 					},
+					isReadOnly: () => this.config.readonly ?? false,
 				});
 				this.updateEmptyState();
 
@@ -366,8 +368,14 @@ export class NotectlEditor extends HTMLElement {
 		toggleBold: () => this.executeCommand('toggleBold'),
 		toggleItalic: () => this.executeCommand('toggleItalic'),
 		toggleUnderline: () => this.executeCommand('toggleUnderline'),
-		undo: () => this.view?.undo(),
-		redo: () => this.view?.redo(),
+		undo: () => {
+			if (this.config.readonly) return;
+			this.view?.undo();
+		},
+		redo: () => {
+			if (this.config.readonly) return;
+			this.view?.redo();
+		},
 		selectAll: () => {
 			if (!this.view) return;
 			const tr = selectAll(this.view.getState());
@@ -384,12 +392,13 @@ export class NotectlEditor extends HTMLElement {
 		redo: () => boolean;
 	} {
 		const schema = this.view?.getState().schema;
+		const readonly: boolean = this.config.readonly ?? false;
 		return {
-			toggleBold: () => (schema ? isMarkAllowed(schema, 'bold') : false),
-			toggleItalic: () => (schema ? isMarkAllowed(schema, 'italic') : false),
-			toggleUnderline: () => (schema ? isMarkAllowed(schema, 'underline') : false),
-			undo: () => this.view?.history.canUndo() ?? false,
-			redo: () => this.view?.history.canRedo() ?? false,
+			toggleBold: () => !readonly && (schema ? isMarkAllowed(schema, 'bold') : false),
+			toggleItalic: () => !readonly && (schema ? isMarkAllowed(schema, 'italic') : false),
+			toggleUnderline: () => !readonly && (schema ? isMarkAllowed(schema, 'underline') : false),
+			undo: () => !readonly && (this.view?.history.canUndo() ?? false),
+			redo: () => !readonly && (this.view?.history.canRedo() ?? false),
 		};
 	}
 
@@ -424,6 +433,13 @@ export class NotectlEditor extends HTMLElement {
 	/** Dispatches a transaction (routed through middleware if any). */
 	dispatch(tr: Transaction): void {
 		if (!this.view || !this.pluginManager) return;
+		if (
+			this.config.readonly &&
+			!isAllowedInReadonly(tr) &&
+			!this.pluginManager.isReadonlyBypassed()
+		) {
+			return;
+		}
 		this.pluginManager.dispatchWithMiddleware(tr, this.view.getState(), (finalTr) =>
 			this.view?.dispatch(finalTr),
 		);
