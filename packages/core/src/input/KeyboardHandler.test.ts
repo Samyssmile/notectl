@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { NodeSpec } from '../model/NodeSpec.js';
+import type { Schema } from '../model/Schema.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createNodeSelection, isNodeSelection } from '../model/Selection.js';
+import { createNodeSelection, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
+import type { EditorState } from '../state/EditorState.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
@@ -467,6 +470,256 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 		element.dispatchEvent(makeKeyEvent('Enter'));
 
 		expect(log).toEqual(['context', 'navigation', 'default']);
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: GapCursor key handling', () => {
+	const hrSpec: NodeSpec = {
+		isVoid: true,
+		toDOM: (node) => {
+			const el: HTMLElement = document.createElement('hr');
+			el.setAttribute('data-block-id', node.id);
+			return el;
+		},
+	};
+
+	function makeGetNodeSpec(spec: NodeSpec): (type: string) => NodeSpec | undefined {
+		return (type: string): NodeSpec | undefined => {
+			if (type === 'horizontal_rule') return spec;
+			return undefined;
+		};
+	}
+
+	function createGapCursorHandler(side: 'before' | 'after'): {
+		element: HTMLDivElement;
+		handler: KeyboardHandler;
+		dispatched: unknown[];
+		getState: () => EditorState;
+	} {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('World', 'b2')
+			.gapCursor('hr1', side)
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		let currentState: EditorState = state;
+		const handler = new KeyboardHandler(element, {
+			getState: () => currentState,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+				currentState = currentState.apply(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+		});
+
+		return { element, handler, dispatched, getState: () => currentState };
+	}
+
+	it('printable character dispatches insertTextCommand', () => {
+		const { element, handler, dispatched, getState } = createGapCursorHandler('before');
+		element.dispatchEvent(makeKeyEvent('a'));
+		expect(dispatched).toHaveLength(1);
+		// A new paragraph with 'a' should have been created
+		expect(getState().doc.children.length).toBe(4);
+		handler.destroy();
+	});
+
+	it('Enter dispatches splitBlockCommand', () => {
+		const { element, handler, dispatched, getState } = createGapCursorHandler('after');
+		element.dispatchEvent(makeKeyEvent('Enter'));
+		expect(dispatched).toHaveLength(1);
+		expect(getState().doc.children.length).toBe(4);
+		handler.destroy();
+	});
+
+	it('Backspace at side=after dispatches deleteBackwardAtGap (deletes void)', () => {
+		const { element, handler, dispatched, getState } = createGapCursorHandler('after');
+		element.dispatchEvent(makeKeyEvent('Backspace'));
+		expect(dispatched).toHaveLength(1);
+		// HR should be deleted
+		expect(getState().doc.children.length).toBe(2);
+		handler.destroy();
+	});
+
+	it('Delete at side=before dispatches deleteForwardAtGap (deletes void)', () => {
+		const { element, handler, dispatched, getState } = createGapCursorHandler('before');
+		element.dispatchEvent(makeKeyEvent('Delete'));
+		expect(dispatched).toHaveLength(1);
+		// HR should be deleted
+		expect(getState().doc.children.length).toBe(2);
+		handler.destroy();
+	});
+
+	it('arrow keys are NOT intercepted by handleGapCursorKeys (passed through to keymaps/fallback)', () => {
+		const { element, handler, dispatched } = createGapCursorHandler('before');
+		// Arrow keys bypass handleGapCursorKeys (returns false for arrows).
+		// Without a GapCursorPlugin keymap, the fallback handler navigates away.
+		// First arrow dispatches (escapes GapCursor), subsequent arrows are on text selection.
+		element.dispatchEvent(makeKeyEvent('ArrowLeft'));
+		expect(dispatched).toHaveLength(1);
+		handler.destroy();
+	});
+
+	it('modifier combos pass through the GapCursor handler', () => {
+		const { element, handler, dispatched } = createGapCursorHandler('before');
+		// Alt+x should not be intercepted by the GapCursor handler
+		element.dispatchEvent(makeKeyEvent('x', { altKey: true }));
+		expect(dispatched).toHaveLength(0);
+		handler.destroy();
+	});
+
+	it('readonly mode: printable chars are consumed but not dispatched', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('horizontal_rule', 'hr1')
+			.gapCursor('hr1', 'before')
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+			isReadOnly: () => true,
+		});
+
+		const e = makeKeyEvent('x');
+		element.dispatchEvent(e);
+		// Event consumed (handler returns true) but nothing dispatched
+		expect(dispatched).toHaveLength(0);
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: GapCursor arrow fallback (without plugin)', () => {
+	const hrSpec: NodeSpec = {
+		isVoid: true,
+		toDOM: (node) => {
+			const el: HTMLElement = document.createElement('hr');
+			el.setAttribute('data-block-id', node.id);
+			return el;
+		},
+	};
+
+	function makeGetNodeSpec(spec: NodeSpec): (type: string) => NodeSpec | undefined {
+		return (type: string): NodeSpec | undefined => {
+			if (type === 'horizontal_rule') return spec;
+			return undefined;
+		};
+	}
+
+	it('ArrowRight at GapCursor side=before navigates into void (NodeSelection)', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('World', 'b2')
+			.gapCursor('hr1', 'before')
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		let currentState: EditorState = state;
+		const handler = new KeyboardHandler(element, {
+			getState: () => currentState,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+				currentState = currentState.apply(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+		});
+
+		element.dispatchEvent(makeKeyEvent('ArrowRight'));
+		expect(dispatched).toHaveLength(1);
+		// Should navigate to NodeSelection of the void block
+		expect(isNodeSelection(currentState.selection)).toBe(true);
+		handler.destroy();
+	});
+
+	it('ArrowLeft at GapCursor side=before navigates to previous block', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('World', 'b2')
+			.gapCursor('hr1', 'before')
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		let currentState: EditorState = state;
+		const handler = new KeyboardHandler(element, {
+			getState: () => currentState,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+				currentState = currentState.apply(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+		});
+
+		element.dispatchEvent(makeKeyEvent('ArrowLeft'));
+		expect(dispatched).toHaveLength(1);
+		// Should navigate to end of previous text block
+		expect(isGapCursor(currentState.selection)).toBe(false);
+		expect(isNodeSelection(currentState.selection)).toBe(false);
+		handler.destroy();
+	});
+
+	it('ArrowLeft at doc start GapCursor is a no-op', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('World', 'b2')
+			.gapCursor('hr1', 'before')
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+		});
+
+		element.dispatchEvent(makeKeyEvent('ArrowLeft'));
+		// No navigation possible — should be no-op
+		expect(dispatched).toHaveLength(0);
 		handler.destroy();
 	});
 });

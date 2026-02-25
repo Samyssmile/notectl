@@ -12,7 +12,12 @@ import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
-import { createCollapsedSelection, isCollapsed, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -220,7 +225,7 @@ export class ListPlugin implements Plugin {
 				pattern: def.inputPattern,
 				handler: (state, match, start, _end) => {
 					const sel = state.selection;
-					if (isNodeSelection(sel)) return null;
+					if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 					if (!isCollapsed(sel)) return null;
 
 					const block = state.getBlock(sel.anchor.blockId);
@@ -279,7 +284,7 @@ export class ListPlugin implements Plugin {
 	private toggleList(context: PluginContext, listType: ListType): boolean {
 		const state = context.getState();
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block) return false;
 
@@ -314,7 +319,7 @@ export class ListPlugin implements Plugin {
 
 	private indent(context: PluginContext): boolean {
 		const state = context.getState();
-		if (isNodeSelection(state.selection)) return false;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block || !isNodeOfType(block, 'list_item')) return false;
 
@@ -325,7 +330,7 @@ export class ListPlugin implements Plugin {
 
 	private outdent(context: PluginContext): boolean {
 		const state = context.getState();
-		if (isNodeSelection(state.selection)) return false;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block || !isNodeOfType(block, 'list_item')) return false;
 
@@ -336,7 +341,7 @@ export class ListPlugin implements Plugin {
 
 	private setIndent(context: PluginContext, state: EditorState, indent: number): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block) return false;
 
@@ -356,7 +361,10 @@ export class ListPlugin implements Plugin {
 
 		const state = context.getState();
 		const bid: BlockId | null =
-			targetId ?? (isNodeSelection(state.selection) ? null : state.selection.anchor.blockId);
+			targetId ??
+			(isNodeSelection(state.selection) || isGapCursor(state.selection)
+				? null
+				: state.selection.anchor.blockId);
 		if (!bid) return false;
 
 		const block = state.getBlock(bid);
@@ -383,7 +391,7 @@ export class ListPlugin implements Plugin {
 	private handleBackspace(context: PluginContext): boolean {
 		const state = context.getState();
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		if (!isCollapsed(sel)) return false;
 
 		const block = state.getBlock(sel.anchor.blockId);
@@ -407,7 +415,7 @@ export class ListPlugin implements Plugin {
 	private handleEnter(context: PluginContext): boolean {
 		const state = context.getState();
 		const sel = state.selection;
-		if (isNodeSelection(sel)) return false;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		if (!isCollapsed(sel)) return false;
 
 		const block = state.getBlock(sel.anchor.blockId);
@@ -478,7 +486,7 @@ export class ListPlugin implements Plugin {
 	// --- Helpers ---
 
 	private isListActive(state: EditorState, listType: ListType): boolean {
-		if (isNodeSelection(state.selection)) return false;
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		return block?.type === 'list_item' && block.attrs?.listType === listType;
 	}

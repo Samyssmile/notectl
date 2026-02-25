@@ -4,7 +4,7 @@
  * plus a combobox-style toolbar item with a custom popup.
  */
 
-import { isNodeSelection } from '../../model/Selection.js';
+import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
@@ -26,7 +26,7 @@ export function registerHeadingPickerEntries(
 		command: 'setParagraph',
 		priority: 10,
 		isActive: (state) => {
-			if (isNodeSelection(state.selection)) return false;
+			if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 			const block = state.getBlock(state.selection.anchor.blockId);
 			return block?.type === 'paragraph';
 		},
@@ -39,7 +39,7 @@ export function registerHeadingPickerEntries(
 		priority: 20,
 		style: { fontSize: '1.6em', fontWeight: '700' },
 		isActive: (state) => {
-			if (isNodeSelection(state.selection)) return false;
+			if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 			const block = state.getBlock(state.selection.anchor.blockId);
 			return block?.type === 'title';
 		},
@@ -52,7 +52,7 @@ export function registerHeadingPickerEntries(
 		priority: 30,
 		style: { fontSize: '1.3em', fontWeight: '500' },
 		isActive: (state) => {
-			if (isNodeSelection(state.selection)) return false;
+			if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 			const block = state.getBlock(state.selection.anchor.blockId);
 			return block?.type === 'subtitle';
 		},
@@ -66,7 +66,7 @@ export function registerHeadingPickerEntries(
 			priority: 100 + level,
 			style: { fontSize: `${1.4 - level * 0.1}em`, fontWeight: '600' },
 			isActive: (state) => {
-				if (isNodeSelection(state.selection)) return false;
+				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 				const block = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'heading' && block.attrs?.level === level;
 			},
@@ -139,7 +139,7 @@ function renderHeadingPopup(
 	container.classList.add('notectl-heading-picker');
 
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection)) return;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
 
 	const list: HTMLDivElement = document.createElement('div');
 	list.className = 'notectl-heading-picker__list';
@@ -210,7 +210,7 @@ function getHeadingLabel(locale: HeadingLocale, level: HeadingLevel): string {
 }
 
 function getActiveLabel(state: EditorState, context: PluginContext, locale: HeadingLocale): string {
-	if (isNodeSelection(state.selection)) return locale.paragraph;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return locale.paragraph;
 	const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
 	for (const entry of entries) {
 		if (entry.isActive(state)) return entry.label;

@@ -3,7 +3,12 @@
  */
 
 import type { EditorSelection, Position, Selection } from '../model/Selection.js';
-import { createPosition, createSelection, isNodeSelection } from '../model/Selection.js';
+import {
+	createPosition,
+	createSelection,
+	isGapCursor,
+	isNodeSelection,
+} from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 
@@ -25,6 +30,12 @@ export function getSelection(container: HTMLElement): globalThis.Selection | nul
 export function syncSelectionToDOM(container: HTMLElement, selection: EditorSelection): void {
 	const domSel = getSelection(container);
 	if (!domSel) return;
+
+	// GapCursor: clear browser selection (gap cursor has no DOM equivalent)
+	if (isGapCursor(selection)) {
+		domSel.removeAllRanges();
+		return;
+	}
 
 	// NodeSelection: select the entire block element
 	if (isNodeSelection(selection)) {

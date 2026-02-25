@@ -25,6 +25,7 @@ import type { NodeSpec } from '../model/NodeSpec.js';
 import type { Schema } from '../model/Schema.js';
 import {
 	createCollapsedSelection,
+	createGapCursor,
 	createNodeSelection,
 	createSelection,
 } from '../model/Selection.js';
@@ -59,6 +60,9 @@ interface StateBuilderConfig {
 	rangeHead?: { blockId: string; offset: number };
 	nodeSelectionId?: string;
 	nodeSelectionPath?: readonly string[];
+	gapCursorBlockId?: string;
+	gapCursorSide?: 'before' | 'after';
+	gapCursorPath?: readonly string[];
 	schema?: {
 		nodeTypes?: string[];
 		markTypes?: string[];
@@ -177,6 +181,18 @@ export class StateBuilder {
 		this.config.nodeSelectionPath = path;
 		this.config.cursorBlockId = undefined;
 		this.config.rangeAnchor = undefined;
+		this.config.gapCursorBlockId = undefined;
+		return this;
+	}
+
+	/** Set a gap cursor selection (before or after a void block). */
+	gapCursor(blockId: string, side: 'before' | 'after', path?: readonly string[]): this {
+		this.config.gapCursorBlockId = blockId;
+		this.config.gapCursorSide = side;
+		this.config.gapCursorPath = path;
+		this.config.cursorBlockId = undefined;
+		this.config.rangeAnchor = undefined;
+		this.config.nodeSelectionId = undefined;
 		return this;
 	}
 
@@ -222,7 +238,16 @@ export class StateBuilder {
 	):
 		| ReturnType<typeof createCollapsedSelection>
 		| ReturnType<typeof createSelection>
-		| ReturnType<typeof createNodeSelection> {
+		| ReturnType<typeof createNodeSelection>
+		| ReturnType<typeof createGapCursor> {
+		if (this.config.gapCursorBlockId && this.config.gapCursorSide) {
+			return createGapCursor(
+				this.config.gapCursorBlockId as BlockId,
+				this.config.gapCursorSide,
+				(this.config.gapCursorPath ?? []) as readonly BlockId[],
+			);
+		}
+
 		if (this.config.nodeSelectionId) {
 			return createNodeSelection(
 				this.config.nodeSelectionId as BlockId,

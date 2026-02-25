@@ -7,7 +7,12 @@
 import { forEachBlockInRange } from '../../commands/Commands.js';
 import { type MarkAttrRegistry, isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { isCollapsed, isNodeSelection, selectionRange } from '../../model/Selection.js';
+import {
+	isCollapsed,
+	isGapCursor,
+	isNodeSelection,
+	selectionRange,
+} from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { MarkTypeName } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -24,7 +29,7 @@ type ColorMarkType = {
  */
 export function getActiveColor(state: EditorState, markTypeName: ColorMarkType): string | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
 	if (isCollapsed(sel)) {
 		if (state.storedMarks) {
@@ -61,7 +66,7 @@ export function applyColorMark(
 	color: string,
 ): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const typeName: MarkTypeName = markType(markTypeName);
 
@@ -105,7 +110,7 @@ export function removeColorMark(
 	markTypeName: ColorMarkType,
 ): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	const typeName: MarkTypeName = markType(markTypeName);
 

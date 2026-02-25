@@ -6,10 +6,12 @@
 
 import { TABLE_CSS } from '../../editor/styles/table.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
-import { isNodeSelection } from '../../model/Selection.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
+import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { isValidHexColor } from '../shared/ColorValidation.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
@@ -61,6 +63,26 @@ const TABLE_ICON =
 	'<path d="M3 3h18v18H3V3zm2 2v4h6V5H5zm8 0v4h6V5h-6zm-8 6v4h6v-4H5z' +
 	'm8 0v4h6v-4h-6zm-8 6v4h6v-4H5zm8 0v4h6v-4h-6z"/></svg>';
 
+// --- Serialization Constants ---
+
+const DEFAULT_BORDER_COLOR = '#d0d0d0';
+const TABLE_BASE_STYLE = 'border-collapse: collapse; width: 100%; table-layout: fixed';
+const CELL_STYLE = `border: 1px solid var(--ntbl-bc, ${DEFAULT_BORDER_COLOR}); padding: 8px 12px; vertical-align: top`;
+
+// --- Serialization Helpers ---
+
+/** Builds the inline `style` attribute value for the `<table>` element. */
+function buildTableStyle(borderColor: string | undefined): string {
+	if (!borderColor) return TABLE_BASE_STYLE;
+	if (borderColor === 'none') {
+		return `${TABLE_BASE_STYLE}; --ntbl-bc: transparent`;
+	}
+	if (isValidHexColor(borderColor)) {
+		return `${TABLE_BASE_STYLE}; --ntbl-bc: ${escapeHTML(borderColor)}`;
+	}
+	return TABLE_BASE_STYLE;
+}
+
 // --- Plugin ---
 
 export class TablePlugin implements Plugin {
@@ -111,7 +133,11 @@ export class TablePlugin implements Plugin {
 		// Clear multi-cell selection when cursor moves outside table
 		if (this.selectionService?.getSelectedRange()) {
 			const sel = newState.selection;
-			if (isNodeSelection(sel) || !isInsideTable(newState, sel.anchor.blockId)) {
+			if (
+				isNodeSelection(sel) ||
+				isGapCursor(sel) ||
+				!isInsideTable(newState, sel.anchor.blockId)
+			) {
 				this.selectionService.setSelectedRange(null);
 			}
 		}
@@ -130,6 +156,12 @@ export class TablePlugin implements Plugin {
 				wrapper.setAttribute('data-block-id', node.id);
 				return wrapper;
 			},
+			toHTML(node, content) {
+				const borderColor: string | undefined = node.attrs?.borderColor as string | undefined;
+				const style: string = buildTableStyle(borderColor);
+				return `<table style="${style}">${content}</table>`;
+			},
+			sanitize: { tags: ['table', 'tbody'] },
 		});
 
 		context.registerNodeSpec({
@@ -142,6 +174,10 @@ export class TablePlugin implements Plugin {
 				tr.setAttribute('role', 'row');
 				return tr;
 			},
+			toHTML(_node, content) {
+				return `<tr>${content}</tr>`;
+			},
+			sanitize: { tags: ['tr'] },
 		});
 
 		context.registerNodeSpec({
@@ -157,6 +193,15 @@ export class TablePlugin implements Plugin {
 				td.setAttribute('role', 'cell');
 				return td;
 			},
+			toHTML(node, content) {
+				const colspan: number = (node.attrs?.colspan as number) ?? 1;
+				const rowspan: number = (node.attrs?.rowspan as number) ?? 1;
+				const attrs: string[] = [` style="${CELL_STYLE}"`];
+				if (colspan > 1) attrs.push(` colspan="${colspan}"`);
+				if (rowspan > 1) attrs.push(` rowspan="${rowspan}"`);
+				return `<td${attrs.join('')}>${content}</td>`;
+			},
+			sanitize: { tags: ['td'], attrs: ['colspan', 'rowspan'] },
 		});
 	}
 
@@ -190,7 +235,7 @@ export class TablePlugin implements Plugin {
 				},
 			},
 			isActive: (state: EditorState) => {
-				if (isNodeSelection(state.selection)) return false;
+				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 				return isInsideTable(state, state.selection.anchor.blockId);
 			},
 		});

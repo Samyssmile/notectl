@@ -20,12 +20,14 @@ import {
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import { isMarkAllowed } from '../model/Schema.js';
-import type { NodeSelection, SelectionRange } from '../model/Selection.js';
+import type { GapCursorSelection, NodeSelection, SelectionRange } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
+	createGapCursor,
 	createNodeSelection,
 	createSelection,
 	isCollapsed,
+	isGapCursor,
 	isNodeSelection,
 	selectionRange,
 } from '../model/Selection.js';
@@ -191,7 +193,7 @@ export function toggleMark(
 ): Transaction | null {
 	if (isFeatureGated(markType, features)) return null;
 	if (!isMarkAllowed(state.schema, markType)) return null;
-	if (isNodeSelection(state.selection)) return null;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
 
 	const mark: Mark = { type: markType };
 	const sel = state.selection;
@@ -235,7 +237,7 @@ export function toggleMark(
 /** Checks if a mark is active across the entire selection range. */
 function isMarkActiveInRange(state: EditorState, markType: MarkType): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(sel, blockOrder);
 
@@ -307,6 +309,11 @@ export function insertTextCommand(
 		return insertTextAfterNodeSelection(state, sel, text, origin);
 	}
 
+	// GapCursor: insert paragraph at the gap position with the text
+	if (isGapCursor(sel)) {
+		return insertTextAtGap(state, sel, text, origin);
+	}
+
 	const builder = state.transaction(origin);
 	const marks = resolveActiveMarks(state);
 
@@ -329,6 +336,7 @@ export function deleteSelectionCommand(state: EditorState): Transaction | null {
 	if (isNodeSelection(state.selection)) {
 		return deleteNodeSelection(state, state.selection);
 	}
+	if (isGapCursor(state.selection)) return null;
 	if (isCollapsed(state.selection)) return null;
 
 	const builder = state.transaction('input');
@@ -347,6 +355,7 @@ export function deleteBackward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -374,6 +383,7 @@ export function deleteForward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -403,6 +413,7 @@ export function deleteWordBackward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -431,6 +442,7 @@ export function deleteWordForward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -460,6 +472,7 @@ export function deleteSoftLineBackward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -486,6 +499,7 @@ export function deleteSoftLineForward(state: EditorState): Transaction | null {
 	if (isNodeSelection(sel)) {
 		return deleteNodeSelection(state, sel);
 	}
+	if (isGapCursor(sel)) return null;
 
 	if (!isCollapsed(sel)) {
 		return deleteSelectionCommand(state);
@@ -515,6 +529,11 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 		return insertParagraphAfterNodeSelection(state, sel);
 	}
 
+	// GapCursor: insert empty paragraph at the gap position
+	if (isGapCursor(sel)) {
+		return insertParagraphAtGap(state, sel);
+	}
+
 	const builder = state.transaction('input');
 
 	if (!isCollapsed(sel)) {
@@ -542,7 +561,7 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 export function insertHardBreakCommand(state: EditorState): Transaction | null {
 	const sel = state.selection;
 
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
 	const builder = state.transaction('input');
 
@@ -607,7 +626,7 @@ export function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean 
  */
 export function mergeBlockBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 	const blockOrder = state.getBlockOrder();
 	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
 
@@ -652,7 +671,7 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
  */
 function mergeBlockForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return null;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 	const blockOrder = state.getBlockOrder();
 	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
 
@@ -712,7 +731,7 @@ export function selectAll(state: EditorState): Transaction {
 /** Checks if a mark is active at the current selection. */
 export function isMarkActive(state: EditorState, markType: MarkType): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel)) return false;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
 	if (isCollapsed(sel)) {
 		if (state.storedMarks) {
@@ -731,7 +750,7 @@ export function isMarkActive(state: EditorState, markType: MarkType): boolean {
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
-	if (isNodeSelection(state.selection)) return [];
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return [];
 
 	const block = state.getBlock(state.selection.anchor.blockId);
 	if (!block) return [];
@@ -740,7 +759,7 @@ function resolveActiveMarks(state: EditorState): readonly Mark[] {
 }
 
 export function addDeleteSelectionSteps(state: EditorState, builder: TransactionBuilder): void {
-	if (isNodeSelection(state.selection)) return;
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(state.selection, blockOrder);
 	const fromIdx = blockOrder.indexOf(range.from.blockId);
@@ -846,6 +865,86 @@ function isFeatureGated(type: MarkType, features: FeatureConfig): boolean {
 	return false;
 }
 
+/**
+ * Deletes the void block adjacent to a GapCursor when pressing Backspace.
+ *
+ * - `side === 'after'` → void block is behind the cursor → delete it.
+ * - `side === 'before'` → void block is ahead → navigate backward (to previous block).
+ * - At document start with `side === 'before'` → `null` (no-op).
+ */
+export function deleteBackwardAtGap(
+	state: EditorState,
+	sel: GapCursorSelection,
+): Transaction | null {
+	if (sel.side === 'after') {
+		return deleteVoidAtGap(state, sel);
+	}
+
+	// side === 'before': navigate to previous block
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const blockIdx: number = blockOrder.indexOf(sel.blockId);
+
+	if (blockIdx <= 0) return null;
+
+	const prevId: BlockId | undefined = blockOrder[blockIdx - 1];
+	if (!prevId) return null;
+
+	if (isVoidBlock(state, prevId)) {
+		const path = findNodePath(state.doc, prevId) ?? [];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(prevId, path as BlockId[]))
+			.build();
+	}
+
+	const prevBlock = state.getBlock(prevId);
+	if (!prevBlock) return null;
+	const prevLen: number = getBlockLength(prevBlock);
+	return state.transaction('input').setSelection(createCollapsedSelection(prevId, prevLen)).build();
+}
+
+/**
+ * Deletes the void block adjacent to a GapCursor when pressing Delete.
+ *
+ * - `side === 'before'` → void block is ahead of the cursor → delete it.
+ * - `side === 'after'` → void block is behind → navigate forward (to next block).
+ * - At document end with `side === 'after'` → `null` (no-op).
+ */
+export function deleteForwardAtGap(
+	state: EditorState,
+	sel: GapCursorSelection,
+): Transaction | null {
+	if (sel.side === 'before') {
+		return deleteVoidAtGap(state, sel);
+	}
+
+	// side === 'after': navigate to next block
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const blockIdx: number = blockOrder.indexOf(sel.blockId);
+
+	if (blockIdx >= blockOrder.length - 1) return null;
+
+	const nextId: BlockId | undefined = blockOrder[blockIdx + 1];
+	if (!nextId) return null;
+
+	if (isVoidBlock(state, nextId)) {
+		const path = findNodePath(state.doc, nextId) ?? [];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(nextId, path as BlockId[]))
+			.build();
+	}
+
+	return state.transaction('input').setSelection(createCollapsedSelection(nextId, 0)).build();
+}
+
+/** Deletes the void block that the GapCursor is adjacent to, delegating to deleteNodeSelection. */
+function deleteVoidAtGap(state: EditorState, sel: GapCursorSelection): Transaction | null {
+	const path = (findNodePath(state.doc, sel.blockId) ?? []) as BlockId[];
+	const nodeSel: NodeSelection = createNodeSelection(sel.blockId, path);
+	return deleteNodeSelection(state, nodeSel);
+}
+
 /** Inserts a new paragraph after a NodeSelection-targeted void block. */
 function insertParagraphAfterNodeSelection(
 	state: EditorState,
@@ -879,6 +978,78 @@ function insertParagraphAfterNodeSelection(
 		),
 	);
 	builder.setSelection(createCollapsedSelection(newId, 0));
+	return builder.build();
+}
+
+/** Inserts a new paragraph at a GapCursor position (before or after the void block). */
+function insertParagraphAtGap(state: EditorState, sel: GapCursorSelection): Transaction | null {
+	const path = findNodePath(state.doc, sel.blockId);
+	if (!path) return null;
+
+	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
+	if (index < 0) return null;
+
+	const insertIdx: number = sel.side === 'before' ? index : index + 1;
+	const newId = generateBlockId();
+	const builder = state.transaction('input');
+	builder.insertNode(
+		parentPath,
+		insertIdx,
+		createBlockNode(
+			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
+			[createTextNode('')],
+			newId,
+		),
+	);
+	builder.setSelection(createCollapsedSelection(newId, 0));
+	return builder.build();
+}
+
+/** Inserts text in a new paragraph at a GapCursor position. */
+function insertTextAtGap(
+	state: EditorState,
+	sel: GapCursorSelection,
+	text: string,
+	origin: 'input' | 'paste',
+): Transaction {
+	const path = findNodePath(state.doc, sel.blockId);
+	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+	const siblings =
+		parentPath.length === 0
+			? state.doc.children
+			: (() => {
+					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+					return parent ? parent.children : [];
+				})();
+
+	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
+	const insertIdx: number =
+		sel.side === 'before' ? Math.max(index, 0) : index >= 0 ? index + 1 : siblings.length;
+
+	const newId = generateBlockId();
+	const builder = state.transaction(origin);
+	builder.insertNode(
+		parentPath,
+		insertIdx,
+		createBlockNode(
+			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
+			[createTextNode('')],
+			newId,
+		),
+	);
+	builder.insertText(newId, 0, text, []);
+	builder.setSelection(createCollapsedSelection(newId, text.length));
 	return builder.build();
 }
 
@@ -934,16 +1105,16 @@ export function navigateArrowIntoVoid(
 	// If currently on a NodeSelection, navigate away from it
 	if (isNodeSelection(sel)) {
 		const nodeIdx = blockOrder.indexOf(sel.nodeId);
+		const nodePath = (findNodePath(state.doc, sel.nodeId) ?? []) as BlockId[];
 		if (direction === 'left' || direction === 'up') {
-			// Move to end of previous block
 			if (nodeIdx > 0) {
 				const prevId = blockOrder[nodeIdx - 1];
 				if (!prevId) return null;
+				// Adjacent void → GapCursor between the two voids
 				if (isVoidBlock(state, prevId)) {
-					const path = findNodePath(state.doc, prevId) ?? [];
 					return state
 						.transaction('input')
-						.setSelection(createNodeSelection(prevId, path as BlockId[]))
+						.setSelection(createGapCursor(sel.nodeId, 'before', nodePath))
 						.build();
 				}
 				const prevBlock = state.getBlock(prevId);
@@ -953,23 +1124,34 @@ export function navigateArrowIntoVoid(
 					.setSelection(createCollapsedSelection(prevId, prevLen))
 					.build();
 			}
-			return null;
+			// At document boundary → GapCursor at edge
+			return state
+				.transaction('input')
+				.setSelection(createGapCursor(sel.nodeId, 'before', nodePath))
+				.build();
 		}
 		// right or down
 		if (nodeIdx < blockOrder.length - 1) {
 			const nextId = blockOrder[nodeIdx + 1];
 			if (!nextId) return null;
+			// Adjacent void → GapCursor between the two voids
 			if (isVoidBlock(state, nextId)) {
-				const path = findNodePath(state.doc, nextId) ?? [];
 				return state
 					.transaction('input')
-					.setSelection(createNodeSelection(nextId, path as BlockId[]))
+					.setSelection(createGapCursor(sel.nodeId, 'after', nodePath))
 					.build();
 			}
 			return state.transaction('input').setSelection(createCollapsedSelection(nextId, 0)).build();
 		}
-		return null;
+		// At document boundary → GapCursor at edge
+		return state
+			.transaction('input')
+			.setSelection(createGapCursor(sel.nodeId, 'after', nodePath))
+			.build();
 	}
+
+	// GapCursor is handled by navigateFromGapCursor in CaretNavigation
+	if (isGapCursor(sel)) return null;
 
 	// Text selection: check if navigating into a void block
 	if (!isCollapsed(sel)) return null;

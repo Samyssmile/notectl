@@ -29,6 +29,14 @@ export default defineConfig({
 			testMatch: /angular\/.*\.spec\.ts/,
 		},
 		{
+			name: 'firefox',
+			use: {
+				...devices['Desktop Firefox'],
+				baseURL: 'http://localhost:3000',
+			},
+			testMatch: /arrow-navigation\.spec\.ts/,
+		},
+		{
 			name: 'touch',
 			use: {
 				...devices['Pixel 5'],

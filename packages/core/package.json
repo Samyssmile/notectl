@@ -89,6 +89,10 @@
 		"./plugins/hard-break": {
 			"types": "./dist/plugins/hard-break/index.d.ts",
 			"import": "./dist/plugins/hard-break.mjs"
+		},
+		"./plugins/gap-cursor": {
+			"types": "./dist/plugins/gap-cursor/index.d.ts",
+			"import": "./dist/plugins/gap-cursor.mjs"
 		}
 	},
 	"customElements": "custom-elements.json",
