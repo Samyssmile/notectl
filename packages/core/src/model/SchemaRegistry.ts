@@ -13,9 +13,9 @@ import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
 
-/** Handler for files pasted or dropped into the editor. */
+/** Handler for a single file pasted or dropped into the editor. */
 export type FileHandler = (
-	files: readonly File[],
+	file: File,
 	position: import('./Selection.js').Position | null,
 ) => boolean | Promise<boolean>;
 

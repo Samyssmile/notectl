@@ -79,7 +79,7 @@ describe('PasteHandler file paste', () => {
 		element.dispatchEvent(event);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith([pngFile], null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
