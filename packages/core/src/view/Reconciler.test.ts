@@ -494,6 +494,47 @@ describe('Block wrapper reconciliation', () => {
 		wrapper = container.querySelector('ul[data-block-wrapper]');
 		expect(wrapper?.children.length).toBe(2);
 	});
+
+	it('reconciles wrapped blocks during composition without duplicating DOM nodes', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const blocks1 = [
+			createBlockNode('list_item', [createTextNode('first')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('second')], 'b2', { listType: 'bullet' }),
+		];
+		const blocks2 = [
+			createBlockNode('list_item', [createTextNode('first')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('second!')], 'b2', { listType: 'bullet' }),
+		];
+
+		const state1 = EditorState.create({
+			doc: createDocument(blocks1),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const state2 = EditorState.create({
+			doc: createDocument(blocks2),
+			selection: createCollapsedSelection('b1', 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state1, { registry });
+
+		expect(container.querySelectorAll('[data-block-id="b1"]')).toHaveLength(1);
+		expect(container.querySelectorAll('[data-block-id="b2"]')).toHaveLength(1);
+
+		reconcile(container, state1, state2, {
+			registry,
+			compositionBlockId: blockId('b1'),
+		});
+
+		const wrapper = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapper?.children.length).toBe(2);
+		expect(container.querySelectorAll('[data-block-id="b1"]')).toHaveLength(1);
+		expect(container.querySelectorAll('[data-block-id="b2"]')).toHaveLength(1);
+		expect(wrapper?.textContent).toContain('first');
+		expect(wrapper?.textContent).toContain('second!');
+	});
 });
 
 describe('data-block-type attribute', () => {

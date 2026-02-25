@@ -51,6 +51,48 @@ test.describe('Selection Extension', () => {
 		});
 	});
 
+	test.describe('Shift+Arrow cross-block', () => {
+		test('Shift+ArrowDown extends selection into next block', async ({ editor, page }) => {
+			await editor.typeText('First');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Second', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Move cursor to first block
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('Home');
+			await page.waitForTimeout(100);
+
+			// Extend selection downward across block boundary
+			await page.keyboard.press('Shift+ArrowDown');
+			await page.waitForTimeout(100);
+
+			// Type to replace selection — should replace at least the first block's content
+			await page.keyboard.type('R', { delay: 10 });
+			const text: string = await editor.getText();
+			// "First" should be replaced; some portion of "Second" may remain
+			expect(text).not.toContain('First');
+			expect(text).toContain('R');
+		});
+
+		test('Shift+ArrowUp extends selection into previous block', async ({ editor, page }) => {
+			await editor.typeText('First');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Second', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Cursor is at end of "Second"; extend selection upward
+			await page.keyboard.press('Shift+ArrowUp');
+			await page.waitForTimeout(100);
+
+			// Type to replace — should remove at least part of "Second"
+			await page.keyboard.type('R', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text).not.toContain('Second');
+			expect(text).toContain('R');
+		});
+	});
+
 	test.describe('Shift+Home/End', () => {
 		test('Shift+Home from end selects entire line', async ({ editor, page }) => {
 			await editor.typeText('Hello');
