@@ -260,9 +260,12 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'bad',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware(() => {
-							throw new Error('boom');
-						}, 1);
+						ctx.registerMiddleware(
+							() => {
+								throw new Error('boom');
+							},
+							{ priority: 1, name: 'bad-mw' },
+						);
 					}),
 				}),
 			);
@@ -270,9 +273,12 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'good',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware((_tr, _state, next) => {
-							next(_tr);
-						}, 2);
+						ctx.registerMiddleware(
+							(_tr, _state, next) => {
+								next(_tr);
+							},
+							{ priority: 2, name: 'good-mw' },
+						);
 					}),
 				}),
 			);
@@ -314,10 +320,13 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'mw1',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware((tr, _state, next) => {
-							next(tr);
-							next(tr);
-						}, 1);
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								next(tr);
+								next(tr);
+							},
+							{ priority: 1 },
+						);
 					}),
 				}),
 			);
@@ -325,10 +334,13 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'mw2',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware((tr, _state, next) => {
-							next(tr);
-							next(tr);
-						}, 2);
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								next(tr);
+								next(tr);
+							},
+							{ priority: 2 },
+						);
 					}),
 				}),
 			);
@@ -347,10 +359,13 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'p1',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware((tr, _state, next) => {
-							order.push(2);
-							next(tr);
-						}, 200);
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								order.push(2);
+								next(tr);
+							},
+							{ priority: 200 },
+						);
 					}),
 				}),
 			);
@@ -358,10 +373,13 @@ describe('PluginManager', () => {
 				makePlugin({
 					id: 'p2',
 					init: vi.fn((ctx) => {
-						ctx.registerMiddleware((tr, _state, next) => {
-							order.push(1);
-							next(tr);
-						}, 100);
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								order.push(1);
+								next(tr);
+							},
+							{ priority: 100 },
+						);
 					}),
 				}),
 			);
@@ -369,6 +387,145 @@ describe('PluginManager', () => {
 
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), vi.fn());
 			expect(order).toEqual([1, 2]);
+		});
+
+		it('stores middleware name from options', async () => {
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'named-mw',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								next(tr);
+							},
+							{ name: 'my-guard', priority: 50 },
+						);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			const chain = pm.getMiddlewareChain();
+			expect(chain).toHaveLength(1);
+			expect(chain[0]?.name).toBe('my-guard');
+			expect(chain[0]?.priority).toBe(50);
+			expect(chain[0]?.pluginId).toBe('named-mw');
+		});
+
+		it('falls back to function name when no name option is given', async () => {
+			const pm = new PluginManager();
+
+			function myNamedMiddleware(
+				tr: Parameters<typeof Function>[0],
+				_state: Parameters<typeof Function>[1],
+				next: Parameters<typeof Function>[2],
+			): void {
+				next(tr);
+			}
+
+			pm.register(
+				makePlugin({
+					id: 'fn-named',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware(myNamedMiddleware);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			const chain = pm.getMiddlewareChain();
+			expect(chain[0]?.name).toBe('myNamedMiddleware');
+		});
+
+		it('uses "anonymous" when no name and arrow function', async () => {
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'anon',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware((tr, _state, next) => {
+							next(tr);
+						});
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			const chain = pm.getMiddlewareChain();
+			expect(chain[0]?.name).toBe('anonymous');
+		});
+
+		it('getMiddlewareChain returns entries in priority order', async () => {
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'a',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								next(tr);
+							},
+							{ name: 'high-prio', priority: 200 },
+						);
+					}),
+				}),
+			);
+			pm.register(
+				makePlugin({
+					id: 'b',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware(
+							(tr, _state, next) => {
+								next(tr);
+							},
+							{ name: 'low-prio', priority: 10 },
+						);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			const chain = pm.getMiddlewareChain();
+			expect(chain).toHaveLength(2);
+			expect(chain[0]?.name).toBe('low-prio');
+			expect(chain[1]?.name).toBe('high-prio');
+		});
+
+		it('error log includes middleware name', async () => {
+			const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'err-mw',
+					init: vi.fn((ctx) => {
+						ctx.registerMiddleware(
+							() => {
+								throw new Error('boom');
+							},
+							{ name: 'failing-guard' },
+						);
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), vi.fn());
+			expect(errSpy).toHaveBeenCalledWith(
+				'[PluginManager] Middleware "failing-guard" error:',
+				expect.any(Error),
+			);
+
+			errSpy.mockRestore();
+		});
+
+		it('getMiddlewareChain is empty when no middleware registered', () => {
+			const pm = new PluginManager();
+			expect(pm.getMiddlewareChain()).toEqual([]);
 		});
 	});
 
