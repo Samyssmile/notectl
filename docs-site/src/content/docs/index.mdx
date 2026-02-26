@@ -22,6 +22,11 @@ hero:
 ---
 
 import { Card, CardGrid, LinkCard, Aside, Badge, Tabs, TabItem } from '@astrojs/starlight/components';
+import corePkg from '../../../../packages/core/package.json';
+
+<div style="text-align: center; margin-top: -1rem; margin-bottom: 2rem;">
+	<Badge text={`v${corePkg.version}`} variant="note" size="large" />
+</div>
 
 ## Build editors, not workarounds
 
@@ -55,36 +60,35 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		document.getElementById('editor')!.appendChild(editor);
 		```
 	</TabItem>
-	<TabItem label="Full-Featured">
+	<TabItem label="Full Preset">
+		```ts
+		import { createEditor, createFullPreset, ThemePreset } from '@notectl/core';
+
+		const editor = await createEditor({
+		  ...createFullPreset(),
+		  theme: ThemePreset.Light,
+		  placeholder: 'Start typing...',
+		});
+		document.getElementById('editor')!.appendChild(editor);
+		```
+	</TabItem>
+	<TabItem label="Custom Toolbar">
 		```ts
 		import {
 		  createEditor,
 		  TextFormattingPlugin,
 		  HeadingPlugin,
 		  ListPlugin,
-		  TablePlugin,
 		  LinkPlugin,
-		  FontPlugin,
-		  FontSizePlugin,
-		  TextColorPlugin,
-		  AlignmentPlugin,
-		  BlockquotePlugin,
-		  StrikethroughPlugin,
-		  HorizontalRulePlugin,
-		  STARTER_FONTS,
+		  TablePlugin,
 		} from '@notectl/core';
 
 		const editor = await createEditor({
 		  toolbar: [
 		    [new TextFormattingPlugin()],
 		    [new HeadingPlugin()],
-		    [new ListPlugin(), new BlockquotePlugin()],
+		    [new ListPlugin()],
 		    [new LinkPlugin(), new TablePlugin()],
-		    [new FontPlugin({ fonts: [...STARTER_FONTS] })],
-		    [new FontSizePlugin()],
-		    [new TextColorPlugin()],
-		    [new AlignmentPlugin()],
-		    [new StrikethroughPlugin(), new HorizontalRulePlugin()],
 		  ],
 		});
 		document.getElementById('editor')!.appendChild(editor);
