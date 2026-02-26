@@ -529,6 +529,47 @@ describe('extendCharacterForward', () => {
 		const state = stateBuilder().voidBlock('horizontal_rule', 'hr1').nodeSelection('hr1').build();
 		expect(extendCharacterForward(state)).toBeNull();
 	});
+
+	it('skips InlineNode atomically (+1)', () => {
+		const state = stateBuilder()
+			.blockWithInlines(
+				'paragraph',
+				[
+					{ type: 'text' as const, text: 'A', marks: [] },
+					createInlineNode(inlineType('hard_break')),
+					{ type: 'text' as const, text: 'B', marks: [] },
+				],
+				'b1',
+			)
+			.cursor('b1', 1)
+			.build();
+		const tr = extendCharacterForward(state);
+		if (!tr) {
+			expect.unreachable('Expected non-null transaction');
+			return;
+		}
+		const next = state.apply(tr);
+		expect(next.selection).toEqual(
+			expect.objectContaining({
+				anchor: { blockId: 'b1', offset: 1 },
+				head: { blockId: 'b1', offset: 2 },
+			}),
+		);
+	});
+
+	it('returns null at isolating boundary', () => {
+		const state = stateBuilder()
+			.paragraph('A', 'b1')
+			.block('table', '', 'tbl1')
+			.cursor('b1', 1)
+			.schema(['paragraph', 'table'], [], (t: string) =>
+				t === 'table'
+					? ({ isolating: true } as import('../model/NodeSpec.js').NodeSpec)
+					: undefined,
+			)
+			.build();
+		expect(extendCharacterForward(state)).toBeNull();
+	});
 });
 
 describe('extendCharacterBackward', () => {
@@ -593,6 +634,47 @@ describe('extendCharacterBackward', () => {
 
 	it('returns null at start of document', () => {
 		const state = stateBuilder().paragraph('AB', 'b1').cursor('b1', 0).build();
+		expect(extendCharacterBackward(state)).toBeNull();
+	});
+
+	it('skips InlineNode atomically (-1)', () => {
+		const state = stateBuilder()
+			.blockWithInlines(
+				'paragraph',
+				[
+					{ type: 'text' as const, text: 'A', marks: [] },
+					createInlineNode(inlineType('hard_break')),
+					{ type: 'text' as const, text: 'B', marks: [] },
+				],
+				'b1',
+			)
+			.cursor('b1', 2)
+			.build();
+		const tr = extendCharacterBackward(state);
+		if (!tr) {
+			expect.unreachable('Expected non-null transaction');
+			return;
+		}
+		const next = state.apply(tr);
+		expect(next.selection).toEqual(
+			expect.objectContaining({
+				anchor: { blockId: 'b1', offset: 2 },
+				head: { blockId: 'b1', offset: 1 },
+			}),
+		);
+	});
+
+	it('returns null at isolating boundary', () => {
+		const state = stateBuilder()
+			.block('table', '', 'tbl1')
+			.paragraph('A', 'b1')
+			.cursor('b1', 0)
+			.schema(['table', 'paragraph'], [], (t: string) =>
+				t === 'table'
+					? ({ isolating: true } as import('../model/NodeSpec.js').NodeSpec)
+					: undefined,
+			)
+			.build();
 		expect(extendCharacterBackward(state)).toBeNull();
 	});
 });

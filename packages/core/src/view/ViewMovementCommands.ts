@@ -7,6 +7,7 @@
  */
 
 import {
+	canCrossBlockBoundary,
 	findWordBoundaryBackward,
 	findWordBoundaryForward,
 	isVoidBlock,
@@ -25,11 +26,54 @@ import {
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { canCrossBlockBoundary, navigateAcrossBlocks } from './CaretNavigation.js';
+import { navigateAcrossBlocks } from './CaretNavigation.js';
 import { getSelection, readSelectionFromDOM } from './SelectionSync.js';
 
 type Direction = 'forward' | 'backward';
 type Granularity = 'word' | 'lineboundary' | 'line';
+
+// ---------------------------------------------------------------------------
+// Transaction helpers
+// ---------------------------------------------------------------------------
+
+/** Builds a collapsed-cursor transaction that clears storedMarks. */
+function moveTx(state: EditorState, blockId: BlockId, offset: number): Transaction {
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(blockId, offset))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
+
+/** Builds a NodeSelection transaction that clears storedMarks. */
+function nodeSelTx(state: EditorState, targetId: BlockId): Transaction {
+	const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
+	return state
+		.transaction('input')
+		.setSelection(createNodeSelection(targetId, path))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
+
+/** Builds a range-selection transaction that clears storedMarks. */
+function extendTx(
+	state: EditorState,
+	anchorBlockId: BlockId,
+	anchorOffset: number,
+	headBlockId: BlockId,
+	headOffset: number,
+): Transaction {
+	return state
+		.transaction('input')
+		.setSelection(
+			createSelection(
+				{ blockId: anchorBlockId, offset: anchorOffset },
+				{ blockId: headBlockId, offset: headOffset },
+			),
+		)
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
 
 // ---------------------------------------------------------------------------
 // Core view movement
@@ -89,20 +133,9 @@ export function viewMove(
 		}
 
 		// Void block → NodeSelection
-		if (isVoidBlock(state, newBlockId)) {
-			const path: BlockId[] = (findNodePath(state.doc, newBlockId) ?? []) as BlockId[];
-			return state
-				.transaction('input')
-				.setSelection(createNodeSelection(newBlockId, path))
-				.setStoredMarks(null, state.storedMarks)
-				.build();
-		}
+		if (isVoidBlock(state, newBlockId)) return nodeSelTx(state, newBlockId);
 
-		return state
-			.transaction('input')
-			.setSelection(createCollapsedSelection(newBlockId, newOffset))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
+		return moveTx(state, newBlockId, newOffset);
 	} finally {
 		// Restore original DOM selection (dispatch cycle will set the correct one)
 		try {
@@ -167,16 +200,13 @@ export function viewExtend(
 			}
 		}
 
-		return state
-			.transaction('input')
-			.setSelection(
-				createSelection(
-					{ blockId: sel.anchor.blockId, offset: sel.anchor.offset },
-					{ blockId: newSel.head.blockId, offset: newHeadOffset },
-				),
-			)
-			.setStoredMarks(null, state.storedMarks)
-			.build();
+		return extendTx(
+			state,
+			sel.anchor.blockId,
+			sel.anchor.offset,
+			newSel.head.blockId,
+			newHeadOffset,
+		);
 	} finally {
 		try {
 			domSel.setBaseAndExtent(origAnchor, origAnchorOff, origFocus, origFocusOff);
@@ -248,28 +278,10 @@ function fallbackExtend(
 		if (!targetBlock) return null;
 
 		const targetOffset: number = direction === 'forward' ? 0 : getBlockLength(targetBlock);
-		return state
-			.transaction('input')
-			.setSelection(
-				createSelection(
-					{ blockId: sel.anchor.blockId, offset: sel.anchor.offset },
-					{ blockId: targetId, offset: targetOffset },
-				),
-			)
-			.setStoredMarks(null, state.storedMarks)
-			.build();
+		return extendTx(state, sel.anchor.blockId, sel.anchor.offset, targetId, targetOffset);
 	}
 
-	return state
-		.transaction('input')
-		.setSelection(
-			createSelection(
-				{ blockId: sel.anchor.blockId, offset: sel.anchor.offset },
-				{ blockId: head.blockId, offset: newOffset },
-			),
-		)
-		.setStoredMarks(null, state.storedMarks)
-		.build();
+	return extendTx(state, sel.anchor.blockId, sel.anchor.offset, head.blockId, newOffset);
 }
 
 function fallbackWordMove(state: EditorState, direction: Direction): Transaction | null {
@@ -291,11 +303,7 @@ function fallbackWordMove(state: EditorState, direction: Direction): Transaction
 		return fallbackCrossBlock(state, blockId, direction);
 	}
 
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, newOffset))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
+	return moveTx(state, blockId, newOffset);
 }
 
 /**
@@ -317,24 +325,13 @@ function fallbackCrossBlock(
 	if (!targetId) return null;
 	if (!canCrossBlockBoundary(state, blockId, targetId)) return null;
 
-	if (isVoidBlock(state, targetId)) {
-		const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(targetId, path))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
-	}
+	if (isVoidBlock(state, targetId)) return nodeSelTx(state, targetId);
 
 	const targetBlock = state.getBlock(targetId);
 	if (!targetBlock) return null;
 
 	const targetOffset: number = direction === 'forward' ? 0 : getBlockLength(targetBlock);
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(targetId, targetOffset))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
+	return moveTx(state, targetId, targetOffset);
 }
 
 // ---------------------------------------------------------------------------

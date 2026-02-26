@@ -40,7 +40,11 @@ export class HistoryManager {
 		if (tr.metadata.origin === 'history') return;
 
 		// Skip transactions with no document changes (selection/stored marks only)
-		if (!tr.steps.some((step: Step) => step.type !== 'setStoredMarks')) return;
+		// but break grouping so the next insertion starts a new undo group.
+		if (!tr.steps.some((step: Step) => step.type !== 'setStoredMarks')) {
+			this.lastOrigin = null;
+			return;
+		}
 
 		const now = tr.metadata.timestamp;
 		const lastGroup = this.undoStack[this.undoStack.length - 1];

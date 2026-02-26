@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	getTextDirection,
-	isFirefox,
-	isMac,
-	isWebKit,
-	resetPlatformCache,
-} from './Platform.js';
+import { getTextDirection, isFirefox, isMac, isWebKit, resetPlatformCache } from './Platform.js';
 
 afterEach(() => {
 	resetPlatformCache();

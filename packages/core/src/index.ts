@@ -192,6 +192,7 @@ export {
 	navigateArrowIntoVoid,
 	findWordBoundaryForward,
 	findWordBoundaryBackward,
+	canCrossBlockBoundary,
 } from './commands/Commands.js';
 
 // --- Movement Commands ---
@@ -251,7 +252,6 @@ export {
 	navigateVerticalWithGoalColumn,
 	navigateFromGapCursor,
 	skipInlineNode,
-	canCrossBlockBoundary,
 	getCaretRectFromSelection,
 } from './view/CaretNavigation.js';
 export type { CaretDirection } from './view/CaretNavigation.js';
