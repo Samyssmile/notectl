@@ -11,7 +11,6 @@ import {
 	ImagePlugin,
 	LinkPlugin,
 	ListPlugin,
-	Locale,
 	PrintPlugin,
 	StrikethroughPlugin,
 	SuperSubPlugin,
@@ -70,7 +69,6 @@ const output = document.getElementById('output') as HTMLElement;
 (async () => {
 	const editor = await createEditor({
 		...createFullPreset({ list: { interactiveCheckboxes: true } }),
-		locale: Locale.BROWSER,
 		theme: ThemePreset.Light,
 		placeholder: 'Start typing...',
 		autofocus: true,
