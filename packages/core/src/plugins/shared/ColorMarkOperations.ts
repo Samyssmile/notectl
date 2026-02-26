@@ -17,6 +17,7 @@ import { markType } from '../../model/TypeBrands.js';
 import type { MarkTypeName } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { isValidCSSColor } from './ColorValidation.js';
 
 /** Color mark type names that have `{ color: string }` attrs. */
 type ColorMarkType = {
@@ -65,6 +66,8 @@ export function applyColorMark(
 	markTypeName: ColorMarkType,
 	color: string,
 ): boolean {
+	if (!isValidCSSColor(color)) return false;
+
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
