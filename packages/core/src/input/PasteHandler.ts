@@ -29,6 +29,7 @@ import {
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
@@ -65,6 +66,7 @@ export interface PasteHandlerOptions {
 	getState: GetStateFn;
 	dispatch: DispatchFn;
 	schemaRegistry?: SchemaRegistry;
+	fileHandlerRegistry?: FileHandlerRegistry;
 	isReadOnly?: () => boolean;
 }
 
@@ -72,6 +74,7 @@ export class PasteHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly fileHandlerRegistry?: FileHandlerRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 
@@ -82,6 +85,7 @@ export class PasteHandler {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
 		this.schemaRegistry = options.schemaRegistry;
+		this.fileHandlerRegistry = options.fileHandlerRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 
 		this.handlePaste = this.onPaste.bind(this);
@@ -455,7 +459,7 @@ export class PasteHandler {
 
 	/** Checks for files in clipboard data and delegates to registered handlers. */
 	private handleFilePaste(clipboardData: DataTransfer): boolean {
-		if (!this.schemaRegistry) return false;
+		if (!this.fileHandlerRegistry) return false;
 
 		// Check clipboardData.files first
 		const files: File[] = Array.from(clipboardData.files);
@@ -475,7 +479,7 @@ export class PasteHandler {
 
 		let handled = false;
 		for (const file of files) {
-			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
+			const handlers = this.fileHandlerRegistry.matchFileHandlers(file.type);
 			for (const handler of handlers) {
 				const result = handler(file, null);
 				if (result === true || result instanceof Promise) {

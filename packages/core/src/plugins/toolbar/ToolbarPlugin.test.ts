@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
-import { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../../model/Selection.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -10,6 +9,7 @@ import type { ToolbarItem } from './ToolbarItem.js';
 import { ToolbarOverflowBehavior } from './ToolbarOverflowBehavior.js';
 import { ToolbarPlugin } from './ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from './ToolbarPlugin.js';
+import { ToolbarRegistry } from './ToolbarRegistry.js';
 
 // --- Helpers ---
 
@@ -73,11 +73,11 @@ async function initWithPlugins(
 	return { pm, container };
 }
 
-// --- SchemaRegistry pluginId tracking ---
+// --- ToolbarRegistry pluginId tracking ---
 
-describe('SchemaRegistry toolbar pluginId tracking', () => {
+describe('ToolbarRegistry toolbar pluginId tracking', () => {
 	it('registerToolbarItem tracks pluginId', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		const item = makeToolbarItem({ id: 'bold' });
 		registry.registerToolbarItem(item, 'text-formatting');
 
@@ -87,7 +87,7 @@ describe('SchemaRegistry toolbar pluginId tracking', () => {
 	});
 
 	it('getToolbarItemsByPlugin returns correct items', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		registry.registerToolbarItem(makeToolbarItem({ id: 'bold' }), 'text-formatting');
 		registry.registerToolbarItem(makeToolbarItem({ id: 'italic' }), 'text-formatting');
 		registry.registerToolbarItem(makeToolbarItem({ id: 'heading' }), 'heading');
@@ -97,12 +97,12 @@ describe('SchemaRegistry toolbar pluginId tracking', () => {
 	});
 
 	it('getToolbarItemsByPlugin returns empty array for unknown pluginId', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		expect(registry.getToolbarItemsByPlugin('nonexistent')).toHaveLength(0);
 	});
 
 	it('removeToolbarItem cleans up pluginMap', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		registry.registerToolbarItem(makeToolbarItem({ id: 'bold' }), 'text-formatting');
 		registry.registerToolbarItem(makeToolbarItem({ id: 'italic' }), 'text-formatting');
 
@@ -113,7 +113,7 @@ describe('SchemaRegistry toolbar pluginId tracking', () => {
 	});
 
 	it('removeToolbarItem removes pluginMap entry when last item removed', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		registry.registerToolbarItem(makeToolbarItem({ id: 'bold' }), 'text-formatting');
 
 		registry.removeToolbarItem('bold');
@@ -121,7 +121,7 @@ describe('SchemaRegistry toolbar pluginId tracking', () => {
 	});
 
 	it('clear resets pluginMap', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		registry.registerToolbarItem(makeToolbarItem({ id: 'bold' }), 'text-formatting');
 
 		registry.clear();
@@ -129,7 +129,7 @@ describe('SchemaRegistry toolbar pluginId tracking', () => {
 	});
 
 	it('registerToolbarItem without pluginId still works', () => {
-		const registry = new SchemaRegistry();
+		const registry = new ToolbarRegistry();
 		const item = makeToolbarItem({ id: 'bold' });
 		registry.registerToolbarItem(item);
 

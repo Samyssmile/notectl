@@ -16,19 +16,19 @@ import {
 	selectAll,
 	splitBlockCommand,
 } from '../commands/Commands.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
+import type { KeymapRegistry } from './KeymapRegistry.js';
 
 export interface KeyboardHandlerOptions {
 	getState: GetStateFn;
 	dispatch: DispatchFn;
 	undo: UndoFn;
 	redo: RedoFn;
-	schemaRegistry?: SchemaRegistry;
+	keymapRegistry?: KeymapRegistry;
 	isReadOnly?: () => boolean;
 	compositionTracker?: CompositionTracker;
 }
@@ -38,7 +38,7 @@ export class KeyboardHandler {
 	private readonly dispatch: DispatchFn;
 	private readonly undo: UndoFn;
 	private readonly redo: RedoFn;
-	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly keymapRegistry?: KeymapRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly compositionTracker?: CompositionTracker;
 	private readonly handleKeydown: (e: KeyboardEvent) => void;
@@ -51,7 +51,7 @@ export class KeyboardHandler {
 		this.dispatch = options.dispatch;
 		this.undo = options.undo;
 		this.redo = options.redo;
-		this.schemaRegistry = options.schemaRegistry;
+		this.keymapRegistry = options.keymapRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.compositionTracker = options.compositionTracker;
 
@@ -71,9 +71,9 @@ export class KeyboardHandler {
 
 		// Readonly mode: allow navigation keymaps + escape, block everything else
 		if (this.isReadOnly()) {
-			if (this.schemaRegistry) {
+			if (this.keymapRegistry) {
 				const descriptor: string = normalizeKeyDescriptor(e);
-				const navKeymaps = this.schemaRegistry.getKeymapsByPriority().navigation;
+				const navKeymaps = this.keymapRegistry.getKeymapsByPriority().navigation;
 				for (let i = navKeymaps.length - 1; i >= 0; i--) {
 					const handler = navKeymaps[i]?.[descriptor];
 					if (handler?.()) {
@@ -88,9 +88,9 @@ export class KeyboardHandler {
 
 		// Normal mode: try plugin keymaps in priority order (context > navigation > default).
 		// Within each priority, iterate in reverse so later-registered keymaps take precedence.
-		if (this.schemaRegistry) {
+		if (this.keymapRegistry) {
 			const descriptor: string = normalizeKeyDescriptor(e);
-			const groups = this.schemaRegistry.getKeymapsByPriority();
+			const groups = this.keymapRegistry.getKeymapsByPriority();
 			for (const keymaps of [groups.context, groups.navigation, groups.default]) {
 				for (let i = keymaps.length - 1; i >= 0; i--) {
 					const handler = keymaps[i]?.[descriptor];

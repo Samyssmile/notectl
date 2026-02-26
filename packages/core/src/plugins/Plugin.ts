@@ -3,18 +3,24 @@
  */
 
 import type { DecorationSet } from '../decorations/Decoration.js';
+import type { FileHandler } from '../input/FileHandlerRegistry.js';
+import type { FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
 import type { InputRule } from '../input/InputRule.js';
+import type { InputRuleRegistry } from '../input/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../input/Keymap.js';
+import type { KeymapRegistry } from '../input/KeymapRegistry.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
-import type { FileHandler } from '../model/SchemaRegistry.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewFactory } from '../view/NodeView.js';
+import type { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import type { BlockTypePickerEntry } from './heading/BlockTypePickerEntry.js';
+import type { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.js';
 import type { ToolbarItem } from './toolbar/ToolbarItem.js';
+import type { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 // --- Type-Safe Keys ---
 
@@ -102,6 +108,12 @@ export interface PluginContext {
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 	getSchemaRegistry(): SchemaRegistry;
+	getKeymapRegistry(): KeymapRegistry;
+	getInputRuleRegistry(): InputRuleRegistry;
+	getFileHandlerRegistry(): FileHandlerRegistry;
+	getNodeViewRegistry(): NodeViewRegistry;
+	getToolbarRegistry(): ToolbarRegistry;
+	getBlockTypePickerRegistry(): BlockTypePickerRegistry;
 
 	/** Registers a CSS string to be added to the editor's adopted stylesheets. */
 	registerStyleSheet(css: string): void;

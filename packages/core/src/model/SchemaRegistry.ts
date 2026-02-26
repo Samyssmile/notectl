@@ -1,42 +1,19 @@
 /**
- * SchemaRegistry: central registry for node specs, mark specs, node views,
- * keymaps, input rules, and toolbar items registered by plugins.
+ * SchemaRegistry: central registry for node specs, mark specs,
+ * and inline node specs registered by plugins.
+ *
+ * Model-only — no imports from input/, plugins/, or view/ layers.
  */
 
-import type { InputRule } from '../input/InputRule.js';
-import type { Keymap, KeymapOptions, KeymapPriority } from '../input/Keymap.js';
-import type { BlockTypePickerEntry } from '../plugins/heading/BlockTypePickerEntry.js';
-import type { ToolbarItem } from '../plugins/toolbar/ToolbarItem.js';
-import type { NodeViewFactory } from '../view/NodeView.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
 
-/** Handler for a single file pasted or dropped into the editor. */
-export type FileHandler = (
-	file: File,
-	position: import('./Selection.js').Position | null,
-) => boolean | Promise<boolean>;
-
-export interface FileHandlerEntry {
-	readonly pattern: string;
-	readonly handler: FileHandler;
-}
-
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
 	private readonly _markSpecs = new Map<string, MarkSpec>();
 	private readonly _inlineNodeSpecs = new Map<string, InlineNodeSpec>();
-	private readonly _nodeViews = new Map<string, NodeViewFactory>();
-	private readonly _contextKeymaps: Keymap[] = [];
-	private readonly _navigationKeymaps: Keymap[] = [];
-	private readonly _defaultKeymaps: Keymap[] = [];
-	private readonly _inputRules: InputRule[] = [];
-	private readonly _toolbarItems = new Map<string, ToolbarItem>();
-	private readonly _toolbarItemPluginMap = new Map<string, string[]>();
-	private readonly _fileHandlers: FileHandlerEntry[] = [];
-	private readonly _blockTypePickerEntries = new Map<string, BlockTypePickerEntry>();
 
 	// --- NodeSpec ---
 
@@ -99,184 +76,6 @@ export class SchemaRegistry {
 
 	getInlineNodeTypes(): string[] {
 		return [...this._inlineNodeSpecs.keys()];
-	}
-
-	// --- NodeView ---
-
-	registerNodeView(type: string, factory: NodeViewFactory): void {
-		if (this._nodeViews.has(type)) {
-			throw new Error(`NodeView for type "${type}" is already registered.`);
-		}
-		this._nodeViews.set(type, factory);
-	}
-
-	getNodeViewFactory(type: string): NodeViewFactory | undefined {
-		return this._nodeViews.get(type);
-	}
-
-	removeNodeView(type: string): void {
-		this._nodeViews.delete(type);
-	}
-
-	// --- Keymap ---
-
-	registerKeymap(keymap: Keymap, options?: KeymapOptions): void {
-		const allKeymaps: Keymap[] = [
-			...this._contextKeymaps,
-			...this._navigationKeymaps,
-			...this._defaultKeymaps,
-		];
-		for (const key of Object.keys(keymap)) {
-			for (const existing of allKeymaps) {
-				if (key in existing) {
-					console.debug(
-						`[notectl] Keymap shortcut "${key}" is already registered and will be overridden.`,
-					);
-					break;
-				}
-			}
-		}
-		this.keymapArrayForPriority(options?.priority ?? 'default').push(keymap);
-	}
-
-	/** Returns all keymaps in priority order: context > navigation > default. */
-	getKeymaps(): readonly Keymap[] {
-		return [...this._contextKeymaps, ...this._navigationKeymaps, ...this._defaultKeymaps];
-	}
-
-	/** Returns keymaps grouped by priority level (defensive copies). */
-	getKeymapsByPriority(): {
-		readonly context: readonly Keymap[];
-		readonly navigation: readonly Keymap[];
-		readonly default: readonly Keymap[];
-	} {
-		return {
-			context: [...this._contextKeymaps],
-			navigation: [...this._navigationKeymaps],
-			default: [...this._defaultKeymaps],
-		};
-	}
-
-	removeKeymap(keymap: Keymap): void {
-		for (const arr of [this._contextKeymaps, this._navigationKeymaps, this._defaultKeymaps]) {
-			const idx: number = arr.indexOf(keymap);
-			if (idx !== -1) {
-				arr.splice(idx, 1);
-				return;
-			}
-		}
-	}
-
-	private keymapArrayForPriority(priority: KeymapPriority): Keymap[] {
-		switch (priority) {
-			case 'context':
-				return this._contextKeymaps;
-			case 'navigation':
-				return this._navigationKeymaps;
-			case 'default':
-				return this._defaultKeymaps;
-		}
-	}
-
-	// --- InputRule ---
-
-	registerInputRule(rule: InputRule): void {
-		this._inputRules.push(rule);
-	}
-
-	getInputRules(): readonly InputRule[] {
-		return this._inputRules;
-	}
-
-	removeInputRule(rule: InputRule): void {
-		const idx = this._inputRules.indexOf(rule);
-		if (idx !== -1) this._inputRules.splice(idx, 1);
-	}
-
-	// --- ToolbarItem ---
-
-	registerToolbarItem(item: ToolbarItem, pluginId?: string): void {
-		if (this._toolbarItems.has(item.id)) {
-			throw new Error(`ToolbarItem with id "${item.id}" is already registered.`);
-		}
-		this._toolbarItems.set(item.id, item);
-		if (pluginId) {
-			const ids = this._toolbarItemPluginMap.get(pluginId) ?? [];
-			ids.push(item.id);
-			this._toolbarItemPluginMap.set(pluginId, ids);
-		}
-	}
-
-	getToolbarItemsByPlugin(pluginId: string): ToolbarItem[] {
-		const ids = this._toolbarItemPluginMap.get(pluginId) ?? [];
-		const items: ToolbarItem[] = [];
-		for (const id of ids) {
-			const item = this._toolbarItems.get(id);
-			if (item) items.push(item);
-		}
-		return items;
-	}
-
-	getToolbarItem(id: string): ToolbarItem | undefined {
-		return this._toolbarItems.get(id);
-	}
-
-	getToolbarItems(): ToolbarItem[] {
-		return [...this._toolbarItems.values()];
-	}
-
-	removeToolbarItem(id: string): void {
-		this._toolbarItems.delete(id);
-		for (const [pluginId, ids] of this._toolbarItemPluginMap) {
-			const idx = ids.indexOf(id);
-			if (idx !== -1) {
-				ids.splice(idx, 1);
-				if (ids.length === 0) this._toolbarItemPluginMap.delete(pluginId);
-				break;
-			}
-		}
-	}
-
-	// --- FileHandler ---
-
-	registerFileHandler(pattern: string, handler: FileHandler): void {
-		this._fileHandlers.push({ pattern, handler });
-	}
-
-	getFileHandlers(): readonly FileHandlerEntry[] {
-		return this._fileHandlers;
-	}
-
-	matchFileHandlers(mimeType: string): FileHandler[] {
-		const handlers: FileHandler[] = [];
-		for (const entry of this._fileHandlers) {
-			if (matchMimePattern(entry.pattern, mimeType)) {
-				handlers.push(entry.handler);
-			}
-		}
-		return handlers;
-	}
-
-	removeFileHandler(handler: FileHandler): void {
-		const idx = this._fileHandlers.findIndex((e) => e.handler === handler);
-		if (idx !== -1) this._fileHandlers.splice(idx, 1);
-	}
-
-	// --- BlockTypePickerEntry ---
-
-	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void {
-		if (this._blockTypePickerEntries.has(entry.id)) {
-			throw new Error(`BlockTypePickerEntry with id "${entry.id}" is already registered.`);
-		}
-		this._blockTypePickerEntries.set(entry.id, entry);
-	}
-
-	getBlockTypePickerEntries(): readonly BlockTypePickerEntry[] {
-		return [...this._blockTypePickerEntries.values()].sort((a, b) => a.priority - b.priority);
-	}
-
-	removeBlockTypePickerEntry(id: string): void {
-		this._blockTypePickerEntries.delete(id);
 	}
 
 	// --- Parse Rules & Sanitize Config ---
@@ -368,25 +167,5 @@ export class SchemaRegistry {
 		this._nodeSpecs.clear();
 		this._markSpecs.clear();
 		this._inlineNodeSpecs.clear();
-		this._nodeViews.clear();
-		this._contextKeymaps.length = 0;
-		this._navigationKeymaps.length = 0;
-		this._defaultKeymaps.length = 0;
-		this._inputRules.length = 0;
-		this._toolbarItems.clear();
-		this._toolbarItemPluginMap.clear();
-		this._fileHandlers.length = 0;
-		this._blockTypePickerEntries.clear();
 	}
-}
-
-/** Matches a MIME pattern (e.g. 'image/*') against a concrete MIME type. */
-function matchMimePattern(pattern: string, mimeType: string): boolean {
-	if (pattern === '*' || pattern === '*/*') return true;
-	if (pattern === mimeType) return true;
-	if (pattern.endsWith('/*')) {
-		const prefix = pattern.slice(0, -1);
-		return mimeType.startsWith(prefix);
-	}
-	return false;
 }

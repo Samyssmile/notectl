@@ -271,6 +271,10 @@ export class NotectlEditor extends HTMLElement {
 				this.view = new EditorView(contentEl, {
 					state,
 					schemaRegistry: pluginMgr.schemaRegistry,
+					keymapRegistry: pluginMgr.keymapRegistry,
+					inputRuleRegistry: pluginMgr.inputRuleRegistry,
+					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
+					nodeViewRegistry: pluginMgr.nodeViewRegistry,
 					maxHistoryDepth: this.config.maxHistoryDepth,
 					getDecorations: (s, tr) =>
 						this.pluginManager?.collectDecorations(s, tr) ?? DecorationSet.empty,

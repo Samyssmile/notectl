@@ -138,7 +138,7 @@ describe('ImagePlugin', () => {
 		it('registers image toolbar item', async () => {
 			const plugin = new ImagePlugin();
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			expect(item).toBeDefined();
 			expect(item?.group).toBe('insert');
 			expect(item?.command).toBe('insertImage');
@@ -147,14 +147,14 @@ describe('ImagePlugin', () => {
 		it('toolbar item has popupType custom', async () => {
 			const plugin = new ImagePlugin();
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			expect(item?.popupType).toBe('custom');
 		});
 
 		it('toolbar item has renderPopup function', async () => {
 			const plugin = new ImagePlugin();
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			expect(item).toBeDefined();
 			if (!item) return;
 			expect('renderPopup' in item).toBe(true);
@@ -164,7 +164,7 @@ describe('ImagePlugin', () => {
 		it('renderPopup creates upload button and URL input', async () => {
 			const plugin = new ImagePlugin();
 			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			const container: HTMLDivElement = document.createElement('div');
 			const ctx = mockPluginContext({ getState, dispatch });
 			(item as { renderPopup(c: HTMLElement, ctx: unknown): void }).renderPopup(container, ctx);
@@ -186,7 +186,7 @@ describe('ImagePlugin', () => {
 		it('upload button is keyboard accessible', async () => {
 			const plugin = new ImagePlugin();
 			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			const container: HTMLDivElement = document.createElement('div');
 			const ctx = mockPluginContext({ getState, dispatch });
 			(item as { renderPopup(c: HTMLElement, ctx: unknown): void }).renderPopup(container, ctx);
@@ -201,7 +201,7 @@ describe('ImagePlugin', () => {
 		it('insert button has aria-label', async () => {
 			const plugin = new ImagePlugin();
 			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
-			const item = pm.schemaRegistry.getToolbarItem('image');
+			const item = pm.toolbarRegistry.getToolbarItem('image');
 			const container: HTMLDivElement = document.createElement('div');
 			const ctx = mockPluginContext({ getState, dispatch });
 			(item as { renderPopup(c: HTMLElement, ctx: unknown): void }).renderPopup(container, ctx);
@@ -296,7 +296,7 @@ describe('ImagePlugin', () => {
 		it('registers default keymaps', async () => {
 			const plugin = new ImagePlugin();
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = pm.keymapRegistry.getKeymaps();
 			expect(keymaps.length).toBeGreaterThan(0);
 
 			// Check that at least one keymap contains resize bindings
@@ -311,7 +311,7 @@ describe('ImagePlugin', () => {
 				keymap: { growWidth: 'Mod-Alt-ArrowRight', shrinkWidth: 'Mod-Alt-ArrowLeft' },
 			});
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = pm.keymapRegistry.getKeymaps();
 
 			const hasCustomBinding: boolean = keymaps.some((km) => 'Mod-Alt-ArrowRight' in km);
 			expect(hasCustomBinding).toBe(true);
@@ -322,7 +322,7 @@ describe('ImagePlugin', () => {
 				keymap: { growWidth: null, shrinkWidth: null },
 			});
 			const { pm } = await pluginHarness(plugin, defaultState());
-			const keymaps = pm.schemaRegistry.getKeymaps();
+			const keymaps = pm.keymapRegistry.getKeymaps();
 
 			// Default grow/shrink should not be bound
 			const hasDefaultGrow: boolean = keymaps.some((km) => 'Mod-Shift-ArrowRight' in km);
