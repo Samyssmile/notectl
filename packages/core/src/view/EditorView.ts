@@ -32,6 +32,7 @@ import {
 	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
+import { getTextDirection } from './Platform.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import type { NodeView } from './NodeView.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
@@ -572,9 +573,10 @@ export class EditorView {
 	private handleHorizontalArrow(direction: 'left' | 'right'): boolean {
 		// Reset goalColumn on any horizontal movement
 		this.goalColumn = null;
+		const logicalDirection: 'left' | 'right' = this.resolveLogicalHorizontalDirection(direction);
 
 		// Skip over InlineNodes atomically
-		const inlineSkipTr: Transaction | null = skipInlineNode(this.state, direction);
+		const inlineSkipTr: Transaction | null = skipInlineNode(this.state, logicalDirection);
 		if (inlineSkipTr) {
 			this.dispatch(inlineSkipTr);
 			this.validateSelectionAfterInlineSkip();
@@ -584,12 +586,25 @@ export class EditorView {
 		// Cross-block at textblock boundaries
 		if (!endOfTextblock(this.contentElement, this.state, direction)) return false;
 
-		const tr: Transaction | null = navigateAcrossBlocks(this.state, direction);
+		const tr: Transaction | null = navigateAcrossBlocks(this.state, logicalDirection);
 		if (tr) {
 			this.dispatch(tr);
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Maps visual horizontal arrow intent (left/right key) to logical movement
+	 * direction in offset space for the current block direction.
+	 */
+	private resolveLogicalHorizontalDirection(visual: 'left' | 'right'): 'left' | 'right' {
+		const sel = this.state.selection;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return visual;
+		const blockEl = this.contentElement.querySelector(`[data-block-id="${sel.anchor.blockId}"]`);
+		const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
+		if (!isRtl) return visual;
+		return visual === 'left' ? 'right' : 'left';
 	}
 
 	/** Handles vertical arrow navigation with goalColumn preservation. */

@@ -413,12 +413,7 @@ test.describe('Code Block Plugin', () => {
 		expect(clipboardText).toBe('const x = 42;');
 	});
 
-	test('copy button announces to screen reader', async ({
-		editor,
-		page,
-		context,
-		browserName,
-	}) => {
+	test('copy button announces to screen reader', async ({ editor, page, context, browserName }) => {
 		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
 		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 

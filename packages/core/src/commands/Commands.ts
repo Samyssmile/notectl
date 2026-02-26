@@ -621,6 +621,26 @@ export function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean 
 }
 
 /**
+ * Checks whether navigation between two blocks is allowed.
+ * Prevents crossing isolating boundaries (e.g. table cells).
+ */
+export function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockId): boolean {
+	// A block that is itself isolating cannot be crossed into via arrow keys
+	if (isIsolatingBlock(state, fromId) || isIsolatingBlock(state, toId)) return false;
+
+	const fromInside: boolean = isInsideIsolating(state, fromId);
+	const toInside: boolean = isInsideIsolating(state, toId);
+
+	// One inside isolating, the other not → disallow
+	if (fromInside !== toInside) return false;
+
+	// Both inside isolating → must share the same parent
+	if (fromInside && toInside) return sharesParent(state, fromId, toId);
+
+	return true;
+}
+
+/**
  * Merges the current block with the previous block, respecting
  * isolating boundaries and void blocks.
  */

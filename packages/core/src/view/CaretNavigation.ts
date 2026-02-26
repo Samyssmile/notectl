@@ -6,13 +6,8 @@
  * `navigateVerticalWithGoalColumn()` for column-preserving vertical nav.
  */
 
-import {
-	isInsideIsolating,
-	isIsolatingBlock,
-	isVoidBlock,
-	sharesParent,
-} from '../commands/Commands.js';
-import { getBlockLength, getContentAtOffset } from '../model/Document.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../commands/Commands.js';
+import { type BlockNode, getBlockLength, getContentAtOffset } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import {
 	createCollapsedSelection,
@@ -98,13 +93,7 @@ export function navigateAcrossBlocks(
 	const target: NavigationTarget | null = resolveNavigationTarget(state, direction);
 	if (!target) return null;
 
-	if (target.isVoid) {
-		const path: BlockId[] = (findNodePath(state.doc, target.targetId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(target.targetId, path))
-			.build();
-	}
+	if (target.isVoid) return nodeSelTx(state, target.targetId);
 
 	// Target is text → collapsed selection at start or end
 	const targetBlock = state.getBlock(target.targetId);
@@ -113,10 +102,7 @@ export function navigateAcrossBlocks(
 	const targetOffset: number =
 		direction === 'right' || direction === 'down' ? 0 : getBlockLength(targetBlock);
 
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(target.targetId, targetOffset))
-		.build();
+	return moveTx(state, target.targetId, targetOffset);
 }
 
 /**
@@ -136,13 +122,7 @@ export function navigateVerticalWithGoalColumn(
 	if (!target) return null;
 
 	// Void → NodeSelection (goalColumn irrelevant)
-	if (target.isVoid) {
-		const path: BlockId[] = (findNodePath(state.doc, target.targetId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(target.targetId, path))
-			.build();
-	}
+	if (target.isVoid) return nodeSelTx(state, target.targetId);
 
 	const targetBlock = state.getBlock(target.targetId);
 	if (!targetBlock) return null;
@@ -151,20 +131,12 @@ export function navigateVerticalWithGoalColumn(
 	// Try to resolve position using goalColumn
 	if (goalColumn !== null) {
 		const position = resolveGoalColumnPosition(container, target.targetId, direction, goalColumn);
-		if (position) {
-			return state
-				.transaction('input')
-				.setSelection(createCollapsedSelection(position.blockId, position.offset))
-				.build();
-		}
+		if (position) return moveTx(state, position.blockId, position.offset);
 	}
 
 	// Fallback: start (down) or end (up)
 	const fallbackOffset: number = direction === 'down' ? 0 : blockLen;
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(target.targetId, fallbackOffset))
-		.build();
+	return moveTx(state, target.targetId, fallbackOffset);
 }
 
 /**
@@ -195,55 +167,24 @@ export function skipInlineNode(state: EditorState, direction: CaretDirection): T
 function skipInlineNodeRight(
 	state: EditorState,
 	blockId: BlockId,
-	block: Parameters<typeof getContentAtOffset>[0],
+	block: BlockNode,
 	offset: number,
 ): Transaction | null {
 	const content = getContentAtOffset(block, offset);
 	if (!content || content.kind !== 'inline') return null;
-
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, offset + 1))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
+	return moveTx(state, blockId, offset + 1);
 }
 
 function skipInlineNodeLeft(
 	state: EditorState,
 	blockId: BlockId,
-	block: Parameters<typeof getContentAtOffset>[0],
+	block: BlockNode,
 	offset: number,
 ): Transaction | null {
 	if (offset === 0) return null;
-
 	const content = getContentAtOffset(block, offset - 1);
 	if (!content || content.kind !== 'inline') return null;
-
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, offset - 1))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
-/**
- * Checks whether navigation between two blocks is allowed.
- * Prevents crossing isolating boundaries (e.g. table cells).
- */
-export function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockId): boolean {
-	// A block that is itself isolating cannot be crossed into via arrow keys
-	if (isIsolatingBlock(state, fromId) || isIsolatingBlock(state, toId)) return false;
-
-	const fromInside: boolean = isInsideIsolating(state, fromId);
-	const toInside: boolean = isInsideIsolating(state, toId);
-
-	// One inside isolating, the other not → disallow
-	if (fromInside !== toInside) return false;
-
-	// Both inside isolating → must share the same parent
-	if (fromInside && toInside) return sharesParent(state, fromId, toId);
-
-	return true;
+	return moveTx(state, blockId, offset - 1);
 }
 
 /**
@@ -268,11 +209,7 @@ export function navigateFromGapCursor(
 		(sel.side === 'before' && (direction === 'right' || direction === 'down')) ||
 		(sel.side === 'after' && (direction === 'left' || direction === 'up'));
 
-	if (towardVoid) {
-		// Move into the adjacent void block → NodeSelection
-		const path = (findNodePath(state.doc, sel.blockId) ?? []) as BlockId[];
-		return state.transaction('input').setSelection(createNodeSelection(sel.blockId, path)).build();
-	}
+	if (towardVoid) return nodeSelTx(state, sel.blockId);
 
 	// Moving away from the void block — find the neighbor in the other direction
 	const awayIdx: number = sel.side === 'before' ? blockIdx - 1 : blockIdx + 1;
@@ -282,10 +219,7 @@ export function navigateFromGapCursor(
 	const targetId: BlockId | undefined = blockOrder[awayIdx];
 	if (!targetId) return null;
 
-	if (isVoidBlock(state, targetId)) {
-		const path = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
-		return state.transaction('input').setSelection(createNodeSelection(targetId, path)).build();
-	}
+	if (isVoidBlock(state, targetId)) return nodeSelTx(state, targetId);
 
 	// Text block: place cursor at start or end
 	const targetBlock = state.getBlock(targetId);
@@ -294,10 +228,7 @@ export function navigateFromGapCursor(
 	const targetOffset: number =
 		direction === 'left' || direction === 'up' ? getBlockLength(targetBlock) : 0;
 
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(targetId, targetOffset))
-		.build();
+	return moveTx(state, targetId, targetOffset);
 }
 
 /** Returns the bounding rect of the current caret position, or null. */
@@ -312,6 +243,25 @@ export function getCaretRectFromSelection(domSel: globalThis.Selection): DOMRect
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/** Builds a collapsed-cursor transaction that clears storedMarks. */
+function moveTx(state: EditorState, blockId: BlockId, offset: number): Transaction {
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(blockId, offset))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
+
+/** Builds a NodeSelection transaction that clears storedMarks. */
+function nodeSelTx(state: EditorState, targetId: BlockId): Transaction {
+	const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
+	return state
+		.transaction('input')
+		.setSelection(createNodeSelection(targetId, path))
+		.setStoredMarks(null, state.storedMarks)
+		.build();
+}
 
 /**
  * Resolves the adjacent block in the given direction for cross-block navigation.
@@ -345,11 +295,10 @@ function resolveNavigationTarget(
  * Resolves an editor position in the target block by using the goalColumn
  * X coordinate and `caretPositionFromPoint` / `caretRangeFromPoint`.
  *
- * Includes a validation step: if the resolved position is at offset 0 but
- * the goalColumn is in the right half of the block, the point-to-caret API
- * likely returned an incorrect result (common in shadow DOM). In that case
- * we return `null` to trigger the fallback (block-end for up, block-start
- * for down), which `navigateVerticalWithGoalColumn` handles.
+ * Returns `null` when the point-to-caret API is unavailable, when the
+ * resolved DOM node falls outside the target block, or when the resulting
+ * position doesn't belong to the target block — triggering the fallback
+ * (block-end for up, block-start for down) in `navigateVerticalWithGoalColumn`.
  */
 function resolveGoalColumnPosition(
 	container: HTMLElement,

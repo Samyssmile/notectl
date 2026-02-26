@@ -458,6 +458,7 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerBlockTypePickerEntry: vi.fn(),
 		getSchemaRegistry: vi.fn() as never,
 		announce: overrides?.announce ?? vi.fn(),
+		hasAnnouncement: overrides?.hasAnnouncement ?? vi.fn(() => false),
 		...overrides,
 	} as PluginContext;
 }
