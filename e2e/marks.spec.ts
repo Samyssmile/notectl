@@ -164,23 +164,13 @@ test.describe('Combined Marks', () => {
 
 	test('Marks partially overlapping', async ({ editor, page }) => {
 		await editor.typeText('ABCD');
-		for (let i = 0; i < 4; i++) {
-			await page.keyboard.press('ArrowLeft');
-		}
-		await page.keyboard.press('Shift+ArrowRight');
-		await page.keyboard.press('Shift+ArrowRight');
-		await page.keyboard.press('Shift+ArrowRight');
-		// Allow selection change to sync back to editor state
-		await page.waitForTimeout(100);
+		await editor.selectRange(0, 0, 3);
 		await page.keyboard.press('Control+b');
+		await expect.poll(() => editor.getHTML()).toContain('<strong>');
 
-		await page.keyboard.press('ArrowRight');
-		await page.keyboard.press('ArrowRight');
-		await page.keyboard.press('Shift+ArrowLeft');
-		await page.keyboard.press('Shift+ArrowLeft');
-		await page.keyboard.press('Shift+ArrowLeft');
-		await page.waitForTimeout(100);
+		await editor.selectRange(0, 1, 4);
 		await page.keyboard.press('Control+i');
+		await expect.poll(() => editor.getHTML()).toContain('<em>');
 
 		const html = await editor.getHTML();
 		expect(html).toContain('<strong>');
