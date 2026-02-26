@@ -5,11 +5,12 @@
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
-import { resolveColors } from '../shared/ColorValidation.js';
+import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
 import { TEXT_COLOR_LOCALES, type TextColorLocale } from './TextColorLocale.js';
 
 // --- Attribute Registry Augmentation ---
@@ -157,14 +158,15 @@ export class TextColorPlugin implements Plugin {
 			},
 			toHTMLString: (mark, content) => {
 				const color: string = String(mark.attrs?.color ?? '');
-				return `<span style="color: ${color}">${content}</span>`;
+				if (!color || !isValidCSSColor(color)) return content;
+				return `<span style="color: ${escapeHTML(color)}">${content}</span>`;
 			},
 			parseHTML: [
 				{
 					tag: 'span',
 					getAttrs: (el) => {
 						const color: string = el.style.color;
-						if (!color) return false;
+						if (!color || !isValidCSSColor(color)) return false;
 						return { color };
 					},
 				},

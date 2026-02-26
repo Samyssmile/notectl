@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import type { Mark } from '../model/Document.js';
+import { escapeHTML } from '../model/HTMLUtils.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
+import { blockId, markType, nodeType } from '../model/TypeBrands.js';
+import { isValidCSSColor } from '../plugins/shared/ColorValidation.js';
 import { serializeDocumentToHTML } from './DocumentSerializer.js';
 
 /**
@@ -207,5 +210,133 @@ describe('serializeDocumentToHTML', () => {
 
 		const html: string = serializeDocumentToHTML(doc, registry);
 		expect(html).toBe('<table><tbody><tr><td><p><br></p></td></tr></tbody></table>');
+	});
+
+	// --- Color mark serialization (defense-in-depth validation) ---
+
+	describe('color mark serialization', () => {
+		function createColorMarkRegistry(): SchemaRegistry {
+			const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+				['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+			]);
+
+			const markSpecs = new Map<
+				string,
+				{
+					rank: number;
+					toHTMLString?: (mark: Mark, content: string) => string;
+				}
+			>([
+				[
+					'textColor',
+					{
+						rank: 5,
+						toHTMLString: (mark: Mark, content: string) => {
+							const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+							if (!color || !isValidCSSColor(color)) return content;
+							return `<span style="color: ${escapeHTML(color)}">${content}</span>`;
+						},
+					},
+				],
+				[
+					'highlight',
+					{
+						rank: 4,
+						toHTMLString: (mark: Mark, content: string) => {
+							const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+							if (!color || !isValidCSSColor(color)) return content;
+							return `<span style="background-color: ${escapeHTML(color)}">${content}</span>`;
+						},
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: (type: string) => markSpecs.get(type) ?? undefined,
+				getMarkTypes: () => [...markSpecs.keys()],
+				getAllowedTags: () => ['p', 'br', 'span'],
+				getAllowedAttrs: () => ['style'],
+			} as unknown as SchemaRegistry;
+		}
+
+		it('serializes valid text color', () => {
+			const registry: SchemaRegistry = createColorMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [{ type: markType('textColor'), attrs: { color: '#ff0000' } }]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('style="color: #ff0000"');
+			expect(html).toContain('hello');
+		});
+
+		it('serializes valid highlight color', () => {
+			const registry: SchemaRegistry = createColorMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [{ type: markType('highlight'), attrs: { color: '#fff176' } }]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('style="background-color: #fff176"');
+			expect(html).toContain('hello');
+		});
+
+		it('strips text color span for invalid color value', () => {
+			const registry: SchemaRegistry = createColorMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [
+						{
+							type: markType('textColor'),
+							attrs: { color: 'red; background: url(evil)' },
+						},
+					]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).not.toContain('url(evil)');
+			expect(html).not.toContain('style');
+			expect(html).toContain('hello');
+		});
+
+		it('strips highlight span for invalid color value', () => {
+			const registry: SchemaRegistry = createColorMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [
+						{
+							type: markType('highlight'),
+							attrs: { color: 'expression(alert(1))' },
+						},
+					]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).not.toContain('expression');
+			expect(html).not.toContain('style');
+			expect(html).toContain('hello');
+		});
+
+		it('serializes rgb() color from paste', () => {
+			const registry: SchemaRegistry = createColorMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [
+						{ type: markType('textColor'), attrs: { color: 'rgb(255, 0, 0)' } },
+					]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('color: rgb(255, 0, 0)');
+		});
 	});
 });

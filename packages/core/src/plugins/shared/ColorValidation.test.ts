@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidHexColor, resolveColors } from './ColorValidation.js';
+import { isValidCSSColor, isValidHexColor, resolveColors } from './ColorValidation.js';
 
 const FALLBACK: readonly string[] = ['#aaa', '#bbb', '#ccc'];
 
@@ -35,6 +35,110 @@ describe('ColorValidation', () => {
 
 		it('rejects empty string', () => {
 			expect(isValidHexColor('')).toBe(false);
+		});
+	});
+
+	describe('isValidCSSColor', () => {
+		// --- Hex ---
+		it('accepts 6-digit hex', () => {
+			expect(isValidCSSColor('#ff0000')).toBe(true);
+		});
+
+		it('accepts 3-digit hex', () => {
+			expect(isValidCSSColor('#f00')).toBe(true);
+		});
+
+		it('accepts uppercase hex', () => {
+			expect(isValidCSSColor('#FF00AA')).toBe(true);
+		});
+
+		// --- RGB / RGBA ---
+		it('accepts rgb()', () => {
+			expect(isValidCSSColor('rgb(255, 0, 0)')).toBe(true);
+		});
+
+		it('accepts rgb() without spaces', () => {
+			expect(isValidCSSColor('rgb(255,0,0)')).toBe(true);
+		});
+
+		it('accepts rgba()', () => {
+			expect(isValidCSSColor('rgba(255, 0, 0, 0.5)')).toBe(true);
+		});
+
+		it('accepts rgba() with alpha 0', () => {
+			expect(isValidCSSColor('rgba(0, 0, 0, 0)')).toBe(true);
+		});
+
+		it('accepts rgba() with alpha 1', () => {
+			expect(isValidCSSColor('rgba(0, 0, 0, 1)')).toBe(true);
+		});
+
+		it('accepts rgb() with percentage values', () => {
+			expect(isValidCSSColor('rgb(100%, 0%, 50%)')).toBe(true);
+		});
+
+		// --- HSL / HSLA ---
+		it('accepts hsl()', () => {
+			expect(isValidCSSColor('hsl(120, 100%, 50%)')).toBe(true);
+		});
+
+		it('accepts hsla()', () => {
+			expect(isValidCSSColor('hsla(120, 100%, 50%, 0.5)')).toBe(true);
+		});
+
+		// --- Named colors ---
+		it('accepts named color "red"', () => {
+			expect(isValidCSSColor('red')).toBe(true);
+		});
+
+		it('accepts named color "transparent"', () => {
+			expect(isValidCSSColor('transparent')).toBe(true);
+		});
+
+		it('accepts named color case-insensitively', () => {
+			expect(isValidCSSColor('DarkSlateGray')).toBe(true);
+		});
+
+		it('accepts named color "rebeccapurple"', () => {
+			expect(isValidCSSColor('rebeccapurple')).toBe(true);
+		});
+
+		// --- Rejection: injection strings ---
+		it('rejects CSS injection via semicolon', () => {
+			expect(isValidCSSColor('red; background: url(evil)')).toBe(false);
+		});
+
+		it('rejects expression() injection', () => {
+			expect(isValidCSSColor('expression(alert(1))')).toBe(false);
+		});
+
+		it('rejects url() injection', () => {
+			expect(isValidCSSColor('url(javascript:alert(1))')).toBe(false);
+		});
+
+		it('rejects value with curly braces', () => {
+			expect(isValidCSSColor('red} .evil { color: green')).toBe(false);
+		});
+
+		it('rejects arbitrary strings', () => {
+			expect(isValidCSSColor('not-a-color')).toBe(false);
+		});
+
+		// --- Rejection: edge cases ---
+		it('rejects empty string', () => {
+			expect(isValidCSSColor('')).toBe(false);
+		});
+
+		it('rejects whitespace-only string', () => {
+			expect(isValidCSSColor('   ')).toBe(false);
+		});
+
+		it('rejects hex without hash', () => {
+			expect(isValidCSSColor('ff0000')).toBe(false);
+		});
+
+		it('rejects 4-digit hex', () => {
+			expect(isValidCSSColor('#ff00')).toBe(false);
 		});
 	});
 
