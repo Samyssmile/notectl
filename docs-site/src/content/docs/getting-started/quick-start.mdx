@@ -28,7 +28,41 @@ That's it. The `createEditor` factory auto-registers a `TextFormattingPlugin` wi
 
 ## Full-Featured Editor
 
-For a production editor with a toolbar and all features:
+The fastest way to get a production editor with all plugins is using `createFullPreset()`:
+
+```ts
+import { createEditor, createFullPreset, ThemePreset } from '@notectl/core';
+
+const editor = await createEditor({
+  ...createFullPreset(),
+  theme: ThemePreset.Light,
+  placeholder: 'Start typing...',
+  autofocus: true,
+});
+
+document.getElementById('app').appendChild(editor);
+```
+
+This gives you 8 toolbar groups with all standard plugins (font, text formatting, headings, lists, tables, code blocks, images, and more) plus `HardBreakPlugin` for `Shift+Enter` line breaks.
+
+You can override individual plugin configs:
+
+```ts
+const editor = await createEditor({
+  ...createFullPreset({
+    list: { interactiveCheckboxes: true },
+    heading: { levels: [1, 2, 3] },
+  }),
+  theme: ThemePreset.Dark,
+  placeholder: 'Start typing...',
+});
+```
+
+See the [Plugin Presets](/notectl/guides/presets/) guide for all available options.
+
+## Custom Toolbar Setup
+
+If you need full control over which plugins appear and how they're grouped, configure the toolbar manually:
 
 <Steps>
 1. **Import the plugins you need**
@@ -43,14 +77,7 @@ For a production editor with a toolbar and all features:
      BlockquotePlugin,
      TablePlugin,
      CodeBlockPlugin,
-     StrikethroughPlugin,
-     TextColorPlugin,
-     AlignmentPlugin,
-     HorizontalRulePlugin,
-     FontPlugin,
-     FontSizePlugin,
    } from '@notectl/core';
-   import { STARTER_FONTS } from '@notectl/core/fonts';
    ```
 
 2. **Configure the toolbar layout**
@@ -60,26 +87,12 @@ For a production editor with a toolbar and all features:
    ```ts
    const editor = await createEditor({
      toolbar: [
-       // Group 1: Text formatting
-       [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
-       // Group 2: Block types
+       [new TextFormattingPlugin()],
        [new HeadingPlugin()],
-       // Group 3: Block elements
        [new BlockquotePlugin(), new LinkPlugin()],
-       // Group 4: Lists
        [new ListPlugin()],
-       // Group 5: Tables
        [new TablePlugin()],
-       // Group 6: Code
        [new CodeBlockPlugin()],
-       // Group 7: Inline formatting
-       [new HorizontalRulePlugin(), new StrikethroughPlugin(), new TextColorPlugin()],
-       // Group 7: Typography
-       [
-         new AlignmentPlugin(),
-         new FontPlugin({ fonts: [...STARTER_FONTS] }),
-         new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 16 }),
-       ],
      ],
      placeholder: 'Start typing...',
      autofocus: true,
