@@ -27,9 +27,12 @@ import type { Transaction } from '../state/Transaction.js';
 import {
 	type CaretDirection,
 	endOfTextblock,
+	getCaretRectFromSelection,
 	navigateAcrossBlocks,
+	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
+import { CursorWrapper } from './CursorWrapper.js';
 import type { NodeView } from './NodeView.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
@@ -62,6 +65,8 @@ export class EditorView {
 	private readonly handleMousedown: (e: MouseEvent) => void;
 	private readonly handleDragover: (e: DragEvent) => void;
 	private readonly handleDrop: (e: DragEvent) => void;
+	private readonly handleCompositionStartForWrapper: () => void;
+	private readonly handleCompositionEndForWrapper: () => void;
 	private isUpdating = false;
 	private pendingNodeSelectionClear = false;
 	private pendingGapCursorClear = false;
@@ -72,6 +77,9 @@ export class EditorView {
 	private readonly isReadOnly: () => boolean;
 	private navigationKeymap: Record<string, () => boolean> | null = null;
 	readonly compositionTracker: CompositionTracker = new CompositionTracker();
+	private readonly cursorWrapper: CursorWrapper;
+	private goalColumn: number | null = null;
+	private preserveGoalColumn = false;
 
 	constructor(contentElement: HTMLElement, options: EditorViewOptions) {
 		this.state = options.state;
@@ -119,6 +127,17 @@ export class EditorView {
 			isReadOnly: this.isReadOnly,
 		});
 
+		this.cursorWrapper = new CursorWrapper(contentElement, this.schemaRegistry);
+
+		this.handleCompositionStartForWrapper = () => {
+			this.cursorWrapper.onCompositionStart(this.state);
+		};
+		this.handleCompositionEndForWrapper = () => {
+			this.cursorWrapper.cleanup();
+		};
+		contentElement.addEventListener('compositionstart', this.handleCompositionStartForWrapper);
+		contentElement.addEventListener('compositionend', this.handleCompositionEndForWrapper);
+
 		this.handleSelectionChange = this.onSelectionChange.bind(this);
 		document.addEventListener('selectionchange', this.handleSelectionChange);
 
@@ -162,6 +181,11 @@ export class EditorView {
 			const oldState = this.state;
 			this.state = newState;
 
+			// Clean up stale CursorWrapper when storedMarks are cleared by a dispatch
+			if (this.cursorWrapper.isActive && !newState.storedMarks?.length) {
+				this.cursorWrapper.cleanup();
+			}
+
 			if (options?.pushHistory && tr.metadata.origin !== 'history') {
 				this.history.push(tr);
 			}
@@ -184,6 +208,10 @@ export class EditorView {
 
 			for (const cb of this.stateChangeCallbacks) {
 				cb(oldState, newState, tr);
+			}
+			// Reset goalColumn unless a vertical navigation is in progress
+			if (!this.preserveGoalColumn) {
+				this.goalColumn = null;
 			}
 		} finally {
 			this.isUpdating = false;
@@ -255,6 +283,11 @@ export class EditorView {
 		// During IME composition, do not override the DOM selection
 		if (this.compositionTracker.isComposing) return;
 
+		// Selection change outside composition means CursorWrapper is stale
+		if (this.cursorWrapper.isActive) {
+			this.cursorWrapper.cleanup();
+		}
+
 		// If NodeSelection or GapCursor is active, preserve it — DOM selectionchange should not override.
 		// Exception: after mousedown on a non-selectable block, allow the DOM selection to take over.
 		if (isNodeSelection(this.state.selection) && !this.pendingNodeSelectionClear) return;
@@ -282,6 +315,7 @@ export class EditorView {
 	/** Handles mousedown on selectable/void blocks to create NodeSelection. */
 	private onMousedown(e: MouseEvent): void {
 		if (this.isUpdating) return;
+		this.goalColumn = null;
 		const target = e.target;
 		if (!(target instanceof HTMLElement)) return;
 
@@ -525,10 +559,21 @@ export class EditorView {
 		// GapCursor arrows are handled by GapCursorPlugin keymap
 		if (isGapCursor(this.state.selection)) return false;
 
-		// Non-collapsed selections are Phase 4 (Shift+Arrow)
+		// Non-collapsed: plain arrows collapse the selection (browser handles this)
 		if (!isCollapsed(this.state.selection)) return false;
 
-		// Phase 2: skip over InlineNodes atomically
+		if (direction === 'left' || direction === 'right') {
+			return this.handleHorizontalArrow(direction);
+		}
+		return this.handleVerticalArrow(direction);
+	}
+
+	/** Handles horizontal arrow navigation: InlineNode skip + cross-block. */
+	private handleHorizontalArrow(direction: 'left' | 'right'): boolean {
+		// Reset goalColumn on any horizontal movement
+		this.goalColumn = null;
+
+		// Skip over InlineNodes atomically
 		const inlineSkipTr: Transaction | null = skipInlineNode(this.state, direction);
 		if (inlineSkipTr) {
 			this.dispatch(inlineSkipTr);
@@ -536,7 +581,7 @@ export class EditorView {
 			return true;
 		}
 
-		// Phase 1: cross-block at textblock boundaries
+		// Cross-block at textblock boundaries
 		if (!endOfTextblock(this.contentElement, this.state, direction)) return false;
 
 		const tr: Transaction | null = navigateAcrossBlocks(this.state, direction);
@@ -544,6 +589,37 @@ export class EditorView {
 			this.dispatch(tr);
 			return true;
 		}
+		return false;
+	}
+
+	/** Handles vertical arrow navigation with goalColumn preservation. */
+	private handleVerticalArrow(direction: 'up' | 'down'): boolean {
+		// Read caret rect once — used for both boundary check and goalColumn
+		const domSel: globalThis.Selection | null =
+			this.contentElement.ownerDocument.getSelection?.() ?? null;
+		const caretRect: DOMRect | null = domSel ? getCaretRectFromSelection(domSel) : null;
+
+		if (!endOfTextblock(this.contentElement, this.state, direction, caretRect)) return false;
+
+		// Capture goalColumn from current caret position (only on first vertical move)
+		if (this.goalColumn === null && caretRect) {
+			this.goalColumn = caretRect.left;
+		}
+
+		this.preserveGoalColumn = true;
+		const tr: Transaction | null = navigateVerticalWithGoalColumn(
+			this.contentElement,
+			this.state,
+			direction,
+			this.goalColumn,
+		);
+
+		if (tr) {
+			this.dispatch(tr);
+			this.preserveGoalColumn = false;
+			return true;
+		}
+		this.preserveGoalColumn = false;
 		return false;
 	}
 
@@ -571,10 +647,16 @@ export class EditorView {
 
 	/** Cleans up all event listeners and handlers. */
 	destroy(): void {
+		this.cursorWrapper.cleanup();
 		this.inputHandler.destroy();
 		this.keyboardHandler.destroy();
 		this.pasteHandler.destroy();
 		this.clipboardHandler.destroy();
+		this.contentElement.removeEventListener(
+			'compositionstart',
+			this.handleCompositionStartForWrapper,
+		);
+		this.contentElement.removeEventListener('compositionend', this.handleCompositionEndForWrapper);
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
 		this.contentElement.removeEventListener('mousedown', this.handleMousedown);
 		this.contentElement.removeEventListener('dragover', this.handleDragover);

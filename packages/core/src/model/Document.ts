@@ -436,6 +436,34 @@ export function* walkInlineContent(children: readonly (TextNode | InlineNode)[])
 	}
 }
 
+/**
+ * Converts a block-space offset to a text-space offset.
+ *
+ * Block-space counts InlineNodes as width 1, but `getBlockText()` skips them.
+ * This function maps a block offset to the equivalent position in the
+ * text-only string returned by `getBlockText()`.
+ */
+export function blockOffsetToTextOffset(block: BlockNode, blockOffset: number): number {
+	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
+	let blockPos = 0;
+	let textPos = 0;
+
+	for (const child of inlineChildren) {
+		if (isInlineNode(child)) {
+			if (blockPos >= blockOffset) return textPos;
+			blockPos += 1;
+		} else {
+			if (blockPos + child.text.length >= blockOffset) {
+				return textPos + (blockOffset - blockPos);
+			}
+			blockPos += child.text.length;
+			textPos += child.text.length;
+		}
+	}
+
+	return textPos;
+}
+
 /** Returns the content at a specific offset: text char, inline node, or null. */
 export function getContentAtOffset(
 	block: BlockNode,

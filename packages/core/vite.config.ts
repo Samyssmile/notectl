@@ -23,6 +23,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/super-sub': resolve(__dirname, 'src/plugins/super-sub/index.ts'),
 	'plugins/hard-break': resolve(__dirname, 'src/plugins/hard-break/index.ts'),
 	'plugins/gap-cursor': resolve(__dirname, 'src/plugins/gap-cursor/index.ts'),
+	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
 };
 
 export default defineConfig({

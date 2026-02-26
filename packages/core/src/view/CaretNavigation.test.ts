@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { type Mock, describe, expect, it, vi } from 'vitest';
 import { createInlineNode, createTextNode } from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { isCollapsed, isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
@@ -9,6 +9,7 @@ import {
 	endOfTextblock,
 	navigateAcrossBlocks,
 	navigateFromGapCursor,
+	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
 
@@ -128,6 +129,76 @@ describe('endOfTextblock', () => {
 		// In happy-dom there's no Selection.modify, so fallback returns false
 		expect(endOfTextblock(dummyContainer(), state, 'up')).toBe(false);
 		expect(endOfTextblock(dummyContainer(), state, 'down')).toBe(false);
+	});
+
+	describe('RTL direction support', () => {
+		function rtlContainer(blockId: string, text: string): HTMLElement {
+			const div: HTMLElement = document.createElement('div');
+			const blockEl: HTMLElement = document.createElement('p');
+			blockEl.setAttribute('data-block-id', blockId);
+			blockEl.setAttribute('dir', 'rtl');
+			blockEl.textContent = text;
+			div.appendChild(blockEl);
+
+			// Mock getComputedStyle to return RTL direction
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+				direction: 'rtl',
+			} as CSSStyleDeclaration);
+
+			return div;
+		}
+
+		it('returns true for left at block end in RTL mode', () => {
+			const state = stateBuilder()
+				.paragraph('שלום', 'b1')
+				.cursor('b1', 4)
+				.schema(['paragraph'], [])
+				.build();
+
+			const cont: HTMLElement = rtlContainer('b1', 'שלום');
+			expect(endOfTextblock(cont, state, 'left')).toBe(true);
+
+			vi.restoreAllMocks();
+		});
+
+		it('returns false for left at offset 0 in RTL mode', () => {
+			const state = stateBuilder()
+				.paragraph('שלום', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph'], [])
+				.build();
+
+			const cont: HTMLElement = rtlContainer('b1', 'שלום');
+			expect(endOfTextblock(cont, state, 'left')).toBe(false);
+
+			vi.restoreAllMocks();
+		});
+
+		it('returns true for right at offset 0 in RTL mode', () => {
+			const state = stateBuilder()
+				.paragraph('שלום', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph'], [])
+				.build();
+
+			const cont: HTMLElement = rtlContainer('b1', 'שלום');
+			expect(endOfTextblock(cont, state, 'right')).toBe(true);
+
+			vi.restoreAllMocks();
+		});
+
+		it('returns false for right at block end in RTL mode', () => {
+			const state = stateBuilder()
+				.paragraph('שלום', 'b1')
+				.cursor('b1', 4)
+				.schema(['paragraph'], [])
+				.build();
+
+			const cont: HTMLElement = rtlContainer('b1', 'שלום');
+			expect(endOfTextblock(cont, state, 'right')).toBe(false);
+
+			vi.restoreAllMocks();
+		});
 	});
 });
 
@@ -786,5 +857,97 @@ describe('navigateFromGapCursor', () => {
 
 		const newState = state.apply(tr);
 		expect(isNodeSelection(newState.selection)).toBe(true);
+	});
+});
+
+// --- navigateVerticalWithGoalColumn ---
+
+describe('navigateVerticalWithGoalColumn', () => {
+	it('falls back to offset 0 when navigating down with goalColumn=null', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.paragraph('World', 'b2')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', null);
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b2');
+			expect(newState.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('falls back to block end when navigating up with goalColumn=null', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.paragraph('World', 'b2')
+			.cursor('b2', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'up', null);
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		if (!isNodeSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(5);
+		}
+	});
+
+	it('creates NodeSelection for void block target', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.block('image', '', 'img1', { attrs: { src: 'x.png', alt: '' } })
+			.cursor('b1', 5)
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', 100);
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isNodeSelection(newState.selection)).toBe(true);
+		if (isNodeSelection(newState.selection)) {
+			expect(newState.selection.nodeId).toBe('img1');
+		}
+	});
+
+	it('returns null at document boundary (down)', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', 50);
+		expect(tr).toBeNull();
+	});
+
+	it('returns null at document boundary (up)', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph'], [])
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'up', 50);
+		expect(tr).toBeNull();
+	});
+
+	it('returns null when blocked by isolating boundary', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.block('table', '', 'tbl1')
+			.cursor('b1', 5)
+			.schema(['paragraph', 'table'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', 50);
+		expect(tr).toBeNull();
 	});
 });

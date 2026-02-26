@@ -1,6 +1,7 @@
 import {
 	AlignmentPlugin,
 	BlockquotePlugin,
+	CaretNavigationPlugin,
 	CodeBlockPlugin,
 	FontPlugin,
 	FontSizePlugin,
@@ -117,7 +118,7 @@ const output = document.getElementById('output') as HTMLElement;
 			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
 			[new PrintPlugin()],
 		],
-		plugins: [new HardBreakPlugin(), new GapCursorPlugin()],
+		plugins: [new HardBreakPlugin(), new GapCursorPlugin(), new CaretNavigationPlugin()],
 		placeholder: 'Start typing...',
 		autofocus: true,
 	});
