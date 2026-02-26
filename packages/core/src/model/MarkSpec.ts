@@ -17,6 +17,12 @@ export interface MarkSpec<T extends string = string> {
 	readonly attrs?: Readonly<Record<string, AttrSpec>>;
 	/** Serializes the mark as an HTML wrapper. `content` is the pre-serialized inner HTML. */
 	readonly toHTMLString?: (mark: Mark, content: string) => string;
+	/**
+	 * Returns a CSS style declaration for this mark (e.g. `"color: red"`).
+	 * When defined, the serializer merges all `toHTMLStyle` results into a single
+	 * `<span style="...">` instead of nesting separate wrappers per mark.
+	 */
+	readonly toHTMLStyle?: (mark: Mark) => string | null;
 	/** Rules for matching HTML elements to this mark type during parsing. */
 	readonly parseHTML?: readonly ParseRule[];
 	/** Tags and attributes this spec needs through DOMPurify sanitization. */

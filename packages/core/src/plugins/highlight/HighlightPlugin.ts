@@ -139,6 +139,11 @@ export class HighlightPlugin implements Plugin {
 				if (!color || !isValidCSSColor(color)) return content;
 				return `<span style="background-color: ${escapeHTML(color)}">${content}</span>`;
 			},
+			toHTMLStyle: (mark) => {
+				const color: string = String(mark.attrs?.color ?? '');
+				if (!color || !isValidCSSColor(color)) return null;
+				return `background-color: ${escapeHTML(color)}`;
+			},
 			parseHTML: [
 				{
 					tag: 'span',

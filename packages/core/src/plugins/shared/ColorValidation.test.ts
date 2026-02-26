@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isValidCSSColor, isValidHexColor, resolveColors } from './ColorValidation.js';
+import {
+	isValidCSSColor,
+	isValidCSSFontFamily,
+	isValidCSSFontSize,
+	isValidHexColor,
+	resolveColors,
+} from './ColorValidation.js';
 
 const FALLBACK: readonly string[] = ['#aaa', '#bbb', '#ccc'];
 
@@ -181,6 +187,82 @@ describe('ColorValidation', () => {
 		it('accepts shorthand hex colors', () => {
 			const result = resolveColors(['#f00', '#0f0'], FALLBACK, 'Test');
 			expect(result).toEqual(['#f00', '#0f0']);
+		});
+	});
+
+	describe('isValidCSSFontFamily', () => {
+		it('accepts simple font family', () => {
+			expect(isValidCSSFontFamily('Arial')).toBe(true);
+		});
+
+		it('accepts quoted font family with fallback', () => {
+			expect(isValidCSSFontFamily("'Fira Code', monospace")).toBe(true);
+		});
+
+		it('rejects value with curly braces', () => {
+			expect(isValidCSSFontFamily('Arial} .evil { color: red')).toBe(false);
+		});
+
+		it('rejects value with semicolon', () => {
+			expect(isValidCSSFontFamily('Arial; background: url(evil)')).toBe(false);
+		});
+
+		it('rejects url() injection', () => {
+			expect(isValidCSSFontFamily('url(evil)')).toBe(false);
+		});
+
+		it('rejects expression() injection', () => {
+			expect(isValidCSSFontFamily('expression(alert(1))')).toBe(false);
+		});
+
+		it('rejects empty string', () => {
+			expect(isValidCSSFontFamily('')).toBe(false);
+		});
+
+		it('rejects whitespace-only', () => {
+			expect(isValidCSSFontFamily('   ')).toBe(false);
+		});
+
+		it('rejects value with angle brackets', () => {
+			expect(isValidCSSFontFamily('Arial<script>')).toBe(false);
+		});
+	});
+
+	describe('isValidCSSFontSize', () => {
+		it('accepts 16px', () => {
+			expect(isValidCSSFontSize('16px')).toBe(true);
+		});
+
+		it('accepts 1.5em', () => {
+			expect(isValidCSSFontSize('1.5em')).toBe(true);
+		});
+
+		it('accepts 12pt', () => {
+			expect(isValidCSSFontSize('12pt')).toBe(true);
+		});
+
+		it('accepts 100%', () => {
+			expect(isValidCSSFontSize('100%')).toBe(true);
+		});
+
+		it('accepts 0.875rem', () => {
+			expect(isValidCSSFontSize('0.875rem')).toBe(true);
+		});
+
+		it('rejects expression()', () => {
+			expect(isValidCSSFontSize('expression(alert(1))')).toBe(false);
+		});
+
+		it('rejects arbitrary string', () => {
+			expect(isValidCSSFontSize('large')).toBe(false);
+		});
+
+		it('rejects empty string', () => {
+			expect(isValidCSSFontSize('')).toBe(false);
+		});
+
+		it('rejects number without unit', () => {
+			expect(isValidCSSFontSize('16')).toBe(false);
 		});
 	});
 });

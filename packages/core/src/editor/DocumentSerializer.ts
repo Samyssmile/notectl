@@ -5,18 +5,26 @@
 
 import DOMPurify from 'dompurify';
 import { isNodeOfType } from '../model/AttrRegistry.js';
-import type { BlockNode, Document, InlineNode, Mark, TextNode } from '../model/Document.js';
+import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
 	getBlockChildren,
 	getInlineChildren,
 	isInlineNode,
 	isLeafBlock,
+	isTextNode,
+	markSetsEqual,
 } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { buildMarkOrder, serializeMarksToHTML } from './MarkSerializer.js';
 
 /** Known-safe alignment values accepted by the serializer (defense-in-depth). */
-const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['left', 'center', 'right', 'justify']);
+export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set([
+	'left',
+	'center',
+	'right',
+	'justify',
+]);
 
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
 export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
@@ -34,32 +42,115 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
 /** Serializes a sequence of blocks to HTML, grouping consecutive list items into wrappers. */
 function serializeBlocks(blocks: readonly BlockNode[], registry?: SchemaRegistry): string {
 	const parts: string[] = [];
-	let currentListTag: string | null = null;
+	let i = 0;
 
-	for (const block of blocks) {
+	while (i < blocks.length) {
+		const block: BlockNode | undefined = blocks[i];
+		if (!block) {
+			i++;
+			continue;
+		}
+
 		if (isNodeOfType(block, 'list_item')) {
-			const listType = block.attrs.listType;
-			const tag: string = listType === 'ordered' ? 'ol' : 'ul';
-
-			if (currentListTag !== tag) {
-				if (currentListTag) parts.push(`</${currentListTag}>`);
-				parts.push(`<${tag}>`);
-				currentListTag = tag;
+			// Collect consecutive list items
+			const listItems: BlockNode[] = [];
+			while (i < blocks.length) {
+				const item: BlockNode | undefined = blocks[i];
+				if (!item || !isNodeOfType(item, 'list_item')) break;
+				listItems.push(item);
+				i++;
 			}
-
-			parts.push(serializeBlock(block, registry));
+			parts.push(serializeListGroup(listItems, registry));
 		} else {
-			if (currentListTag) {
-				parts.push(`</${currentListTag}>`);
-				currentListTag = null;
-			}
 			parts.push(serializeBlock(block, registry));
+			i++;
 		}
 	}
 
-	if (currentListTag) parts.push(`</${currentListTag}>`);
+	return parts.join('');
+}
+
+/**
+ * Serializes a group of consecutive list items into properly nested `<ul>`/`<ol>` wrappers.
+ * Uses a stack-based algorithm to handle indent-based nesting.
+ * Produces valid HTML5: nested lists open *inside* the parent `<li>`.
+ */
+function serializeListGroup(items: readonly BlockNode[], registry?: SchemaRegistry): string {
+	const parts: string[] = [];
+	const stack: { tag: string; indent: number }[] = [];
+
+	for (let idx = 0; idx < items.length; idx++) {
+		const item: BlockNode | undefined = items[idx];
+		if (!item) continue;
+
+		const listType: string = (item.attrs?.listType as string) ?? 'bullet';
+		const indent: number = (item.attrs?.indent as number) ?? 0;
+		const tag: string = listType === 'ordered' ? 'ol' : 'ul';
+
+		// Pop wrapper levels that are deeper than current indent,
+		// or at the same level when the tag type changes
+		while (stack.length > 0) {
+			const top: { tag: string; indent: number } | undefined = stack[stack.length - 1];
+			if (!top) break;
+
+			if (top.indent > indent) {
+				parts.push(`</${top.tag}></li>`);
+				stack.pop();
+			} else if (top.indent === indent && top.tag !== tag) {
+				parts.push(`</${top.tag}></li>`);
+				stack.pop();
+			} else {
+				break;
+			}
+		}
+
+		if (stack.length === 0) {
+			parts.push(`<${tag}>`);
+			stack.push({ tag, indent });
+		} else {
+			const top: { tag: string; indent: number } | undefined = stack[stack.length - 1];
+			if (top && indent > top.indent) {
+				parts.push(`<${tag}>`);
+				stack.push({ tag, indent });
+			}
+		}
+
+		const content: string = serializeBlock(item, registry);
+
+		// Look ahead: if the next item is deeper, strip </li> so the nested
+		// list opens inside this <li> (valid HTML5 nesting).
+		const nextItem: BlockNode | undefined = items[idx + 1];
+		const nextIndent: number | undefined = nextItem
+			? ((nextItem.attrs?.indent as number) ?? 0)
+			: undefined;
+
+		if (nextIndent !== undefined && nextIndent > indent) {
+			parts.push(stripTrailingLiClose(content));
+		} else {
+			parts.push(content);
+		}
+	}
+
+	// Close all remaining open wrappers
+	while (stack.length > 0) {
+		const top: { tag: string; indent: number } | undefined = stack.pop();
+		if (!top) break;
+		parts.push(`</${top.tag}>`);
+		if (stack.length > 0) {
+			parts.push('</li>');
+		}
+	}
 
 	return parts.join('');
+}
+
+/** Removes the trailing `</li>` from serialized list item HTML. */
+function stripTrailingLiClose(html: string): string {
+	const suffix = '</li>';
+	if (html.endsWith(suffix)) {
+		return html.slice(0, -suffix.length);
+	}
+	return html;
 }
 
 /** Serializes a single block to HTML using its NodeSpec. */
@@ -76,11 +167,13 @@ function serializeBlock(block: BlockNode, registry?: SchemaRegistry): string {
 		html = `<p>${content || '<br>'}</p>`;
 	}
 
-	// Inject align style into the first opening tag (validated against allowlist)
+	// Inject align style into the first opening tag (validated against allowlist).
+	// Skip if the spec's toHTML already emitted a text-align style.
 	const align: string | undefined = (block.attrs as Record<string, unknown>)?.align as
 		| string
 		| undefined;
-	if (align && align !== 'left' && VALID_ALIGNMENTS.has(align)) {
+	const alreadyHasAlign: boolean = /style="[^"]*text-align:/.test(html);
+	if (align && align !== 'left' && VALID_ALIGNMENTS.has(align) && !alreadyHasAlign) {
 		html = html.replace(/>/, ` style="text-align: ${align}">`);
 	}
 
@@ -90,51 +183,56 @@ function serializeBlock(block: BlockNode, registry?: SchemaRegistry): string {
 /** Serializes inline children (TextNode + InlineNode) of a block. */
 function serializeInlineContent(block: BlockNode, registry?: SchemaRegistry): string {
 	const children: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
+	const merged: readonly (TextNode | InlineNode)[] = mergeAdjacentTextNodes(children);
 	const parts: string[] = [];
+	const markOrder: Map<string, number> | undefined = registry
+		? buildMarkOrder(registry)
+		: undefined;
 
-	for (const child of children) {
+	for (const child of merged) {
 		if (isInlineNode(child)) {
 			const inlineSpec = registry?.getInlineNodeSpec(child.inlineType);
 			if (inlineSpec?.toHTMLString) {
 				parts.push(inlineSpec.toHTMLString(child));
 			}
-		} else {
-			parts.push(serializeTextNode(child, registry));
+		} else if (registry) {
+			parts.push(serializeMarksToHTML(child.text, child.marks, registry, markOrder));
+		} else if (child.text !== '') {
+			parts.push(escapeHTML(child.text));
 		}
 	}
 
 	return parts.join('');
 }
 
-/** Serializes a text node, wrapping it with mark tags sorted by rank. */
-function serializeTextNode(node: TextNode, registry?: SchemaRegistry): string {
-	if (node.text === '') return '';
+/**
+ * Merges adjacent TextNodes that share identical mark sets.
+ * InlineNodes act as merge boundaries.
+ */
+function mergeAdjacentTextNodes(
+	children: readonly (TextNode | InlineNode)[],
+): readonly (TextNode | InlineNode)[] {
+	if (children.length <= 1) return children;
 
-	let html: string = escapeHTML(node.text);
+	const result: (TextNode | InlineNode)[] = [];
 
-	const markOrder: Map<string, number> = getMarkOrder(registry);
-	const sortedMarks: Mark[] = [...node.marks].sort(
-		(a, b) => (markOrder.get(a.type) ?? 99) - (markOrder.get(b.type) ?? 99),
-	);
+	for (const child of children) {
+		if (isInlineNode(child)) {
+			result.push(child);
+			continue;
+		}
 
-	for (const mark of sortedMarks) {
-		const markSpec = registry?.getMarkSpec(mark.type);
-		if (markSpec?.toHTMLString) {
-			html = markSpec.toHTMLString(mark, html);
+		const prev: TextNode | InlineNode | undefined = result[result.length - 1];
+		if (prev && isTextNode(prev) && markSetsEqual(prev.marks, child.marks)) {
+			result[result.length - 1] = {
+				type: 'text',
+				text: prev.text + child.text,
+				marks: prev.marks,
+			};
+		} else {
+			result.push(child);
 		}
 	}
 
-	return html;
-}
-
-/** Builds a map of mark type name to rank from the registry. */
-function getMarkOrder(registry?: SchemaRegistry): Map<string, number> {
-	if (!registry) return new Map();
-	const types = registry.getMarkTypes();
-	const order = new Map<string, number>();
-	for (const t of types) {
-		const spec = registry.getMarkSpec(t);
-		if (spec) order.set(t, spec.rank ?? 99);
-	}
-	return order;
+	return result;
 }

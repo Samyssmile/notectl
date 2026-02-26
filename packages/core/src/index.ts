@@ -597,6 +597,10 @@ export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
 // --- Announcer ---
 export { getBlockTypeLabel } from './editor/Announcer.js';
 
+// --- HTML Serialization / Parsing ---
+export { serializeDocumentToHTML, VALID_ALIGNMENTS } from './editor/DocumentSerializer.js';
+export { parseHTMLToDocument } from './editor/DocumentParser.js';
+
 // --- Editor ---
 export type {
 	NotectlEditorConfig,

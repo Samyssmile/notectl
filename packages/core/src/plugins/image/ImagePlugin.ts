@@ -165,7 +165,9 @@ export class ImagePlugin implements Plugin {
 					(width !== undefined ? ` width="${width}"` : '') +
 					(height !== undefined ? ` height="${height}"` : '');
 
-				return `<figure class="notectl-image notectl-image--${escapeHTML(align)}"><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
+				const alignStyle: string = align ? ` style="text-align: ${escapeHTML(align)}"` : '';
+
+				return `<figure${alignStyle}><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
 			},
 			parseHTML: [
 				{
@@ -183,8 +185,15 @@ export class ImagePlugin implements Plugin {
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
 
-						if (el.classList.contains('notectl-image--left')) attrs.align = 'left';
-						if (el.classList.contains('notectl-image--right')) attrs.align = 'right';
+						// Check inline style first (new format), then class names (legacy)
+						const textAlign: string = el.style?.textAlign ?? '';
+						if (textAlign === 'left' || textAlign === 'right' || textAlign === 'center') {
+							attrs.align = textAlign;
+						} else if (el.classList.contains('notectl-image--left')) {
+							attrs.align = 'left';
+						} else if (el.classList.contains('notectl-image--right')) {
+							attrs.align = 'right';
+						}
 						return attrs;
 					},
 				},
@@ -206,7 +215,7 @@ export class ImagePlugin implements Plugin {
 			],
 			sanitize: {
 				tags: ['figure', 'img'],
-				attrs: ['src', 'alt', 'width', 'height', 'class'],
+				attrs: ['src', 'alt', 'width', 'height', 'class', 'style'],
 			},
 		});
 	}

@@ -10,6 +10,7 @@ import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { isMarkOfType } from '../../model/AttrRegistry.js';
 import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
 import {
 	isCollapsed,
 	isGapCursor,
@@ -19,6 +20,7 @@ import {
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import { FONT_LOCALES, type FontLocale } from './FontLocale.js';
 
@@ -135,8 +137,13 @@ export class FontPlugin implements Plugin {
 			},
 			toHTMLString: (mark, content) => {
 				const family: string = String(mark.attrs?.family ?? '');
-				if (!family) return content;
-				return `<span style="font-family: ${family}">${content}</span>`;
+				if (!family || !isValidCSSFontFamily(family)) return content;
+				return `<span style="font-family: ${escapeHTML(family)}">${content}</span>`;
+			},
+			toHTMLStyle: (mark) => {
+				const family: string = String(mark.attrs?.family ?? '');
+				if (!family || !isValidCSSFontFamily(family)) return null;
+				return `font-family: ${escapeHTML(family)}`;
 			},
 			parseHTML: [
 				{
