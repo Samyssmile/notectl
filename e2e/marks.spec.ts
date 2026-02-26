@@ -45,7 +45,6 @@ for (const mark of MARK_CONFIGS) {
 			const html = await editor.getHTML();
 			expect(html).toContain(mark.htmlTag);
 		});
-
 	});
 }
 
