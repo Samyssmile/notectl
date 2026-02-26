@@ -21,9 +21,9 @@ import {
 	ThemePreset,
 	ToolbarPlugin,
 	createEditor,
+	createFullPreset,
 } from '@notectl/core';
-import type { FontDefinition, StateChangeEvent } from '@notectl/core';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import type { StateChangeEvent } from '@notectl/core';
 
 declare global {
 	interface Window {
@@ -45,25 +45,6 @@ declare global {
 		ImagePlugin: typeof ImagePlugin;
 	}
 }
-
-// -- Custom font example: Inter (variable font served from public/fonts/) --
-const INTER: FontDefinition = {
-	name: 'Inter',
-	family: "'Inter', sans-serif",
-	category: 'sans-serif',
-	fontFaces: [
-		{
-			src: "url('/fonts/Inter-Variable.ttf') format('truetype')",
-			weight: '100 900',
-			style: 'normal',
-		},
-		{
-			src: "url('/fonts/Inter-Italic-Variable.ttf') format('truetype')",
-			weight: '100 900',
-			style: 'italic',
-		},
-	],
-};
 
 // Expose plugin classes on window for e2e tests
 window.ToolbarPlugin = ToolbarPlugin;
@@ -88,35 +69,9 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const editor = await createEditor({
+		...createFullPreset({ list: { interactiveCheckboxes: true } }),
 		locale: Locale.BROWSER,
 		theme: ThemePreset.Light,
-		toolbar: [
-			[
-				new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
-				new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 12 }),
-			],
-			[
-				new TextFormattingPlugin({ bold: true, italic: true, underline: true }),
-				new StrikethroughPlugin(),
-				new SuperSubPlugin(),
-			],
-			[new TextColorPlugin(), new HighlightPlugin()],
-			[
-				new HeadingPlugin(),
-				new BlockquotePlugin(),
-				new CodeBlockPlugin({
-					keymap: {
-						insertAfter: 'Mod-Shift-Enter',
-						toggle: 'Mod-Shift-C',
-					},
-				}),
-			],
-			[new AlignmentPlugin()],
-			[new ListPlugin({ interactiveCheckboxes: true })],
-			[new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
-			[new PrintPlugin()],
-		],
-		plugins: [new HardBreakPlugin()],
 		placeholder: 'Start typing...',
 		autofocus: true,
 	});
