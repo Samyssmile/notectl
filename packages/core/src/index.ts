@@ -603,3 +603,12 @@ export type {
 	StateChangeEvent,
 } from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';
+
+// --- Presets ---
+export type {
+	PresetConfig,
+	MinimalPresetOptions,
+	FullPresetOptions,
+} from './presets/PresetTypes.js';
+export { createMinimalPreset } from './presets/MinimalPreset.js';
+export { createFullPreset } from './presets/FullPreset.js';

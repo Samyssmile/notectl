@@ -92,6 +92,29 @@ Plugins register through the `PluginContext`:
 | `isReadOnly()` | Check read-only state | Skip mutations in read-only mode |
 | `updateConfig()` | Push runtime config updates | Dynamic plugin reconfiguration |
 
+## Plugin Presets
+
+The fastest way to get all plugins is with `createFullPreset()`:
+
+```ts
+import { createEditor, createFullPreset } from '@notectl/core';
+
+const editor = await createEditor({
+  ...createFullPreset(),
+  placeholder: 'Start typing...',
+});
+```
+
+This gives you all standard plugins organized into 8 toolbar groups. Override individual plugin configs as needed:
+
+```ts
+const editor = await createEditor({
+  ...createFullPreset({ list: { interactiveCheckboxes: true } }),
+});
+```
+
+See the [Plugin Presets](/notectl/guides/presets/) guide for details.
+
 ## Plugin Composition
 
 Use plugins with the `toolbar` config for a visual toolbar:
