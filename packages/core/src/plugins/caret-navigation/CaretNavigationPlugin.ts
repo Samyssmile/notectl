@@ -220,10 +220,7 @@ export class CaretNavigationPlugin implements Plugin {
 	}
 
 	/** Dispatches a view-based move command with visual direction mapping for RTL. */
-	private viewMoveVisual(
-		visual: 'left' | 'right',
-		granularity: 'word' | 'lineboundary',
-	): boolean {
+	private viewMoveVisual(visual: 'left' | 'right', granularity: 'word' | 'lineboundary'): boolean {
 		if (!this.context) return false;
 		const dir: 'forward' | 'backward' = this.resolveLogicalHorizontalDirection(
 			this.context.getState(),
@@ -281,7 +278,9 @@ export class CaretNavigationPlugin implements Plugin {
 		if (isNodeSelection(sel) || isGapCursor(sel)) {
 			return visual === 'left' ? 'backward' : 'forward';
 		}
-		const blockEl: Element | null = this.context?.getContainer().querySelector(
+		const container: HTMLElement | undefined = this.context?.getContainer();
+		if (!container) return visual === 'left' ? 'backward' : 'forward';
+		const blockEl: Element | null = container.querySelector(
 			`[data-block-id="${sel.head.blockId}"]`,
 		);
 		const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';

@@ -1,8 +1,11 @@
 import { expect, test } from './fixtures/editor-page';
 
-test.beforeEach(async ({ context, browserName }) => {
-	test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test.beforeEach(async ({ context }) => {
+	try {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	} catch {
+		// Best-effort: some browsers do not expose clipboard permissions via Playwright.
+	}
 });
 
 type JsonChild = {
@@ -226,11 +229,13 @@ test.describe('Copy list from table cell → paste outside table', () => {
 		await page.keyboard.press('Shift+End');
 		await page.keyboard.press('Control+c');
 
-		// Navigate outside the table (Escape exits table, then ArrowDown)
+		// Navigate outside the table (Escape), create a deterministic paragraph target, paste there.
 		await page.keyboard.press('Escape');
 		await page.waitForTimeout(100);
+		await page.keyboard.press('Enter');
+		await page.waitForTimeout(100);
 
-		// The escape paragraph should be after the table — paste there
+		// Paste into the paragraph after the table
 		await page.keyboard.press('Control+v');
 		await page.waitForTimeout(300);
 

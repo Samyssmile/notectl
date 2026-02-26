@@ -32,9 +32,10 @@ import {
 	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
-import { getTextDirection } from './Platform.js';
 import { CursorWrapper } from './CursorWrapper.js';
+import { domPositionFromPoint } from './DomPointUtils.js';
 import type { NodeView } from './NodeView.js';
+import { getTextDirection } from './Platform.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
 
@@ -474,32 +475,11 @@ export class EditorView {
 	/** Converts screen coordinates to an editor Position. */
 	private getPositionFromPoint(x: number, y: number): Position | null {
 		const root = this.contentElement.getRootNode() as Document | ShadowRoot;
+		const domPoint = domPositionFromPoint(root, x, y);
+		if (!domPoint) return null;
+		if (!this.contentElement.contains(domPoint.node)) return null;
 
-		let domNode: Node | null = null;
-		let domOffset = 0;
-
-		// Standard API (caretPositionFromPoint)
-		if ('caretPositionFromPoint' in root) {
-			const cp = (root as Document).caretPositionFromPoint(x, y);
-			if (cp) {
-				domNode = cp.offsetNode;
-				domOffset = cp.offset;
-			}
-		}
-
-		// Fallback (caretRangeFromPoint)
-		if (!domNode && 'caretRangeFromPoint' in root) {
-			const range = (root as Document).caretRangeFromPoint(x, y);
-			if (range) {
-				domNode = range.startContainer;
-				domOffset = range.startOffset;
-			}
-		}
-
-		if (!domNode) return null;
-		if (!this.contentElement.contains(domNode)) return null;
-
-		return domPositionToState(this.contentElement, domNode, domOffset);
+		return domPositionToState(this.contentElement, domPoint.node, domPoint.offset);
 	}
 
 	/** Handles DOM selection changes (clicks, arrow keys). */

@@ -8,6 +8,7 @@ import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
 import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
 import { type Document, getBlockText } from '../model/Document.js';
+import { formatHTML } from '../model/HTMLUtils.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
 import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
@@ -338,9 +339,13 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	getHTML(): string {
+	override getHTML(options?: GetHTMLOptions & { pretty?: boolean }): string {
 		if (!this.view) throw new Error('Editor not initialized');
-		return serializeDocumentToHTML(this.view.getState().doc, this.pluginManager?.schemaRegistry);
+		const html: string = serializeDocumentToHTML(
+			this.view.getState().doc,
+			this.pluginManager?.schemaRegistry,
+		);
+		return options?.pretty ? formatHTML(html) : html;
 	}
 
 	/** Sets content from HTML (sanitized). */

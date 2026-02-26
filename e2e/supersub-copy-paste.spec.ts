@@ -8,9 +8,11 @@ type JsonChild = {
 };
 
 test.describe('Superscript/Subscript copy & paste', () => {
-	test.beforeEach(async ({ context, browserName }) => {
-		if (browserName !== 'firefox') {
+	test.beforeEach(async ({ context }) => {
+		try {
 			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		} catch {
+			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
 		}
 	});
 
@@ -32,13 +34,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		expect(html).toContain('2');
 	});
 
-	test('type + superscript + copy + paste preserves mark', async ({
-		editor,
-		page,
-		browserName,
-	}) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-
+	test('type + superscript + copy + paste preserves mark', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('x', { delay: 10 });
 		await page.keyboard.press('Control+.');
@@ -60,9 +56,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		expect(supCount).toBeGreaterThanOrEqual(2);
 	});
 
-	test('type + subscript + copy + paste preserves mark', async ({ editor, page, browserName }) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-
+	test('type + subscript + copy + paste preserves mark', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('H', { delay: 10 });
 		await page.keyboard.press('Control+,');

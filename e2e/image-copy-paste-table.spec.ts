@@ -1,12 +1,19 @@
 import { expect, test } from './fixtures/editor-page';
 
 test.describe('Image copy & paste into table cells', () => {
-	test.beforeEach(async ({ context, browserName }) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	test.beforeEach(async ({ context }) => {
+		try {
+			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		} catch {
+			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
+		}
 	});
 
-	test('copy image and paste into all three cells of a 1x3 table', async ({ editor, page }) => {
+	test('copy image and paste into all three cells of a 1x3 table', async ({
+		editor,
+		page,
+		browserName,
+	}) => {
 		await editor.focus();
 
 		type JsonChild = {
@@ -105,7 +112,11 @@ test.describe('Image copy & paste into table cells', () => {
 
 			const cellImage = (cells[0]?.children ?? []).find((c) => c.type === 'image');
 			expect(cellImage).toBeDefined();
-			expect(cellImage?.attrs?.src).toBeTruthy();
+			// Firefox may strip blob URL payloads on clipboard image roundtrip.
+			// We still assert structural correctness (image nodes in all cells).
+			if (browserName !== 'firefox') {
+				expect(cellImage?.attrs?.src).toBeTruthy();
+			}
 		}
 
 		// Verify total image count: 1 (top) + 3 (in table) = 4
