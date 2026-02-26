@@ -299,6 +299,7 @@ export { ToolbarOverflowBehavior } from './plugins/toolbar/ToolbarOverflowBehavi
 export type { ToolbarOverflowBehavior as ToolbarOverflowBehaviorType } from './plugins/toolbar/ToolbarOverflowBehavior.js';
 export type {
 	ToolbarItem,
+	ToolbarItemCombobox,
 	ToolbarGroup,
 	PopupType,
 	GridPickerConfig,

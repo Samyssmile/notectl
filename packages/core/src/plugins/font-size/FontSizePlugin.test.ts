@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EditorState } from '../../state/EditorState.js';
 import {
+	expectComboboxLabel,
 	expectCommandDispatches,
 	expectMarkSpec,
 	expectToolbarActive,
@@ -107,8 +108,28 @@ describe('FontSizePlugin', () => {
 				group: 'format',
 				label: 'Font Size',
 				priority: 6,
-				popupType: 'custom',
+				popupType: 'combobox',
 			});
+		});
+
+		it('combobox label shows default size', async () => {
+			const plugin = new FontSizePlugin();
+			const h = await pluginHarness(plugin);
+			expectComboboxLabel(h, 'fontSize', '16');
+		});
+
+		it('combobox label shows active size', async () => {
+			const state = stateBuilder()
+				.paragraph('sized', 'b1', {
+					marks: [{ type: 'fontSize', attrs: { size: '24px' } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['fontSize'])
+				.build();
+
+			const plugin = new FontSizePlugin();
+			const h = await pluginHarness(plugin, state);
+			expectComboboxLabel(h, 'fontSize', '24');
 		});
 
 		it('toolbar item reports active state when text has fontSize', async () => {
@@ -222,9 +243,7 @@ describe('FontSizePlugin', () => {
 		it('uses custom defaultSize in toolbar combo label', async () => {
 			const plugin = new FontSizePlugin({ sizes: [12, 16, 24], defaultSize: 12 });
 			const h = await pluginHarness(plugin);
-
-			const item = h.getToolbarItem('fontSize');
-			expect(item?.icon).toContain('12');
+			expectComboboxLabel(h, 'fontSize', '12');
 		});
 
 		it('defaultSize is shown in popup input when no mark is active', async () => {

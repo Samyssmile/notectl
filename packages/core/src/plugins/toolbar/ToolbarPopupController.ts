@@ -49,6 +49,9 @@ export class ToolbarPopupController {
 			case 'custom':
 				item.renderPopup(popup, context, () => this.close());
 				break;
+			case 'combobox':
+				item.renderPopup(popup, context, () => this.close());
+				break;
 		}
 
 		this.positionAndAppend(popup, button);

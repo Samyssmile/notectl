@@ -210,6 +210,24 @@ export function expectToolbarEnabled(
 	expect(item?.isEnabled?.(testState)).toBe(enabled);
 }
 
+/**
+ * Assert that a combobox toolbar item's `getLabel()` returns the expected value.
+ */
+export function expectComboboxLabel(
+	harness: PluginHarnessResult,
+	itemId: string,
+	expectedLabel: string,
+	state?: EditorState,
+): void {
+	const item = harness.getToolbarItem(itemId);
+	expect(item, `Toolbar item '${itemId}' should be registered`).toBeDefined();
+	expect(item?.popupType, `Toolbar item '${itemId}' should be a combobox`).toBe('combobox');
+	if (item?.popupType === 'combobox') {
+		const testState: EditorState = state ?? harness.getState();
+		expect(item.getLabel(testState)).toBe(expectedLabel);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Keymap assertions
 // ---------------------------------------------------------------------------

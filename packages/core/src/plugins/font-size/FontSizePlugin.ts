@@ -7,7 +7,6 @@
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import { FONT_SIZE_LOCALES, type FontSizeLocale } from './FontSizeLocale.js';
@@ -69,7 +68,6 @@ export class FontSizePlugin implements Plugin {
 	private readonly defaultSize: number;
 	private locale!: FontSizeLocale;
 	private context: PluginContext | null = null;
-	private comboLabel: HTMLSpanElement | null = null;
 
 	constructor(config?: Partial<FontSizeConfig>) {
 		this.config = { ...config };
@@ -91,11 +89,6 @@ export class FontSizePlugin implements Plugin {
 
 	destroy(): void {
 		this.context = null;
-		this.comboLabel = null;
-	}
-
-	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
-		this.updateComboLabel(newState);
 	}
 
 	// --- Schema ---
@@ -170,18 +163,17 @@ export class FontSizePlugin implements Plugin {
 	// --- Toolbar ---
 
 	private registerToolbarItem(context: PluginContext): void {
-		const icon: string = `<span class="notectl-font-size-select__label" data-font-size-label>${this.defaultSize}</span><span class="notectl-font-size-select__arrow">\u25BE</span>`;
-
 		context.registerToolbarItem({
 			id: 'fontSize',
 			group: 'format',
-			icon,
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeFontSize',
 			priority: 6,
-			popupType: 'custom',
+			popupType: 'combobox',
 			separatorAfter: this.config.separatorAfter,
+			getLabel: (state: EditorState): string =>
+				String(getActiveSizeNumeric(state, this.defaultSize)),
 			renderPopup: (container, ctx) => {
 				renderFontSizePopup(container, ctx, {
 					sizes: this.sizes,
@@ -207,18 +199,6 @@ export class FontSizePlugin implements Plugin {
 	private dismissPopup(): void {
 		const toolbar = this.context?.getService(ToolbarServiceKey);
 		toolbar?.closePopup();
-	}
-
-	private updateComboLabel(state: EditorState): void {
-		if (!this.comboLabel) {
-			const container: HTMLElement | undefined = this.context?.getPluginContainer('top');
-			if (!container) return;
-			this.comboLabel = container.querySelector<HTMLSpanElement>('[data-font-size-label]') ?? null;
-			if (!this.comboLabel) return;
-		}
-
-		const activeSize: number = getActiveSizeNumeric(state, this.defaultSize);
-		this.comboLabel.textContent = String(activeSize);
 	}
 }
 

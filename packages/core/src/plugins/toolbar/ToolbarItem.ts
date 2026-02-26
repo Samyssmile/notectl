@@ -17,7 +17,7 @@ export interface DropdownConfig {
 }
 
 export type ToolbarGroup = 'format' | 'block' | 'insert' | (string & {});
-export type PopupType = 'gridPicker' | 'dropdown' | 'custom';
+export type PopupType = 'gridPicker' | 'dropdown' | 'custom' | 'combobox';
 
 interface ToolbarItemBase {
 	readonly id: string;
@@ -63,11 +63,22 @@ interface ToolbarItemCustomPopup extends ToolbarItemBase {
 	renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
 }
 
+export interface ToolbarItemCombobox extends Omit<ToolbarItemBase, 'icon'> {
+	readonly popupType: 'combobox';
+	/** Optional icon — combobox items typically display a text label instead. */
+	readonly icon?: string;
+	/** Pure function returning the current label text. Called on every state change. */
+	getLabel(state: EditorState): string;
+	/** Renders the popup content when the combobox is opened. */
+	renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+}
+
 export type ToolbarItem =
 	| ToolbarItemNoPopup
 	| ToolbarItemGridPicker
 	| ToolbarItemDropdown
-	| ToolbarItemCustomPopup;
+	| ToolbarItemCustomPopup
+	| ToolbarItemCombobox;
 
 /**
  * Formats a keymap binding string into a human-readable shortcut,

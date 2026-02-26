@@ -10,14 +10,11 @@
 import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
-import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
 import {
 	registerHeadingPickerEntries,
 	registerHeadingToolbarItem,
-	updateComboLabel,
 } from './HeadingBlockTypePicker.js';
 import { registerHeadingCommands } from './HeadingCommands.js';
 import { registerHeadingInputRules } from './HeadingInputRules.js';
@@ -70,8 +67,6 @@ export class HeadingPlugin implements Plugin {
 
 	private readonly config: HeadingConfig;
 	private locale!: HeadingLocale;
-	private context: PluginContext | null = null;
-	private comboLabel: HTMLSpanElement | null = null;
 
 	constructor(config?: Partial<HeadingConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -80,7 +75,6 @@ export class HeadingPlugin implements Plugin {
 	init(context: PluginContext): void {
 		this.locale = resolvePluginLocale(HEADING_LOCALES, context, this.config.locale);
 		context.registerStyleSheet(HEADING_SELECT_CSS);
-		this.context = context;
 
 		this.registerNodeSpecs(context);
 		registerHeadingCommands(context, this.config);
@@ -88,16 +82,6 @@ export class HeadingPlugin implements Plugin {
 		registerHeadingInputRules(context, this.config);
 		registerHeadingPickerEntries(context, this.config, this.locale);
 		registerHeadingToolbarItem(context, this.config, this.locale);
-	}
-
-	destroy(): void {
-		this.context = null;
-		this.comboLabel = null;
-	}
-
-	onStateChange(_oldState: EditorState, _newState: EditorState, _tr: Transaction): void {
-		if (!this.context) return;
-		this.comboLabel = updateComboLabel(_newState, this.context, this.locale, this.comboLabel);
 	}
 
 	private registerNodeSpecs(context: PluginContext): void {

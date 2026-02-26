@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	expectComboboxLabel,
 	expectMarkSpec,
 	expectToolbarActive,
 	expectToolbarItem,
@@ -167,8 +168,26 @@ describe('FontPlugin', () => {
 				group: 'format',
 				label: 'Font',
 				priority: 5,
-				popupType: 'custom',
+				popupType: 'combobox',
 			});
+		});
+
+		it('combobox label shows default font name', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			expectComboboxLabel(h, 'font', 'Test Font');
+		});
+
+		it('combobox label shows active font name', async () => {
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: "'Mono', monospace" } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
+
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			expectComboboxLabel(h, 'font', 'Mono');
 		});
 
 		it('toolbar item reports active state when text has font', async () => {

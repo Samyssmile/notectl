@@ -5,7 +5,7 @@ import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin } from '../Plugin.js';
 import { PluginManager } from '../PluginManager.js';
-import type { ToolbarItem } from './ToolbarItem.js';
+import type { ToolbarItem, ToolbarItemCombobox } from './ToolbarItem.js';
 import { ToolbarOverflowBehavior } from './ToolbarOverflowBehavior.js';
 import { ToolbarPlugin } from './ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from './ToolbarPlugin.js';
@@ -447,6 +447,89 @@ describe('ToolbarPlugin', () => {
 			expect(buttonsAfter).toHaveLength(2);
 			expect(buttonsAfter[0]?.getAttribute('data-toolbar-item')).toBe('a1');
 			expect(buttonsAfter[1]?.getAttribute('data-toolbar-item')).toBe('a2');
+		});
+	});
+
+	describe('combobox buttons', () => {
+		function makeComboboxItem(overrides?: Partial<ToolbarItemCombobox>): ToolbarItemCombobox {
+			return {
+				id: 'combo-test',
+				group: 'format',
+				label: 'Combo',
+				command: 'cmd-combo',
+				popupType: 'combobox',
+				getLabel: () => 'Default Label',
+				renderPopup: vi.fn(),
+				...overrides,
+			};
+		}
+
+		it('renders combobox button with label and arrow spans', async () => {
+			const comboItem: ToolbarItemCombobox = makeComboboxItem();
+			const pluginA = createFakePlugin('plugin-a', [comboItem]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+			const btn = toolbarEl.querySelector('[data-toolbar-item="combo-test"]') as HTMLButtonElement;
+
+			expect(btn).not.toBeNull();
+
+			const labelSpan = btn.querySelector('.notectl-toolbar-combobox__label');
+			expect(labelSpan).not.toBeNull();
+			expect(labelSpan?.textContent).toBe('Default Label');
+
+			const arrowSpan = btn.querySelector('.notectl-toolbar-combobox__arrow');
+			expect(arrowSpan).not.toBeNull();
+			expect(arrowSpan?.textContent).toBe('\u25BE');
+		});
+
+		it('combobox button has role="combobox" and aria-haspopup="listbox"', async () => {
+			const comboItem: ToolbarItemCombobox = makeComboboxItem();
+			const pluginA = createFakePlugin('plugin-a', [comboItem]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+			const btn = toolbarEl.querySelector('[data-toolbar-item="combo-test"]') as HTMLButtonElement;
+
+			expect(btn.getAttribute('role')).toBe('combobox');
+			expect(btn.getAttribute('aria-haspopup')).toBe('listbox');
+		});
+
+		it('arrow span has aria-hidden="true"', async () => {
+			const comboItem: ToolbarItemCombobox = makeComboboxItem();
+			const pluginA = createFakePlugin('plugin-a', [comboItem]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+			const arrowSpan = toolbarEl.querySelector('.notectl-toolbar-combobox__arrow');
+
+			expect(arrowSpan?.getAttribute('aria-hidden')).toBe('true');
+		});
+
+		it('updateButtonStates updates combobox label on state change', async () => {
+			let currentLabel = 'Initial';
+			const comboItem: ToolbarItemCombobox = makeComboboxItem({
+				getLabel: () => currentLabel,
+			});
+			const pluginA = createFakePlugin('plugin-a', [comboItem]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			const labelSpan = toolbarEl.querySelector('.notectl-toolbar-combobox__label');
+			expect(labelSpan?.textContent).toBe('Initial');
+
+			// Change the label and simulate state change
+			currentLabel = 'Updated';
+			const state = makeState();
+			const tr = state.transaction('input').insertText('b1', 0, 'x').build();
+			toolbar.onStateChange(state, state.apply(tr), tr);
+
+			expect(labelSpan?.textContent).toBe('Updated');
 		});
 	});
 });
