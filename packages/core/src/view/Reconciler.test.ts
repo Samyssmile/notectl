@@ -618,3 +618,21 @@ describe('Selectable block rendering', () => {
 		expect(el.getAttribute('data-selectable')).toBe('true');
 	});
 });
+
+describe('CursorWrapper stale removal', () => {
+	it('renderBlockContent removes stale data-cursor-wrapper elements', () => {
+		const block = createBlockNode('paragraph', [createTextNode('Hello')]);
+		const container = document.createElement('div');
+
+		// Simulate a stale CursorWrapper left in the DOM
+		const staleWrapper = document.createElement('span');
+		staleWrapper.setAttribute('data-cursor-wrapper', '');
+		staleWrapper.textContent = '\u200B';
+		container.appendChild(staleWrapper);
+
+		renderBlockContent(container, block);
+
+		expect(container.querySelector('[data-cursor-wrapper]')).toBeNull();
+		expect(container.textContent).toBe('Hello');
+	});
+});

@@ -138,13 +138,9 @@ export class EditorPage {
 			if (!content) return;
 			const dt = new DataTransfer();
 			dt.setData('text/plain', t);
-			content.dispatchEvent(
-				new ClipboardEvent('paste', {
-					clipboardData: dt,
-					bubbles: true,
-					cancelable: true,
-				}),
-			);
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'clipboardData', { value: dt, writable: false });
+			content.dispatchEvent(event);
 		}, text);
 	}
 
@@ -156,13 +152,9 @@ export class EditorPage {
 			const dt = new DataTransfer();
 			dt.setData('text/html', h);
 			dt.setData('text/plain', '');
-			content.dispatchEvent(
-				new ClipboardEvent('paste', {
-					clipboardData: dt,
-					bubbles: true,
-					cancelable: true,
-				}),
-			);
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'clipboardData', { value: dt, writable: false });
+			content.dispatchEvent(event);
 		}, html);
 	}
 

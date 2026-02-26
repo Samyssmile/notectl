@@ -3,6 +3,7 @@
  */
 
 import type { EditorState } from '../../state/EditorState.js';
+import { isMac } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 
 export interface GridPickerConfig {
@@ -76,8 +77,7 @@ export type ToolbarItem =
  * @example formatShortcut('Mod-Shift-X') → "Ctrl+Shift+X" or "⌘⇧X"
  */
 export function formatShortcut(binding: string): string {
-	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-	if (isMac) {
+	if (isMac()) {
 		return binding
 			.replace(/Mod/g, '⌘')
 			.replace(/Shift/g, '⇧')

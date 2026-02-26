@@ -93,6 +93,10 @@
 		"./plugins/gap-cursor": {
 			"types": "./dist/plugins/gap-cursor/index.d.ts",
 			"import": "./dist/plugins/gap-cursor.mjs"
+		},
+		"./plugins/caret-navigation": {
+			"types": "./dist/plugins/caret-navigation/index.d.ts",
+			"import": "./dist/plugins/caret-navigation.mjs"
 		}
 	},
 	"customElements": "custom-elements.json",

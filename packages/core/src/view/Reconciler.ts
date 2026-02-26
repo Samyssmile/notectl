@@ -348,6 +348,11 @@ export function renderBlockContent(
 	registry?: SchemaRegistry,
 	inlineDecos?: readonly InlineDecoration[],
 ): void {
+	// Remove stale CursorWrapper spans that may survive into reconciliation
+	for (const el of container.querySelectorAll('[data-cursor-wrapper]')) {
+		el.remove();
+	}
+
 	const inlineChildren = getInlineChildren(block);
 
 	// Empty block: single empty text node → render <br> placeholder
