@@ -114,7 +114,6 @@ export type { SanitizeConfig } from './model/SanitizeConfig.js';
 export { escapeHTML, formatHTML } from './model/HTMLUtils.js';
 
 // --- SchemaRegistry ---
-export type { FileHandler, FileHandlerEntry } from './model/SchemaRegistry.js';
 export { SchemaRegistry } from './model/SchemaRegistry.js';
 
 // --- NodeResolver ---
@@ -237,6 +236,15 @@ export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './inp
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
 export { CompositionTracker } from './input/CompositionTracker.js';
+
+// --- Focused Registries ---
+export { KeymapRegistry } from './input/KeymapRegistry.js';
+export { InputRuleRegistry } from './input/InputRuleRegistry.js';
+export type { FileHandler, FileHandlerEntry } from './input/FileHandlerRegistry.js';
+export { FileHandlerRegistry } from './input/FileHandlerRegistry.js';
+export { NodeViewRegistry } from './view/NodeViewRegistry.js';
+export { ToolbarRegistry } from './plugins/toolbar/ToolbarRegistry.js';
+export { BlockTypePickerRegistry } from './plugins/heading/BlockTypePickerRegistry.js';
 
 // --- View ---
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';

@@ -6,6 +6,7 @@ import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js
 import { blockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { PasteHandler } from './PasteHandler.js';
 
@@ -69,10 +70,10 @@ describe('PasteHandler file paste', () => {
 		getState = () => state;
 
 		const fileHandler = vi.fn().mockReturnValue(true);
-		const registry = new SchemaRegistry();
-		registry.registerFileHandler('image/png', fileHandler);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/png', fileHandler);
 
-		handler = new PasteHandler(element, { getState, dispatch, schemaRegistry: registry });
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
 
 		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
 		const event: ClipboardEvent = createPasteEvent({ files: [pngFile] });
@@ -89,11 +90,11 @@ describe('PasteHandler file paste', () => {
 		dispatch = vi.fn();
 		getState = () => state;
 
-		const registry = new SchemaRegistry();
+		const fileHandlerRegistry = new FileHandlerRegistry();
 		// Register handler for image/png only
-		registry.registerFileHandler('image/png', vi.fn().mockReturnValue(false));
+		fileHandlerRegistry.registerFileHandler('image/png', vi.fn().mockReturnValue(false));
 
-		handler = new PasteHandler(element, { getState, dispatch, schemaRegistry: registry });
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
 
 		const csvFile = new File(['a,b,c'], 'data.csv', { type: 'text/csv' });
 		const event: ClipboardEvent = createPasteEvent({
@@ -115,10 +116,10 @@ describe('PasteHandler file paste', () => {
 		getState = () => state;
 
 		const fileHandler = vi.fn().mockReturnValue(true);
-		const registry = new SchemaRegistry();
-		registry.registerFileHandler('image/jpeg', fileHandler);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/jpeg', fileHandler);
 
-		handler = new PasteHandler(element, { getState, dispatch, schemaRegistry: registry });
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
 
 		const jpegFile = new File(['img'], 'photo.jpg', { type: 'image/jpeg' });
 		const itemMock: DataTransferItem = {
@@ -567,40 +568,36 @@ describe('PasteHandler rich paste schema validation', () => {
 	});
 });
 
-describe('SchemaRegistry MIME matching', () => {
+describe('FileHandlerRegistry MIME matching (via PasteHandler)', () => {
 	it('matches exact MIME type', () => {
-		const registry = new SchemaRegistry();
+		const registry = new FileHandlerRegistry();
 		const handler = vi.fn();
 		registry.registerFileHandler('image/png', handler);
 
-		const matched: ReturnType<typeof registry.matchFileHandlers> =
-			registry.matchFileHandlers('image/png');
+		const matched = registry.matchFileHandlers('image/png');
 		expect(matched).toHaveLength(1);
 		expect(matched[0]).toBe(handler);
 	});
 
 	it('matches wildcard image/*', () => {
-		const registry = new SchemaRegistry();
+		const registry = new FileHandlerRegistry();
 		const handler = vi.fn();
 		registry.registerFileHandler('image/*', handler);
 
-		const matchedPng: ReturnType<typeof registry.matchFileHandlers> =
-			registry.matchFileHandlers('image/png');
+		const matchedPng = registry.matchFileHandlers('image/png');
 		expect(matchedPng).toHaveLength(1);
 		expect(matchedPng[0]).toBe(handler);
 
-		const matchedJpeg: ReturnType<typeof registry.matchFileHandlers> =
-			registry.matchFileHandlers('image/jpeg');
+		const matchedJpeg = registry.matchFileHandlers('image/jpeg');
 		expect(matchedJpeg).toHaveLength(1);
 		expect(matchedJpeg[0]).toBe(handler);
 	});
 
 	it('returns empty for unmatched type', () => {
-		const registry = new SchemaRegistry();
+		const registry = new FileHandlerRegistry();
 		registry.registerFileHandler('image/png', vi.fn());
 
-		const matched: ReturnType<typeof registry.matchFileHandlers> =
-			registry.matchFileHandlers('application/pdf');
+		const matched = registry.matchFileHandlers('application/pdf');
 		expect(matched).toHaveLength(0);
 	});
 });

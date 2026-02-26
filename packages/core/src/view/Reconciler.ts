@@ -24,9 +24,11 @@ import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { createMarkElement, getMarkRank } from './MarkRendering.js';
 import type { NodeView } from './NodeView.js';
+import type { NodeViewRegistry } from './NodeViewRegistry.js';
 
 export interface ReconcileOptions {
 	registry?: SchemaRegistry;
+	nodeViewRegistry?: NodeViewRegistry;
 	nodeViews?: Map<string, NodeView>;
 	getState?: () => EditorState;
 	dispatch?: (tr: import('../state/Transaction.js').Transaction) => void;
@@ -252,8 +254,9 @@ export function renderBlock(
 	const inlineDecos = options?.decorations?.findInline(block.id);
 
 	// 1. Try NodeViewFactory
-	if (registry && nodeViews && options?.getState && options?.dispatch) {
-		const factory = registry.getNodeViewFactory(block.type);
+	const nodeViewRegistry = options?.nodeViewRegistry;
+	if (nodeViewRegistry && registry && nodeViews && options?.getState && options?.dispatch) {
+		const factory = nodeViewRegistry.getNodeViewFactory(block.type);
 		if (factory) {
 			const nv = factory(block, options.getState, options.dispatch);
 			nodeViews.set(block.id, nv);

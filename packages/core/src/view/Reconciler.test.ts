@@ -14,6 +14,7 @@ import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { NodeViewRegistry } from './NodeViewRegistry.js';
 import { reconcile, renderBlock, renderBlockContent } from './Reconciler.js';
 
 describe('Reconciler InlineNode support', () => {
@@ -562,13 +563,13 @@ describe('data-block-type attribute', () => {
 	});
 
 	it('sets data-block-type on NodeView-rendered blocks', () => {
-		const registry = new SchemaRegistry();
+		const nodeViewRegistry = new NodeViewRegistry();
 		const nodeViews = new Map();
 		const state = EditorState.create({
 			doc: createDocument([createBlockNode('custom', [createTextNode('hi')], blockId('c1'))]),
 			selection: createCollapsedSelection('c1', 0),
 		});
-		registry.registerNodeView('custom', (node) => {
+		nodeViewRegistry.registerNodeView('custom', (node) => {
 			const dom = document.createElement('div');
 			dom.setAttribute('data-block-id', node.id);
 			const contentDOM = document.createElement('div');
@@ -577,7 +578,8 @@ describe('data-block-type attribute', () => {
 		});
 
 		const block = createBlockNode('custom', [createTextNode('hi')], blockId('c1'));
-		const el = renderBlock(block, registry, nodeViews, {
+		const el = renderBlock(block, undefined, nodeViews, {
+			nodeViewRegistry,
 			getState: () => state,
 			dispatch: () => {},
 		});

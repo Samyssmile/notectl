@@ -101,9 +101,9 @@ describe('TablePlugin', () => {
 	describe('NodeView registration', () => {
 		it('registers NodeViews for table, table_row, and table_cell', async () => {
 			const h = await pluginHarness(new TablePlugin());
-			expect(h.pm.schemaRegistry.getNodeViewFactory('table')).toBeDefined();
-			expect(h.pm.schemaRegistry.getNodeViewFactory('table_row')).toBeDefined();
-			expect(h.pm.schemaRegistry.getNodeViewFactory('table_cell')).toBeDefined();
+			expect(h.pm.nodeViewRegistry.getNodeViewFactory('table')).toBeDefined();
+			expect(h.pm.nodeViewRegistry.getNodeViewFactory('table_row')).toBeDefined();
+			expect(h.pm.nodeViewRegistry.getNodeViewFactory('table_cell')).toBeDefined();
 		});
 	});
 
