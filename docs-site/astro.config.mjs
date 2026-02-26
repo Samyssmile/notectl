@@ -59,6 +59,7 @@ export default defineConfig({
 						{ label: 'Internationalization', slug: 'guides/internationalization' },
 						{ label: 'Angular Integration', slug: 'guides/angular' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },
+						{ label: 'Keyboard Navigation', slug: 'guides/keyboard-navigation' },
 					],
 				},
 				{
@@ -84,6 +85,8 @@ export default defineConfig({
 						{ label: 'Hard Break', slug: 'plugins/hard-break' },
 						{ label: 'Print', slug: 'plugins/print' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
+						{ label: 'Caret Navigation', slug: 'plugins/caret-navigation' },
+						{ label: 'Gap Cursor', slug: 'plugins/gap-cursor' },
 					],
 				},
 				{

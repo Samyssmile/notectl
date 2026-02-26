@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **19 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **21 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -32,6 +32,8 @@ notectl ships with **19 built-in plugins**. Every editor feature — from bold t
 | [HardBreakPlugin](/notectl/plugins/hard-break/) | `hard-break` | Line breaks within a block | `Shift+Enter` |
 | [PrintPlugin](/notectl/plugins/print/) | `print` | Print with clean output and HTML export | `Ctrl+P` |
 | [ToolbarPlugin](/notectl/plugins/toolbar/) | `toolbar` | Toolbar UI (auto-created) | - |
+| [CaretNavigationPlugin](/notectl/plugins/caret-navigation/) | `caret-navigation` | Platform-aware keyboard navigation keymaps | Arrow keys, word/line/document movement |
+| [GapCursorPlugin](/notectl/plugins/gap-cursor/) | `gap-cursor` | Virtual cursor at void-block boundaries | Arrow keys (when gap cursor active) |
 
 ## How Plugins Work
 
