@@ -10,6 +10,7 @@ import {
 } from '../../model/Document.js';
 import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
 import {
+	expectComboboxLabel,
 	expectCommandRegistered,
 	expectKeyBinding,
 	expectNodeSpec,
@@ -332,21 +333,24 @@ describe('HeadingPlugin', () => {
 	});
 
 	describe('toolbar item', () => {
-		it('registers a heading toolbar item with custom popup', async () => {
+		it('registers a heading toolbar item with combobox popup', async () => {
 			const h = await pluginHarness(new HeadingPlugin());
 			expectToolbarItem(h, 'heading', {
 				group: 'block',
-				popupType: 'custom',
+				popupType: 'combobox',
 			});
-
-			const item = h.getToolbarItem('heading');
-			expect(item?.icon).toContain('data-heading-label');
 		});
 
 		it('combobox label defaults to Paragraph', async () => {
-			const h = await pluginHarness(new HeadingPlugin());
-			const item = h.getToolbarItem('heading');
-			expect(item?.icon).toContain('Paragraph');
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectComboboxLabel(h, 'heading', 'Paragraph');
+		});
+
+		it('combobox label shows heading level when in heading', async () => {
+			const state = makeState([{ type: 'heading', text: 'Title', id: 'b1', attrs: { level: 2 } }]);
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			expectComboboxLabel(h, 'heading', 'Heading 2');
 		});
 
 		it('isActive returns true when cursor is in heading', async () => {

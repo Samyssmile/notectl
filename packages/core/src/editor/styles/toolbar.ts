@@ -252,4 +252,43 @@ export const TOOLBAR_CSS = `
 	background: var(--notectl-border);
 	margin: 4px 0;
 }
+
+/* Combobox-style toolbar buttons (shared base for font, fontSize, heading, etc.) */
+.notectl-toolbar-btn[role="combobox"] {
+	width: auto;
+	padding: 0 8px;
+	gap: 4px;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-bg);
+}
+
+.notectl-toolbar-btn[role="combobox"]:hover {
+	background: var(--notectl-hover-bg);
+	border-color: var(--notectl-fg-muted);
+}
+
+.notectl-toolbar-btn[role="combobox"].notectl-toolbar-btn--active {
+	background: var(--notectl-bg);
+	border-color: var(--notectl-primary-muted);
+}
+
+.notectl-toolbar-combobox__label {
+	flex: 1;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--notectl-fg);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: left;
+	line-height: 30px;
+}
+
+.notectl-toolbar-combobox__arrow {
+	flex-shrink: 0;
+	font-size: 11px;
+	color: var(--notectl-fg-muted);
+	line-height: 30px;
+}
 `;

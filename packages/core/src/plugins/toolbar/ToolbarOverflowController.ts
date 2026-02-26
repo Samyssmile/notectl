@@ -155,6 +155,15 @@ export class ToolbarOverflowController {
 			const enabled: boolean = entry.item.isEnabled?.(state) ?? true;
 			menuItem.classList.toggle('notectl-dropdown__item--active', active);
 			menuItem.disabled = !enabled;
+
+			if (entry.item.popupType === 'combobox') {
+				const labelEl: HTMLSpanElement | null = menuItem.querySelector(
+					'.notectl-dropdown__item-label',
+				);
+				if (labelEl) {
+					labelEl.textContent = entry.item.getLabel(state);
+				}
+			}
 		}
 	}
 
@@ -237,7 +246,7 @@ export class ToolbarOverflowController {
 		dropdown.className = 'notectl-toolbar-popup notectl-dropdown';
 		dropdown.setAttribute('role', 'menu');
 
-		this.renderDropdownItems(dropdown);
+		this.renderDropdownItems(dropdown, this.context.getState());
 		this.positionDropdown(dropdown);
 		this.appendToRoot(dropdown);
 
@@ -253,7 +262,7 @@ export class ToolbarOverflowController {
 		this.registerCloseHandler();
 	}
 
-	private renderDropdownItems(dropdown: HTMLElement): void {
+	private renderDropdownItems(dropdown: HTMLElement, state: EditorState): void {
 		let lastGroup: string | null = null;
 
 		for (const entry of this.overflowEntries) {
@@ -274,12 +283,17 @@ export class ToolbarOverflowController {
 
 			const iconSpan: HTMLSpanElement = document.createElement('span');
 			iconSpan.className = 'notectl-dropdown__item-icon';
-			iconSpan.innerHTML = entry.item.icon;
+			if (entry.item.popupType !== 'combobox') {
+				iconSpan.innerHTML = entry.item.icon;
+			}
 			menuBtn.appendChild(iconSpan);
 
 			const labelSpan: HTMLSpanElement = document.createElement('span');
 			labelSpan.className = 'notectl-dropdown__item-label';
-			labelSpan.textContent = entry.item.tooltip ?? entry.item.label;
+			labelSpan.textContent =
+				entry.item.popupType === 'combobox'
+					? entry.item.getLabel(state)
+					: (entry.item.tooltip ?? entry.item.label);
 			menuBtn.appendChild(labelSpan);
 
 			menuBtn.addEventListener('mousedown', (ev: MouseEvent) => {

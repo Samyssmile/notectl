@@ -45,6 +45,7 @@ function createSeparator(): HTMLSpanElement {
 function createMockContext(overrides?: Partial<PluginContext>): PluginContext {
 	return {
 		executeCommand: vi.fn(),
+		getState: vi.fn(() => ({})),
 		...overrides,
 	} as unknown as PluginContext;
 }

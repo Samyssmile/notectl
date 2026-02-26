@@ -10,7 +10,8 @@ import type { PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import type { PickerEntryStyle } from './BlockTypePickerEntry.js';
 import type { HeadingLocale } from './HeadingLocale.js';
-import type { HeadingConfig, HeadingLevel } from './HeadingPlugin.js';
+import type { HeadingConfig } from './HeadingPlugin.js';
+import type { HeadingLevel } from './HeadingPlugin.js';
 
 // --- Picker Entry Registration ---
 
@@ -76,24 +77,22 @@ export function registerHeadingPickerEntries(
 
 // --- Toolbar Item ---
 
-/** Registers the heading toolbar dropdown with a custom picker popup. */
+/** Registers the heading toolbar dropdown with a combobox picker popup. */
 export function registerHeadingToolbarItem(
 	context: PluginContext,
 	config: HeadingConfig,
 	locale: HeadingLocale,
 ): void {
-	const icon: string = `<span class="notectl-heading-select__label" data-heading-label>${locale.paragraph}</span><span class="notectl-heading-select__arrow">\u25BE</span>`;
-
 	context.registerToolbarItem({
 		id: 'heading',
 		group: 'block',
-		icon,
 		label: locale.blockTypeLabel,
 		tooltip: locale.blockTypeLabel,
 		command: 'setParagraph',
 		priority: 50,
-		popupType: 'custom',
+		popupType: 'combobox',
 		separatorAfter: config.separatorAfter,
+		getLabel: (state: EditorState): string => getActiveLabel(state, context, locale),
 		renderPopup: (container, ctx) => {
 			renderHeadingPopup(container, ctx, locale);
 		},
@@ -102,31 +101,6 @@ export function registerHeadingToolbarItem(
 			return entries.some((entry) => entry.id !== 'paragraph' && entry.isActive(state));
 		},
 	});
-}
-
-// --- Combo Label Update ---
-
-/**
- * Updates the combobox label in the toolbar to reflect the current block type.
- * Returns the resolved HTMLSpanElement (cached across calls) for reuse.
- */
-export function updateComboLabel(
-	state: EditorState,
-	context: PluginContext,
-	locale: HeadingLocale,
-	cachedLabel: HTMLSpanElement | null,
-): HTMLSpanElement | null {
-	let label: HTMLSpanElement | null = cachedLabel;
-
-	if (!label) {
-		const container: HTMLElement | undefined = context.getPluginContainer('top');
-		if (!container) return null;
-		label = container.querySelector<HTMLSpanElement>('[data-heading-label]') ?? null;
-		if (!label) return null;
-	}
-
-	label.textContent = getActiveLabel(state, context, locale);
-	return label;
 }
 
 // --- Popup Rendering ---

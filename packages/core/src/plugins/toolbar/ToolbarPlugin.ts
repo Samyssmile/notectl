@@ -55,6 +55,7 @@ export const ToolbarServiceKey = new ServiceKey<ToolbarServiceAPI>('toolbar');
 interface ToolbarButton {
 	element: HTMLButtonElement;
 	item: ToolbarItem;
+	comboLabelEl: HTMLSpanElement | null;
 }
 
 export class ToolbarPlugin implements Plugin {
@@ -431,15 +432,38 @@ export class ToolbarPlugin implements Plugin {
 		btn.setAttribute('data-toolbar-item', item.id);
 		btn.setAttribute('data-tooltip', item.tooltip ?? item.label);
 
-		if (item.popupType) {
-			btn.setAttribute('aria-haspopup', 'true');
-			btn.setAttribute('aria-expanded', 'false');
-		}
+		let comboLabelEl: HTMLSpanElement | null = null;
 
-		const span: HTMLSpanElement = document.createElement('span');
-		span.className = 'notectl-toolbar-btn__icon';
-		span.innerHTML = item.icon;
-		btn.appendChild(span);
+		if (item.popupType === 'combobox') {
+			btn.setAttribute('role', 'combobox');
+			btn.setAttribute('aria-haspopup', 'listbox');
+			btn.setAttribute('aria-expanded', 'false');
+
+			const labelSpan: HTMLSpanElement = document.createElement('span');
+			labelSpan.className = 'notectl-toolbar-combobox__label';
+			const state: EditorState | undefined = this.context?.getState();
+			if (state) {
+				labelSpan.textContent = item.getLabel(state);
+			}
+			btn.appendChild(labelSpan);
+			comboLabelEl = labelSpan;
+
+			const arrowSpan: HTMLSpanElement = document.createElement('span');
+			arrowSpan.className = 'notectl-toolbar-combobox__arrow';
+			arrowSpan.setAttribute('aria-hidden', 'true');
+			arrowSpan.textContent = '\u25BE';
+			btn.appendChild(arrowSpan);
+		} else {
+			if (item.popupType) {
+				btn.setAttribute('aria-haspopup', 'true');
+				btn.setAttribute('aria-expanded', 'false');
+			}
+
+			const span: HTMLSpanElement = document.createElement('span');
+			span.className = 'notectl-toolbar-btn__icon';
+			span.innerHTML = item.icon;
+			btn.appendChild(span);
+		}
 
 		btn.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
@@ -451,7 +475,7 @@ export class ToolbarPlugin implements Plugin {
 		btn.addEventListener('focus', () => this.tooltip?.show(btn));
 		btn.addEventListener('blur', () => this.tooltip?.hide());
 
-		return { element: btn, item };
+		return { element: btn, item, comboLabelEl };
 	}
 
 	// --- Button State Updates ---
@@ -467,6 +491,9 @@ export class ToolbarPlugin implements Plugin {
 				btn.element.setAttribute('aria-disabled', 'true');
 			} else {
 				btn.element.removeAttribute('aria-disabled');
+			}
+			if (btn.comboLabelEl && btn.item.popupType === 'combobox') {
+				btn.comboLabelEl.textContent = btn.item.getLabel(state);
 			}
 		}
 		this.overflowController?.updateItemStates(state);

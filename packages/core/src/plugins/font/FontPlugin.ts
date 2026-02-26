@@ -18,7 +18,6 @@ import {
 } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import { FONT_LOCALES, type FontLocale } from './FontLocale.js';
@@ -95,7 +94,6 @@ export class FontPlugin implements Plugin {
 	private locale!: FontLocale;
 	private injectedStyleElement: HTMLStyleElement | null = null;
 	private context: PluginContext | null = null;
-	private comboLabel: HTMLSpanElement | null = null;
 
 	constructor(config: FontConfig) {
 		this.config = config;
@@ -116,11 +114,6 @@ export class FontPlugin implements Plugin {
 		this.injectedStyleElement?.remove();
 		this.injectedStyleElement = null;
 		this.context = null;
-		this.comboLabel = null;
-	}
-
-	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
-		this.updateComboLabel(newState);
 	}
 
 	// --- Schema ---
@@ -187,42 +180,21 @@ export class FontPlugin implements Plugin {
 	}
 
 	private registerToolbarItem(context: PluginContext): void {
-		// The icon content renders as a combobox label + dropdown arrow.
-		// The actual label text is updated via onStateChange → updateComboLabel.
-		const defaultName: string = this.defaultFont.name;
-		const label: string = `<span class="notectl-font-select__label" data-font-label>${defaultName}</span>`;
-		const arrow = '<span class="notectl-font-select__arrow">\u25BE</span>';
-		const icon = `${label}${arrow}`;
-
 		context.registerToolbarItem({
 			id: 'font',
 			group: 'format',
-			icon,
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeFont',
 			priority: 5,
-			popupType: 'custom',
+			popupType: 'combobox',
 			separatorAfter: this.config.separatorAfter,
+			getLabel: (state: EditorState): string => this.resolveFontName(this.getActiveFont(state)),
 			renderPopup: (container, ctx) => {
 				this.renderFontPopup(container, ctx);
 			},
 			isActive: (state) => this.isFontActive(state),
 		});
-	}
-
-	private updateComboLabel(state: EditorState): void {
-		// Lazily find the label element in the DOM
-		if (!this.comboLabel) {
-			const container: HTMLElement | undefined = this.context?.getPluginContainer('top');
-			if (!container) return;
-			this.comboLabel = container.querySelector<HTMLSpanElement>('[data-font-label]') ?? null;
-			if (!this.comboLabel) return;
-		}
-
-		const activeFamily: string | null = this.getActiveFont(state);
-		const displayName: string = this.resolveFontName(activeFamily);
-		this.comboLabel.textContent = displayName;
 	}
 
 	private resolveFontName(family: string | null): string {

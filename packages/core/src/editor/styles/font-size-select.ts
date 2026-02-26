@@ -1,56 +1,9 @@
 /** Font size picker toolbar combobox + popup styles. */
 export const FONT_SIZE_SELECT_CSS = `
-/* Font Size Select — Combobox-style toolbar button */
+/* Font Size Select — Width overrides for combobox button */
 .notectl-toolbar-btn--fontSize {
-	width: auto;
 	min-width: 60px;
 	max-width: 80px;
-	padding: 0 8px;
-	gap: 4px;
-	border: 1px solid var(--notectl-border);
-	border-radius: 4px;
-	background: var(--notectl-bg);
-}
-
-.notectl-toolbar-btn--fontSize:hover {
-	background: var(--notectl-hover-bg);
-	border-color: var(--notectl-fg-muted);
-}
-
-.notectl-toolbar-btn--fontSize.notectl-toolbar-btn--active {
-	background: var(--notectl-bg);
-	border-color: var(--notectl-primary-muted);
-}
-
-.notectl-toolbar-btn--fontSize .notectl-toolbar-btn__icon {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	width: 100%;
-	overflow: hidden;
-}
-
-.notectl-toolbar-btn--fontSize .notectl-toolbar-btn__icon svg {
-	display: none;
-}
-
-.notectl-font-size-select__label {
-	flex: 1;
-	font-size: 13px;
-	font-weight: 500;
-	color: var(--notectl-fg);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	text-align: left;
-	line-height: 30px;
-}
-
-.notectl-font-size-select__arrow {
-	flex-shrink: 0;
-	font-size: 11px;
-	color: var(--notectl-fg-muted);
-	line-height: 30px;
 }
 
 /* Font Size Picker Popup */
