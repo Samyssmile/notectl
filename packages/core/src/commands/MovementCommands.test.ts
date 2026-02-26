@@ -3,7 +3,7 @@ import { createInlineNode, getBlockLength } from '../model/Document.js';
 import { isCollapsed, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { inlineType, markType } from '../model/TypeBrands.js';
-import { stateBuilder } from '../test/TestUtils.js';
+import { applyCommand, stateBuilder } from '../test/TestUtils.js';
 import {
 	extendCharacterBackward,
 	extendCharacterForward,
@@ -34,12 +34,7 @@ function voidNodeSpec(typeName: string): (t: string) => { isVoid: boolean } | un
 describe('moveCharacterForward', () => {
 	it('moves cursor one character forward', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 1 } }),
 		);
@@ -51,12 +46,7 @@ describe('moveCharacterForward', () => {
 			.paragraph('CD', 'b2')
 			.cursor('b1', 2)
 			.build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b2', offset: 0 } }),
 		);
@@ -80,12 +70,7 @@ describe('moveCharacterForward', () => {
 			)
 			.cursor('b1', 1)
 			.build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 2 } }),
 		);
@@ -96,12 +81,7 @@ describe('moveCharacterForward', () => {
 			.paragraph('Hello', 'b1')
 			.selection({ blockId: 'b1', offset: 1 }, { blockId: 'b1', offset: 3 })
 			.build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(isCollapsed(next.selection)).toBe(true);
 	});
 
@@ -112,12 +92,7 @@ describe('moveCharacterForward', () => {
 			.cursor('b1', 2)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(isNodeSelection(next.selection)).toBe(true);
 	});
 
@@ -137,12 +112,7 @@ describe('moveCharacterForward', () => {
 	it('moves cursor by grapheme cluster over surrogate-pair emoji', () => {
 		// Wave emoji (U+1F44B) = 2 code units
 		const state = stateBuilder().paragraph('\u{1F44B}hello', 'b1').cursor('b1', 0).build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 2 } }),
 		);
@@ -152,12 +122,7 @@ describe('moveCharacterForward', () => {
 		// Family emoji: man + ZWJ + woman + ZWJ + girl = 11 code units
 		const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
 		const state = stateBuilder().paragraph(`${family}x`, 'b1').cursor('b1', 0).build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: family.length } }),
 		);
@@ -178,12 +143,7 @@ describe('moveCharacterForward', () => {
 			)
 			.cursor('b1', 2)
 			.build();
-		const tr = moveCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterForward);
 		// Emoji is 2 code units, so offset should go from 2 to 4
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 4 } }),
@@ -204,12 +164,7 @@ describe('moveCharacterForward', () => {
 				.build(),
 		);
 		expect(withMarks.storedMarks).not.toBeNull();
-		const tr = moveCharacterForward(withMarks);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = withMarks.apply(tr);
+		const next = applyCommand(withMarks, moveCharacterForward);
 		expect(next.storedMarks).toBeNull();
 	});
 });
@@ -221,12 +176,7 @@ describe('moveCharacterForward', () => {
 describe('moveCharacterBackward', () => {
 	it('moves cursor one character backward', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = moveCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 2 } }),
 		);
@@ -238,12 +188,7 @@ describe('moveCharacterBackward', () => {
 			.paragraph('CD', 'b2')
 			.cursor('b2', 0)
 			.build();
-		const tr = moveCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 2 } }),
 		);
@@ -257,12 +202,7 @@ describe('moveCharacterBackward', () => {
 	it('moves cursor backward by grapheme cluster over emoji', () => {
 		// "a" + wave emoji (2 code units) → cursor at offset 3 (after emoji)
 		const state = stateBuilder().paragraph('a\u{1F44B}b', 'b1').cursor('b1', 3).build();
-		const tr = moveCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 1 } }),
 		);
@@ -283,12 +223,7 @@ describe('moveCharacterBackward', () => {
 			)
 			.cursor('b1', 3)
 			.build();
-		const tr = moveCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterBackward);
 		// Emoji is 2 code units, so offset should go from 3 to 1
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 1 } }),
@@ -302,12 +237,7 @@ describe('moveCharacterBackward', () => {
 			.cursor('b1', 0)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveCharacterBackward);
 		expect(isNodeSelection(next.selection)).toBe(true);
 	});
 });
@@ -319,12 +249,7 @@ describe('moveCharacterBackward', () => {
 describe('moveToBlockStart', () => {
 	it('moves cursor to offset 0', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = moveToBlockStart(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToBlockStart);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 0 } }),
 		);
@@ -339,12 +264,7 @@ describe('moveToBlockStart', () => {
 describe('moveToBlockEnd', () => {
 	it('moves cursor to end of block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = moveToBlockEnd(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToBlockEnd);
 		const block = next.getBlock('b1' as BlockId);
 		if (!block) {
 			expect.unreachable('Expected block b1 to exist');
@@ -372,12 +292,7 @@ describe('moveToDocumentStart', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b2', 3)
 			.build();
-		const tr = moveToDocumentStart(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToDocumentStart);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 0 } }),
 		);
@@ -390,12 +305,7 @@ describe('moveToDocumentStart', () => {
 			.cursor('b1', 2)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveToDocumentStart(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToDocumentStart);
 		expect(isNodeSelection(next.selection)).toBe(true);
 	});
 });
@@ -407,12 +317,7 @@ describe('moveToDocumentEnd', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b1', 0)
 			.build();
-		const tr = moveToDocumentEnd(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToDocumentEnd);
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b2', offset: 6 } }),
 		);
@@ -425,12 +330,7 @@ describe('moveToDocumentEnd', () => {
 			.cursor('b1', 2)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveToDocumentEnd(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, moveToDocumentEnd);
 		expect(isNodeSelection(next.selection)).toBe(true);
 	});
 });
@@ -442,12 +342,7 @@ describe('moveToDocumentEnd', () => {
 describe('extendCharacterForward', () => {
 	it('extends selection one character forward from collapsed cursor', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = extendCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterForward);
 		expect(isCollapsed(next.selection)).toBe(false);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
@@ -463,12 +358,7 @@ describe('extendCharacterForward', () => {
 			.paragraph('CD', 'b2')
 			.cursor('b1', 2)
 			.build();
-		const tr = extendCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 2 },
@@ -479,12 +369,7 @@ describe('extendCharacterForward', () => {
 
 	it('extends by grapheme cluster over emoji', () => {
 		const state = stateBuilder().paragraph('\u{1F44B}hello', 'b1').cursor('b1', 0).build();
-		const tr = extendCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 0 },
@@ -506,12 +391,7 @@ describe('extendCharacterForward', () => {
 			)
 			.cursor('b1', 2)
 			.build();
-		const tr = extendCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 2 },
@@ -543,12 +423,7 @@ describe('extendCharacterForward', () => {
 			)
 			.cursor('b1', 1)
 			.build();
-		const tr = extendCharacterForward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterForward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 1 },
@@ -575,12 +450,7 @@ describe('extendCharacterForward', () => {
 describe('extendCharacterBackward', () => {
 	it('extends selection one character backward', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = extendCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 3 },
@@ -591,12 +461,7 @@ describe('extendCharacterBackward', () => {
 
 	it('extends backward by grapheme cluster over emoji', () => {
 		const state = stateBuilder().paragraph('a\u{1F44B}b', 'b1').cursor('b1', 3).build();
-		const tr = extendCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 3 },
@@ -618,12 +483,7 @@ describe('extendCharacterBackward', () => {
 			)
 			.cursor('b1', 3)
 			.build();
-		const tr = extendCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 3 },
@@ -650,12 +510,7 @@ describe('extendCharacterBackward', () => {
 			)
 			.cursor('b1', 2)
 			.build();
-		const tr = extendCharacterBackward(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendCharacterBackward);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 2 },
@@ -686,12 +541,7 @@ describe('extendCharacterBackward', () => {
 describe('extendToBlockStart', () => {
 	it('extends selection to offset 0', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = extendToBlockStart(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendToBlockStart);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 3 },
@@ -709,12 +559,7 @@ describe('extendToBlockStart', () => {
 describe('extendToBlockEnd', () => {
 	it('extends selection to end of block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = extendToBlockEnd(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendToBlockEnd);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 0 },
@@ -740,12 +585,7 @@ describe('extendToDocumentStart', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b2', 3)
 			.build();
-		const tr = extendToDocumentStart(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendToDocumentStart);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b2', offset: 3 },
@@ -771,12 +611,7 @@ describe('extendToDocumentEnd', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b1', 0)
 			.build();
-		const tr = extendToDocumentEnd(state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, extendToDocumentEnd);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 0 },

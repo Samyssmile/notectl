@@ -1,29 +1,28 @@
 /**
- * Editor commands for formatting, text manipulation, and history.
+ * Core editor commands and barrel re-exports from submodules.
+ *
+ * This module contains text insertion, block splitting, block merging,
+ * selection deletion, and select-all. Mark, delete, gap-cursor, node-selection,
+ * and word-boundary commands are re-exported from their respective modules.
  */
 
 import {
-	type BlockNode,
 	type Mark,
-	type MarkType,
-	createBlockNode,
 	createInlineNode,
-	createTextNode,
 	generateBlockId,
 	getBlockLength,
 	getBlockMarksAtOffset,
-	getContentAtOffset,
-	getInlineChildren,
-	hasMark,
-	isBlockNode,
-	isTextNode,
 } from '../model/Document.js';
+import {
+	isInsideIsolating,
+	isIsolatingBlock,
+	isVoidBlock,
+	sharesParent,
+} from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
-import { isMarkAllowed } from '../model/Schema.js';
-import type { GapCursorSelection, NodeSelection, SelectionRange } from '../model/Selection.js';
+import type { SelectionRange } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
-	createGapCursor,
 	createNodeSelection,
 	createSelection,
 	isCollapsed,
@@ -31,124 +30,65 @@ import {
 	isNodeSelection,
 	selectionRange,
 } from '../model/Selection.js';
-import { type BlockId, inlineType, markType as mkType } from '../model/TypeBrands.js';
+import { type BlockId, inlineType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
+import { insertParagraphAtGap, insertTextAtGap } from './GapCursorCommands.js';
+import {
+	deleteNodeSelection,
+	insertParagraphAfterNodeSelection,
+	insertTextAfterNodeSelection,
+} from './NodeSelectionCommands.js';
 
-// --- Feature Configuration ---
+// --- Re-exports from submodules ---
 
-export interface FeatureConfig {
-	readonly bold: boolean;
-	readonly italic: boolean;
-	readonly underline: boolean;
-}
+export {
+	canCrossBlockBoundary,
+	isInsideIsolating,
+	isIsolatingBlock,
+	isVoidBlock,
+	sharesParent,
+} from '../model/NavigationUtils.js';
 
-const defaultFeatures: FeatureConfig = { bold: true, italic: true, underline: true };
+export type { FeatureConfig } from './MarkCommands.js';
+export {
+	isMarkActive,
+	toggleBold,
+	toggleItalic,
+	toggleMark,
+	toggleUnderline,
+} from './MarkCommands.js';
 
-// --- Void Block Helpers ---
+export {
+	deleteBackward,
+	deleteForward,
+	deleteSoftLineBackward,
+	deleteSoftLineForward,
+	deleteWordBackward,
+	deleteWordForward,
+} from './DeleteCommands.js';
 
-/** Returns true if the block with the given ID is a void block (e.g. image, HR). */
-export function isVoidBlock(state: EditorState, bid: BlockId): boolean {
-	const block = state.getBlock(bid);
-	if (!block) return false;
-	const getNodeSpec = state.schema.getNodeSpec;
-	if (!getNodeSpec) return false;
-	return getNodeSpec(block.type)?.isVoid === true;
-}
+export {
+	deleteNodeSelection,
+	findFirstLeafBlockId,
+	findLastLeafBlockId,
+	insertParagraphAfterNodeSelection,
+	insertTextAfterNodeSelection,
+	navigateArrowIntoVoid,
+} from './NodeSelectionCommands.js';
 
-/**
- * Deletes the void block targeted by a NodeSelection and places cursor
- * on the adjacent block. If it's the only block, replaces with empty paragraph.
- */
-export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Transaction | null {
-	const path = findNodePath(state.doc, sel.nodeId);
-	if (!path) return null;
+export {
+	deleteBackwardAtGap,
+	deleteForwardAtGap,
+	insertParagraphAtGap,
+	insertTextAtGap,
+} from './GapCursorCommands.js';
 
-	// Determine parent path (all elements except the last)
-	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-	// Determine index among siblings
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
-	if (index < 0) return null;
-
-	const builder = state.transaction('input');
-
-	// If this is the only block in the document, insert empty paragraph first
-	if (siblings.length === 1 && parentPath.length === 0) {
-		const newId = generateBlockId();
-		builder.insertNode(
-			parentPath,
-			0,
-			createBlockNode(
-				'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
-				[createTextNode('')],
-				newId,
-			),
-		);
-		builder.removeNode(parentPath, 1);
-		builder.setSelection(createCollapsedSelection(newId, 0));
-		return builder.build();
-	}
-
-	builder.removeNode(parentPath, index);
-
-	// Find where to place cursor: prefer previous sibling leaf, else next sibling leaf.
-	const prevSibling = siblings[index - 1];
-	if (prevSibling && isBlockNode(prevSibling)) {
-		const prevLeafId = findLastLeafBlockId(prevSibling);
-		if (prevLeafId) {
-			const prevLeaf = state.getBlock(prevLeafId);
-			const prevLen = prevLeaf ? getBlockLength(prevLeaf) : 0;
-			builder.setSelection(createCollapsedSelection(prevLeafId, prevLen));
-		}
-	} else {
-		const nextSibling = siblings[index + 1];
-		if (nextSibling && isBlockNode(nextSibling)) {
-			const nextLeafId = findFirstLeafBlockId(nextSibling);
-			if (nextLeafId) {
-				builder.setSelection(createCollapsedSelection(nextLeafId, 0));
-			}
-		}
-	}
-
-	return builder.build();
-}
-
-function findFirstLeafBlockId(node: BlockNode): BlockId {
-	let current: BlockNode = node;
-	while (true) {
-		const firstBlockChild = current.children.find((child): child is BlockNode =>
-			isBlockNode(child),
-		);
-		if (!firstBlockChild) return current.id;
-		current = firstBlockChild;
-	}
-}
-
-function findLastLeafBlockId(node: BlockNode): BlockId {
-	let current: BlockNode = node;
-	while (true) {
-		let lastBlockChild: BlockNode | undefined;
-		for (let i = current.children.length - 1; i >= 0; i--) {
-			const child = current.children[i];
-			if (child && isBlockNode(child)) {
-				lastBlockChild = child;
-				break;
-			}
-		}
-		if (!lastBlockChild) return current.id;
-		current = lastBlockChild;
-	}
-}
+export {
+	findWordBoundaryBackward,
+	findWordBoundaryForward,
+} from './WordBoundary.js';
 
 // --- Range Iteration ---
 
@@ -178,120 +118,6 @@ export function forEachBlockInRange(
 		if (from === to) continue;
 		callback(blockId, from, to);
 	}
-}
-
-// --- Mark Commands ---
-
-/**
- * Toggles a mark on the current selection.
- * If collapsed, toggles stored marks. If range, applies/removes from text.
- */
-export function toggleMark(
-	state: EditorState,
-	markType: MarkType,
-	features: FeatureConfig = defaultFeatures,
-): Transaction | null {
-	if (isFeatureGated(markType, features)) return null;
-	if (!isMarkAllowed(state.schema, markType)) return null;
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
-
-	const mark: Mark = { type: markType };
-	const sel = state.selection;
-
-	if (isCollapsed(sel)) {
-		// Toggle stored marks
-		const anchorBlock = state.getBlock(sel.anchor.blockId);
-		if (!anchorBlock) return null;
-		const currentMarks = state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-		const hasIt = hasMark(currentMarks, markType);
-		const newMarks = hasIt
-			? currentMarks.filter((m) => m.type !== markType)
-			: [...currentMarks, mark];
-
-		return state
-			.transaction('command')
-			.setStoredMarks(newMarks, state.storedMarks)
-			.setSelection(sel)
-			.build();
-	}
-
-	// Range selection — apply/remove mark to all blocks in range
-	const range = selectionRange(sel, state.getBlockOrder());
-	const builder = state.transaction('command');
-
-	// Determine if we should add or remove
-	const shouldRemove = isMarkActiveInRange(state, markType);
-
-	forEachBlockInRange(state, range, (blockId, from, to) => {
-		if (shouldRemove) {
-			builder.removeMark(blockId, from, to, mark);
-		} else {
-			builder.addMark(blockId, from, to, mark);
-		}
-	});
-
-	builder.setSelection(sel);
-	return builder.build();
-}
-
-/** Checks if a mark is active across the entire selection range. */
-function isMarkActiveInRange(state: EditorState, markType: MarkType): boolean {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-	const blockOrder = state.getBlockOrder();
-	const range = selectionRange(sel, blockOrder);
-
-	const fromIdx = blockOrder.indexOf(range.from.blockId);
-	const toIdx = blockOrder.indexOf(range.to.blockId);
-
-	for (let i = fromIdx; i <= toIdx; i++) {
-		const blockId = blockOrder[i];
-		if (!blockId) continue;
-		const block = state.getBlock(blockId);
-		if (!block) continue;
-		const blockLen = getBlockLength(block);
-		const from = i === fromIdx ? range.from.offset : 0;
-		const to = i === toIdx ? range.to.offset : blockLen;
-
-		if (!isMarkActiveInBlock(block, from, to, markType)) return false;
-	}
-
-	return true;
-}
-
-function isMarkActiveInBlock(
-	block: BlockNode,
-	from: number,
-	to: number,
-	markType: MarkType,
-): boolean {
-	if (from === to) return false;
-	let pos = 0;
-	for (const child of getInlineChildren(block)) {
-		if (isTextNode(child)) {
-			const childEnd = pos + child.text.length;
-			if (childEnd > from && pos < to) {
-				if (!hasMark(child.marks, markType)) return false;
-			}
-			pos = childEnd;
-		} else {
-			// InlineNode: skip (width 1, no marks)
-			pos += 1;
-		}
-	}
-	return true;
-}
-
-export function toggleBold(state: EditorState, features?: FeatureConfig): Transaction | null {
-	return toggleMark(state, mkType('bold'), features);
-}
-
-export function toggleItalic(state: EditorState, features?: FeatureConfig): Transaction | null {
-	return toggleMark(state, mkType('italic'), features);
-}
-
-export function toggleUnderline(state: EditorState, features?: FeatureConfig): Transaction | null {
-	return toggleMark(state, mkType('underline'), features);
 }
 
 // --- Text Commands ---
@@ -346,178 +172,6 @@ export function deleteSelectionCommand(state: EditorState): Transaction | null {
 	builder.setSelection(createCollapsedSelection(range.from.blockId, range.from.offset));
 
 	return builder.build();
-}
-
-/** Handles backspace key. */
-export function deleteBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	if (sel.anchor.offset > 0) {
-		return state
-			.transaction('input')
-			.deleteTextAt(block.id, sel.anchor.offset - 1, sel.anchor.offset)
-			.setSelection(createCollapsedSelection(block.id, sel.anchor.offset - 1))
-			.build();
-	}
-
-	// At start of block — merge with previous
-	return mergeBlockBackward(state);
-}
-
-/** Handles delete key. */
-export function deleteForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-
-	if (sel.anchor.offset < blockLen) {
-		return state
-			.transaction('input')
-			.deleteTextAt(block.id, sel.anchor.offset, sel.anchor.offset + 1)
-			.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-			.build();
-	}
-
-	// At end of block — merge with next
-	return mergeBlockForward(state);
-}
-
-/** Handles Ctrl+Backspace: delete word backward. */
-export function deleteWordBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	if (sel.anchor.offset === 0) {
-		return mergeBlockBackward(state);
-	}
-
-	const wordStart = findWordBoundaryBackward(block, sel.anchor.offset);
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, wordStart, sel.anchor.offset)
-		.setSelection(createCollapsedSelection(block.id, wordStart))
-		.build();
-}
-
-/** Handles Ctrl+Delete: delete word forward. */
-export function deleteWordForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-	if (sel.anchor.offset === blockLen) {
-		return mergeBlockForward(state);
-	}
-
-	const wordEnd = findWordBoundaryForward(block, sel.anchor.offset);
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, sel.anchor.offset, wordEnd)
-		.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-		.build();
-}
-
-/** Handles Cmd+Backspace: delete to start of line/block. */
-export function deleteSoftLineBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	if (sel.anchor.offset === 0) {
-		return mergeBlockBackward(state);
-	}
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, 0, sel.anchor.offset)
-		.setSelection(createCollapsedSelection(block.id, 0))
-		.build();
-}
-
-/** Handles Cmd+Delete: delete to end of line/block. */
-export function deleteSoftLineForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-	if (sel.anchor.offset === blockLen) {
-		return mergeBlockForward(state);
-	}
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, sel.anchor.offset, blockLen)
-		.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-		.build();
 }
 
 /** Splits the current block at the cursor position (Enter key). */
@@ -580,66 +234,6 @@ export function insertHardBreakCommand(state: EditorState): Transaction | null {
 	return builder.build();
 }
 
-/** Checks whether two blocks share the same parent in the document tree. */
-export function sharesParent(state: EditorState, blockIdA: BlockId, blockIdB: BlockId): boolean {
-	const pathA = state.getNodePath(blockIdA);
-	const pathB = state.getNodePath(blockIdB);
-	if (!pathA || !pathB) return false;
-	if (pathA.length !== pathB.length) return false;
-	// Compare parent paths (all but last element)
-	for (let i = 0; i < pathA.length - 1; i++) {
-		if (pathA[i] !== pathB[i]) return false;
-	}
-	return true;
-}
-
-/** Checks whether a block is inside an isolating node (e.g. table_cell). */
-export function isInsideIsolating(state: EditorState, blockId: BlockId): boolean {
-	const getNodeSpec = state.schema.getNodeSpec;
-	if (!getNodeSpec) return false;
-	const path = state.getNodePath(blockId);
-	if (!path || path.length <= 1) return false;
-
-	// Check ancestors (not the block itself)
-	for (let i = 0; i < path.length - 1; i++) {
-		const ancestorId = path[i];
-		if (!ancestorId) continue;
-		const ancestor = state.getBlock(ancestorId);
-		if (!ancestor) continue;
-		const spec = getNodeSpec(ancestor.type);
-		if (spec?.isolating) return true;
-	}
-	return false;
-}
-
-export function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean {
-	const getNodeSpec = state.schema.getNodeSpec;
-	if (!getNodeSpec) return false;
-	const block = state.getBlock(blockId);
-	if (!block) return false;
-	return getNodeSpec(block.type)?.isolating === true;
-}
-
-/**
- * Checks whether navigation between two blocks is allowed.
- * Prevents crossing isolating boundaries (e.g. table cells).
- */
-export function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockId): boolean {
-	// A block that is itself isolating cannot be crossed into via arrow keys
-	if (isIsolatingBlock(state, fromId) || isIsolatingBlock(state, toId)) return false;
-
-	const fromInside: boolean = isInsideIsolating(state, fromId);
-	const toInside: boolean = isInsideIsolating(state, toId);
-
-	// One inside isolating, the other not → disallow
-	if (fromInside !== toInside) return false;
-
-	// Both inside isolating → must share the same parent
-	if (fromInside && toInside) return sharesParent(state, fromId, toId);
-
-	return true;
-}
-
 /**
  * Merges the current block with the previous block, respecting
  * isolating boundaries and void blocks.
@@ -689,7 +283,7 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
  * Merges the next block into the current block, respecting
  * isolating boundaries and void blocks.
  */
-function mergeBlockForward(state: EditorState): Transaction | null {
+export function mergeBlockForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 	const blockOrder = state.getBlockOrder();
@@ -746,26 +340,6 @@ export function selectAll(state: EditorState): Transaction {
 		.build();
 }
 
-// --- Check Commands ---
-
-/** Checks if a mark is active at the current selection. */
-export function isMarkActive(state: EditorState, markType: MarkType): boolean {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-
-	if (isCollapsed(sel)) {
-		if (state.storedMarks) {
-			return hasMark(state.storedMarks, markType);
-		}
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		return hasMark(marks, markType);
-	}
-
-	return isMarkActiveInRange(state, markType);
-}
-
 // --- Internal Helpers ---
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
@@ -818,394 +392,4 @@ export function addDeleteSelectionSteps(state: EditorState, builder: Transaction
 		// Merge last block into first
 		builder.mergeBlocksAt(range.from.blockId, range.to.blockId);
 	}
-}
-
-/**
- * Finds the word boundary backward from the given offset.
- * InlineNodes act as word boundaries.
- */
-export function findWordBoundaryBackward(block: BlockNode, offset: number): number {
-	let pos = offset - 1;
-	// Skip trailing whitespace
-	while (pos >= 0) {
-		const content = getContentAtOffset(block, pos);
-		if (!content || content.kind === 'inline') break;
-		if (!/\s/.test(content.char)) break;
-		pos--;
-	}
-	// If at InlineNode, delete just it (treat as word boundary)
-	if (pos >= 0) {
-		const content = getContentAtOffset(block, pos);
-		if (content?.kind === 'inline') return pos;
-	}
-	// Skip word characters until whitespace or InlineNode
-	while (pos >= 0) {
-		const content = getContentAtOffset(block, pos);
-		if (!content || content.kind === 'inline') break;
-		if (/\s/.test(content.char)) break;
-		pos--;
-	}
-	return pos + 1;
-}
-
-/**
- * Finds the word boundary forward from the given offset.
- * InlineNodes act as word boundaries.
- */
-export function findWordBoundaryForward(block: BlockNode, offset: number): number {
-	const len = getBlockLength(block);
-	let pos = offset;
-	// Skip word characters first
-	while (pos < len) {
-		const content = getContentAtOffset(block, pos);
-		if (!content || content.kind === 'inline') break;
-		if (/\s/.test(content.char)) break;
-		pos++;
-	}
-	// If at InlineNode and haven't moved, delete just the InlineNode
-	if (pos === offset && pos < len) {
-		const content = getContentAtOffset(block, pos);
-		if (content?.kind === 'inline') return pos + 1;
-	}
-	// Skip trailing whitespace
-	while (pos < len) {
-		const content = getContentAtOffset(block, pos);
-		if (!content || content.kind === 'inline') break;
-		if (!/\s/.test(content.char)) break;
-		pos++;
-	}
-	return pos;
-}
-
-function isFeatureGated(type: MarkType, features: FeatureConfig): boolean {
-	const key = type as string;
-	if (key === 'bold') return !features.bold;
-	if (key === 'italic') return !features.italic;
-	if (key === 'underline') return !features.underline;
-	return false;
-}
-
-/**
- * Deletes the void block adjacent to a GapCursor when pressing Backspace.
- *
- * - `side === 'after'` → void block is behind the cursor → delete it.
- * - `side === 'before'` → void block is ahead → navigate backward (to previous block).
- * - At document start with `side === 'before'` → `null` (no-op).
- */
-export function deleteBackwardAtGap(
-	state: EditorState,
-	sel: GapCursorSelection,
-): Transaction | null {
-	if (sel.side === 'after') {
-		return deleteVoidAtGap(state, sel);
-	}
-
-	// side === 'before': navigate to previous block
-	const blockOrder: readonly BlockId[] = state.getBlockOrder();
-	const blockIdx: number = blockOrder.indexOf(sel.blockId);
-
-	if (blockIdx <= 0) return null;
-
-	const prevId: BlockId | undefined = blockOrder[blockIdx - 1];
-	if (!prevId) return null;
-
-	if (isVoidBlock(state, prevId)) {
-		const path = findNodePath(state.doc, prevId) ?? [];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(prevId, path as BlockId[]))
-			.build();
-	}
-
-	const prevBlock = state.getBlock(prevId);
-	if (!prevBlock) return null;
-	const prevLen: number = getBlockLength(prevBlock);
-	return state.transaction('input').setSelection(createCollapsedSelection(prevId, prevLen)).build();
-}
-
-/**
- * Deletes the void block adjacent to a GapCursor when pressing Delete.
- *
- * - `side === 'before'` → void block is ahead of the cursor → delete it.
- * - `side === 'after'` → void block is behind → navigate forward (to next block).
- * - At document end with `side === 'after'` → `null` (no-op).
- */
-export function deleteForwardAtGap(
-	state: EditorState,
-	sel: GapCursorSelection,
-): Transaction | null {
-	if (sel.side === 'before') {
-		return deleteVoidAtGap(state, sel);
-	}
-
-	// side === 'after': navigate to next block
-	const blockOrder: readonly BlockId[] = state.getBlockOrder();
-	const blockIdx: number = blockOrder.indexOf(sel.blockId);
-
-	if (blockIdx >= blockOrder.length - 1) return null;
-
-	const nextId: BlockId | undefined = blockOrder[blockIdx + 1];
-	if (!nextId) return null;
-
-	if (isVoidBlock(state, nextId)) {
-		const path = findNodePath(state.doc, nextId) ?? [];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(nextId, path as BlockId[]))
-			.build();
-	}
-
-	return state.transaction('input').setSelection(createCollapsedSelection(nextId, 0)).build();
-}
-
-/** Deletes the void block that the GapCursor is adjacent to, delegating to deleteNodeSelection. */
-function deleteVoidAtGap(state: EditorState, sel: GapCursorSelection): Transaction | null {
-	const path = (findNodePath(state.doc, sel.blockId) ?? []) as BlockId[];
-	const nodeSel: NodeSelection = createNodeSelection(sel.blockId, path);
-	return deleteNodeSelection(state, nodeSel);
-}
-
-/** Inserts a new paragraph after a NodeSelection-targeted void block. */
-function insertParagraphAfterNodeSelection(
-	state: EditorState,
-	sel: NodeSelection,
-): Transaction | null {
-	const path = findNodePath(state.doc, sel.nodeId);
-	if (!path) return null;
-
-	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
-	if (index < 0) return null;
-
-	const newId = generateBlockId();
-	const builder = state.transaction('input');
-	builder.insertNode(
-		parentPath,
-		index + 1,
-		createBlockNode(
-			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
-			[createTextNode('')],
-			newId,
-		),
-	);
-	builder.setSelection(createCollapsedSelection(newId, 0));
-	return builder.build();
-}
-
-/** Inserts a new paragraph at a GapCursor position (before or after the void block). */
-function insertParagraphAtGap(state: EditorState, sel: GapCursorSelection): Transaction | null {
-	const path = findNodePath(state.doc, sel.blockId);
-	if (!path) return null;
-
-	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
-	if (index < 0) return null;
-
-	const insertIdx: number = sel.side === 'before' ? index : index + 1;
-	const newId = generateBlockId();
-	const builder = state.transaction('input');
-	builder.insertNode(
-		parentPath,
-		insertIdx,
-		createBlockNode(
-			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
-			[createTextNode('')],
-			newId,
-		),
-	);
-	builder.setSelection(createCollapsedSelection(newId, 0));
-	return builder.build();
-}
-
-/** Inserts text in a new paragraph at a GapCursor position. */
-function insertTextAtGap(
-	state: EditorState,
-	sel: GapCursorSelection,
-	text: string,
-	origin: 'input' | 'paste',
-): Transaction {
-	const path = findNodePath(state.doc, sel.blockId);
-	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
-	const insertIdx: number =
-		sel.side === 'before' ? Math.max(index, 0) : index >= 0 ? index + 1 : siblings.length;
-
-	const newId = generateBlockId();
-	const builder = state.transaction(origin);
-	builder.insertNode(
-		parentPath,
-		insertIdx,
-		createBlockNode(
-			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
-			[createTextNode('')],
-			newId,
-		),
-	);
-	builder.insertText(newId, 0, text, []);
-	builder.setSelection(createCollapsedSelection(newId, text.length));
-	return builder.build();
-}
-
-/** Inserts text in a new paragraph after a NodeSelection-targeted void block. */
-function insertTextAfterNodeSelection(
-	state: EditorState,
-	sel: NodeSelection,
-	text: string,
-	origin: 'input' | 'paste',
-): Transaction {
-	const path = findNodePath(state.doc, sel.nodeId);
-	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.nodeId);
-
-	const newId = generateBlockId();
-	const builder = state.transaction(origin);
-
-	const insertIdx = index >= 0 ? index + 1 : siblings.length;
-	builder.insertNode(
-		parentPath,
-		insertIdx,
-		createBlockNode(
-			'paragraph' as import('../model/TypeBrands.js').NodeTypeName,
-			[createTextNode('')],
-			newId,
-		),
-	);
-	builder.insertText(newId, 0, text, []);
-	builder.setSelection(createCollapsedSelection(newId, text.length));
-	return builder.build();
-}
-
-/**
- * Navigates arrow keys into/out of void blocks.
- * Returns a transaction if navigation should create a NodeSelection, or null.
- */
-export function navigateArrowIntoVoid(
-	state: EditorState,
-	direction: 'left' | 'right' | 'up' | 'down',
-): Transaction | null {
-	const sel = state.selection;
-	const blockOrder = state.getBlockOrder();
-
-	// If currently on a NodeSelection, navigate away from it
-	if (isNodeSelection(sel)) {
-		const nodeIdx = blockOrder.indexOf(sel.nodeId);
-		const nodePath = (findNodePath(state.doc, sel.nodeId) ?? []) as BlockId[];
-		if (direction === 'left' || direction === 'up') {
-			if (nodeIdx > 0) {
-				const prevId = blockOrder[nodeIdx - 1];
-				if (!prevId) return null;
-				// Adjacent void → GapCursor between the two voids
-				if (isVoidBlock(state, prevId)) {
-					return state
-						.transaction('input')
-						.setSelection(createGapCursor(sel.nodeId, 'before', nodePath))
-						.build();
-				}
-				const prevBlock = state.getBlock(prevId);
-				const prevLen = prevBlock ? getBlockLength(prevBlock) : 0;
-				return state
-					.transaction('input')
-					.setSelection(createCollapsedSelection(prevId, prevLen))
-					.build();
-			}
-			// At document boundary → GapCursor at edge
-			return state
-				.transaction('input')
-				.setSelection(createGapCursor(sel.nodeId, 'before', nodePath))
-				.build();
-		}
-		// right or down
-		if (nodeIdx < blockOrder.length - 1) {
-			const nextId = blockOrder[nodeIdx + 1];
-			if (!nextId) return null;
-			// Adjacent void → GapCursor between the two voids
-			if (isVoidBlock(state, nextId)) {
-				return state
-					.transaction('input')
-					.setSelection(createGapCursor(sel.nodeId, 'after', nodePath))
-					.build();
-			}
-			return state.transaction('input').setSelection(createCollapsedSelection(nextId, 0)).build();
-		}
-		// At document boundary → GapCursor at edge
-		return state
-			.transaction('input')
-			.setSelection(createGapCursor(sel.nodeId, 'after', nodePath))
-			.build();
-	}
-
-	// GapCursor is handled by navigateFromGapCursor in CaretNavigation
-	if (isGapCursor(sel)) return null;
-
-	// Text selection: check if navigating into a void block
-	if (!isCollapsed(sel)) return null;
-
-	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-	const blockLen = getBlockLength(block);
-
-	if (direction === 'right' || direction === 'down') {
-		if (sel.anchor.offset === blockLen && blockIdx < blockOrder.length - 1) {
-			const nextId = blockOrder[blockIdx + 1];
-			if (nextId && isVoidBlock(state, nextId)) {
-				const path = findNodePath(state.doc, nextId) ?? [];
-				return state
-					.transaction('input')
-					.setSelection(createNodeSelection(nextId, path as BlockId[]))
-					.build();
-			}
-		}
-	}
-
-	if (direction === 'left' || direction === 'up') {
-		if (sel.anchor.offset === 0 && blockIdx > 0) {
-			const prevId = blockOrder[blockIdx - 1];
-			if (prevId && isVoidBlock(state, prevId)) {
-				const path = findNodePath(state.doc, prevId) ?? [];
-				return state
-					.transaction('input')
-					.setSelection(createNodeSelection(prevId, path as BlockId[]))
-					.build();
-			}
-		}
-	}
-
-	return null;
 }

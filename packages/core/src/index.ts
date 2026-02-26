@@ -111,7 +111,7 @@ export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 // --- ParseRule & SanitizeConfig ---
 export type { ParseRule } from './model/ParseRule.js';
 export type { SanitizeConfig } from './model/SanitizeConfig.js';
-export { escapeHTML } from './model/HTMLUtils.js';
+export { escapeHTML, formatHTML } from './model/HTMLUtils.js';
 
 // --- SchemaRegistry ---
 export type { FileHandler, FileHandlerEntry } from './model/SchemaRegistry.js';
@@ -164,6 +164,8 @@ export { isAllowedInReadonly, isSelectionOnlyTransaction } from './state/Readonl
 
 export { HistoryManager } from './state/History.js';
 export type { HistoryResult } from './state/History.js';
+
+export { extendTx, moveTx, nodeSelTx } from './state/SelectionTransactions.js';
 
 // --- Commands ---
 export type { FeatureConfig } from './commands/Commands.js';

@@ -6,19 +6,20 @@
  * `navigateVerticalWithGoalColumn()` for column-preserving vertical nav.
  */
 
-import { canCrossBlockBoundary, isVoidBlock } from '../commands/Commands.js';
 import { type BlockNode, getBlockLength, getContentAtOffset } from '../model/Document.js';
-import { findNodePath } from '../model/NodeResolver.js';
-import {
-	createCollapsedSelection,
-	createNodeSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../model/Selection.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../model/NavigationUtils.js';
+import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
+import { domPositionFromPoint } from './DomPointUtils.js';
+
+/** Inset in pixels from block edge for vertical goal-column probing. */
+const BLOCK_EDGE_INSET_PX = 2;
+
+/** Minimum vertical movement (pixels) for a Selection.modify probe to be considered a real move. */
+const VERTICAL_MOVEMENT_THRESHOLD_PX = 1;
 import { getTextDirection } from './Platform.js';
 import { domPositionToState, getSelection } from './SelectionSync.js';
 
@@ -244,25 +245,6 @@ export function getCaretRectFromSelection(domSel: globalThis.Selection): DOMRect
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Builds a collapsed-cursor transaction that clears storedMarks. */
-function moveTx(state: EditorState, blockId: BlockId, offset: number): Transaction {
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, offset))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
-/** Builds a NodeSelection transaction that clears storedMarks. */
-function nodeSelTx(state: EditorState, targetId: BlockId): Transaction {
-	const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
-	return state
-		.transaction('input')
-		.setSelection(createNodeSelection(targetId, path))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
 /**
  * Resolves the adjacent block in the given direction for cross-block navigation.
  * Performs boundary checks, isolating checks, and void detection.
@@ -311,52 +293,20 @@ function resolveGoalColumnPosition(
 
 	const rect: DOMRect = blockEl.getBoundingClientRect();
 	// Small inset to ensure we hit inside the line, not on the border
-	const y: number = direction === 'down' ? rect.top + 2 : rect.bottom - 2;
+	const y: number =
+		direction === 'down' ? rect.top + BLOCK_EDGE_INSET_PX : rect.bottom - BLOCK_EDGE_INSET_PX;
 	// Clamp goalColumn within the block's horizontal bounds to avoid
 	// caretPositionFromPoint returning unexpected results for out-of-bounds X.
 	const clampedX: number = Math.min(Math.max(goalColumn, rect.left), rect.right - 1);
 
 	const root: Document | ShadowRoot = container.getRootNode() as Document | ShadowRoot;
-
-	let domNode: Node | null = null;
-	let domOffset = 0;
-
-	// Standard API
-	if ('caretPositionFromPoint' in root) {
-		const cp = (root as Document).caretPositionFromPoint(clampedX, y);
-		if (cp) {
-			domNode = cp.offsetNode;
-			domOffset = cp.offset;
-		}
-	}
-
-	// Fallback
-	if (!domNode && 'caretRangeFromPoint' in root) {
-		const range = (root as Document).caretRangeFromPoint(clampedX, y);
-		if (range) {
-			domNode = range.startContainer;
-			domOffset = range.startOffset;
-		}
-	}
-
-	// Also try on the document when the root is a ShadowRoot and returned nothing
-	if (!domNode && root !== container.ownerDocument) {
-		const doc: Document = container.ownerDocument;
-		if ('caretRangeFromPoint' in doc) {
-			const range = doc.caretRangeFromPoint(clampedX, y);
-			if (range) {
-				domNode = range.startContainer;
-				domOffset = range.startOffset;
-			}
-		}
-	}
-
-	if (!domNode) return null;
+	const domPoint = domPositionFromPoint(root, clampedX, y, container.ownerDocument);
+	if (!domPoint) return null;
 
 	// Verify the DOM node is inside the target block
-	if (!blockEl.contains(domNode)) return null;
+	if (!blockEl.contains(domPoint.node)) return null;
 
-	const position = domPositionToState(container, domNode, domOffset);
+	const position = domPositionToState(container, domPoint.node, domPoint.offset);
 	if (!position) return null;
 
 	// Ensure the resolved position is in the target block
@@ -422,7 +372,7 @@ function probeVerticalBoundary(
 			const newRect: DOMRect | null = getCaretRectFromSelection(domSel);
 			if (newRect) {
 				const verticalDelta: number = Math.abs(newRect.top - origRect.top);
-				if (verticalDelta < 1) return true;
+				if (verticalDelta < VERTICAL_MOVEMENT_THRESHOLD_PX) return true;
 			}
 		}
 

@@ -1,10 +1,6 @@
 import { expect, test } from './fixtures/editor-page';
 
 test.describe('Goal Column Preservation', () => {
-	test.beforeEach(async ({ browserName }) => {
-		test.skip(browserName === 'firefox', 'Firefox goal column positioning differs');
-	});
-
 	test('ArrowDown over paragraphs preserves visual column', async ({ editor, page }) => {
 		// Type three paragraphs of different lengths
 		await editor.typeText('Short');
