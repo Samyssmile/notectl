@@ -5,7 +5,8 @@
  */
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
-import type { BlockNode, Mark } from '../model/Document.js';
+import { buildMarkOrder, serializeMarksToHTML } from '../editor/MarkSerializer.js';
+import type { BlockNode } from '../model/Document.js';
 import {
 	getBlockLength,
 	getBlockText,
@@ -13,8 +14,6 @@ import {
 	isInlineNode,
 	isTextNode,
 } from '../model/Document.js';
-import { escapeHTML } from '../model/HTMLUtils.js';
-import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	isCollapsed,
@@ -188,6 +187,7 @@ export class ClipboardHandler {
 
 		// Write text/html with inline marks so paste preserves formatting
 		if (this.schemaRegistry) {
+			const markOrder: Map<string, number> = buildMarkOrder(this.schemaRegistry);
 			const htmlParts: string[] = [];
 			for (let i = fromIdx; i <= toIdx; i++) {
 				const bid = blockOrder[i];
@@ -197,7 +197,7 @@ export class ClipboardHandler {
 
 				const start = i === fromIdx ? range.from.offset : 0;
 				const end = i === toIdx ? range.to.offset : getBlockLength(block);
-				htmlParts.push(this.serializeBlockRangeToHTML(block, start, end));
+				htmlParts.push(this.serializeBlockRangeToHTML(block, start, end, markOrder));
 			}
 			clipboardData.setData('text/html', htmlParts.join(''));
 		}
@@ -209,7 +209,12 @@ export class ClipboardHandler {
 	}
 
 	/** Serializes a range of inline content within a block to an HTML string. */
-	private serializeBlockRangeToHTML(block: BlockNode, start: number, end: number): string {
+	private serializeBlockRangeToHTML(
+		block: BlockNode,
+		start: number,
+		end: number,
+		markOrder?: Map<string, number>,
+	): string {
 		const children = getInlineChildren(block);
 		const parts: string[] = [];
 		let pos = 0;
@@ -227,40 +232,20 @@ export class ClipboardHandler {
 				const sliceFrom: number = Math.max(0, start - pos);
 				const sliceTo: number = Math.min(child.text.length, end - pos);
 				const text: string = child.text.slice(sliceFrom, sliceTo);
-				if (text.length > 0) {
-					parts.push(this.serializeTextWithMarks(text, child.marks));
+				if (text.length > 0 && this.schemaRegistry) {
+					parts.push(serializeMarksToHTML(text, child.marks, this.schemaRegistry, markOrder));
+				}
+			} else if (isInlineNode(child)) {
+				const spec = this.schemaRegistry?.getInlineNodeSpec(child.inlineType);
+				if (spec?.toHTMLString) {
+					parts.push(spec.toHTMLString(child));
 				}
 			}
-			// InlineNodes are skipped for text/html serialization (same as plain text)
 
 			pos = childEnd;
 		}
 
 		return parts.join('');
-	}
-
-	/** Wraps escaped text in mark HTML tags using MarkSpec.toHTMLString when available. */
-	private serializeTextWithMarks(text: string, marks: readonly Mark[]): string {
-		if (marks.length === 0 || !this.schemaRegistry) {
-			return escapeHTML(text);
-		}
-
-		// Sort marks by rank (lowest rank = closest to text content = applied first)
-		const sorted: readonly Mark[] = [...marks].sort((a, b) => {
-			const specA: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(a.type);
-			const specB: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(b.type);
-			return (specA?.rank ?? 100) - (specB?.rank ?? 100);
-		});
-
-		let html: string = escapeHTML(text);
-		// Apply marks from innermost (lowest rank) to outermost (highest rank)
-		for (const mark of sorted) {
-			const spec: MarkSpec | undefined = this.schemaRegistry?.getMarkSpec(mark.type);
-			if (spec?.toHTMLString) {
-				html = spec.toHTMLString(mark, html);
-			}
-		}
-		return html;
 	}
 
 	destroy(): void {

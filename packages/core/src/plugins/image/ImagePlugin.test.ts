@@ -244,7 +244,22 @@ describe('ImagePlugin', () => {
 			expect(html).toContain('alt="A photo"');
 			expect(html).toContain('width="400"');
 			expect(html).toContain('height="300"');
-			expect(html).toContain('notectl-image--center');
+			expect(html).toContain('text-align: center');
+		});
+
+		it('serializes left-aligned image with explicit text-align: left', async () => {
+			const plugin = new ImagePlugin();
+			const { pm } = await pluginHarness(plugin, defaultState());
+			const spec = pm.schemaRegistry.getNodeSpec('image');
+
+			const block = createBlockNode(nodeType('image'), [], blockId('test'), {
+				src: 'photo.jpg',
+				alt: '',
+				align: 'left',
+			});
+
+			const html = spec?.toHTML?.(block, '');
+			expect(html).toContain('text-align: left');
 		});
 	});
 

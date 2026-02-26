@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createInlineNode,
+	createTextNode,
+} from '../model/Document.js';
 import type { Mark } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
+import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { blockId, markType, nodeType } from '../model/TypeBrands.js';
+import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { isValidCSSColor } from '../plugins/shared/ColorValidation.js';
 import { serializeDocumentToHTML } from './DocumentSerializer.js';
 
@@ -151,6 +157,32 @@ describe('serializeDocumentToHTML', () => {
 		const html: string = serializeDocumentToHTML(doc);
 		expect(html).not.toContain('text-align');
 		expect(html).toBe('<p>hello</p>');
+	});
+
+	it('does not double-inject text-align when toHTML already emits it', () => {
+		const registry: SchemaRegistry = {
+			getNodeSpec: (type: string) => {
+				if (type === 'image') {
+					return {
+						toHTML: () => '<figure style="text-align: left"><img src="x"></figure>',
+					};
+				}
+				return undefined;
+			},
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getAllowedTags: () => ['figure', 'img'],
+			getAllowedAttrs: () => ['style', 'src'],
+		} as unknown as SchemaRegistry;
+
+		const doc = createDocument([
+			createBlockNode(nodeType('image'), [], undefined, { align: 'center' }),
+		]);
+		const html: string = serializeDocumentToHTML(doc, registry);
+		// Should NOT inject a second text-align style
+		const matches: RegExpMatchArray | null = html.match(/text-align/g);
+		expect(matches).toHaveLength(1);
 	});
 
 	// Coverage for compound block serialization (nested BlockNode children)
@@ -337,6 +369,290 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 			expect(html).toContain('color: rgb(255, 0, 0)');
+		});
+	});
+
+	// --- Adjacent TextNode merging ---
+
+	describe('adjacent TextNode merging', () => {
+		function createBoldRegistry(): SchemaRegistry {
+			const markSpecs = new Map<string, MarkSpec>([
+				[
+					'bold',
+					{
+						type: 'bold',
+						rank: 1,
+						toDOM: () => document.createElement('strong'),
+						toHTMLString: (_mark: Mark, content: string) => `<strong>${content}</strong>`,
+					},
+				],
+				[
+					'italic',
+					{
+						type: 'italic',
+						rank: 2,
+						toDOM: () => document.createElement('em'),
+						toHTMLString: (_mark: Mark, content: string) => `<em>${content}</em>`,
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: () => undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: (type: string) => markSpecs.get(type) ?? undefined,
+				getMarkTypes: () => [...markSpecs.keys()],
+				getAllowedTags: () => ['p', 'br', 'strong', 'em'],
+				getAllowedAttrs: () => ['style'],
+			} as unknown as SchemaRegistry;
+		}
+
+		it('merges adjacent bold TextNodes into a single <strong> wrapper', () => {
+			const registry: SchemaRegistry = createBoldRegistry();
+			const boldMark: Mark = { type: markType('bold') };
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('Hello ', [boldMark]),
+					createTextNode('World', [boldMark]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<p><strong>Hello World</strong></p>');
+		});
+
+		it('does not merge TextNodes with different marks', () => {
+			const registry: SchemaRegistry = createBoldRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('Hello ', [{ type: markType('bold') }]),
+					createTextNode('World', [{ type: markType('italic') }]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<p><strong>Hello </strong><em>World</em></p>');
+		});
+
+		it('InlineNode between same-mark TextNodes prevents merging', () => {
+			const registry: SchemaRegistry = createBoldRegistry();
+			const inlineSpec = {
+				type: 'hard_break',
+				toHTMLString: () => '<br>',
+			};
+			const regWithInline = {
+				...registry,
+				getInlineNodeSpec: (type: string) => (type === 'hard_break' ? inlineSpec : undefined),
+				getAllowedTags: () => ['p', 'br', 'strong', 'em'],
+			} as unknown as SchemaRegistry;
+
+			const boldMark: Mark = { type: markType('bold') };
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('A', [boldMark]),
+					createInlineNode(inlineType('hard_break')),
+					createTextNode('B', [boldMark]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, regWithInline);
+			expect(html).toBe('<p><strong>A</strong><br><strong>B</strong></p>');
+		});
+	});
+
+	// --- Style mark consolidation (toHTMLStyle) ---
+
+	describe('style mark consolidation', () => {
+		function createStyleMarkRegistry(): SchemaRegistry {
+			const markSpecs = new Map<string, MarkSpec>([
+				[
+					'textColor',
+					{
+						type: 'textColor',
+						rank: 5,
+						toDOM: () => document.createElement('span'),
+						toHTMLStyle: (mark: Mark) => {
+							const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+							return color ? `color: ${color}` : null;
+						},
+					},
+				],
+				[
+					'highlight',
+					{
+						type: 'highlight',
+						rank: 4,
+						toDOM: () => document.createElement('span'),
+						toHTMLStyle: (mark: Mark) => {
+							const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+							return color ? `background-color: ${color}` : null;
+						},
+					},
+				],
+				[
+					'bold',
+					{
+						type: 'bold',
+						rank: 1,
+						toDOM: () => document.createElement('strong'),
+						toHTMLString: (_mark: Mark, content: string) => `<strong>${content}</strong>`,
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: () => undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: (type: string) => markSpecs.get(type) ?? undefined,
+				getMarkTypes: () => [...markSpecs.keys()],
+				getAllowedTags: () => ['p', 'br', 'span', 'strong'],
+				getAllowedAttrs: () => ['style'],
+			} as unknown as SchemaRegistry;
+		}
+
+		it('merges textColor + highlight into a single <span style="...">', () => {
+			const registry: SchemaRegistry = createStyleMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [
+						{ type: markType('textColor'), attrs: { color: 'red' } },
+						{ type: markType('highlight'), attrs: { color: 'yellow' } },
+					]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('style="background-color: yellow; color: red"');
+			// Should be a single span, not nested
+			expect(html).not.toMatch(/<span[^>]*><span/);
+		});
+
+		it('wraps tag-based marks outside the merged style span', () => {
+			const registry: SchemaRegistry = createStyleMarkRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createTextNode('hello', [
+						{ type: markType('bold') },
+						{ type: markType('textColor'), attrs: { color: 'red' } },
+					]),
+				]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			// Bold should wrap the style span
+			expect(html).toBe('<p><strong><span style="color: red">hello</span></strong></p>');
+		});
+	});
+
+	// --- Nested list serialization ---
+
+	describe('nested list serialization', () => {
+		function createListRegistry(): SchemaRegistry {
+			const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+				['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+				[
+					'list_item',
+					{
+						toHTML: (node: unknown, content: string) => {
+							const n = node as { attrs?: Record<string, unknown> };
+							const listType: string = (n.attrs?.listType as string) ?? 'bullet';
+							const checked: boolean = (n.attrs?.checked as boolean) ?? false;
+
+							if (listType === 'checklist') {
+								const checkedAttr: string = checked ? ' checked' : '';
+								return (
+									`<li role="checkbox" aria-checked="${String(checked)}">` +
+									`<input type="checkbox" disabled${checkedAttr}>` +
+									`${content || '<br>'}</li>`
+								);
+							}
+							return `<li>${content || '<br>'}</li>`;
+						},
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li', 'input'],
+				getAllowedAttrs: () => ['style', 'role', 'aria-checked', 'type', 'disabled', 'checked'],
+			} as unknown as SchemaRegistry;
+		}
+
+		function listItem(
+			text: string,
+			listType: string,
+			indent: number,
+			checked = false,
+		): ReturnType<typeof createBlockNode> {
+			return createBlockNode(nodeType('list_item'), [createTextNode(text)], undefined, {
+				listType,
+				indent,
+				checked,
+			});
+		}
+
+		it('serializes flat bullet list', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([listItem('A', 'bullet', 0), listItem('B', 'bullet', 0)]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<ul><li>A</li><li>B</li></ul>');
+		});
+
+		it('serializes nested list (indent 0→1) with valid HTML5 nesting', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([listItem('A', 'bullet', 0), listItem('B', 'bullet', 1)]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<ul><li>A<ul><li>B</li></ul></li></ul>');
+		});
+
+		it('serializes deep nesting (0→1→2→1) with valid HTML5 nesting', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				listItem('A', 'bullet', 0),
+				listItem('B', 'bullet', 1),
+				listItem('C', 'bullet', 2),
+				listItem('D', 'bullet', 1),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<ul><li>A<ul><li>B<ul><li>C</li></ul></li><li>D</li></ul></li></ul>');
+		});
+
+		it('serializes checklist items with accessible markup', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				listItem('Done', 'checklist', 0, true),
+				listItem('Todo', 'checklist', 0, false),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('role="checkbox"');
+			expect(html).toContain('aria-checked="true"');
+			expect(html).toContain('aria-checked="false"');
+			// DOMPurify normalizes boolean attrs to `attr=""`
+			expect(html).toContain('type="checkbox"');
+			expect(html).toContain('disabled');
+			expect(html).toContain('checked');
+			expect(html).toContain('Done');
+			expect(html).toContain('Todo');
+		});
+
+		it('serializes mixed ordered/bullet list types', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				listItem('Bullet', 'bullet', 0),
+				listItem('Ordered', 'ordered', 0),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('<ul>');
+			expect(html).toContain('<ol>');
 		});
 	});
 });

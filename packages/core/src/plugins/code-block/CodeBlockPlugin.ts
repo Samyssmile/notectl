@@ -167,9 +167,9 @@ export class CodeBlockPlugin implements Plugin {
 			toHTML(node, content) {
 				const lang: string = escapeHTML((node.attrs?.language as string) ?? '');
 				const bg: string = escapeHTML((node.attrs?.backgroundColor as string) ?? '');
-				const langAttr: string = lang ? ` data-language="${lang}"` : '';
+				const langClass: string = lang ? ` class="language-${lang}"` : '';
 				const bgStyle: string = bg ? ` style="background-color: ${bg}"` : '';
-				return `<pre${bgStyle}><code${langAttr}>${content || ''}</code></pre>`;
+				return `<pre${bgStyle}><code${langClass}>${content || ''}</code></pre>`;
 			},
 			parseHTML: [
 				{

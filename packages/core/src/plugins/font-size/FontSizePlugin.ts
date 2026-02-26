@@ -6,8 +6,10 @@
 
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { isValidCSSFontSize } from '../shared/ColorValidation.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import { FONT_SIZE_LOCALES, type FontSizeLocale } from './FontSizeLocale.js';
 import {
@@ -110,8 +112,13 @@ export class FontSizePlugin implements Plugin {
 			},
 			toHTMLString: (mark, content) => {
 				const size: string = String(mark.attrs?.size ?? '');
-				if (!size) return content;
-				return `<span style="font-size: ${size}">${content}</span>`;
+				if (!size || !isValidCSSFontSize(size)) return content;
+				return `<span style="font-size: ${escapeHTML(size)}">${content}</span>`;
+			},
+			toHTMLStyle: (mark) => {
+				const size: string = String(mark.attrs?.size ?? '');
+				if (!size || !isValidCSSFontSize(size)) return null;
+				return `font-size: ${escapeHTML(size)}`;
 			},
 			parseHTML: [
 				{

@@ -161,6 +161,11 @@ export class TextColorPlugin implements Plugin {
 				if (!color || !isValidCSSColor(color)) return content;
 				return `<span style="color: ${escapeHTML(color)}">${content}</span>`;
 			},
+			toHTMLStyle: (mark) => {
+				const color: string = String(mark.attrs?.color ?? '');
+				if (!color || !isValidCSSColor(color)) return null;
+				return `color: ${escapeHTML(color)}`;
+			},
 			parseHTML: [
 				{
 					tag: 'span',

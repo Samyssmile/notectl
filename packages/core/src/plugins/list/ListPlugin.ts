@@ -176,11 +176,27 @@ export class ListPlugin implements Plugin {
 					attrs: { role: 'list' },
 				};
 			},
-			toHTML(_node, content) {
+			toHTML(node, content) {
+				const listType: string = (node.attrs?.listType as string) ?? 'bullet';
+				const checked: boolean = (node.attrs?.checked as boolean) ?? false;
+
+				if (listType === 'checklist') {
+					const checkedAttr: string = checked ? ' checked' : '';
+					const ariaChecked: string = String(checked);
+					return (
+						`<li role="checkbox" aria-checked="${ariaChecked}">` +
+						`<input type="checkbox" disabled${checkedAttr}>` +
+						`${content || '<br>'}</li>`
+					);
+				}
+
 				return `<li>${content || '<br>'}</li>`;
 			},
 			parseHTML: [{ tag: 'li' }],
-			sanitize: { tags: ['ul', 'ol', 'li'] },
+			sanitize: {
+				tags: ['ul', 'ol', 'li', 'input'],
+				attrs: ['type', 'disabled', 'checked', 'role', 'aria-checked'],
+			},
 		});
 	}
 

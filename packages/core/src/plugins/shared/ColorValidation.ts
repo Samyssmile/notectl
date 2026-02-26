@@ -1,6 +1,6 @@
 /**
- * Shared color validation and normalization utilities
- * for color-based mark plugins (TextColor, Highlight).
+ * Shared CSS validation and normalization utilities
+ * for style-based mark plugins (TextColor, Highlight, Font, FontSize).
  */
 
 const HEX_COLOR_PATTERN: RegExp = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -225,4 +225,35 @@ export function resolveColors(
 		}
 	}
 	return unique;
+}
+
+// --- Font Family Validation ---
+
+/** Characters that are never valid in a CSS font-family value. */
+const FONT_FAMILY_FORBIDDEN: RegExp = /[{}<>;]|url\(|expression\(/i;
+
+/**
+ * Returns `true` when `value` is a safe CSS `font-family` value.
+ * Rejects values containing `{`, `}`, `;`, `<`, `>`, `url(`, or `expression(`
+ * to defend against CSS injection.
+ */
+export function isValidCSSFontFamily(value: string): boolean {
+	if (!value) return false;
+	const trimmed: string = value.trim();
+	if (!trimmed) return false;
+	return !FONT_FAMILY_FORBIDDEN.test(trimmed);
+}
+
+// --- Font Size Validation ---
+
+/** Matches valid CSS font-size values: number with unit (px, pt, em, rem, %). */
+const FONT_SIZE_PATTERN: RegExp = /^\d+(\.\d+)?(px|pt|em|rem|%)$/i;
+
+/**
+ * Returns `true` when `value` is a safe CSS `font-size` value.
+ * Accepts values like `16px`, `1.5em`, `12pt`, `100%`, `0.875rem`.
+ */
+export function isValidCSSFontSize(value: string): boolean {
+	if (!value) return false;
+	return FONT_SIZE_PATTERN.test(value.trim());
 }

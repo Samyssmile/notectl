@@ -85,6 +85,9 @@ export class LinkPlugin implements Plugin {
 			},
 			toHTMLString: (mark, content) => {
 				const href: string = escapeHTML(String(mark.attrs?.href ?? ''));
+				if (openInNewTab) {
+					return `<a href="${href}" target="_blank" rel="noopener noreferrer">${content}</a>`;
+				}
 				return `<a href="${href}">${content}</a>`;
 			},
 			parseHTML: [
