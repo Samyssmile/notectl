@@ -1,10 +1,11 @@
 import { expect, test } from './fixtures/editor-page';
 
-test.use({
-	permissions: ['clipboard-read', 'clipboard-write'],
-});
-
 test.describe('Image cut & paste into table', () => {
+	test.beforeEach(async ({ context, browserName }) => {
+		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	});
+
 	test('cut image and paste into second table cell', async ({ editor, page }) => {
 		await editor.focus();
 

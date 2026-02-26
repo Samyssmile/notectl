@@ -177,7 +177,10 @@ export class KeyboardHandler {
 
 		// Backspace / Delete: remove the selected void block
 		if (key === 'Backspace' || key === 'Delete') {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr = deleteNodeSelection(state, sel);
 			if (tr) this.dispatch(tr);
@@ -186,7 +189,10 @@ export class KeyboardHandler {
 
 		// Enter: insert paragraph after
 		if (key === 'Enter') {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr = splitBlockCommand(state);
 			if (tr) this.dispatch(tr);
@@ -232,7 +238,10 @@ export class KeyboardHandler {
 
 		// Enter: insert paragraph at gap
 		if (key === 'Enter') {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr: Transaction | null = splitBlockCommand(state);
 			if (tr) this.dispatch(tr);
@@ -241,7 +250,10 @@ export class KeyboardHandler {
 
 		// Backspace: delete backward at gap
 		if (key === 'Backspace') {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr: Transaction | null = deleteBackwardAtGap(state, sel);
 			if (tr) this.dispatch(tr);
@@ -250,7 +262,10 @@ export class KeyboardHandler {
 
 		// Delete: delete forward at gap
 		if (key === 'Delete') {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr: Transaction | null = deleteForwardAtGap(state, sel);
 			if (tr) this.dispatch(tr);
@@ -259,7 +274,10 @@ export class KeyboardHandler {
 
 		// Printable characters: insert text in a new paragraph
 		if (key.length === 1) {
-			if (this.isReadOnly()) return true;
+			if (this.isReadOnly()) {
+				e.preventDefault();
+				return true;
+			}
 			e.preventDefault();
 			const tr: Transaction = insertTextCommand(state, key);
 			this.dispatch(tr);

@@ -35,11 +35,15 @@ export {
 	getBlockChildren,
 	getBlockText,
 	getBlockLength,
+	blockOffsetToTextOffset,
 	getBlockMarksAtOffset,
 	getContentAtOffset,
 	hasMark,
 	markSetsEqual,
 } from './model/Document.js';
+
+// --- Grapheme Utils ---
+export { nextGraphemeSize, prevGraphemeSize } from './model/GraphemeUtils.js';
 
 // --- Selection ---
 export type {
@@ -186,7 +190,43 @@ export {
 	deleteBackwardAtGap,
 	deleteForwardAtGap,
 	navigateArrowIntoVoid,
+	findWordBoundaryForward,
+	findWordBoundaryBackward,
 } from './commands/Commands.js';
+
+// --- Movement Commands ---
+export {
+	moveCharacterForward,
+	moveCharacterBackward,
+	moveToBlockStart,
+	moveToBlockEnd,
+	moveToDocumentStart,
+	moveToDocumentEnd,
+	extendCharacterForward,
+	extendCharacterBackward,
+	extendToBlockStart,
+	extendToBlockEnd,
+	extendToDocumentStart,
+	extendToDocumentEnd,
+} from './commands/MovementCommands.js';
+
+// --- View Movement Commands ---
+export {
+	viewMove,
+	viewExtend,
+	moveWordForward,
+	moveWordBackward,
+	moveToLineStart,
+	moveToLineEnd,
+	moveLineUp,
+	moveLineDown,
+	extendWordForward,
+	extendWordBackward,
+	extendToLineStart,
+	extendToLineEnd,
+	extendLineUp,
+	extendLineDown,
+} from './view/ViewMovementCommands.js';
 
 // --- Input ---
 export type { InputRule } from './input/InputRule.js';
@@ -198,12 +238,21 @@ export { CompositionTracker } from './input/CompositionTracker.js';
 // --- View ---
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 
+// --- CursorWrapper ---
+export { CursorWrapper } from './view/CursorWrapper.js';
+
+// --- Platform ---
+export { isMac, isFirefox, isWebKit, getTextDirection } from './view/Platform.js';
+
 // --- Caret Navigation ---
 export {
 	endOfTextblock,
 	navigateAcrossBlocks,
+	navigateVerticalWithGoalColumn,
 	navigateFromGapCursor,
 	skipInlineNode,
+	canCrossBlockBoundary,
+	getCaretRectFromSelection,
 } from './view/CaretNavigation.js';
 export type { CaretDirection } from './view/CaretNavigation.js';
 
@@ -366,6 +415,8 @@ export { ImagePlugin } from './plugins/image/ImagePlugin.js';
 export { HardBreakPlugin } from './plugins/hard-break/HardBreakPlugin.js';
 
 export { GapCursorPlugin } from './plugins/gap-cursor/GapCursorPlugin.js';
+
+export { CaretNavigationPlugin } from './plugins/caret-navigation/CaretNavigationPlugin.js';
 
 export {
 	CodeBlockPlugin,
@@ -531,6 +582,9 @@ export type { ToolbarLocale } from './plugins/toolbar/ToolbarLocale.js';
 export { TOOLBAR_LOCALE_EN, TOOLBAR_LOCALES } from './plugins/toolbar/ToolbarLocale.js';
 
 export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
+
+// --- Announcer ---
+export { getBlockTypeLabel } from './editor/Announcer.js';
 
 // --- Editor ---
 export type {

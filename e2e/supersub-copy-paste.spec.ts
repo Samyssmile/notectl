@@ -1,9 +1,5 @@
 import { expect, test } from './fixtures/editor-page';
 
-test.use({
-	permissions: ['clipboard-read', 'clipboard-write'],
-});
-
 type JsonChild = {
 	type: string;
 	text?: string;
@@ -12,6 +8,12 @@ type JsonChild = {
 };
 
 test.describe('Superscript/Subscript copy & paste', () => {
+	test.beforeEach(async ({ context, browserName }) => {
+		if (browserName !== 'firefox') {
+			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		}
+	});
+
 	test('paste HTML with <sup> preserves superscript mark', async ({ editor }) => {
 		await editor.focus();
 		await editor.pasteHTML('<p>x<sup>2</sup></p>');
@@ -30,7 +32,9 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		expect(html).toContain('2');
 	});
 
-	test('type + superscript + copy + paste preserves mark', async ({ editor, page }) => {
+	test('type + superscript + copy + paste preserves mark', async ({ editor, page, browserName }) => {
+		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
+
 		await editor.focus();
 		await page.keyboard.type('x', { delay: 10 });
 		await page.keyboard.press('Control+.');
@@ -52,7 +56,9 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		expect(supCount).toBeGreaterThanOrEqual(2);
 	});
 
-	test('type + subscript + copy + paste preserves mark', async ({ editor, page }) => {
+	test('type + subscript + copy + paste preserves mark', async ({ editor, page, browserName }) => {
+		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
+
 		await editor.focus();
 		await page.keyboard.type('H', { delay: 10 });
 		await page.keyboard.press('Control+,');

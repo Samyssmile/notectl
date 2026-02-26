@@ -6,6 +6,7 @@ import {
 	getBlockText,
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
+import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager } from './History.js';
 import { TransactionBuilder } from './Transaction.js';
@@ -326,6 +327,76 @@ describe('HistoryManager', () => {
 			expect(undoResult?.transaction.selectionBefore.head.offset).toBe(5);
 			// selectionAfter should be the restored position (= offset 0)
 			expect(undoResult?.transaction.selectionAfter.head.offset).toBe(0);
+		});
+	});
+
+	describe('non-document transactions', () => {
+		it('does not push selection-only transactions (zero steps)', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// A movement transaction with no steps at all
+			const sel = createCollapsedSelection('b1', 0);
+			const builder = new TransactionBuilder(sel, null, 'input');
+			builder.setSelection(createCollapsedSelection('b1', 3));
+			const tr = builder.build();
+
+			history.push(tr);
+			expect(history.canUndo()).toBe(false);
+		});
+
+		it('does not push setStoredMarks-only transactions', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// A transaction with only a setStoredMarks step (e.g. toggling bold on collapsed selection)
+			const sel = createCollapsedSelection('b1', 0);
+			const builder = new TransactionBuilder(sel, null, 'input');
+			builder.setStoredMarks([{ type: markType('bold') }], null);
+			const tr = builder.build();
+
+			history.push(tr);
+			expect(history.canUndo()).toBe(false);
+		});
+
+		it('still pushes transactions with document-modifying steps', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			const tr = makeInsertTr('b1', 0, 'x', 1000);
+			history.push(tr);
+			expect(history.canUndo()).toBe(true);
+		});
+
+		it('does not push transactions with only setStoredMarks + selection change', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// Movement transaction: setStoredMarks + selection change
+			const sel = createCollapsedSelection('b1', 0);
+			const builder = new TransactionBuilder(sel, null, 'input');
+			builder.setSelection(createCollapsedSelection('b1', 5));
+			builder.setStoredMarks(null, [{ type: markType('bold') }]);
+			const tr = builder.build();
+
+			history.push(tr);
+			expect(history.canUndo()).toBe(false);
 		});
 	});
 });

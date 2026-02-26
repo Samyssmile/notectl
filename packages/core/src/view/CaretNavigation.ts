@@ -1,8 +1,9 @@
 /**
  * Caret navigation utilities for layout-aware cursor movement.
  *
- * Provides `endOfTextblock()` for detecting visual block boundaries
- * and `navigateAcrossBlocks()` for cross-block cursor transitions.
+ * Provides `endOfTextblock()` for detecting visual block boundaries,
+ * `navigateAcrossBlocks()` for cross-block cursor transitions, and
+ * `navigateVerticalWithGoalColumn()` for column-preserving vertical nav.
  */
 
 import {
@@ -23,9 +24,16 @@ import {
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { getSelection } from './SelectionSync.js';
+import { getTextDirection } from './Platform.js';
+import { domPositionToState, getSelection } from './SelectionSync.js';
 
 export type CaretDirection = 'left' | 'right' | 'up' | 'down';
+
+/** Result of resolving the adjacent block for vertical navigation. */
+interface NavigationTarget {
+	readonly targetId: BlockId;
+	readonly isVoid: boolean;
+}
 
 /**
  * Checks whether the cursor is at the visual edge of its text block.
@@ -33,11 +41,15 @@ export type CaretDirection = 'left' | 'right' | 'up' | 'down';
  * For horizontal directions (left/right), uses a pure offset check.
  * For vertical directions (up/down), tries `Selection.modify` probing
  * to detect visual line boundaries, falling back to offset heuristic.
+ *
+ * An optional `caretRect` parameter avoids redundant `getBoundingClientRect`
+ * calls when the caller already measured the caret position.
  */
 export function endOfTextblock(
 	container: HTMLElement,
 	state: EditorState,
 	direction: CaretDirection,
+	caretRect?: DOMRect | null,
 ): boolean {
 	const sel = state.selection;
 
@@ -50,9 +62,14 @@ export function endOfTextblock(
 	const offset: number = sel.anchor.offset;
 	const blockLength: number = getBlockLength(block);
 
-	// Horizontal: pure offset check
-	if (direction === 'left') return offset === 0;
-	if (direction === 'right') return offset === blockLength;
+	// Horizontal: direction-aware offset check
+	const blockEl: Element | null = container.querySelector(
+		`[data-block-id="${sel.anchor.blockId}"]`,
+	);
+	const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
+
+	if (direction === 'left') return isRtl ? offset === blockLength : offset === 0;
+	if (direction === 'right') return isRtl ? offset === 0 : offset === blockLength;
 
 	// Vertical: quick offset check first
 	if (direction === 'up' && offset === 0) return true;
@@ -65,7 +82,7 @@ export function endOfTextblock(
 		return direction === 'up' ? offset === 0 : offset === blockLength;
 	}
 
-	return probeVerticalBoundary(container, domSel, direction);
+	return probeVerticalBoundary(container, domSel, direction, caretRect);
 }
 
 /**
@@ -78,31 +95,19 @@ export function navigateAcrossBlocks(
 	state: EditorState,
 	direction: CaretDirection,
 ): Transaction | null {
-	const blockOrder: readonly BlockId[] = state.getBlockOrder();
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	const target: NavigationTarget | null = resolveNavigationTarget(state, direction);
+	if (!target) return null;
 
-	const currentIdx: number = blockOrder.indexOf(sel.anchor.blockId);
-	if (currentIdx < 0) return null;
-
-	const targetIdx: number =
-		direction === 'left' || direction === 'up' ? currentIdx - 1 : currentIdx + 1;
-
-	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
-
-	const targetId: BlockId | undefined = blockOrder[targetIdx];
-	if (!targetId) return null;
-
-	if (!canCrossBlockBoundary(state, sel.anchor.blockId, targetId)) return null;
-
-	// Target is void → NodeSelection
-	if (isVoidBlock(state, targetId)) {
-		const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
-		return state.transaction('input').setSelection(createNodeSelection(targetId, path)).build();
+	if (target.isVoid) {
+		const path: BlockId[] = (findNodePath(state.doc, target.targetId) ?? []) as BlockId[];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(target.targetId, path))
+			.build();
 	}
 
 	// Target is text → collapsed selection at start or end
-	const targetBlock = state.getBlock(targetId);
+	const targetBlock = state.getBlock(target.targetId);
 	if (!targetBlock) return null;
 
 	const targetOffset: number =
@@ -110,7 +115,55 @@ export function navigateAcrossBlocks(
 
 	return state
 		.transaction('input')
-		.setSelection(createCollapsedSelection(targetId, targetOffset))
+		.setSelection(createCollapsedSelection(target.targetId, targetOffset))
+		.build();
+}
+
+/**
+ * Navigates vertically using a goal column for visual column preservation.
+ *
+ * Uses `caretPositionFromPoint` / `caretRangeFromPoint` to find the offset
+ * in the target block that is closest to the given goalColumn X coordinate.
+ * Falls back to start/end offset when goal column positioning is unavailable.
+ */
+export function navigateVerticalWithGoalColumn(
+	container: HTMLElement,
+	state: EditorState,
+	direction: 'up' | 'down',
+	goalColumn: number | null,
+): Transaction | null {
+	const target: NavigationTarget | null = resolveNavigationTarget(state, direction);
+	if (!target) return null;
+
+	// Void → NodeSelection (goalColumn irrelevant)
+	if (target.isVoid) {
+		const path: BlockId[] = (findNodePath(state.doc, target.targetId) ?? []) as BlockId[];
+		return state
+			.transaction('input')
+			.setSelection(createNodeSelection(target.targetId, path))
+			.build();
+	}
+
+	const targetBlock = state.getBlock(target.targetId);
+	if (!targetBlock) return null;
+	const blockLen: number = getBlockLength(targetBlock);
+
+	// Try to resolve position using goalColumn
+	if (goalColumn !== null) {
+		const position = resolveGoalColumnPosition(container, target.targetId, direction, goalColumn);
+		if (position) {
+			return state
+				.transaction('input')
+				.setSelection(createCollapsedSelection(position.blockId, position.offset))
+				.build();
+		}
+	}
+
+	// Fallback: start (down) or end (up)
+	const fallbackOffset: number = direction === 'down' ? 0 : blockLen;
+	return state
+		.transaction('input')
+		.setSelection(createCollapsedSelection(target.targetId, fallbackOffset))
 		.build();
 }
 
@@ -177,7 +230,7 @@ function skipInlineNodeLeft(
  * Checks whether navigation between two blocks is allowed.
  * Prevents crossing isolating boundaries (e.g. table cells).
  */
-function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockId): boolean {
+export function canCrossBlockBoundary(state: EditorState, fromId: BlockId, toId: BlockId): boolean {
 	// A block that is itself isolating cannot be crossed into via arrow keys
 	if (isIsolatingBlock(state, fromId) || isIsolatingBlock(state, toId)) return false;
 
@@ -247,6 +300,122 @@ export function navigateFromGapCursor(
 		.build();
 }
 
+/** Returns the bounding rect of the current caret position, or null. */
+export function getCaretRectFromSelection(domSel: globalThis.Selection): DOMRect | null {
+	if (domSel.rangeCount === 0) return null;
+	const range: Range = domSel.getRangeAt(0);
+	const rects: DOMRectList = range.getClientRects();
+	if (rects.length > 0) return rects[0] ?? null;
+	return range.getBoundingClientRect();
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the adjacent block in the given direction for cross-block navigation.
+ * Performs boundary checks, isolating checks, and void detection.
+ */
+function resolveNavigationTarget(
+	state: EditorState,
+	direction: CaretDirection,
+): NavigationTarget | null {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const sel = state.selection;
+	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+
+	const currentIdx: number = blockOrder.indexOf(sel.anchor.blockId);
+	if (currentIdx < 0) return null;
+
+	const targetIdx: number =
+		direction === 'left' || direction === 'up' ? currentIdx - 1 : currentIdx + 1;
+
+	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
+
+	const targetId: BlockId | undefined = blockOrder[targetIdx];
+	if (!targetId) return null;
+
+	if (!canCrossBlockBoundary(state, sel.anchor.blockId, targetId)) return null;
+
+	return { targetId, isVoid: isVoidBlock(state, targetId) };
+}
+
+/**
+ * Resolves an editor position in the target block by using the goalColumn
+ * X coordinate and `caretPositionFromPoint` / `caretRangeFromPoint`.
+ *
+ * Includes a validation step: if the resolved position is at offset 0 but
+ * the goalColumn is in the right half of the block, the point-to-caret API
+ * likely returned an incorrect result (common in shadow DOM). In that case
+ * we return `null` to trigger the fallback (block-end for up, block-start
+ * for down), which `navigateVerticalWithGoalColumn` handles.
+ */
+function resolveGoalColumnPosition(
+	container: HTMLElement,
+	targetId: BlockId,
+	direction: 'up' | 'down',
+	goalColumn: number,
+): { blockId: BlockId; offset: number } | null {
+	const blockEl: Element | null = container.querySelector(`[data-block-id="${targetId}"]`);
+	if (!blockEl) return null;
+
+	const rect: DOMRect = blockEl.getBoundingClientRect();
+	// Small inset to ensure we hit inside the line, not on the border
+	const y: number = direction === 'down' ? rect.top + 2 : rect.bottom - 2;
+	// Clamp goalColumn within the block's horizontal bounds to avoid
+	// caretPositionFromPoint returning unexpected results for out-of-bounds X.
+	const clampedX: number = Math.min(Math.max(goalColumn, rect.left), rect.right - 1);
+
+	const root: Document | ShadowRoot = container.getRootNode() as Document | ShadowRoot;
+
+	let domNode: Node | null = null;
+	let domOffset = 0;
+
+	// Standard API
+	if ('caretPositionFromPoint' in root) {
+		const cp = (root as Document).caretPositionFromPoint(clampedX, y);
+		if (cp) {
+			domNode = cp.offsetNode;
+			domOffset = cp.offset;
+		}
+	}
+
+	// Fallback
+	if (!domNode && 'caretRangeFromPoint' in root) {
+		const range = (root as Document).caretRangeFromPoint(clampedX, y);
+		if (range) {
+			domNode = range.startContainer;
+			domOffset = range.startOffset;
+		}
+	}
+
+	// Also try on the document when the root is a ShadowRoot and returned nothing
+	if (!domNode && root !== container.ownerDocument) {
+		const doc: Document = container.ownerDocument;
+		if ('caretRangeFromPoint' in doc) {
+			const range = doc.caretRangeFromPoint(clampedX, y);
+			if (range) {
+				domNode = range.startContainer;
+				domOffset = range.startOffset;
+			}
+		}
+	}
+
+	if (!domNode) return null;
+
+	// Verify the DOM node is inside the target block
+	if (!blockEl.contains(domNode)) return null;
+
+	const position = domPositionToState(container, domNode, domOffset);
+	if (!position) return null;
+
+	// Ensure the resolved position is in the target block
+	if (position.blockId !== targetId) return null;
+
+	return position;
+}
+
 /**
  * Probes whether the cursor is at the top/bottom visual line of a block.
  *
@@ -264,6 +433,7 @@ function probeVerticalBoundary(
 	container: HTMLElement,
 	domSel: globalThis.Selection,
 	direction: 'up' | 'down',
+	preReadRect?: DOMRect | null,
 ): boolean {
 	const origAnchor: Node | null = domSel.anchorNode;
 	const origAnchorOffset: number = domSel.anchorOffset;
@@ -273,7 +443,7 @@ function probeVerticalBoundary(
 	// Cannot determine position → safe default: not at boundary (let browser handle)
 	if (!origAnchor || !origFocus) return false;
 
-	const origRect: DOMRect | null = getCaretRect(domSel);
+	const origRect: DOMRect | null = preReadRect ?? getCaretRectFromSelection(domSel);
 	const dirStr: string = direction === 'up' ? 'backward' : 'forward';
 
 	try {
@@ -300,7 +470,7 @@ function probeVerticalBoundary(
 		// Cross-check with getBoundingClientRect: if vertical position unchanged,
 		// the probe was a no-op visually (edge case with inline elements)
 		if (origRect) {
-			const newRect: DOMRect | null = getCaretRect(domSel);
+			const newRect: DOMRect | null = getCaretRectFromSelection(domSel);
 			if (newRect) {
 				const verticalDelta: number = Math.abs(newRect.top - origRect.top);
 				if (verticalDelta < 1) return true;
@@ -317,15 +487,6 @@ function probeVerticalBoundary(
 			// Selection restore may fail if DOM changed
 		}
 	}
-}
-
-/** Returns the bounding rect of the current caret position, or null. */
-function getCaretRect(domSel: globalThis.Selection): DOMRect | null {
-	if (domSel.rangeCount === 0) return null;
-	const range: Range = domSel.getRangeAt(0);
-	const rects: DOMRectList = range.getClientRects();
-	if (rects.length > 0) return rects[0] ?? null;
-	return range.getBoundingClientRect();
 }
 
 /** Finds the closest ancestor element with `data-block-id`. */
