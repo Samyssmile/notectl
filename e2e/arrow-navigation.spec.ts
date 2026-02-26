@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/editor-page';
+import { insertTable } from './fixtures/table-utils';
 
 test.describe('Arrow Navigation', () => {
 	test.describe('Within text block', () => {
@@ -675,6 +676,277 @@ test.describe('Arrow Navigation', () => {
 			// Check for the gap cursor element (height:0 with ::before pseudo, so use toBeAttached)
 			const gapCursor = page.locator('notectl-editor .notectl-gap-cursor');
 			await expect(gapCursor).toBeAttached({ timeout: 2000 });
+		});
+	});
+
+	test.describe('Adjacent void blocks — GapCursor chain (Phase 6)', () => {
+		test('navigate through two adjacent HRs via GapCursor', async ({ editor, page }) => {
+			// Structure: <p>Before</p><hr><hr><p>After</p>
+			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			const hrs = page.locator('notectl-editor hr');
+			await expect(hrs).toHaveCount(2);
+
+			// Click first HR to get NodeSelection
+			await hrs.first().click();
+			await page.waitForTimeout(200);
+
+			// ArrowRight → second HR (NodeSelection)
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(100);
+
+			// ArrowRight → start of "After" (or GapCursor if at doc-end)
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(100);
+
+			// Type to verify cursor is after both HRs
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text).toContain('X');
+			expect(text).toContain('Before');
+			expect(text).toContain('After');
+		});
+
+		test('navigate backward through two adjacent HRs', async ({ editor, page }) => {
+			// Structure: Before | HR1 | HR2 | After
+			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			// Start from "After" paragraph and navigate backward
+			const afterParagraph = page.locator('notectl-editor [data-block-id]').last();
+			await afterParagraph.click();
+			await page.waitForTimeout(100);
+			await page.keyboard.press('Home');
+			await page.waitForTimeout(50);
+
+			// Navigation chain: Text→NodeSel(HR2)→GapCursor(before HR2)→NodeSel(HR1)→Text(Before)
+			// 1. ArrowLeft at start of "After" → NodeSelection(HR2)
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// 2. ArrowLeft → GapCursor(before HR2, between the two HRs)
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// 3. ArrowLeft → NodeSelection(HR1)
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// 4. ArrowLeft → end of "Before"
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// Type to verify cursor is at end of "Before"
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const firstText: string =
+				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(firstText).toContain('BeforeX');
+		});
+
+		test('GapCursor at doc start before adjacent HRs', async ({ editor, page }) => {
+			await editor.setHTML('<hr><hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			const hrs = page.locator('notectl-editor hr');
+			await expect(hrs).toHaveCount(2);
+
+			// Click first HR to get NodeSelection
+			await hrs.first().click();
+			await page.waitForTimeout(200);
+
+			// ArrowLeft at doc start → GapCursor(before)
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// Type at GapCursor → new paragraph
+			await page.keyboard.type('X', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			const text: string = await editor.getText();
+			expect(text).toContain('X');
+			expect(text).toContain('After');
+		});
+
+		test('ArrowDown from GapCursor between adjacent HRs selects next void', async ({
+			editor,
+			page,
+		}) => {
+			// Structure: <p>Before</p><hr><hr><p>After</p>
+			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			const hrs = page.locator('notectl-editor hr');
+			await expect(hrs).toHaveCount(2);
+
+			// Click first HR → NodeSelection
+			await hrs.first().click();
+			await page.waitForTimeout(200);
+
+			// ArrowRight → GapCursor(after HR1) or NodeSelection(HR2)
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(100);
+
+			// ArrowDown should navigate downward through the void chain
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(100);
+
+			// Continue pressing down to exit void chain
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(100);
+
+			// Type to verify we reached "After" area
+			await page.keyboard.type('Y', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text).toContain('Before');
+			expect(text).toContain('Y');
+		});
+
+		test('ArrowUp from GapCursor between adjacent HRs selects previous void', async ({
+			editor,
+			page,
+		}) => {
+			// Structure: <p>Before</p><hr><hr><p>After</p>
+			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			const hrs = page.locator('notectl-editor hr');
+			await expect(hrs).toHaveCount(2);
+
+			// Click second HR → NodeSelection
+			await hrs.last().click();
+			await page.waitForTimeout(200);
+
+			// ArrowLeft → GapCursor(before HR2, between the two HRs)
+			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(100);
+
+			// ArrowUp should navigate upward through the void chain
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(100);
+
+			// Continue pressing up to exit void chain
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(100);
+
+			// Type to verify we reached "Before" area
+			await page.keyboard.type('Y', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text).toContain('Y');
+			expect(text).toContain('After');
+		});
+	});
+
+	test.describe('Empty blocks navigation (Phase 6)', () => {
+		test('ArrowDown through empty paragraph', async ({ editor, page }) => {
+			await editor.setHTML('<p>First</p><p></p><p>Third</p>');
+			await page.waitForTimeout(200);
+
+			// Click in first paragraph
+			await editor.focus();
+			await page.keyboard.press('Control+Home');
+			await page.waitForTimeout(50);
+
+			// ArrowDown → should enter empty paragraph
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(50);
+
+			// ArrowDown → should enter "Third"
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(50);
+
+			// Type to verify we're in the third block
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const thirdText: string =
+				json.children[2]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(thirdText).toContain('X');
+			expect(thirdText).toContain('Third');
+		});
+
+		test('typing in empty paragraph works', async ({ editor, page }) => {
+			await editor.setHTML('<p>First</p><p></p><p>Third</p>');
+			await page.waitForTimeout(200);
+
+			await editor.focus();
+			await page.keyboard.press('Control+Home');
+			await page.waitForTimeout(50);
+
+			// ArrowDown → empty paragraph
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(50);
+
+			// Type in the empty block
+			await page.keyboard.type('New text', { delay: 10 });
+			const json = await editor.getJSON();
+			const secondText: string =
+				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(secondText).toContain('New text');
+		});
+
+		test('ArrowRight at end of paragraph before empty block crosses into it', async ({
+			editor,
+			page,
+		}) => {
+			await editor.setHTML('<p>ABC</p><p></p><p>DEF</p>');
+			await page.waitForTimeout(200);
+
+			await editor.focus();
+			await page.keyboard.press('Control+Home');
+			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
+
+			// ArrowRight → should cross to empty block
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(50);
+
+			// ArrowRight → should cross to "DEF"
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(50);
+
+			// Type to verify we're in third block
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const thirdText: string =
+				json.children[2]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(thirdText).toMatch(/^XDEF/);
+		});
+	});
+
+	test.describe('Nested isolating nodes — table boundaries (Phase 6)', () => {
+		test('ArrowRight at end of table cell does not leave the table', async ({ editor, page }) => {
+			// Type text, then insert a 3x3 table, then add text after
+			await editor.typeText('Before');
+			await page.keyboard.press('Enter');
+			await insertTable(page);
+			await page.waitForTimeout(200);
+
+			// Click into the first cell and type
+			const cell1 = page.locator('notectl-editor td').first();
+			await cell1.click();
+			await page.waitForTimeout(100);
+			await page.keyboard.type('CellText', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Move to end of cell text
+			await page.keyboard.press('End');
+			await page.waitForTimeout(50);
+
+			// Press ArrowRight multiple times — should navigate within table, not escape to "Before"
+			await page.keyboard.press('ArrowRight');
+			await page.keyboard.press('ArrowRight');
+			await page.keyboard.press('ArrowRight');
+			await page.waitForTimeout(50);
+
+			// Type to verify we're still in the table
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			// Check that "Before" paragraph remains unchanged
+			const firstBlock = json.children[0];
+			const firstText: string =
+				firstBlock?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			expect(firstText).toBe('Before');
 		});
 	});
 

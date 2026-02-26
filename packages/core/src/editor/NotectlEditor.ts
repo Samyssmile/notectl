@@ -19,6 +19,8 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
+import { CaretNavigationPlugin } from '../plugins/caret-navigation/CaretNavigationPlugin.js';
+import { GapCursorPlugin } from '../plugins/gap-cursor/GapCursorPlugin.js';
 import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
@@ -231,8 +233,10 @@ export class NotectlEditor extends HTMLElement {
 		}
 		this.preInitPlugins = [];
 
-		// Auto-register TextFormattingPlugin if none was explicitly provided
+		// Auto-register essential plugins if none were explicitly provided
 		this.ensureTextFormattingPlugin();
+		this.ensureCaretNavigationPlugin();
+		this.ensureGapCursorPlugin();
 
 		// Set up DOM events before plugin init
 		this.contentElement.addEventListener('focus', () => this.emit('focus', undefined));
@@ -259,6 +263,7 @@ export class NotectlEditor extends HTMLElement {
 			announce: (text: string) => {
 				if (announcer) announcer.textContent = text;
 			},
+			hasAnnouncement: () => !!announcer?.textContent,
 			onBeforeReady: () => {
 				const schema = schemaFromRegistry(pluginMgr.schemaRegistry);
 				const state = EditorState.create({ schema });
@@ -578,6 +583,20 @@ export class NotectlEditor extends HTMLElement {
 		};
 
 		this.pluginManager.register(new TextFormattingPlugin(features));
+	}
+
+	/** Auto-registers CaretNavigationPlugin if not explicitly provided. */
+	private ensureCaretNavigationPlugin(): void {
+		if (!this.pluginManager) return;
+		if (this.pluginManager.get('caret-navigation') !== undefined) return;
+		this.pluginManager.register(new CaretNavigationPlugin());
+	}
+
+	/** Auto-registers GapCursorPlugin if not explicitly provided. */
+	private ensureGapCursorPlugin(): void {
+		if (!this.pluginManager) return;
+		if (this.pluginManager.get('gap-cursor') !== undefined) return;
+		this.pluginManager.register(new GapCursorPlugin());
 	}
 
 	private applyPaperSize(paperSize: PaperSize | undefined): void {

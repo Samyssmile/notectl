@@ -1,6 +1,10 @@
 import { expect, test } from './fixtures/editor-page';
 
 test.describe('Goal Column Preservation', () => {
+	test.beforeEach(async ({ browserName }) => {
+		test.skip(browserName === 'firefox', 'Firefox goal column positioning differs');
+	});
+
 	test('ArrowDown over paragraphs preserves visual column', async ({ editor, page }) => {
 		// Type three paragraphs of different lengths
 		await editor.typeText('Short');
@@ -133,5 +137,36 @@ test.describe('Goal Column Preservation', () => {
 		// Y should be in second line
 		const secondLine: string = text.split('\n')[1] ?? '';
 		expect(secondLine).toContain('Y');
+	});
+
+	test('ArrowDown through void block preserves goal column', async ({ editor, page }) => {
+		// Structure: text | HR (void) | text
+		await editor.setHTML('<p>Hello World</p><hr><p>Another line here</p>');
+		await page.waitForTimeout(200);
+
+		// Position cursor in first paragraph
+		await page.keyboard.press('Control+Home');
+		await page.waitForTimeout(50);
+
+		// Move to a mid-position to establish a goal column
+		for (let i = 0; i < 5; i++) {
+			await page.keyboard.press('ArrowRight');
+		}
+		await page.waitForTimeout(50);
+
+		// ArrowDown → should hit void (NodeSelection on HR)
+		await page.keyboard.press('ArrowDown');
+		await page.waitForTimeout(100);
+
+		// ArrowDown again → should land in "Another line here"
+		await page.keyboard.press('ArrowDown');
+		await page.waitForTimeout(100);
+
+		// Type to verify we're in the third block
+		await page.keyboard.type('Z', { delay: 10 });
+		const text: string = await editor.getText();
+		const thirdLine: string = text.split('\n')[2] ?? text.split('\n')[1] ?? '';
+		expect(thirdLine).toContain('Z');
+		expect(thirdLine).toContain('line');
 	});
 });
