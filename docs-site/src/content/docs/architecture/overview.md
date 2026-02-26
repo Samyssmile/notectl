@@ -68,11 +68,14 @@ Processes user input:
 
 ### Commands (`commands/`)
 
-High-level editing operations:
+High-level editing operations, split by category:
 
-- `toggleMark`, `insertText`, `deleteBackward`, `deleteForward`
-- `splitBlock`, `mergeBlockBackward`, `selectAll`
-- `isMarkActive`, `sharesParent`, `isInsideIsolating`
+- **Text editing** — `insertText`, `splitBlock`, `mergeBlockBackward`, `mergeBlockForward`, `selectAll`
+- **Mark operations** — `toggleMark`, `toggleBold`, `toggleItalic`, `toggleUnderline`, `isMarkActive`
+- **Deletion** — `deleteBackward`, `deleteForward`, `deleteWordBackward`, `deleteWordForward`, `deleteSoftLineBackward`, `deleteSoftLineForward`
+- **Movement (model)** — `moveCharacterForward`, `moveCharacterBackward`, `moveToBlockStart`, `moveToBlockEnd`, `moveToDocumentStart`, `moveToDocumentEnd`, `extendCharacterForward`, `extendCharacterBackward`, `extendToDocumentStart`, `extendToDocumentEnd`
+- **Movement (view)** — `moveWordForward`, `moveWordBackward`, `moveToLineStart`, `moveToLineEnd`, `moveLineUp`, `moveLineDown`, `extendWordForward`, `extendWordBackward`, `extendToLineStart`, `extendToLineEnd`, `extendLineUp`, `extendLineDown`
+- **Utilities** — `sharesParent`, `isInsideIsolating`, `isVoidBlock`, `canCrossBlockBoundary`
 
 ### Plugins (`plugins/`)
 
