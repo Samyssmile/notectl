@@ -19,7 +19,7 @@ import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { isMac } from '../../view/Platform.js';
+import { getTextDirection, isMac } from '../../view/Platform.js';
 import {
 	extendLineDown,
 	extendLineUp,
@@ -35,6 +35,28 @@ import {
 	moveWordForward,
 } from '../../view/ViewMovementCommands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+
+type ViewCommandFn = (container: HTMLElement, state: EditorState) => Transaction | null;
+type ViewCommandKey = `${'word' | 'lineboundary' | 'line'}:${'forward' | 'backward'}`;
+type ViewCommandLookup = Readonly<Record<ViewCommandKey, ViewCommandFn>>;
+
+const VIEW_MOVE_FNS: ViewCommandLookup = {
+	'word:forward': moveWordForward,
+	'word:backward': moveWordBackward,
+	'lineboundary:forward': moveToLineEnd,
+	'lineboundary:backward': moveToLineStart,
+	'line:forward': moveLineDown,
+	'line:backward': moveLineUp,
+};
+
+const VIEW_EXTEND_FNS: ViewCommandLookup = {
+	'word:forward': extendWordForward,
+	'word:backward': extendWordBackward,
+	'lineboundary:forward': extendToLineEnd,
+	'lineboundary:backward': extendToLineStart,
+	'line:forward': extendLineDown,
+	'line:backward': extendLineUp,
+};
 
 /** Debounce delay for block-type announcements (ms). */
 const ANNOUNCE_DEBOUNCE_MS = 150;
@@ -60,8 +82,8 @@ export class CaretNavigationPlugin implements Plugin {
 			// needs programmatic extend to correctly clear storedMarks.
 
 			// --- Character extend ---
-			'Shift-ArrowRight': () => this.modelCommand(extendCharacterForward),
-			'Shift-ArrowLeft': () => this.modelCommand(extendCharacterBackward),
+			'Shift-ArrowRight': () => this.extendCharacterVisual('right'),
+			'Shift-ArrowLeft': () => this.extendCharacterVisual('left'),
 
 			// --- Line extend ---
 			'Shift-ArrowUp': () => this.viewExtendCommand('backward', 'line'),
@@ -70,25 +92,25 @@ export class CaretNavigationPlugin implements Plugin {
 			// --- Word movement (platform-aware) ---
 			...(mac
 				? {
-						'Alt-ArrowRight': () => this.viewMoveCommand('forward', 'word'),
-						'Alt-ArrowLeft': () => this.viewMoveCommand('backward', 'word'),
-						'Shift-Alt-ArrowRight': () => this.viewExtendCommand('forward', 'word'),
-						'Shift-Alt-ArrowLeft': () => this.viewExtendCommand('backward', 'word'),
+						'Alt-ArrowRight': () => this.viewMoveVisual('right', 'word'),
+						'Alt-ArrowLeft': () => this.viewMoveVisual('left', 'word'),
+						'Shift-Alt-ArrowRight': () => this.viewExtendVisual('right', 'word'),
+						'Shift-Alt-ArrowLeft': () => this.viewExtendVisual('left', 'word'),
 					}
 				: {
-						'Mod-ArrowRight': () => this.viewMoveCommand('forward', 'word'),
-						'Mod-ArrowLeft': () => this.viewMoveCommand('backward', 'word'),
-						'Mod-Shift-ArrowRight': () => this.viewExtendCommand('forward', 'word'),
-						'Mod-Shift-ArrowLeft': () => this.viewExtendCommand('backward', 'word'),
+						'Mod-ArrowRight': () => this.viewMoveVisual('right', 'word'),
+						'Mod-ArrowLeft': () => this.viewMoveVisual('left', 'word'),
+						'Mod-Shift-ArrowRight': () => this.viewExtendVisual('right', 'word'),
+						'Mod-Shift-ArrowLeft': () => this.viewExtendVisual('left', 'word'),
 					}),
 
 			// --- Line boundary movement (platform-aware) ---
 			...(mac
 				? {
-						'Mod-ArrowLeft': () => this.viewMoveCommand('backward', 'lineboundary'),
-						'Mod-ArrowRight': () => this.viewMoveCommand('forward', 'lineboundary'),
-						'Mod-Shift-ArrowLeft': () => this.viewExtendCommand('backward', 'lineboundary'),
-						'Mod-Shift-ArrowRight': () => this.viewExtendCommand('forward', 'lineboundary'),
+						'Mod-ArrowLeft': () => this.viewMoveVisual('left', 'lineboundary'),
+						'Mod-ArrowRight': () => this.viewMoveVisual('right', 'lineboundary'),
+						'Mod-Shift-ArrowLeft': () => this.viewExtendVisual('left', 'lineboundary'),
+						'Mod-Shift-ArrowRight': () => this.viewExtendVisual('right', 'lineboundary'),
 					}
 				: {
 						Home: () => this.viewMoveCommand('backward', 'lineboundary'),
@@ -145,6 +167,8 @@ export class CaretNavigationPlugin implements Plugin {
 		if (this.announceTimer !== null) clearTimeout(this.announceTimer);
 		this.announceTimer = setTimeout(() => {
 			this.announceTimer = null;
+			// Skip if another plugin already announced (e.g. CodeBlockPlugin's "Left code block")
+			if (this.context?.hasAnnouncement()) return;
 			const block = newState.getBlock(newBlockId);
 			if (!block) return;
 			const label: string = getBlockTypeLabel(
@@ -173,29 +197,13 @@ export class CaretNavigationPlugin implements Plugin {
 		return false;
 	}
 
-	/** Dispatches a view-based movement command (uses container + Selection.modify). */
-	private viewMoveCommand(
-		direction: 'forward' | 'backward',
-		granularity: 'word' | 'lineboundary' | 'line',
-	): boolean {
+	/** Extends selection by one character based on visual left/right intent. */
+	private extendCharacterVisual(visual: 'left' | 'right'): boolean {
 		if (!this.context) return false;
-		const container: HTMLElement = this.context.getContainer();
 		const state: EditorState = this.context.getState();
-
-		const fn =
-			granularity === 'word'
-				? direction === 'forward'
-					? moveWordForward
-					: moveWordBackward
-				: granularity === 'lineboundary'
-					? direction === 'forward'
-						? moveToLineEnd
-						: moveToLineStart
-					: direction === 'forward'
-						? moveLineDown
-						: moveLineUp;
-
-		const tr: Transaction | null = fn(container, state);
+		const dir: 'forward' | 'backward' = this.resolveLogicalHorizontalDirection(state, visual);
+		const tr: Transaction | null =
+			dir === 'forward' ? extendCharacterForward(state) : extendCharacterBackward(state);
 		if (tr) {
 			this.context.dispatch(tr);
 			return true;
@@ -203,33 +211,81 @@ export class CaretNavigationPlugin implements Plugin {
 		return false;
 	}
 
+	/** Dispatches a view-based movement command (uses container + Selection.modify). */
+	private viewMoveCommand(
+		direction: 'forward' | 'backward',
+		granularity: 'word' | 'lineboundary' | 'line',
+	): boolean {
+		return this.dispatchViewCommand(VIEW_MOVE_FNS, direction, granularity);
+	}
+
+	/** Dispatches a view-based move command with visual direction mapping for RTL. */
+	private viewMoveVisual(
+		visual: 'left' | 'right',
+		granularity: 'word' | 'lineboundary',
+	): boolean {
+		if (!this.context) return false;
+		const dir: 'forward' | 'backward' = this.resolveLogicalHorizontalDirection(
+			this.context.getState(),
+			visual,
+		);
+		return this.viewMoveCommand(dir, granularity);
+	}
+
 	/** Dispatches a view-based extend command. */
 	private viewExtendCommand(
 		direction: 'forward' | 'backward',
 		granularity: 'word' | 'lineboundary' | 'line',
 	): boolean {
+		return this.dispatchViewCommand(VIEW_EXTEND_FNS, direction, granularity);
+	}
+
+	private dispatchViewCommand(
+		lookup: ViewCommandLookup,
+		direction: 'forward' | 'backward',
+		granularity: 'word' | 'lineboundary' | 'line',
+	): boolean {
 		if (!this.context) return false;
-		const container: HTMLElement = this.context.getContainer();
-		const state: EditorState = this.context.getState();
-
-		const fn =
-			granularity === 'word'
-				? direction === 'forward'
-					? extendWordForward
-					: extendWordBackward
-				: granularity === 'lineboundary'
-					? direction === 'forward'
-						? extendToLineEnd
-						: extendToLineStart
-					: direction === 'forward'
-						? extendLineDown
-						: extendLineUp;
-
-		const tr: Transaction | null = fn(container, state);
+		const fn: ViewCommandFn | undefined = lookup[`${granularity}:${direction}`];
+		if (!fn) return false;
+		const tr: Transaction | null = fn(this.context.getContainer(), this.context.getState());
 		if (tr) {
 			this.context.dispatch(tr);
 			return true;
 		}
 		return false;
+	}
+
+	/** Dispatches a view-based extend command with visual direction mapping for RTL. */
+	private viewExtendVisual(
+		visual: 'left' | 'right',
+		granularity: 'word' | 'lineboundary',
+	): boolean {
+		if (!this.context) return false;
+		const dir: 'forward' | 'backward' = this.resolveLogicalHorizontalDirection(
+			this.context.getState(),
+			visual,
+		);
+		return this.viewExtendCommand(dir, granularity);
+	}
+
+	/**
+	 * Resolves logical movement direction from visual left/right intent.
+	 * In RTL blocks, visual directions are mirrored in offset space.
+	 */
+	private resolveLogicalHorizontalDirection(
+		state: EditorState,
+		visual: 'left' | 'right',
+	): 'forward' | 'backward' {
+		const sel = state.selection;
+		if (isNodeSelection(sel) || isGapCursor(sel)) {
+			return visual === 'left' ? 'backward' : 'forward';
+		}
+		const blockEl: Element | null = this.context?.getContainer().querySelector(
+			`[data-block-id="${sel.head.blockId}"]`,
+		);
+		const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
+		if (!isRtl) return visual === 'left' ? 'backward' : 'forward';
+		return visual === 'left' ? 'forward' : 'backward';
 	}
 }

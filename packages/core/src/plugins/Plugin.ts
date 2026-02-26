@@ -111,6 +111,9 @@ export interface PluginContext {
 
 	/** Pushes a screen reader announcement via the editor's aria-live region. */
 	announce(text: string): void;
+
+	/** Returns whether the announcer live region currently has content. */
+	hasAnnouncement(): boolean;
 }
 
 // --- Plugin Interface ---

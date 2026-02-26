@@ -32,7 +32,11 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		expect(html).toContain('2');
 	});
 
-	test('type + superscript + copy + paste preserves mark', async ({ editor, page, browserName }) => {
+	test('type + superscript + copy + paste preserves mark', async ({
+		editor,
+		page,
+		browserName,
+	}) => {
 		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
 
 		await editor.focus();

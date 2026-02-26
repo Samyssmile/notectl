@@ -1,4 +1,5 @@
 import { type Mock, describe, expect, it, vi } from 'vitest';
+import { canCrossBlockBoundary } from '../commands/Commands.js';
 import { createInlineNode, createTextNode } from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { isCollapsed, isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
@@ -84,6 +85,17 @@ describe('endOfTextblock', () => {
 			.block('image', '', 'img1', { attrs: { src: 'x.png', alt: '' } })
 			.nodeSelection('img1')
 			.schema(['image'], [])
+			.build();
+
+		expect(endOfTextblock(dummyContainer(), state, 'right')).toBe(false);
+	});
+
+	it('returns false for GapCursor', () => {
+		const state = stateBuilder()
+			.voidBlock('image', 'img1')
+			.paragraph('Hello', 'b1')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
 		expect(endOfTextblock(dummyContainer(), state, 'right')).toBe(false);
@@ -326,9 +338,31 @@ describe('navigateAcrossBlocks', () => {
 			expect(newState.selection.anchor.offset).toBe(6);
 		}
 	});
+
+	it('clears storedMarks when crossing blocks', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.paragraph('World', 'b2')
+			.cursor('b1', 5)
+			.schema(['paragraph'], ['bold'])
+			.build();
+
+		// Set storedMarks
+		const boldMark = { type: markType('bold') };
+		const stateWithMarks = state.apply(
+			state.transaction('input').setStoredMarks([boldMark], null).build(),
+		);
+		expect(stateWithMarks.storedMarks).not.toBeNull();
+
+		const tr: Transaction | null = navigateAcrossBlocks(stateWithMarks, 'right');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = stateWithMarks.apply(tr);
+		expect(newState.storedMarks).toBeNull();
+	});
 });
 
-// --- canCrossBlockBoundary (tested indirectly via navigateAcrossBlocks) ---
+// --- canCrossBlockBoundary ---
 
 describe('canCrossBlockBoundary (via navigateAcrossBlocks)', () => {
 	it('allows navigation between two top-level paragraphs', () => {
@@ -810,7 +844,7 @@ describe('navigateFromGapCursor', () => {
 		expect(navigateFromGapCursor(state, 'right')).toBeNull();
 	});
 
-	it('arrow away toward adjacent void → NodeSelection of that void', () => {
+	it('arrow away from gap cursor after void → TextSelection in next text block', () => {
 		const state = stateBuilder()
 			.voidBlock('image', 'img1')
 			.voidBlock('image', 'img2')
@@ -857,6 +891,46 @@ describe('navigateFromGapCursor', () => {
 
 		const newState = state.apply(tr);
 		expect(isNodeSelection(newState.selection)).toBe(true);
+	});
+
+	it('up from gap cursor before void (away) → TextSelection at end of prev block', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'before')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'up');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isTextSelection(newState.selection)).toBe(true);
+		if (isTextSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(5);
+		}
+	});
+
+	it('down from gap cursor after void (away) → TextSelection at start of next block', () => {
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('image', 'img1')
+			.paragraph('World', 'b2')
+			.gapCursor('img1', 'after')
+			.schema(['paragraph', 'image'], [], nodeSpecLookup)
+			.build();
+
+		const tr = navigateFromGapCursor(state, 'down');
+		assertDefined(tr, 'expected transaction');
+
+		const newState = state.apply(tr);
+		expect(isTextSelection(newState.selection)).toBe(true);
+		if (isTextSelection(newState.selection)) {
+			expect(newState.selection.anchor.blockId).toBe('b2');
+			expect(newState.selection.anchor.offset).toBe(0);
+		}
 	});
 });
 

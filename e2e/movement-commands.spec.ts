@@ -89,6 +89,52 @@ test.describe('Movement Commands', () => {
 				lastBlock?.children?.map((c: { text: string }) => c.text).join('') ?? '';
 			expect(lastText).toMatch(/X$/);
 		});
+
+		test('Ctrl+Home when first block is void selects it', async ({ editor, page }) => {
+			await editor.setHTML('<hr><p>After</p>');
+			await page.waitForTimeout(200);
+
+			// Focus the text block
+			const paragraph = page.locator('notectl-editor p').first();
+			await paragraph.click();
+			await page.waitForTimeout(100);
+
+			// Ctrl+Home → should select the HR (NodeSelection)
+			await page.keyboard.press('Control+Home');
+			await page.waitForTimeout(100);
+
+			// Delete should remove the HR (proves NodeSelection was set)
+			const hr = page.locator('notectl-editor hr');
+			await page.keyboard.press('Delete');
+			await page.waitForTimeout(200);
+			await expect(hr).toBeHidden({ timeout: 2000 });
+
+			const text: string = await editor.getText();
+			expect(text).toContain('After');
+		});
+
+		test('Ctrl+End when last block is void selects it', async ({ editor, page }) => {
+			await editor.setHTML('<p>Before</p><hr>');
+			await page.waitForTimeout(200);
+
+			// Focus the text block
+			const paragraph = page.locator('notectl-editor p').first();
+			await paragraph.click();
+			await page.waitForTimeout(100);
+
+			// Ctrl+End → should select the HR (NodeSelection)
+			await page.keyboard.press('Control+End');
+			await page.waitForTimeout(100);
+
+			// Backspace should remove the HR (proves NodeSelection was set)
+			const hr = page.locator('notectl-editor hr');
+			await page.keyboard.press('Backspace');
+			await page.waitForTimeout(200);
+			await expect(hr).toBeHidden({ timeout: 2000 });
+
+			const text: string = await editor.getText();
+			expect(text).toContain('Before');
+		});
 	});
 
 	test.describe('Selection extension', () => {

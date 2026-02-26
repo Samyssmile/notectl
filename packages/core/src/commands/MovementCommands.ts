@@ -27,8 +27,7 @@ import {
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { canCrossBlockBoundary } from '../view/CaretNavigation.js';
-import { isVoidBlock } from './Commands.js';
+import { canCrossBlockBoundary, isVoidBlock } from './Commands.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

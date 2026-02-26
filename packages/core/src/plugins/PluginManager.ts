@@ -70,6 +70,8 @@ export interface PluginManagerInitOptions {
 	getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
 	/** Pushes a screen reader announcement via the editor's aria-live region. */
 	announce?(text: string): void;
+	/** Returns whether the announcer live region currently has content. */
+	hasAnnouncement?(): boolean;
 	/** Called after all plugin init() calls complete, before onReady(). */
 	onBeforeReady?(): void | Promise<void>;
 }
@@ -534,6 +536,8 @@ export class PluginManager {
 			announce: (text: string) => {
 				options.announce?.(text);
 			},
+
+			hasAnnouncement: () => options.hasAnnouncement?.() ?? false,
 		};
 	}
 
