@@ -8,11 +8,15 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
+import { type FileHandler, FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
 import type { InputRule } from '../input/InputRule.js';
+import { InputRuleRegistry } from '../input/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../input/Keymap.js';
-import { type FileHandler, SchemaRegistry } from '../model/SchemaRegistry.js';
+import { KeymapRegistry } from '../input/KeymapRegistry.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import { EventBus } from './EventBus.js';
 import type {
 	CommandEntry,
@@ -29,6 +33,8 @@ import type {
 	ServiceKey,
 	TransactionMiddleware,
 } from './Plugin.js';
+import { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.js';
+import { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 const DEFAULT_PRIORITY = 100;
 
@@ -85,6 +91,12 @@ export class PluginManager {
 	private readonly eventBus = new EventBus();
 	private readonly pluginStyleSheets: CSSStyleSheet[] = [];
 	readonly schemaRegistry = new SchemaRegistry();
+	readonly keymapRegistry = new KeymapRegistry();
+	readonly inputRuleRegistry = new InputRuleRegistry();
+	readonly fileHandlerRegistry = new FileHandlerRegistry();
+	readonly nodeViewRegistry = new NodeViewRegistry();
+	readonly toolbarRegistry = new ToolbarRegistry();
+	readonly blockTypePickerRegistry = new BlockTypePickerRegistry();
 	private middlewareSorted: MiddlewareEntry[] | null = null;
 	private initOrder: string[] = [];
 	private initialized = false;
@@ -333,6 +345,12 @@ export class PluginManager {
 		this.eventBus.clear();
 		this.registrations.clear();
 		this.schemaRegistry.clear();
+		this.keymapRegistry.clear();
+		this.inputRuleRegistry.clear();
+		this.fileHandlerRegistry.clear();
+		this.nodeViewRegistry.clear();
+		this.toolbarRegistry.clear();
+		this.blockTypePickerRegistry.clear();
 		this.initOrder = [];
 		this.initialized = false;
 	}
@@ -369,15 +387,17 @@ export class PluginManager {
 		for (const type of reg.inlineNodeSpecs) {
 			this.schemaRegistry.removeInlineNodeSpec(type);
 		}
-		for (const type of reg.nodeViews) this.schemaRegistry.removeNodeView(type);
-		for (const keymap of reg.keymaps) this.schemaRegistry.removeKeymap(keymap);
-		for (const rule of reg.inputRules) this.schemaRegistry.removeInputRule(rule);
-		for (const itemId of reg.toolbarItems) this.schemaRegistry.removeToolbarItem(itemId);
+
+		// Clean up focused registries
+		for (const type of reg.nodeViews) this.nodeViewRegistry.removeNodeView(type);
+		for (const keymap of reg.keymaps) this.keymapRegistry.removeKeymap(keymap);
+		for (const rule of reg.inputRules) this.inputRuleRegistry.removeInputRule(rule);
+		for (const itemId of reg.toolbarItems) this.toolbarRegistry.removeToolbarItem(itemId);
 		for (const handler of reg.fileHandlers) {
-			this.schemaRegistry.removeFileHandler(handler);
+			this.fileHandlerRegistry.removeFileHandler(handler);
 		}
-		for (const id of reg.blockTypePickerEntries) {
-			this.schemaRegistry.removeBlockTypePickerEntry(id);
+		for (const entryId of reg.blockTypePickerEntries) {
+			this.blockTypePickerRegistry.removeBlockTypePickerEntry(entryId);
 		}
 		for (const sheet of reg.stylesheets) {
 			const idx = this.pluginStyleSheets.indexOf(sheet);
@@ -490,22 +510,22 @@ export class PluginManager {
 			},
 
 			registerNodeView: (type, factory) => {
-				this.schemaRegistry.registerNodeView(type, factory);
+				this.nodeViewRegistry.registerNodeView(type, factory);
 				reg.nodeViews.push(type);
 			},
 
 			registerKeymap: (keymap: Keymap, options?: KeymapOptions) => {
-				this.schemaRegistry.registerKeymap(keymap, options);
+				this.keymapRegistry.registerKeymap(keymap, options);
 				reg.keymaps.push(keymap);
 			},
 
 			registerInputRule: (rule) => {
-				this.schemaRegistry.registerInputRule(rule);
+				this.inputRuleRegistry.registerInputRule(rule);
 				reg.inputRules.push(rule);
 			},
 
 			registerToolbarItem: (item) => {
-				this.schemaRegistry.registerToolbarItem(item, pluginId);
+				this.toolbarRegistry.registerToolbarItem(item, pluginId);
 				reg.toolbarItems.push(item.id);
 			},
 
@@ -515,16 +535,22 @@ export class PluginManager {
 			},
 
 			registerFileHandler: (pattern, handler) => {
-				this.schemaRegistry.registerFileHandler(pattern, handler);
+				this.fileHandlerRegistry.registerFileHandler(pattern, handler);
 				reg.fileHandlers.push(handler);
 			},
 
 			registerBlockTypePickerEntry: (entry) => {
-				this.schemaRegistry.registerBlockTypePickerEntry(entry);
+				this.blockTypePickerRegistry.registerBlockTypePickerEntry(entry);
 				reg.blockTypePickerEntries.push(entry.id);
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,
+			getKeymapRegistry: () => this.keymapRegistry,
+			getInputRuleRegistry: () => this.inputRuleRegistry,
+			getFileHandlerRegistry: () => this.fileHandlerRegistry,
+			getNodeViewRegistry: () => this.nodeViewRegistry,
+			getToolbarRegistry: () => this.toolbarRegistry,
+			getBlockTypePickerRegistry: () => this.blockTypePickerRegistry,
 
 			registerStyleSheet: (css: string) => {
 				const sheet: CSSStyleSheet = new CSSStyleSheet();

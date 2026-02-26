@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import type { Schema } from '../model/Schema.js';
-import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createNodeSelection, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
+import { KeymapRegistry } from './KeymapRegistry.js';
 
 function makeKeyEvent(
 	key: string,
@@ -208,7 +208,7 @@ describe('KeyboardHandler: Composition guard', () => {
 describe('KeyboardHandler: Readonly mode', () => {
 	it('navigation keymaps run in readonly mode', () => {
 		const element: HTMLDivElement = document.createElement('div');
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 
 		registry.registerKeymap(
@@ -232,7 +232,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 			dispatch: vi.fn(),
 			undo: vi.fn(),
 			redo: vi.fn(),
-			schemaRegistry: registry,
+			keymapRegistry: registry,
 			isReadOnly: () => true,
 		});
 
@@ -243,7 +243,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 
 	it('default keymaps are blocked in readonly mode', () => {
 		const element: HTMLDivElement = document.createElement('div');
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 
 		registry.registerKeymap({
@@ -264,7 +264,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 			dispatch: vi.fn(),
 			undo: vi.fn(),
 			redo: vi.fn(),
-			schemaRegistry: registry,
+			keymapRegistry: registry,
 			isReadOnly: () => true,
 		});
 
@@ -275,7 +275,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 
 	it('context keymaps are blocked in readonly mode', () => {
 		const element: HTMLDivElement = document.createElement('div');
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 
 		registry.registerKeymap(
@@ -299,7 +299,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 			dispatch: vi.fn(),
 			undo: vi.fn(),
 			redo: vi.fn(),
-			schemaRegistry: registry,
+			keymapRegistry: registry,
 			isReadOnly: () => true,
 		});
 
@@ -310,7 +310,7 @@ describe('KeyboardHandler: Readonly mode', () => {
 });
 
 describe('KeyboardHandler: Keymap priority dispatch', () => {
-	function createHandlerWithKeymaps(registry: SchemaRegistry): {
+	function createHandlerWithKeymaps(registry: KeymapRegistry): {
 		element: HTMLDivElement;
 		handler: KeyboardHandler;
 		log: string[];
@@ -328,14 +328,14 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 			dispatch: vi.fn(),
 			undo: vi.fn(),
 			redo: vi.fn(),
-			schemaRegistry: registry,
+			keymapRegistry: registry,
 		});
 
 		return { element, handler, log };
 	}
 
 	it('context keymap has precedence over default keymap for the same key', () => {
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 		registry.registerKeymap({
 			Enter: () => {
@@ -361,7 +361,7 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 	});
 
 	it('navigation keymap has precedence over default keymap', () => {
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 		registry.registerKeymap({
 			ArrowDown: () => {
@@ -387,7 +387,7 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 	});
 
 	it('context keymap has precedence over navigation keymap', () => {
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 		registry.registerKeymap(
 			{
@@ -416,7 +416,7 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 	});
 
 	it('within same priority, later-registered keymap wins', () => {
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 		registry.registerKeymap({
 			Enter: () => {
@@ -439,7 +439,7 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 	});
 
 	it('context keymap returning false falls through to navigation then default', () => {
-		const registry = new SchemaRegistry();
+		const registry = new KeymapRegistry();
 		const log: string[] = [];
 		registry.registerKeymap(
 			{

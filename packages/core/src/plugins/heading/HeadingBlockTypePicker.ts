@@ -98,7 +98,7 @@ export function registerHeadingToolbarItem(
 			renderHeadingPopup(container, ctx, locale);
 		},
 		isActive: (state) => {
-			const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
+			const entries = context.getBlockTypePickerRegistry().getBlockTypePickerEntries();
 			return entries.some((entry) => entry.id !== 'paragraph' && entry.isActive(state));
 		},
 	});
@@ -146,7 +146,7 @@ function renderHeadingPopup(
 	list.setAttribute('role', 'listbox');
 	list.setAttribute('aria-label', locale.blockTypesAria);
 
-	const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
+	const entries = context.getBlockTypePickerRegistry().getBlockTypePickerEntries();
 	for (const entry of entries) {
 		const active: boolean = entry.isActive(state);
 		list.appendChild(
@@ -211,7 +211,7 @@ function getHeadingLabel(locale: HeadingLocale, level: HeadingLevel): string {
 
 function getActiveLabel(state: EditorState, context: PluginContext, locale: HeadingLocale): string {
 	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return locale.paragraph;
-	const entries = context.getSchemaRegistry().getBlockTypePickerEntries();
+	const entries = context.getBlockTypePickerRegistry().getBlockTypePickerEntries();
 	for (const entry of entries) {
 		if (entry.isActive(state)) return entry.label;
 	}
