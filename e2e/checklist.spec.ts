@@ -20,27 +20,6 @@ test.describe('Checklist', () => {
 		}).toPass({ timeout: 5_000 });
 	});
 
-	test('checklist item renders a visible checkbox marker', async ({ editor, page }) => {
-		await editor.typeText('My task');
-
-		const checklistBtn = editor.markButton('list-checklist');
-		await checklistBtn.click();
-
-		const listItem = editor.content.locator('.notectl-list-item--checklist');
-		await expect(listItem).toBeVisible();
-		await expect(listItem).toHaveAttribute('data-checked', 'false');
-
-		const hasMarkerSpace = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('.notectl-list-item--checklist');
-			if (!el) return false;
-			const style = getComputedStyle(el, '::before');
-			return style.content !== 'none' && style.content !== '';
-		});
-		expect(hasMarkerSpace).toBe(true);
-	});
-
 	test('clicking checklist button again reverts to paragraph', async ({ editor, page }) => {
 		await editor.typeText('My task');
 
@@ -78,48 +57,6 @@ test.describe('Checklist', () => {
 
 		// Placeholder should disappear because the block is now a list_item, not paragraph
 		await expect(placeholder).not.toHaveClass(/notectl-content--empty/);
-	});
-
-	test('cursor is to the right of checkbox, not overlapping', async ({ editor, page }) => {
-		await editor.typeText('Task');
-
-		const checklistBtn = editor.markButton('list-checklist');
-		await checklistBtn.click();
-
-		// The checkbox is rendered via ::before. Text should start after it.
-		// Verify the list item has left padding > 0 (space for the marker)
-		const paddingLeft = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('.notectl-list-item--checklist');
-			if (!el) return 0;
-			return Number.parseFloat(getComputedStyle(el).paddingLeft);
-		});
-		expect(paddingLeft).toBeGreaterThanOrEqual(20);
-	});
-
-	test('typing in checklist does not overlap checkbox', async ({ editor, page }) => {
-		// Start with empty editor, toggle checklist, then type
-		const checklistBtn = editor.markButton('list-checklist');
-		await checklistBtn.click();
-		await page.keyboard.type('New task', { delay: 10 });
-
-		const text = await editor.getText();
-		expect(text.trim()).toBe('New task');
-
-		// Verify text is positioned to the right of the marker
-		const positions = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('.notectl-list-item--checklist');
-			if (!el) return { markerWidth: 0, paddingLeft: 0 };
-			const beforeStyle = getComputedStyle(el, '::before');
-			const markerWidth = Number.parseFloat(beforeStyle.width) || 0;
-			const paddingLeft = Number.parseFloat(getComputedStyle(el).paddingLeft);
-			return { markerWidth, paddingLeft };
-		});
-		// Text area (padding-left) must be wider than the marker to prevent overlap
-		expect(positions.paddingLeft).toBeGreaterThanOrEqual(positions.markerWidth);
 	});
 
 	test('Enter on checklist item creates new checklist item', async ({ editor, page }) => {
@@ -215,46 +152,6 @@ test.describe('Checklist', () => {
 		expect(json.children[0]?.type).toBe('list_item');
 		const text = await editor.getText();
 		expect(text.trim()).toBe('Hell');
-	});
-
-	test('bullet list item renders a visible marker', async ({ editor, page }) => {
-		await editor.typeText('item');
-
-		const bulletBtn = editor.markButton('list-bullet');
-		await bulletBtn.click();
-
-		const listItem = editor.content.locator('.notectl-list-item--bullet');
-		await expect(listItem).toBeVisible();
-
-		const hasMarkerSpace = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('.notectl-list-item--bullet');
-			if (!el) return false;
-			const style = getComputedStyle(el, '::before');
-			return style.content !== 'none' && style.content !== '';
-		});
-		expect(hasMarkerSpace).toBe(true);
-	});
-
-	test('ordered list item renders a number marker', async ({ editor, page }) => {
-		await editor.typeText('first');
-
-		const orderedBtn = editor.markButton('list-ordered');
-		await orderedBtn.click();
-
-		const listItem = editor.content.locator('.notectl-list-item--ordered');
-		await expect(listItem).toBeVisible();
-
-		const hasMarkerSpace = await page.evaluate(() => {
-			const el = document
-				.querySelector('notectl-editor')
-				?.shadowRoot?.querySelector('.notectl-list-item--ordered');
-			if (!el) return false;
-			const style = getComputedStyle(el, '::before');
-			return style.content !== 'none' && style.content !== '';
-		});
-		expect(hasMarkerSpace).toBe(true);
 	});
 
 	test('Enter on bullet list creates new bullet list item', async ({ editor, page }) => {

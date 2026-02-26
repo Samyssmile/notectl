@@ -1,3 +1,15 @@
+/**
+ * IMPORTANT: This file is a documentation asset generator for Starlight.
+ *
+ * Purpose:
+ * - Generates screenshots into `docs-site/src/assets/screenshots`
+ * - Those images are referenced by docs pages in `docs-site/src/content/docs`
+ *
+ * Notes:
+ * - These are not core product-regression E2E tests.
+ * - Do not delete this file when optimizing normal E2E runtime.
+ * - Keep it as a separate docs-screenshot workflow.
+ */
 import { type Page, test } from '@playwright/test';
 
 const DIR = 'docs-site/src/assets/screenshots';

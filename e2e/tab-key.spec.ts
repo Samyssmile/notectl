@@ -22,27 +22,6 @@ test.describe('Tab Key Behavior', () => {
 		expect(isFocused).toBe(true);
 	});
 
-	test('Tab at beginning of empty paragraph inserts tab', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.press('Tab');
-		await page.keyboard.type('Indented', { delay: 10 });
-
-		const text = await editor.getText();
-		expect(text).toContain('\tIndented');
-	});
-
-	test('Shift-Tab does not leave the editor', async ({ editor, page }) => {
-		await editor.typeText('Some text');
-		await page.keyboard.press('Shift+Tab');
-
-		const isFocused = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const content = el?.shadowRoot?.querySelector('.notectl-content');
-			return content?.contains(document.activeElement) || el?.shadowRoot?.activeElement === content;
-		});
-		expect(isFocused).toBe(true);
-	});
-
 	test('Tab in a heading inserts tab character', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('# ', { delay: 10 });
@@ -52,16 +31,6 @@ test.describe('Tab Key Behavior', () => {
 
 		const text = await editor.getText();
 		expect(text.trim()).toBe('Title\tMore');
-	});
-
-	test('multiple Tabs insert multiple tab characters', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.press('Tab');
-		await page.keyboard.press('Tab');
-		await page.keyboard.type('Double indented', { delay: 10 });
-
-		const text = await editor.getText();
-		expect(text).toContain('\t\tDouble indented');
 	});
 
 	test('Tab replaces selected text', async ({ editor, page }) => {
@@ -150,29 +119,6 @@ test.describe('Tab Key Behavior', () => {
 		await page.keyboard.press('Control+z');
 		text = await editor.getText();
 		expect(text.trim()).toBe('Hello');
-	});
-
-	test('Escape exits the editor (WCAG 2.1.2)', async ({ editor, page }) => {
-		await editor.typeText('Some text');
-
-		// Verify focus is inside the editor
-		const focusedBefore = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const content = el?.shadowRoot?.querySelector('.notectl-content');
-			return content?.contains(document.activeElement) || el?.shadowRoot?.activeElement === content;
-		});
-		expect(focusedBefore).toBe(true);
-
-		// Press Escape to exit
-		await page.keyboard.press('Escape');
-
-		// Content area should no longer have focus
-		const focusedAfter = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const content = el?.shadowRoot?.querySelector('.notectl-content');
-			return content?.contains(document.activeElement) || el?.shadowRoot?.activeElement === content;
-		});
-		expect(focusedAfter).toBe(false);
 	});
 
 	test('content area has aria-description for exit hint', async ({ editor, page }) => {

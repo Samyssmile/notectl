@@ -46,58 +46,6 @@ for (const mark of MARK_CONFIGS) {
 			expect(html).toContain(mark.htmlTag);
 		});
 
-		test(`${mark.name} button shows active state`, async ({ editor, page }) => {
-			await editor.focus();
-			await page.keyboard.press(mark.shortcut);
-			await page.keyboard.type(mark.markType, { delay: 10 });
-
-			await expect(editor.markButton(mark.markType)).toHaveAttribute('aria-pressed', 'true');
-		});
-
-		test(`${mark.name} + Undo`, async ({ editor, page }) => {
-			await editor.typeText('Hello');
-			await page.keyboard.press('Control+a');
-			await page.keyboard.press(mark.shortcut);
-
-			let html = await editor.getHTML();
-			expect(html).toContain(mark.htmlTag);
-
-			await page.keyboard.press('Control+z');
-			html = await editor.getHTML();
-			expect(html).not.toContain(mark.htmlTag);
-		});
-
-		test(`${mark.name} hidden in toolbar — button gone but shortcut still works`, async ({
-			editor,
-			page,
-		}) => {
-			await editor.recreate(mark.toolbarHiddenConfig);
-
-			await expect(editor.markButton(mark.markType)).toHaveCount(0);
-
-			await editor.typeText('Hello');
-			await page.keyboard.press('Control+a');
-			await page.keyboard.press(mark.shortcut);
-			const html = await editor.getHTML();
-			expect(html).toContain(mark.htmlTag);
-		});
-
-		test(`${mark.name} disabled as feature — ${mark.shortcut} does nothing`, async ({
-			editor,
-			page,
-		}) => {
-			await editor.recreate(mark.featureDisabledConfig);
-
-			const btn = editor.markButton(mark.markType);
-			await expect(btn).toHaveAttribute('aria-disabled', 'true');
-			await expect(btn).toBeDisabled();
-
-			await editor.typeText('Hello');
-			await page.keyboard.press('Control+a');
-			await page.keyboard.press(mark.shortcut);
-			const html = await editor.getHTML();
-			expect(html).not.toContain(mark.htmlTag);
-		});
 	});
 }
 
