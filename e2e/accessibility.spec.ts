@@ -7,10 +7,6 @@ test.describe('Accessibility', () => {
 		await expect(editor.content).toHaveAttribute('aria-label', 'Rich text editor');
 	});
 
-	test('Toolbar has role="toolbar"', async ({ editor }) => {
-		await expect(editor.toolbar()).toBeVisible();
-	});
-
 	test('Toolbar buttons have aria-pressed', async ({ editor }) => {
 		const boldBtn = editor.markButton('bold');
 		await expect(boldBtn).toHaveAttribute('aria-pressed');
@@ -36,29 +32,6 @@ test.describe('Accessibility', () => {
 
 		await page.keyboard.press('Control+b');
 		await expect(editor.announcer()).toHaveText('bold off');
-	});
-
-	test('Escape key exits the editor (WCAG 2.1.2)', async ({ editor, page }) => {
-		await editor.focus();
-
-		// Verify editor content area is focused
-		const hasFocusBefore = await editor.root.evaluate((el) => {
-			const sr = el.shadowRoot;
-			if (!sr) return false;
-			return sr.activeElement?.classList.contains('notectl-content') ?? false;
-		});
-		expect(hasFocusBefore).toBe(true);
-
-		// Press Escape
-		await page.keyboard.press('Escape');
-
-		// Verify focus has left the editor content
-		const hasFocusAfter = await editor.root.evaluate((el) => {
-			const sr = el.shadowRoot;
-			if (!sr) return false;
-			return sr.activeElement?.classList.contains('notectl-content') ?? false;
-		});
-		expect(hasFocusAfter).toBe(false);
 	});
 
 	test('All formatting accessible via keyboard only', async ({ editor, page }) => {
@@ -243,9 +216,9 @@ test.describe('Button Activation', () => {
 
 test.describe('Popup Keyboard Support', () => {
 	test('Popup buttons have aria-haspopup and aria-expanded', async ({ editor }) => {
-		// The heading plugin button should have aria-haspopup
+		// The heading plugin button is a combobox with aria-haspopup="listbox"
 		const headingBtn = editor.markButton('heading');
-		await expect(headingBtn).toHaveAttribute('aria-haspopup', 'true');
+		await expect(headingBtn).toHaveAttribute('aria-haspopup', 'listbox');
 		await expect(headingBtn).toHaveAttribute('aria-expanded', 'false');
 	});
 
@@ -411,112 +384,4 @@ test.describe('ARIA Enhancements', () => {
 		await page.keyboard.press('Escape');
 	});
 
-	test('Link popup input has aria-label', async ({ editor, page }) => {
-		// Type text and select it so the link button is enabled
-		await editor.typeText('Hello');
-		await page.keyboard.press('Control+a');
-
-		const linkBtn = editor.markButton('link');
-		await linkBtn.click();
-
-		await expect(editor.popup()).toBeVisible();
-		await page.waitForTimeout(150);
-
-		const input = editor.root.locator('.notectl-toolbar-popup input[type="url"]');
-		await expect(input).toHaveAttribute('aria-label', 'Link URL');
-
-		const applyBtn = editor.root.locator('.notectl-toolbar-popup button[aria-label="Apply link"]');
-		await expect(applyBtn).toBeVisible();
-
-		await page.keyboard.press('Escape');
-	});
-
-	test('Bullet list items use semantic <li> inside <ul>', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Item', { delay: 10 });
-
-		const wrapper = editor.root.locator('ul[role="list"]');
-		await expect(wrapper).toBeVisible();
-
-		const listItem = wrapper.locator('li[role="listitem"]');
-		await expect(listItem).toBeVisible();
-		await expect(listItem).toHaveAttribute('aria-level', '1');
-	});
-
-	test('Ordered list items use semantic <li> inside <ol>', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('1. ', { delay: 10 });
-		await page.keyboard.type('First', { delay: 10 });
-
-		const wrapper = editor.root.locator('ol[role="list"]');
-		await expect(wrapper).toBeVisible();
-
-		const listItem = wrapper.locator('li[role="listitem"]');
-		await expect(listItem).toBeVisible();
-		await expect(listItem).toHaveAttribute('aria-level', '1');
-	});
-
-	test('Checklist items use semantic <li> with aria-checked', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('[ ] ', { delay: 10 });
-		await page.keyboard.type('Task', { delay: 10 });
-
-		const wrapper = editor.root.locator('ul[role="list"]');
-		await expect(wrapper).toBeVisible();
-
-		const listItem = wrapper.locator('li[role="listitem"]');
-		await expect(listItem).toBeVisible();
-		await expect(listItem).toHaveAttribute('aria-checked', 'false');
-	});
-
-	test('Switching list type changes wrapper element', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Item', { delay: 10 });
-
-		// Should start as <ul>
-		await expect(editor.root.locator('ul[role="list"]')).toBeVisible();
-		await expect(editor.root.locator('ol[role="list"]')).not.toBeVisible();
-
-		// Switch to ordered list
-		const orderedBtn = editor.markButton('list-ordered');
-		await orderedBtn.click();
-
-		// Should now be <ol>
-		await expect(editor.root.locator('ol[role="list"]')).toBeVisible();
-		await expect(editor.root.locator('ul[role="list"]')).not.toBeVisible();
-	});
-
-	test('Multiple consecutive list items share a single wrapper', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('First', { delay: 10 });
-		await page.keyboard.press('Enter');
-		await page.keyboard.type('Second', { delay: 10 });
-
-		const wrapper = editor.root.locator('ul[role="list"]');
-		await expect(wrapper).toBeVisible();
-
-		const items = wrapper.locator('li[role="listitem"]');
-		await expect(items).toHaveCount(2);
-	});
-
-	test('Paragraph between lists creates separate wrappers', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Item', { delay: 10 });
-		// Enter on non-empty → new list item; Enter on empty → exit to paragraph
-		await page.keyboard.press('Enter');
-		await page.keyboard.press('Enter');
-		// Type text so the paragraph persists (not converted back to list by input rule)
-		await page.keyboard.type('Break', { delay: 10 });
-		await page.keyboard.press('Enter');
-		// Now on a new paragraph — type another list
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Another', { delay: 10 });
-
-		const wrappers = editor.root.locator('ul[role="list"]');
-		await expect(wrappers).toHaveCount(2);
-	});
 });

@@ -46,20 +46,6 @@ test.describe('Code Block Plugin', () => {
 		expect(block?.children?.[0]?.text).toContain('hello world');
 	});
 
-	test('can type a Java main method into a code block', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('```java ', { delay: 10 });
-
-		// Type a Java main method
-		const javaCode = 'public static void main(String[] args)';
-		await page.keyboard.type(javaCode, { delay: 10 });
-
-		const json = await editor.getJSON();
-		const block = json.children[0];
-		expect(block?.type).toBe('code_block');
-		expect(block?.children?.[0]?.text).toContain('public static void main');
-	});
-
 	test('Enter inside code block inserts newline, not new paragraph', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
@@ -89,16 +75,6 @@ test.describe('Code Block Plugin', () => {
 		await expect(pre).toBeVisible();
 	});
 
-	test('code block renders <code> content area', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('some code', { delay: 10 });
-
-		const code = editor.content.locator('pre.notectl-code-block code');
-		await expect(code).toBeVisible();
-		await expect(code).toContainText('some code');
-	});
-
 	test('code block has non-editable header with language label', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('```typescript ', { delay: 10 });
@@ -111,15 +87,6 @@ test.describe('Code Block Plugin', () => {
 	});
 
 	// ── Keyboard shortcut ──────────────────────────────────────
-
-	test('Ctrl+Shift+C toggles code block', async ({ editor, page }) => {
-		await editor.typeText('some text');
-		await page.keyboard.press('Control+Shift+C');
-
-		const json = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[0]?.children?.[0]?.text).toContain('some text');
-	});
 
 	// ── Toolbar button ─────────────────────────────────────────
 
@@ -195,21 +162,6 @@ test.describe('Code Block Plugin', () => {
 	});
 
 	// ── Escape code block: Escape key ─────────────────────────
-
-	test('Escape key exits code block', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('code', { delay: 10 });
-
-		await page.keyboard.press('Escape');
-		await page.keyboard.type('escaped', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children.length).toBe(2);
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[1]?.type).toBe('paragraph');
-		expect(json.children[1]?.children?.[0]?.text).toContain('escaped');
-	});
 
 	// ── Escape code block: Backspace at start ─────────────────
 

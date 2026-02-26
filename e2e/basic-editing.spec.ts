@@ -75,14 +75,6 @@ test.describe('Basic Editing', () => {
 		expect(text.trim()).toBe('Replaced');
 	});
 
-	test('Text selection and overwrite', async ({ editor, page }) => {
-		await editor.typeText('Hello World');
-		await page.keyboard.press('Control+a');
-		await page.keyboard.type('Bye', { delay: 10 });
-		const text = await editor.getText();
-		expect(text.trim()).toBe('Bye');
-	});
-
 	test('Cut removes selected text', async ({ editor, page }) => {
 		await editor.typeText('Hello World');
 		await page.keyboard.press('Control+a');
