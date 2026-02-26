@@ -8,6 +8,9 @@
  */
 
 const SEGMENTER_SUPPORTED: boolean = typeof Intl !== 'undefined' && 'Segmenter' in Intl;
+const SEGMENTER: Intl.Segmenter | null = SEGMENTER_SUPPORTED
+	? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+	: null;
 
 /**
  * Returns the number of UTF-16 code units in the next grapheme cluster
@@ -16,9 +19,8 @@ const SEGMENTER_SUPPORTED: boolean = typeof Intl !== 'undefined' && 'Segmenter' 
 export function nextGraphemeSize(text: string, offset: number): number {
 	if (offset >= text.length || text.length === 0) return 0;
 
-	if (SEGMENTER_SUPPORTED) {
-		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-		for (const segment of segmenter.segment(text)) {
+	if (SEGMENTER) {
+		for (const segment of SEGMENTER.segment(text)) {
 			if (segment.index >= offset) {
 				return segment.segment.length;
 			}
@@ -37,10 +39,9 @@ export function nextGraphemeSize(text: string, offset: number): number {
 export function prevGraphemeSize(text: string, offset: number): number {
 	if (offset <= 0 || text.length === 0) return 0;
 
-	if (SEGMENTER_SUPPORTED) {
-		const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+	if (SEGMENTER) {
 		let lastSize = 1;
-		for (const segment of segmenter.segment(text)) {
+		for (const segment of SEGMENTER.segment(text)) {
 			if (segment.index + segment.segment.length >= offset) {
 				lastSize = segment.segment.length;
 				break;

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createCollapsedSelection } from '../../model/Selection.js';
-import { isCollapsed } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import type { EditorState } from '../../state/EditorState.js';
 import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { CaretNavigationPlugin } from './CaretNavigationPlugin.js';
 
@@ -120,6 +120,87 @@ describe('CaretNavigationPlugin', () => {
 		const result: boolean = wordForward[1]();
 		expect(result).toBe(true);
 		expect(h.dispatch).toHaveBeenCalled();
+	});
+
+	describe('RTL horizontal mapping', () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		function initRtlPlugin(initialState: EditorState): {
+			getState: () => EditorState;
+			getHandler: (key: string) => (() => boolean) | undefined;
+		} {
+			const plugin = new CaretNavigationPlugin();
+			let currentState = initialState;
+			const container: HTMLElement = document.createElement('div');
+			const block: HTMLElement = document.createElement('p');
+			block.setAttribute('data-block-id', 'b1');
+			block.setAttribute('dir', 'rtl');
+			block.textContent = 'ABC';
+			container.appendChild(block);
+
+			const registerKeymap = vi.fn();
+			const ctx = mockPluginContext({
+				getState: () => currentState,
+				dispatch: (tr) => {
+					currentState = currentState.apply(tr);
+				},
+				getContainer: () => container,
+				registerKeymap,
+			});
+
+			plugin.init(ctx);
+			const keymap = registerKeymap.mock.calls[0]?.[0] as Record<string, () => boolean> | undefined;
+			return {
+				getState: () => currentState,
+				getHandler: (key: string) => keymap?.[key],
+			};
+		}
+
+		it('maps Shift-ArrowLeft to logical forward in RTL', () => {
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+				direction: 'rtl',
+			} as CSSStyleDeclaration);
+			const state = stateBuilder().paragraph('ABC', 'b1').cursor('b1', 0).build();
+			const { getHandler, getState } = initRtlPlugin(state);
+			const handler = getHandler('Shift-ArrowLeft');
+
+			if (!handler) {
+				expect.unreachable('Expected Shift-ArrowLeft keymap entry');
+				return;
+			}
+			expect(handler()).toBe(true);
+			const next = getState();
+			if (isCollapsed(next.selection)) {
+				expect.unreachable('Expected non-collapsed selection');
+				return;
+			}
+			expect(next.selection.anchor.offset).toBe(0);
+			expect(next.selection.head.offset).toBe(1);
+		});
+
+		it('maps Shift-ArrowRight to logical backward in RTL', () => {
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+				direction: 'rtl',
+			} as CSSStyleDeclaration);
+			const state = stateBuilder().paragraph('ABC', 'b1').cursor('b1', 2).build();
+			const { getHandler, getState } = initRtlPlugin(state);
+			const handler = getHandler('Shift-ArrowRight');
+
+			if (!handler) {
+				expect.unreachable('Expected Shift-ArrowRight keymap entry');
+				return;
+			}
+			expect(handler()).toBe(true);
+			const next = getState();
+			if (isCollapsed(next.selection)) {
+				expect.unreachable('Expected non-collapsed selection');
+				return;
+			}
+			expect(next.selection.anchor.offset).toBe(2);
+			expect(next.selection.head.offset).toBe(1);
+		});
 	});
 });
 

@@ -139,7 +139,7 @@ const output = document.getElementById('output') as HTMLElement;
 	});
 
 	document.getElementById('btn-get-html')?.addEventListener('click', () => {
-		output.textContent = editor.getHTML();
+		output.textContent = editor.getHTML({ pretty: true });
 	});
 
 	document.getElementById('btn-get-text')?.addEventListener('click', () => {

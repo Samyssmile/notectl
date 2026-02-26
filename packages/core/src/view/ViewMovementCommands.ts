@@ -6,74 +6,20 @@
  * (e.g. in happy-dom test environments).
  */
 
-import {
-	canCrossBlockBoundary,
-	findWordBoundaryBackward,
-	findWordBoundaryForward,
-	isVoidBlock,
-} from '../commands/Commands.js';
+import { findWordBoundaryBackward, findWordBoundaryForward } from '../commands/Commands.js';
 import { moveToBlockEnd, moveToBlockStart } from '../commands/MovementCommands.js';
 import { getBlockLength, getContentAtOffset } from '../model/Document.js';
-import { findNodePath } from '../model/NodeResolver.js';
-import {
-	createCollapsedSelection,
-	createNodeSelection,
-	createSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../model/Selection.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../model/NavigationUtils.js';
+import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateAcrossBlocks } from './CaretNavigation.js';
 import { getSelection, readSelectionFromDOM } from './SelectionSync.js';
 
 type Direction = 'forward' | 'backward';
 type Granularity = 'word' | 'lineboundary' | 'line';
-
-// ---------------------------------------------------------------------------
-// Transaction helpers
-// ---------------------------------------------------------------------------
-
-/** Builds a collapsed-cursor transaction that clears storedMarks. */
-function moveTx(state: EditorState, blockId: BlockId, offset: number): Transaction {
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, offset))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
-/** Builds a NodeSelection transaction that clears storedMarks. */
-function nodeSelTx(state: EditorState, targetId: BlockId): Transaction {
-	const path: BlockId[] = (findNodePath(state.doc, targetId) ?? []) as BlockId[];
-	return state
-		.transaction('input')
-		.setSelection(createNodeSelection(targetId, path))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
-/** Builds a range-selection transaction that clears storedMarks. */
-function extendTx(
-	state: EditorState,
-	anchorBlockId: BlockId,
-	anchorOffset: number,
-	headBlockId: BlockId,
-	headOffset: number,
-): Transaction {
-	return state
-		.transaction('input')
-		.setSelection(
-			createSelection(
-				{ blockId: anchorBlockId, offset: anchorOffset },
-				{ blockId: headBlockId, offset: headOffset },
-			),
-		)
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
 
 // ---------------------------------------------------------------------------
 // Core view movement

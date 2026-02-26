@@ -14,6 +14,7 @@ import type { Mark } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
+import { createMarkElement, getMarkRank } from './MarkRendering.js';
 import { getSelection } from './SelectionSync.js';
 
 const ZWS = '\u200B';
@@ -57,13 +58,13 @@ export class CursorWrapper {
 		// Wrap the text node in sorted mark elements (innermost → outermost)
 		let current: Node = textNode;
 		const sortedMarks: readonly Mark[] = [...marks].sort(
-			(a, b) => this.markRank(a) - this.markRank(b),
+			(a, b) => getMarkRank(a, this.registry) - getMarkRank(b, this.registry),
 		);
 
 		for (let i: number = sortedMarks.length - 1; i >= 0; i--) {
 			const mark: Mark | undefined = sortedMarks[i];
 			if (!mark) continue;
-			const el: HTMLElement = this.createMarkElement(mark);
+			const el: HTMLElement = createMarkElement(mark, this.registry);
 			el.appendChild(current);
 			current = el;
 		}
@@ -92,43 +93,5 @@ export class CursorWrapper {
 		if (!this.wrapperElement) return;
 		this.wrapperElement.remove();
 		this.wrapperElement = null;
-	}
-
-	/** Returns the mark rank for sorting (lower = outermost). */
-	private markRank(mark: Mark): number {
-		if (this.registry) {
-			const spec = this.registry.getMarkSpec(mark.type);
-			if (spec) return spec.rank ?? 100;
-		}
-		switch (mark.type) {
-			case 'bold':
-				return 0;
-			case 'italic':
-				return 1;
-			case 'underline':
-				return 2;
-			default:
-				return 100;
-		}
-	}
-
-	/** Creates a DOM element for a mark. */
-	private createMarkElement(mark: Mark): HTMLElement {
-		if (this.registry) {
-			const spec = this.registry.getMarkSpec(mark.type);
-			if (spec) {
-				return spec.toDOM(mark as Parameters<typeof spec.toDOM>[0]);
-			}
-		}
-		switch (mark.type) {
-			case 'bold':
-				return document.createElement('strong');
-			case 'italic':
-				return document.createElement('em');
-			case 'underline':
-				return document.createElement('u');
-			default:
-				return document.createElement('span');
-		}
 	}
 }

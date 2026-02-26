@@ -392,14 +392,12 @@ test.describe('Code Block Plugin', () => {
 		await expect(copyBtn).toHaveAttribute('aria-label', 'Copy code');
 	});
 
-	test('copy button copies code block text to clipboard', async ({
-		editor,
-		page,
-		context,
-		browserName,
-	}) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	test('copy button copies code block text to clipboard', async ({ editor, page, context }) => {
+		try {
+			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		} catch {
+			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
+		}
 
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
@@ -413,9 +411,12 @@ test.describe('Code Block Plugin', () => {
 		expect(clipboardText).toBe('const x = 42;');
 	});
 
-	test('copy button announces to screen reader', async ({ editor, page, context, browserName }) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	test('copy button announces to screen reader', async ({ editor, page, context }) => {
+		try {
+			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		} catch {
+			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
+		}
 
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
