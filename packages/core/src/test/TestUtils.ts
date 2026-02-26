@@ -8,7 +8,7 @@
  * - Assertion helpers: `assertDefined`, `expectBlockText`, etc.
  */
 
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import type { InputRule } from '../input/InputRule.js';
 import type { Keymap } from '../input/Keymap.js';
 import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
@@ -475,4 +475,43 @@ export function assertDefined<T>(value: T | undefined | null, msg?: string): ass
 	if (value === undefined || value === null) {
 		throw new Error(msg ?? 'Expected value to be defined');
 	}
+}
+
+/**
+ * Applies a command that returns `Transaction | null` to state.
+ * Throws if the command returns null (failed guard).
+ *
+ * @example
+ * ```ts
+ * const next = applyCommand(state, moveCharacterForward);
+ * ```
+ */
+export function applyCommand(
+	state: EditorState,
+	command: (s: EditorState) => Transaction | null,
+): EditorState {
+	const tr: Transaction | null = command(state);
+	if (!tr) {
+		throw new Error('Command returned null — expected a transaction');
+	}
+	return state.apply(tr);
+}
+
+/**
+ * Asserts the state has a collapsed cursor at the given block and offset.
+ * Combines isCollapsed + anchor.blockId + anchor.offset checks.
+ *
+ * @example
+ * ```ts
+ * expectCursorAt(state, 'b1', 3);
+ * ```
+ */
+export function expectCursorAt(state: EditorState, blockId: string, offset: number): void {
+	const sel = state.selection;
+	expect(sel).toEqual(
+		expect.objectContaining({
+			anchor: expect.objectContaining({ blockId, offset }),
+			head: expect.objectContaining({ blockId, offset }),
+		}),
+	);
 }

@@ -3,7 +3,7 @@ import type { NodeSpec } from '../model/NodeSpec.js';
 import { isCollapsed, isNodeSelection } from '../model/Selection.js';
 import { markType } from '../model/TypeBrands.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import { stateBuilder } from '../test/TestUtils.js';
+import { applyCommand, stateBuilder } from '../test/TestUtils.js';
 import {
 	extendLineDown,
 	extendLineUp,
@@ -37,12 +37,7 @@ function container(): HTMLElement {
 describe('moveWordForward (fallback)', () => {
 	it('moves past the current word', () => {
 		const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 0).build();
-		const tr = moveWordForward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordForward(container(), s));
 		// findWordBoundaryForward skips "hello" + trailing space → offset 6
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 6 } }),
@@ -55,12 +50,7 @@ describe('moveWordForward (fallback)', () => {
 			.paragraph('CD', 'b2')
 			.cursor('b1', 2)
 			.build();
-		const tr = moveWordForward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordForward(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b2', offset: 0 } }),
 		);
@@ -75,12 +65,7 @@ describe('moveWordForward (fallback)', () => {
 describe('moveWordBackward (fallback)', () => {
 	it('moves to start of current word', () => {
 		const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 8).build();
-		const tr = moveWordBackward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordBackward(container(), s));
 		// findWordBoundaryBackward from "or" skips back to "w" → offset 6
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 6 } }),
@@ -93,12 +78,7 @@ describe('moveWordBackward (fallback)', () => {
 			.paragraph('CD', 'b2')
 			.cursor('b2', 0)
 			.build();
-		const tr = moveWordBackward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordBackward(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 2 } }),
 		);
@@ -112,12 +92,7 @@ describe('moveWordBackward (fallback)', () => {
 describe('moveToLineStart (fallback)', () => {
 	it('moves to offset 0 of current block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = moveToLineStart(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveToLineStart(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 0 } }),
 		);
@@ -132,12 +107,7 @@ describe('moveToLineStart (fallback)', () => {
 describe('moveToLineEnd (fallback)', () => {
 	it('moves to end of current block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = moveToLineEnd(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveToLineEnd(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 5 } }),
 		);
@@ -155,12 +125,7 @@ describe('moveLineUp (fallback)', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b2', 0)
 			.build();
-		const tr = moveLineUp(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveLineUp(container(), s));
 		// navigateAcrossBlocks 'up' → places cursor at end of previous block
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b1', offset: 5 } }),
@@ -180,12 +145,7 @@ describe('moveLineDown (fallback)', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b1', 5)
 			.build();
-		const tr = moveLineDown(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveLineDown(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({ anchor: { blockId: 'b2', offset: 0 } }),
 		);
@@ -199,12 +159,7 @@ describe('moveLineDown (fallback)', () => {
 describe('extendWordForward (fallback)', () => {
 	it('extends selection to next word boundary', () => {
 		const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 0).build();
-		const tr = extendWordForward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendWordForward(container(), s));
 		expect(isCollapsed(next.selection)).toBe(false);
 		expect(next.selection).toEqual(
 			expect.objectContaining({
@@ -218,12 +173,7 @@ describe('extendWordForward (fallback)', () => {
 describe('extendWordBackward (fallback)', () => {
 	it('extends selection to previous word boundary', () => {
 		const state = stateBuilder().paragraph('hello world', 'b1').cursor('b1', 11).build();
-		const tr = extendWordBackward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendWordBackward(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 11 },
@@ -240,12 +190,7 @@ describe('extendWordBackward (fallback)', () => {
 describe('extendToLineStart (fallback)', () => {
 	it('extends selection to start of block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
-		const tr = extendToLineStart(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendToLineStart(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 3 },
@@ -258,12 +203,7 @@ describe('extendToLineStart (fallback)', () => {
 describe('extendToLineEnd (fallback)', () => {
 	it('extends selection to end of block', () => {
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
-		const tr = extendToLineEnd(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendToLineEnd(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 0 },
@@ -284,12 +224,7 @@ describe('extendLineUp (fallback)', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b2', 3)
 			.build();
-		const tr = extendLineUp(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendLineUp(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b2', offset: 3 },
@@ -306,12 +241,7 @@ describe('extendLineDown (fallback)', () => {
 			.paragraph('Second', 'b2')
 			.cursor('b1', 2)
 			.build();
-		const tr = extendLineDown(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => extendLineDown(container(), s));
 		expect(next.selection).toEqual(
 			expect.objectContaining({
 				anchor: { blockId: 'b1', offset: 2 },
@@ -354,12 +284,7 @@ describe('guards', () => {
 				.build(),
 		);
 		expect(withMarks.storedMarks).not.toBeNull();
-		const tr = moveWordForward(container(), withMarks);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = withMarks.apply(tr);
+		const next = applyCommand(withMarks, (s) => moveWordForward(container(), s));
 		expect(next.storedMarks).toBeNull();
 	});
 });
@@ -380,12 +305,7 @@ describe('fallback cross-block void handling', () => {
 			.cursor('b1', 2)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveWordForward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordForward(container(), s));
 		expect(isNodeSelection(next.selection)).toBe(true);
 		if (isNodeSelection(next.selection)) {
 			expect(next.selection.nodeId).toBe('hr1' as BlockId);
@@ -399,12 +319,7 @@ describe('fallback cross-block void handling', () => {
 			.cursor('b2', 0)
 			.schema(['paragraph', 'horizontal_rule'], [], voidNodeSpec('horizontal_rule'))
 			.build();
-		const tr = moveWordBackward(container(), state);
-		if (!tr) {
-			expect.unreachable('Expected non-null transaction');
-			return;
-		}
-		const next = state.apply(tr);
+		const next = applyCommand(state, (s) => moveWordBackward(container(), s));
 		expect(isNodeSelection(next.selection)).toBe(true);
 		if (isNodeSelection(next.selection)) {
 			expect(next.selection.nodeId).toBe('hr1' as BlockId);
@@ -466,7 +381,6 @@ describe('viewMove isolating boundary guard', () => {
 			rangeCount: 1,
 		};
 
-		const origGetSelection = window.getSelection;
 		vi.spyOn(window, 'getSelection').mockReturnValue(mockSel as unknown as Selection);
 
 		// After modify, simulate DOM moving into the table block

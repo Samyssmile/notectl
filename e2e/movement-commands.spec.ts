@@ -97,11 +97,18 @@ test.describe('Movement Commands', () => {
 			// Focus the text block
 			const paragraph = page.locator('notectl-editor p').first();
 			await paragraph.click();
+			await editor.content.focus();
 			await page.waitForTimeout(100);
 
 			// Ctrl+Home → should select the HR (NodeSelection)
 			await page.keyboard.press('Control+Home');
-			await page.waitForTimeout(100);
+			await page.waitForFunction(() => {
+				const el = document.querySelector('notectl-editor') as
+					| (HTMLElement & { getState?: () => { selection?: { type?: string; nodeId?: string } } })
+					| null;
+				const sel = el?.getState?.().selection;
+				return sel?.type === 'node' && typeof sel.nodeId === 'string';
+			});
 
 			// Delete should remove the HR (proves NodeSelection was set)
 			const hr = page.locator('notectl-editor hr');
@@ -120,11 +127,18 @@ test.describe('Movement Commands', () => {
 			// Focus the text block
 			const paragraph = page.locator('notectl-editor p').first();
 			await paragraph.click();
+			await editor.content.focus();
 			await page.waitForTimeout(100);
 
 			// Ctrl+End → should select the HR (NodeSelection)
 			await page.keyboard.press('Control+End');
-			await page.waitForTimeout(100);
+			await page.waitForFunction(() => {
+				const el = document.querySelector('notectl-editor') as
+					| (HTMLElement & { getState?: () => { selection?: { type?: string; nodeId?: string } } })
+					| null;
+				const sel = el?.getState?.().selection;
+				return sel?.type === 'node' && typeof sel.nodeId === 'string';
+			});
 
 			// Backspace should remove the HR (proves NodeSelection was set)
 			const hr = page.locator('notectl-editor hr');

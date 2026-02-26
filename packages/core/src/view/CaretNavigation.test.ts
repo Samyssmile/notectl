@@ -1,11 +1,11 @@
-import { type Mock, describe, expect, it, vi } from 'vitest';
-import { canCrossBlockBoundary } from '../commands/Commands.js';
+import { describe, expect, it, vi } from 'vitest';
 import { createInlineNode, createTextNode } from '../model/Document.js';
+import { canCrossBlockBoundary } from '../model/NavigationUtils.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
-import { isCollapsed, isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
+import { isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
 import { inlineType, markType } from '../model/TypeBrands.js';
 import type { Transaction } from '../state/Transaction.js';
-import { assertDefined, stateBuilder } from '../test/TestUtils.js';
+import { applyCommand, expectCursorAt, stateBuilder } from '../test/TestUtils.js';
 import {
 	endOfTextblock,
 	navigateAcrossBlocks,
@@ -225,15 +225,8 @@ describe('navigateAcrossBlocks', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = navigateAcrossBlocks(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		expect(isCollapsed(newState.selection)).toBe(true);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b2');
-			expect(newState.selection.anchor.offset).toBe(0);
-		}
+		const newState = applyCommand(state, (s) => navigateAcrossBlocks(s, 'right'));
+		expectCursorAt(newState, 'b2', 0);
 	});
 
 	it('moves left from start of block 2 to end of block 1', () => {
@@ -244,14 +237,8 @@ describe('navigateAcrossBlocks', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = navigateAcrossBlocks(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b1');
-			expect(newState.selection.anchor.offset).toBe(5);
-		}
+		const newState = applyCommand(state, (s) => navigateAcrossBlocks(s, 'left'));
+		expectCursorAt(newState, 'b1', 5);
 	});
 
 	it('returns null at document start for left', () => {
@@ -282,10 +269,7 @@ describe('navigateAcrossBlocks', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr: Transaction | null = navigateAcrossBlocks(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateAcrossBlocks(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(true);
 		if (isNodeSelection(newState.selection)) {
 			expect(newState.selection.nodeId).toBe('img1');
@@ -311,14 +295,8 @@ describe('navigateAcrossBlocks', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = navigateAcrossBlocks(state, 'down');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b2');
-			expect(newState.selection.anchor.offset).toBe(0);
-		}
+		const newState = applyCommand(state, (s) => navigateAcrossBlocks(s, 'down'));
+		expectCursorAt(newState, 'b2', 0);
 	});
 
 	it('moves up using same logic as left (block-order traversal)', () => {
@@ -329,14 +307,8 @@ describe('navigateAcrossBlocks', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = navigateAcrossBlocks(state, 'up');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b1');
-			expect(newState.selection.anchor.offset).toBe(6);
-		}
+		const newState = applyCommand(state, (s) => navigateAcrossBlocks(s, 'up'));
+		expectCursorAt(newState, 'b1', 6);
 	});
 
 	it('clears storedMarks when crossing blocks', () => {
@@ -354,10 +326,7 @@ describe('navigateAcrossBlocks', () => {
 		);
 		expect(stateWithMarks.storedMarks).not.toBeNull();
 
-		const tr: Transaction | null = navigateAcrossBlocks(stateWithMarks, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = stateWithMarks.apply(tr);
+		const newState = applyCommand(stateWithMarks, (s) => navigateAcrossBlocks(s, 'right'));
 		expect(newState.storedMarks).toBeNull();
 	});
 });
@@ -413,16 +382,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b1');
-			expect(newState.selection.anchor.offset).toBe(3);
-		}
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
+		expectCursorAt(newState, 'b1', 3);
 	});
 
 	it('skips left over InlineNode at middle of block', () => {
@@ -433,16 +394,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b1');
-			expect(newState.selection.anchor.offset).toBe(2);
-		}
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'left'));
+		expectCursorAt(newState, 'b1', 2);
 	});
 
 	it('skips right over InlineNode at start of block', () => {
@@ -453,12 +406,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(1);
 		}
@@ -472,12 +421,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'left'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(0);
 		}
@@ -491,12 +436,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(5);
 		}
@@ -510,12 +451,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'left'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(4);
 		}
@@ -529,12 +466,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(2);
 		}
@@ -548,12 +481,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(3);
 		}
@@ -567,12 +496,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'left'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(1);
 		}
@@ -646,12 +571,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(1);
 		}
@@ -665,12 +586,8 @@ describe('skipInlineNode', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr: Transaction | null = skipInlineNode(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => skipInlineNode(s, 'left'));
 		expect(isNodeSelection(newState.selection)).toBe(false);
-		expect(isCollapsed(newState.selection)).toBe(true);
 		if (!isNodeSelection(newState.selection)) {
 			expect(newState.selection.anchor.offset).toBe(0);
 		}
@@ -712,10 +629,7 @@ describe('skipInlineNode', () => {
 		);
 		expect(stateWithMarks.storedMarks).not.toBeNull();
 
-		const tr: Transaction | null = skipInlineNode(stateWithMarks, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = stateWithMarks.apply(tr);
+		const newState = applyCommand(stateWithMarks, (s) => skipInlineNode(s, 'right'));
 		expect(newState.storedMarks).toBeNull();
 	});
 
@@ -733,10 +647,7 @@ describe('skipInlineNode', () => {
 		);
 		expect(stateWithMarks.storedMarks).not.toBeNull();
 
-		const tr: Transaction | null = skipInlineNode(stateWithMarks, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = stateWithMarks.apply(tr);
+		const newState = applyCommand(stateWithMarks, (s) => skipInlineNode(s, 'left'));
 		expect(newState.storedMarks).toBeNull();
 	});
 });
@@ -753,10 +664,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'right'));
 		expect(isNodeSelection(newState.selection)).toBe(true);
 		if (isNodeSelection(newState.selection)) {
 			expect(newState.selection.nodeId).toBe('img1');
@@ -772,10 +680,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'left'));
 		expect(isNodeSelection(newState.selection)).toBe(true);
 		if (isNodeSelection(newState.selection)) {
 			expect(newState.selection.nodeId).toBe('img1');
@@ -791,10 +696,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'left');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'left'));
 		expect(isTextSelection(newState.selection)).toBe(true);
 		if (isTextSelection(newState.selection)) {
 			expect(newState.selection.anchor.blockId).toBe('b1');
@@ -811,10 +713,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'right'));
 		expect(isTextSelection(newState.selection)).toBe(true);
 		if (isTextSelection(newState.selection)) {
 			expect(newState.selection.anchor.blockId).toBe('b2');
@@ -853,10 +752,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'right');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'right'));
 		expect(isTextSelection(newState.selection)).toBe(true);
 		if (isTextSelection(newState.selection)) {
 			expect(newState.selection.anchor.blockId).toBe('b1');
@@ -871,10 +767,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'down');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'down'));
 		expect(isNodeSelection(newState.selection)).toBe(true);
 	});
 
@@ -886,10 +779,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'up');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'up'));
 		expect(isNodeSelection(newState.selection)).toBe(true);
 	});
 
@@ -902,10 +792,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'up');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'up'));
 		expect(isTextSelection(newState.selection)).toBe(true);
 		if (isTextSelection(newState.selection)) {
 			expect(newState.selection.anchor.blockId).toBe('b1');
@@ -922,10 +809,7 @@ describe('navigateFromGapCursor', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateFromGapCursor(state, 'down');
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) => navigateFromGapCursor(s, 'down'));
 		expect(isTextSelection(newState.selection)).toBe(true);
 		if (isTextSelection(newState.selection)) {
 			expect(newState.selection.anchor.blockId).toBe('b2');
@@ -945,14 +829,10 @@ describe('navigateVerticalWithGoalColumn', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', null);
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b2');
-			expect(newState.selection.anchor.offset).toBe(0);
-		}
+		const newState = applyCommand(state, (s) =>
+			navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', null),
+		);
+		expectCursorAt(newState, 'b2', 0);
 	});
 
 	it('falls back to block end when navigating up with goalColumn=null', () => {
@@ -963,14 +843,10 @@ describe('navigateVerticalWithGoalColumn', () => {
 			.schema(['paragraph'], [])
 			.build();
 
-		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'up', null);
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
-		if (!isNodeSelection(newState.selection)) {
-			expect(newState.selection.anchor.blockId).toBe('b1');
-			expect(newState.selection.anchor.offset).toBe(5);
-		}
+		const newState = applyCommand(state, (s) =>
+			navigateVerticalWithGoalColumn(dummyContainer(), s, 'up', null),
+		);
+		expectCursorAt(newState, 'b1', 5);
 	});
 
 	it('creates NodeSelection for void block target', () => {
@@ -981,10 +857,9 @@ describe('navigateVerticalWithGoalColumn', () => {
 			.schema(['paragraph', 'image'], [], nodeSpecLookup)
 			.build();
 
-		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', 100);
-		assertDefined(tr, 'expected transaction');
-
-		const newState = state.apply(tr);
+		const newState = applyCommand(state, (s) =>
+			navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', 100),
+		);
 		expect(isNodeSelection(newState.selection)).toBe(true);
 		if (isNodeSelection(newState.selection)) {
 			expect(newState.selection.nodeId).toBe('img1');

@@ -6,8 +6,8 @@
 
 import type { Decoration, DecorationAttrs, InlineDecoration } from '../decorations/Decoration.js';
 import { type DecorationSet, decorationArraysEqual } from '../decorations/Decoration.js';
-import type { MarkAttrsFor, NodeAttrsFor } from '../model/AttrRegistry.js';
-import type { BlockNode, InlineNode, Mark, TextNode } from '../model/Document.js';
+import type { NodeAttrsFor } from '../model/AttrRegistry.js';
+import type { BlockNode, InlineNode, TextNode } from '../model/Document.js';
 import {
 	getBlockChildren,
 	getInlineChildren,
@@ -22,6 +22,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { createMarkElement, getMarkRank } from './MarkRendering.js';
 import type { NodeView } from './NodeView.js';
 
 export interface ReconcileOptions {
@@ -435,7 +436,7 @@ function renderTextNode(node: TextNode, registry?: SchemaRegistry): Node {
 
 	// Sort marks: use MarkSpec.rank if available, otherwise fallback order
 	const sortedMarks = [...node.marks].sort(
-		(a, b) => markOrder(a, registry) - markOrder(b, registry),
+		(a, b) => getMarkRank(a, registry) - getMarkRank(b, registry),
 	);
 
 	let current: Node = textNode;
@@ -481,43 +482,6 @@ function inlineAttrsEqual(
 		if (a[key] !== b[key]) return false;
 	}
 	return true;
-}
-
-function markOrder(mark: Mark, registry?: SchemaRegistry): number {
-	if (registry) {
-		const spec = registry.getMarkSpec(mark.type);
-		if (spec) return spec.rank ?? 100;
-	}
-	// Fallback order for built-in marks
-	switch (mark.type) {
-		case 'bold':
-			return 0;
-		case 'italic':
-			return 1;
-		case 'underline':
-			return 2;
-		default:
-			return 100;
-	}
-}
-
-function createMarkElement(mark: Mark, registry?: SchemaRegistry): HTMLElement {
-	if (registry) {
-		const spec = registry.getMarkSpec(mark.type);
-		if (spec)
-			return spec.toDOM(mark as Omit<Mark, 'attrs'> & { readonly attrs: MarkAttrsFor<string> });
-	}
-	// Fallback for built-in marks
-	switch (mark.type) {
-		case 'bold':
-			return document.createElement('strong');
-		case 'italic':
-			return document.createElement('em');
-		case 'underline':
-			return document.createElement('u');
-		default:
-			return document.createElement('span');
-	}
 }
 
 // --- Decoration Rendering ---
@@ -592,7 +556,7 @@ function renderDecoratedContent(
 			// Wrap with marks (innermost to outermost)
 			if (child.marks.length > 0) {
 				const sortedMarks = [...child.marks].sort(
-					(a, b) => markOrder(a, registry) - markOrder(b, registry),
+					(a, b) => getMarkRank(a, registry) - getMarkRank(b, registry),
 				);
 				for (let j = sortedMarks.length - 1; j >= 0; j--) {
 					const mark = sortedMarks[j];

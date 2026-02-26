@@ -240,9 +240,12 @@ test.describe('Lists inside table cells — DOM wrappers', () => {
 // ══════════════════════════════════════════════════════════════════════════
 
 test.describe('Lists copy-paste into table cells', () => {
-	test.beforeEach(async ({ context, browserName }) => {
-		test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
-		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	test.beforeEach(async ({ context }) => {
+		try {
+			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		} catch {
+			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
+		}
 	});
 
 	test('copy bullet list and paste into table cell', async ({ editor, page }) => {

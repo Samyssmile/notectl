@@ -15,19 +15,12 @@ import {
 	getContentAtOffset,
 } from '../model/Document.js';
 import { nextGraphemeSize, prevGraphemeSize } from '../model/GraphemeUtils.js';
-import { findNodePath } from '../model/NodeResolver.js';
-import {
-	createCollapsedSelection,
-	createNodeSelection,
-	createSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../model/Selection.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../model/NavigationUtils.js';
+import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
-import { canCrossBlockBoundary, isVoidBlock } from './Commands.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,35 +45,6 @@ function adjacentBlockId(
 	const targetIdx: number = direction === 'forward' ? idx + 1 : idx - 1;
 	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
 	return blockOrder[targetIdx] ?? null;
-}
-
-/** Builds a transaction that moves the cursor and clears storedMarks. */
-function moveTx(state: EditorState, blockId: BlockId, offset: number): Transaction {
-	return state
-		.transaction('input')
-		.setSelection(createCollapsedSelection(blockId, offset))
-		.setStoredMarks(null, state.storedMarks)
-		.build();
-}
-
-/** Builds a transaction that extends the selection and clears storedMarks. */
-function extendTx(
-	state: EditorState,
-	anchorBlockId: BlockId,
-	anchorOffset: number,
-	headBlockId: BlockId,
-	headOffset: number,
-): Transaction {
-	return state
-		.transaction('input')
-		.setSelection(
-			createSelection(
-				{ blockId: anchorBlockId, offset: anchorOffset },
-				{ blockId: headBlockId, offset: headOffset },
-			),
-		)
-		.setStoredMarks(null, state.storedMarks)
-		.build();
 }
 
 // ---------------------------------------------------------------------------
@@ -122,14 +86,7 @@ export function moveCharacterForward(state: EditorState): Transaction | null {
 	if (!nextId) return null;
 	if (!canCrossBlockBoundary(state, blockId, nextId)) return null;
 
-	if (isVoidBlock(state, nextId)) {
-		const path: BlockId[] = (findNodePath(state.doc, nextId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(nextId, path))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
-	}
+	if (isVoidBlock(state, nextId)) return nodeSelTx(state, nextId);
 
 	return moveTx(state, nextId, 0);
 }
@@ -168,14 +125,7 @@ export function moveCharacterBackward(state: EditorState): Transaction | null {
 	if (!prevId) return null;
 	if (!canCrossBlockBoundary(state, blockId, prevId)) return null;
 
-	if (isVoidBlock(state, prevId)) {
-		const path: BlockId[] = (findNodePath(state.doc, prevId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(prevId, path))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
-	}
+	if (isVoidBlock(state, prevId)) return nodeSelTx(state, prevId);
 
 	const prevBlock = state.getBlock(prevId);
 	if (!prevBlock) return null;
@@ -227,14 +177,7 @@ export function moveToDocumentStart(state: EditorState): Transaction | null {
 	const firstId: BlockId | undefined = blockOrder[0];
 	if (!firstId) return null;
 
-	if (isVoidBlock(state, firstId)) {
-		const path: BlockId[] = (findNodePath(state.doc, firstId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(firstId, path))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
-	}
+	if (isVoidBlock(state, firstId)) return nodeSelTx(state, firstId);
 
 	return moveTx(state, firstId, 0);
 }
@@ -248,14 +191,7 @@ export function moveToDocumentEnd(state: EditorState): Transaction | null {
 	const lastId: BlockId | undefined = blockOrder[blockOrder.length - 1];
 	if (!lastId) return null;
 
-	if (isVoidBlock(state, lastId)) {
-		const path: BlockId[] = (findNodePath(state.doc, lastId) ?? []) as BlockId[];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(lastId, path))
-			.setStoredMarks(null, state.storedMarks)
-			.build();
-	}
+	if (isVoidBlock(state, lastId)) return nodeSelTx(state, lastId);
 
 	const lastBlock = state.getBlock(lastId);
 	if (!lastBlock) return null;
