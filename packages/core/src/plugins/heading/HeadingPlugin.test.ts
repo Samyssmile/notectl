@@ -576,11 +576,11 @@ describe('HeadingPlugin', () => {
 			expect(ids).not.toContain('heading-4');
 		});
 
-		it('third-party entry appears when registered on SchemaRegistry', async () => {
+		it('third-party entry appears when registered on BlockTypePickerRegistry', async () => {
 			const state = makeState();
 			const h = await pluginHarness(new HeadingPlugin(), state);
 
-			h.pm.schemaRegistry.registerBlockTypePickerEntry({
+			h.pm.blockTypePickerRegistry.registerBlockTypePickerEntry({
 				id: 'footer',
 				label: 'Footer',
 				command: 'setFooter',

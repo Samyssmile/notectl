@@ -15,12 +15,12 @@ import {
 	splitBlockCommand,
 } from '../commands/Commands.js';
 import { getBlockText } from '../model/Document.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { EditorState } from '../state/EditorState.js';
 import { CompositionTracker } from './CompositionTracker.js';
+import type { InputRuleRegistry } from './InputRuleRegistry.js';
 
 export type DispatchFn = (tr: Transaction) => void;
 export type GetStateFn = () => EditorState;
@@ -33,7 +33,7 @@ export interface InputHandlerOptions {
 	getState: GetStateFn;
 	dispatch: DispatchFn;
 	syncSelection: SyncSelectionFn;
-	schemaRegistry?: SchemaRegistry;
+	inputRuleRegistry?: InputRuleRegistry;
 	isReadOnly?: () => boolean;
 	compositionTracker?: CompositionTracker;
 }
@@ -42,7 +42,7 @@ export class InputHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
 	private readonly syncSelection: SyncSelectionFn;
-	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly inputRuleRegistry?: InputRuleRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
 
@@ -57,7 +57,7 @@ export class InputHandler {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
 		this.syncSelection = options.syncSelection;
-		this.schemaRegistry = options.schemaRegistry;
+		this.inputRuleRegistry = options.inputRuleRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 
@@ -179,8 +179,8 @@ export class InputHandler {
 	}
 
 	private checkInputRules(): void {
-		if (!this.schemaRegistry) return;
-		const rules = this.schemaRegistry.getInputRules();
+		if (!this.inputRuleRegistry) return;
+		const rules = this.inputRuleRegistry.getInputRules();
 		if (rules.length === 0) return;
 
 		const state = this.getState();

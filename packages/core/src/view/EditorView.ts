@@ -5,8 +5,11 @@
 import { DecorationSet } from '../decorations/Decoration.js';
 import { ClipboardHandler } from '../input/ClipboardHandler.js';
 import { CompositionTracker } from '../input/CompositionTracker.js';
+import type { FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
 import { InputHandler } from '../input/InputHandler.js';
+import type { InputRuleRegistry } from '../input/InputRuleRegistry.js';
 import { KeyboardHandler } from '../input/KeyboardHandler.js';
+import type { KeymapRegistry } from '../input/KeymapRegistry.js';
 import { PasteHandler } from '../input/PasteHandler.js';
 import { generateBlockId, getBlockLength } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -35,6 +38,7 @@ import {
 import { CursorWrapper } from './CursorWrapper.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
 import type { NodeView } from './NodeView.js';
+import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { getTextDirection } from './Platform.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
@@ -48,6 +52,10 @@ export type StateChangeCallback = (
 export interface EditorViewOptions {
 	state: EditorState;
 	schemaRegistry?: SchemaRegistry;
+	keymapRegistry?: KeymapRegistry;
+	inputRuleRegistry?: InputRuleRegistry;
+	fileHandlerRegistry?: FileHandlerRegistry;
+	nodeViewRegistry?: NodeViewRegistry;
 	maxHistoryDepth?: number;
 	onStateChange?: StateChangeCallback;
 	getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
@@ -73,6 +81,9 @@ export class EditorView {
 	private pendingNodeSelectionClear = false;
 	private pendingGapCursorClear = false;
 	private readonly schemaRegistry?: SchemaRegistry;
+	private readonly keymapRegistry?: KeymapRegistry;
+	private readonly fileHandlerRegistry?: FileHandlerRegistry;
+	private readonly nodeViewRegistry?: NodeViewRegistry;
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
@@ -87,6 +98,9 @@ export class EditorView {
 		this.state = options.state;
 		this.contentElement = contentElement;
 		this.schemaRegistry = options.schemaRegistry;
+		this.keymapRegistry = options.keymapRegistry;
+		this.fileHandlerRegistry = options.fileHandlerRegistry;
+		this.nodeViewRegistry = options.nodeViewRegistry;
 		this.getDecorations = options.getDecorations;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 
@@ -102,7 +116,7 @@ export class EditorView {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			syncSelection: () => this.syncSelectionFromDOM(),
-			schemaRegistry: this.schemaRegistry,
+			inputRuleRegistry: options.inputRuleRegistry,
 			isReadOnly: this.isReadOnly,
 			compositionTracker: this.compositionTracker,
 		});
@@ -111,7 +125,7 @@ export class EditorView {
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			undo: () => this.undo(),
 			redo: () => this.redo(),
-			schemaRegistry: this.schemaRegistry,
+			keymapRegistry: this.keymapRegistry,
 			isReadOnly: this.isReadOnly,
 			compositionTracker: this.compositionTracker,
 		});
@@ -119,6 +133,7 @@ export class EditorView {
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
 			schemaRegistry: this.schemaRegistry,
+			fileHandlerRegistry: this.fileHandlerRegistry,
 			isReadOnly: this.isReadOnly,
 		});
 		this.clipboardHandler = new ClipboardHandler(contentElement, {
@@ -438,7 +453,7 @@ export class EditorView {
 
 	/** Allows file drop by preventing default on dragover when files are present. */
 	private onDragover(e: DragEvent): void {
-		if (!this.schemaRegistry) return;
+		if (!this.fileHandlerRegistry) return;
 		if (!e.dataTransfer) return;
 		if (e.dataTransfer.types.includes('Files')) {
 			e.preventDefault();
@@ -448,7 +463,7 @@ export class EditorView {
 	/** Handles file drop by delegating to registered file handlers. */
 	private onDrop(e: DragEvent): void {
 		if (this.isReadOnly()) return;
-		if (!this.schemaRegistry) return;
+		if (!this.fileHandlerRegistry) return;
 		if (!e.dataTransfer) return;
 
 		const files: File[] = Array.from(e.dataTransfer.files);
@@ -458,7 +473,7 @@ export class EditorView {
 
 		let handled = false;
 		for (const file of files) {
-			const handlers = this.schemaRegistry.matchFileHandlers(file.type);
+			const handlers = this.fileHandlerRegistry.matchFileHandlers(file.type);
 			for (const handler of handlers) {
 				const result = handler(file, position);
 				if (result === true || result instanceof Promise) {
@@ -505,6 +520,7 @@ export class EditorView {
 			oldSelection && isNodeSelection(oldSelection) ? oldSelection.nodeId : undefined;
 		return {
 			registry: this.schemaRegistry,
+			nodeViewRegistry: this.nodeViewRegistry,
 			nodeViews: this.nodeViews,
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
@@ -515,7 +531,7 @@ export class EditorView {
 
 	/** Registers arrow-key keymaps with navigation priority for cross-block movement. */
 	private registerNavigationKeymaps(): void {
-		if (!this.schemaRegistry) return;
+		if (!this.keymapRegistry) return;
 
 		const directions: Record<string, CaretDirection> = {
 			ArrowLeft: 'left',
@@ -530,7 +546,7 @@ export class EditorView {
 		}
 
 		this.navigationKeymap = keymap;
-		this.schemaRegistry.registerKeymap(keymap, { priority: 'navigation' });
+		this.keymapRegistry.registerKeymap(keymap, { priority: 'navigation' });
 	}
 
 	/** Handles a navigation arrow key: cross-block movement if at textblock boundary. */
@@ -657,8 +673,8 @@ export class EditorView {
 		this.contentElement.removeEventListener('dragover', this.handleDragover);
 		this.contentElement.removeEventListener('drop', this.handleDrop);
 		// Remove navigation keymaps from registry
-		if (this.navigationKeymap && this.schemaRegistry) {
-			this.schemaRegistry.removeKeymap(this.navigationKeymap);
+		if (this.navigationKeymap && this.keymapRegistry) {
+			this.keymapRegistry.removeKeymap(this.navigationKeymap);
 			this.navigationKeymap = null;
 		}
 		// Destroy all NodeViews

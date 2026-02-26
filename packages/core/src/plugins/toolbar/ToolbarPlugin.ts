@@ -334,13 +334,13 @@ export class ToolbarPlugin implements Plugin {
 	private renderItemsByLayout(): void {
 		if (!this.context || !this.toolbarElement || !this.layoutConfig) return;
 
-		const registry = this.context.getSchemaRegistry();
+		const toolbarReg = this.context.getToolbarRegistry();
 		let firstGroup = true;
 
 		for (const groupPluginIds of this.layoutConfig.groups) {
 			const groupItems: ToolbarItem[] = [];
 			for (const pId of groupPluginIds) {
-				const items: ToolbarItem[] = registry
+				const items: ToolbarItem[] = toolbarReg
 					.getToolbarItemsByPlugin(pId)
 					.filter((item) => !this.hiddenItems.has(item.id));
 				items.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
@@ -369,8 +369,8 @@ export class ToolbarPlugin implements Plugin {
 	private renderItemsByPriority(): void {
 		if (!this.context || !this.toolbarElement) return;
 
-		const registry = this.context.getSchemaRegistry();
-		const items: ToolbarItem[] = registry
+		const toolbarRegistry = this.context.getToolbarRegistry();
+		const items: ToolbarItem[] = toolbarRegistry
 			.getToolbarItems()
 			.filter((item) => !this.hiddenItems.has(item.id));
 		if (items.length === 0) {
