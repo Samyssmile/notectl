@@ -1,15 +1,16 @@
 import { expect, test } from './fixtures/editor-page';
 
+test.beforeEach(async ({ context, browserName }) => {
+	test.skip(browserName === 'firefox', 'Firefox does not support clipboard permissions');
+	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+});
+
 type JsonChild = {
 	type: string;
 	children?: JsonChild[];
 	attrs?: Record<string, unknown>;
 	text?: string;
 };
-
-test.use({
-	permissions: ['clipboard-read', 'clipboard-write'],
-});
 
 /**
  * Helper: inserts a table via the executeCommand API and returns the cursor

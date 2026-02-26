@@ -34,7 +34,7 @@ export default defineConfig({
 				...devices['Desktop Firefox'],
 				baseURL: 'http://localhost:3000',
 			},
-			testMatch: /arrow-navigation\.spec\.ts/,
+			testIgnore: /angular|demo-showcase|touch/,
 		},
 		{
 			name: 'touch',

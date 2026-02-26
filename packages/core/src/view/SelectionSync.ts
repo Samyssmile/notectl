@@ -276,6 +276,10 @@ function isInsideInlineElement(node: Node, root: Element): boolean {
 function createInlineContentWalker(blockEl: Element): TreeWalker {
 	return document.createTreeWalker(blockEl, NodeFilter.SHOW_ALL, {
 		acceptNode: (n: Node) => {
+			// Skip cursor wrapper (ZWS for stored marks during IME composition)
+			if (n instanceof HTMLElement && n.hasAttribute('data-cursor-wrapper')) {
+				return NodeFilter.FILTER_REJECT;
+			}
 			// Skip anything inside an inline element (contentEditable="false")
 			if (isInsideInlineElement(n, blockEl)) return NodeFilter.FILTER_REJECT;
 			// Skip nested block elements and their descendants

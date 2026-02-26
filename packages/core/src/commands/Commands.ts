@@ -804,7 +804,7 @@ export function addDeleteSelectionSteps(state: EditorState, builder: Transaction
  * Finds the word boundary backward from the given offset.
  * InlineNodes act as word boundaries.
  */
-function findWordBoundaryBackward(block: BlockNode, offset: number): number {
+export function findWordBoundaryBackward(block: BlockNode, offset: number): number {
 	let pos = offset - 1;
 	// Skip trailing whitespace
 	while (pos >= 0) {
@@ -832,7 +832,7 @@ function findWordBoundaryBackward(block: BlockNode, offset: number): number {
  * Finds the word boundary forward from the given offset.
  * InlineNodes act as word boundaries.
  */
-function findWordBoundaryForward(block: BlockNode, offset: number): number {
+export function findWordBoundaryForward(block: BlockNode, offset: number): number {
 	const len = getBlockLength(block);
 	let pos = offset;
 	// Skip word characters first

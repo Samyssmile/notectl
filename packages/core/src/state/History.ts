@@ -39,6 +39,9 @@ export class HistoryManager {
 		// History and redo transactions are not pushed
 		if (tr.metadata.origin === 'history') return;
 
+		// Skip transactions with no document changes (selection/stored marks only)
+		if (!tr.steps.some((step: Step) => step.type !== 'setStoredMarks')) return;
+
 		const now = tr.metadata.timestamp;
 		const lastGroup = this.undoStack[this.undoStack.length - 1];
 		const shouldGroup =
