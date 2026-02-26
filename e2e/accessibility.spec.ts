@@ -383,5 +383,4 @@ test.describe('ARIA Enhancements', () => {
 
 		await page.keyboard.press('Escape');
 	});
-
 });
