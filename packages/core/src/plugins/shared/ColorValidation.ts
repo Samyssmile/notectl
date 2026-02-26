@@ -10,6 +10,191 @@ export function isValidHexColor(value: string): boolean {
 	return HEX_COLOR_PATTERN.test(value);
 }
 
+// --- CSS Color Validation (broad format support for paste / API input) ---
+
+/** Matches `rgb(r, g, b)` and `rgba(r, g, b, a)` with integer or percentage values. */
+const RGB_PATTERN: RegExp =
+	/^rgba?\(\s*(\d{1,3}%?\s*,\s*){2}\d{1,3}%?(\s*,\s*(0|1|0?\.\d+))?\s*\)$/;
+
+/** Matches `hsl(h, s%, l%)` and `hsla(h, s%, l%, a)`. */
+const HSL_PATTERN: RegExp =
+	/^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(\s*,\s*(0|1|0?\.\d+))?\s*\)$/;
+
+/**
+ * Complete set of CSS Level 4 named colors (including `transparent`).
+ * Used as an allowlist — unknown names are rejected.
+ */
+const CSS_NAMED_COLORS: ReadonlySet<string> = new Set([
+	'aliceblue',
+	'antiquewhite',
+	'aqua',
+	'aquamarine',
+	'azure',
+	'beige',
+	'bisque',
+	'black',
+	'blanchedalmond',
+	'blue',
+	'blueviolet',
+	'brown',
+	'burlywood',
+	'cadetblue',
+	'chartreuse',
+	'chocolate',
+	'coral',
+	'cornflowerblue',
+	'cornsilk',
+	'crimson',
+	'cyan',
+	'darkblue',
+	'darkcyan',
+	'darkgoldenrod',
+	'darkgray',
+	'darkgreen',
+	'darkgrey',
+	'darkkhaki',
+	'darkmagenta',
+	'darkolivegreen',
+	'darkorange',
+	'darkorchid',
+	'darkred',
+	'darksalmon',
+	'darkseagreen',
+	'darkslateblue',
+	'darkslategray',
+	'darkslategrey',
+	'darkturquoise',
+	'darkviolet',
+	'deeppink',
+	'deepskyblue',
+	'dimgray',
+	'dimgrey',
+	'dodgerblue',
+	'firebrick',
+	'floralwhite',
+	'forestgreen',
+	'fuchsia',
+	'gainsboro',
+	'ghostwhite',
+	'gold',
+	'goldenrod',
+	'gray',
+	'green',
+	'greenyellow',
+	'grey',
+	'honeydew',
+	'hotpink',
+	'indianred',
+	'indigo',
+	'ivory',
+	'khaki',
+	'lavender',
+	'lavenderblush',
+	'lawngreen',
+	'lemonchiffon',
+	'lightblue',
+	'lightcoral',
+	'lightcyan',
+	'lightgoldenrodyellow',
+	'lightgray',
+	'lightgreen',
+	'lightgrey',
+	'lightpink',
+	'lightsalmon',
+	'lightseagreen',
+	'lightskyblue',
+	'lightslategray',
+	'lightslategrey',
+	'lightsteelblue',
+	'lightyellow',
+	'lime',
+	'limegreen',
+	'linen',
+	'magenta',
+	'maroon',
+	'mediumaquamarine',
+	'mediumblue',
+	'mediumorchid',
+	'mediumpurple',
+	'mediumseagreen',
+	'mediumslateblue',
+	'mediumspringgreen',
+	'mediumturquoise',
+	'mediumvioletred',
+	'midnightblue',
+	'mintcream',
+	'mistyrose',
+	'moccasin',
+	'navajowhite',
+	'navy',
+	'oldlace',
+	'olive',
+	'olivedrab',
+	'orange',
+	'orangered',
+	'orchid',
+	'palegoldenrod',
+	'palegreen',
+	'paleturquoise',
+	'palevioletred',
+	'papayawhip',
+	'peachpuff',
+	'peru',
+	'pink',
+	'plum',
+	'powderblue',
+	'purple',
+	'rebeccapurple',
+	'red',
+	'rosybrown',
+	'royalblue',
+	'saddlebrown',
+	'salmon',
+	'sandybrown',
+	'seagreen',
+	'seashell',
+	'sienna',
+	'silver',
+	'skyblue',
+	'slateblue',
+	'slategray',
+	'slategrey',
+	'snow',
+	'springgreen',
+	'steelblue',
+	'tan',
+	'teal',
+	'thistle',
+	'tomato',
+	'transparent',
+	'turquoise',
+	'violet',
+	'wheat',
+	'white',
+	'whitesmoke',
+	'yellow',
+	'yellowgreen',
+]);
+
+/**
+ * Returns `true` when `value` is a safe CSS color value.
+ * Accepts hex (`#RGB`, `#RRGGBB`), `rgb()`, `rgba()`, `hsl()`, `hsla()`,
+ * and CSS named colors. Rejects anything else — defense against CSS injection
+ * via manipulated color values in `style` attributes.
+ */
+export function isValidCSSColor(value: string): boolean {
+	if (!value) return false;
+	const trimmed: string = value.trim().toLowerCase();
+	if (!trimmed) return false;
+
+	return (
+		HEX_COLOR_PATTERN.test(trimmed) ||
+		RGB_PATTERN.test(trimmed) ||
+		HSL_PATTERN.test(trimmed) ||
+		CSS_NAMED_COLORS.has(trimmed)
+	);
+}
+
 /**
  * Validates, deduplicates, and normalizes a user-supplied color list.
  * Returns `fallbackPalette` when no custom colors are provided.

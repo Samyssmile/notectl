@@ -122,6 +122,32 @@ describe('ColorMarkOperations', () => {
 	});
 
 	describe('applyColorMark', () => {
+		it('rejects invalid color values', () => {
+			const dispatch = vi.fn();
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['textColor'])
+				.build();
+
+			const ctx = mockPluginContext({ getState: () => state, dispatch });
+			expect(applyColorMark(ctx, state, 'textColor', 'red; background: url(evil)')).toBe(false);
+			expect(dispatch).not.toHaveBeenCalled();
+		});
+
+		it('rejects empty color string', () => {
+			const dispatch = vi.fn();
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['textColor'])
+				.build();
+
+			const ctx = mockPluginContext({ getState: () => state, dispatch });
+			expect(applyColorMark(ctx, state, 'textColor', '')).toBe(false);
+			expect(dispatch).not.toHaveBeenCalled();
+		});
+
 		it('returns false on node selection', () => {
 			const state = stateBuilder()
 				.paragraph('hello', 'b1')
