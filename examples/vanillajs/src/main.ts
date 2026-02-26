@@ -68,7 +68,12 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const editor = await createEditor({
-		...createFullPreset({ list: { interactiveCheckboxes: true } }),
+		...createFullPreset({
+			list: { interactiveCheckboxes: true },
+			codeBlock: {
+				keymap: { insertAfter: 'Mod-Shift-Enter', toggle: 'Mod-Shift-C' },
+			},
+		}),
 		theme: ThemePreset.Light,
 		placeholder: 'Start typing...',
 		autofocus: true,
