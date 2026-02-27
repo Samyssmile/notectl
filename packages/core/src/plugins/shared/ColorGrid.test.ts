@@ -268,5 +268,37 @@ describe('ColorGrid', () => {
 			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 			expect(swatches[4]?.getAttribute('tabindex')).toBe('0');
 		});
+
+		it('stops propagation on arrow keys to prevent parent double-handling', () => {
+			const { container } = renderGrid();
+			const grid = container.querySelector('[role="grid"]') as HTMLElement;
+
+			const parentSpy = vi.fn();
+			container.addEventListener('keydown', parentSpy);
+
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+
+			expect(parentSpy).not.toHaveBeenCalled();
+		});
+
+		it('stops propagation on Escape, Enter, Space, Home, End', () => {
+			const { container } = renderGrid();
+			const grid = container.querySelector('[role="grid"]') as HTMLElement;
+			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
+
+			const parentSpy = vi.fn();
+			container.addEventListener('keydown', parentSpy);
+
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+			swatch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			swatch.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+
+			expect(parentSpy).not.toHaveBeenCalled();
+		});
 	});
 });
