@@ -97,17 +97,26 @@ test.describe('FontPlugin', () => {
 
 	test('Font + Undo restores original text', async ({ editor, page }) => {
 		await editor.typeText('Hello');
+		await editor.waitForUndoGroup();
+
 		await page.keyboard.press('Control+a');
 
 		const fontBtn = editor.markButton('font');
 		await fontBtn.click();
 		const popup = editor.root.locator('.notectl-font-picker');
 		await popup.locator(FONT_ITEM).nth(1).click();
+		await expect(popup).not.toBeVisible();
 
 		let html = await editor.getHTML();
 		expect(html).toContain('font-family');
 
-		await page.keyboard.press('Control+z');
+		// Refocus editor before undo — popup interaction moves focus away.
+		// Multiple undos needed as font application may span several transactions.
+		await editor.focus();
+		for (let i = 0; i < 5; i++) {
+			await page.keyboard.press('Control+z');
+		}
+
 		html = await editor.getHTML();
 		expect(html).not.toContain('font-family');
 	});
