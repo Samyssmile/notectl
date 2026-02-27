@@ -90,6 +90,13 @@ export {
 	findWordBoundaryForward,
 } from './WordBoundary.js';
 
+export {
+	applyAttributedMark,
+	getMarkAttrAtSelection,
+	isAttributedMarkActive,
+	removeAttributedMark,
+} from './AttributedMarkCommands.js';
+
 // --- Range Iteration ---
 
 /**

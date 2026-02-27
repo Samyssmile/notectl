@@ -4,19 +4,15 @@
  * (WOFF2, TTF, OTF).
  */
 
-import { forEachBlockInRange } from '../../commands/Commands.js';
+import {
+	applyAttributedMark,
+	getMarkAttrAtSelection,
+	isAttributedMarkActive,
+	removeAttributedMark,
+} from '../../commands/AttributedMarkCommands.js';
 import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
-import { isMarkOfType } from '../../model/AttrRegistry.js';
-import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
-import type { BlockNode, Mark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import {
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-	selectionRange,
-} from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -213,127 +209,30 @@ export class FontPlugin implements Plugin {
 	// --- State Queries ---
 
 	private isFontActive(state: EditorState): boolean {
-		return this.getActiveFont(state) !== null;
+		return isAttributedMarkActive(state, 'font');
 	}
 
 	getActiveFont(state: EditorState): string | null {
-		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-
-		if (isCollapsed(sel)) {
-			if (state.storedMarks) {
-				const mark = state.storedMarks.find((m) => m.type === 'font');
-				return mark && isMarkOfType(mark, 'font') ? (mark.attrs.family ?? null) : null;
-			}
-			const block = state.getBlock(sel.anchor.blockId);
-			if (!block) return null;
-			const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-			const mark = marks.find((m) => m.type === 'font');
-			return mark && isMarkOfType(mark, 'font') ? (mark.attrs.family ?? null) : null;
-		}
-
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return null;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		const mark = marks.find((m) => m.type === 'font');
-		return mark && isMarkOfType(mark, 'font') ? (mark.attrs.family ?? null) : null;
+		return getMarkAttrAtSelection(state, 'font', (m) => m.attrs.family ?? null);
 	}
 
 	// --- Font Application ---
 
 	applyFont(context: PluginContext, state: EditorState, family: string): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-
-		if (isCollapsed(sel)) {
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			const withoutFont = currentMarks.filter((m) => m.type !== 'font');
-			const newMarks = [...withoutFont, { type: markType('font'), attrs: { family } }];
-
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
 		const mark = { type: markType('font'), attrs: { family } };
+		const tr = applyAttributedMark(state, mark);
+		if (!tr) return false;
 
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			const block = state.getBlock(blockId);
-			if (block) {
-				const existing: Mark | undefined = this.findFontMarkInRange(block, from, to);
-				if (existing) {
-					builder.removeMark(blockId, from, to, existing);
-				}
-			}
-			builder.addMark(blockId, from, to, mark);
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
+		context.dispatch(tr);
 		return true;
 	}
 
 	private removeFont(context: PluginContext, state: EditorState): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+		const tr = removeAttributedMark(state, markType('font'));
+		if (!tr) return false;
 
-		if (isCollapsed(sel)) {
-			const anchorBlock = state.getBlock(sel.anchor.blockId);
-			if (!anchorBlock) return false;
-			const currentMarks =
-				state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-			if (!hasMark(currentMarks, markType('font'))) return false;
-
-			const newMarks = currentMarks.filter((m) => m.type !== 'font');
-			const tr = state
-				.transaction('command')
-				.setStoredMarks(newMarks, state.storedMarks)
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			const block = state.getBlock(blockId);
-			if (block) {
-				const existing: Mark | undefined = this.findFontMarkInRange(block, from, to);
-				if (existing) {
-					builder.removeMark(blockId, from, to, existing);
-				}
-			}
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
+		context.dispatch(tr);
 		return true;
-	}
-
-	/** Finds the first font mark in a block's text range (for proper step inversion). */
-	private findFontMarkInRange(block: BlockNode, from: number, to: number): Mark | undefined {
-		const textChildren = getTextChildren(block);
-		let pos = 0;
-		for (const node of textChildren) {
-			const nodeEnd: number = pos + node.text.length;
-			if (nodeEnd > from && pos < to) {
-				const fontMark: Mark | undefined = node.marks.find((m) => m.type === 'font');
-				if (fontMark) return fontMark;
-			}
-			pos = nodeEnd;
-		}
-		return undefined;
 	}
 
 	// --- @font-face Injection ---

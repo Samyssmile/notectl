@@ -2,7 +2,7 @@
  * Delete commands: character, word, and soft-line deletion in both directions.
  */
 
-import { getBlockLength } from '../model/Document.js';
+import { type BlockNode, getBlockLength } from '../model/Document.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -15,174 +15,89 @@ import { deleteSelectionCommand, mergeBlockBackward, mergeBlockForward } from '.
 import { deleteNodeSelection } from './NodeSelectionCommands.js';
 import { findWordBoundaryBackward, findWordBoundaryForward } from './WordBoundary.js';
 
-/** Handles backspace key. */
-export function deleteBackward(state: EditorState): Transaction | null {
+interface DeleteConfig {
+	readonly merge: (state: EditorState) => Transaction | null;
+	readonly range: (block: BlockNode, offset: number) => readonly [number, number] | null;
+}
+
+function deleteInDirection(
+	state: EditorState,
+	config: DeleteConfig,
+): Transaction | null {
 	const sel = state.selection;
 
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
+	if (isNodeSelection(sel)) return deleteNodeSelection(state, sel);
 	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
+	if (!isCollapsed(sel)) return deleteSelectionCommand(state);
 
 	const block = state.getBlock(sel.anchor.blockId);
 	if (!block) return null;
 
-	if (sel.anchor.offset > 0) {
-		return state
-			.transaction('input')
-			.deleteTextAt(block.id, sel.anchor.offset - 1, sel.anchor.offset)
-			.setSelection(createCollapsedSelection(block.id, sel.anchor.offset - 1))
-			.build();
-	}
+	const range = config.range(block, sel.anchor.offset);
+	if (!range) return config.merge(state);
 
-	// At start of block — merge with previous
-	return mergeBlockBackward(state);
+	const [from, to] = range;
+	return state
+		.transaction('input')
+		.deleteTextAt(block.id, from, to)
+		.setSelection(createCollapsedSelection(block.id, from))
+		.build();
+}
+
+/** Handles backspace key. */
+export function deleteBackward(state: EditorState): Transaction | null {
+	return deleteInDirection(state, {
+		merge: mergeBlockBackward,
+		range: (_block, offset) => (offset > 0 ? [offset - 1, offset] : null),
+	});
 }
 
 /** Handles delete key. */
 export function deleteForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-
-	if (sel.anchor.offset < blockLen) {
-		return state
-			.transaction('input')
-			.deleteTextAt(block.id, sel.anchor.offset, sel.anchor.offset + 1)
-			.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-			.build();
-	}
-
-	// At end of block — merge with next
-	return mergeBlockForward(state);
+	return deleteInDirection(state, {
+		merge: mergeBlockForward,
+		range: (block, offset) => {
+			const len = getBlockLength(block);
+			return offset < len ? [offset, offset + 1] : null;
+		},
+	});
 }
 
 /** Handles Ctrl+Backspace: delete word backward. */
 export function deleteWordBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	if (sel.anchor.offset === 0) {
-		return mergeBlockBackward(state);
-	}
-
-	const wordStart = findWordBoundaryBackward(block, sel.anchor.offset);
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, wordStart, sel.anchor.offset)
-		.setSelection(createCollapsedSelection(block.id, wordStart))
-		.build();
+	return deleteInDirection(state, {
+		merge: mergeBlockBackward,
+		range: (block, offset) =>
+			offset > 0 ? [findWordBoundaryBackward(block, offset), offset] : null,
+	});
 }
 
 /** Handles Ctrl+Delete: delete word forward. */
 export function deleteWordForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-	if (sel.anchor.offset === blockLen) {
-		return mergeBlockForward(state);
-	}
-
-	const wordEnd = findWordBoundaryForward(block, sel.anchor.offset);
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, sel.anchor.offset, wordEnd)
-		.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-		.build();
+	return deleteInDirection(state, {
+		merge: mergeBlockForward,
+		range: (block, offset) => {
+			const len = getBlockLength(block);
+			return offset < len ? [offset, findWordBoundaryForward(block, offset)] : null;
+		},
+	});
 }
 
 /** Handles Cmd+Backspace: delete to start of line/block. */
 export function deleteSoftLineBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	if (sel.anchor.offset === 0) {
-		return mergeBlockBackward(state);
-	}
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, 0, sel.anchor.offset)
-		.setSelection(createCollapsedSelection(block.id, 0))
-		.build();
+	return deleteInDirection(state, {
+		merge: mergeBlockBackward,
+		range: (_block, offset) => (offset > 0 ? [0, offset] : null),
+	});
 }
 
 /** Handles Cmd+Delete: delete to end of line/block. */
 export function deleteSoftLineForward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-
-	if (isNodeSelection(sel)) {
-		return deleteNodeSelection(state, sel);
-	}
-	if (isGapCursor(sel)) return null;
-
-	if (!isCollapsed(sel)) {
-		return deleteSelectionCommand(state);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-
-	const blockLen = getBlockLength(block);
-	if (sel.anchor.offset === blockLen) {
-		return mergeBlockForward(state);
-	}
-
-	return state
-		.transaction('input')
-		.deleteTextAt(block.id, sel.anchor.offset, blockLen)
-		.setSelection(createCollapsedSelection(block.id, sel.anchor.offset))
-		.build();
+	return deleteInDirection(state, {
+		merge: mergeBlockForward,
+		range: (block, offset) => {
+			const len = getBlockLength(block);
+			return offset < len ? [offset, len] : null;
+		},
+	});
 }

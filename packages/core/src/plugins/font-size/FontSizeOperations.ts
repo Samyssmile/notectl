@@ -1,18 +1,17 @@
 /**
  * Pure business logic for font-size state queries and transaction builders.
  * All functions are DOM-free and operate on EditorState / PluginContext.
+ *
+ * Delegates to the generic AttributedMarkCommands helpers for the
+ * collapsed-vs-range branching logic.
  */
 
-import { forEachBlockInRange } from '../../commands/Commands.js';
-import { isMarkOfType } from '../../model/AttrRegistry.js';
-import type { Mark } from '../../model/Document.js';
-import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import {
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-	selectionRange,
-} from '../../model/Selection.js';
+	applyAttributedMark,
+	getMarkAttrAtSelection,
+	isAttributedMarkActive,
+	removeAttributedMark,
+} from '../../commands/AttributedMarkCommands.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
@@ -21,16 +20,7 @@ import type { PluginContext } from '../Plugin.js';
 
 /** Returns the raw fontSize CSS value at the current selection, or null. */
 export function getActiveSize(state: EditorState): string | null {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-
-	if (isCollapsed(sel) && state.storedMarks) {
-		return extractFontSize(state.storedMarks);
-	}
-
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-	return extractFontSize(getBlockMarksAtOffset(block, sel.anchor.offset));
+	return getMarkAttrAtSelection(state, 'fontSize', (m) => m.attrs.size ?? null);
 }
 
 /** Returns the active font size as a number, falling back to defaultSize. */
@@ -43,76 +33,27 @@ export function getActiveSizeNumeric(state: EditorState, defaultSize: number): n
 
 /** Returns true when the selection carries a fontSize mark. */
 export function isFontSizeActive(state: EditorState): boolean {
-	return getActiveSize(state) !== null;
+	return isAttributedMarkActive(state, 'fontSize');
 }
 
 // --- Commands ---
 
 /** Applies a fontSize mark with the given CSS size string to the selection. */
 export function applyFontSize(context: PluginContext, state: EditorState, size: string): boolean {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-
-	if (isCollapsed(sel)) {
-		const anchorBlock = state.getBlock(sel.anchor.blockId);
-		if (!anchorBlock) return false;
-		const currentMarks = state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-		const withoutSize = currentMarks.filter((m) => m.type !== 'fontSize');
-		const newMarks = [...withoutSize, { type: markType('fontSize'), attrs: { size } }];
-
-		const tr = state
-			.transaction('command')
-			.setStoredMarks(newMarks, state.storedMarks)
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	const range = selectionRange(sel, state.getBlockOrder());
-	const builder = state.transaction('command');
 	const mark = { type: markType('fontSize'), attrs: { size } };
+	const tr = applyAttributedMark(state, mark);
+	if (!tr) return false;
 
-	forEachBlockInRange(state, range, (blockId, from, to) => {
-		builder.removeMark(blockId, from, to, { type: markType('fontSize') });
-		builder.addMark(blockId, from, to, mark);
-	});
-
-	builder.setSelection(sel);
-	context.dispatch(builder.build());
+	context.dispatch(tr);
 	return true;
 }
 
 /** Removes the fontSize mark from the current selection. */
 export function removeFontSize(context: PluginContext, state: EditorState): boolean {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+	const tr = removeAttributedMark(state, markType('fontSize'));
+	if (!tr) return false;
 
-	if (isCollapsed(sel)) {
-		const anchorBlock = state.getBlock(sel.anchor.blockId);
-		if (!anchorBlock) return false;
-		const currentMarks = state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
-		if (!hasMark(currentMarks, markType('fontSize'))) return false;
-
-		const newMarks = currentMarks.filter((m) => m.type !== 'fontSize');
-		const tr = state
-			.transaction('command')
-			.setStoredMarks(newMarks, state.storedMarks)
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	const range = selectionRange(sel, state.getBlockOrder());
-	const builder = state.transaction('command');
-
-	forEachBlockInRange(state, range, (blockId, from, to) => {
-		builder.removeMark(blockId, from, to, { type: markType('fontSize') });
-	});
-
-	builder.setSelection(sel);
-	context.dispatch(builder.build());
+	context.dispatch(tr);
 	return true;
 }
 
@@ -165,9 +106,4 @@ export function getNextPresetSize(
 		if (size !== undefined && size < current) return size;
 	}
 	return null;
-}
-
-function extractFontSize(marks: readonly Mark[]): string | null {
-	const mark = marks.find((m) => m.type === 'fontSize');
-	return mark && isMarkOfType(mark, 'fontSize') ? (mark.attrs.size ?? null) : null;
 }
