@@ -23,6 +23,7 @@ export class PaperLayoutController {
 	private currentPaperWidthPx = 0;
 	private currentPaperHeightPx = 0;
 	private currentScale = 1;
+	private compensationFrameId: number | null = null;
 
 	constructor(wrapper: HTMLElement, content: HTMLElement) {
 		this.wrapper = wrapper;
@@ -103,6 +104,10 @@ export class PaperLayoutController {
 	}
 
 	private disable(): void {
+		if (this.compensationFrameId !== null) {
+			cancelAnimationFrame(this.compensationFrameId);
+			this.compensationFrameId = null;
+		}
 		this.viewportObserver?.disconnect();
 		this.viewportObserver = null;
 		this.surfaceObserver?.disconnect();
@@ -150,12 +155,22 @@ export class PaperLayoutController {
 		this.surface.style.transform = scale < 1 ? `scale(${scale})` : '';
 
 		// Compensate margin-bottom so parent layout sees correct visual height
-		this.updateHeightCompensation(scale);
+		this.scheduleHeightCompensation(scale);
 	}
 
 	private onSurfaceResize(_height: number): void {
 		if (!this.surface || !this.viewport) return;
-		this.updateHeightCompensation(this.currentScale);
+		this.scheduleHeightCompensation(this.currentScale);
+	}
+
+	private scheduleHeightCompensation(scale: number): void {
+		if (this.compensationFrameId !== null) {
+			cancelAnimationFrame(this.compensationFrameId);
+		}
+		this.compensationFrameId = requestAnimationFrame(() => {
+			this.compensationFrameId = null;
+			this.updateHeightCompensation(scale);
+		});
 	}
 
 	private updateHeightCompensation(scale: number): void {

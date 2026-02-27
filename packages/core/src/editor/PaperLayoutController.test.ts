@@ -57,9 +57,22 @@ class StubResizeObserver {
 }
 
 let resizeObservers: StubResizeObserver[] = [];
+let rafCallbacks: Map<number, FrameRequestCallback> = new Map();
+let nextRafId = 1;
+
+function flushRAF(): void {
+	const pending = new Map(rafCallbacks);
+	rafCallbacks.clear();
+	for (const cb of pending.values()) {
+		cb(performance.now());
+	}
+}
 
 beforeEach(() => {
 	resizeObservers = [];
+	rafCallbacks = new Map();
+	nextRafId = 1;
+
 	vi.stubGlobal(
 		'ResizeObserver',
 		class extends StubResizeObserver {
@@ -69,6 +82,14 @@ beforeEach(() => {
 			}
 		},
 	);
+	vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback): number => {
+		const id: number = nextRafId++;
+		rafCallbacks.set(id, cb);
+		return id;
+	});
+	vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+		rafCallbacks.delete(id);
+	});
 });
 
 afterEach(() => {
@@ -285,6 +306,8 @@ describe('PaperLayoutController', () => {
 				);
 			}
 
+			flushRAF();
+
 			const surface = wrapper.querySelector('.notectl-paper-surface') as HTMLElement;
 			expect(surface.style.transform).toContain('scale(');
 			const scaleMatch: RegExpMatchArray | null =
@@ -314,8 +337,95 @@ describe('PaperLayoutController', () => {
 				);
 			}
 
+			flushRAF();
+
 			const surface = wrapper.querySelector('.notectl-paper-surface') as HTMLElement;
 			expect(surface.style.transform).toBe('');
+		});
+	});
+
+	describe('rAF scheduling', () => {
+		it('defers scrollHeight read to requestAnimationFrame', () => {
+			const { wrapper, content } = createMockEditorDOM();
+			const controller = new PaperLayoutController(wrapper, content);
+
+			controller.apply(PaperSize.DINA4);
+
+			const viewportObserver: StubResizeObserver | undefined = resizeObservers[0];
+			const viewport: Element | null = wrapper.querySelector('.notectl-paper-viewport');
+			const surface = wrapper.querySelector('.notectl-paper-surface') as HTMLElement;
+			if (viewportObserver && viewport) {
+				viewportObserver.callback(
+					[{ target: viewport, contentRect: { width: 500 } } as unknown as ResizeObserverEntry],
+					viewportObserver as unknown as ResizeObserver,
+				);
+			}
+
+			// Before rAF fires, marginBottom should not be set yet
+			expect(surface.style.marginBottom).toBe('');
+
+			flushRAF();
+
+			// After rAF, marginBottom should be computed
+			expect(surface.style.marginBottom).not.toBe('');
+		});
+
+		it('cancels pending rAF on destroy', () => {
+			const { wrapper, content } = createMockEditorDOM();
+			const controller = new PaperLayoutController(wrapper, content);
+
+			controller.apply(PaperSize.DINA4);
+
+			const viewportObserver: StubResizeObserver | undefined = resizeObservers[0];
+			const viewport: Element | null = wrapper.querySelector('.notectl-paper-viewport');
+			if (viewportObserver && viewport) {
+				viewportObserver.callback(
+					[{ target: viewport, contentRect: { width: 500 } } as unknown as ResizeObserverEntry],
+					viewportObserver as unknown as ResizeObserver,
+				);
+			}
+
+			// rAF is pending but not yet fired
+			expect(rafCallbacks.size).toBe(1);
+
+			controller.destroy();
+
+			// rAF should have been cancelled
+			expect(rafCallbacks.size).toBe(0);
+		});
+
+		it('coalesces multiple resize events into single rAF', () => {
+			const { wrapper, content } = createMockEditorDOM();
+			const controller = new PaperLayoutController(wrapper, content);
+
+			controller.apply(PaperSize.DINA4);
+
+			const viewportObserver: StubResizeObserver | undefined = resizeObservers[0];
+			const viewport: Element | null = wrapper.querySelector('.notectl-paper-viewport');
+			if (viewportObserver && viewport) {
+				// Fire multiple resize events rapidly
+				viewportObserver.callback(
+					[{ target: viewport, contentRect: { width: 500 } } as unknown as ResizeObserverEntry],
+					viewportObserver as unknown as ResizeObserver,
+				);
+				viewportObserver.callback(
+					[{ target: viewport, contentRect: { width: 400 } } as unknown as ResizeObserverEntry],
+					viewportObserver as unknown as ResizeObserver,
+				);
+				viewportObserver.callback(
+					[{ target: viewport, contentRect: { width: 300 } } as unknown as ResizeObserverEntry],
+					viewportObserver as unknown as ResizeObserver,
+				);
+			}
+
+			// Only one rAF should be pending (old ones cancelled, new one scheduled)
+			expect(rafCallbacks.size).toBe(1);
+
+			flushRAF();
+
+			// The last scale should be applied (300px viewport)
+			const surface = wrapper.querySelector('.notectl-paper-surface') as HTMLElement;
+			expect(surface.style.transform).toContain('scale(');
 		});
 	});
 });
