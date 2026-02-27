@@ -49,6 +49,12 @@ const html = editor.getHTML();
 // "<h1>Hello <strong>World</strong></h1><p>Some text here.</p>"
 ```
 
+For indented, human-readable output pass the `pretty` option:
+
+```ts
+const pretty = editor.getHTML({ pretty: true });
+```
+
 The HTML is sanitized with DOMPurify. Only safe tags and attributes are included:
 
 - **Tags**: `p`, `h1`-`h6`, `strong`, `em`, `u`, `s`, `a`, `span`, `ul`, `ol`, `li`, `hr`, `blockquote`, `div`, `br`

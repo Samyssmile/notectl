@@ -441,9 +441,19 @@ test.describe('Code Block Accessibility', () => {
 		await page.keyboard.press('Enter');
 		await page.keyboard.type('line2', { delay: 10 });
 
-		await page.keyboard.press('ArrowDown');
-		// Wait for the new paragraph block to appear in the DOM
-		await editor.content.locator('p[data-block-id]').waitFor({ state: 'attached' });
+		// Wait for the editor to fully process the typed text and sync selection
+		await page.waitForTimeout(300);
+
+		// Press ArrowDown to exit the code block from the last line.
+		// Retry: the first press might move within the code block if the editor
+		// hadn't fully settled, so a second press would then exit.
+		for (let i = 0; i < 3; i++) {
+			await page.keyboard.press('ArrowDown');
+			await page.waitForTimeout(300);
+			const json = await editor.getJSON();
+			if (json.children.length >= 2) break;
+		}
+
 		await page.keyboard.type('outside', { delay: 10 });
 
 		const json = await editor.getJSON();

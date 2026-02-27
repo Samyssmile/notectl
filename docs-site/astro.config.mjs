@@ -100,6 +100,7 @@ export default defineConfig({
 						{ label: 'Plugin Interface', slug: 'api/plugin-interface' },
 						{ label: 'Selection', slug: 'api/selection' },
 						{ label: 'Decorations', slug: 'api/decorations' },
+						{ label: 'Popup Framework', slug: 'api/popup-framework' },
 					],
 				},
 				{

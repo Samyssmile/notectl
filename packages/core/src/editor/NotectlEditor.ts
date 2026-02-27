@@ -61,7 +61,7 @@ export interface ToolbarConfig {
 export interface NotectlEditorConfig {
 	/** Controls which inline marks are enabled. Used to auto-configure TextFormattingPlugin. */
 	features?: Partial<TextFormattingConfig>;
-	plugins?: Plugin[];
+	plugins?: readonly Plugin[];
 	/**
 	 * Toolbar configuration. Accepts either:
 	 * - A shorthand array of plugin groups: `[[BoldPlugin, ItalicPlugin], [HeadingPlugin]]`

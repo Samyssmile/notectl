@@ -639,20 +639,23 @@ test.describe('Documentation screenshots', () => {
 		// Click a cell for better positioning
 		const cell = page.locator('notectl-editor td').nth(4);
 		await cell.click();
-		await page.waitForTimeout(200);
+		await page.waitForTimeout(300);
 		await cell.click({ button: 'right' });
-		await page.waitForTimeout(500);
+		// Wait for the context menu to appear before navigating
+		const firstMenuItem = page.locator('[role="menuitem"]').first();
+		await firstMenuItem.waitFor({ state: 'visible', timeout: 3000 });
+		await page.waitForTimeout(200);
 		// Use keyboard to navigate down to "Border Color..." item
 		// Menu items: Insert Row Above, Insert Row Below, Insert Column Left,
 		// Insert Column Right, Delete Row, Delete Column, Border Color..., Delete Table
 		// Navigate: 6 ArrowDowns to reach Border Color...
 		for (let i = 0; i < 6; i++) {
 			await page.keyboard.press('ArrowDown');
-			await page.waitForTimeout(50);
+			await page.waitForTimeout(100);
 		}
 		// Open submenu with ArrowRight
 		await page.keyboard.press('ArrowRight');
-		await page.waitForTimeout(500);
+		await page.waitForTimeout(700);
 		// Use page screenshot to capture both menus (which use position:fixed)
 		const box = await page.locator('notectl-editor').boundingBox();
 		if (!box) throw new Error('editor not found');

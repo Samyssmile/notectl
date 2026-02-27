@@ -48,7 +48,7 @@ interface PluginContext {
   getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
 
   // --- Commands ---
-  registerCommand(name: string, handler: CommandHandler): void;
+  registerCommand(name: string, handler: CommandHandler, options?: CommandOptions): void;
   executeCommand(name: string): boolean;
 
   // --- Schema ---
@@ -59,12 +59,13 @@ interface PluginContext {
   getSchemaRegistry(): SchemaRegistry;
 
   // --- Input ---
-  registerKeymap(keymap: Keymap): void;
+  registerKeymap(keymap: Keymap, options?: KeymapOptions): void;
   registerInputRule(rule: InputRule): void;
   registerFileHandler(pattern: string, handler: FileHandler): void;
 
   // --- Accessibility ---
   announce(text: string): void;
+  hasAnnouncement(): boolean;
 
   // --- Read-Only ---
   isReadOnly(): boolean;
@@ -77,7 +78,7 @@ interface PluginContext {
   registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 
   // --- Middleware ---
-  registerMiddleware(middleware: TransactionMiddleware, priority?: number): void;
+  registerMiddleware(middleware: TransactionMiddleware, options?: MiddlewareOptions): void;
 
   // --- Services ---
   registerService<T>(key: ServiceKey<T>, service: T): void;
@@ -86,10 +87,20 @@ interface PluginContext {
   // --- Events ---
   getEventBus(): PluginEventBus;
 
+  // --- Registry Access ---
+  getKeymapRegistry(): KeymapRegistry;
+  getInputRuleRegistry(): InputRuleRegistry;
+  getFileHandlerRegistry(): FileHandlerRegistry;
+  getNodeViewRegistry(): NodeViewRegistry;
+  getToolbarRegistry(): ToolbarRegistry;
+  getBlockTypePickerRegistry(): BlockTypePickerRegistry;
+
   // --- Config ---
   updateConfig(config: PluginConfig): void;
 }
 ```
+
+Plugins that need to show popups (dropdowns, color pickers, dialogs) should use the shared [Popup Framework](/notectl/api/popup-framework/) via `PopupServiceKey` rather than managing DOM elements directly.
 
 ## Type-Safe Keys
 
@@ -126,6 +137,37 @@ type CommandHandler = () => boolean;
 ```
 
 Return `true` if the command was handled, `false` to let other handlers try.
+
+## CommandOptions
+
+```ts
+interface CommandOptions {
+  /** When true, the command may execute even in read-only mode. */
+  readonly readonlyAllowed?: boolean;
+}
+```
+
+Used with `registerCommand()` to allow specific commands (e.g. checklist toggle) to work in read-only mode.
+
+## KeymapOptions
+
+```ts
+interface KeymapOptions {
+  /** When true, the keymap is active even in read-only mode. */
+  readonly readonlyAllowed?: boolean;
+}
+```
+
+## MiddlewareOptions
+
+```ts
+interface MiddlewareOptions {
+  /** Human-readable name for debugging and introspection. */
+  readonly name?: string;
+  /** Execution priority (lower values run first). Defaults to 100. */
+  readonly priority?: number;
+}
+```
 
 ## TransactionMiddleware
 

@@ -106,11 +106,22 @@ interface ToolbarItemNoPopup extends ToolbarItemBase {
   readonly popupType?: undefined;
 }
 
+interface ToolbarItemCombobox extends Omit<ToolbarItemBase, 'icon'> {
+  readonly popupType: 'combobox';
+  /** Optional icon — combobox items typically display a text label instead. */
+  readonly icon?: string;
+  /** Pure function returning the current label text. Called on every state change. */
+  getLabel(state: EditorState): string;
+  /** Renders the popup content when the combobox is opened. */
+  renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+}
+
 type ToolbarItem =
   | ToolbarItemNoPopup
   | ToolbarItemGridPicker
   | ToolbarItemDropdown
-  | ToolbarItemCustomPopup;
+  | ToolbarItemCustomPopup
+  | ToolbarItemCombobox;
 ```
 
 ## Popup Types
@@ -119,7 +130,8 @@ type ToolbarItem =
 |------|-------------|---------|
 | `dropdown` | Vertical list of options | HeadingPlugin, AlignmentPlugin |
 | `gridPicker` | 2D grid for dimension selection | TablePlugin |
-| `custom` | Full control over popup rendering | FontPlugin, FontSizePlugin, TextColorPlugin, LinkPlugin |
+| `custom` | Full control over popup rendering | TextColorPlugin, HighlightPlugin, LinkPlugin |
+| `combobox` | Text label with listbox popup (`role="combobox"`, `aria-haspopup="listbox"`) | FontPlugin, FontSizePlugin |
 
 ## Runtime API
 
