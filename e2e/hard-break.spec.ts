@@ -6,7 +6,7 @@ test.describe('Hard Break (Shift+Enter)', () => {
 		await page.keyboard.press('Shift+Enter');
 		await page.keyboard.type('World', { delay: 10 });
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<br>');
 
 		const json = await editor.getJSON();
@@ -32,7 +32,7 @@ test.describe('Hard Break (Shift+Enter)', () => {
 		await page.keyboard.press('Shift+Enter');
 		await page.keyboard.type('B', { delay: 10 });
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		const brCount = (html.match(/<br>/g) || []).length;
 		expect(brCount).toBeGreaterThanOrEqual(2);
 
@@ -46,13 +46,13 @@ test.describe('Hard Break (Shift+Enter)', () => {
 		await page.keyboard.press('Shift+Enter');
 		await page.keyboard.type('World', { delay: 10 });
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('<br>');
 
 		await page.keyboard.press('Control+z');
 		await page.keyboard.press('Control+z');
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('<br>');
 	});
 });

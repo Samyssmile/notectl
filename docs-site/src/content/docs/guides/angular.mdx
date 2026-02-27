@@ -292,12 +292,12 @@ export class ToolbarComponent {
 ```ts
 // Read content in different formats
 const json: Document = editor.getJSON();
-const html: string = editor.getHTML();
+const html: string = editor.getContentHTML();
 const text: string = editor.getText();
 
 // Write content
 editor.setJSON(doc);
-editor.setHTML('<h1>Hello</h1><p>World</p>');
+editor.setContentHTML('<h1>Hello</h1><p>World</p>');
 
 // Check if empty
 if (editor.isEmpty()) {
@@ -431,7 +431,7 @@ describe('MyEditorComponent', () => {
   });
 
   it('should render content', () => {
-    harness.setHTML('<p>Hello</p>');
+    harness.setContentHTML('<p>Hello</p>');
     expect(harness.getText()).toBe('Hello');
   });
 

@@ -13,8 +13,8 @@ interface NotectlEditorElement extends HTMLElement {
 			children: { text: string; marks: { type: string }[] }[];
 		}[];
 	};
-	getHTML(): string;
-	setHTML(html: string): void;
+	getContentHTML(): string;
+	setContentHTML(html: string): void;
 	setJSON(doc: unknown): void;
 	getState(): unknown;
 	can(): {
@@ -23,7 +23,9 @@ interface NotectlEditorElement extends HTMLElement {
 		toggleUnderline(): boolean;
 		undo(): boolean;
 		redo(): boolean;
+		selectAll(): boolean;
 	};
+	canExecuteCommand(name: string): boolean;
 	on(event: string, cb: () => void): void;
 }
 
@@ -239,15 +241,15 @@ export class EditorPage {
 		);
 	}
 
-	async getHTML(): Promise<string> {
+	async getContentHTML(): Promise<string> {
 		return this.page.evaluate(() =>
-			(document.querySelector('notectl-editor') as unknown as El).getHTML(),
+			(document.querySelector('notectl-editor') as unknown as El).getContentHTML(),
 		);
 	}
 
-	async setHTML(html: string): Promise<void> {
+	async setContentHTML(html: string): Promise<void> {
 		await this.page.evaluate(
-			(h) => (document.querySelector('notectl-editor') as unknown as El).setHTML(h),
+			(h) => (document.querySelector('notectl-editor') as unknown as El).setContentHTML(h),
 			html,
 		);
 	}

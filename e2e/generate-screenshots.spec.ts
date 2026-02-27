@@ -135,9 +135,9 @@ async function setEditorJSON(page: Page, doc: DocDef): Promise<void> {
 async function setEditorHTML(page: Page, html: string): Promise<void> {
 	await page.evaluate(
 		(h) =>
-			(document.querySelector('notectl-editor') as unknown as { setHTML(h: string): void }).setHTML(
-				h,
-			),
+			(
+				document.querySelector('notectl-editor') as unknown as { setContentHTML(h: string): void }
+			).setContentHTML(h),
 		html,
 	);
 	await page.waitForTimeout(500);

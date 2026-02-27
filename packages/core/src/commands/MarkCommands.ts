@@ -18,7 +18,7 @@ import { isCollapsed, isGapCursor, isNodeSelection, selectionRange } from '../mo
 import { markType as mkType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { forEachBlockInRange } from './Commands.js';
+import { forEachBlockInRange } from './RangeIterator.js';
 
 // --- Feature Configuration ---
 

@@ -287,8 +287,10 @@ test.describe('Arrow Navigation', () => {
 			editor,
 			page,
 		}) => {
-			// Use setHTML for a deterministic 3-block structure: paragraph | image | paragraph
-			await editor.setHTML(`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`);
+			// Use setContentHTML for a deterministic 3-block structure: paragraph | image | paragraph
+			await editor.setContentHTML(
+				`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`,
+			);
 			await page.waitForTimeout(200);
 
 			const figure = page.locator('notectl-editor figure.notectl-image');
@@ -313,8 +315,10 @@ test.describe('Arrow Navigation', () => {
 			editor,
 			page,
 		}) => {
-			// Use setHTML for a deterministic 3-block structure: paragraph | image | paragraph
-			await editor.setHTML(`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`);
+			// Use setContentHTML for a deterministic 3-block structure: paragraph | image | paragraph
+			await editor.setContentHTML(
+				`<p>Before</p><img src="${DATA_URI_PNG}" alt="test"><p>After</p>`,
+			);
 			await page.waitForTimeout(200);
 
 			const figure = page.locator('notectl-editor figure.notectl-image');
@@ -540,7 +544,7 @@ test.describe('Arrow Navigation', () => {
 	test.describe('GapCursor (Phase 3)', () => {
 		test('typing at GapCursor creates a new paragraph with text', async ({ editor, page }) => {
 			// setHTML: paragraph | HR | paragraph → deterministic 3-block layout
-			await editor.setHTML('<p>Before</p><hr><p>After</p>');
+			await editor.setContentHTML('<p>Before</p><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hr = page.locator('notectl-editor hr');
@@ -555,8 +559,8 @@ test.describe('Arrow Navigation', () => {
 			// First ArrowLeft → end of "Before", then ArrowRight back to NodeSelection
 			// Then ArrowRight → start of "After" or GapCursor(after)
 			// Simplest: from NodeSelection, ArrowRight goes to "After" (text block)
-			// We need doc edge for GapCursor. Use setHTML with HR at start:
-			await editor.setHTML('<hr><p>After</p>');
+			// We need doc edge for GapCursor. Use setContentHTML with HR at start:
+			await editor.setContentHTML('<hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hr2 = page.locator('notectl-editor hr');
@@ -581,7 +585,7 @@ test.describe('Arrow Navigation', () => {
 
 		test('Enter at GapCursor creates empty paragraph', async ({ editor, page }) => {
 			// HR at doc end: NodeSelection → ArrowRight → GapCursor(after)
-			await editor.setHTML('<p>Before</p><hr>');
+			await editor.setContentHTML('<p>Before</p><hr>');
 			await page.waitForTimeout(200);
 
 			const hr = page.locator('notectl-editor hr');
@@ -608,7 +612,7 @@ test.describe('Arrow Navigation', () => {
 
 		test('Backspace at GapCursor toward void deletes the HR', async ({ editor, page }) => {
 			// HR at doc end: NodeSelection → ArrowRight → GapCursor(after) → Backspace
-			await editor.setHTML('<p>Before</p><hr>');
+			await editor.setContentHTML('<p>Before</p><hr>');
 			await page.waitForTimeout(200);
 
 			const hr = page.locator('notectl-editor hr');
@@ -634,7 +638,7 @@ test.describe('Arrow Navigation', () => {
 
 		test('Delete at GapCursor toward void deletes the HR', async ({ editor, page }) => {
 			// HR at doc start: NodeSelection → ArrowLeft → GapCursor(before) → Delete
-			await editor.setHTML('<hr><p>After</p>');
+			await editor.setContentHTML('<hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hr = page.locator('notectl-editor hr');
@@ -659,7 +663,7 @@ test.describe('Arrow Navigation', () => {
 
 		test('GapCursor visual indicator is rendered', async ({ editor, page }) => {
 			// HR at doc end: NodeSelection → ArrowRight → GapCursor(after) → visible indicator
-			await editor.setHTML('<p>Before</p><hr>');
+			await editor.setContentHTML('<p>Before</p><hr>');
 			await page.waitForTimeout(200);
 
 			const hr = page.locator('notectl-editor hr');
@@ -682,7 +686,7 @@ test.describe('Arrow Navigation', () => {
 	test.describe('Adjacent void blocks — GapCursor chain (Phase 6)', () => {
 		test('navigate through two adjacent HRs via GapCursor', async ({ editor, page }) => {
 			// Structure: <p>Before</p><hr><hr><p>After</p>
-			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await editor.setContentHTML('<p>Before</p><hr><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hrs = page.locator('notectl-editor hr');
@@ -710,7 +714,7 @@ test.describe('Arrow Navigation', () => {
 
 		test('navigate backward through two adjacent HRs', async ({ editor, page }) => {
 			// Structure: Before | HR1 | HR2 | After
-			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await editor.setContentHTML('<p>Before</p><hr><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			// Start from "After" paragraph and navigate backward
@@ -746,7 +750,7 @@ test.describe('Arrow Navigation', () => {
 		});
 
 		test('GapCursor at doc start before adjacent HRs', async ({ editor, page }) => {
-			await editor.setHTML('<hr><hr><p>After</p>');
+			await editor.setContentHTML('<hr><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hrs = page.locator('notectl-editor hr');
@@ -774,7 +778,7 @@ test.describe('Arrow Navigation', () => {
 			page,
 		}) => {
 			// Structure: <p>Before</p><hr><hr><p>After</p>
-			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await editor.setContentHTML('<p>Before</p><hr><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hrs = page.locator('notectl-editor hr');
@@ -808,7 +812,7 @@ test.describe('Arrow Navigation', () => {
 			page,
 		}) => {
 			// Structure: <p>Before</p><hr><hr><p>After</p>
-			await editor.setHTML('<p>Before</p><hr><hr><p>After</p>');
+			await editor.setContentHTML('<p>Before</p><hr><hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			const hrs = page.locator('notectl-editor hr');
@@ -840,7 +844,7 @@ test.describe('Arrow Navigation', () => {
 
 	test.describe('Empty blocks navigation (Phase 6)', () => {
 		test('ArrowDown through empty paragraph', async ({ editor, page }) => {
-			await editor.setHTML('<p>First</p><p></p><p>Third</p>');
+			await editor.setContentHTML('<p>First</p><p></p><p>Third</p>');
 			await page.waitForTimeout(200);
 
 			// Click in first paragraph
@@ -866,7 +870,7 @@ test.describe('Arrow Navigation', () => {
 		});
 
 		test('typing in empty paragraph works', async ({ editor, page }) => {
-			await editor.setHTML('<p>First</p><p></p><p>Third</p>');
+			await editor.setContentHTML('<p>First</p><p></p><p>Third</p>');
 			await page.waitForTimeout(200);
 
 			await editor.focus();
@@ -889,7 +893,7 @@ test.describe('Arrow Navigation', () => {
 			editor,
 			page,
 		}) => {
-			await editor.setHTML('<p>ABC</p><p></p><p>DEF</p>');
+			await editor.setContentHTML('<p>ABC</p><p></p><p>DEF</p>');
 			await page.waitForTimeout(200);
 
 			await editor.focus();

@@ -31,7 +31,7 @@ test.describe('Angular — Content Binding & API Proxy', () => {
 		expect(json.children[0].type).toBe('paragraph');
 
 		// Clear and reload via setJSON
-		await editor.setHTML('<p></p>');
+		await editor.setContentHTML('<p></p>');
 		await editor.setJSON(json);
 
 		const text: string = await editor.getText();

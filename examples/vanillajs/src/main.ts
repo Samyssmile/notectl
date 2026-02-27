@@ -94,7 +94,7 @@ const output = document.getElementById('output') as HTMLElement;
 	});
 
 	document.getElementById('btn-get-html')?.addEventListener('click', () => {
-		output.textContent = editor.getHTML({ pretty: true });
+		output.textContent = editor.getContentHTML({ pretty: true });
 	});
 
 	document.getElementById('btn-get-text')?.addEventListener('click', () => {

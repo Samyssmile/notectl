@@ -9,8 +9,8 @@ interface NotectlEditorElement extends HTMLElement {
 			children: { text: string; marks: { type: string }[] }[];
 		}[];
 	};
-	getHTML(): string;
-	setHTML(html: string): void;
+	getContentHTML(): string;
+	setContentHTML(html: string): void;
 	setJSON(doc: unknown): void;
 	getState(): { doc: unknown };
 }
@@ -122,15 +122,16 @@ export class AngularEditorPage {
 		);
 	}
 
-	async getHTML(): Promise<string> {
+	async getContentHTML(): Promise<string> {
 		return this.page.evaluate(() =>
-			(document.querySelector('ntl-editor notectl-editor') as unknown as El).getHTML(),
+			(document.querySelector('ntl-editor notectl-editor') as unknown as El).getContentHTML(),
 		);
 	}
 
-	async setHTML(html: string): Promise<void> {
+	async setContentHTML(html: string): Promise<void> {
 		await this.page.evaluate(
-			(h) => (document.querySelector('ntl-editor notectl-editor') as unknown as El).setHTML(h),
+			(h) =>
+				(document.querySelector('ntl-editor notectl-editor') as unknown as El).setContentHTML(h),
 			html,
 		);
 	}

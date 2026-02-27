@@ -343,7 +343,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	override getHTML(options?: GetHTMLOptions & { pretty?: boolean }): string {
+	getContentHTML(options?: { pretty?: boolean }): string {
 		if (!this.view) throw new Error('Editor not initialized');
 		const html: string = serializeDocumentToHTML(
 			this.view.getState().doc,
@@ -353,7 +353,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Sets content from HTML (sanitized). */
-	setHTML(html: string): void {
+	setContentHTML(html: string): void {
 		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry);
 		this.setJSON(doc);
 	}
@@ -404,6 +404,7 @@ export class NotectlEditor extends HTMLElement {
 		toggleUnderline: () => boolean;
 		undo: () => boolean;
 		redo: () => boolean;
+		selectAll: () => boolean;
 	} {
 		const schema = this.view?.getState().schema;
 		const readonly: boolean = this.config.readonly ?? false;
@@ -413,7 +414,13 @@ export class NotectlEditor extends HTMLElement {
 			toggleUnderline: () => !readonly && (schema ? isMarkAllowed(schema, 'underline') : false),
 			undo: () => !readonly && (this.view?.history.canUndo() ?? false),
 			redo: () => !readonly && (this.view?.history.canRedo() ?? false),
+			selectAll: () => this.canExecuteCommand('selectAll'),
 		};
+	}
+
+	/** Returns whether a named command can be executed. */
+	canExecuteCommand(name: string): boolean {
+		return this.pluginManager?.canExecuteCommand(name) ?? false;
 	}
 
 	/** Executes a named command registered by a plugin. */

@@ -100,7 +100,7 @@
 					code.textContent = JSON.stringify(editor.getJSON(), null, 2);
 					break;
 				case 'html':
-					code.textContent = editor.getHTML();
+					code.textContent = editor.getContentHTML();
 					break;
 				case 'text':
 					code.textContent = editor.getText() || '(empty)';

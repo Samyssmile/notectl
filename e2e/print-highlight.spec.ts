@@ -14,7 +14,7 @@ test.describe('Print: highlight background color', () => {
 		await swatch.click();
 
 		// Verify highlight is applied in editor
-		const editorHTML: string = await editor.getHTML();
+		const editorHTML: string = await editor.getContentHTML();
 		expect(editorHTML).toContain('background-color');
 
 		// Act: generate print HTML via PrintService.toHTML()
@@ -47,7 +47,7 @@ test.describe('Print: highlight background color', () => {
 		await swatch.click();
 
 		// Verify text color is applied in editor
-		const editorHTML: string = await editor.getHTML();
+		const editorHTML: string = await editor.getContentHTML();
 		expect(editorHTML).toContain('color:');
 
 		// Act: generate print HTML

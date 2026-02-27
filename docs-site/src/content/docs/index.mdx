@@ -98,11 +98,11 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 		```ts
 		// Get content as JSON, HTML, or plain text
 		const json = editor.getJSON();
-		const html = editor.getHTML();
+		const html = editor.getContentHTML();
 		const text = editor.getText();
 
 		// Set content programmatically
-		editor.setHTML('<h1>Hello</h1><p>World</p>');
+		editor.setContentHTML('<h1>Hello</h1><p>World</p>');
 		editor.setJSON(savedDocument);
 
 		// Listen for changes

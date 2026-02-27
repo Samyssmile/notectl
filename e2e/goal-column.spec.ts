@@ -137,7 +137,7 @@ test.describe('Goal Column Preservation', () => {
 
 	test('ArrowDown through void block preserves goal column', async ({ editor, page }) => {
 		// Structure: text | HR (void) | text
-		await editor.setHTML('<p>Hello World</p><hr><p>Another line here</p>');
+		await editor.setContentHTML('<p>Hello World</p><hr><p>Another line here</p>');
 		await page.waitForTimeout(200);
 
 		// Position cursor in first paragraph

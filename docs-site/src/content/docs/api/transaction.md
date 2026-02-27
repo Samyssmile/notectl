@@ -120,7 +120,7 @@ type TransactionOrigin = 'input' | 'paste' | 'command' | 'history' | 'api';
 | `paste` | Paste operations |
 | `command` | Programmatic command execution |
 | `history` | Undo/redo operations |
-| `api` | External API calls (setHTML, setJSON) — **this is the default** |
+| `api` | External API calls (setContentHTML, setJSON) — **this is the default** |
 
 ## Step Types
 

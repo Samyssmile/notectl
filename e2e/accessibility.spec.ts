@@ -43,7 +43,7 @@ test.describe('Accessibility', () => {
 		await page.keyboard.press('Control+i');
 		await page.keyboard.press('Control+u');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('<em>');
 		expect(html).toContain('<u>');
@@ -52,7 +52,7 @@ test.describe('Accessibility', () => {
 		await page.keyboard.press('Control+z');
 		await page.keyboard.press('Control+z');
 
-		const html2 = await editor.getHTML();
+		const html2 = await editor.getContentHTML();
 		expect(html2).not.toContain('<strong>');
 		expect(html2).not.toContain('<em>');
 		expect(html2).not.toContain('<u>');
@@ -194,7 +194,7 @@ test.describe('Button Activation', () => {
 
 		await page.keyboard.press('Enter');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 	});
 
@@ -209,7 +209,7 @@ test.describe('Button Activation', () => {
 
 		await page.keyboard.press(' ');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<em>');
 	});
 });

@@ -64,7 +64,7 @@ test.describe('Toolbar Configuration', () => {
 		await editor.typeText('Test');
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 
 		// Case 2: Feature disabled — button visible but disabled, shortcut does nothing
@@ -80,7 +80,7 @@ test.describe('Toolbar Configuration', () => {
 		await editor.typeText('Test');
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('<strong>');
 	});
 });

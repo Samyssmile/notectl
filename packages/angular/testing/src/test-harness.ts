@@ -12,7 +12,7 @@ import type { NotectlEditorComponent } from '@notectl/angular';
  * const fixture = TestBed.createComponent(NotectlEditorComponent);
  * const harness = new NotectlTestHarness(fixture);
  * await harness.whenReady();
- * harness.setHTML('<p>Hello</p>');
+ * harness.setContentHTML('<p>Hello</p>');
  * expect(harness.getText()).toBe('Hello');
  * ```
  */
@@ -38,14 +38,14 @@ export class NotectlTestHarness {
 	}
 
 	/** Sets HTML content and triggers change detection. */
-	setHTML(html: string): void {
-		this.component.setHTML(html);
+	setContentHTML(html: string): void {
+		this.component.setContentHTML(html);
 		this.fixture.detectChanges();
 	}
 
 	/** Returns the current HTML content. */
-	getHTML(): string {
-		return this.component.getHTML();
+	getContentHTML(): string {
+		return this.component.getContentHTML();
 	}
 
 	/** Returns the current plain text content. */
