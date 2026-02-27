@@ -89,23 +89,60 @@
 
 		container.appendChild(editor);
 
+		const MAX_OUTPUT_CHARS = 200_000;
 		let activeTab = 'json';
+		let rafId: number | null = null;
+		let idleId: number | null = null;
 
-		function updateOutput() {
+		function serializeOutput(): string {
+			switch (activeTab) {
+				case 'json':
+					return JSON.stringify(editor.getJSON(), null, 2);
+				case 'html':
+					return editor.getContentHTML();
+				case 'text':
+					return editor.getText() || '(empty)';
+				default:
+					return '';
+			}
+		}
+
+		function renderOutput(text: string): void {
 			const code = output?.querySelector('code');
 			if (!code) return;
 
-			switch (activeTab) {
-				case 'json':
-					code.textContent = JSON.stringify(editor.getJSON(), null, 2);
-					break;
-				case 'html':
-					code.textContent = editor.getContentHTML();
-					break;
-				case 'text':
-					code.textContent = editor.getText() || '(empty)';
-					break;
+			if (text.length > MAX_OUTPUT_CHARS) {
+				code.textContent =
+					text.slice(0, MAX_OUTPUT_CHARS) + '\n\n(truncated preview)';
+			} else {
+				code.textContent = text;
 			}
+		}
+
+		function updateOutputNow(): void {
+			renderOutput(serializeOutput());
+		}
+
+		function scheduleOutputUpdate(): void {
+			if (rafId !== null) return;
+
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				const text = serializeOutput();
+				if (text.length > MAX_OUTPUT_CHARS) {
+					const scheduleIdle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 0));
+					if (idleId !== null) {
+						const cancelIdle = window.cancelIdleCallback ?? clearTimeout;
+						cancelIdle(idleId);
+					}
+					idleId = scheduleIdle(() => {
+						idleId = null;
+						renderOutput(text);
+					});
+				} else {
+					renderOutput(text);
+				}
+			});
 		}
 
 		document.querySelectorAll('.output-tab').forEach((tab) => {
@@ -116,16 +153,16 @@
 				tab.classList.add('active');
 				activeTab =
 					(tab as HTMLElement).dataset.tab ?? 'json';
-				updateOutput();
+				updateOutputNow();
 			});
 		});
 
 		editor.on('stateChange', () => {
-			updateOutput();
+			scheduleOutputUpdate();
 		});
 
 		editor.on('ready', () => {
-			updateOutput();
+			updateOutputNow();
 		});
 
 		// Sync notectl theme with Starlight's light/dark toggle
