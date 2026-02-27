@@ -47,12 +47,32 @@ interface NotectlEditorConfig {
   maxHistoryDepth?: number;
   /** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
   theme?: ThemePreset | Theme;
+  /**
+   * Runtime style mode.
+   * - 'strict': avoids inline style attributes via dynamic stylesheet tokens (default)
+   * - 'inline': legacy inline style mutations
+   * Evaluated during initialization.
+   */
+  styleMode?: RuntimeStyleMode;
+  /** Optional nonce for fallback runtime <style> elements in strict mode. */
+  styleNonce?: string;
   /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
   paperSize?: PaperSize;
   /** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
   locale?: Locale;
 }
 ```
+
+### `RuntimeStyleMode`
+
+```ts
+type RuntimeStyleMode = 'inline' | 'strict';
+```
+
+- `strict` (default): no runtime inline `style=""` mutations; styles are applied via a runtime stylesheet.
+- `inline`: legacy behavior using `HTMLElement.style` writes.
+
+See the [Content Security Policy guide](/notectl/guides/content-security-policy/) for policy examples.
 
 ### `ToolbarConfig`
 
@@ -282,7 +302,9 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, `locale`, and `theme`. The full `NotectlEditorConfig` is accepted.
+Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `theme`.
+
+`styleMode` and `styleNonce` are accepted in `configure()` but evaluated during initialization.
 
 ### `registerPlugin(plugin: Plugin): void`
 

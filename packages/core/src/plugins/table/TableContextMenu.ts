@@ -7,6 +7,7 @@
  */
 
 import type { BlockId } from '../../model/TypeBrands.js';
+import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { positionPopup } from '../shared/PopupPositioning.js';
@@ -256,7 +257,7 @@ export function createTableContextMenu(
 		} else {
 			subPopup = document.createElement('div');
 			subPopup.className = 'notectl-table-context-menu';
-			subPopup.style.position = 'fixed';
+			setStyleProperty(subPopup, 'position', 'fixed');
 			subPopup.setAttribute('contenteditable', 'false');
 
 			subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -287,8 +288,10 @@ export function createTableContextMenu(
 				top = vpHeight - 200;
 			}
 
-			subPopup.style.left = `${left}px`;
-			subPopup.style.top = `${top}px`;
+			setStyleProperties(subPopup, {
+				left: `${left}px`,
+				top: `${top}px`,
+			});
 
 			requestAnimationFrame(() => {
 				const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;

@@ -31,6 +31,12 @@ import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
+import {
+	type RuntimeStyleMode,
+	createRuntimeStyleSheet,
+	registerStyleRoot,
+	unregisterStyleRoot,
+} from '../style/StyleRuntime.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
@@ -76,6 +82,15 @@ export interface NotectlEditorConfig {
 	maxHistoryDepth?: number;
 	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
 	theme?: ThemePreset | Theme;
+	/**
+	 * Runtime style mode.
+	 * - `strict`: avoids inline style attributes via dynamic stylesheet tokens (default)
+	 * - `inline`: legacy inline style mutations
+	 * Evaluated during initialization.
+	 */
+	styleMode?: RuntimeStyleMode;
+	/** Optional nonce for fallback runtime `<style>` elements when strict mode cannot use adopted sheets. */
+	styleNonce?: string;
 	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
 	paperSize?: PaperSize;
 	/** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
@@ -114,6 +129,7 @@ export class NotectlEditor extends HTMLElement {
 	private preInitPlugins: Plugin[] = [];
 	private themeController: EditorThemeController | null = null;
 	private paperLayout: PaperLayoutController | null = null;
+	private runtimeStyleSheet: CSSStyleSheet | null = null;
 
 	constructor() {
 		super();
@@ -189,6 +205,7 @@ export class NotectlEditor extends HTMLElement {
 
 		// Apply theme (default: Light) — must happen before editor stylesheet
 		this.themeController = new EditorThemeController(shadow);
+		this.setupStyleRuntime(shadow);
 		this.themeController.apply(this.config.theme ?? ThemePreset.Light);
 
 		// 1. Build DOM structure
@@ -535,6 +552,7 @@ export class NotectlEditor extends HTMLElement {
 	destroy(): Promise<void> {
 		this.paperLayout?.destroy();
 		this.paperLayout = null;
+		this.teardownStyleRuntime();
 		this.themeController?.destroy();
 		this.themeController = null;
 		this.view?.destroy();
@@ -627,6 +645,35 @@ export class NotectlEditor extends HTMLElement {
 			this.paperLayout = new PaperLayoutController(this.editorWrapper, this.contentElement);
 		}
 		this.paperLayout.apply(paperSize);
+	}
+
+	private setupStyleRuntime(shadow: ShadowRoot): void {
+		unregisterStyleRoot(shadow);
+		this.runtimeStyleSheet = null;
+
+		const mode: RuntimeStyleMode = this.config.styleMode ?? 'strict';
+		if (mode === 'strict') {
+			this.runtimeStyleSheet = createRuntimeStyleSheet();
+		}
+
+		this.themeController?.setRuntimeStyleSheets(
+			this.runtimeStyleSheet ? [this.runtimeStyleSheet] : [],
+		);
+
+		registerStyleRoot(shadow, {
+			mode,
+			nonce: this.config.styleNonce,
+			sheet: this.runtimeStyleSheet,
+		});
+	}
+
+	private teardownStyleRuntime(): void {
+		const shadow = this.shadowRoot;
+		if (shadow) {
+			unregisterStyleRoot(shadow);
+		}
+		this.runtimeStyleSheet = null;
+		this.themeController?.setRuntimeStyleSheets([]);
 	}
 
 	private emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void {

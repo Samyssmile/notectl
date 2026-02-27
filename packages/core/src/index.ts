@@ -636,6 +636,7 @@ export type {
 	StateChangeEvent,
 } from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';
+export type { RuntimeStyleMode } from './style/StyleRuntime.js';
 
 // --- Presets ---
 export type {

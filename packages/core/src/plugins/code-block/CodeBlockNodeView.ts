@@ -9,6 +9,7 @@ import { getBlockText } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
 
@@ -79,16 +80,16 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 
 		// Apply config-level color overrides as CSS custom properties
 		if (config.background) {
-			pre.style.setProperty('--notectl-code-block-bg', config.background);
+			setStyleProperty(pre, '--notectl-code-block-bg', config.background);
 		}
 		if (config.headerBackground) {
-			pre.style.setProperty('--notectl-code-block-header-bg', config.headerBackground);
+			setStyleProperty(pre, '--notectl-code-block-header-bg', config.headerBackground);
 		}
 		if (config.textColor) {
-			pre.style.setProperty('--notectl-code-block-color', config.textColor);
+			setStyleProperty(pre, '--notectl-code-block-color', config.textColor);
 		}
 		if (config.headerColor) {
-			pre.style.setProperty('--notectl-code-block-header-color', config.headerColor);
+			setStyleProperty(pre, '--notectl-code-block-header-color', config.headerColor);
 		}
 
 		let currentNodeId: BlockId = node.id;
@@ -108,7 +109,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 			}
 
 			const bg: string = (n.attrs?.backgroundColor as string) ?? '';
-			pre.style.backgroundColor = bg || '';
+			setStyleProperty(pre, 'backgroundColor', bg || '');
 		}
 
 		applyAttrs(node);

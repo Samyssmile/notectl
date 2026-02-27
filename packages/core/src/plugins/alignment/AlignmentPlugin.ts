@@ -12,6 +12,7 @@ import { findNodePath } from '../../model/NodeResolver.js';
 import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { ALIGNMENT_LOCALES, type AlignmentLocale } from './AlignmentLocale.js';
 
@@ -283,7 +284,7 @@ export class AlignmentPlugin implements Plugin {
 function applyAlignment(el: HTMLElement, node: BlockNode): void {
 	const align = node.attrs?.align;
 	if (typeof align === 'string' && align !== 'left') {
-		el.style.textAlign = align;
+		setStyleProperty(el, 'textAlign', align);
 	}
 }
 

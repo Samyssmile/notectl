@@ -9,6 +9,7 @@ import { getBlockChildren } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import { getTableBorderColor, renderBorderColorPicker } from './TableBorderColor.js';
 import {
@@ -318,10 +319,12 @@ class TableControls implements TableControlsHandle {
 
 		this.borderColorPopup = document.createElement('div');
 		this.borderColorPopup.className = 'notectl-table-context-menu';
-		this.borderColorPopup.style.position = 'absolute';
-		this.borderColorPopup.style.top = '24px';
-		this.borderColorPopup.style.left = '24px';
-		this.borderColorPopup.style.zIndex = '10000';
+		setStyleProperties(this.borderColorPopup, {
+			position: 'absolute',
+			top: '24px',
+			left: '24px',
+			zIndex: '10000',
+		});
 		this.borderColorPopup.setAttribute('contenteditable', 'false');
 
 		renderBorderColorPicker(
@@ -362,18 +365,22 @@ class TableControls implements TableControlsHandle {
 	private showHorizontalLine(border: BorderInfo): void {
 		this.activeRowIndex = border.index;
 		const offset = getTableOffset(this.tableEl, this.container);
-		this.insertLineH.style.top = `${offset.top + border.position - 1}px`;
-		this.insertLineH.style.left = `${offset.left}px`;
-		this.insertLineH.style.width = `${this.tableEl.offsetWidth}px`;
+		setStyleProperties(this.insertLineH, {
+			top: `${offset.top + border.position - 1}px`,
+			left: `${offset.left}px`,
+			width: `${this.tableEl.offsetWidth}px`,
+		});
 		this.insertLineH.classList.add('ntbl-insert-line--visible');
 	}
 
 	private showVerticalLine(border: BorderInfo): void {
 		this.activeColIndex = border.index;
 		const offset = getTableOffset(this.tableEl, this.container);
-		this.insertLineV.style.left = `${offset.left + border.position - 1}px`;
-		this.insertLineV.style.top = `${offset.top}px`;
-		this.insertLineV.style.height = `${this.tableEl.offsetHeight}px`;
+		setStyleProperties(this.insertLineV, {
+			left: `${offset.left + border.position - 1}px`,
+			top: `${offset.top}px`,
+			height: `${this.tableEl.offsetHeight}px`,
+		});
 		this.insertLineV.classList.add('ntbl-insert-line--visible');
 	}
 

@@ -20,6 +20,7 @@ import {
 } from '../../model/Selection.js';
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { LIST_LOCALES, type ListLocale } from './ListLocale.js';
 
@@ -155,7 +156,7 @@ export class ListPlugin implements Plugin {
 				li.className = `notectl-list-item notectl-list-item--${listType}`;
 
 				if (indent > 0) {
-					li.style.marginLeft = `${indent * LIST_MARKER_WIDTH}px`;
+					setStyleProperty(li, 'marginLeft', `${indent * LIST_MARKER_WIDTH}px`);
 				}
 
 				if (listType === 'checklist') {

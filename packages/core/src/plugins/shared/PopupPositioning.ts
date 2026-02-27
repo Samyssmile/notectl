@@ -4,6 +4,8 @@
  * append helper.
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
+
 // --- Types ---
 
 export type PopupPosition = 'below-start' | 'below-end' | 'right';
@@ -30,8 +32,10 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 	const vpWidth: number = window.innerWidth;
 	const vpHeight: number = window.innerHeight;
 
-	popup.style.position = 'fixed';
-	popup.style.zIndex = Z_INDEX;
+	setStyleProperties(popup, {
+		position: 'fixed',
+		zIndex: Z_INDEX,
+	});
 
 	switch (options.position) {
 		case 'below-start': {
@@ -47,8 +51,10 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 
-			popup.style.top = `${top}px`;
-			popup.style.left = `${left}px`;
+			setStyleProperties(popup, {
+				top: `${top}px`,
+				left: `${left}px`,
+			});
 			break;
 		}
 		case 'below-end': {
@@ -60,9 +66,11 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 			}
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 
-			popup.style.top = `${top}px`;
-			popup.style.right = `${rightEdge}px`;
-			popup.style.left = 'auto';
+			setStyleProperties(popup, {
+				top: `${top}px`,
+				right: `${rightEdge}px`,
+				left: 'auto',
+			});
 			break;
 		}
 		case 'right': {
@@ -78,8 +86,10 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 
-			popup.style.top = `${top}px`;
-			popup.style.left = `${left}px`;
+			setStyleProperties(popup, {
+				top: `${top}px`,
+				left: `${left}px`,
+			});
 			break;
 		}
 	}

@@ -4,6 +4,7 @@
  * and custom popups). Delegates lifecycle to PopupManager.
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
@@ -189,10 +190,12 @@ export class ToolbarPopupController {
 
 	private positionAndAppend(popup: HTMLElement, button: HTMLButtonElement): void {
 		const rect: DOMRect = button.getBoundingClientRect();
-		popup.style.position = 'fixed';
-		popup.style.top = `${rect.bottom + 2}px`;
-		popup.style.left = `${rect.left}px`;
-		popup.style.zIndex = '10000';
+		setStyleProperties(popup, {
+			position: 'fixed',
+			top: `${rect.bottom + 2}px`,
+			left: `${rect.left}px`,
+			zIndex: '10000',
+		});
 
 		const root: Node = button.getRootNode();
 		if (root instanceof ShadowRoot) {

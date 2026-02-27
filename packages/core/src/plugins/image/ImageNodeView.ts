@@ -9,6 +9,11 @@ import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import {
+	getStyleNonceForNode,
+	setStyleProperties,
+	setStyleProperty,
+} from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import type { ImageKeymap, ImagePluginConfig, UploadState } from './ImageUpload.js';
@@ -49,9 +54,13 @@ const HANDLE_LABELS: Readonly<Record<HandlePosition, string>> = {
 
 let activeCursorStyle: HTMLStyleElement | null = null;
 
-function setGlobalResizeCursor(cursor: string): void {
+function setGlobalResizeCursor(cursor: string, referenceNode?: Node): void {
 	clearGlobalResizeCursor();
 	activeCursorStyle = document.createElement('style');
+	const nonce = referenceNode ? getStyleNonceForNode(referenceNode) : undefined;
+	if (nonce) {
+		activeCursorStyle.setAttribute('nonce', nonce);
+	}
 	activeCursorStyle.textContent = `*{cursor:${cursor}!important;user-select:none!important}`;
 	document.head.appendChild(activeCursorStyle);
 }
@@ -141,14 +150,14 @@ export function createImageNodeViewFactory(
 			img.alt = alt;
 
 			if (width !== undefined) {
-				img.style.width = `${width}px`;
+				setStyleProperty(img, 'width', `${width}px`);
 			} else {
-				img.style.width = '';
+				setStyleProperty(img, 'width', '');
 			}
 			if (height !== undefined) {
-				img.style.height = `${height}px`;
+				setStyleProperty(img, 'height', `${height}px`);
 			} else {
-				img.style.height = '';
+				setStyleProperty(img, 'height', '');
 			}
 
 			for (const cls of Object.values(ALIGNMENT_CLASSES)) {
@@ -266,8 +275,10 @@ export function createImageNodeViewFactory(
 				const newWidth: number = clampWidth(startWidth + deltaX * HANDLE_X_SIGN[position]);
 				const newHeight: number = Math.round(newWidth / aspectRatio);
 
-				img.style.width = `${newWidth}px`;
-				img.style.height = `${newHeight}px`;
+				setStyleProperties(img, {
+					width: `${newWidth}px`,
+					height: `${newHeight}px`,
+				});
 
 				sizeIndicator.textContent = `${Math.round(newWidth)} \u00D7 ${newHeight}`;
 			};
@@ -300,7 +311,7 @@ export function createImageNodeViewFactory(
 				figure.classList.add('notectl-image--resizing');
 				sizeIndicator.textContent = `${Math.round(startWidth)} \u00D7 ${Math.round(imgHeight)}`;
 				sizeIndicator.classList.add('notectl-image__size-indicator--visible');
-				setGlobalResizeCursor(HANDLE_CURSORS[position]);
+				setGlobalResizeCursor(HANDLE_CURSORS[position], figure);
 
 				(e.target as HTMLElement).setPointerCapture(e.pointerId);
 				document.addEventListener('pointermove', onPointerMove);

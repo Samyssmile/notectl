@@ -8,6 +8,7 @@ import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
@@ -106,7 +107,7 @@ export class FontSizePlugin implements Plugin {
 				const span: HTMLElement = document.createElement('span');
 				const size: string = mark.attrs?.size ?? '';
 				if (size) {
-					span.style.fontSize = size;
+					setStyleProperty(span, 'fontSize', size);
 				}
 				return span;
 			},
@@ -200,7 +201,7 @@ export class FontSizePlugin implements Plugin {
 	 */
 	private applyDefaultSizeToContainer(context: PluginContext): void {
 		const container: HTMLElement = context.getContainer();
-		container.style.fontSize = `${this.defaultSize}px`;
+		setStyleProperty(container, 'fontSize', `${this.defaultSize}px`);
 	}
 
 	private dismissPopup(): void {

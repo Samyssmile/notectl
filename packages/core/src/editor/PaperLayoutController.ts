@@ -7,6 +7,7 @@
  * the paper, producing a Google Docs-like shrink-to-fit effect.
  */
 
+import { setStyleProperty } from '../style/StyleRuntime.js';
 import { PAPER_VIEWPORT_PADDING_PX, type PaperSize, getPaperDimensions } from './PaperSize.js';
 
 export class PaperLayoutController {
@@ -141,8 +142,8 @@ export class PaperLayoutController {
 
 	private updateSurfaceDimensions(): void {
 		if (!this.surface) return;
-		this.surface.style.width = `${this.currentPaperWidthPx}px`;
-		this.surface.style.minHeight = `${this.currentPaperHeightPx}px`;
+		setStyleProperty(this.surface, 'width', `${this.currentPaperWidthPx}px`);
+		setStyleProperty(this.surface, 'minHeight', `${this.currentPaperHeightPx}px`);
 	}
 
 	private onViewportResize(viewportWidth: number): void {
@@ -152,7 +153,7 @@ export class PaperLayoutController {
 		const scale: number = Math.min(1, availableWidth / this.currentPaperWidthPx);
 		this.currentScale = scale;
 
-		this.surface.style.transform = scale < 1 ? `scale(${scale})` : '';
+		setStyleProperty(this.surface, 'transform', scale < 1 ? `scale(${scale})` : '');
 
 		// Compensate margin-bottom so parent layout sees correct visual height
 		this.scheduleHeightCompensation(scale);
@@ -177,7 +178,7 @@ export class PaperLayoutController {
 		if (!this.surface) return;
 
 		if (scale >= 1) {
-			this.surface.style.marginBottom = '';
+			setStyleProperty(this.surface, 'marginBottom', '');
 			return;
 		}
 
@@ -186,6 +187,6 @@ export class PaperLayoutController {
 		const surfaceHeight: number = this.surface.scrollHeight;
 		const visualHeight: number = surfaceHeight * scale;
 		const compensation: number = visualHeight - surfaceHeight;
-		this.surface.style.marginBottom = `${compensation}px`;
+		setStyleProperty(this.surface, 'marginBottom', `${compensation}px`);
 	}
 }

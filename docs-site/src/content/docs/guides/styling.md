@@ -5,6 +5,8 @@ description: Switch between light and dark mode, create custom themes, and use C
 
 notectl ships with a complete theming system built on CSS custom properties. Two built-in themes (light & dark), automatic system-preference detection, and full custom-theme support are included out of the box.
 
+For CSP runtime styling and nonce setup, see the [Content Security Policy guide](/notectl/guides/content-security-policy/).
+
 ## Quick Start
 
 ### Using a Preset

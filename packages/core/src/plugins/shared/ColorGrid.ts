@@ -4,6 +4,7 @@
  * TableBorderColor.
  */
 
+import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
 import { applyRovingTabindex, navigateGrid } from '../toolbar/ToolbarKeyboardNav.js';
 import { getColorName, isLightColor } from './ColorNames.js';
 
@@ -76,11 +77,13 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 			swatch.setAttribute('aria-label', label);
 			swatch.setAttribute('aria-selected', String(isActive));
 			swatch.dataset.index = String(swatchIdx);
-			swatch.style.backgroundColor = color;
+			setStyleProperty(swatch, 'backgroundColor', color);
 			swatch.title = config.titleAsName ? colorName : color;
 
 			if (isLightColor(color)) {
-				swatch.style.border = LIGHT_COLOR_BORDER;
+				setStyleProperties(swatch, {
+					border: LIGHT_COLOR_BORDER,
+				});
 			}
 
 			if (isActive) {

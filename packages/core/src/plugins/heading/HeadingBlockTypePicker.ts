@@ -6,6 +6,7 @@
 
 import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import type { PickerEntryStyle } from './BlockTypePickerEntry.js';
@@ -167,8 +168,10 @@ function createPickerItem(
 	labelSpan.className = 'notectl-heading-picker__label';
 	labelSpan.textContent = label;
 	if (style) {
-		labelSpan.style.fontSize = style.fontSize;
-		labelSpan.style.fontWeight = style.fontWeight;
+		setStyleProperties(labelSpan, {
+			fontSize: style.fontSize,
+			fontWeight: style.fontWeight,
+		});
 	}
 	item.appendChild(labelSpan);
 

@@ -9,6 +9,7 @@ import { getBlockChildren } from '../../model/Document.js';
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { removeStyleProperty, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
 import type { PluginContext } from '../Plugin.js';
 import { type TableContextMenuHandle, createTableContextMenu } from './TableContextMenu.js';
@@ -139,13 +140,13 @@ export function createTableNodeViewFactory(
 /** Applies border color CSS variable and borderless class to a table element. */
 function applyBorderColor(table: HTMLTableElement, borderColor: string | undefined): void {
 	if (borderColor === 'none') {
-		table.style.setProperty('--ntbl-border-color', 'transparent');
+		setStyleProperty(table, '--ntbl-border-color', 'transparent');
 		table.classList.add('notectl-table--borderless');
 	} else if (borderColor) {
-		table.style.setProperty('--ntbl-border-color', borderColor);
+		setStyleProperty(table, '--ntbl-border-color', borderColor);
 		table.classList.remove('notectl-table--borderless');
 	} else {
-		table.style.removeProperty('--ntbl-border-color');
+		removeStyleProperty(table, '--ntbl-border-color');
 		table.classList.remove('notectl-table--borderless');
 	}
 }
@@ -201,7 +202,7 @@ export function createTableCellNodeViewFactory(_registry: SchemaRegistry): NodeV
 		// Apply alignment from AlignmentPlugin's patched attribute
 		const align: string | undefined = node.attrs?.align as string | undefined;
 		if (align && align !== 'left') {
-			td.style.textAlign = align;
+			setStyleProperty(td, 'textAlign', align);
 		}
 
 		return {
