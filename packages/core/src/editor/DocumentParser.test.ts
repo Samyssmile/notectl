@@ -331,9 +331,11 @@ describe('parseHTMLToDocument', () => {
 			const children = getInlineChildren(block);
 			expect(children).toHaveLength(3);
 			expect(children[0]?.text).toBe('Hello');
-			expect(isInlineNode(children[1]!)).toBe(true);
-			if (isInlineNode(children[1]!)) {
-				expect(children[1]!.inlineType).toBe('hard_break');
+			const child1 = children[1];
+			if (!child1) return;
+			expect(isInlineNode(child1)).toBe(true);
+			if (isInlineNode(child1)) {
+				expect(child1.inlineType).toBe('hard_break');
 			}
 			expect(children[2]?.text).toBe('World');
 		});
