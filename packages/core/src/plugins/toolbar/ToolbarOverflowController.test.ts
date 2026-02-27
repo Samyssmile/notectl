@@ -440,6 +440,53 @@ describe('ToolbarOverflowController', () => {
 		controller.destroy();
 	});
 
+	it('performs all width reads before classList writes', () => {
+		const toolbar: HTMLElement = createToolbar();
+		Object.defineProperty(toolbar, 'clientWidth', { value: 100, configurable: true });
+
+		const { controller } = createController({ toolbar });
+
+		const items: ToolbarItem[] = [makeItem('a'), makeItem('b'), makeItem('c'), makeItem('d')];
+		const buttons = items.map((item) => {
+			const b = makeButton(item);
+			toolbar.appendChild(b.element);
+			return b;
+		});
+
+		// Track ordering of offsetWidth reads vs classList.add writes
+		const ops: string[] = [];
+		for (const b of buttons) {
+			const origDescriptor =
+				Object.getOwnPropertyDescriptor(b.element, 'offsetWidth') ??
+				Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+			Object.defineProperty(b.element, 'offsetWidth', {
+				get() {
+					ops.push('read');
+					return origDescriptor?.value ?? 32;
+				},
+				configurable: true,
+			});
+			const origAdd = b.element.classList.add.bind(b.element.classList);
+			b.element.classList.add = (...args: string[]) => {
+				if (args.includes('notectl-toolbar-btn--overflow-hidden')) {
+					ops.push('write');
+				}
+				origAdd(...args);
+			};
+		}
+
+		controller.update(buttons);
+
+		// All reads should come before all writes
+		const lastReadIndex: number = ops.lastIndexOf('read');
+		const firstWriteIndex: number = ops.indexOf('write');
+		if (firstWriteIndex !== -1) {
+			expect(lastReadIndex).toBeLessThan(firstWriteIndex);
+		}
+
+		controller.destroy();
+	});
+
 	it('cleans up on destroy', () => {
 		const toolbar: HTMLElement = createToolbar();
 		Object.defineProperty(toolbar, 'clientWidth', { value: 50, configurable: true });

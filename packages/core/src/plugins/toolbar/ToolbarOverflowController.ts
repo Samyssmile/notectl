@@ -93,13 +93,17 @@ export class ToolbarOverflowController {
 		this.ensureOverflowButton();
 		this.setOverflowButtonVisible(false);
 
+		// Phase 1 — Measure (reads only): batch all layout reads before any writes
 		const availableWidth: number = this.measureAvailableWidth();
+		const children: HTMLElement[] = Array.from(this.toolbar.children) as HTMLElement[];
+		const childWidths: Map<HTMLElement, number> = this.measureChildWidths(children);
+
+		// Phase 2 — Apply (writes only): use cached widths, no layout reads
 		const maxWidth: number = availableWidth - OVERFLOW_BTN_WIDTH - GAP;
 		let usedWidth = 0;
 		let overflowing = false;
 		const overflowList: OverflowEntry[] = [];
 
-		const children: HTMLElement[] = Array.from(this.toolbar.children) as HTMLElement[];
 		for (const child of children) {
 			if (child === this.overflowButton) continue;
 
@@ -108,7 +112,7 @@ export class ToolbarOverflowController {
 					child.classList.add(HIDDEN_SEP_CLASS);
 					continue;
 				}
-				const sepWidth: number = child.offsetWidth + GAP;
+				const sepWidth: number = (childWidths.get(child) ?? 0) + GAP;
 				if (usedWidth + sepWidth > maxWidth) {
 					overflowing = true;
 					child.classList.add(HIDDEN_SEP_CLASS);
@@ -127,7 +131,7 @@ export class ToolbarOverflowController {
 				continue;
 			}
 
-			const btnWidth: number = entry.element.offsetWidth + GAP;
+			const btnWidth: number = (childWidths.get(child) ?? 0) + GAP;
 			if (usedWidth + btnWidth > maxWidth) {
 				overflowing = true;
 				entry.element.classList.add(HIDDEN_BTN_CLASS);
@@ -186,6 +190,15 @@ export class ToolbarOverflowController {
 	}
 
 	// --- Measurement ---
+
+	private measureChildWidths(children: readonly HTMLElement[]): Map<HTMLElement, number> {
+		const widths: Map<HTMLElement, number> = new Map();
+		for (const child of children) {
+			if (child === this.overflowButton) continue;
+			widths.set(child, child.offsetWidth);
+		}
+		return widths;
+	}
 
 	private measureAvailableWidth(): number {
 		const toolbarStyle: CSSStyleDeclaration = getComputedStyle(this.toolbar);
