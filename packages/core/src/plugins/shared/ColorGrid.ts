@@ -106,12 +106,14 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 	grid.addEventListener('keydown', (e: KeyboardEvent) => {
 		if (e.key === 'Escape') {
 			e.preventDefault();
+			e.stopPropagation();
 			config.onClose();
 			return;
 		}
 
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
+			e.stopPropagation();
 			const target = e.target as HTMLElement;
 			const idx: string | undefined = target.dataset.index;
 			if (idx !== undefined) {
@@ -125,6 +127,7 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 
 		if (GRID_NAV_KEYS.has(e.key)) {
 			e.preventDefault();
+			e.stopPropagation();
 			const currentRow: number = Math.floor(focusedIndex / columns) + 1;
 			const currentCol: number = (focusedIndex % columns) + 1;
 
@@ -149,6 +152,7 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 
 		if (e.key === 'Home' || e.key === 'End') {
 			e.preventDefault();
+			e.stopPropagation();
 			const currentRow: number = Math.floor(focusedIndex / columns);
 			const rowStart: number = currentRow * columns;
 			const rowEnd: number = Math.min(rowStart + columns - 1, totalSwatches - 1);
