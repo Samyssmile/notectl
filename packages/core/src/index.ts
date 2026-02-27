@@ -194,6 +194,10 @@ export {
 	findWordBoundaryForward,
 	findWordBoundaryBackward,
 	canCrossBlockBoundary,
+	applyAttributedMark,
+	removeAttributedMark,
+	getMarkAttrAtSelection,
+	isAttributedMarkActive,
 } from './commands/Commands.js';
 
 // --- Movement Commands ---
