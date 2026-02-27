@@ -283,6 +283,8 @@ export class FontPlugin implements Plugin {
 
 		const list: HTMLDivElement = document.createElement('div');
 		list.className = 'notectl-font-picker__list';
+		list.setAttribute('role', 'listbox');
+		list.setAttribute('aria-label', this.locale.label);
 
 		for (const font of this.config.fonts) {
 			const isDefault: boolean = font.family === defaultFamily;
@@ -325,6 +327,8 @@ export class FontPlugin implements Plugin {
 		const item: HTMLButtonElement = document.createElement('button');
 		item.type = 'button';
 		item.className = 'notectl-font-picker__item';
+		item.setAttribute('role', 'option');
+		item.setAttribute('aria-selected', String(isActive));
 
 		if (isActive) {
 			item.classList.add('notectl-font-picker__item--active');

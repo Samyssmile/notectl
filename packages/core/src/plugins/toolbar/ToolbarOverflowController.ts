@@ -2,10 +2,13 @@
  * ToolbarOverflowController: manages responsive toolbar overflow.
  * Uses ResizeObserver to detect when items exceed available width,
  * hides overflow items, and shows a "more" dropdown button.
+ * Delegates popup lifecycle to PopupManager when available.
  */
 
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
+import { appendToRoot } from '../shared/PopupPositioning.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import { findNextDropdownItem } from './ToolbarKeyboardNav.js';
 
@@ -30,6 +33,7 @@ export interface OverflowControllerConfig {
 	readonly onOverflowChange: OnOverflowChange;
 	readonly onItemActivated: OnItemActivated;
 	readonly getActiveElement: () => Element | null;
+	readonly popupManager?: PopupManager;
 }
 
 // --- Constants ---
@@ -51,10 +55,12 @@ export class ToolbarOverflowController {
 	private readonly onItemActivated: OnItemActivated;
 	private readonly getActiveElement: () => Element | null;
 	private readonly ariaLabel: string;
+	private readonly popupManager: PopupManager | null;
 
 	private entries: OverflowEntry[] = [];
 	private overflowButton: HTMLButtonElement | null = null;
 	private overflowDropdown: HTMLElement | null = null;
+	private overflowHandle: PopupHandle | null = null;
 	private overflowEntries: OverflowEntry[] = [];
 	private resizeObserver: ResizeObserver | null = null;
 	private closeHandler: ((e: MouseEvent) => void) | null = null;
@@ -66,6 +72,7 @@ export class ToolbarOverflowController {
 		this.onOverflowChange = config.onOverflowChange;
 		this.onItemActivated = config.onItemActivated;
 		this.getActiveElement = config.getActiveElement;
+		this.popupManager = config.popupManager ?? null;
 
 		this.resizeObserver = new ResizeObserver(() => this.recalculate());
 		this.resizeObserver.observe(this.toolbar);
@@ -247,19 +254,43 @@ export class ToolbarOverflowController {
 		dropdown.setAttribute('role', 'menu');
 
 		this.renderDropdownItems(dropdown, this.context.getState());
-		this.positionDropdown(dropdown);
-		this.appendToRoot(dropdown);
 
-		this.overflowDropdown = dropdown;
-		this.overflowButton.setAttribute('aria-expanded', 'true');
+		if (this.popupManager) {
+			this.overflowHandle = this.popupManager.open({
+				anchor: this.overflowButton,
+				className: 'notectl-toolbar-popup notectl-dropdown',
+				ariaRole: 'menu',
+				position: 'below-end',
+				referenceNode: this.overflowButton,
+				restoreFocusTo: this.overflowButton,
+				onClose: () => {
+					this.overflowHandle = null;
+					this.overflowDropdown = null;
+					if (this.overflowButton) {
+						this.overflowButton.setAttribute('aria-expanded', 'false');
+					}
+				},
+				content: (popup: HTMLElement) => {
+					this.renderDropdownItems(popup, this.context.getState());
+					this.overflowDropdown = popup;
+					popup.addEventListener('keydown', (e: KeyboardEvent) => this.handleDropdownKeydown(e));
+				},
+			});
+			this.overflowButton.setAttribute('aria-expanded', 'true');
+		} else {
+			this.positionDropdown(dropdown);
+			appendToRoot(dropdown, this.overflowButton);
+			this.overflowDropdown = dropdown;
+			this.overflowButton.setAttribute('aria-expanded', 'true');
 
-		requestAnimationFrame(() => {
-			const first: HTMLElement | null = dropdown.querySelector('[role="menuitem"]');
-			first?.focus();
-		});
+			requestAnimationFrame(() => {
+				const first: HTMLElement | null = dropdown.querySelector('[role="menuitem"]');
+				first?.focus();
+			});
 
-		dropdown.addEventListener('keydown', (e: KeyboardEvent) => this.handleDropdownKeydown(e));
-		this.registerCloseHandler();
+			dropdown.addEventListener('keydown', (e: KeyboardEvent) => this.handleDropdownKeydown(e));
+			this.registerCloseHandler();
+		}
 	}
 
 	private renderDropdownItems(dropdown: HTMLElement, state: EditorState): void {
@@ -319,17 +350,6 @@ export class ToolbarOverflowController {
 		dropdown.style.zIndex = '10000';
 	}
 
-	private appendToRoot(element: HTMLElement): void {
-		if (!this.overflowButton) return;
-
-		const root: Node = this.overflowButton.getRootNode();
-		if (root instanceof ShadowRoot) {
-			root.appendChild(element);
-		} else {
-			document.body.appendChild(element);
-		}
-	}
-
 	private registerCloseHandler(): void {
 		this.closeHandler = (ev: MouseEvent) => {
 			const path: EventTarget[] = ev.composedPath();
@@ -350,6 +370,17 @@ export class ToolbarOverflowController {
 	}
 
 	private closeDropdown(): void {
+		if (this.overflowHandle) {
+			const handle: PopupHandle = this.overflowHandle;
+			this.overflowHandle = null;
+			this.overflowDropdown = null;
+			handle.close();
+			if (this.overflowButton) {
+				this.overflowButton.setAttribute('aria-expanded', 'false');
+			}
+			return;
+		}
+
 		if (this.overflowDropdown) {
 			this.overflowDropdown.remove();
 			this.overflowDropdown = null;
