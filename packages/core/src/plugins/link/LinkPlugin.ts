@@ -4,16 +4,15 @@
  * with a URL input popup.
  */
 
-import { forEachBlockInRange } from '../../commands/RangeIterator.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
-import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
 import {
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-	selectionRange,
-} from '../../model/Selection.js';
+	applyAttributedMark,
+	isAttributedMarkActive,
+	removeAttributedMark,
+} from '../../commands/AttributedMarkCommands.js';
+import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { hasMark } from '../../model/Document.js';
+import { escapeHTML } from '../../model/HTMLUtils.js';
+import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -150,20 +149,7 @@ export class LinkPlugin implements Plugin {
 	}
 
 	private isLinkActive(state: EditorState): boolean {
-		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-		if (isCollapsed(sel)) {
-			const block = state.getBlock(sel.anchor.blockId);
-			if (!block) return false;
-			const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-			return hasMark(marks, markType('link'));
-		}
-
-		// Check if link is active anywhere in selection
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		return hasMark(marks, markType('link'));
+		return isAttributedMarkActive(state, 'link');
 	}
 
 	private toggleLink(context: PluginContext, state: EditorState): boolean {
@@ -179,37 +165,23 @@ export class LinkPlugin implements Plugin {
 		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 		if (isCollapsed(sel)) return false;
 
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
 		const mark = { type: markType('link'), attrs: { href } };
+		const tr = applyAttributedMark(state, mark);
+		if (!tr) return false;
 
-		forEachBlockInRange(state, range, (blockId, from, to) => {
-			builder.addMark(blockId, from, to, mark);
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
+		context.dispatch(tr);
 		return true;
 	}
 
 	private removeLink(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
 		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
-		const blockOrder = state.getBlockOrder();
-		const range = isCollapsed(sel)
-			? { from: sel.anchor, to: sel.anchor }
-			: selectionRange(sel, blockOrder);
-
-		const builder = state.transaction('command');
 
 		if (isCollapsed(sel)) {
-			// Remove link from entire link span around cursor
+			// Remove link from entire link span around cursor (plugin-specific extent scan)
 			const block = state.getBlock(sel.anchor.blockId);
 			if (!block) return false;
 
-			// Find the extent of the link mark around the cursor.
-			// Build a list of text children with their positions first,
-			// then scan backward and forward from the cursor node.
 			const textChildren: { pos: number; end: number; hasLink: boolean }[] = [];
 			let pos = 0;
 			for (const child of block.children) {
@@ -219,20 +191,17 @@ export class LinkPlugin implements Plugin {
 				pos = end;
 			}
 
-			// Find the text child containing the cursor
 			const cursorIdx = textChildren.findIndex(
 				(c) => sel.anchor.offset >= c.pos && sel.anchor.offset <= c.end,
 			);
 			const cursorEntry = cursorIdx >= 0 ? textChildren[cursorIdx] : undefined;
 			if (cursorIdx === -1 || !cursorEntry?.hasLink) return false;
 
-			// Scan backward from cursor node to find link start
 			let startIdx = cursorIdx;
 			while (startIdx > 0 && textChildren[startIdx - 1]?.hasLink) {
 				startIdx--;
 			}
 
-			// Scan forward from cursor node to find link end
 			let endIdx = cursorIdx;
 			while (endIdx < textChildren.length - 1 && textChildren[endIdx + 1]?.hasLink) {
 				endIdx++;
@@ -245,16 +214,17 @@ export class LinkPlugin implements Plugin {
 			const linkStart = startEntry.pos;
 			const linkEnd = endEntry.end;
 
+			const builder = state.transaction('command');
 			builder.removeMark(sel.anchor.blockId, linkStart, linkEnd, { type: markType('link') });
-		} else {
-			// Remove link from selection range
-			forEachBlockInRange(state, range, (blockId, from, to) => {
-				builder.removeMark(blockId, from, to, { type: markType('link') });
-			});
+			builder.setSelection(sel);
+			context.dispatch(builder.build());
+			return true;
 		}
 
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
+		// Range selection: delegate to shared helper
+		const tr = removeAttributedMark(state, markType('link'));
+		if (!tr) return false;
+		context.dispatch(tr);
 		return true;
 	}
 
