@@ -3,6 +3,7 @@ import { getBlockMarksAtOffset } from '../model/Document.js';
 import type { Mark } from '../model/Document.js';
 import { markType } from '../model/TypeBrands.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
+import { HistoryManager } from '../state/History.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import {
 	applyAttributedMark,
@@ -133,6 +134,35 @@ describe('applyAttributedMark', () => {
 			.build();
 
 		expect(applyAttributedMark(state, colorMark('#ff0000'))).toBeNull();
+	});
+
+	it('undo fully removes attributed mark when no prior mark existed', () => {
+		const linkType: MarkTypeName = markType('link');
+		const linkMark: Mark = { type: linkType, attrs: { href: 'https://example.com' } };
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+			.schema(['paragraph'], ['link'])
+			.build();
+
+		const tr = applyAttributedMark(state, linkMark);
+		if (!tr) return expect(tr).not.toBeNull();
+
+		const afterApply = state.apply(tr);
+		const block = afterApply.getBlock(afterApply.selection.anchor.blockId);
+		if (!block) return expect(block).toBeDefined();
+		expect(getBlockMarksAtOffset(block, 2)).toContainEqual(linkMark);
+
+		const history = new HistoryManager();
+		history.push(tr);
+		const undoResult = history.undo(afterApply);
+		if (!undoResult) return expect(undoResult).not.toBeNull();
+
+		const afterUndo = undoResult.state;
+		const undoneBlock = afterUndo.getBlock(afterUndo.selection.anchor.blockId);
+		if (!undoneBlock) return expect(undoneBlock).toBeDefined();
+		const marks: readonly Mark[] = getBlockMarksAtOffset(undoneBlock, 2);
+		expect(marks.some((m) => m.type === 'link')).toBe(false);
 	});
 
 	it('uses stored marks when present at collapsed cursor', () => {

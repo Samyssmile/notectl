@@ -12,8 +12,14 @@
 
 import { isMarkOfType } from '../model/AttrRegistry.js';
 import type { MarkAttrRegistry } from '../model/AttrRegistry.js';
-import type { Mark } from '../model/Document.js';
-import { getBlockMarksAtOffset, hasMark } from '../model/Document.js';
+import type { BlockNode, Mark, TextNode } from '../model/Document.js';
+import {
+	getBlockMarksAtOffset,
+	getInlineChildren,
+	hasMark,
+	isTextNode,
+} from '../model/Document.js';
+import type { InlineNode } from '../model/Document.js';
 import { isCollapsed, isGapCursor, isNodeSelection, selectionRange } from '../model/Selection.js';
 import { markType } from '../model/TypeBrands.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
@@ -56,7 +62,13 @@ export function applyAttributedMark(state: EditorState, mark: Mark): Transaction
 	const builder = state.transaction('command');
 
 	forEachBlockInRange(state, range, (blockId, from, to) => {
-		builder.removeMark(blockId, from, to, { type: typeName });
+		const block: BlockNode | undefined = state.getBlock(blockId);
+		if (block) {
+			const existing: Mark | undefined = findMarkInRange(block, typeName, from, to);
+			if (existing) {
+				builder.removeMark(blockId, from, to, existing);
+			}
+		}
 		builder.addMark(blockId, from, to, mark);
 	});
 
@@ -100,7 +112,11 @@ export function removeAttributedMark(
 	const builder = state.transaction('command');
 
 	forEachBlockInRange(state, range, (blockId, from, to) => {
-		builder.removeMark(blockId, from, to, { type: markTypeName });
+		const block: BlockNode | undefined = state.getBlock(blockId);
+		const existing: Mark | undefined = block
+			? findMarkInRange(block, markTypeName, from, to)
+			: undefined;
+		builder.removeMark(blockId, from, to, existing ?? { type: markTypeName });
 	});
 
 	builder.setSelection(sel);
@@ -145,4 +161,34 @@ export function isAttributedMarkActive<K extends keyof MarkAttrRegistry>(
 	markTypeName: K,
 ): boolean {
 	return getMarkAttrAtSelection(state, markTypeName, () => true as const) !== null;
+}
+
+/**
+ * Finds the first mark of the given type within an offset range of a block.
+ *
+ * Returns the full mark (including attrs) so callers can pass it to
+ * `removeMark` for correct undo inversion, or `undefined` when absent.
+ */
+function findMarkInRange(
+	block: BlockNode,
+	typeName: MarkTypeName,
+	from: number,
+	to: number,
+): Mark | undefined {
+	const children: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
+	let pos = 0;
+
+	for (const child of children) {
+		if (!isTextNode(child)) {
+			pos += 1;
+			continue;
+		}
+		const nodeEnd: number = pos + child.text.length;
+		if (nodeEnd > from && pos < to) {
+			const found: Mark | undefined = child.marks.find((m) => m.type === typeName);
+			if (found) return found;
+		}
+		pos = nodeEnd;
+	}
+	return undefined;
 }
