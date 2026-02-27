@@ -90,7 +90,7 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 		await page.keyboard.type('> ', { delay: 10 });
 		await page.keyboard.type('Quote text', { delay: 10 });
 
-		// Verify via JSON (getHTML() doesn't serialize blockquote)
+		// Verify via JSON (getContentHTML() doesn't serialize blockquote)
 		const json = await editor.getJSON();
 		expect(json.children[0]?.type).toBe('blockquote');
 

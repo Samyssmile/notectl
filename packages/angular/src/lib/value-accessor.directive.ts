@@ -108,11 +108,11 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 			if (this.format === 'json' && typeof value === 'object') {
 				this.editor.setJSON(value as Document);
 			} else if (this.format === 'html' && typeof value === 'string') {
-				this.editor.setHTML(value);
+				this.editor.setContentHTML(value);
 			} else if (this.format === 'text' && typeof value === 'string') {
-				this.editor.setHTML(`<p>${escapeHtml(value)}</p>`);
+				this.editor.setContentHTML(`<p>${escapeHtml(value)}</p>`);
 			} else if (typeof value === 'string') {
-				this.editor.setHTML(value);
+				this.editor.setContentHTML(value);
 			} else {
 				this.editor.setJSON(value as Document);
 			}
@@ -125,7 +125,7 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 		try {
 			switch (this.format) {
 				case 'html':
-					return this.editor.getHTML();
+					return this.editor.getContentHTML();
 				case 'text':
 					return this.editor.getText();
 				default:

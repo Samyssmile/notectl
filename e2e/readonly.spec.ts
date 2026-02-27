@@ -77,7 +77,7 @@ test.describe('Readonly Mode', () => {
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
 		// Text should be bold now
-		const htmlBefore: string = await editor.getHTML();
+		const htmlBefore: string = await editor.getContentHTML();
 		expect(htmlBefore).toContain('<strong>');
 
 		await editor.configure({ readonly: true });
@@ -87,7 +87,7 @@ test.describe('Readonly Mode', () => {
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
 
-		const htmlAfter: string = await editor.getHTML();
+		const htmlAfter: string = await editor.getContentHTML();
 		// Bold should still be present
 		expect(htmlAfter).toContain('<strong>');
 	});

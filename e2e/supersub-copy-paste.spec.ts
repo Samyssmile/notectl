@@ -20,7 +20,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await editor.focus();
 		await editor.pasteHTML('<p>x<sup>2</sup></p>');
 
-		const html: string = await editor.getHTML();
+		const html: string = await editor.getContentHTML();
 		expect(html).toContain('<sup>');
 		expect(html).toContain('2');
 	});
@@ -29,7 +29,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await editor.focus();
 		await editor.pasteHTML('<p>H<sub>2</sub>O</p>');
 
-		const html: string = await editor.getHTML();
+		const html: string = await editor.getContentHTML();
 		expect(html).toContain('<sub>');
 		expect(html).toContain('2');
 	});
@@ -50,7 +50,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await page.keyboard.press('Enter');
 		await page.keyboard.press('Control+v');
 
-		const html: string = await editor.getHTML();
+		const html: string = await editor.getContentHTML();
 		// Should have <sup> in both the original and pasted content
 		const supCount: number = (html.match(/<sup>/g) ?? []).length;
 		expect(supCount).toBeGreaterThanOrEqual(2);
@@ -73,7 +73,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await page.keyboard.press('Enter');
 		await page.keyboard.press('Control+v');
 
-		const html: string = await editor.getHTML();
+		const html: string = await editor.getContentHTML();
 		const subCount: number = (html.match(/<sub>/g) ?? []).length;
 		expect(subCount).toBeGreaterThanOrEqual(2);
 	});
@@ -96,7 +96,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await page.waitForTimeout(100);
 		await editor.pasteHTML('<p>x<sup>2</sup></p>');
 
-		// Check DOM directly since getHTML() doesn't include table cell content
+		// Check DOM directly since getContentHTML() doesn't include table cell content
 		const supInCell = page.locator('notectl-editor td sup');
 		await expect(supInCell).toHaveCount(1);
 		await expect(supInCell).toHaveText('2');
@@ -120,7 +120,7 @@ test.describe('Superscript/Subscript copy & paste', () => {
 		await page.waitForTimeout(100);
 		await editor.pasteHTML('<p>H<sub>2</sub>O</p>');
 
-		// Check DOM directly since getHTML() doesn't include table cell content
+		// Check DOM directly since getContentHTML() doesn't include table cell content
 		const subInCell = page.locator('notectl-editor td sub');
 		await expect(subInCell).toHaveCount(1);
 		await expect(subInCell).toHaveText('2');

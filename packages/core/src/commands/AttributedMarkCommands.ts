@@ -19,7 +19,7 @@ import { markType } from '../model/TypeBrands.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { forEachBlockInRange } from './Commands.js';
+import { forEachBlockInRange } from './RangeIterator.js';
 
 /**
  * Applies an attributed mark to the current selection.

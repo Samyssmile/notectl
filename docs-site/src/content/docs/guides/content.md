@@ -45,14 +45,14 @@ Returns a `Document` object:
 Sanitized HTML output suitable for rendering or storage:
 
 ```ts
-const html = editor.getHTML();
+const html = editor.getContentHTML();
 // "<h1>Hello <strong>World</strong></h1><p>Some text here.</p>"
 ```
 
 For indented, human-readable output pass the `pretty` option:
 
 ```ts
-const pretty = editor.getHTML({ pretty: true });
+const pretty = editor.getContentHTML({ pretty: true });
 ```
 
 The HTML is sanitized with DOMPurify. Only safe tags and attributes are included:
@@ -74,7 +74,7 @@ const text = editor.getText();
 ### From HTML
 
 ```ts
-editor.setHTML('<h1>Welcome</h1><p>Start editing...</p>');
+editor.setContentHTML('<h1>Welcome</h1><p>Start editing...</p>');
 ```
 
 The HTML is parsed into the document model. Supported elements:
@@ -130,7 +130,7 @@ The editor is considered empty when it contains a single empty paragraph.
 ```ts
 editor.on('stateChange', ({ oldState, newState, transaction }) => {
   // Called on every state change
-  const html = editor.getHTML();
+  const html = editor.getContentHTML();
   saveToBackend(html);
 });
 ```

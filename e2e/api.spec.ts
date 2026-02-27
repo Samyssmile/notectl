@@ -28,34 +28,34 @@ test.describe('API', () => {
 		expect(json.children[0].children[0].marks).toContainEqual({ type: 'bold' });
 	});
 
-	test('getHTML returns HTML string', async ({ editor }) => {
+	test('getContentHTML returns HTML string', async ({ editor }) => {
 		await editor.typeText('Hello');
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<p>');
 		expect(html).toContain('Hello');
 	});
 
-	test('getHTML includes formatting tags', async ({ editor, page }) => {
+	test('getContentHTML includes formatting tags', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.press('Control+b');
 		await page.keyboard.type('bold', { delay: 10 });
 		await page.keyboard.press('Control+b');
 		await page.keyboard.type(' normal', { delay: 10 });
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('bold');
 		expect(html).toContain('normal');
 	});
 
-	test('setHTML parses HTML into document', async ({ editor }) => {
-		await editor.setHTML('<p><strong>Bold</strong> and <em>italic</em></p>');
+	test('setContentHTML parses HTML into document', async ({ editor }) => {
+		await editor.setContentHTML('<p><strong>Bold</strong> and <em>italic</em></p>');
 
 		const text = await editor.getText();
 		expect(text).toContain('Bold');
 		expect(text).toContain('italic');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('<em>');
 	});
@@ -83,7 +83,7 @@ test.describe('API', () => {
 		await page.keyboard.press('Control+a');
 		await page.click('#btn-toggle-bold');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 	});
 

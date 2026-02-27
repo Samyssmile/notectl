@@ -14,7 +14,7 @@ test.describe('Highlight', () => {
 		const swatch = picker.locator('.notectl-color-picker__swatch').first();
 		await swatch.click();
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('background-color');
 	});
 
@@ -30,7 +30,7 @@ test.describe('Highlight', () => {
 		const swatch = picker.locator('.notectl-color-picker__swatch').first();
 		await swatch.click();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('background-color');
 
 		// Refocus editor, reselect, then open picker again
@@ -44,7 +44,7 @@ test.describe('Highlight', () => {
 		const noneBtn = picker2.locator('.notectl-color-picker__default');
 		await noneBtn.click();
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('background-color');
 	});
 
@@ -83,7 +83,7 @@ test.describe('Highlight', () => {
 		const swatch = picker.locator('.notectl-color-picker__swatch').first();
 		await swatch.click();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('background-color');
 
 		// Refocus editor before undo — multiple undos needed as highlight
@@ -93,7 +93,7 @@ test.describe('Highlight', () => {
 			await page.keyboard.press('Control+z');
 		}
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('background-color');
 	});
 });

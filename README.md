@@ -136,8 +136,8 @@ See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/over
 Read and write content in any format:
 
 ```ts
-editor.getHTML();                                        // export as HTML
-editor.setHTML('<p>Hello <strong>world</strong></p>');    // import HTML
+editor.getContentHTML();                                        // export as HTML
+editor.setContentHTML('<p>Hello <strong>world</strong></p>');    // import HTML
 editor.getJSON();                                        // structured JSON
 editor.getText();                                        // plain text
 editor.isEmpty();                                        // check if empty

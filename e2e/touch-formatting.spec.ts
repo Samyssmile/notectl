@@ -16,7 +16,7 @@ test.describe('Touch formatting', () => {
 		await editor.selectRange(0, 0, 7);
 		await editor.tapMarkButton('bold');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('Bold me');
 	});
@@ -28,7 +28,7 @@ test.describe('Touch formatting', () => {
 		await editor.selectRange(0, 0, 9);
 		await editor.tapMarkButton('italic');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<em>');
 		expect(html).toContain('Italic me');
 	});
@@ -41,7 +41,7 @@ test.describe('Touch formatting', () => {
 		await editor.selectRange(0, 6, 11);
 		await editor.tapMarkButton('bold');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		// The full text is preserved
 		const text = await editor.getText();

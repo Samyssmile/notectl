@@ -38,11 +38,11 @@ test.describe('History', () => {
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 
 		await page.keyboard.press('Control+z');
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('<strong>');
 	});
 

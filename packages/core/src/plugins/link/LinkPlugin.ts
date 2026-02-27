@@ -4,7 +4,7 @@
  * with a URL input popup.
  */
 
-import { forEachBlockInRange } from '../../commands/Commands.js';
+import { forEachBlockInRange } from '../../commands/RangeIterator.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { getBlockMarksAtOffset, hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';

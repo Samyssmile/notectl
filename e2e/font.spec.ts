@@ -35,7 +35,7 @@ test.describe('FontPlugin', () => {
 		const popup = editor.root.locator('.notectl-font-picker');
 		await popup.locator(FONT_ITEM).nth(1).click();
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('font-family');
 	});
 
@@ -50,7 +50,7 @@ test.describe('FontPlugin', () => {
 		const popup = editor.root.locator('.notectl-font-picker');
 		await popup.locator(FONT_ITEM).nth(1).click();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('font-family');
 
 		// Select the default font (Fira Sans) to remove the mark
@@ -59,7 +59,7 @@ test.describe('FontPlugin', () => {
 		const popup2 = editor.root.locator('.notectl-font-picker');
 		await popup2.locator(FONT_ITEM).first().click();
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('font-family');
 	});
 
@@ -107,7 +107,7 @@ test.describe('FontPlugin', () => {
 		await popup.locator(FONT_ITEM).nth(1).click();
 		await expect(popup).not.toBeVisible();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('font-family');
 
 		// Refocus editor before undo — popup interaction moves focus away.
@@ -117,7 +117,7 @@ test.describe('FontPlugin', () => {
 			await page.keyboard.press('Control+z');
 		}
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('font-family');
 	});
 
@@ -131,7 +131,7 @@ test.describe('FontPlugin', () => {
 		const popup = editor.root.locator('.notectl-font-picker');
 		await popup.locator(FONT_ITEM).nth(1).click();
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('font-family');
 	});
@@ -147,7 +147,7 @@ test.describe('FontPlugin', () => {
 		const popup = editor.root.locator('.notectl-font-picker');
 		await popup.locator(FONT_ITEM).nth(1).click();
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		const fontFamilyCount = (html.match(/font-family/g) || []).length;
 		expect(fontFamilyCount).toBeGreaterThanOrEqual(2);
 	});

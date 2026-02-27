@@ -2,7 +2,10 @@ import { expect, test } from './fixtures/editor-page';
 import { type JsonChild, getCellContents, insertTable } from './fixtures/table-utils';
 
 test.describe('Table HTML serialization', () => {
-	test('getHTML includes table markup when document contains a table', async ({ editor, page }) => {
+	test('getContentHTML includes table markup when document contains a table', async ({
+		editor,
+		page,
+	}) => {
 		// Arrange: type text, then insert a table below
 		await editor.typeText('Hello World');
 		await page.keyboard.press('Enter');
@@ -13,7 +16,7 @@ test.describe('Table HTML serialization', () => {
 
 		// Act: get both JSON and HTML representations
 		const json = await editor.getJSON();
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 
 		// Assert: JSON contains the table with cell content
 		const table: JsonChild | undefined = (json.children as JsonChild[]).find(
@@ -39,28 +42,31 @@ test.describe('Table HTML serialization', () => {
 		expect(html).toContain('AB');
 	});
 
-	test('getHTML preserves text before and after a table', async ({ editor, page }) => {
+	test('getContentHTML preserves text before and after a table', async ({ editor, page }) => {
 		// Arrange: paragraph, then table
 		await editor.typeText('Before table');
 		await page.keyboard.press('Enter');
 		await insertTable(page);
 
 		// Act
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 
 		// Assert: both paragraph text and table markup should be present
 		expect(html).toContain('Before table');
 		expect(html).toContain('<table');
 	});
 
-	test('getHTML produces standalone table with borders and padding', async ({ editor, page }) => {
+	test('getContentHTML produces standalone table with borders and padding', async ({
+		editor,
+		page,
+	}) => {
 		// Arrange: insert a table and type into the first cell
 		await editor.focus();
 		await insertTable(page);
 		await page.keyboard.type('Cell content', { delay: 10 });
 
 		// Act
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 
 		// Assert: table has layout styles, cells have border + padding
 		expect(html).toContain('border-collapse: collapse');
@@ -71,7 +77,7 @@ test.describe('Table HTML serialization', () => {
 		expect(html).toContain('Cell content');
 	});
 
-	test('getHTML includes custom border color from table attrs', async ({ editor, page }) => {
+	test('getContentHTML includes custom border color from table attrs', async ({ editor, page }) => {
 		// Arrange: insert a table, then set border color via JSON round-trip
 		await editor.focus();
 		await insertTable(page);
@@ -93,14 +99,17 @@ test.describe('Table HTML serialization', () => {
 		expect(applied).toBe(true);
 
 		// Act
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 
 		// Assert: table sets the custom property, cells reference it with fallback
 		expect(html).toContain('--ntbl-bc: #e69138');
 		expect(html).toContain('var(--ntbl-bc');
 	});
 
-	test('getHTML renders borderless table with transparent borders', async ({ editor, page }) => {
+	test('getContentHTML renders borderless table with transparent borders', async ({
+		editor,
+		page,
+	}) => {
 		// Arrange: insert a table with borderColor='none'
 		await editor.focus();
 		await insertTable(page);
@@ -122,7 +131,7 @@ test.describe('Table HTML serialization', () => {
 		expect(applied).toBe(true);
 
 		// Act
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 
 		// Assert: borderless mode sets transparent
 		expect(html).toContain('--ntbl-bc: transparent');

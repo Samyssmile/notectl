@@ -93,19 +93,19 @@ Returns the document as a JSON-serializable `Document` object.
 
 Replaces the editor content with the given document.
 
-### `getHTML(options?: { pretty?: boolean }): string`
+### `getContentHTML(options?: { pretty?: boolean }): string`
 
 Returns sanitized HTML representation. Pass `{ pretty: true }` to get indented, human-readable output:
 
 ```ts
-const html = editor.getHTML();
+const html = editor.getContentHTML();
 // "<h1>Hello</h1><p>World</p>"
 
-const pretty = editor.getHTML({ pretty: true });
+const pretty = editor.getContentHTML({ pretty: true });
 // "<h1>Hello</h1>\n<p>World</p>"
 ```
 
-### `setHTML(html: string): void`
+### `setContentHTML(html: string): void`
 
 Parses HTML and sets it as the editor content.
 

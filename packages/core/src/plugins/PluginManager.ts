@@ -239,6 +239,14 @@ export class PluginManager {
 		next(tr);
 	}
 
+	/** Returns whether a named command can be executed (registered and not blocked by readonly). */
+	canExecuteCommand(name: string): boolean {
+		const entry = this.commands.get(name);
+		if (!entry) return false;
+		if (this.readOnly && !entry.readonlyAllowed) return false;
+		return true;
+	}
+
 	/** Executes a named command. Returns false if command not found or editor is read-only. */
 	executeCommand(name: string): boolean {
 		const entry = this.commands.get(name);

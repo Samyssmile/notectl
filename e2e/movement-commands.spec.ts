@@ -91,7 +91,7 @@ test.describe('Movement Commands', () => {
 		});
 
 		test('Ctrl+Home when first block is void selects it', async ({ editor, page }) => {
-			await editor.setHTML('<hr><p>After</p>');
+			await editor.setContentHTML('<hr><p>After</p>');
 			await page.waitForTimeout(200);
 
 			// Focus the text block
@@ -121,7 +121,7 @@ test.describe('Movement Commands', () => {
 		});
 
 		test('Ctrl+End when last block is void selects it', async ({ editor, page }) => {
-			await editor.setHTML('<p>Before</p><hr>');
+			await editor.setContentHTML('<p>Before</p><hr>');
 			await page.waitForTimeout(200);
 
 			// Focus the text block

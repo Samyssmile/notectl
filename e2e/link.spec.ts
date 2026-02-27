@@ -15,7 +15,7 @@ test.describe('Link', () => {
 		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
 		await applyBtn.click();
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<a');
 		expect(html).toContain('href="https://example.com"');
 	});
@@ -33,7 +33,7 @@ test.describe('Link', () => {
 		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
 		await applyBtn.click();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('<a');
 
 		// Re-select the linked text so the link button is enabled
@@ -47,7 +47,7 @@ test.describe('Link', () => {
 		await removeBtn.waitFor({ state: 'visible' });
 		await removeBtn.click();
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('<a');
 	});
 
@@ -70,12 +70,12 @@ test.describe('Link', () => {
 		const applyBtn = page.locator('notectl-editor button[aria-label="Apply link"]');
 		await applyBtn.click();
 
-		let html = await editor.getHTML();
+		let html = await editor.getContentHTML();
 		expect(html).toContain('<a');
 
 		await page.keyboard.press('Control+z');
 
-		html = await editor.getHTML();
+		html = await editor.getContentHTML();
 		expect(html).not.toContain('<a');
 	});
 });

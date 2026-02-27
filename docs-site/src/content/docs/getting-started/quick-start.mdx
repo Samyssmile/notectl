@@ -158,7 +158,7 @@ notectl provides multiple output formats:
 const json = editor.getJSON();
 
 // Get sanitized HTML
-const html = editor.getHTML();
+const html = editor.getContentHTML();
 
 // Get plain text
 const text = editor.getText();
@@ -171,7 +171,7 @@ const empty = editor.isEmpty();
 
 ```ts
 // Set content from HTML
-editor.setHTML('<h1>Hello</h1><p>Welcome to <strong>notectl</strong>!</p>');
+editor.setContentHTML('<h1>Hello</h1><p>Welcome to <strong>notectl</strong>!</p>');
 
 // Set content from JSON (Document model)
 editor.setJSON({

@@ -180,13 +180,13 @@ export class NotectlEditorComponent {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	getHTML(): string {
-		return this.requireEditor().getHTML();
+	getContentHTML(): string {
+		return this.requireEditor().getContentHTML();
 	}
 
 	/** Sets content from HTML (sanitized). */
-	setHTML(html: string): void {
-		this.requireEditor().setHTML(html);
+	setContentHTML(html: string): void {
+		this.requireEditor().setContentHTML(html);
 	}
 
 	/** Returns plain text content. */

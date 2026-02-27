@@ -13,7 +13,7 @@ for (const mark of MARK_CONFIGS) {
 			await page.keyboard.press('Control+a');
 			await page.keyboard.press(mark.shortcut);
 
-			const html = await editor.getHTML();
+			const html = await editor.getContentHTML();
 			expect(html).toContain(mark.htmlTag);
 		});
 
@@ -23,7 +23,7 @@ for (const mark of MARK_CONFIGS) {
 			await page.keyboard.press(mark.shortcut);
 			await page.keyboard.press(mark.shortcut);
 
-			const html = await editor.getHTML();
+			const html = await editor.getContentHTML();
 			expect(html).not.toContain(mark.htmlTag);
 		});
 
@@ -32,7 +32,7 @@ for (const mark of MARK_CONFIGS) {
 			await page.keyboard.press(mark.shortcut);
 			await page.keyboard.type(`${mark.name} text`, { delay: 10 });
 
-			const html = await editor.getHTML();
+			const html = await editor.getContentHTML();
 			expect(html).toContain(mark.htmlTag);
 		});
 
@@ -42,7 +42,7 @@ for (const mark of MARK_CONFIGS) {
 
 			await editor.markButton(mark.markType).click();
 
-			const html = await editor.getHTML();
+			const html = await editor.getContentHTML();
 			expect(html).toContain(mark.htmlTag);
 		});
 	});
@@ -63,7 +63,7 @@ test.describe('Bold — specific', () => {
 		await page.waitForTimeout(100);
 		await page.keyboard.press('Control+b');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('H');
 		expect(html).toContain('o');
@@ -76,7 +76,7 @@ test.describe('Bold — specific', () => {
 		await page.keyboard.press('Control+a');
 		await page.keyboard.press('Control+b');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		const strongCount = (html.match(/<strong>/g) || []).length;
 		expect(strongCount).toBeGreaterThanOrEqual(2);
 	});
@@ -91,7 +91,7 @@ test.describe('Combined Marks', () => {
 		await page.keyboard.press('Control+b');
 		await page.keyboard.press('Control+i');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('<em>');
 	});
@@ -103,7 +103,7 @@ test.describe('Combined Marks', () => {
 		await page.keyboard.press('Control+i');
 		await page.keyboard.press('Control+u');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('<em>');
 		expect(html).toContain('<u>');
@@ -113,13 +113,13 @@ test.describe('Combined Marks', () => {
 		await editor.typeText('ABCD');
 		await editor.selectRange(0, 0, 3);
 		await page.keyboard.press('Control+b');
-		await expect.poll(() => editor.getHTML()).toContain('<strong>');
+		await expect.poll(() => editor.getContentHTML()).toContain('<strong>');
 
 		await editor.selectRange(0, 1, 4);
 		await page.keyboard.press('Control+i');
-		await expect.poll(() => editor.getHTML()).toContain('<em>');
+		await expect.poll(() => editor.getContentHTML()).toContain('<em>');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
 		expect(html).toContain('<em>');
 		const text = await editor.getText();
@@ -134,7 +134,7 @@ test.describe('Combined Marks', () => {
 
 		await page.keyboard.press('Control+b');
 
-		const html = await editor.getHTML();
+		const html = await editor.getContentHTML();
 		expect(html).not.toContain('<strong>');
 		expect(html).toContain('<em>');
 	});
