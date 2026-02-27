@@ -19,12 +19,12 @@ import {
 	isCollapsed,
 	isGapCursor,
 	isNodeSelection,
-	selectionRange,
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
+import { resolveInsertPoint } from './CommandHelpers.js';
 import { addDeleteSelectionSteps } from './Commands.js';
 
 /**
@@ -61,14 +61,14 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
-	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
-
 	if (!isCollapsed(sel)) {
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const insertBlockId = range ? range.from.blockId : sel.anchor.blockId;
-	const insertOffset: number = range ? range.from.offset : sel.anchor.offset;
+	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
+		sel,
+		state.getBlockOrder(),
+	);
 	const totalLength: number = segmentsLength(segments);
 	const text: string = segmentsToText(segments);
 
@@ -89,14 +89,14 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
-	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
-
 	if (!isCollapsed(sel)) {
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const insertBlockId = range ? range.from.blockId : sel.anchor.blockId;
-	const insertOffset: number = range ? range.from.offset : sel.anchor.offset;
+	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
+		sel,
+		state.getBlockOrder(),
+	);
 	const totalLength: number = segmentsLength(block.segments);
 	const text: string = segmentsToText(block.segments);
 
@@ -118,15 +118,12 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
-	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
-
 	if (!isCollapsed(sel)) {
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const blockId = range ? range.from.blockId : sel.anchor.blockId;
-	const offset: number = range ? range.from.offset : sel.anchor.offset;
 	const blockOrder = state.getBlockOrder();
+	const { blockId, offset } = resolveInsertPoint(sel, blockOrder);
 	const blockIdx: number = blockOrder.indexOf(blockId);
 
 	const firstSlice: SliceBlock | undefined = slice.blocks[0];

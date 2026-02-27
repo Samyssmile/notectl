@@ -20,10 +20,7 @@ interface DeleteConfig {
 	readonly range: (block: BlockNode, offset: number) => readonly [number, number] | null;
 }
 
-function deleteInDirection(
-	state: EditorState,
-	config: DeleteConfig,
-): Transaction | null {
+function deleteInDirection(state: EditorState, config: DeleteConfig): Transaction | null {
 	const sel = state.selection;
 
 	if (isNodeSelection(sel)) return deleteNodeSelection(state, sel);

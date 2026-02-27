@@ -3,14 +3,7 @@
  * after void blocks, and navigating arrow keys into/out of void blocks.
  */
 
-import {
-	type BlockNode,
-	createBlockNode,
-	createTextNode,
-	generateBlockId,
-	getBlockLength,
-	isBlockNode,
-} from '../model/Document.js';
+import { type BlockNode, generateBlockId, getBlockLength, isBlockNode } from '../model/Document.js';
 import { isVoidBlock } from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { NodeSelection } from '../model/Selection.js';
@@ -22,9 +15,10 @@ import {
 	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
-import { type BlockId, nodeType } from '../model/TypeBrands.js';
+import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { createEmptyParagraph, getSiblings } from './CommandHelpers.js';
 
 /**
  * Deletes the void block targeted by a NodeSelection and places cursor
@@ -176,25 +170,6 @@ export function findLastLeafBlockId(node: BlockNode): BlockId {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/** Resolves siblings for a given parent path. */
-function getSiblings(
-	state: EditorState,
-	parentPath: readonly BlockId[],
-): readonly (
-	| BlockNode
-	| import('../model/Document.js').TextNode
-	| import('../model/Document.js').InlineNode
-)[] {
-	if (parentPath.length === 0) return state.doc.children;
-	const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-	return parent ? parent.children : [];
-}
-
-/** Creates an empty paragraph block node. */
-function createEmptyParagraph(id: BlockId): BlockNode {
-	return createBlockNode(nodeType('paragraph'), [createTextNode('')], id);
-}
 
 /** Handles navigation away from a NodeSelection (arrow keys while void is selected). */
 function navigateAwayFromNodeSelection(

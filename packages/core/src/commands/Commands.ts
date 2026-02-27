@@ -34,6 +34,7 @@ import { type BlockId, inlineType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
+import { resolveInsertPoint } from './CommandHelpers.js';
 import { insertParagraphAtGap, insertTextAtGap } from './GapCursorCommands.js';
 import {
 	deleteNodeSelection,
@@ -154,9 +155,10 @@ export function insertTextCommand(
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
-	const insertBlockId = range ? range.from.blockId : sel.anchor.blockId;
-	const insertOffset = range ? range.from.offset : sel.anchor.offset;
+	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
+		sel,
+		state.getBlockOrder(),
+	);
 
 	builder.insertText(insertBlockId, insertOffset, text, marks);
 	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + text.length));
@@ -201,13 +203,7 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const blockId = isCollapsed(sel)
-		? sel.anchor.blockId
-		: selectionRange(sel, state.getBlockOrder()).from.blockId;
-	const offset = isCollapsed(sel)
-		? sel.anchor.offset
-		: selectionRange(sel, state.getBlockOrder()).from.offset;
-
+	const { blockId, offset } = resolveInsertPoint(sel, state.getBlockOrder());
 	const newBlockId = generateBlockId();
 
 	// splitBlock operates at the same level in the tree — the StepApplication
@@ -230,9 +226,10 @@ export function insertHardBreakCommand(state: EditorState): Transaction | null {
 		addDeleteSelectionSteps(state, builder);
 	}
 
-	const range = isCollapsed(sel) ? null : selectionRange(sel, state.getBlockOrder());
-	const insertBlockId: BlockId = range ? range.from.blockId : sel.anchor.blockId;
-	const insertOffset: number = range ? range.from.offset : sel.anchor.offset;
+	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
+		sel,
+		state.getBlockOrder(),
+	);
 
 	const hardBreak = createInlineNode(inlineType('hard_break'));
 	builder.insertInlineNode(insertBlockId, insertOffset, hardBreak);

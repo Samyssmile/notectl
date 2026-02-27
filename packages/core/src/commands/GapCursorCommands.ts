@@ -3,20 +3,15 @@
  * and inserting paragraphs at gap positions.
  */
 
-import {
-	createBlockNode,
-	createTextNode,
-	generateBlockId,
-	getBlockLength,
-} from '../model/Document.js';
-import type { BlockNode } from '../model/Document.js';
+import { generateBlockId, getBlockLength } from '../model/Document.js';
 import { isVoidBlock } from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { GapCursorSelection, NodeSelection } from '../model/Selection.js';
 import { createCollapsedSelection, createNodeSelection } from '../model/Selection.js';
-import { type BlockId, nodeType } from '../model/TypeBrands.js';
+import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { createEmptyParagraph, getSiblings } from './CommandHelpers.js';
 import { deleteNodeSelection } from './NodeSelectionCommands.js';
 
 /**
@@ -142,27 +137,4 @@ export function insertTextAtGap(
 	builder.insertText(newId, 0, text, []);
 	builder.setSelection(createCollapsedSelection(newId, text.length));
 	return builder.build();
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Resolves siblings for a given parent path. */
-function getSiblings(
-	state: EditorState,
-	parentPath: readonly BlockId[],
-): readonly (
-	| BlockNode
-	| import('../model/Document.js').TextNode
-	| import('../model/Document.js').InlineNode
-)[] {
-	if (parentPath.length === 0) return state.doc.children;
-	const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-	return parent ? parent.children : [];
-}
-
-/** Creates an empty paragraph block node. */
-function createEmptyParagraph(id: BlockId): import('../model/Document.js').BlockNode {
-	return createBlockNode(nodeType('paragraph'), [createTextNode('')], id);
 }
