@@ -4,7 +4,6 @@
  * content preparation, iframe creation, and cleanup.
  */
 
-import { setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
 import { collectAll } from './PrintStyleCollector.js';
@@ -94,7 +93,7 @@ export function createPrintService(
 
 			// Create hidden iframe
 			const iframe: HTMLIFrameElement = document.createElement('iframe');
-			setStyleText(iframe, 'position:fixed;left:-9999px;width:0;height:0;border:none;');
+			iframe.style.cssText = 'position:fixed;left:-9999px;width:0;height:0;border:none;';
 			document.body.appendChild(iframe);
 
 			const iframeDoc: Document | null = iframe.contentDocument;

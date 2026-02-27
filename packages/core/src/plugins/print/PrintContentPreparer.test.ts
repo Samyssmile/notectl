@@ -104,6 +104,7 @@ describe('PrintContentPreparer', () => {
 
 			const heading: HTMLElement | null = clone.querySelector('[data-block-type="heading"]');
 			expect(heading?.style.pageBreakBefore).toBe('always');
+			expect(heading?.style.breakBefore).toBe('page');
 		});
 
 		it('does nothing with empty options', () => {

@@ -1,0 +1,257 @@
+---
+title: Content Security Policy
+description: How notectl achieves full CSP compliance without 'unsafe-inline' — and how to configure it for your environment.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+notectl is the first rich text editor that works under strict Content Security Policy headers **without requiring `'unsafe-inline'` for styles**. This is the default — zero configuration needed for modern browsers.
+
+## Quick Start
+
+If your CSP already allows scripts from `'self'`, notectl works out of the box:
+
+```ts
+import { createEditor } from '@notectl/core';
+
+// Strict CSP mode is the default — no extra config needed
+const editor = await createEditor({
+  target: document.getElementById('editor'),
+});
+```
+
+No nonce, no `'unsafe-inline'`, no special headers. The editor renders, styles dynamically, and never writes a single inline `style` attribute.
+
+## How It Works
+
+Rich text editors traditionally rely on inline `style` attributes for dynamic formatting (font size, text color, background color). This conflicts with `style-src-attr: 'none'` CSP policies. notectl solves this with a token-based stylesheet system.
+
+### Adopted Stylesheets
+
+In strict mode (the default), notectl creates a [`CSSStyleSheet`](https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleSheet) at initialization and attaches it to the Shadow DOM via [`adoptedStyleSheets`](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets):
+
+```
+new CSSStyleSheet() → shadow.adoptedStyleSheets.push(sheet)
+```
+
+Because adopted stylesheets are injected programmatically — not parsed from inline markup — they are **exempt from CSP `style-src` restrictions**. The browser treats them the same as stylesheets loaded from an allowed origin.
+
+### Token-Based Dynamic Styles
+
+When the editor needs to apply a dynamic style (e.g., `color: red; font-size: 18px`), it does **not** set `el.style.color = 'red'`. Instead:
+
+1. The declaration set is serialized and hashed into a **style token** (e.g., `s0`, `s1`, `s2`).
+2. A CSS rule is inserted into the adopted stylesheet:
+   ```css
+   [data-notectl-style-token="s0"] { color: red; font-size: 18px; }
+   ```
+3. The element receives a `data-notectl-style-token="s0"` attribute instead of an inline style.
+
+This means every dynamically-styled element uses a data attribute — never an inline `style`.
+
+### Token Deduplication
+
+Identical style combinations share a single token and CSS rule. If 50 spans have the same `color: red; font-size: 18px`, they all reference `s0` and there is one CSS rule. Tokens are reference-counted and garbage-collected when no elements use them.
+
+## Configuration
+
+```ts
+const editor = await createEditor({
+  styleMode: 'strict',  // default — uses adopted stylesheets
+  styleNonce: undefined, // only needed for fallback <style> elements
+});
+```
+
+### `styleMode`
+
+```ts
+type RuntimeStyleMode = 'inline' | 'strict';
+```
+
+| Mode | Mechanism | CSP Requirement |
+|------|-----------|-----------------|
+| `'strict'` (default) | Adopted stylesheets + token attributes | No style-related CSP directives needed |
+| `'inline'` | Direct `el.style` mutations | Requires `style-src: 'unsafe-inline'` |
+
+### `styleNonce`
+
+An optional nonce string for the fallback `<style>` element. Only relevant when strict mode falls back to a `<style>` element because the environment does not support `adoptedStyleSheets`.
+
+```ts
+const editor = await createEditor({
+  styleNonce: window.__CSP_NONCE__,
+});
+```
+
+<Aside type="tip">
+  Both `styleMode` and `styleNonce` are evaluated once during initialization. Changing them after the editor is created has no effect.
+</Aside>
+
+## CSP Policy Examples
+
+### Modern Browsers (Adopted Stylesheets)
+
+For environments that support `adoptedStyleSheets` (all modern browsers — see compatibility table below), no style nonce is required:
+
+```http
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self';
+  style-src 'self';
+  style-src-attr 'none';
+```
+
+This is the strictest possible style policy. notectl works because adopted stylesheets bypass CSP entirely.
+
+### Full Compatibility (With Nonce Fallback)
+
+If you need to support older browsers that lack `adoptedStyleSheets`, add a nonce for the fallback `<style>` element:
+
+```http
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self';
+  style-src 'self' 'nonce-<server-generated>';
+  style-src-attr 'none';
+```
+
+Pass the nonce to the editor:
+
+```ts
+await createEditor({
+  styleNonce: '<server-generated>',
+});
+```
+
+### Legacy Inline Mode
+
+If you explicitly opt into `styleMode: 'inline'`, runtime style attributes are used and the policy must allow them:
+
+```http
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+```
+
+<Aside type="caution">
+  Inline mode disables CSP protection for styles. Only use it if your environment has constraints that prevent strict mode from working.
+</Aside>
+
+## When Is a Nonce Needed?
+
+A nonce is **only** needed when the browser does not support `adoptedStyleSheets` and strict mode falls back to inserting a `<style>` element into the Shadow DOM.
+
+| Feature | Nonce Needed? | Notes |
+|---------|:---:|-------|
+| Adopted Stylesheets (primary path) | No | CSP-exempt by spec |
+| Fallback `<style>` element | Yes | When `adoptedStyleSheets` unavailable |
+| Token `data-` attributes | No | Attributes, not styles |
+| Inline mode (`styleMode: 'inline'`) | No | Requires `'unsafe-inline'` instead |
+
+### Browser Support for Adopted Stylesheets
+
+| Browser | `adoptedStyleSheets` Support |
+|---------|:---:|
+| Chrome / Edge | 73+ |
+| Firefox | 101+ |
+| Safari | 16.4+ |
+
+All evergreen browsers support adopted stylesheets. A nonce fallback is only necessary if you target older environments.
+
+## Server-Side Nonce Integration
+
+Generate a unique nonce per response and pass it to the client:
+
+```js
+// Express.js middleware
+import crypto from 'node:crypto';
+
+app.use((req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.nonce = nonce;
+  res.setHeader(
+    'Content-Security-Policy',
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}';`
+  );
+  next();
+});
+```
+
+Inject the nonce into the page and pass it to the editor:
+
+```html
+<script nonce="<%= nonce %>">
+  window.__CSP_NONCE__ = '<%= nonce %>';
+</script>
+```
+
+```ts
+await createEditor({
+  styleNonce: window.__CSP_NONCE__,
+});
+```
+
+<Aside type="tip">
+  The nonce must be unique per HTTP response. Never hardcode it or reuse the same value across requests.
+</Aside>
+
+## HTML Export and Serialization
+
+`getContentHTML()` produces static HTML for storage or display outside the editor. This output **does** include inline `style` attributes for dynamic marks like font size, text color, background color, and font family:
+
+```html
+<!-- getContentHTML() output -->
+<p>
+  Normal text and
+  <span style="color: red; font-size: 18px">styled text</span>.
+</p>
+```
+
+This is expected and correct:
+
+- **Semantic marks** (bold, italic, underline, strikethrough) use semantic HTML elements: `<strong>`, `<em>`, `<u>`, `<s>`.
+- **Dynamic marks** (color, font-size, background-color, font-family) use inline styles because there is no semantic HTML equivalent.
+
+The token-based system is a **runtime rendering** mechanism. Exported HTML is static content — it is not rendered by the editor and does not need CSP compliance. If you display exported HTML on a page with strict CSP, sanitize it through your existing HTML pipeline.
+
+## Troubleshooting
+
+### "Refused to apply inline style"
+
+```
+Refused to apply inline style because it violates the following
+Content Security Policy directive: "style-src-attr 'none'"
+```
+
+This means something is writing an inline `style` attribute. In strict mode, notectl does not do this. Check for:
+
+- Third-party plugins that bypass `StyleRuntime` and write styles directly
+- Custom `NodeView` implementations using `el.style.x = ...` instead of the `setStyleProperty()` API
+- `styleMode: 'inline'` set explicitly in configuration
+
+<Aside type="caution">
+  If you write custom plugins or node views, use the `setStyleProperty()` and `setStyleText()` functions from `@notectl/core` instead of direct `el.style` manipulation. These functions route through the token-based system in strict mode.
+</Aside>
+
+### "Refused to apply a stylesheet"
+
+```
+Refused to apply a stylesheet because its hash, nonce, or
+'unsafe-inline' does not appear in the style-src directive
+```
+
+This means a `<style>` element was inserted without a matching nonce. This happens when:
+
+1. The browser does not support `adoptedStyleSheets` (rare in modern browsers)
+2. No `styleNonce` was provided to the editor
+
+Fix: pass `styleNonce` during initialization.
+
+### Styles Apply in Development but Not Production
+
+Development servers often have relaxed CSP or no CSP at all. If styles disappear in production:
+
+1. Check your production CSP headers with browser DevTools (Network tab → response headers)
+2. Verify `styleMode` is not accidentally set to `'inline'`
+3. If using a nonce, confirm it matches between the HTTP header and `styleNonce` value
