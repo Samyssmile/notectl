@@ -7,6 +7,8 @@
  * Must be called BEFORE DOMPurify sanitization.
  */
 
+import { setStyleAttribute } from '../style/StyleRuntime.js';
+
 /** Maps HTML `<font size>` values (1–7) to CSS font-size keywords per the HTML 4 spec. */
 const FONT_SIZE_MAP: Readonly<Record<string, string>> = {
 	'1': 'x-small',
@@ -65,7 +67,7 @@ export function normalizeLegacyHTML(container: DocumentFragment | HTMLElement): 
 			}
 		}
 
-		span.setAttribute('style', styles.join(' '));
+		setStyleAttribute(span, styles.join(' '));
 
 		moveChildren(font, span);
 		font.parentNode?.replaceChild(span, font);

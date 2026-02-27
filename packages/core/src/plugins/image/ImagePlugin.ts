@@ -13,6 +13,7 @@ import { isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import {
@@ -137,8 +138,8 @@ export class ImagePlugin implements Plugin {
 				img.alt = alt;
 				img.draggable = false;
 
-				if (width !== undefined) img.style.width = `${width}px`;
-				if (height !== undefined) img.style.height = `${height}px`;
+				if (width !== undefined) setStyleProperty(img, 'width', `${width}px`);
+				if (height !== undefined) setStyleProperty(img, 'height', `${height}px`);
 
 				const align: string = (node.attrs?.align as string | undefined) ?? 'center';
 				const alignClass: string | undefined = {
@@ -388,24 +389,26 @@ export class ImagePlugin implements Plugin {
 		context: PluginContext,
 		onClose: () => void,
 	): void {
-		container.style.padding = '8px';
-		container.style.minWidth = '240px';
+		setStyleProperty(container, 'padding', '8px');
+		setStyleProperty(container, 'minWidth', '240px');
 
 		// --- File upload ---
 		const fileInput: HTMLInputElement = document.createElement('input');
 		fileInput.type = 'file';
 		fileInput.accept = this.config.acceptedTypes.join(',');
-		fileInput.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;';
+		setStyleText(fileInput, 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;');
 
 		const uploadBtn: HTMLButtonElement = document.createElement('button');
 		uploadBtn.type = 'button';
 		uploadBtn.textContent = this.locale.uploadFromComputer;
 		uploadBtn.setAttribute('aria-label', this.locale.uploadAria);
-		uploadBtn.style.cssText =
+		setStyleText(
+			uploadBtn,
 			'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
-			'text-align:center;box-sizing:border-box;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-surface-raised);color:var(--notectl-fg);';
+				'text-align:center;box-sizing:border-box;' +
+				'border:1px solid var(--notectl-border);border-radius:4px;' +
+				'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
+		);
 
 		uploadBtn.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
@@ -427,16 +430,18 @@ export class ImagePlugin implements Plugin {
 
 		// --- Separator ---
 		const separator: HTMLDivElement = document.createElement('div');
-		separator.style.cssText =
+		setStyleText(
+			separator,
 			'display:flex;align-items:center;margin:8px 0;' +
-			'color:var(--notectl-fg-muted);font-size:12px;';
+				'color:var(--notectl-fg-muted);font-size:12px;',
+		);
 		const line1: HTMLSpanElement = document.createElement('span');
-		line1.style.cssText = 'flex:1;height:1px;background:var(--notectl-border);';
+		setStyleText(line1, 'flex:1;height:1px;background:var(--notectl-border);');
 		const orText: HTMLSpanElement = document.createElement('span');
 		orText.textContent = this.locale.separator;
-		orText.style.cssText = 'padding:0 8px;';
+		setStyleText(orText, 'padding:0 8px;');
 		const line2: HTMLSpanElement = document.createElement('span');
-		line2.style.cssText = 'flex:1;height:1px;background:var(--notectl-border);';
+		setStyleText(line2, 'flex:1;height:1px;background:var(--notectl-border);');
 		separator.appendChild(line1);
 		separator.appendChild(orText);
 		separator.appendChild(line2);
@@ -447,19 +452,23 @@ export class ImagePlugin implements Plugin {
 		urlInput.type = 'url';
 		urlInput.placeholder = this.locale.urlPlaceholder;
 		urlInput.setAttribute('aria-label', this.locale.urlAria);
-		urlInput.style.cssText =
+		setStyleText(
+			urlInput,
 			'width:100%;padding:6px 8px;box-sizing:border-box;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-bg);color:var(--notectl-fg);';
+				'border:1px solid var(--notectl-border);border-radius:4px;' +
+				'background:var(--notectl-bg);color:var(--notectl-fg);',
+		);
 
 		const insertBtn: HTMLButtonElement = document.createElement('button');
 		insertBtn.type = 'button';
 		insertBtn.textContent = this.locale.insertButton;
 		insertBtn.setAttribute('aria-label', this.locale.insertAria);
-		insertBtn.style.cssText =
+		setStyleText(
+			insertBtn,
 			'width:100%;padding:8px 12px;margin-top:4px;cursor:pointer;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-surface-raised);color:var(--notectl-fg);';
+				'border:1px solid var(--notectl-border);border-radius:4px;' +
+				'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
+		);
 
 		const applyUrl = (): void => {
 			const src: string = urlInput.value.trim();

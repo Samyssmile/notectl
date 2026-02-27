@@ -26,6 +26,8 @@ document.getElementById('app').appendChild(editor);
 
 That's it. The `createEditor` factory auto-registers a `TextFormattingPlugin` with bold, italic, and underline enabled by default.
 
+Runtime styling defaults to strict CSP-safe mode. For CSP policies and nonce wiring, see [Content Security Policy](/notectl/guides/content-security-policy/).
+
 ## Full-Featured Editor
 
 The fastest way to get a production editor with all plugins is using `createFullPreset()`:

@@ -15,6 +15,7 @@ import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
 import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
@@ -127,7 +128,7 @@ export class FontPlugin implements Plugin {
 				const span: HTMLElement = document.createElement('span');
 				const family: string = mark.attrs?.family ?? '';
 				if (family) {
-					span.style.fontFamily = family;
+					setStyleProperty(span, 'fontFamily', family);
 				}
 				return span;
 			},
@@ -262,6 +263,10 @@ export class FontPlugin implements Plugin {
 
 		const style: HTMLStyleElement = document.createElement('style');
 		style.setAttribute('data-notectl-fonts', '');
+		const nonce = this.context ? getStyleNonceForNode(this.context.getContainer()) : undefined;
+		if (nonce) {
+			style.setAttribute('nonce', nonce);
+		}
 		style.textContent = rules.join('\n\n');
 		document.head.appendChild(style);
 		this.injectedStyleElement = style;
@@ -345,7 +350,7 @@ export class FontPlugin implements Plugin {
 		label.className = 'notectl-font-picker__label';
 		label.textContent = name;
 		if (family) {
-			label.style.fontFamily = family;
+			setStyleProperty(label, 'fontFamily', family);
 		}
 		item.appendChild(label);
 

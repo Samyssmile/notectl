@@ -22,6 +22,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { appendStyleText, setStyleText } from '../style/StyleRuntime.js';
 import { createMarkElement, getMarkRank } from './MarkRendering.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
@@ -596,7 +597,7 @@ function createDecorationElement(attrs: DecorationAttrs): HTMLElement {
 		}
 	}
 	if (attrs.style) {
-		el.style.cssText = attrs.style;
+		setStyleText(el, attrs.style);
 	}
 
 	// Apply any other custom attributes
@@ -622,8 +623,7 @@ function applyNodeDecorations(el: HTMLElement, bid: BlockId, options?: Reconcile
 			}
 		}
 		if (deco.attrs.style) {
-			const current: string = el.style.cssText;
-			el.style.cssText = current ? `${current}; ${deco.attrs.style}` : deco.attrs.style;
+			appendStyleText(el, deco.attrs.style);
 		}
 	}
 }

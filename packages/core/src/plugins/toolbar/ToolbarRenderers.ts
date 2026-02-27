@@ -3,6 +3,7 @@
  * Grid pickers, dropdown menus, and separator elements.
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { DropdownConfig, GridPickerConfig } from './ToolbarItem.js';
 
 const HIGHLIGHTED_CLASS = 'notectl-grid-picker__cell--highlighted';
@@ -21,17 +22,21 @@ export function renderGridPicker(
 	const grid: HTMLDivElement = document.createElement('div');
 	grid.className = 'notectl-grid-picker__grid';
 	grid.setAttribute('role', 'grid');
-	grid.style.display = 'grid';
-	grid.style.gridTemplateColumns = `repeat(${config.maxCols}, 1fr)`;
-	grid.style.gap = '2px';
-	grid.style.padding = '8px';
+	setStyleProperties(grid, {
+		display: 'grid',
+		gridTemplateColumns: `repeat(${config.maxCols}, 1fr)`,
+		gap: '2px',
+		padding: '8px',
+	});
 
 	const label: HTMLDivElement = document.createElement('div');
 	label.className = 'notectl-grid-picker__label';
 	label.textContent = '1 x 1';
-	label.style.textAlign = 'center';
-	label.style.padding = '4px';
-	label.style.fontSize = '12px';
+	setStyleProperties(label, {
+		textAlign: 'center',
+		padding: '4px',
+		fontSize: '12px',
+	});
 	label.setAttribute('aria-live', 'polite');
 
 	for (let r = 1; r <= config.maxRows; r++) {
@@ -41,10 +46,12 @@ export function renderGridPicker(
 			cell.setAttribute('role', 'gridcell');
 			cell.setAttribute('tabindex', '-1');
 			cell.setAttribute('aria-label', `${r} x ${c}`);
-			cell.style.width = '20px';
-			cell.style.height = '20px';
-			cell.style.border = '1px solid #ccc';
-			cell.style.cursor = 'pointer';
+			setStyleProperties(cell, {
+				width: '20px',
+				height: '20px',
+				border: '1px solid #ccc',
+				cursor: 'pointer',
+			});
 			cell.setAttribute('data-row', String(r));
 			cell.setAttribute('data-col', String(c));
 

@@ -6,6 +6,7 @@
  */
 
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { appendToRoot } from '../shared/PopupPositioning.js';
@@ -356,11 +357,13 @@ export class ToolbarOverflowController {
 		const rect: DOMRect = this.overflowButton.getBoundingClientRect();
 		const rightEdge: number = window.innerWidth - rect.right;
 
-		dropdown.style.position = 'fixed';
-		dropdown.style.top = `${rect.bottom + 2}px`;
-		dropdown.style.right = `${rightEdge}px`;
-		dropdown.style.left = 'auto';
-		dropdown.style.zIndex = '10000';
+		setStyleProperties(dropdown, {
+			position: 'fixed',
+			top: `${rect.bottom + 2}px`,
+			right: `${rightEdge}px`,
+			left: 'auto',
+			zIndex: '10000',
+		});
 	}
 
 	private registerCloseHandler(): void {

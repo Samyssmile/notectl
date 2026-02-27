@@ -4,6 +4,8 @@
  * hides it when the cursor leaves or focus moves away.
  */
 
+import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
+
 const TOOLTIP_DELAY_MS = 500;
 
 export class ToolbarTooltip {
@@ -20,7 +22,7 @@ export class ToolbarTooltip {
 		this.element.className = 'notectl-toolbar-tooltip';
 		this.element.id = ToolbarTooltip.TOOLTIP_ID;
 		this.element.setAttribute('role', 'tooltip');
-		this.element.style.display = 'none';
+		setStyleProperty(this.element, 'display', 'none');
 	}
 
 	show(button: HTMLButtonElement): void {
@@ -37,7 +39,7 @@ export class ToolbarTooltip {
 			if (this.isPopupActive()) return;
 
 			this.element.textContent = text;
-			this.element.style.display = '';
+			setStyleProperty(this.element, 'display', '');
 
 			const root: Node = button.getRootNode();
 			if (root instanceof ShadowRoot && !this.element.parentNode) {
@@ -49,10 +51,12 @@ export class ToolbarTooltip {
 			button.setAttribute('aria-describedby', ToolbarTooltip.TOOLTIP_ID);
 
 			const rect: DOMRect = button.getBoundingClientRect();
-			this.element.style.position = 'fixed';
-			this.element.style.top = `${rect.bottom + 6}px`;
-			this.element.style.left = `${rect.left + rect.width / 2}px`;
-			this.element.style.transform = 'translateX(-50%)';
+			setStyleProperties(this.element, {
+				position: 'fixed',
+				top: `${rect.bottom + 6}px`,
+				left: `${rect.left + rect.width / 2}px`,
+				transform: 'translateX(-50%)',
+			});
 		}, TOOLTIP_DELAY_MS);
 	}
 
@@ -65,7 +69,7 @@ export class ToolbarTooltip {
 			this.target.removeAttribute('aria-describedby');
 			this.target = null;
 		}
-		this.element.style.display = 'none';
+		setStyleProperty(this.element, 'display', 'none');
 	}
 
 	destroy(): void {

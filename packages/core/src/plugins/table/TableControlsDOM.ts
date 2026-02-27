@@ -3,6 +3,8 @@
  * No state logic — only element creation and CSS class assignment.
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
+
 // --- SVG Icons ---
 
 export const PLUS_SVG: string =
@@ -152,14 +154,20 @@ export function buildBorderColorButton(currentColor?: string): HTMLButtonElement
 /** Updates the swatch indicator to reflect the current border color. */
 export function updateBorderColorSwatch(swatch: HTMLElement, color?: string): void {
 	if (color === 'none') {
-		swatch.style.backgroundColor = 'transparent';
-		swatch.style.border = '1px dashed rgba(128,128,128,0.4)';
+		setStyleProperties(swatch, {
+			backgroundColor: 'transparent',
+			border: '1px dashed rgba(128,128,128,0.4)',
+		});
 	} else if (color) {
-		swatch.style.backgroundColor = color;
-		swatch.style.border = '1px solid rgba(0,0,0,0.15)';
+		setStyleProperties(swatch, {
+			backgroundColor: color,
+			border: '1px solid rgba(0,0,0,0.15)',
+		});
 	} else {
-		swatch.style.backgroundColor = 'var(--notectl-border)';
-		swatch.style.border = '1px solid rgba(0,0,0,0.15)';
+		setStyleProperties(swatch, {
+			backgroundColor: 'var(--notectl-border)',
+			border: '1px solid rgba(0,0,0,0.15)',
+		});
 	}
 }
 

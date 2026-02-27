@@ -3,6 +3,8 @@
  * All functions are pure (take numeric/DOM inputs, return structured results).
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
+
 // --- Types ---
 
 export interface BorderInfo {
@@ -89,11 +91,15 @@ export function positionColHandles(
 
 	for (let i = 0; i < handles.length; i++) {
 		const h = handles[i] as HTMLElement;
-		h.style.left = `${Math.round(colWidth * i)}px`;
-		h.style.width = `${Math.round(colWidth)}px`;
+		setStyleProperties(h, {
+			left: `${Math.round(colWidth * i)}px`,
+			width: `${Math.round(colWidth)}px`,
+		});
 	}
 
-	colBar.style.width = `${tableWidth}px`;
+	setStyleProperties(colBar, {
+		width: `${tableWidth}px`,
+	});
 }
 
 /** Positions row handles to match actual <tr> offsets and heights. */
@@ -111,13 +117,17 @@ export function positionRowHandles(rowBar: HTMLDivElement, tableEl: HTMLTableEle
 		if (tr) {
 			const top: number = tr.offsetTop - tableTop;
 			const height: number = tr.offsetHeight;
-			h.style.top = `${top}px`;
-			h.style.height = `${height}px`;
+			setStyleProperties(h, {
+				top: `${top}px`,
+				height: `${height}px`,
+			});
 			totalHeight = top + height;
 		}
 	}
 
-	rowBar.style.height = `${totalHeight}px`;
+	setStyleProperties(rowBar, {
+		height: `${totalHeight}px`,
+	});
 }
 
 /** Positions add-row and add-column buttons at the table edges. */
@@ -131,11 +141,15 @@ export function positionAddButtons(
 	const tableHeight: number = tableEl.offsetHeight;
 	const tableWidth: number = tableEl.offsetWidth;
 
-	addRowZone.style.width = `${tableWidth}px`;
-	addRowZone.style.left = `${offset.left}px`;
+	setStyleProperties(addRowZone, {
+		width: `${tableWidth}px`,
+		left: `${offset.left}px`,
+	});
 
-	addColZone.style.height = `${tableHeight}px`;
-	addColZone.style.top = `${offset.top}px`;
+	setStyleProperties(addColZone, {
+		height: `${tableHeight}px`,
+		top: `${offset.top}px`,
+	});
 }
 
 // --- Border Detection ---

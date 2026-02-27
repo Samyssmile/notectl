@@ -4,6 +4,7 @@
  * and inserts header/footer elements.
  */
 
+import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PrintOptions } from './PrintTypes.js';
 
 /** Deep-clones the .notectl-content element from the editor container. */
@@ -46,8 +47,10 @@ export function applyBlockFilters(clone: HTMLElement, options: PrintOptions): vo
 		for (const type of options.pageBreakBefore) {
 			const elements: NodeListOf<Element> = clone.querySelectorAll(`[data-block-type="${type}"]`);
 			for (const el of elements) {
-				(el as HTMLElement).style.breakBefore = 'page';
-				(el as HTMLElement).style.pageBreakBefore = 'always';
+				setStyleProperties(el as HTMLElement, {
+					breakBefore: 'page',
+					pageBreakBefore: 'always',
+				});
 			}
 		}
 	}

@@ -12,6 +12,7 @@ export class EditorThemeController {
 	private systemThemeQuery: MediaQueryList | null = null;
 	private systemThemeHandler: ((e: MediaQueryListEvent) => void) | null = null;
 	private pluginSheets: readonly CSSStyleSheet[] = [];
+	private runtimeSheets: readonly CSSStyleSheet[] = [];
 	private readonly shadow: ShadowRoot;
 
 	constructor(shadow: ShadowRoot) {
@@ -37,6 +38,12 @@ export class EditorThemeController {
 		this.refreshAdoptedStyleSheets();
 	}
 
+	/** Updates runtime-generated stylesheets (e.g. strict CSP dynamic rules). */
+	setRuntimeStyleSheets(sheets: readonly CSSStyleSheet[]): void {
+		this.runtimeSheets = sheets;
+		this.refreshAdoptedStyleSheets();
+	}
+
 	/** Removes the system-theme listener. */
 	destroy(): void {
 		this.cleanupSystemThemeListener();
@@ -52,6 +59,7 @@ export class EditorThemeController {
 			this.themeStyleSheet,
 			getEditorStyleSheet(),
 			...this.pluginSheets,
+			...this.runtimeSheets,
 		];
 	}
 

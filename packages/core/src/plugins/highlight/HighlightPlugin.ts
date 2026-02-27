@@ -7,6 +7,7 @@ import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
@@ -131,7 +132,7 @@ export class HighlightPlugin implements Plugin {
 			toDOM(mark) {
 				const span = document.createElement('span');
 				const color = mark.attrs?.color ?? '';
-				span.style.backgroundColor = color;
+				setStyleProperty(span, 'backgroundColor', color);
 				return span;
 			},
 			toHTMLString: (mark, content) => {
