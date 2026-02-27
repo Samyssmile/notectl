@@ -11,6 +11,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
+import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import {
 	applyRovingTabindex,
@@ -72,6 +73,7 @@ export class ToolbarPlugin implements Plugin {
 	private focusedIndex = 0;
 	private tooltip: ToolbarTooltip | null = null;
 	private popupController: ToolbarPopupController | null = null;
+	private popupManager: PopupManager | null = null;
 	private overflowController: ToolbarOverflowController | null = null;
 	private visibleElements: HTMLButtonElement[] = [];
 	private locale!: ToolbarLocale;
@@ -86,7 +88,11 @@ export class ToolbarPlugin implements Plugin {
 		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
 
+		this.popupManager = new PopupManager(context.getContainer());
+		context.registerService(PopupServiceKey, this.popupManager);
+
 		this.popupController = new ToolbarPopupController(() => this.getActiveElement());
+		this.popupController.setPopupManager(this.popupManager);
 		this.tooltip = new ToolbarTooltip(() => this.popupController?.isOpen() ?? false);
 
 		context.registerService(ToolbarServiceKey, {
@@ -120,6 +126,8 @@ export class ToolbarPlugin implements Plugin {
 		this.overflowController = null;
 		this.popupController?.destroy();
 		this.popupController = null;
+		this.popupManager?.destroy();
+		this.popupManager = null;
 		this.tooltip?.destroy();
 		this.tooltip = null;
 		if (this.toolbarElement) {
@@ -190,6 +198,7 @@ export class ToolbarPlugin implements Plugin {
 				toolbar: this.toolbarElement,
 				ariaLabel: this.locale.moreToolsAria,
 				context: this.context,
+				popupManager: this.popupManager ?? undefined,
 				onOverflowChange: (visibleButtons, overflowBtn) => {
 					this.visibleElements = overflowBtn
 						? [...visibleButtons, overflowBtn]

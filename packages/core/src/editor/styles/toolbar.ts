@@ -291,4 +291,50 @@ export const TOOLBAR_CSS = `
 	color: var(--notectl-fg-muted);
 	line-height: 30px;
 }
+
+/* Link Popup */
+.notectl-link-popup {
+	padding: 8px;
+	min-width: 200px;
+}
+
+.notectl-link-popup__input {
+	width: 100%;
+	padding: 4px;
+	box-sizing: border-box;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--notectl-fg);
+	background: var(--notectl-bg);
+}
+
+.notectl-link-popup__input:focus-visible {
+	outline: 2px solid var(--notectl-focus-ring);
+	outline-offset: -1px;
+}
+
+.notectl-link-popup__button {
+	width: 100%;
+	padding: 6px 12px;
+	cursor: pointer;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-bg);
+	color: var(--notectl-fg);
+	font-size: 13px;
+}
+
+.notectl-link-popup__button--apply {
+	margin-top: 4px;
+}
+
+.notectl-link-popup__button:hover {
+	background: var(--notectl-hover-bg);
+}
+
+.notectl-link-popup__button:focus-visible {
+	outline: 2px solid var(--notectl-focus-ring);
+	outline-offset: -1px;
+}
 `;

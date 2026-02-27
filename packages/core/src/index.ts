@@ -287,6 +287,30 @@ export type {
 
 export { EventKey, ServiceKey } from './plugins/Plugin.js';
 
+// --- Popup Framework ---
+export {
+	PopupManager,
+	PopupServiceKey,
+	type PopupConfig,
+	type PopupHandle,
+	type PopupServiceAPI,
+} from './plugins/shared/PopupManager.js';
+export {
+	attachMenuKeyboard,
+	attachListboxKeyboard,
+	attachGridKeyboard,
+	type MenuKeyboardConfig,
+	type ListboxKeyboardConfig,
+	type GridKeyboardConfig,
+} from './plugins/shared/PopupKeyboardPatterns.js';
+export {
+	positionPopup,
+	appendToRoot,
+	type PopupPosition,
+	type PositionOptions,
+} from './plugins/shared/PopupPositioning.js';
+export { renderColorGrid, type ColorGridConfig } from './plugins/shared/ColorGrid.js';
+
 export { EventBus } from './plugins/EventBus.js';
 export {
 	PluginManager,

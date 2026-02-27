@@ -2,11 +2,15 @@
  * Accessible context menu for table operations.
  * Triggered via right-click, Shift-F10 keyboard shortcut, or table actions button.
  * Provides fully keyboard-navigable access to all table actions.
+ * Delegates lifecycle to PopupManager when available, falls back to manual DOM.
  * Prevents key events from escaping to the editor via stopPropagation.
  */
 
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
+import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
+import { positionPopup } from '../shared/PopupPositioning.js';
+import { applyRovingTabindex } from '../toolbar/ToolbarKeyboardNav.js';
 import { renderBorderColorPicker } from './TableBorderColor.js';
 import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 
@@ -68,9 +72,11 @@ export function createTableContextMenu(
 	anchorRect: DOMRect,
 	onClosed?: () => void,
 	locale: TableLocale = TABLE_LOCALE_EN,
+	popupManager?: PopupManager,
 ): TableContextMenuHandle {
 	let open = true;
 	let subPopup: HTMLDivElement | null = null;
+	let subHandle: PopupHandle | null = null;
 
 	// --- Menu element ---
 	const menu: HTMLDivElement = document.createElement('div');
@@ -133,11 +139,9 @@ export function createTableContextMenu(
 	hint.textContent = locale.menuKeyboardHint;
 	menu.appendChild(hint);
 
-	applyMenuTabindex(menuItems, focusedIndex);
+	applyRovingTabindex(menuItems, focusedIndex);
 
 	// --- Keyboard navigation ---
-	// Stop propagation on ALL keydown events to prevent the editor's
-	// KeyboardHandler and table navigation keymaps from intercepting keys.
 	menu.addEventListener('keydown', (e: KeyboardEvent) => {
 		e.stopPropagation();
 
@@ -150,7 +154,7 @@ export function createTableContextMenu(
 			case 'ArrowDown': {
 				e.preventDefault();
 				focusedIndex = (focusedIndex + 1) % menuItems.length;
-				applyMenuTabindex(menuItems, focusedIndex);
+				applyRovingTabindex(menuItems, focusedIndex);
 				menuItems[focusedIndex]?.focus();
 				return;
 			}
@@ -158,7 +162,7 @@ export function createTableContextMenu(
 			case 'ArrowUp': {
 				e.preventDefault();
 				focusedIndex = (focusedIndex - 1 + menuItems.length) % menuItems.length;
-				applyMenuTabindex(menuItems, focusedIndex);
+				applyRovingTabindex(menuItems, focusedIndex);
 				menuItems[focusedIndex]?.focus();
 				return;
 			}
@@ -196,7 +200,7 @@ export function createTableContextMenu(
 			case 'Home': {
 				e.preventDefault();
 				focusedIndex = 0;
-				applyMenuTabindex(menuItems, focusedIndex);
+				applyRovingTabindex(menuItems, focusedIndex);
 				menuItems[focusedIndex]?.focus();
 				return;
 			}
@@ -204,7 +208,7 @@ export function createTableContextMenu(
 			case 'End': {
 				e.preventDefault();
 				focusedIndex = menuItems.length - 1;
-				applyMenuTabindex(menuItems, focusedIndex);
+				applyRovingTabindex(menuItems, focusedIndex);
 				menuItems[focusedIndex]?.focus();
 				return;
 			}
@@ -216,67 +220,96 @@ export function createTableContextMenu(
 		closeSubmenu();
 		trigger.setAttribute('aria-expanded', 'true');
 
-		subPopup = document.createElement('div');
-		subPopup.className = 'notectl-table-context-menu';
-		subPopup.style.position = 'fixed';
-		subPopup.setAttribute('contenteditable', 'false');
+		if (popupManager) {
+			const menuHandle: PopupHandle = {
+				close: () => close(),
+				getElement: () => menu,
+			};
 
-		// Prevent all keydown events from escaping the submenu to the editor.
-		// Also handle ArrowLeft to close the submenu and return focus.
-		subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
-			e.stopPropagation();
-			if (e.key === 'ArrowLeft') {
-				e.preventDefault();
-				closeSubmenu();
-				trigger.focus();
+			subHandle = popupManager.open({
+				anchor: trigger,
+				position: 'right',
+				referenceNode: menu,
+				parent: menuHandle,
+				onClose: () => {
+					subHandle = null;
+					subPopup = null;
+					resetSubmenuTriggers();
+				},
+				content: (popup: HTMLElement, closeSub: () => void) => {
+					popup.className = 'notectl-table-context-menu';
+					popup.setAttribute('contenteditable', 'false');
+					subPopup = popup as HTMLDivElement;
+
+					popup.addEventListener('keydown', (e: KeyboardEvent) => {
+						e.stopPropagation();
+						if (e.key === 'ArrowLeft') {
+							e.preventDefault();
+							closeSub();
+							trigger.focus();
+						}
+					});
+
+					renderBorderColorPicker(popup, context, tableId, () => close(), locale);
+				},
+			});
+		} else {
+			subPopup = document.createElement('div');
+			subPopup.className = 'notectl-table-context-menu';
+			subPopup.style.position = 'fixed';
+			subPopup.setAttribute('contenteditable', 'false');
+
+			subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
+				e.stopPropagation();
+				if (e.key === 'ArrowLeft') {
+					e.preventDefault();
+					closeSubmenu();
+					trigger.focus();
+				}
+			});
+
+			renderBorderColorPicker(subPopup, context, tableId, () => close(), locale);
+
+			container.appendChild(subPopup);
+
+			const triggerRect: DOMRect = trigger.getBoundingClientRect();
+			const menuRect: DOMRect = menu.getBoundingClientRect();
+			let left: number = menuRect.right + 2;
+			let top: number = triggerRect.top;
+
+			const vpWidth: number = window.innerWidth;
+			const vpHeight: number = window.innerHeight;
+
+			if (left + 200 > vpWidth) {
+				left = menuRect.left - 200 - 2;
 			}
-		});
+			if (top + 200 > vpHeight) {
+				top = vpHeight - 200;
+			}
 
-		renderBorderColorPicker(
-			subPopup,
-			context,
-			tableId,
-			() => {
-				close();
-			},
-			locale,
-		);
+			subPopup.style.left = `${left}px`;
+			subPopup.style.top = `${top}px`;
 
-		container.appendChild(subPopup);
-
-		// Position submenu next to trigger
-		const triggerRect: DOMRect = trigger.getBoundingClientRect();
-		const menuRect: DOMRect = menu.getBoundingClientRect();
-		let left: number = menuRect.right + 2;
-		let top: number = triggerRect.top;
-
-		// Viewport boundary check
-		const vpWidth: number = window.innerWidth;
-		const vpHeight: number = window.innerHeight;
-
-		if (left + 200 > vpWidth) {
-			left = menuRect.left - 200 - 2;
+			requestAnimationFrame(() => {
+				const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;
+				firstFocusable?.focus();
+			});
 		}
-		if (top + 200 > vpHeight) {
-			top = vpHeight - 200;
-		}
-
-		subPopup.style.left = `${left}px`;
-		subPopup.style.top = `${top}px`;
-
-		// Focus the first focusable element in the submenu
-		requestAnimationFrame(() => {
-			const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;
-			firstFocusable?.focus();
-		});
 	}
 
 	function closeSubmenu(): void {
-		if (subPopup) {
+		if (subHandle) {
+			subHandle.close();
+			subHandle = null;
+			subPopup = null;
+		} else if (subPopup) {
 			subPopup.remove();
 			subPopup = null;
 		}
-		// Reset aria-expanded on all submenu triggers
+		resetSubmenuTriggers();
+	}
+
+	function resetSubmenuTriggers(): void {
 		for (const item of menuItems) {
 			if (item.dataset.submenu) {
 				item.setAttribute('aria-expanded', 'false');
@@ -284,8 +317,8 @@ export function createTableContextMenu(
 		}
 	}
 
-	// --- Positioning ---
-	positionMenu(menu, anchorRect);
+	// --- Positioning & append ---
+	positionPopup(menu, anchorRect, { position: 'below-start' });
 	container.appendChild(menu);
 
 	// Focus first item immediately and via rAF as backup
@@ -304,7 +337,6 @@ export function createTableContextMenu(
 		}
 		close();
 	};
-	// Use setTimeout to avoid catching the triggering click
 	setTimeout(() => {
 		document.addEventListener('mousedown', onClickOutside, true);
 	}, 0);
@@ -324,41 +356,4 @@ export function createTableContextMenu(
 		close,
 		destroy: close,
 	};
-}
-
-// --- Helpers ---
-
-/** Positions the menu at the anchor, clamping to viewport edges. */
-function positionMenu(menu: HTMLElement, anchorRect: DOMRect): void {
-	const vpWidth: number = window.innerWidth;
-	const vpHeight: number = window.innerHeight;
-
-	let left: number = anchorRect.left;
-	let top: number = anchorRect.top;
-
-	// Estimate menu size (will adjust after render if needed)
-	const estimatedWidth = 200;
-	const estimatedHeight = 340;
-
-	if (left + estimatedWidth > vpWidth) {
-		left = vpWidth - estimatedWidth;
-	}
-	if (top + estimatedHeight > vpHeight) {
-		top = vpHeight - estimatedHeight;
-	}
-	if (left < 0) left = 0;
-	if (top < 0) top = 0;
-
-	menu.style.left = `${left}px`;
-	menu.style.top = `${top}px`;
-}
-
-/** Sets tabindex="0" on the focused menu item, "-1" on all others. */
-function applyMenuTabindex(items: readonly HTMLButtonElement[], focusedIndex: number): void {
-	for (let i = 0; i < items.length; i++) {
-		const item = items[i];
-		if (item) {
-			item.setAttribute('tabindex', i === focusedIndex ? '0' : '-1');
-		}
-	}
 }

@@ -263,8 +263,7 @@ export class LinkPlugin implements Plugin {
 		context: PluginContext,
 		onClose: () => void,
 	): void {
-		container.style.padding = '8px';
-		container.style.minWidth = '200px';
+		container.classList.add('notectl-link-popup');
 
 		const state = context.getState();
 		const isActive = this.isLinkActive(state);
@@ -273,9 +272,9 @@ export class LinkPlugin implements Plugin {
 			// Show remove link button
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';
+			removeBtn.className = 'notectl-link-popup__button';
 			removeBtn.textContent = this.locale.removeLink;
 			removeBtn.setAttribute('aria-label', this.locale.removeLinkAria);
-			removeBtn.style.cssText = 'width:100%;padding:6px 12px;cursor:pointer;';
 			removeBtn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -288,15 +287,15 @@ export class LinkPlugin implements Plugin {
 			// Show URL input
 			const input = document.createElement('input');
 			input.type = 'url';
+			input.className = 'notectl-link-popup__input';
 			input.placeholder = this.locale.urlPlaceholder;
 			input.setAttribute('aria-label', this.locale.urlAria);
-			input.style.cssText = 'width:100%;padding:4px;box-sizing:border-box;';
 
 			const applyBtn = document.createElement('button');
 			applyBtn.type = 'button';
+			applyBtn.className = 'notectl-link-popup__button notectl-link-popup__button--apply';
 			applyBtn.textContent = this.locale.apply;
 			applyBtn.setAttribute('aria-label', this.locale.applyAria);
-			applyBtn.style.cssText = 'width:100%;padding:6px 12px;margin-top:4px;cursor:pointer;';
 
 			const applyLink = (): void => {
 				const href = input.value.trim();
