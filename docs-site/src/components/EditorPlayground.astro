@@ -15,28 +15,29 @@
 </div>
 
 <script>
-	import {
-		AlignmentPlugin,
-		BlockquotePlugin,
-		CodeBlockPlugin,
-		FontPlugin,
-		FontSizePlugin,
-		HardBreakPlugin,
-		HeadingPlugin,
-		HighlightPlugin,
-		HorizontalRulePlugin,
-		ImagePlugin,
-		LinkPlugin,
-		ListPlugin,
-		StrikethroughPlugin,
-		SuperSubPlugin,
-		TablePlugin,
-		TextColorPlugin,
-		TextFormattingPlugin,
-		ToolbarOverflowBehavior,
-		ThemePreset,
-		createEditor,
-	} from '@notectl/core';
+import {
+	AlignmentPlugin,
+	BlockquotePlugin,
+	CodeBlockPlugin,
+	FontPlugin,
+	FontSizePlugin,
+	HardBreakPlugin,
+	HeadingPlugin,
+	HighlightPlugin,
+	HorizontalRulePlugin,
+	ImagePlugin,
+	LinkPlugin,
+	ListPlugin,
+	StrikethroughPlugin,
+	SuperSubPlugin,
+	TablePlugin,
+	TextColorPlugin,
+	TextFormattingPlugin,
+	PrintPlugin,
+	ToolbarOverflowBehavior,
+	ThemePreset,
+	createEditor,
+} from '@notectl/core';
 	import { STARTER_FONTS } from '@notectl/core/fonts';
 
 	const container = document.getElementById('playground-editor');
@@ -78,6 +79,7 @@
 						new TablePlugin(),
 						new HorizontalRulePlugin(),
 						new ImagePlugin(),
+						new PrintPlugin(),
 					],
 				],
 				overflow: ToolbarOverflowBehavior.Flow,

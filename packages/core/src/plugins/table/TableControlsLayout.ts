@@ -3,7 +3,7 @@
  * All functions are pure (take numeric/DOM inputs, return structured results).
  */
 
-import { setStyleProperties } from '../../style/StyleRuntime.js';
+import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
 
 // --- Types ---
 
@@ -97,9 +97,7 @@ export function positionColHandles(
 		});
 	}
 
-	setStyleProperties(colBar, {
-		width: `${tableWidth}px`,
-	});
+	setStyleProperty(colBar, 'width', `${tableWidth}px`);
 }
 
 /** Positions row handles to match actual <tr> offsets and heights. */
@@ -125,9 +123,7 @@ export function positionRowHandles(rowBar: HTMLDivElement, tableEl: HTMLTableEle
 		}
 	}
 
-	setStyleProperties(rowBar, {
-		height: `${totalHeight}px`,
-	});
+	setStyleProperty(rowBar, 'height', `${totalHeight}px`);
 }
 
 /** Positions add-row and add-column buttons at the table edges. */

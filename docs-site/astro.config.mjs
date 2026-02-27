@@ -61,6 +61,7 @@ export default defineConfig({
 						{ label: 'Angular Integration', slug: 'guides/angular' },
 						{ label: 'Writing a Plugin', slug: 'guides/writing-plugins' },
 						{ label: 'Keyboard Navigation', slug: 'guides/keyboard-navigation' },
+						{ label: 'Content Security Policy', slug: 'guides/content-security-policy' },
 					],
 				},
 				{

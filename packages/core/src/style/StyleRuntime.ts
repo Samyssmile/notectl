@@ -193,11 +193,15 @@ function resolveStyleRootFromNode(node: Node): StyleRoot | null {
 class StrictStyleEngine {
 	private readonly declarationByElement: WeakMap<HTMLElement, Map<string, string>> = new WeakMap();
 	private readonly tokenByDeclaration: Map<string, string> = new Map();
+	private readonly declarationByToken: Map<string, string> = new Map();
+	private readonly tokenRefCount: Map<string, number> = new Map();
+	private readonly tokenByElement: WeakMap<HTMLElement, string> = new WeakMap();
 	private tokenCounter = 0;
 	private readonly root: StyleRoot;
 	private readonly nonce?: string;
 	private sheet: CSSStyleSheet | null;
 	private fallbackStyleElement: HTMLStyleElement | null = null;
+	private ownsAdoptedSheet = false;
 
 	constructor(root: StyleRoot, config: RootConfig) {
 		this.root = root;
@@ -206,8 +210,20 @@ class StrictStyleEngine {
 	}
 
 	destroy(): void {
+		this.clearRuntimeRules();
+		if (this.ownsAdoptedSheet && this.sheet && 'adoptedStyleSheets' in this.root) {
+			this.root.adoptedStyleSheets = this.root.adoptedStyleSheets.filter(
+				(adoptedSheet: CSSStyleSheet): boolean => adoptedSheet !== this.sheet,
+			);
+		}
 		this.fallbackStyleElement?.remove();
 		this.fallbackStyleElement = null;
+		this.sheet = null;
+		this.ownsAdoptedSheet = false;
+		this.tokenByDeclaration.clear();
+		this.declarationByToken.clear();
+		this.tokenRefCount.clear();
+		this.tokenCounter = 0;
 	}
 
 	setProperty(el: HTMLElement, property: string, value: string): void {
@@ -240,8 +256,7 @@ class StrictStyleEngine {
 	setStyleText(el: HTMLElement, cssText: string): void {
 		const declarations = parseStyleText(cssText);
 		if (declarations.size === 0) {
-			this.declarationByElement.delete(el);
-			el.removeAttribute(STYLE_TOKEN_ATTR);
+			this.clearElementStyles(el);
 			return;
 		}
 		this.declarationByElement.set(el, declarations);
@@ -273,9 +288,9 @@ class StrictStyleEngine {
 	}
 
 	private syncElementToken(el: HTMLElement, declarations: Map<string, string>): void {
+		const previousToken = this.tokenByElement.get(el);
 		if (declarations.size === 0) {
-			this.declarationByElement.delete(el);
-			el.removeAttribute(STYLE_TOKEN_ATTR);
+			this.clearElementStyles(el);
 			return;
 		}
 
@@ -285,13 +300,21 @@ class StrictStyleEngine {
 			token = `s${this.tokenCounter.toString(36)}`;
 			this.tokenCounter += 1;
 			this.tokenByDeclaration.set(declarationText, token);
+			this.declarationByToken.set(token, declarationText);
 			this.insertRule(token, declarationText);
+		}
+		if (previousToken !== token) {
+			this.retainToken(token);
+			if (previousToken) {
+				this.releaseToken(previousToken);
+			}
+			this.tokenByElement.set(el, token);
 		}
 		el.setAttribute(STYLE_TOKEN_ATTR, token);
 	}
 
 	private insertRule(token: string, declarationText: string): void {
-		const rule = `[${STYLE_TOKEN_ATTR}="${token}"] { ${declarationText}; }`;
+		const rule = `${buildTokenSelector(token)} { ${declarationText}; }`;
 		const sheet = this.ensureSheet();
 		if (!sheet) return;
 		try {
@@ -311,6 +334,7 @@ class StrictStyleEngine {
 					const adopted = this.root.adoptedStyleSheets;
 					this.root.adoptedStyleSheets = [...adopted, sheet];
 					this.sheet = sheet;
+					this.ownsAdoptedSheet = true;
 					return sheet;
 				}
 			} catch {
@@ -321,6 +345,67 @@ class StrictStyleEngine {
 		const style = this.ensureFallbackStyleElement();
 		this.sheet = (style.sheet as CSSStyleSheet | null) ?? null;
 		return this.sheet;
+	}
+
+	private clearElementStyles(el: HTMLElement): void {
+		this.declarationByElement.delete(el);
+		const token = this.tokenByElement.get(el);
+		if (token) {
+			this.tokenByElement.delete(el);
+			this.releaseToken(token);
+		}
+		el.removeAttribute(STYLE_TOKEN_ATTR);
+	}
+
+	private retainToken(token: string): void {
+		const current = this.tokenRefCount.get(token) ?? 0;
+		this.tokenRefCount.set(token, current + 1);
+	}
+
+	private releaseToken(token: string): void {
+		const current = this.tokenRefCount.get(token);
+		if (!current) return;
+		if (current > 1) {
+			this.tokenRefCount.set(token, current - 1);
+			return;
+		}
+		this.tokenRefCount.delete(token);
+		const declaration = this.declarationByToken.get(token);
+		if (declaration) {
+			this.declarationByToken.delete(token);
+			this.tokenByDeclaration.delete(declaration);
+		}
+		this.deleteRule(token);
+	}
+
+	private deleteRule(token: string): void {
+		const sheet = this.sheet;
+		if (!sheet) return;
+		const selector = buildTokenSelector(token);
+		for (let index = sheet.cssRules.length - 1; index >= 0; index -= 1) {
+			const rule = sheet.cssRules[index];
+			if (!rule || !isTokenSelectorMatch(rule, selector)) continue;
+			try {
+				sheet.deleteRule(index);
+			} catch {
+				// Ignore parser/runtime discrepancies in unsupported environments.
+			}
+			return;
+		}
+	}
+
+	private clearRuntimeRules(): void {
+		const sheet = this.sheet;
+		if (!sheet) return;
+		for (let index = sheet.cssRules.length - 1; index >= 0; index -= 1) {
+			const rule = sheet.cssRules[index];
+			if (!rule || !rule.cssText.includes(`[${STYLE_TOKEN_ATTR}="`)) continue;
+			try {
+				sheet.deleteRule(index);
+			} catch {
+				// Ignore parser/runtime discrepancies in unsupported environments.
+			}
+		}
 	}
 
 	private ensureFallbackStyleElement(): HTMLStyleElement {
@@ -372,4 +457,15 @@ function normalizePropertyName(property: string): string {
 	if (trimmed.startsWith('--')) return trimmed;
 	if (trimmed.includes('-')) return trimmed.toLowerCase();
 	return trimmed.replace(/[A-Z]/g, (char: string) => `-${char.toLowerCase()}`).toLowerCase();
+}
+
+function buildTokenSelector(token: string): string {
+	return `[${STYLE_TOKEN_ATTR}="${token}"]`;
+}
+
+function isTokenSelectorMatch(rule: CSSRule, selector: string): boolean {
+	if (typeof CSSStyleRule !== 'undefined' && rule instanceof CSSStyleRule) {
+		return rule.selectorText === selector;
+	}
+	return rule.cssText.includes(selector);
 }
