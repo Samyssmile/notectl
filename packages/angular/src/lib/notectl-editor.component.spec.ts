@@ -25,8 +25,8 @@ describe('NotectlEditorComponent', () => {
 		const proto = NotectlEditorComponent.prototype;
 		expect(typeof proto.getJSON).toBe('function');
 		expect(typeof proto.setJSON).toBe('function');
-		expect(typeof proto.getHTML).toBe('function');
-		expect(typeof proto.setHTML).toBe('function');
+		expect(typeof proto.getContentHTML).toBe('function');
+		expect(typeof proto.setContentHTML).toBe('function');
 		expect(typeof proto.getText).toBe('function');
 		expect(typeof proto.can).toBe('function');
 		expect(typeof proto.executeCommand).toBe('function');
