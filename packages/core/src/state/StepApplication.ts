@@ -8,20 +8,25 @@ import {
 	type ChildNode,
 	type Document,
 	type InlineNode,
-	type Mark,
 	type TextNode,
-	type TextSegment,
-	addMarkToSet,
 	createBlockNode,
-	createTextNode,
 	getBlockLength,
 	getInlineChildren,
 	isBlockNode,
-	isInlineNode,
-	isTextNode,
 	normalizeInlineContent,
-	removeMarkFromSet,
 } from '../model/Document.js';
+import { findAndTransformChildren, mapBlock, mapNodeByPath } from './BlockTreeOps.js';
+import {
+	applyMarkToInlineContent,
+	deleteFromInlineContent,
+	insertInlineNodeAtOffset,
+	insertSegmentsIntoInlineContent,
+	insertTextIntoInlineContent,
+	removeInlineNodeAtOffset,
+	replaceInlineChildren,
+	setInlineNodeAttrsAtOffset,
+	sliceInlineContent,
+} from './InlineContentOps.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -102,12 +107,11 @@ function applyDeleteText(doc: Document, step: DeleteTextStep): Document {
 }
 
 function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
-	// Try at top level first
-	const blockIndex: number = doc.children.findIndex((b) => b.id === step.blockId);
+	const splitAtLevel = (children: readonly ChildNode[]): readonly ChildNode[] => {
+		const blockIndex: number = children.findIndex((c) => isBlockNode(c) && c.id === step.blockId);
+		if (blockIndex === -1) return children;
 
-	if (blockIndex !== -1) {
-		const block: BlockNode | undefined = doc.children[blockIndex];
-		if (!block) return doc;
+		const block: BlockNode = children[blockIndex] as BlockNode;
 		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
 		const len: number = getBlockLength(block);
 		const nodesBeforeSplit: (TextNode | InlineNode)[] = sliceInlineContent(
@@ -132,113 +136,34 @@ function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
 			block.attrs,
 		);
 
-		const newChildren: BlockNode[] = [...doc.children];
-		newChildren.splice(blockIndex, 1, updatedBlock, newBlock);
-		return { children: newChildren };
-	}
-
-	// Recurse into block children
-	return {
-		children: doc.children.map((child) => {
-			const mapped: BlockNode | null = splitBlockRecursive(child, step);
-			return mapped ?? child;
-		}),
+		const result: ChildNode[] = [...children];
+		result.splice(blockIndex, 1, updatedBlock, newBlock);
+		return result;
 	};
-}
 
-function splitBlockRecursive(node: BlockNode, step: SplitBlockStep): BlockNode | null {
-	const idx: number = node.children.findIndex((c) => isBlockNode(c) && c.id === step.blockId);
-	if (idx !== -1) {
-		const block: BlockNode = node.children[idx] as BlockNode;
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const len: number = getBlockLength(block);
-		const nodesBeforeSplit: (TextNode | InlineNode)[] = sliceInlineContent(
-			inlineChildren,
-			0,
-			step.offset,
-		);
-		const nodesAfterSplit: (TextNode | InlineNode)[] = sliceInlineContent(
-			inlineChildren,
-			step.offset,
-			len,
-		);
+	const hasTarget = (children: readonly ChildNode[]): boolean =>
+		children.some((c) => isBlockNode(c) && c.id === step.blockId);
 
-		const updatedBlock: BlockNode = {
-			...block,
-			children: normalizeInlineContent(nodesBeforeSplit),
-		};
-		const newBlock: BlockNode = createBlockNode(
-			block.type,
-			normalizeInlineContent(nodesAfterSplit),
-			step.newBlockId,
-			block.attrs,
-		);
-
-		const newChildren: ChildNode[] = [...node.children] as ChildNode[];
-		newChildren.splice(idx, 1, updatedBlock, newBlock);
-		return { ...node, children: newChildren };
-	}
-
-	// Recurse deeper
-	let changed = false;
-	const newChildren: ChildNode[] = node.children.map((child) => {
-		if (!isBlockNode(child)) return child;
-		const mapped: BlockNode | null = splitBlockRecursive(child, step);
-		if (mapped) {
-			changed = true;
-			return mapped;
-		}
-		return child;
-	});
-
-	return changed ? { ...node, children: newChildren } : null;
+	const transformed: readonly ChildNode[] | null = findAndTransformChildren(
+		doc.children,
+		hasTarget,
+		splitAtLevel,
+	);
+	return transformed ? { children: transformed as BlockNode[] } : doc;
 }
 
 function applyMergeBlocks(doc: Document, step: MergeBlocksStep): Document {
-	// Try at top level first
-	const targetIndex: number = doc.children.findIndex((b) => b.id === step.targetBlockId);
-	const sourceIndex: number = doc.children.findIndex((b) => b.id === step.sourceBlockId);
-
-	if (targetIndex !== -1 && sourceIndex !== -1) {
-		const target: BlockNode | undefined = doc.children[targetIndex];
-		const source: BlockNode | undefined = doc.children[sourceIndex];
-		if (!target || !source) return doc;
-		const targetInline: readonly (TextNode | InlineNode)[] = getInlineChildren(target);
-		const sourceInline: readonly (TextNode | InlineNode)[] = getInlineChildren(source);
-		const mergedChildren: readonly (TextNode | InlineNode)[] = normalizeInlineContent([
-			...targetInline,
-			...sourceInline,
-		]);
-		const mergedBlock: BlockNode = { ...target, children: mergedChildren };
-
-		const newChildren: readonly BlockNode[] = doc.children.filter(
-			(b) => b.id !== step.sourceBlockId,
+	const mergeAtLevel = (children: readonly ChildNode[]): readonly ChildNode[] => {
+		const targetIdx: number = children.findIndex(
+			(c) => isBlockNode(c) && c.id === step.targetBlockId,
 		);
-		return {
-			children: newChildren.map((b) => (b.id === step.targetBlockId ? mergedBlock : b)),
-		};
-	}
+		const sourceIdx: number = children.findIndex(
+			(c) => isBlockNode(c) && c.id === step.sourceBlockId,
+		);
+		if (targetIdx === -1 || sourceIdx === -1) return children;
 
-	// Recurse into block children
-	return {
-		children: doc.children.map((child) => {
-			const mapped: BlockNode | null = mergeBlocksRecursive(child, step);
-			return mapped ?? child;
-		}),
-	};
-}
-
-function mergeBlocksRecursive(node: BlockNode, step: MergeBlocksStep): BlockNode | null {
-	const targetIdx: number = node.children.findIndex(
-		(c) => isBlockNode(c) && c.id === step.targetBlockId,
-	);
-	const sourceIdx: number = node.children.findIndex(
-		(c) => isBlockNode(c) && c.id === step.sourceBlockId,
-	);
-
-	if (targetIdx !== -1 && sourceIdx !== -1) {
-		const target: BlockNode = node.children[targetIdx] as BlockNode;
-		const source: BlockNode = node.children[sourceIdx] as BlockNode;
+		const target: BlockNode = children[targetIdx] as BlockNode;
+		const source: BlockNode = children[sourceIdx] as BlockNode;
 		const targetInline: readonly (TextNode | InlineNode)[] = getInlineChildren(target);
 		const sourceInline: readonly (TextNode | InlineNode)[] = getInlineChildren(source);
 		const mergedChildren: readonly (TextNode | InlineNode)[] = normalizeInlineContent([
@@ -247,28 +172,22 @@ function mergeBlocksRecursive(node: BlockNode, step: MergeBlocksStep): BlockNode
 		]);
 		const mergedBlock: BlockNode = { ...target, children: mergedChildren };
 
-		const filtered: ChildNode[] = node.children.filter(
+		const filtered: ChildNode[] = children.filter(
 			(c) => !isBlockNode(c) || c.id !== step.sourceBlockId,
 		);
-		const result: ChildNode[] = filtered.map((c) =>
-			isBlockNode(c) && c.id === step.targetBlockId ? mergedBlock : c,
-		);
-		return { ...node, children: result };
-	}
+		return filtered.map((c) => (isBlockNode(c) && c.id === step.targetBlockId ? mergedBlock : c));
+	};
 
-	// Recurse deeper
-	let changed = false;
-	const newChildren: ChildNode[] = node.children.map((child) => {
-		if (!isBlockNode(child)) return child;
-		const mapped: BlockNode | null = mergeBlocksRecursive(child, step);
-		if (mapped) {
-			changed = true;
-			return mapped;
-		}
-		return child;
-	});
+	const hasTargetAndSource = (children: readonly ChildNode[]): boolean =>
+		children.some((c) => isBlockNode(c) && c.id === step.targetBlockId) &&
+		children.some((c) => isBlockNode(c) && c.id === step.sourceBlockId);
 
-	return changed ? { ...node, children: newChildren } : null;
+	const transformed: readonly ChildNode[] | null = findAndTransformChildren(
+		doc.children,
+		hasTargetAndSource,
+		mergeAtLevel,
+	);
+	return transformed ? { children: transformed as BlockNode[] } : doc;
 }
 
 function applyAddMark(doc: Document, step: AddMarkStep): Document {
@@ -351,386 +270,6 @@ function applySetInlineNodeAttr(doc: Document, step: SetInlineNodeAttrStep): Doc
 	});
 }
 
-// --- Helpers ---
-
-function mapBlock(doc: Document, blockId: string, fn: (block: BlockNode) => BlockNode): Document {
-	return {
-		children: mapBlockInChildren(doc.children, blockId, fn) as BlockNode[],
-	};
-}
-
-function mapBlockInChildren(
-	children: readonly ChildNode[],
-	blockId: string,
-	fn: (block: BlockNode) => BlockNode,
-): ChildNode[] {
-	return children.map((child) => {
-		if (!isBlockNode(child)) return child;
-		if (child.id === blockId) return fn(child);
-		// Recurse into block children
-		const mappedChildren: ChildNode[] = mapBlockInChildren(child.children, blockId, fn);
-		if (mappedChildren === child.children) return child;
-		return { ...child, children: mappedChildren };
-	});
-}
-
-/**
- * Replaces the inline content children of a ChildNode array,
- * preserving any BlockNode children in their original positions.
- */
-function replaceInlineChildren(
-	original: readonly ChildNode[],
-	newInlineChildren: readonly (TextNode | InlineNode)[],
-): readonly ChildNode[] {
-	// Fast path: if no block children exist, just return new inline nodes
-	if (original.every((c) => isTextNode(c) || isInlineNode(c))) {
-		return newInlineChildren;
-	}
-	// Mixed: put inline nodes first, then block nodes (preserves structure)
-	const blockChildren: ChildNode[] = original.filter((c) => !isTextNode(c) && !isInlineNode(c));
-	return [...newInlineChildren, ...blockChildren];
-}
-
-/**
- * Inserts text into mixed inline content at the given offset.
- * Handles both TextNode and InlineNode children.
- */
-function insertTextIntoInlineContent(
-	nodes: readonly (TextNode | InlineNode)[],
-	offset: number,
-	text: string,
-	marks: readonly Mark[],
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-	let inserted = false;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (!inserted && offset === pos) {
-				result.push(createTextNode(text, marks));
-				inserted = true;
-			}
-			result.push(node);
-			pos += 1;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (!inserted && offset >= pos && offset <= nodeEnd) {
-			const localOffset: number = offset - pos;
-			const before: string = node.text.slice(0, localOffset);
-			const after: string = node.text.slice(localOffset);
-
-			if (before) result.push(createTextNode(before, node.marks));
-			result.push(createTextNode(text, marks));
-			if (after) result.push(createTextNode(after, node.marks));
-			inserted = true;
-		} else {
-			result.push(node);
-		}
-
-		pos = nodeEnd;
-	}
-
-	if (!inserted) {
-		result.push(createTextNode(text, marks));
-	}
-
-	return result;
-}
-
-/**
- * Inserts segments into mixed inline content at the given offset.
- */
-function insertSegmentsIntoInlineContent(
-	nodes: readonly (TextNode | InlineNode)[],
-	offset: number,
-	segments: readonly TextSegment[],
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-	let inserted = false;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (!inserted && offset === pos) {
-				for (const seg of segments) {
-					result.push(createTextNode(seg.text, seg.marks));
-				}
-				inserted = true;
-			}
-			result.push(node);
-			pos += 1;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (!inserted && offset >= pos && offset <= nodeEnd) {
-			const localOffset: number = offset - pos;
-			const before: string = node.text.slice(0, localOffset);
-			const after: string = node.text.slice(localOffset);
-
-			if (before) result.push(createTextNode(before, node.marks));
-			for (const seg of segments) {
-				result.push(createTextNode(seg.text, seg.marks));
-			}
-			if (after) result.push(createTextNode(after, node.marks));
-			inserted = true;
-		} else {
-			result.push(node);
-		}
-
-		pos = nodeEnd;
-	}
-
-	if (!inserted) {
-		for (const seg of segments) {
-			result.push(createTextNode(seg.text, seg.marks));
-		}
-	}
-
-	return result;
-}
-
-/**
- * Deletes content from mixed inline content in the given range.
- * Removes InlineNodes that fall within the range.
- */
-function deleteFromInlineContent(
-	nodes: readonly (TextNode | InlineNode)[],
-	from: number,
-	to: number,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			const nodeEnd: number = pos + 1;
-			// Keep if outside the delete range
-			if (nodeEnd <= from || pos >= to) {
-				result.push(node);
-			}
-			pos = nodeEnd;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (nodeEnd <= from || pos >= to) {
-			result.push(node);
-		} else {
-			const deleteFrom: number = Math.max(0, from - pos);
-			const deleteTo: number = Math.min(node.text.length, to - pos);
-			const remaining: string = node.text.slice(0, deleteFrom) + node.text.slice(deleteTo);
-			if (remaining.length > 0) {
-				result.push(createTextNode(remaining, node.marks));
-			}
-		}
-
-		pos = nodeEnd;
-	}
-
-	return result;
-}
-
-/**
- * Slices mixed inline content to the given range.
- * InlineNodes are preserved as atoms (included if within range).
- */
-function sliceInlineContent(
-	nodes: readonly (TextNode | InlineNode)[],
-	from: number,
-	to: number,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			const nodeEnd: number = pos + 1;
-			if (nodeEnd > from && pos < to) {
-				result.push(node);
-			}
-			pos = nodeEnd;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (nodeEnd <= from || pos >= to) {
-			// Outside the slice range
-		} else {
-			const sliceFrom: number = Math.max(0, from - pos);
-			const sliceTo: number = Math.min(node.text.length, to - pos);
-			const text: string = node.text.slice(sliceFrom, sliceTo);
-			if (text.length > 0) {
-				result.push(createTextNode(text, node.marks));
-			}
-		}
-
-		pos = nodeEnd;
-	}
-
-	if (result.length === 0) {
-		result.push(createTextNode(''));
-	}
-
-	return result;
-}
-
-/**
- * Applies or removes a mark from mixed inline content in the given range.
- * InlineNodes are passed through unchanged (marks only apply to text).
- */
-function applyMarkToInlineContent(
-	nodes: readonly (TextNode | InlineNode)[],
-	from: number,
-	to: number,
-	mark: Mark,
-	add: boolean,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			result.push(node);
-			pos += 1;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (nodeEnd <= from || pos >= to) {
-			result.push(node);
-		} else if (pos >= from && nodeEnd <= to) {
-			const newMarks: readonly Mark[] = add
-				? addMarkToSet(node.marks, mark)
-				: removeMarkFromSet(node.marks, mark.type);
-			result.push(createTextNode(node.text, newMarks));
-		} else {
-			const overlapStart: number = Math.max(0, from - pos);
-			const overlapEnd: number = Math.min(node.text.length, to - pos);
-
-			const beforeText: string = node.text.slice(0, overlapStart);
-			const insideText: string = node.text.slice(overlapStart, overlapEnd);
-			const afterText: string = node.text.slice(overlapEnd);
-
-			if (beforeText) result.push(createTextNode(beforeText, node.marks));
-			if (insideText) {
-				const newMarks: readonly Mark[] = add
-					? addMarkToSet(node.marks, mark)
-					: removeMarkFromSet(node.marks, mark.type);
-				result.push(createTextNode(insideText, newMarks));
-			}
-			if (afterText) result.push(createTextNode(afterText, node.marks));
-		}
-
-		pos = nodeEnd;
-	}
-
-	return result;
-}
-
-/** Inserts an InlineNode at the given offset in mixed inline content. */
-function insertInlineNodeAtOffset(
-	nodes: readonly (TextNode | InlineNode)[],
-	offset: number,
-	inlineNode: InlineNode,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-	let inserted = false;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (!inserted && offset === pos) {
-				result.push(inlineNode);
-				inserted = true;
-			}
-			result.push(node);
-			pos += 1;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (!inserted && offset >= pos && offset <= nodeEnd) {
-			const localOffset: number = offset - pos;
-			const before: string = node.text.slice(0, localOffset);
-			const after: string = node.text.slice(localOffset);
-
-			if (before) result.push(createTextNode(before, node.marks));
-			result.push(inlineNode);
-			if (after) result.push(createTextNode(after, node.marks));
-			inserted = true;
-		} else {
-			result.push(node);
-		}
-
-		pos = nodeEnd;
-	}
-
-	if (!inserted) {
-		result.push(inlineNode);
-	}
-
-	return result;
-}
-
-/** Removes the InlineNode at the given offset from mixed inline content. */
-function removeInlineNodeAtOffset(
-	nodes: readonly (TextNode | InlineNode)[],
-	offset: number,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (pos !== offset) {
-				result.push(node);
-			}
-			pos += 1;
-			continue;
-		}
-		result.push(node);
-		pos += node.text.length;
-	}
-
-	return result;
-}
-
-/** Replaces the attrs of an InlineNode at the given offset. */
-function setInlineNodeAttrsAtOffset(
-	nodes: readonly (TextNode | InlineNode)[],
-	offset: number,
-	attrs: Readonly<Record<string, string | number | boolean>>,
-): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (pos === offset) {
-				result.push({ ...node, attrs });
-			} else {
-				result.push(node);
-			}
-			pos += 1;
-			continue;
-		}
-		result.push(node);
-		pos += node.text.length;
-	}
-
-	return result;
-}
-
 function applySetBlockType(doc: Document, step: SetBlockTypeStep): Document {
 	return mapBlock(doc, step.blockId, (block) => ({
 		...block,
@@ -779,42 +318,4 @@ function applySetNodeAttr(doc: Document, step: SetNodeAttrStep): Document {
 		...block,
 		attrs: step.attrs,
 	}));
-}
-
-/**
- * Maps a node at the given path, replacing it with the result of fn.
- * Navigates down the path immutably, creating new parent nodes as needed.
- */
-function mapNodeByPath(
-	doc: Document,
-	path: readonly string[],
-	fn: (node: BlockNode) => BlockNode,
-): Document {
-	if (path.length === 0) return doc;
-
-	const rootId: string | undefined = path[0];
-	if (!rootId) return doc;
-	return {
-		children: doc.children.map((child) => {
-			if (!isBlockNode(child) || child.id !== rootId) return child;
-			if (path.length === 1) return fn(child);
-			return mapNodeByPathRecursive(child, path, 1, fn);
-		}),
-	};
-}
-
-function mapNodeByPathRecursive(
-	node: BlockNode,
-	path: readonly string[],
-	depth: number,
-	fn: (node: BlockNode) => BlockNode,
-): BlockNode {
-	const targetId: string | undefined = path[depth];
-	if (!targetId) return node;
-	const newChildren: ChildNode[] = node.children.map((child) => {
-		if (!isBlockNode(child) || child.id !== targetId) return child;
-		if (depth === path.length - 1) return fn(child);
-		return mapNodeByPathRecursive(child, path, depth + 1, fn);
-	});
-	return { ...node, children: newChildren };
 }
