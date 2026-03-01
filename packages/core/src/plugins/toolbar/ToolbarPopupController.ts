@@ -4,7 +4,6 @@
  * and custom popups). Delegates lifecycle to PopupManager.
  */
 
-import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
@@ -39,11 +38,7 @@ export class ToolbarPopupController {
 			return;
 		}
 
-		if (this.popupManager) {
-			this.openViaManager(button, item, context);
-		} else {
-			this.openLegacy(button, item, context);
-		}
+		this.openViaManager(button, item, context);
 	}
 
 	/** Closes the active popup and cleans up event listeners. */
@@ -108,45 +103,6 @@ export class ToolbarPopupController {
 		});
 	}
 
-	// --- Legacy path (no PopupManager available) ---
-
-	private openLegacy(button: HTMLButtonElement, item: ToolbarItem, context: PluginContext): void {
-		const popup: HTMLDivElement = document.createElement('div');
-		popup.className = 'notectl-toolbar-popup';
-
-		this.renderPopupContent(popup, item, context, () => this.close());
-
-		this.positionAndAppend(popup, button);
-
-		this.activePopup = popup;
-		this.activePopupButton = button;
-		button.classList.add('notectl-toolbar-btn--popup-open');
-		button.setAttribute('aria-expanded', 'true');
-
-		this.focusFirstItem(popup);
-
-		popup.addEventListener('keydown', (e: KeyboardEvent) => this.handlePopupKeydown(e));
-
-		const closePopupHandler = (e: MouseEvent): void => {
-			const path: EventTarget[] = e.composedPath();
-			if (!path.includes(popup) && !path.includes(button)) {
-				this.close();
-			}
-		};
-		setTimeout(() => {
-			document.addEventListener('mousedown', closePopupHandler);
-		}, 0);
-
-		// Store handler for cleanup in close
-		popup.dataset.legacyClose = 'true';
-		const origClose = this.close.bind(this);
-		this.close = () => {
-			document.removeEventListener('mousedown', closePopupHandler);
-			this.close = origClose;
-			origClose();
-		};
-	}
-
 	// --- Shared rendering ---
 
 	private renderPopupContent(
@@ -183,25 +139,6 @@ export class ToolbarPopupController {
 			this.activePopupButton.classList.remove('notectl-toolbar-btn--popup-open');
 			this.activePopupButton.setAttribute('aria-expanded', 'false');
 			this.activePopupButton = null;
-		}
-	}
-
-	// --- Legacy Positioning ---
-
-	private positionAndAppend(popup: HTMLElement, button: HTMLButtonElement): void {
-		const rect: DOMRect = button.getBoundingClientRect();
-		setStyleProperties(popup, {
-			position: 'fixed',
-			top: `${rect.bottom + 2}px`,
-			left: `${rect.left}px`,
-			zIndex: '10000',
-		});
-
-		const root: Node = button.getRootNode();
-		if (root instanceof ShadowRoot) {
-			root.appendChild(popup);
-		} else {
-			document.body.appendChild(popup);
 		}
 	}
 
