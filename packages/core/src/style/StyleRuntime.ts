@@ -1,15 +1,12 @@
 /**
  * Runtime style abstraction.
  *
- * - `inline` mode writes directly to `HTMLElement.style` (legacy behavior)
- * - `strict` mode writes no inline styles and instead assigns token attributes
- *   backed by dynamic CSS rules in a stylesheet.
+ * Writes no inline styles and instead assigns token attributes
+ * backed by dynamic CSS rules in a stylesheet.
+ * Elements outside a registered root fall back to inline styles.
  */
 
-export type RuntimeStyleMode = 'inline' | 'strict';
-
 export interface StyleRootOptions {
-	readonly mode: RuntimeStyleMode;
 	readonly nonce?: string;
 	readonly sheet?: CSSStyleSheet | null;
 }
@@ -17,7 +14,6 @@ export interface StyleRootOptions {
 type StyleRoot = ShadowRoot | Document;
 
 interface RootConfig {
-	readonly mode: RuntimeStyleMode;
 	readonly nonce?: string;
 	readonly sheet: CSSStyleSheet | null;
 }
@@ -46,7 +42,6 @@ export function registerStyleRoot(root: StyleRoot, options: StyleRootOptions): v
 		strictEngines.delete(root);
 	}
 	rootConfigs.set(root, {
-		mode: options.mode,
 		nonce: options.nonce,
 		sheet: options.sheet ?? null,
 	});
@@ -65,7 +60,7 @@ export function unregisterStyleRoot(root: StyleRoot): void {
 /** Sets a single style property. Empty value removes the property. */
 export function setStyleProperty(el: HTMLElement, property: string, value: string): void {
 	const config = resolveConfig(el);
-	if (!config || config.mode === 'inline') {
+	if (!config) {
 		setInlineProperty(el, property, value);
 		return;
 	}
@@ -83,7 +78,7 @@ export function setStyleProperties(
 	properties: Readonly<Record<string, string | undefined | null>>,
 ): void {
 	const config = resolveConfig(el);
-	if (!config || config.mode === 'inline') {
+	if (!config) {
 		for (const [property, value] of Object.entries(properties)) {
 			setInlineProperty(el, property, value ?? '');
 		}
@@ -95,7 +90,7 @@ export function setStyleProperties(
 /** Replaces the element style text. */
 export function setStyleText(el: HTMLElement, cssText: string): void {
 	const config = resolveConfig(el);
-	if (!config || config.mode === 'inline') {
+	if (!config) {
 		el.style.cssText = cssText;
 		return;
 	}
@@ -105,7 +100,7 @@ export function setStyleText(el: HTMLElement, cssText: string): void {
 /** Merges a cssText fragment into current element styles. */
 export function appendStyleText(el: HTMLElement, cssText: string): void {
 	const config = resolveConfig(el);
-	if (!config || config.mode === 'inline') {
+	if (!config) {
 		const current = el.style.cssText;
 		el.style.cssText = current ? `${current}; ${cssText}` : cssText;
 		return;
@@ -113,15 +108,10 @@ export function appendStyleText(el: HTMLElement, cssText: string): void {
 	getStrictEngine(config.root, config.settings).appendStyleText(el, cssText);
 }
 
-/** Alias for legacy `setAttribute('style', ...)` sites. */
-export function setStyleAttribute(el: HTMLElement, cssText: string): void {
-	setStyleText(el, cssText);
-}
-
 /** Returns serialized styles for an element. */
 export function getStyleText(el: HTMLElement): string {
 	const config = resolveConfig(el);
-	if (!config || config.mode === 'inline') return el.style.cssText;
+	if (!config) return el.style.cssText;
 	return getStrictEngine(config.root, config.settings).getStyleText(el);
 }
 
@@ -152,14 +142,12 @@ function setInlineProperty(el: HTMLElement, property: string, value: string): vo
 	(el.style as CSSStyleDeclaration & Record<string, string>)[property] = value;
 }
 
-function resolveConfig(
-	el: HTMLElement,
-): { root: StyleRoot; mode: RuntimeStyleMode; settings: RootConfig } | null {
+function resolveConfig(el: HTMLElement): { root: StyleRoot; settings: RootConfig } | null {
 	const root = resolveStyleRoot(el);
 	if (!root) return null;
 	const settings = rootConfigs.get(root);
 	if (!settings) return null;
-	return { root, mode: settings.mode, settings };
+	return { root, settings };
 }
 
 function resolveStyleRoot(el: HTMLElement): StyleRoot | null {
