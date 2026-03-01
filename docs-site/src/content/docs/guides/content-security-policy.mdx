@@ -223,14 +223,29 @@ This produces HTML with **zero** `style` attributes. All styling is expressed vi
 
 #### Rendering on a CSP-Strict Page
 
-Use the built-in `injectContentStyles` utility for CSP-compliant CSS injection:
+**Option A: `adoptContentStyles` (recommended)** — uses `adoptedStyleSheets`, no DOM element, no nonce required:
+
+```ts
+import { adoptContentStyles, removeAdoptedStyles } from '@notectl/core';
+
+const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+
+const sheet = adoptContentStyles(css);
+contentContainer.innerHTML = html;
+
+// Later: clean up
+removeAdoptedStyles(sheet);
+```
+
+This also works with Shadow DOM — pass `{ target: shadowRoot }`.
+
+**Option B: `injectContentStyles`** — creates a `<style>` element (needed for older browsers or SSR):
 
 ```ts
 import { injectContentStyles, removeContentStyles } from '@notectl/core';
 
 const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
 
-// Inject with nonce for strict CSP
 const style = injectContentStyles(css, {
   nonce: window.__CSP_NONCE__,
   id: 'notectl-content-styles',
@@ -242,7 +257,7 @@ contentContainer.innerHTML = html;
 removeContentStyles('notectl-content-styles');
 ```
 
-Or serve as an external stylesheet:
+**Option C: External stylesheet** — serve the CSS from your backend:
 
 ```ts
 // Store CSS alongside HTML
@@ -289,15 +304,33 @@ Without the `styleMap`, class-based HTML can still be imported — but class-onl
 | Re-importing into the editor | `'classes'` + `styleMap` | Full round-trip preservation |
 | Storing editor state (lossless) | `getJSON()` / `setJSON()` | Best for editor-to-editor workflows |
 
-## `injectContentStyles` API Reference
+## CSS Delivery API Reference
 
 ```ts
-import { injectContentStyles, removeContentStyles } from '@notectl/core';
+import {
+  adoptContentStyles, removeAdoptedStyles,
+  injectContentStyles, removeContentStyles,
+} from '@notectl/core';
 ```
+
+### `adoptContentStyles(css, options?)`
+
+Injects CSS via `adoptedStyleSheets` — no DOM element, no nonce needed.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `target` | `Document \| ShadowRoot` | `globalThis.document` | Where to adopt the stylesheet |
+| `replace` | `boolean` | `false` | When `true`, removes previously adopted notectl sheets first |
+
+Returns the `CSSStyleSheet` for cleanup via `removeAdoptedStyles`.
+
+### `removeAdoptedStyles(sheet, target?)`
+
+Removes a specific adopted stylesheet. Pass the sheet returned by `adoptContentStyles`.
 
 ### `injectContentStyles(css, options?)`
 
-Creates or updates a `<style>` element with the given CSS.
+Creates or updates a `<style>` element with the given CSS. Use when `adoptedStyleSheets` is unavailable (SSR, older browsers).
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
