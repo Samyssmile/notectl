@@ -1,6 +1,6 @@
 /**
  * ContentStyleInjector: CSP-compliant utilities for injecting collected CSS
- * into the document. Supports nonce-based `<style>` elements for strict CSP policies.
+ * into the document. Supports nonce-based `<style>` elements and adoptedStyleSheets.
  */
 
 /** Options for {@link injectContentStyles}. */
@@ -71,4 +71,56 @@ export function removeContentStyles(id: string, doc?: Document): void {
 	if (element) {
 		element.remove();
 	}
+}
+
+/** Options for {@link adoptContentStyles}. */
+export interface AdoptStylesOptions {
+	/** Target document or ShadowRoot. Defaults to `globalThis.document`. */
+	readonly target?: Document | ShadowRoot;
+	/**
+	 * When true, replaces any previously adopted notectl sheet on the same target.
+	 * When false (default), appends a new sheet.
+	 */
+	readonly replace?: boolean;
+}
+
+/** WeakSet tracking sheets created by {@link adoptContentStyles}. */
+const notectlSheets: WeakSet<CSSStyleSheet> = new WeakSet();
+
+/**
+ * Injects CSS via `adoptedStyleSheets` — no DOM element, no nonce needed.
+ * Works with both `Document` and `ShadowRoot`, making it ideal for Web Components.
+ *
+ * Returns the created `CSSStyleSheet` for manual cleanup via {@link removeAdoptedStyles}.
+ *
+ * @example
+ * ```ts
+ * const result = editor.getContentHTML({ cssMode: 'classes' });
+ * const sheet = adoptContentStyles(result.css);
+ * // Later: removeAdoptedStyles(sheet);
+ * ```
+ */
+export function adoptContentStyles(css: string, options?: AdoptStylesOptions): CSSStyleSheet {
+	const target: Document | ShadowRoot = options?.target ?? globalThis.document;
+	const sheet = new CSSStyleSheet();
+	sheet.replaceSync(css);
+	notectlSheets.add(sheet);
+
+	if (options?.replace) {
+		target.adoptedStyleSheets = target.adoptedStyleSheets.filter((s) => !notectlSheets.has(s));
+	}
+
+	target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
+	return sheet;
+}
+
+/**
+ * Removes a specific adopted stylesheet from its target.
+ *
+ * @param sheet - The `CSSStyleSheet` returned by {@link adoptContentStyles}.
+ * @param target - Target document or ShadowRoot. Defaults to `globalThis.document`.
+ */
+export function removeAdoptedStyles(sheet: CSSStyleSheet, target?: Document | ShadowRoot): void {
+	const root: Document | ShadowRoot = target ?? globalThis.document;
+	root.adoptedStyleSheets = root.adoptedStyleSheets.filter((s) => s !== sheet);
 }

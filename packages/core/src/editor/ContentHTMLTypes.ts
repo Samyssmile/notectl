@@ -28,5 +28,5 @@ export interface SetContentHTMLOptions {
 	 * Style map from a previous `getContentHTML({ cssMode: 'classes' })` call.
 	 * Used to rehydrate class-based HTML back into styled content.
 	 */
-	readonly styleMap: ReadonlyMap<string, string>;
+	readonly styleMap?: ReadonlyMap<string, string>;
 }

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { injectContentStyles, removeContentStyles } from './ContentStyleInjector.js';
+import {
+	adoptContentStyles,
+	injectContentStyles,
+	removeAdoptedStyles,
+	removeContentStyles,
+} from './ContentStyleInjector.js';
 
 describe('ContentStyleInjector', () => {
 	afterEach(() => {
@@ -68,6 +73,62 @@ describe('ContentStyleInjector', () => {
 		it('does nothing when id does not exist', () => {
 			// Should not throw
 			removeContentStyles('non-existent');
+		});
+	});
+
+	describe('adoptContentStyles', () => {
+		afterEach(() => {
+			// Clean up adopted sheets
+			document.adoptedStyleSheets = [];
+		});
+
+		it('adds a CSSStyleSheet to adoptedStyleSheets', () => {
+			const before: number = document.adoptedStyleSheets.length;
+			const sheet: CSSStyleSheet = adoptContentStyles('.foo { color: red; }');
+			expect(document.adoptedStyleSheets).toHaveLength(before + 1);
+			expect(document.adoptedStyleSheets).toContain(sheet);
+		});
+
+		it('sheet contains the provided CSS rules', () => {
+			const sheet: CSSStyleSheet = adoptContentStyles('.bar { font-size: 14px; }');
+			const rules: string[] = Array.from(sheet.cssRules).map((r) => r.cssText);
+			// First rule is the marker, second is the actual CSS
+			expect(rules.some((r) => r.includes('font-size'))).toBe(true);
+		});
+
+		it('replaces existing notectl sheets when replace is true', () => {
+			const first: CSSStyleSheet = adoptContentStyles('.first { }');
+			const second: CSSStyleSheet = adoptContentStyles('.second { }', { replace: true });
+
+			// First sheet should be gone, second should be present
+			expect(document.adoptedStyleSheets).not.toContain(first);
+			expect(document.adoptedStyleSheets).toContain(second);
+		});
+
+		it('appends without replacing by default', () => {
+			adoptContentStyles('.first { }');
+			adoptContentStyles('.second { }');
+			expect(document.adoptedStyleSheets.length).toBeGreaterThanOrEqual(2);
+		});
+	});
+
+	describe('removeAdoptedStyles', () => {
+		afterEach(() => {
+			document.adoptedStyleSheets = [];
+		});
+
+		it('removes a specific sheet from adoptedStyleSheets', () => {
+			const sheet: CSSStyleSheet = adoptContentStyles('.rem { }');
+			expect(document.adoptedStyleSheets).toContain(sheet);
+
+			removeAdoptedStyles(sheet);
+			expect(document.adoptedStyleSheets).not.toContain(sheet);
+		});
+
+		it('does nothing when sheet is not adopted', () => {
+			const sheet = new CSSStyleSheet();
+			// Should not throw
+			removeAdoptedStyles(sheet);
 		});
 	});
 });
