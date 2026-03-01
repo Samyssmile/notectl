@@ -639,10 +639,12 @@ export type { ParseHTMLOptions } from './editor/DocumentParser.js';
 
 // --- CSS Delivery Utilities ---
 export {
+	adoptContentStyles,
 	injectContentStyles,
+	removeAdoptedStyles,
 	removeContentStyles,
 } from './editor/ContentStyleInjector.js';
-export type { InjectStylesOptions } from './editor/ContentStyleInjector.js';
+export type { AdoptStylesOptions, InjectStylesOptions } from './editor/ContentStyleInjector.js';
 
 // --- Editor ---
 export type {
