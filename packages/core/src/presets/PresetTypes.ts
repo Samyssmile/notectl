@@ -5,7 +5,7 @@
 import type { Plugin } from '../plugins/Plugin.js';
 import type { AlignmentConfig } from '../plugins/alignment/AlignmentPlugin.js';
 import type { BlockquoteConfig } from '../plugins/blockquote/BlockquotePlugin.js';
-import type { CodeBlockConfig } from '../plugins/code-block/CodeBlockPlugin.js';
+import type { CodeBlockConfig } from '../plugins/code-block/CodeBlockTypes.js';
 import type { FontSizeConfig } from '../plugins/font-size/FontSizePlugin.js';
 import type { FontConfig } from '../plugins/font/FontPlugin.js';
 import type { HeadingConfig } from '../plugins/heading/HeadingPlugin.js';

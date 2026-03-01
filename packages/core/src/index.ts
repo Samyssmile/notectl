@@ -448,15 +448,15 @@ export { GapCursorPlugin } from './plugins/gap-cursor/GapCursorPlugin.js';
 
 export { CaretNavigationPlugin } from './plugins/caret-navigation/CaretNavigationPlugin.js';
 
+export { CodeBlockPlugin } from './plugins/code-block/CodeBlockPlugin.js';
 export {
-	CodeBlockPlugin,
 	CODE_BLOCK_SERVICE_KEY,
 	type CodeBlockConfig,
 	type CodeBlockKeymap,
 	type CodeBlockService,
 	type SyntaxHighlighter,
 	type SyntaxToken,
-} from './plugins/code-block/CodeBlockPlugin.js';
+} from './plugins/code-block/CodeBlockTypes.js';
 
 export {
 	DEFAULT_IMAGE_KEYMAP,

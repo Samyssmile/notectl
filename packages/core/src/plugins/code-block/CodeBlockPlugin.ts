@@ -35,16 +35,6 @@ import { registerCodeBlockService } from './CodeBlockService.js';
 import type { CodeBlockConfig, CodeBlockKeymap, SyntaxToken } from './CodeBlockTypes.js';
 import { CODE_BLOCK_ICON, DEFAULT_CONFIG, DEFAULT_KEYMAP } from './CodeBlockTypes.js';
 
-// Re-exports for backward compatibility
-export {
-	CODE_BLOCK_SERVICE_KEY,
-	type CodeBlockConfig,
-	type CodeBlockKeymap,
-	type CodeBlockService,
-	type SyntaxHighlighter,
-	type SyntaxToken,
-} from './CodeBlockTypes.js';
-
 export class CodeBlockPlugin implements Plugin {
 	readonly id = 'code-block';
 	readonly name = 'Code Block';

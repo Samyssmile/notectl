@@ -8,7 +8,8 @@ import {
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
 import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
-import { CODE_BLOCK_SERVICE_KEY, CodeBlockPlugin } from './CodeBlockPlugin.js';
+import { CodeBlockPlugin } from './CodeBlockPlugin.js';
+import { CODE_BLOCK_SERVICE_KEY } from './CodeBlockTypes.js';
 
 // --- Helpers ---
 
