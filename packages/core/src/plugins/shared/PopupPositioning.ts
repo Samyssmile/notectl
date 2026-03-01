@@ -31,21 +31,26 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 	const offset: number = options.offset ?? DEFAULT_OFFSET;
 	const vpWidth: number = window.innerWidth;
 	const vpHeight: number = window.innerHeight;
-	const styles: Record<string, string> = {
-		position: 'fixed',
-		zIndex: Z_INDEX,
-	};
+
+	// Apply fixed positioning first so offsetWidth/offsetHeight reflect
+	// shrink-to-fit sizing rather than normal-flow block width.
+	setStyleProperties(popup, { position: 'fixed', zIndex: Z_INDEX });
+
+	const popupWidth: number = popup.offsetWidth;
+	const popupHeight: number = popup.offsetHeight;
+
+	const styles: Record<string, string> = {};
 
 	switch (options.position) {
 		case 'below-start': {
 			let top: number = anchor.bottom + offset;
 			let left: number = anchor.left;
 
-			if (left + popup.offsetWidth > vpWidth - POPUP_MIN_MARGIN) {
-				left = vpWidth - popup.offsetWidth - POPUP_MIN_MARGIN;
+			if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+				left = vpWidth - popupWidth - POPUP_MIN_MARGIN;
 			}
-			if (top + popup.offsetHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = anchor.top - popup.offsetHeight - offset;
+			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+				top = anchor.top - popupHeight - offset;
 			}
 			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
@@ -58,8 +63,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 			let top: number = anchor.bottom + offset;
 			const rightEdge: number = vpWidth - anchor.right;
 
-			if (top + popup.offsetHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = anchor.top - popup.offsetHeight - offset;
+			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+				top = anchor.top - popupHeight - offset;
 			}
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 			styles.top = `${top}px`;
@@ -71,11 +76,11 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 			let left: number = anchor.right + offset;
 			let top: number = anchor.top;
 
-			if (left + popup.offsetWidth > vpWidth - POPUP_MIN_MARGIN) {
-				left = anchor.left - popup.offsetWidth - offset;
+			if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+				left = anchor.left - popupWidth - offset;
 			}
-			if (top + popup.offsetHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = vpHeight - popup.offsetHeight - POPUP_MIN_MARGIN;
+			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+				top = vpHeight - popupHeight - POPUP_MIN_MARGIN;
 			}
 			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
