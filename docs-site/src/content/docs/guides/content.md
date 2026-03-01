@@ -60,6 +60,46 @@ The HTML is sanitized with DOMPurify. Only safe tags and attributes are included
 - **Tags**: `p`, `h1`-`h6`, `strong`, `em`, `u`, `s`, `a`, `span`, `ul`, `ol`, `li`, `hr`, `blockquote`, `div`, `br`
 - **Attributes**: `href`, `target`, `rel`, `style`
 
+### HTML with CSS Classes (CSP-Compliant)
+
+For environments with strict Content Security Policy where inline `style` attributes are blocked, use the `cssMode: 'classes'` option. Instead of inline styles, dynamic marks and alignment are emitted as CSS class names:
+
+```ts
+const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+```
+
+This returns a `ContentCSSResult` object with two fields:
+
+- **`html`** — The HTML with `class="..."` attributes instead of `style="..."`
+- **`css`** — A stylesheet containing only the CSS rules used in the document
+
+Example output:
+
+```html
+<!-- html -->
+<p class="notectl-align-center">
+  <strong><span class="notectl-s0">Hello World</span></strong>
+</p>
+```
+
+```css
+/* css */
+.notectl-s0 { color: #ff0000; background-color: #fff176; }
+.notectl-align-center { text-align: center; }
+```
+
+Semantic marks (`<strong>`, `<em>`, `<u>`, `<s>`) are unaffected — they always use HTML elements. Only dynamic style marks (text color, highlight, font size, font family) and block alignment are converted to classes.
+
+Identical style combinations are deduplicated: if multiple text spans share the same color and font size, they share a single CSS class.
+
+The `pretty` option works with class mode:
+
+```ts
+const { html, css } = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+```
+
+See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for how to integrate the generated CSS into your page.
+
 ### Plain Text
 
 Plain text content with blocks joined by newlines:

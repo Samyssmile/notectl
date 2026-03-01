@@ -8,6 +8,7 @@ import type { Mark } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { CSSClassCollector } from './CSSClassCollector.js';
 
 /** Builds a map of mark type name to rank from the registry (compute once per pass). */
 export function buildMarkOrder(registry: SchemaRegistry): Map<string, number> {
@@ -60,6 +61,62 @@ export function serializeMarksToHTML(
 	// Wrap with merged style span first (closest to text)
 	if (styleParts.length > 0) {
 		html = `<span style="${styleParts.join('; ')}">${html}</span>`;
+	}
+
+	// Then wrap with tag-based marks in rank order
+	for (const mark of tagMarks) {
+		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
+		if (markSpec?.toHTMLString) {
+			html = markSpec.toHTMLString(mark, html);
+		}
+	}
+
+	return html;
+}
+
+/**
+ * Serializes text with marks to HTML using CSS class names instead of inline styles.
+ * Style-based marks (`toHTMLStyle`) are collected into a `CSSClassCollector` and emitted
+ * as `<span class="...">`. Tag-based marks (`toHTMLString`) wrap identically to the inline path.
+ */
+export function serializeMarksToClassHTML(
+	text: string,
+	marks: readonly Mark[],
+	registry: SchemaRegistry,
+	collector: CSSClassCollector,
+	markOrder?: Map<string, number>,
+): string {
+	if (text === '') return '';
+
+	let html: string = escapeHTML(text);
+
+	if (marks.length === 0) return html;
+
+	const order: Map<string, number> = markOrder ?? buildMarkOrder(registry);
+	const sortedMarks: Mark[] = [...marks].sort(
+		(a, b) => (order.get(a.type) ?? 99) - (order.get(b.type) ?? 99),
+	);
+
+	const styleParts: string[] = [];
+	const tagMarks: Mark[] = [];
+
+	for (const mark of sortedMarks) {
+		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
+		if (markSpec?.toHTMLStyle) {
+			const style: string | null = markSpec.toHTMLStyle(mark);
+			if (style) {
+				styleParts.push(style);
+			}
+		} else {
+			tagMarks.push(mark);
+		}
+	}
+
+	// Wrap with class-based span (closest to text)
+	if (styleParts.length > 0) {
+		const declarations: string = styleParts.join('; ');
+		const className: string = collector.getClassName(declarations);
+		html = `<span class="${className}">${html}</span>`;
 	}
 
 	// Then wrap with tag-based marks in rank order

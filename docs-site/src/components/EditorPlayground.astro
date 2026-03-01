@@ -8,6 +8,7 @@
 		<div class="output-tabs">
 			<button class="output-tab active" data-tab="json">JSON</button>
 			<button class="output-tab" data-tab="html">HTML</button>
+			<button class="output-tab" data-tab="css-html">CSS HTML</button>
 			<button class="output-tab" data-tab="text">Text</button>
 		</div>
 		<pre class="output-content" id="playground-output"><code>Click a tab to inspect the editor output.</code></pre>
@@ -101,7 +102,14 @@ import {
 				case 'json':
 					return JSON.stringify(editor.getJSON(), null, 2);
 				case 'html':
-					return editor.getContentHTML();
+					return editor.getContentHTML({ pretty: true });
+				case 'css-html': {
+					const result = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+					const cssSection = result.css
+						? `/* === CSS === */\n${result.css}`
+						: '/* No dynamic styles in document */';
+					return `${cssSection}\n\n/* === HTML === */\n${result.html}`;
+				}
 				case 'text':
 					return editor.getText() || '(empty)';
 				default:
