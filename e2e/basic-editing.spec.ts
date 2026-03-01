@@ -109,4 +109,66 @@ test.describe('Basic Editing', () => {
 		expect(text).toContain('Bold');
 		expect(text).toContain('italic');
 	});
+
+	test('Select all + Delete removes all text (single block)', async ({ editor, page }) => {
+		await editor.typeText('Hello World');
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Delete');
+
+		const text = await editor.getText();
+		expect(text.trim()).toBe('');
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(1);
+	});
+
+	test('Select all + Backspace removes all text (single block)', async ({ editor, page }) => {
+		await editor.typeText('Hello World');
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Backspace');
+
+		const text = await editor.getText();
+		expect(text.trim()).toBe('');
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(1);
+	});
+
+	test('Select all + Delete removes all text (multiple blocks)', async ({ editor, page }) => {
+		await editor.typeText('Line 1');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Line 2', { delay: 10 });
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Line 3', { delay: 10 });
+
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Delete');
+
+		const text = await editor.getText();
+		expect(text.trim()).toBe('');
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(1);
+	});
+
+	test('Select all + Backspace removes all text (multiple blocks)', async ({ editor, page }) => {
+		await editor.typeText('Line 1');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Line 2', { delay: 10 });
+
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Backspace');
+
+		const text = await editor.getText();
+		expect(text.trim()).toBe('');
+		const json = await editor.getJSON();
+		expect(json.children.length).toBe(1);
+	});
+
+	test('Select all + Delete then type new text', async ({ editor, page }) => {
+		await editor.typeText('Old content');
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Delete');
+		await page.keyboard.type('New content', { delay: 10 });
+
+		const text = await editor.getText();
+		expect(text.trim()).toBe('New content');
+	});
 });

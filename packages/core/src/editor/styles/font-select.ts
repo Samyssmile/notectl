@@ -35,8 +35,10 @@ export const FONT_SELECT_CSS = `
 	transition: background 0.1s;
 }
 
-.notectl-font-picker__item:hover {
-	background: var(--notectl-hover-bg);
+@media (hover: hover) {
+	.notectl-font-picker__item:hover {
+		background: var(--notectl-hover-bg);
+	}
 }
 
 .notectl-font-picker__item--active {
@@ -44,8 +46,10 @@ export const FONT_SELECT_CSS = `
 	color: var(--notectl-primary-fg);
 }
 
-.notectl-font-picker__item--active:hover {
-	background: var(--notectl-active-bg);
+@media (hover: hover) {
+	.notectl-font-picker__item--active:hover {
+		background: var(--notectl-active-bg);
+	}
 }
 
 .notectl-font-picker__check {

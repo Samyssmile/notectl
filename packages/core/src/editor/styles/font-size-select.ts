@@ -67,8 +67,10 @@ export const FONT_SIZE_SELECT_CSS = `
 	outline: none;
 }
 
-.notectl-font-size-picker__item:hover {
-	background: var(--notectl-hover-bg);
+@media (hover: hover) {
+	.notectl-font-size-picker__item:hover {
+		background: var(--notectl-hover-bg);
+	}
 }
 
 .notectl-font-size-picker__item--active {
@@ -76,8 +78,10 @@ export const FONT_SIZE_SELECT_CSS = `
 	color: var(--notectl-primary-fg);
 }
 
-.notectl-font-size-picker__item--active:hover {
-	background: var(--notectl-active-bg);
+@media (hover: hover) {
+	.notectl-font-size-picker__item--active:hover {
+		background: var(--notectl-active-bg);
+	}
 }
 
 .notectl-font-size-picker__item--focused {

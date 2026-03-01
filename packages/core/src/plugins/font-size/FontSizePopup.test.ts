@@ -11,7 +11,8 @@ function makeConfig(overrides?: Partial<FontSizePopupConfig>): FontSizePopupConf
 	return {
 		sizes: DEFAULT_SIZES,
 		defaultSize: 16,
-		dismissPopup: vi.fn(),
+		onClose: vi.fn(),
+		contentElement: document.createElement('div'),
 		...overrides,
 	};
 }
@@ -153,14 +154,16 @@ describe('renderFontSizePopup', () => {
 	});
 
 	describe('keyboard navigation', () => {
-		it('Enter on input with valid value dismisses popup', () => {
+		it('Enter on input with valid value closes popup with focus restoration', () => {
 			const { container, config } = renderPopup({ sizes: [12, 16, 24] });
 
 			const input = getInput(container);
 			input.value = '20';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
-			expect(config.dismissPopup).toHaveBeenCalledOnce();
+			expect(config.onClose).toHaveBeenCalledWith({
+				restoreFocusTo: config.contentElement,
+			});
 		});
 
 		it('Enter on input with out-of-range value does not dismiss', () => {
@@ -170,25 +173,29 @@ describe('renderFontSizePopup', () => {
 			input.value = '0';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
-			expect(config.dismissPopup).not.toHaveBeenCalled();
+			expect(config.onClose).not.toHaveBeenCalled();
 		});
 
-		it('Escape on input dismisses popup', () => {
+		it('Escape on input closes popup with focus restoration', () => {
 			const { container, config } = renderPopup();
 
 			const input = getInput(container);
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-			expect(config.dismissPopup).toHaveBeenCalledOnce();
+			expect(config.onClose).toHaveBeenCalledWith({
+				restoreFocusTo: config.contentElement,
+			});
 		});
 
-		it('Escape on list dismisses popup', () => {
+		it('Escape on list closes popup with focus restoration', () => {
 			const { container, config } = renderPopup();
 
 			const list = getList(container);
 			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-			expect(config.dismissPopup).toHaveBeenCalledOnce();
+			expect(config.onClose).toHaveBeenCalledWith({
+				restoreFocusTo: config.contentElement,
+			});
 		});
 
 		it('ArrowDown on input focuses first list item', () => {
@@ -203,13 +210,15 @@ describe('renderFontSizePopup', () => {
 	});
 
 	describe('mouse interaction', () => {
-		it('mousedown on item dismisses popup', () => {
+		it('mousedown on item closes popup with focus restoration', () => {
 			const { container, config } = renderPopup({ sizes: [12, 16, 24] });
 
 			const items = container.querySelectorAll('.notectl-font-size-picker__item');
 			items[0]?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
-			expect(config.dismissPopup).toHaveBeenCalledOnce();
+			expect(config.onClose).toHaveBeenCalledWith({
+				restoreFocusTo: config.contentElement,
+			});
 		});
 	});
 });
