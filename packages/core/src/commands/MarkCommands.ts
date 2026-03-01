@@ -6,7 +6,6 @@
 import {
 	type BlockNode,
 	type Mark,
-	type MarkType,
 	getBlockLength,
 	getBlockMarksAtOffset,
 	getInlineChildren,
@@ -15,6 +14,7 @@ import {
 } from '../model/Document.js';
 import { isMarkAllowed } from '../model/Schema.js';
 import { isCollapsed, isGapCursor, isNodeSelection, selectionRange } from '../model/Selection.js';
+import type { MarkTypeName } from '../model/TypeBrands.js';
 import { markType as mkType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -36,7 +36,7 @@ const defaultFeatures: FeatureConfig = { bold: true, italic: true, underline: tr
  */
 export function toggleMark(
 	state: EditorState,
-	markType: MarkType,
+	markType: MarkTypeName,
 	features: FeatureConfig = defaultFeatures,
 ): Transaction | null {
 	if (isFeatureGated(markType, features)) return null;
@@ -95,7 +95,7 @@ export function toggleUnderline(state: EditorState, features?: FeatureConfig): T
 }
 
 /** Checks if a mark is active at the current selection. */
-export function isMarkActive(state: EditorState, markType: MarkType): boolean {
+export function isMarkActive(state: EditorState, markType: MarkTypeName): boolean {
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 
@@ -113,7 +113,7 @@ export function isMarkActive(state: EditorState, markType: MarkType): boolean {
 }
 
 /** Checks if a mark is active across the entire selection range. */
-function isMarkActiveInRange(state: EditorState, markType: MarkType): boolean {
+function isMarkActiveInRange(state: EditorState, markType: MarkTypeName): boolean {
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
 	const blockOrder = state.getBlockOrder();
@@ -141,7 +141,7 @@ function isMarkActiveInBlock(
 	block: BlockNode,
 	from: number,
 	to: number,
-	markType: MarkType,
+	markType: MarkTypeName,
 ): boolean {
 	if (from === to) return false;
 	let pos = 0;
@@ -160,7 +160,7 @@ function isMarkActiveInBlock(
 	return true;
 }
 
-function isFeatureGated(type: MarkType, features: FeatureConfig): boolean {
+function isFeatureGated(type: MarkTypeName, features: FeatureConfig): boolean {
 	const key = type as string;
 	if (key === 'bold') return !features.bold;
 	if (key === 'italic') return !features.italic;
