@@ -5,13 +5,13 @@
  */
 
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
-import { FONT_SIZE_LOCALES, type FontSizeLocale } from './FontSizeLocale.js';
+import { FONT_SIZE_LOCALE_EN, type FontSizeLocale, loadFontSizeLocale } from './FontSizeLocale.js';
 import {
 	getActiveSizeNumeric,
 	isFontSizeActive,
@@ -76,8 +76,14 @@ export class FontSizePlugin implements Plugin {
 		this.defaultSize = resolveDefaultSize(config?.defaultSize);
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(FONT_SIZE_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? FONT_SIZE_LOCALE_EN : await loadFontSizeLocale(lang);
+		}
 
 		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
 		this.registerMarkSpec(context);

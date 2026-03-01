@@ -8,7 +8,7 @@
  */
 
 import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
@@ -19,7 +19,7 @@ import {
 import { registerHeadingCommands } from './HeadingCommands.js';
 import { registerHeadingInputRules } from './HeadingInputRules.js';
 import { registerHeadingKeymaps } from './HeadingKeyboardHandlers.js';
-import { HEADING_LOCALES, type HeadingLocale } from './HeadingLocale.js';
+import { HEADING_LOCALE_EN, type HeadingLocale, loadHeadingLocale } from './HeadingLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -72,8 +72,14 @@ export class HeadingPlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(HEADING_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? HEADING_LOCALE_EN : await loadHeadingLocale(lang);
+		}
 		context.registerStyleSheet(HEADING_SELECT_CSS);
 
 		this.registerNodeSpecs(context);

@@ -45,18 +45,16 @@ When set to `Locale.BROWSER` (the default), the editor detects the language from
 Every plugin that renders user-facing text accepts an optional `locale` config parameter. This allows overriding the global locale for a specific plugin.
 
 ```ts
-import {
-  createEditor,
-  Locale,
-  TablePlugin,
-  TABLE_LOCALE_FR,
-} from '@notectl/core';
+import { createEditor, Locale, TablePlugin, loadTableLocale } from '@notectl/core';
+
+// Load French locale for the table plugin
+const tableFr = await loadTableLocale('fr');
 
 // Editor in German, but table plugin in French
 const editor = await createEditor({
   locale: Locale.DE,
   toolbar: [
-    [new TablePlugin({ locale: TABLE_LOCALE_FR })],
+    [new TablePlugin({ locale: tableFr })],
   ],
 });
 ```
@@ -66,58 +64,45 @@ const editor = await createEditor({
 Plugins resolve their locale in this order:
 
 1. **Per-plugin config override** — if provided in the plugin constructor, it wins
-2. **Global `LocaleService`** — reads the editor's `locale` setting
+2. **Global `LocaleService`** — reads the editor's `locale` setting and loads the matching translation asynchronously
 3. **English fallback** — if no translation exists for the resolved language
 
-This is handled internally by the `resolvePluginLocale()` helper:
+## Async Locale Loaders
+
+Every plugin exports an async `loadXxxLocale(lang)` function that loads translation data on demand. This keeps locale data out of the main bundle — only the requested language is fetched at runtime.
 
 ```ts
-import { resolvePluginLocale } from '@notectl/core';
+import { loadTableLocale } from '@notectl/core';
 
-// Inside a plugin's init():
-const locale = resolvePluginLocale(MY_LOCALES, context, this.config.locale);
+// Load German table strings (async, code-split)
+const deLocale = await loadTableLocale('de');
+
+// Falls back to English for unknown languages
+const fallback = await loadTableLocale('unknown'); // → English
 ```
 
-## Plugin Locale Exports
+### Available Loaders
 
-Every plugin exports its locale type, default English locale, and a locale map with all translations. The naming pattern is consistent:
-
-| Plugin | Locale Type | Default | Map |
-|--------|-------------|---------|-----|
-| Text Formatting | `TextFormattingLocale` | `TEXT_FORMATTING_LOCALE_EN` | `TEXT_FORMATTING_LOCALES` |
-| Heading | `HeadingLocale` | `HEADING_LOCALE_EN` | `HEADING_LOCALES` |
-| List | `ListLocale` | `LIST_LOCALE_EN` | `LIST_LOCALES` |
-| Link | `LinkLocale` | `LINK_LOCALE_EN` | `LINK_LOCALES` |
-| Table | `TableLocale` | `TABLE_LOCALE_EN` | `TABLE_LOCALES` |
-| Code Block | `CodeBlockLocale` | `CODE_BLOCK_LOCALE_EN` | `CODE_BLOCK_LOCALES` |
-| Blockquote | `BlockquoteLocale` | `BLOCKQUOTE_LOCALE_EN` | `BLOCKQUOTE_LOCALES` |
-| Image | `ImageLocale` | `IMAGE_LOCALE_EN` | `IMAGE_LOCALES` |
-| Font | `FontLocale` | `FONT_LOCALE_EN` | `FONT_LOCALES` |
-| Font Size | `FontSizeLocale` | `FONT_SIZE_LOCALE_EN` | `FONT_SIZE_LOCALES` |
-| Text Color | `TextColorLocale` | `TEXT_COLOR_LOCALE_EN` | `TEXT_COLOR_LOCALES` |
-| Alignment | `AlignmentLocale` | `ALIGNMENT_LOCALE_EN` | `ALIGNMENT_LOCALES` |
-| Strikethrough | `StrikethroughLocale` | `STRIKETHROUGH_LOCALE_EN` | `STRIKETHROUGH_LOCALES` |
-| Superscript / Subscript | `SuperSubLocale` | `SUPER_SUB_LOCALE_EN` | `SUPER_SUB_LOCALES` |
-| Highlight | `HighlightLocale` | `HIGHLIGHT_LOCALE_EN` | `HIGHLIGHT_LOCALES` |
-| Horizontal Rule | `HorizontalRuleLocale` | `HORIZONTAL_RULE_LOCALE_EN` | `HORIZONTAL_RULE_LOCALES` |
-| Print | `PrintLocale` | `PRINT_LOCALE_EN` | `PRINT_LOCALES` |
-| Toolbar | `ToolbarLocale` | `TOOLBAR_LOCALE_EN` | `TOOLBAR_LOCALES` |
-
-All exports are available from `@notectl/core`:
-
-```ts
-import {
-  TABLE_LOCALE_EN,
-  TABLE_LOCALE_DE,
-  TABLE_LOCALE_ES,
-  TABLE_LOCALE_FR,
-  TABLE_LOCALE_ZH,
-  TABLE_LOCALE_RU,
-  TABLE_LOCALE_AR,
-  TABLE_LOCALE_HI,
-  TABLE_LOCALES,
-} from '@notectl/core';
-```
+| Plugin | Loader | EN Constant |
+|--------|--------|-------------|
+| Text Formatting | `loadTextFormattingLocale()` | `TEXT_FORMATTING_LOCALE_EN` |
+| Heading | `loadHeadingLocale()` | `HEADING_LOCALE_EN` |
+| List | `loadListLocale()` | `LIST_LOCALE_EN` |
+| Link | `loadLinkLocale()` | `LINK_LOCALE_EN` |
+| Table | `loadTableLocale()` | `TABLE_LOCALE_EN` |
+| Code Block | `loadCodeBlockLocale()` | `CODE_BLOCK_LOCALE_EN` |
+| Blockquote | `loadBlockquoteLocale()` | `BLOCKQUOTE_LOCALE_EN` |
+| Image | `loadImageLocale()` | `IMAGE_LOCALE_EN` |
+| Font | `loadFontLocale()` | `FONT_LOCALE_EN` |
+| Font Size | `loadFontSizeLocale()` | `FONT_SIZE_LOCALE_EN` |
+| Text Color | `loadTextColorLocale()` | `TEXT_COLOR_LOCALE_EN` |
+| Alignment | `loadAlignmentLocale()` | `ALIGNMENT_LOCALE_EN` |
+| Strikethrough | `loadStrikethroughLocale()` | `STRIKETHROUGH_LOCALE_EN` |
+| Superscript / Subscript | `loadSuperSubLocale()` | `SUPER_SUB_LOCALE_EN` |
+| Highlight | `loadHighlightLocale()` | `HIGHLIGHT_LOCALE_EN` |
+| Horizontal Rule | `loadHorizontalRuleLocale()` | `HORIZONTAL_RULE_LOCALE_EN` |
+| Print | `loadPrintLocale()` | `PRINT_LOCALE_EN` |
+| Toolbar | `loadToolbarLocale()` | `TOOLBAR_LOCALE_EN` |
 
 ## Custom Locales
 
@@ -171,4 +156,3 @@ new TablePlugin({ locale: myTableLocale });
 | `Locale` | Const object | `EN`, `DE`, `ES`, `FR`, `ZH`, `RU`, `AR`, `HI`, `BROWSER` |
 | `LocaleService` | Class | Resolves the active language from config |
 | `LocaleServiceKey` | ServiceKey | Service key for accessing `LocaleService` |
-| `resolvePluginLocale()` | Function | Helper for plugins to resolve their locale |

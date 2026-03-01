@@ -37,9 +37,10 @@ interface TableConfig {
 Each plugin resolves its locale automatically from the editor's global `locale` setting. To override the table locale independently:
 
 ```ts
-import { TablePlugin, TABLE_LOCALE_DE } from '@notectl/core';
+import { TablePlugin, loadTableLocale } from '@notectl/core';
 
-new TablePlugin({ locale: TABLE_LOCALE_DE })
+const tableDe = await loadTableLocale('de');
+new TablePlugin({ locale: tableDe })
 ```
 
 See the [Internationalization guide](/notectl/guides/internationalization/) for details on global and per-plugin locale configuration.

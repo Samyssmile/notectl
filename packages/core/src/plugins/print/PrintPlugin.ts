@@ -5,10 +5,10 @@
  * and PrintContentPreparer.
  */
 
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { PRINT_LOCALES, type PrintLocale } from './PrintLocale.js';
+import { PRINT_LOCALE_EN, type PrintLocale, loadPrintLocale } from './PrintLocale.js';
 import { createPrintService } from './PrintServiceImpl.js';
 import type { PrintOptions, PrintPluginConfig, PrintService } from './PrintTypes.js';
 import { PRINT_SERVICE_KEY } from './PrintTypes.js';
@@ -39,8 +39,14 @@ export class PrintPlugin implements Plugin {
 		this.config = config ?? {};
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(PRINT_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? PRINT_LOCALE_EN : await loadPrintLocale(lang);
+		}
 		const container: HTMLElement = context.getContainer();
 		const rootNode: Node = container.getRootNode();
 

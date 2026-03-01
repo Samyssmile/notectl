@@ -4,7 +4,7 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
@@ -12,7 +12,11 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
-import { HIGHLIGHT_LOCALES, type HighlightLocale } from './HighlightLocale.js';
+import {
+	HIGHLIGHT_LOCALE_EN,
+	type HighlightLocale,
+	loadHighlightLocale,
+} from './HighlightLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -113,8 +117,14 @@ export class HighlightPlugin implements Plugin {
 		this.colors = resolveColors(config?.colors, HIGHLIGHT_PALETTE, 'HighlightPlugin');
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(HIGHLIGHT_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? HIGHLIGHT_LOCALE_EN : await loadHighlightLocale(lang);
+		}
 
 		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);

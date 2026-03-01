@@ -20,13 +20,9 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
-import { CaretNavigationPlugin } from '../plugins/caret-navigation/CaretNavigationPlugin.js';
-import { GapCursorPlugin } from '../plugins/gap-cursor/GapCursorPlugin.js';
 import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
-import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
-import { ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
@@ -43,8 +39,6 @@ import type {
 	ContentHTMLOptions,
 	SetContentHTMLOptions,
 } from './ContentHTMLTypes.js';
-import { parseHTMLToDocument } from './DocumentParser.js';
-import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -235,7 +229,7 @@ export class NotectlEditor extends HTMLElement {
 		registerBuiltinSpecs(this.pluginManager.schemaRegistry);
 
 		// Process declarative toolbar config (registers ToolbarPlugin + toolbar plugins)
-		this.processToolbarConfig();
+		await this.processToolbarConfig();
 
 		// Register plugins from config
 		for (const plugin of this.config.plugins ?? []) {
@@ -249,9 +243,9 @@ export class NotectlEditor extends HTMLElement {
 		this.preInitPlugins = [];
 
 		// Auto-register essential plugins if none were explicitly provided
-		this.ensureTextFormattingPlugin();
-		this.ensureCaretNavigationPlugin();
-		this.ensureGapCursorPlugin();
+		await this.ensureTextFormattingPlugin();
+		await this.ensureCaretNavigationPlugin();
+		await this.ensureGapCursorPlugin();
 
 		// Set up DOM events before plugin init
 		this.contentElement.addEventListener('focus', () => this.emit('focus', undefined));
@@ -357,13 +351,19 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	getContentHTML(): string;
-	getContentHTML(options: { pretty?: boolean }): string;
-	getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): ContentCSSResult;
-	getContentHTML(options?: ContentHTMLOptions): string | ContentCSSResult {
+	async getContentHTML(): Promise<string>;
+	async getContentHTML(options: { pretty?: boolean }): Promise<string>;
+	async getContentHTML(
+		options: ContentHTMLOptions & { cssMode: 'classes' },
+	): Promise<ContentCSSResult>;
+	async getContentHTML(options?: ContentHTMLOptions): Promise<string | ContentCSSResult> {
 		if (!this.view) throw new Error('Editor not initialized');
 		const doc = this.view.getState().doc;
 		const registry = this.pluginManager?.schemaRegistry;
+
+		const { serializeDocumentToHTML, serializeDocumentToCSS } = await import(
+			'./DocumentSerializer.js'
+		);
 
 		if (options?.cssMode === 'classes') {
 			const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
@@ -377,7 +377,8 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
-	setContentHTML(html: string, options?: SetContentHTMLOptions): void {
+	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
+		const { parseHTMLToDocument } = await import('./DocumentParser.js');
 		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry, options);
 		this.setJSON(doc);
 	}
@@ -581,7 +582,7 @@ export class NotectlEditor extends HTMLElement {
 	 * with layout groups, then registers all plugins from the toolbar groups.
 	 * Accepts both the shorthand array and the full ToolbarConfig object.
 	 */
-	private processToolbarConfig(): void {
+	private async processToolbarConfig(): Promise<void> {
 		if (!this.pluginManager || !this.config.toolbar) return;
 
 		const toolbarCfg = this.config.toolbar;
@@ -603,6 +604,7 @@ export class NotectlEditor extends HTMLElement {
 			groups.push(pluginIds);
 		}
 
+		const { ToolbarPlugin } = await import('../plugins/toolbar/ToolbarPlugin.js');
 		const layoutConfig: ToolbarLayoutConfig = { groups, overflow };
 		this.pluginManager.register(new ToolbarPlugin(layoutConfig));
 	}
@@ -611,11 +613,9 @@ export class NotectlEditor extends HTMLElement {
 	 * Auto-registers TextFormattingPlugin if no plugin with id 'text-formatting'
 	 * was explicitly registered. Uses the `features` config to determine which marks to enable.
 	 */
-	private ensureTextFormattingPlugin(): void {
+	private async ensureTextFormattingPlugin(): Promise<void> {
 		if (!this.pluginManager) return;
-
-		const hasTextFormatting = this.pluginManager.get('text-formatting') !== undefined;
-		if (hasTextFormatting) return;
+		if (this.pluginManager.get('text-formatting') !== undefined) return;
 
 		const features: TextFormattingConfig = {
 			bold: this.config.features?.bold ?? true,
@@ -623,20 +623,29 @@ export class NotectlEditor extends HTMLElement {
 			underline: this.config.features?.underline ?? true,
 		};
 
+		const { TextFormattingPlugin } = await import(
+			'../plugins/text-formatting/TextFormattingPlugin.js'
+		);
 		this.pluginManager.register(new TextFormattingPlugin(features));
 	}
 
 	/** Auto-registers CaretNavigationPlugin if not explicitly provided. */
-	private ensureCaretNavigationPlugin(): void {
+	private async ensureCaretNavigationPlugin(): Promise<void> {
 		if (!this.pluginManager) return;
 		if (this.pluginManager.get('caret-navigation') !== undefined) return;
+
+		const { CaretNavigationPlugin } = await import(
+			'../plugins/caret-navigation/CaretNavigationPlugin.js'
+		);
 		this.pluginManager.register(new CaretNavigationPlugin());
 	}
 
 	/** Auto-registers GapCursorPlugin if not explicitly provided. */
-	private ensureGapCursorPlugin(): void {
+	private async ensureGapCursorPlugin(): Promise<void> {
 		if (!this.pluginManager) return;
 		if (this.pluginManager.get('gap-cursor') !== undefined) return;
+
+		const { GapCursorPlugin } = await import('../plugins/gap-cursor/GapCursorPlugin.js');
 		this.pluginManager.register(new GapCursorPlugin());
 	}
 

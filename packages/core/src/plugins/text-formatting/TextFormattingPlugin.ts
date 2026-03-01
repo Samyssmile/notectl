@@ -14,13 +14,17 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { TEXT_FORMATTING_LOCALES, type TextFormattingLocale } from './TextFormattingLocale.js';
+import {
+	TEXT_FORMATTING_LOCALE_EN,
+	type TextFormattingLocale,
+	loadTextFormattingLocale,
+} from './TextFormattingLocale.js';
 
 // --- Configuration ---
 
@@ -159,8 +163,15 @@ export class TextFormattingPlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(TEXT_FORMATTING_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale =
+				lang === 'en' ? TEXT_FORMATTING_LOCALE_EN : await loadTextFormattingLocale(lang);
+		}
 
 		const enabledMarks = MARK_DEFINITIONS.filter((def) => this.config[def.configKey]);
 

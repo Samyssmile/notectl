@@ -38,13 +38,13 @@ export class NotectlTestHarness {
 	}
 
 	/** Sets HTML content and triggers change detection. */
-	setContentHTML(html: string): void {
-		this.component.setContentHTML(html);
+	async setContentHTML(html: string): Promise<void> {
+		await this.component.setContentHTML(html);
 		this.fixture.detectChanges();
 	}
 
 	/** Returns the current HTML content. */
-	getContentHTML(): string {
+	async getContentHTML(): Promise<string> {
 		return this.component.getContentHTML();
 	}
 

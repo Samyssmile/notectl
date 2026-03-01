@@ -1,25 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { TableLocale } from './TableLocale.js';
-import {
-	TABLE_LOCALE_AR,
-	TABLE_LOCALE_DE,
-	TABLE_LOCALE_EN,
-	TABLE_LOCALE_ES,
-	TABLE_LOCALE_FR,
-	TABLE_LOCALE_HI,
-	TABLE_LOCALE_RU,
-	TABLE_LOCALE_ZH,
-} from './TableLocale.js';
+import { TABLE_LOCALE_EN, loadTableLocale } from './TableLocale.js';
+import arLocale from './locales/ar.js';
+import deLocale from './locales/de.js';
+import esLocale from './locales/es.js';
+import frLocale from './locales/fr.js';
+import hiLocale from './locales/hi.js';
+import ruLocale from './locales/ru.js';
+import zhLocale from './locales/zh.js';
 
 const ALL_LOCALES: ReadonlyArray<readonly [string, TableLocale]> = [
 	['EN', TABLE_LOCALE_EN],
-	['DE', TABLE_LOCALE_DE],
-	['ES', TABLE_LOCALE_ES],
-	['FR', TABLE_LOCALE_FR],
-	['ZH', TABLE_LOCALE_ZH],
-	['RU', TABLE_LOCALE_RU],
-	['AR', TABLE_LOCALE_AR],
-	['HI', TABLE_LOCALE_HI],
+	['DE', deLocale],
+	['ES', esLocale],
+	['FR', frLocale],
+	['ZH', zhLocale],
+	['RU', ruLocale],
+	['AR', arLocale],
+	['HI', hiLocale],
 ];
 
 const STRING_KEYS: ReadonlyArray<keyof TableLocale> = [
@@ -71,6 +69,18 @@ describe('TableLocale', () => {
 		});
 	});
 
+	describe('loadTableLocale()', () => {
+		it('returns English for "en"', async () => {
+			const locale: TableLocale = await loadTableLocale('en');
+			expect(locale).toBe(TABLE_LOCALE_EN);
+		});
+
+		it('falls back to English for unknown language', async () => {
+			const locale: TableLocale = await loadTableLocale('xx');
+			expect(locale).toBe(TABLE_LOCALE_EN);
+		});
+	});
+
 	describe.each(ALL_LOCALES)('TABLE_LOCALE_%s', (_code: string, locale: TableLocale) => {
 		it('has non-empty strings for all required keys', () => {
 			for (const key of STRING_KEYS) {
@@ -96,87 +106,87 @@ describe('TableLocale', () => {
 		});
 	});
 
-	describe('TABLE_LOCALE_DE', () => {
+	describe('German (de)', () => {
 		it('has correct German translations', () => {
-			expect(TABLE_LOCALE_DE.insertRowAbove).toBe('Zeile oberhalb einfügen');
-			expect(TABLE_LOCALE_DE.deleteTable).toBe('Tabelle löschen');
-			expect(TABLE_LOCALE_DE.insertTable).toBe('Tabelle einfügen');
+			expect(deLocale.insertRowAbove).toBe('Zeile oberhalb einfügen');
+			expect(deLocale.deleteTable).toBe('Tabelle löschen');
+			expect(deLocale.insertTable).toBe('Tabelle einfügen');
 		});
 
 		it('tableAriaLabel produces correct German string', () => {
-			expect(TABLE_LOCALE_DE.tableAriaLabel(2, 5)).toBe('Tabelle mit 2 Zeilen und 5 Spalten');
+			expect(deLocale.tableAriaLabel(2, 5)).toBe('Tabelle mit 2 Zeilen und 5 Spalten');
 		});
 	});
 
-	describe('TABLE_LOCALE_ES', () => {
+	describe('Spanish (es)', () => {
 		it('has correct Spanish translations', () => {
-			expect(TABLE_LOCALE_ES.insertRowAbove).toBe('Insertar fila arriba');
-			expect(TABLE_LOCALE_ES.deleteTable).toBe('Eliminar tabla');
-			expect(TABLE_LOCALE_ES.insertTable).toBe('Insertar tabla');
+			expect(esLocale.insertRowAbove).toBe('Insertar fila arriba');
+			expect(esLocale.deleteTable).toBe('Eliminar tabla');
+			expect(esLocale.insertTable).toBe('Insertar tabla');
 		});
 
 		it('tableAriaLabel produces correct Spanish string', () => {
-			expect(TABLE_LOCALE_ES.tableAriaLabel(2, 5)).toBe('Tabla con 2 filas y 5 columnas');
+			expect(esLocale.tableAriaLabel(2, 5)).toBe('Tabla con 2 filas y 5 columnas');
 		});
 	});
 
-	describe('TABLE_LOCALE_FR', () => {
+	describe('French (fr)', () => {
 		it('has correct French translations', () => {
-			expect(TABLE_LOCALE_FR.insertRowAbove).toBe('Insérer une ligne au-dessus');
-			expect(TABLE_LOCALE_FR.deleteTable).toBe('Supprimer le tableau');
-			expect(TABLE_LOCALE_FR.insertTable).toBe('Insérer un tableau');
+			expect(frLocale.insertRowAbove).toBe('Insérer une ligne au-dessus');
+			expect(frLocale.deleteTable).toBe('Supprimer le tableau');
+			expect(frLocale.insertTable).toBe('Insérer un tableau');
 		});
 
 		it('tableAriaLabel produces correct French string', () => {
-			expect(TABLE_LOCALE_FR.tableAriaLabel(2, 5)).toBe('Tableau avec 2 lignes et 5 colonnes');
+			expect(frLocale.tableAriaLabel(2, 5)).toBe('Tableau avec 2 lignes et 5 colonnes');
 		});
 	});
 
-	describe('TABLE_LOCALE_ZH', () => {
+	describe('Chinese (zh)', () => {
 		it('has correct Chinese translations', () => {
-			expect(TABLE_LOCALE_ZH.insertRowAbove).toBe('在上方插入行');
-			expect(TABLE_LOCALE_ZH.deleteTable).toBe('删除表格');
-			expect(TABLE_LOCALE_ZH.insertTable).toBe('插入表格');
+			expect(zhLocale.insertRowAbove).toBe('在上方插入行');
+			expect(zhLocale.deleteTable).toBe('删除表格');
+			expect(zhLocale.insertTable).toBe('插入表格');
 		});
 
 		it('tableAriaLabel produces correct Chinese string', () => {
-			expect(TABLE_LOCALE_ZH.tableAriaLabel(2, 5)).toBe('表格，2 行 5 列');
+			expect(zhLocale.tableAriaLabel(2, 5)).toBe('表格，2 行 5 列');
 		});
 	});
 
-	describe('TABLE_LOCALE_RU', () => {
+	describe('Russian (ru)', () => {
 		it('has correct Russian translations', () => {
-			expect(TABLE_LOCALE_RU.insertRowAbove).toBe('Вставить строку сверху');
-			expect(TABLE_LOCALE_RU.deleteTable).toBe('Удалить таблицу');
-			expect(TABLE_LOCALE_RU.insertTable).toBe('Вставить таблицу');
+			expect(ruLocale.insertRowAbove).toBe('Вставить строку сверху');
+			expect(ruLocale.deleteTable).toBe('Удалить таблицу');
+			expect(ruLocale.insertTable).toBe('Вставить таблицу');
 		});
 
 		it('tableAriaLabel produces correct Russian string', () => {
-			expect(TABLE_LOCALE_RU.tableAriaLabel(2, 5)).toBe('Таблица: 2 строк, 5 столбцов');
+			expect(ruLocale.tableAriaLabel(2, 5)).toBe('Таблица: 2 строк, 5 столбцов');
 		});
 	});
 
-	describe('TABLE_LOCALE_AR', () => {
+	describe('Arabic (ar)', () => {
 		it('has correct Arabic translations', () => {
-			expect(TABLE_LOCALE_AR.insertRowAbove).toBe('إدراج صف أعلى');
-			expect(TABLE_LOCALE_AR.deleteTable).toBe('حذف الجدول');
-			expect(TABLE_LOCALE_AR.insertTable).toBe('إدراج جدول');
+			expect(arLocale.insertRowAbove).toBe('إدراج صف أعلى');
+			expect(arLocale.deleteTable).toBe('حذف الجدول');
+			expect(arLocale.insertTable).toBe('إدراج جدول');
 		});
 
 		it('tableAriaLabel produces correct Arabic string', () => {
-			expect(TABLE_LOCALE_AR.tableAriaLabel(2, 5)).toBe('جدول من 2 صفوف و 5 أعمدة');
+			expect(arLocale.tableAriaLabel(2, 5)).toBe('جدول من 2 صفوف و 5 أعمدة');
 		});
 	});
 
-	describe('TABLE_LOCALE_HI', () => {
+	describe('Hindi (hi)', () => {
 		it('has correct Hindi translations', () => {
-			expect(TABLE_LOCALE_HI.insertRowAbove).toBe('ऊपर पंक्ति डालें');
-			expect(TABLE_LOCALE_HI.deleteTable).toBe('तालिका हटाएं');
-			expect(TABLE_LOCALE_HI.insertTable).toBe('तालिका डालें');
+			expect(hiLocale.insertRowAbove).toBe('ऊपर पंक्ति डालें');
+			expect(hiLocale.deleteTable).toBe('तालिका हटाएं');
+			expect(hiLocale.insertTable).toBe('तालिका डालें');
 		});
 
 		it('tableAriaLabel produces correct Hindi string', () => {
-			expect(TABLE_LOCALE_HI.tableAriaLabel(2, 5)).toBe('तालिका: 2 पंक्तियां और 5 स्तंभ');
+			expect(hiLocale.tableAriaLabel(2, 5)).toBe('तालिका: 2 पंक्तियां और 5 स्तंभ');
 		});
 	});
 });

@@ -1,0 +1,15 @@
+import type { CodeBlockLocale } from '../CodeBlockLocale.js';
+
+const locale: CodeBlockLocale = {
+	label: '\u0643\u062a\u0644\u0629 \u0643\u0648\u062f',
+	tooltip: (shortcut?: string) =>
+		shortcut
+			? `\u0643\u062a\u0644\u0629 \u0643\u0648\u062f (${shortcut})`
+			: '\u0643\u062a\u0644\u0629 \u0643\u0648\u062f',
+	enteredCodeBlock:
+		'\u062a\u0645 \u0627\u0644\u062f\u062e\u0648\u0644 \u0625\u0644\u0649 \u0643\u062a\u0644\u0629 \u0627\u0644\u0643\u0648\u062f. \u0627\u0636\u063a\u0637 Escape \u0644\u0644\u062e\u0631\u0648\u062c.',
+	leftCodeBlock:
+		'\u062a\u0645 \u0627\u0644\u062e\u0631\u0648\u062c \u0645\u0646 \u0643\u062a\u0644\u0629 \u0627\u0644\u0643\u0648\u062f.',
+};
+
+export default locale;

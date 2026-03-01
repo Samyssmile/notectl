@@ -14,64 +14,20 @@ export const TOOLBAR_LOCALE_EN: ToolbarLocale = {
 	moreToolsAria: 'More tools',
 };
 
-// --- German Locale ---
+// --- Lazy Locale Loader ---
 
-export const TOOLBAR_LOCALE_DE: ToolbarLocale = {
-	formattingOptionsAria: 'Formatierungsoptionen',
-	moreToolsAria: 'Weitere Werkzeuge',
-};
+const localeModules: Record<string, () => Promise<{ default: ToolbarLocale }>> = import.meta.glob<{
+	default: ToolbarLocale;
+}>('./locales/*.ts', { eager: false });
 
-// --- Spanish Locale ---
-
-export const TOOLBAR_LOCALE_ES: ToolbarLocale = {
-	formattingOptionsAria: 'Opciones de formato',
-	moreToolsAria: 'Más herramientas',
-};
-
-// --- French Locale ---
-
-export const TOOLBAR_LOCALE_FR: ToolbarLocale = {
-	formattingOptionsAria: 'Options de mise en forme',
-	moreToolsAria: "Plus d'outils",
-};
-
-// --- Chinese (Simplified) Locale ---
-
-export const TOOLBAR_LOCALE_ZH: ToolbarLocale = {
-	formattingOptionsAria: '格式选项',
-	moreToolsAria: '更多工具',
-};
-
-// --- Russian Locale ---
-
-export const TOOLBAR_LOCALE_RU: ToolbarLocale = {
-	formattingOptionsAria: 'Параметры форматирования',
-	moreToolsAria: 'Другие инструменты',
-};
-
-// --- Arabic Locale ---
-
-export const TOOLBAR_LOCALE_AR: ToolbarLocale = {
-	formattingOptionsAria: 'خيارات التنسيق',
-	moreToolsAria: 'أدوات إضافية',
-};
-
-// --- Hindi Locale ---
-
-export const TOOLBAR_LOCALE_HI: ToolbarLocale = {
-	formattingOptionsAria: 'फ़ॉर्मेटिंग विकल्प',
-	moreToolsAria: 'और उपकरण',
-};
-
-// --- Locale Map ---
-
-export const TOOLBAR_LOCALES: Record<string, ToolbarLocale> = {
-	en: TOOLBAR_LOCALE_EN,
-	de: TOOLBAR_LOCALE_DE,
-	es: TOOLBAR_LOCALE_ES,
-	fr: TOOLBAR_LOCALE_FR,
-	zh: TOOLBAR_LOCALE_ZH,
-	ru: TOOLBAR_LOCALE_RU,
-	ar: TOOLBAR_LOCALE_AR,
-	hi: TOOLBAR_LOCALE_HI,
-};
+export async function loadToolbarLocale(lang: string): Promise<ToolbarLocale> {
+	if (lang === 'en') return TOOLBAR_LOCALE_EN;
+	const loader = localeModules[`./locales/${lang}.ts`];
+	if (!loader) return TOOLBAR_LOCALE_EN;
+	try {
+		const mod = await loader();
+		return mod.default;
+	} catch {
+		return TOOLBAR_LOCALE_EN;
+	}
+}

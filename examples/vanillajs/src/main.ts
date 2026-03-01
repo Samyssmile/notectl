@@ -1,26 +1,24 @@
-import {
-	AlignmentPlugin,
-	BlockquotePlugin,
-	FontPlugin,
-	FontSizePlugin,
-	HeadingPlugin,
-	HighlightPlugin,
-	HorizontalRulePlugin,
-	ImagePlugin,
-	LinkPlugin,
-	ListPlugin,
-	StrikethroughPlugin,
-	SuperSubPlugin,
-	TablePlugin,
-	TextColorPlugin,
-	TextFormattingPlugin,
-	ThemePreset,
-	ToolbarOverflowBehavior,
-	ToolbarPlugin,
-	createEditor,
-	createFullPreset,
-} from '@notectl/core';
+import { ThemePreset, createEditor } from '@notectl/core';
 import type { StateChangeEvent } from '@notectl/core';
+import { STARTER_FONTS } from '@notectl/core/fonts';
+import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
+import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
+import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
+import { FontPlugin } from '@notectl/core/plugins/font';
+import { FontSizePlugin } from '@notectl/core/plugins/font-size';
+import { HeadingPlugin } from '@notectl/core/plugins/heading';
+import { HighlightPlugin } from '@notectl/core/plugins/highlight';
+import { HorizontalRulePlugin } from '@notectl/core/plugins/horizontal-rule';
+import { ImagePlugin } from '@notectl/core/plugins/image';
+import { LinkPlugin } from '@notectl/core/plugins/link';
+import { ListPlugin } from '@notectl/core/plugins/list';
+import { StrikethroughPlugin } from '@notectl/core/plugins/strikethrough';
+import { SuperSubPlugin } from '@notectl/core/plugins/super-sub';
+import { TablePlugin } from '@notectl/core/plugins/table';
+import { TextColorPlugin } from '@notectl/core/plugins/text-color';
+import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
+import { ToolbarOverflowBehavior, ToolbarPlugin } from '@notectl/core/plugins/toolbar';
+import { createFullPreset } from '@notectl/core/presets/full';
 
 declare global {
 	interface Window {
@@ -66,6 +64,7 @@ const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
 	const preset = createFullPreset({
+		font: { fonts: STARTER_FONTS },
 		list: { interactiveCheckboxes: true },
 		codeBlock: {
 			keymap: { insertAfter: 'Mod-Shift-Enter', toggle: 'Mod-Shift-C' },
@@ -100,12 +99,12 @@ const output = document.getElementById('output') as HTMLElement;
 		output.textContent = JSON.stringify(editor.getJSON(), null, 2);
 	});
 
-	document.getElementById('btn-get-html')?.addEventListener('click', () => {
-		output.textContent = editor.getContentHTML({ pretty: true });
+	document.getElementById('btn-get-html')?.addEventListener('click', async () => {
+		output.textContent = await editor.getContentHTML({ pretty: true });
 	});
 
-	document.getElementById('btn-get-css-html')?.addEventListener('click', () => {
-		const result = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+	document.getElementById('btn-get-css-html')?.addEventListener('click', async () => {
+		const result = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
 		output.textContent = `/* === CSS === */\n${result.css}\n\n/* === HTML === */\n${result.html}`;
 	});
 

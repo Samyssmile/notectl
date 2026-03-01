@@ -9,3 +9,9 @@ export {
 	type ImageUploadResult,
 	type ImageUploadService,
 } from './ImageUpload.js';
+
+export type { ImageLocale } from './ImageLocale.js';
+export {
+	IMAGE_LOCALE_EN,
+	loadImageLocale,
+} from './ImageLocale.js';

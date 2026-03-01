@@ -5,7 +5,7 @@
  */
 
 import { TABLE_CSS } from '../../editor/styles/table.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
@@ -16,7 +16,7 @@ import { isValidHexColor } from '../shared/ColorValidation.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
-import { TABLE_LOCALES, type TableLocale } from './TableLocale.js';
+import { TABLE_LOCALE_EN, type TableLocale, loadTableLocale } from './TableLocale.js';
 import { registerTableKeymaps } from './TableNavigation.js';
 import {
 	createTableCellNodeViewFactory,
@@ -101,8 +101,14 @@ export class TablePlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(TABLE_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? TABLE_LOCALE_EN : await loadTableLocale(lang);
+		}
 		context.registerStyleSheet(TABLE_CSS);
 		this.context = context;
 

@@ -9,7 +9,7 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
@@ -17,7 +17,7 @@ import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { LINK_LOCALES, type LinkLocale } from './LinkLocale.js';
+import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -55,8 +55,14 @@ export class LinkPlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(LINK_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? LINK_LOCALE_EN : await loadLinkLocale(lang);
+		}
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);

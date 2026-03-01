@@ -18,78 +18,20 @@ export const FONT_SIZE_LOCALE_EN: FontSizeLocale = {
 	fontSizesAria: 'Font sizes',
 };
 
-// --- German Locale ---
+// --- Lazy Locale Loader ---
 
-export const FONT_SIZE_LOCALE_DE: FontSizeLocale = {
-	label: 'Schriftgröße',
-	tooltip: 'Schriftgröße',
-	customFontSizeAria: 'Benutzerdefinierte Schriftgröße',
-	fontSizesAria: 'Schriftgrößen',
-};
+const localeModules: Record<string, () => Promise<{ default: FontSizeLocale }>> = import.meta.glob<{
+	default: FontSizeLocale;
+}>('./locales/*.ts', { eager: false });
 
-// --- Spanish Locale ---
-
-export const FONT_SIZE_LOCALE_ES: FontSizeLocale = {
-	label: 'Tamaño de fuente',
-	tooltip: 'Tamaño de fuente',
-	customFontSizeAria: 'Tamaño de fuente personalizado',
-	fontSizesAria: 'Tamaños de fuente',
-};
-
-// --- French Locale ---
-
-export const FONT_SIZE_LOCALE_FR: FontSizeLocale = {
-	label: 'Taille de police',
-	tooltip: 'Taille de police',
-	customFontSizeAria: 'Taille de police personnalisée',
-	fontSizesAria: 'Tailles de police',
-};
-
-// --- Chinese (Simplified) Locale ---
-
-export const FONT_SIZE_LOCALE_ZH: FontSizeLocale = {
-	label: '字号',
-	tooltip: '字号',
-	customFontSizeAria: '自定义字号',
-	fontSizesAria: '字号列表',
-};
-
-// --- Russian Locale ---
-
-export const FONT_SIZE_LOCALE_RU: FontSizeLocale = {
-	label: 'Размер шрифта',
-	tooltip: 'Размер шрифта',
-	customFontSizeAria: 'Произвольный размер шрифта',
-	fontSizesAria: 'Размеры шрифта',
-};
-
-// --- Arabic Locale ---
-
-export const FONT_SIZE_LOCALE_AR: FontSizeLocale = {
-	label: 'حجم الخط',
-	tooltip: 'حجم الخط',
-	customFontSizeAria: 'حجم خط مخصص',
-	fontSizesAria: 'أحجام الخط',
-};
-
-// --- Hindi Locale ---
-
-export const FONT_SIZE_LOCALE_HI: FontSizeLocale = {
-	label: 'फ़ॉन्ट आकार',
-	tooltip: 'फ़ॉन्ट आकार',
-	customFontSizeAria: 'कस्टम फ़ॉन्ट आकार',
-	fontSizesAria: 'फ़ॉन्ट आकार सूची',
-};
-
-// --- Locale Map ---
-
-export const FONT_SIZE_LOCALES: Record<string, FontSizeLocale> = {
-	en: FONT_SIZE_LOCALE_EN,
-	de: FONT_SIZE_LOCALE_DE,
-	es: FONT_SIZE_LOCALE_ES,
-	fr: FONT_SIZE_LOCALE_FR,
-	zh: FONT_SIZE_LOCALE_ZH,
-	ru: FONT_SIZE_LOCALE_RU,
-	ar: FONT_SIZE_LOCALE_AR,
-	hi: FONT_SIZE_LOCALE_HI,
-};
+export async function loadFontSizeLocale(lang: string): Promise<FontSizeLocale> {
+	if (lang === 'en') return FONT_SIZE_LOCALE_EN;
+	const loader = localeModules[`./locales/${lang}.ts`];
+	if (!loader) return FONT_SIZE_LOCALE_EN;
+	try {
+		const mod = await loader();
+		return mod.default;
+	} catch {
+		return FONT_SIZE_LOCALE_EN;
+	}
+}
