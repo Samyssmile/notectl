@@ -7,9 +7,6 @@ import type { BlockId, InlineTypeName, MarkTypeName, NodeTypeName } from './Type
 
 // --- Mark Types ---
 
-/** @deprecated Use {@link MarkTypeName} for new code. */
-export type MarkType = MarkTypeName;
-
 export interface Mark {
 	readonly type: MarkTypeName;
 	readonly attrs?: Readonly<Record<string, string | number | boolean>>;
@@ -28,9 +25,6 @@ export interface UnderlineMark extends Mark {
 }
 
 // --- Node Types ---
-
-/** @deprecated Use {@link NodeTypeName} for new code. */
-export type NodeType = NodeTypeName;
 
 export interface BlockAttrs {
 	readonly [key: string]: string | number | boolean;

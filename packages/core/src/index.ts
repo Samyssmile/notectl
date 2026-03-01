@@ -16,8 +16,6 @@ export type {
 	BoldMark,
 	ItalicMark,
 	UnderlineMark,
-	MarkType,
-	NodeType,
 	BlockAttrs,
 } from './model/Document.js';
 
