@@ -230,6 +230,7 @@ export class NotectlEditor extends HTMLElement {
 
 		// Process declarative toolbar config (registers ToolbarPlugin + toolbar plugins)
 		await this.processToolbarConfig();
+		if (!this.pluginManager) return;
 
 		// Register plugins from config
 		for (const plugin of this.config.plugins ?? []) {
@@ -244,8 +245,11 @@ export class NotectlEditor extends HTMLElement {
 
 		// Auto-register essential plugins if none were explicitly provided
 		await this.ensureTextFormattingPlugin();
+		if (!this.pluginManager) return;
 		await this.ensureCaretNavigationPlugin();
+		if (!this.pluginManager) return;
 		await this.ensureGapCursorPlugin();
+		if (!this.pluginManager) return;
 
 		// Set up DOM events before plugin init
 		this.contentElement.addEventListener('focus', () => this.emit('focus', undefined));
@@ -605,6 +609,7 @@ export class NotectlEditor extends HTMLElement {
 		}
 
 		const { ToolbarPlugin } = await import('../plugins/toolbar/ToolbarPlugin.js');
+		if (!this.pluginManager) return;
 		const layoutConfig: ToolbarLayoutConfig = { groups, overflow };
 		this.pluginManager.register(new ToolbarPlugin(layoutConfig));
 	}
@@ -626,6 +631,7 @@ export class NotectlEditor extends HTMLElement {
 		const { TextFormattingPlugin } = await import(
 			'../plugins/text-formatting/TextFormattingPlugin.js'
 		);
+		if (!this.pluginManager) return;
 		this.pluginManager.register(new TextFormattingPlugin(features));
 	}
 
@@ -637,6 +643,7 @@ export class NotectlEditor extends HTMLElement {
 		const { CaretNavigationPlugin } = await import(
 			'../plugins/caret-navigation/CaretNavigationPlugin.js'
 		);
+		if (!this.pluginManager) return;
 		this.pluginManager.register(new CaretNavigationPlugin());
 	}
 
@@ -646,6 +653,7 @@ export class NotectlEditor extends HTMLElement {
 		if (this.pluginManager.get('gap-cursor') !== undefined) return;
 
 		const { GapCursorPlugin } = await import('../plugins/gap-cursor/GapCursorPlugin.js');
+		if (!this.pluginManager) return;
 		this.pluginManager.register(new GapCursorPlugin());
 	}
 
