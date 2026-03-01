@@ -1,9 +1,9 @@
 ---
 title: Internationalization (i18n)
-description: Configure the editor language globally or per-plugin. Ships with 8 languages out of the box.
+description: Configure the editor language globally or per-plugin. Ships with 9 languages out of the box.
 ---
 
-notectl ships with built-in support for 8 languages. All user-facing strings in the toolbar, context menus, announcements, and ARIA labels are fully localizable.
+notectl ships with built-in support for 9 languages. All user-facing strings in the toolbar, context menus, announcements, and ARIA labels are fully localizable.
 
 ## Supported Languages
 
@@ -17,6 +17,7 @@ notectl ships with built-in support for 8 languages. All user-facing strings in 
 | `ru` | Russian | `Locale.RU` |
 | `ar` | Arabic | `Locale.AR` |
 | `hi` | Hindi | `Locale.HI` |
+| `pt` | Portuguese | `Locale.PT` |
 | `browser` | Auto-detect | `Locale.BROWSER` |
 
 ## Global Locale
@@ -153,6 +154,6 @@ new TablePlugin({ locale: myTableLocale });
 
 | Export | Kind | Description |
 |--------|------|-------------|
-| `Locale` | Const object | `EN`, `DE`, `ES`, `FR`, `ZH`, `RU`, `AR`, `HI`, `BROWSER` |
+| `Locale` | Const object | `EN`, `DE`, `ES`, `FR`, `ZH`, `RU`, `AR`, `HI`, `PT`, `BROWSER` |
 | `LocaleService` | Class | Resolves the active language from config |
 | `LocaleServiceKey` | ServiceKey | Service key for accessing `LocaleService` |
