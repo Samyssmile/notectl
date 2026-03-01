@@ -153,6 +153,15 @@ async function setPaperSize(page: Page, size: string | null): Promise<void> {
 	await page.waitForTimeout(300);
 }
 
+async function setBurgerMenuOverflow(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		const editor = document.querySelector('notectl-editor') as unknown as {
+			pluginManager: { get(id: string): { setOverflowBehavior(b: string): void } };
+		};
+		editor.pluginManager.get('toolbar').setOverflowBehavior('burger-menu');
+	});
+}
+
 async function setMinHeight(page: Page, px: string): Promise<void> {
 	await page.evaluate((h) => {
 		const el: HTMLElement | null = document.querySelector('notectl-editor');
@@ -725,12 +734,14 @@ test.describe('Documentation screenshots', () => {
 
 	test('toolbar-overflow-burger', async ({ page }) => {
 		await page.setViewportSize({ width: 500, height: 900 });
+		await setBurgerMenuOverflow(page);
 		await page.waitForTimeout(500);
 		await shot(page, 'toolbar-overflow-burger.png');
 	});
 
 	test('toolbar-overflow-burger-open', async ({ page }) => {
 		await page.setViewportSize({ width: 500, height: 900 });
+		await setBurgerMenuOverflow(page);
 		await page.waitForTimeout(500);
 		const overflowBtn = page.locator('notectl-editor .notectl-toolbar-overflow-btn');
 		await overflowBtn.click();
