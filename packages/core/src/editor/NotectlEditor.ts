@@ -32,15 +32,15 @@ import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import {
-	type RuntimeStyleMode,
 	createRuntimeStyleSheet,
 	registerStyleRoot,
 	unregisterStyleRoot,
 } from '../style/StyleRuntime.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
+import type { ContentCSSResult, ContentHTMLOptions } from './ContentHTMLTypes.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
-import { serializeDocumentToHTML } from './DocumentSerializer.js';
+import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -82,13 +82,6 @@ export interface NotectlEditorConfig {
 	maxHistoryDepth?: number;
 	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
 	theme?: ThemePreset | Theme;
-	/**
-	 * Runtime style mode.
-	 * - `strict`: avoids inline style attributes via dynamic stylesheet tokens (default)
-	 * - `inline`: legacy inline style mutations
-	 * Evaluated during initialization.
-	 */
-	styleMode?: RuntimeStyleMode;
 	/** Optional nonce for fallback runtime `<style>` elements when strict mode cannot use adopted sheets. */
 	styleNonce?: string;
 	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
@@ -360,12 +353,20 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	getContentHTML(options?: { pretty?: boolean }): string {
+	getContentHTML(): string;
+	getContentHTML(options: { pretty?: boolean }): string;
+	getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): ContentCSSResult;
+	getContentHTML(options?: ContentHTMLOptions): string | ContentCSSResult {
 		if (!this.view) throw new Error('Editor not initialized');
-		const html: string = serializeDocumentToHTML(
-			this.view.getState().doc,
-			this.pluginManager?.schemaRegistry,
-		);
+		const doc = this.view.getState().doc;
+		const registry = this.pluginManager?.schemaRegistry;
+
+		if (options?.cssMode === 'classes') {
+			const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
+			return options.pretty ? { html: formatHTML(result.html), css: result.css } : result;
+		}
+
+		const html: string = serializeDocumentToHTML(doc, registry);
 		return options?.pretty ? formatHTML(html) : html;
 	}
 
@@ -649,19 +650,13 @@ export class NotectlEditor extends HTMLElement {
 
 	private setupStyleRuntime(shadow: ShadowRoot): void {
 		unregisterStyleRoot(shadow);
-		this.runtimeStyleSheet = null;
-
-		const mode: RuntimeStyleMode = this.config.styleMode ?? 'strict';
-		if (mode === 'strict') {
-			this.runtimeStyleSheet = createRuntimeStyleSheet();
-		}
+		this.runtimeStyleSheet = createRuntimeStyleSheet();
 
 		this.themeController?.setRuntimeStyleSheets(
 			this.runtimeStyleSheet ? [this.runtimeStyleSheet] : [],
 		);
 
 		registerStyleRoot(shadow, {
-			mode,
 			nonce: this.config.styleNonce,
 			sheet: this.runtimeStyleSheet,
 		});

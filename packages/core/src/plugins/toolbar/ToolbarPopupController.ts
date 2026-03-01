@@ -142,18 +142,6 @@ export class ToolbarPopupController {
 		}
 	}
 
-	// --- Focus ---
-
-	private focusFirstItem(popup: HTMLElement): void {
-		requestAnimationFrame(() => {
-			const firstItem: HTMLElement | null =
-				popup.querySelector('[role="menuitem"]') ??
-				popup.querySelector('.notectl-grid-picker__cell') ??
-				popup.querySelector('button');
-			firstItem?.focus();
-		});
-	}
-
 	// --- Keyboard Navigation ---
 
 	private handlePopupKeydown(e: KeyboardEvent): void {

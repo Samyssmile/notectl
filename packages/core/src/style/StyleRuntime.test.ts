@@ -17,24 +17,11 @@ describe('StyleRuntime', () => {
 		document.body.innerHTML = '';
 	});
 
-	it('writes inline styles in inline mode', () => {
-		registerStyleRoot(document, { mode: 'inline' });
-
-		const el: HTMLDivElement = document.createElement('div');
-		document.body.appendChild(el);
-		setStyleProperty(el, 'top', '12px');
-
-		expect(el.style.top).toBe('12px');
-		expect(el.getAttribute('style')).toContain('top: 12px');
-
-		unregisterStyleRoot(document);
-	});
-
 	it('avoids inline style attributes in strict mode', () => {
 		const host: HTMLDivElement = document.createElement('div');
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
-		registerStyleRoot(shadow, { mode: 'strict' });
+		registerStyleRoot(shadow, {});
 
 		const el: HTMLDivElement = document.createElement('div');
 		shadow.appendChild(el);
@@ -52,7 +39,7 @@ describe('StyleRuntime', () => {
 		const host: HTMLDivElement = document.createElement('div');
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
-		registerStyleRoot(shadow, { mode: 'strict', nonce: 'nonce-123' });
+		registerStyleRoot(shadow, { nonce: 'nonce-123' });
 
 		const el: HTMLDivElement = document.createElement('div');
 		shadow.appendChild(el);
@@ -67,7 +54,7 @@ describe('StyleRuntime', () => {
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
 		const sheet = createRuntimeStyleSheet();
-		registerStyleRoot(shadow, { mode: 'strict', sheet });
+		registerStyleRoot(shadow, { sheet });
 
 		const first: HTMLDivElement = document.createElement('div');
 		const second: HTMLDivElement = document.createElement('div');
@@ -105,7 +92,7 @@ describe('StyleRuntime', () => {
 		const host: HTMLDivElement = document.createElement('div');
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
-		registerStyleRoot(shadow, { mode: 'strict' });
+		registerStyleRoot(shadow, {});
 
 		const el: HTMLDivElement = document.createElement('div');
 		shadow.appendChild(el);
@@ -123,7 +110,7 @@ describe('StyleRuntime', () => {
 		const host: HTMLDivElement = document.createElement('div');
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
-		registerStyleRoot(shadow, { mode: 'strict' });
+		registerStyleRoot(shadow, {});
 
 		const el: HTMLDivElement = document.createElement('div');
 		shadow.appendChild(el);
@@ -143,7 +130,7 @@ describe('StyleRuntime', () => {
 		const host: HTMLDivElement = document.createElement('div');
 		document.body.appendChild(host);
 		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
-		registerStyleRoot(shadow, { mode: 'strict' });
+		registerStyleRoot(shadow, {});
 
 		const el: HTMLDivElement = document.createElement('div');
 		shadow.appendChild(el);

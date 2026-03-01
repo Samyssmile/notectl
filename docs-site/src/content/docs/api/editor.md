@@ -47,14 +47,7 @@ interface NotectlEditorConfig {
   maxHistoryDepth?: number;
   /** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
   theme?: ThemePreset | Theme;
-  /**
-   * Runtime style mode.
-   * - 'strict': avoids inline style attributes via dynamic stylesheet tokens (default)
-   * - 'inline': legacy inline style mutations
-   * Evaluated during initialization.
-   */
-  styleMode?: RuntimeStyleMode;
-  /** Optional nonce for fallback runtime <style> elements in strict mode. */
+  /** Optional nonce for fallback runtime <style> elements. */
   styleNonce?: string;
   /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
   paperSize?: PaperSize;
@@ -62,17 +55,6 @@ interface NotectlEditorConfig {
   locale?: Locale;
 }
 ```
-
-### `RuntimeStyleMode`
-
-```ts
-type RuntimeStyleMode = 'inline' | 'strict';
-```
-
-- `strict` (default): no runtime inline `style=""` mutations; styles are applied via a runtime stylesheet.
-- `inline`: legacy behavior using `HTMLElement.style` writes.
-
-See the [Content Security Policy guide](/notectl/guides/content-security-policy/) for policy examples.
 
 ### `ToolbarConfig`
 
@@ -113,17 +95,61 @@ Returns the document as a JSON-serializable `Document` object.
 
 Replaces the editor content with the given document.
 
-### `getContentHTML(options?: { pretty?: boolean }): string`
+### `getContentHTML(options?): string | ContentCSSResult`
 
-Returns sanitized HTML representation. Pass `{ pretty: true }` to get indented, human-readable output:
+Returns sanitized HTML representation of the document. The return type depends on the options:
 
 ```ts
+// Default — returns inline-styled HTML string
 const html = editor.getContentHTML();
-// "<h1>Hello</h1><p>World</p>"
 
+// Pretty-printed — returns indented HTML string
 const pretty = editor.getContentHTML({ pretty: true });
-// "<h1>Hello</h1>\n<p>World</p>"
+
+// Class-based CSS mode — returns { html, css } object
+const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = editor.getContentHTML({ cssMode: 'classes', pretty: true });
 ```
+
+#### Overloads
+
+```ts
+getContentHTML(): string;
+getContentHTML(options: { pretty?: boolean }): string;
+getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): ContentCSSResult;
+```
+
+#### `ContentHTMLOptions`
+
+```ts
+interface ContentHTMLOptions {
+  readonly pretty?: boolean;
+  readonly cssMode?: CSSMode;  // 'inline' (default) | 'classes'
+}
+```
+
+#### `ContentCSSResult`
+
+```ts
+interface ContentCSSResult {
+  readonly html: string;  // HTML with class attributes instead of inline styles
+  readonly css: string;   // Collected CSS rules for the classes used
+}
+```
+
+#### CSS Mode Details
+
+When `cssMode: 'classes'` is set, dynamic marks (text color, highlight, font size, font family) are serialized as CSS class names instead of inline `style` attributes. This is useful for rendering exported HTML in strict CSP environments where `style-src-attr: 'none'` blocks inline styles.
+
+```ts
+const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+// html: '<p class="notectl-align-center"><strong><span class="notectl-s0">Hello</span></strong></p>'
+// css:  '.notectl-s0 { color: #ff0000; }\n.notectl-align-center { text-align: center; }'
+```
+
+Identical style combinations are deduplicated — multiple elements with the same styles share a single class name and CSS rule.
+
+See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for integration examples.
 
 ### `setContentHTML(html: string): void`
 
@@ -304,7 +330,7 @@ Returns a promise that resolves when the editor is fully initialized.
 
 Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `theme`.
 
-`styleMode` and `styleNonce` are accepted in `configure()` but evaluated during initialization.
+`styleNonce` is accepted in `configure()` but evaluated during initialization.
 
 ### `registerPlugin(plugin: Plugin): void`
 
