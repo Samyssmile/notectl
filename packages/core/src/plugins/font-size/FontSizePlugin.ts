@@ -11,7 +11,6 @@ import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
-import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
 import { FONT_SIZE_LOCALES, type FontSizeLocale } from './FontSizeLocale.js';
 import {
 	getActiveSizeNumeric,
@@ -70,7 +69,6 @@ export class FontSizePlugin implements Plugin {
 	private readonly sizes: readonly number[];
 	private readonly defaultSize: number;
 	private locale!: FontSizeLocale;
-	private context: PluginContext | null = null;
 
 	constructor(config?: Partial<FontSizeConfig>) {
 		this.config = { ...config };
@@ -82,7 +80,6 @@ export class FontSizePlugin implements Plugin {
 		this.locale = resolvePluginLocale(FONT_SIZE_LOCALES, context, this.config.locale);
 
 		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
-		this.context = context;
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerKeymaps(context);
@@ -91,7 +88,7 @@ export class FontSizePlugin implements Plugin {
 	}
 
 	destroy(): void {
-		this.context = null;
+		// no-op: nothing to clean up
 	}
 
 	// --- Schema ---
@@ -182,11 +179,12 @@ export class FontSizePlugin implements Plugin {
 			separatorAfter: this.config.separatorAfter,
 			getLabel: (state: EditorState): string =>
 				String(getActiveSizeNumeric(state, this.defaultSize)),
-			renderPopup: (container, ctx) => {
+			renderPopup: (container, ctx, onClose) => {
 				renderFontSizePopup(container, ctx, {
 					sizes: this.sizes,
 					defaultSize: this.defaultSize,
-					dismissPopup: () => this.dismissPopup(),
+					onClose,
+					contentElement: ctx.getContainer(),
 					locale: this.locale,
 				});
 			},
@@ -202,11 +200,6 @@ export class FontSizePlugin implements Plugin {
 	private applyDefaultSizeToContainer(context: PluginContext): void {
 		const container: HTMLElement = context.getContainer();
 		setStyleProperty(container, 'fontSize', `${this.defaultSize}px`);
-	}
-
-	private dismissPopup(): void {
-		const toolbar = this.context?.getService(ToolbarServiceKey);
-		toolbar?.closePopup();
 	}
 }
 

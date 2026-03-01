@@ -8,7 +8,7 @@ import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
-import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
+import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import type { PickerEntryStyle } from './BlockTypePickerEntry.js';
 import type { HeadingLocale } from './HeadingLocale.js';
 import type { HeadingConfig } from './HeadingPlugin.js';
@@ -94,8 +94,8 @@ export function registerHeadingToolbarItem(
 		popupType: 'combobox',
 		separatorAfter: config.separatorAfter,
 		getLabel: (state: EditorState): string => getActiveLabel(state, context, locale),
-		renderPopup: (container, ctx) => {
-			renderHeadingPopup(container, ctx, locale);
+		renderPopup: (container, ctx, onClose) => {
+			renderHeadingPopup(container, ctx, locale, onClose);
 		},
 		isActive: (state) => {
 			const entries = context.getBlockTypePickerRegistry().getBlockTypePickerEntries();
@@ -110,11 +110,14 @@ function renderHeadingPopup(
 	container: HTMLElement,
 	context: PluginContext,
 	locale: HeadingLocale,
+	onClose: (options?: PopupCloseOptions) => void,
 ): void {
 	container.classList.add('notectl-heading-picker');
 
 	const state: EditorState = context.getState();
 	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
+
+	const contentElement: HTMLElement = context.getContainer();
 
 	const list: HTMLDivElement = document.createElement('div');
 	list.className = 'notectl-heading-picker__list';
@@ -132,8 +135,7 @@ function renderHeadingPopup(
 					e.preventDefault();
 					e.stopPropagation();
 					context.executeCommand(entry.command);
-					const toolbar = context.getService(ToolbarServiceKey);
-					toolbar?.closePopup();
+					onClose({ restoreFocusTo: contentElement });
 				},
 				entry.style,
 			),

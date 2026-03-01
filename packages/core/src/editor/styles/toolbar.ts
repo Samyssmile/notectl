@@ -43,9 +43,11 @@ export const TOOLBAR_CSS = `
 	transition: background 0.1s, border-color 0.1s;
 }
 
-.notectl-toolbar-btn:hover {
-	background: var(--notectl-hover-bg);
-	border-color: var(--notectl-border);
+@media (hover: hover) {
+	.notectl-toolbar-btn:hover {
+		background: var(--notectl-hover-bg);
+		border-color: var(--notectl-border);
+	}
 }
 
 .notectl-toolbar-btn--active {
@@ -64,9 +66,11 @@ export const TOOLBAR_CSS = `
 	cursor: not-allowed;
 }
 
-.notectl-toolbar-btn:disabled:hover {
-	background: transparent;
-	border-color: transparent;
+@media (hover: hover) {
+	.notectl-toolbar-btn:disabled:hover {
+		background: transparent;
+		border-color: transparent;
+	}
 }
 
 .notectl-toolbar-btn__icon {
@@ -151,12 +155,14 @@ export const TOOLBAR_CSS = `
 	white-space: nowrap;
 }
 
-.notectl-dropdown__item:hover,
-.notectl-dropdown__item:focus-visible {
-	background: var(--notectl-hover-bg);
+@media (hover: hover) {
+	.notectl-dropdown__item:hover {
+		background: var(--notectl-hover-bg);
+	}
 }
 
 .notectl-dropdown__item:focus-visible {
+	background: var(--notectl-hover-bg);
 	outline: none;
 }
 
@@ -212,9 +218,11 @@ export const TOOLBAR_CSS = `
 	transition: background 0.1s, border-color 0.1s;
 }
 
-.notectl-toolbar-overflow-btn:hover {
-	background: var(--notectl-hover-bg);
-	border-color: var(--notectl-border);
+@media (hover: hover) {
+	.notectl-toolbar-overflow-btn:hover {
+		background: var(--notectl-hover-bg);
+		border-color: var(--notectl-border);
+	}
 }
 
 .notectl-toolbar-overflow-btn--hidden {
@@ -232,8 +240,10 @@ export const TOOLBAR_CSS = `
 	cursor: not-allowed;
 }
 
-.notectl-dropdown__item:disabled:hover {
-	background: none;
+@media (hover: hover) {
+	.notectl-dropdown__item:disabled:hover {
+		background: none;
+	}
 }
 
 .notectl-dropdown__item--active {
@@ -263,9 +273,11 @@ export const TOOLBAR_CSS = `
 	background: var(--notectl-bg);
 }
 
-.notectl-toolbar-btn[role="combobox"]:hover {
-	background: var(--notectl-hover-bg);
-	border-color: var(--notectl-fg-muted);
+@media (hover: hover) {
+	.notectl-toolbar-btn[role="combobox"]:hover {
+		background: var(--notectl-hover-bg);
+		border-color: var(--notectl-fg-muted);
+	}
 }
 
 .notectl-toolbar-btn[role="combobox"].notectl-toolbar-btn--active {
@@ -329,8 +341,10 @@ export const TOOLBAR_CSS = `
 	margin-top: 4px;
 }
 
-.notectl-link-popup__button:hover {
-	background: var(--notectl-hover-bg);
+@media (hover: hover) {
+	.notectl-link-popup__button:hover {
+		background: var(--notectl-hover-bg);
+	}
 }
 
 .notectl-link-popup__button:focus-visible {

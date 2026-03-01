@@ -34,8 +34,10 @@ export const HEADING_SELECT_CSS = `
 	transition: background 0.1s;
 }
 
-.notectl-heading-picker__item:hover {
-	background: var(--notectl-hover-bg);
+@media (hover: hover) {
+	.notectl-heading-picker__item:hover {
+		background: var(--notectl-hover-bg);
+	}
 }
 
 .notectl-heading-picker__item--active {
@@ -43,8 +45,10 @@ export const HEADING_SELECT_CSS = `
 	color: var(--notectl-primary-fg);
 }
 
-.notectl-heading-picker__item--active:hover {
-	background: var(--notectl-active-bg);
+@media (hover: hover) {
+	.notectl-heading-picker__item--active:hover {
+		background: var(--notectl-active-bg);
+	}
 }
 
 .notectl-heading-picker__check {

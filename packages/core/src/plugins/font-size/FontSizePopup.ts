@@ -4,6 +4,7 @@
  */
 
 import type { PluginContext } from '../Plugin.js';
+import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import type { FontSizeLocale } from './FontSizeLocale.js';
 import { getActiveSizeNumeric, selectSize } from './FontSizeOperations.js';
 
@@ -17,7 +18,8 @@ const MAX_CUSTOM_SIZE = 400;
 export interface FontSizePopupConfig {
 	readonly sizes: readonly number[];
 	readonly defaultSize: number;
-	readonly dismissPopup: () => void;
+	readonly onClose: (options?: PopupCloseOptions) => void;
+	readonly contentElement: HTMLElement;
 	readonly locale?: FontSizeLocale;
 }
 
@@ -91,7 +93,7 @@ function buildSizeList(
 			e.preventDefault();
 			e.stopPropagation();
 			selectSize(context, size, config.defaultSize);
-			config.dismissPopup();
+			config.onClose({ restoreFocusTo: config.contentElement });
 		});
 
 		items.push(item);
@@ -176,7 +178,7 @@ function attachKeyboardNavigation(
 			const val: number = Number.parseInt(input.value, 10);
 			if (!Number.isNaN(val) && val >= MIN_CUSTOM_SIZE && val <= MAX_CUSTOM_SIZE) {
 				selectSize(context, val, config.defaultSize);
-				config.dismissPopup();
+				config.onClose({ restoreFocusTo: config.contentElement });
 			}
 		} else if (e.key === 'ArrowDown') {
 			e.preventDefault();
@@ -184,7 +186,7 @@ function attachKeyboardNavigation(
 			items[0]?.focus();
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
-			config.dismissPopup();
+			config.onClose({ restoreFocusTo: config.contentElement });
 		}
 	});
 
@@ -209,11 +211,11 @@ function attachKeyboardNavigation(
 			const selectedSize: number | undefined = config.sizes[focusedIndex];
 			if (focusedIndex >= 0 && focusedIndex < config.sizes.length && selectedSize !== undefined) {
 				selectSize(context, selectedSize, config.defaultSize);
-				config.dismissPopup();
+				config.onClose({ restoreFocusTo: config.contentElement });
 			}
 		} else if (e.key === 'Escape') {
 			e.preventDefault();
-			config.dismissPopup();
+			config.onClose({ restoreFocusTo: config.contentElement });
 		}
 	});
 }

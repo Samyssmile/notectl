@@ -18,7 +18,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
-import { ToolbarServiceKey } from '../toolbar/ToolbarPlugin.js';
+import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import { FONT_LOCALES, type FontLocale } from './FontLocale.js';
 
 // --- Attribute Registry Augmentation ---
@@ -194,8 +194,8 @@ export class FontPlugin implements Plugin {
 			popupType: 'combobox',
 			separatorAfter: this.config.separatorAfter,
 			getLabel: (state: EditorState): string => this.resolveFontName(this.getActiveFont(state)),
-			renderPopup: (container, ctx) => {
-				this.renderFontPopup(container, ctx);
+			renderPopup: (container, ctx, onClose) => {
+				this.renderFontPopup(container, ctx, onClose);
 			},
 			isActive: (state) => this.isFontActive(state),
 		});
@@ -274,17 +274,17 @@ export class FontPlugin implements Plugin {
 
 	// --- Popup Rendering ---
 
-	private dismissPopup(): void {
-		const toolbar = this.context?.getService(ToolbarServiceKey);
-		toolbar?.closePopup();
-	}
-
-	private renderFontPopup(container: HTMLElement, context: PluginContext): void {
+	private renderFontPopup(
+		container: HTMLElement,
+		context: PluginContext,
+		onClose: (options?: PopupCloseOptions) => void,
+	): void {
 		container.classList.add('notectl-font-picker');
 
 		const state: EditorState = context.getState();
 		const activeFont: string | null = this.getActiveFont(state);
 		const defaultFamily: string = this.defaultFont.family;
+		const contentElement: HTMLElement = context.getContainer();
 
 		const list: HTMLDivElement = document.createElement('div');
 		list.className = 'notectl-font-picker__list';
@@ -309,7 +309,7 @@ export class FontPlugin implements Plugin {
 					} else {
 						this.applyFont(context, context.getState(), font.family);
 					}
-					this.dismissPopup();
+					onClose({ restoreFocusTo: contentElement });
 				},
 			);
 
