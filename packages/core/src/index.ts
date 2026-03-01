@@ -391,13 +391,6 @@ export {
 	type BlockAlignment,
 } from './plugins/alignment/AlignmentPlugin.js';
 
-/** @deprecated Use `AlignmentPlugin` instead. */
-export { AlignmentPlugin as TextAlignmentPlugin } from './plugins/alignment/AlignmentPlugin.js';
-/** @deprecated Use `AlignmentConfig` instead. */
-export type { AlignmentConfig as TextAlignmentConfig } from './plugins/alignment/AlignmentPlugin.js';
-/** @deprecated Use `BlockAlignment` instead. */
-export type { BlockAlignment as TextAlignment } from './plugins/alignment/AlignmentPlugin.js';
-
 export {
 	FontPlugin,
 	type FontConfig,
@@ -627,7 +620,12 @@ export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
 export { getBlockTypeLabel } from './editor/Announcer.js';
 
 // --- HTML Serialization / Parsing ---
-export { serializeDocumentToHTML, VALID_ALIGNMENTS } from './editor/DocumentSerializer.js';
+export type { CSSMode, ContentHTMLOptions, ContentCSSResult } from './editor/ContentHTMLTypes.js';
+export {
+	serializeDocumentToHTML,
+	serializeDocumentToCSS,
+	VALID_ALIGNMENTS,
+} from './editor/DocumentSerializer.js';
 export { parseHTMLToDocument } from './editor/DocumentParser.js';
 
 // --- Editor ---
