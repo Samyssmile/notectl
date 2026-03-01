@@ -49,10 +49,12 @@ function createConfig(overrides?: Partial<ColorPickerConfig>): ColorPickerConfig
 
 function renderPopup(config?: Partial<ColorPickerConfig>, state = defaultState()) {
 	const container: HTMLDivElement = document.createElement('div');
+	const contentElement: HTMLDivElement = document.createElement('div');
 	const ctx = mockPluginContext({
 		getState: () => state,
 		dispatch: vi.fn(),
 		executeCommand: vi.fn(() => true),
+		getContainer: () => contentElement,
 	});
 	const cfg = createConfig(config);
 	renderColorPickerPopup(container, ctx, cfg);
@@ -230,22 +232,28 @@ describe('ColorPickerPopup', () => {
 	});
 
 	describe('mouse interaction', () => {
-		it('clicking swatch calls onClose', () => {
+		it('clicking swatch calls onClose with restoreFocusTo contentElement', () => {
 			const onClose = vi.fn();
-			const { container } = renderPopup({ onClose });
+			const { container, ctx } = renderPopup({ onClose });
 			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
 
 			swatch.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith({
+				restoreFocusTo: ctx.getContainer(),
+			});
 		});
 
-		it('clicking reset button calls onClose', () => {
+		it('clicking reset button calls onClose with restoreFocusTo contentElement', () => {
 			const onClose = vi.fn();
-			const { container } = renderPopup({ onClose });
+			const { container, ctx } = renderPopup({ onClose });
 			const btn = container.querySelector('.notectl-color-picker__default') as HTMLElement;
 
 			btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith({
+				restoreFocusTo: ctx.getContainer(),
+			});
 		});
 
 		it('clicking reset button executes reset command', () => {
@@ -258,40 +266,48 @@ describe('ColorPickerPopup', () => {
 	});
 
 	describe('keyboard navigation', () => {
-		it('Escape on grid calls onClose', () => {
+		it('Escape on grid calls onClose with no args (toolbar focus)', () => {
 			const onClose = vi.fn();
 			const { container } = renderPopup({ onClose });
 			const grid = container.querySelector('[role="grid"]') as HTMLElement;
 
 			grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith();
 		});
 
-		it('Escape on reset button calls onClose', () => {
+		it('Escape on reset button calls onClose with no args (toolbar focus)', () => {
 			const onClose = vi.fn();
 			const { container } = renderPopup({ onClose });
 			const btn = container.querySelector('.notectl-color-picker__default') as HTMLElement;
 
 			btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith();
 		});
 
-		it('Enter on swatch applies color and closes', () => {
+		it('Enter on swatch applies color and closes with restoreFocusTo contentElement', () => {
 			const onClose = vi.fn();
-			const { container } = renderPopup({ onClose });
+			const { container, ctx } = renderPopup({ onClose });
 			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
 
 			swatch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith({
+				restoreFocusTo: ctx.getContainer(),
+			});
 		});
 
-		it('Space on swatch applies color and closes', () => {
+		it('Space on swatch applies color and closes with restoreFocusTo contentElement', () => {
 			const onClose = vi.fn();
-			const { container } = renderPopup({ onClose });
+			const { container, ctx } = renderPopup({ onClose });
 			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
 
 			swatch.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
 			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith({
+				restoreFocusTo: ctx.getContainer(),
+			});
 		});
 
 		it('ArrowRight moves to next swatch', () => {
