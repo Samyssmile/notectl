@@ -136,7 +136,9 @@ async function setEditorHTML(page: Page, html: string): Promise<void> {
 	await page.evaluate(
 		(h) =>
 			(
-				document.querySelector('notectl-editor') as unknown as { setContentHTML(h: string): void }
+				document.querySelector('notectl-editor') as unknown as {
+					setContentHTML(h: string): Promise<void>;
+				}
 			).setContentHTML(h),
 		html,
 	);

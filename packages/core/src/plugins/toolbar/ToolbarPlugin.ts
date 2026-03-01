@@ -6,7 +6,7 @@
  */
 
 import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
@@ -19,7 +19,7 @@ import {
 	findLastEnabled,
 	findNextEnabled,
 } from './ToolbarKeyboardNav.js';
-import { TOOLBAR_LOCALES, type ToolbarLocale } from './ToolbarLocale.js';
+import { TOOLBAR_LOCALE_EN, type ToolbarLocale, loadToolbarLocale } from './ToolbarLocale.js';
 import {
 	ToolbarOverflowBehavior,
 	type ToolbarOverflowBehavior as ToolbarOverflowBehaviorType,
@@ -83,8 +83,10 @@ export class ToolbarPlugin implements Plugin {
 		this.overflowBehavior = layoutConfig?.overflow ?? ToolbarOverflowBehavior.BurgerMenu;
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(TOOLBAR_LOCALES, context);
+	async init(context: PluginContext): Promise<void> {
+		const service = context.getService(LocaleServiceKey);
+		const lang: string = service?.getLocale() ?? 'en';
+		this.locale = lang === 'en' ? TOOLBAR_LOCALE_EN : await loadToolbarLocale(lang);
 		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
 

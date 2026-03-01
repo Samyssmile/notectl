@@ -3,13 +3,17 @@
  * toggle command, keyboard shortcut, input rule, and a toolbar button.
  */
 
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { BLOCKQUOTE_LOCALES, type BlockquoteLocale } from './BlockquoteLocale.js';
+import {
+	BLOCKQUOTE_LOCALE_EN,
+	type BlockquoteLocale,
+	loadBlockquoteLocale,
+} from './BlockquoteLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -43,8 +47,14 @@ export class BlockquotePlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(BLOCKQUOTE_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? BLOCKQUOTE_LOCALE_EN : await loadBlockquoteLocale(lang);
+		}
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);

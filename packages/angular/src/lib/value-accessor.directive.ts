@@ -54,8 +54,9 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 	private readonly stateChangeSub = this.editor.stateChange.subscribe(
 		(_event: StateChangeEvent) => {
 			if (this.suppressEmit) return;
-			const value: Document | string | null = this.readValue();
-			this.onChange(value);
+			void this.readValue().then((value: Document | string | null) => {
+				this.onChange(value);
+			});
 		},
 	);
 
@@ -75,16 +76,16 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 
 		try {
 			this.editor.getState();
-			this.writeValueToEditor(value);
+			void this.writeValueToEditor(value);
 			return;
 		} catch {
 			// Editor not ready yet — defer
 		}
 
 		this.pendingValue = value;
-		this.editor.whenReady().then(() => {
+		void this.editor.whenReady().then(async () => {
 			if (this.pendingValue !== null) {
-				this.writeValueToEditor(this.pendingValue);
+				await this.writeValueToEditor(this.pendingValue);
 				this.pendingValue = null;
 			}
 		});
@@ -102,17 +103,17 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 		this.editor.setReadonly(isDisabled);
 	}
 
-	private writeValueToEditor(value: Document | string): void {
+	private async writeValueToEditor(value: Document | string): Promise<void> {
 		this.suppressEmit = true;
 		try {
 			if (this.format === 'json' && typeof value === 'object') {
 				this.editor.setJSON(value as Document);
 			} else if (this.format === 'html' && typeof value === 'string') {
-				this.editor.setContentHTML(value);
+				await this.editor.setContentHTML(value);
 			} else if (this.format === 'text' && typeof value === 'string') {
-				this.editor.setContentHTML(`<p>${escapeHtml(value)}</p>`);
+				await this.editor.setContentHTML(`<p>${escapeHtml(value)}</p>`);
 			} else if (typeof value === 'string') {
-				this.editor.setContentHTML(value);
+				await this.editor.setContentHTML(value);
 			} else {
 				this.editor.setJSON(value as Document);
 			}
@@ -121,11 +122,11 @@ export class NotectlValueAccessorDirective implements ControlValueAccessor {
 		}
 	}
 
-	private readValue(): Document | string | null {
+	private async readValue(): Promise<Document | string | null> {
 		try {
 			switch (this.format) {
 				case 'html':
-					return this.editor.getContentHTML();
+					return await this.editor.getContentHTML();
 				case 'text':
 					return this.editor.getText();
 				default:

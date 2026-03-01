@@ -3,16 +3,18 @@
  */
 
 import { FontPlugin } from '../plugins/font/FontPlugin.js';
-import { STARTER_FONTS } from '../plugins/font/StarterFonts.js';
 import type { MinimalPresetOptions, PresetConfig } from './PresetTypes.js';
 
 /**
  * Creates a minimal editor preset with font selection only.
  * CaretNavigation and GapCursor are auto-registered by the editor.
+ *
+ * Pass `font.fonts` to supply font definitions (e.g. `STARTER_FONTS`).
+ * Without explicit fonts, the font picker toolbar renders empty.
  */
 export function createMinimalPreset(options?: MinimalPresetOptions): PresetConfig {
 	const fontPlugin: FontPlugin = new FontPlugin({
-		fonts: STARTER_FONTS,
+		fonts: [],
 		...options?.font,
 	});
 

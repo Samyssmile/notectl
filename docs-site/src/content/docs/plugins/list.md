@@ -66,9 +66,10 @@ See the [Read-Only Checklist guide](/notectl/guides/readonly-checklist/) for a f
 Each plugin resolves its locale automatically from the editor's global `locale` setting. To override independently:
 
 ```ts
-import { ListPlugin, LIST_LOCALE_DE } from '@notectl/core';
+import { ListPlugin, loadListLocale } from '@notectl/core';
 
-new ListPlugin({ locale: LIST_LOCALE_DE })
+const listDe = await loadListLocale('de');
+new ListPlugin({ locale: listDe })
 ```
 
 See the [Internationalization guide](/notectl/guides/internationalization/) for details.

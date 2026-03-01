@@ -14,64 +14,20 @@ export const FONT_LOCALE_EN: FontLocale = {
 	tooltip: 'Font Family',
 };
 
-// --- German Locale ---
+// --- Lazy Locale Loader ---
 
-export const FONT_LOCALE_DE: FontLocale = {
-	label: 'Schriftart',
-	tooltip: 'Schriftfamilie',
-};
+const localeModules: Record<string, () => Promise<{ default: FontLocale }>> = import.meta.glob<{
+	default: FontLocale;
+}>('./locales/*.ts', { eager: false });
 
-// --- Spanish Locale ---
-
-export const FONT_LOCALE_ES: FontLocale = {
-	label: 'Fuente',
-	tooltip: 'Familia de fuente',
-};
-
-// --- French Locale ---
-
-export const FONT_LOCALE_FR: FontLocale = {
-	label: 'Police',
-	tooltip: 'Famille de police',
-};
-
-// --- Chinese (Simplified) Locale ---
-
-export const FONT_LOCALE_ZH: FontLocale = {
-	label: '字体',
-	tooltip: '字体系列',
-};
-
-// --- Russian Locale ---
-
-export const FONT_LOCALE_RU: FontLocale = {
-	label: 'Шрифт',
-	tooltip: 'Семейство шрифтов',
-};
-
-// --- Arabic Locale ---
-
-export const FONT_LOCALE_AR: FontLocale = {
-	label: 'الخط',
-	tooltip: 'عائلة الخط',
-};
-
-// --- Hindi Locale ---
-
-export const FONT_LOCALE_HI: FontLocale = {
-	label: 'फ़ॉन्ट',
-	tooltip: 'फ़ॉन्ट परिवार',
-};
-
-// --- Locale Map ---
-
-export const FONT_LOCALES: Record<string, FontLocale> = {
-	en: FONT_LOCALE_EN,
-	de: FONT_LOCALE_DE,
-	es: FONT_LOCALE_ES,
-	fr: FONT_LOCALE_FR,
-	zh: FONT_LOCALE_ZH,
-	ru: FONT_LOCALE_RU,
-	ar: FONT_LOCALE_AR,
-	hi: FONT_LOCALE_HI,
-};
+export async function loadFontLocale(lang: string): Promise<FontLocale> {
+	if (lang === 'en') return FONT_LOCALE_EN;
+	const loader = localeModules[`./locales/${lang}.ts`];
+	if (!loader) return FONT_LOCALE_EN;
+	try {
+		const mod = await loader();
+		return mod.default;
+	} catch {
+		return FONT_LOCALE_EN;
+	}
+}

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import terser from '@rollup/plugin-terser';
+import type { Plugin as VitePlugin } from 'vite';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
@@ -24,7 +25,14 @@ const pluginEntries: Record<string, string> = {
 	'plugins/hard-break': resolve(__dirname, 'src/plugins/hard-break/index.ts'),
 	'plugins/gap-cursor': resolve(__dirname, 'src/plugins/gap-cursor/index.ts'),
 	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
+	'plugins/print': resolve(__dirname, 'src/plugins/print/index.ts'),
 };
+
+const analyzePlugins: VitePlugin[] = [];
+if (process.env.ANALYZE) {
+	const { visualizer } = await import('rollup-plugin-visualizer');
+	analyzePlugins.push(visualizer({ open: true, gzipSize: true }) as VitePlugin);
+}
 
 export default defineConfig({
 	plugins: [
@@ -33,11 +41,17 @@ export default defineConfig({
 			rollupTypes: false,
 			outDir: 'dist',
 		}),
+		...analyzePlugins,
 	],
 	build: {
 		lib: {
 			entry: {
 				'notectl-core': resolve(__dirname, 'src/index.ts'),
+				full: resolve(__dirname, 'src/full.ts'),
+				html: resolve(__dirname, 'src/html.ts'),
+				presets: resolve(__dirname, 'src/presets.ts'),
+				'presets/minimal': resolve(__dirname, 'src/presets/minimal.ts'),
+				'presets/full': resolve(__dirname, 'src/presets/full.ts'),
 				fonts: resolve(__dirname, 'src/fonts.ts'),
 				...pluginEntries,
 			},

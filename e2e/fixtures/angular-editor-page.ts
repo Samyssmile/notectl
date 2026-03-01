@@ -9,8 +9,8 @@ interface NotectlEditorElement extends HTMLElement {
 			children: { text: string; marks: { type: string }[] }[];
 		}[];
 	};
-	getContentHTML(): string;
-	setContentHTML(html: string): void;
+	getContentHTML(): Promise<string>;
+	setContentHTML(html: string): Promise<void>;
 	setJSON(doc: unknown): void;
 	getState(): { doc: unknown };
 }

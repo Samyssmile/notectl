@@ -8,7 +8,7 @@
  */
 
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -22,7 +22,7 @@ import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { LIST_LOCALES, type ListLocale } from './ListLocale.js';
+import { LIST_LOCALE_EN, type ListLocale, loadListLocale } from './ListLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -113,9 +113,15 @@ export class ListPlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
+	async init(context: PluginContext): Promise<void> {
 		this.context = context;
-		this.locale = resolvePluginLocale(LIST_LOCALES, context, this.config.locale);
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? LIST_LOCALE_EN : await loadListLocale(lang);
+		}
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);

@@ -5,7 +5,7 @@
  */
 
 import { IMAGE_CSS } from '../../editor/styles/image.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
@@ -22,7 +22,7 @@ import {
 	resetImageSize,
 	resizeImageByDelta,
 } from './ImageCommands.js';
-import { IMAGE_LOCALES, type ImageLocale } from './ImageLocale.js';
+import { IMAGE_LOCALE_EN, type ImageLocale, loadImageLocale } from './ImageLocale.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
 import {
 	DEFAULT_IMAGE_CONFIG,
@@ -66,8 +66,14 @@ export class ImagePlugin implements Plugin {
 		this.resolvedKeymap = { ...DEFAULT_IMAGE_KEYMAP, ...config?.keymap };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(IMAGE_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? IMAGE_LOCALE_EN : await loadImageLocale(lang);
+		}
 		context.registerStyleSheet(IMAGE_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);

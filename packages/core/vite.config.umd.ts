@@ -9,7 +9,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
 	build: {
 		lib: {
-			entry: resolve(__dirname, 'src/index.ts'),
+			entry: resolve(__dirname, 'src/full.ts'),
 			name: 'NotectlCore',
 			formats: ['umd'],
 			fileName: () => 'notectl-core.umd.js',

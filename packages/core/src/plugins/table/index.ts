@@ -27,14 +27,8 @@ export {
 	resetTableBorderColor,
 } from './TableBorderColor.js';
 
+export type { TableLocale } from './TableLocale.js';
 export {
 	TABLE_LOCALE_EN,
-	TABLE_LOCALE_DE,
-	TABLE_LOCALE_ES,
-	TABLE_LOCALE_FR,
-	TABLE_LOCALE_ZH,
-	TABLE_LOCALE_RU,
-	TABLE_LOCALE_AR,
-	TABLE_LOCALE_HI,
-	type TableLocale,
+	loadTableLocale,
 } from './TableLocale.js';

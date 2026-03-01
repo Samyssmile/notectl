@@ -22,11 +22,11 @@ import type {
 	Plugin,
 	PluginConfig,
 	StateChangeEvent,
-	TextFormattingConfig,
 	Theme,
 	Transaction,
 } from '@notectl/core';
 import { NotectlEditor, ThemePreset } from '@notectl/core';
+import type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting';
 
 import { NOTECTL_DEFAULT_CONFIG } from './tokens';
 import type { SelectionChangeEvent } from './types';
@@ -180,13 +180,13 @@ export class NotectlEditorComponent {
 	}
 
 	/** Returns sanitized HTML representation of the document. */
-	getContentHTML(): string {
+	async getContentHTML(): Promise<string> {
 		return this.requireEditor().getContentHTML();
 	}
 
 	/** Sets content from HTML (sanitized). */
-	setContentHTML(html: string): void {
-		this.requireEditor().setContentHTML(html);
+	async setContentHTML(html: string): Promise<void> {
+		return this.requireEditor().setContentHTML(html);
 	}
 
 	/** Returns plain text content. */

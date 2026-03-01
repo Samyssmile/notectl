@@ -10,7 +10,7 @@ import type { DecorationSet } from '../../decorations/Decoration.js';
 import { inline as inlineDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
@@ -29,7 +29,11 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
-import { CODE_BLOCK_LOCALES, type CodeBlockLocale } from './CodeBlockLocale.js';
+import {
+	CODE_BLOCK_LOCALE_EN,
+	type CodeBlockLocale,
+	loadCodeBlockLocale,
+} from './CodeBlockLocale.js';
 import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
 import type { CodeBlockConfig, CodeBlockKeymap, SyntaxToken } from './CodeBlockTypes.js';
@@ -53,8 +57,14 @@ export class CodeBlockPlugin implements Plugin {
 		};
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(CODE_BLOCK_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? CODE_BLOCK_LOCALE_EN : await loadCodeBlockLocale(lang);
+		}
 		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 

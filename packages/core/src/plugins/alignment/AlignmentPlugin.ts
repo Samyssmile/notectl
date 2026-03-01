@@ -6,7 +6,7 @@
  * and a toolbar dropdown. Handles both TextSelection and NodeSelection.
  */
 
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
 import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
@@ -14,7 +14,11 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { ALIGNMENT_LOCALES, type AlignmentLocale } from './AlignmentLocale.js';
+import {
+	ALIGNMENT_LOCALE_EN,
+	type AlignmentLocale,
+	loadAlignmentLocale,
+} from './AlignmentLocale.js';
 
 // --- Public Types ---
 
@@ -69,8 +73,14 @@ export class AlignmentPlugin implements Plugin {
 		};
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(ALIGNMENT_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? ALIGNMENT_LOCALE_EN : await loadAlignmentLocale(lang);
+		}
 
 		this.alignableTypes = new Set(this.config.alignableTypes);
 		this.patchNodeSpecs(context);

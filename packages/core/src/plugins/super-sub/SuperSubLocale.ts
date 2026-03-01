@@ -20,78 +20,20 @@ export const SUPER_SUB_LOCALE_EN: SuperSubLocale = {
 	subscriptTooltip: (shortcut: string) => `Subscript (${shortcut})`,
 };
 
-// --- German Locale ---
+// --- Lazy Locale Loader ---
 
-export const SUPER_SUB_LOCALE_DE: SuperSubLocale = {
-	superscriptLabel: 'Hochgestellt',
-	superscriptTooltip: (shortcut: string) => `Hochgestellt (${shortcut})`,
-	subscriptLabel: 'Tiefgestellt',
-	subscriptTooltip: (shortcut: string) => `Tiefgestellt (${shortcut})`,
-};
+const localeModules: Record<string, () => Promise<{ default: SuperSubLocale }>> = import.meta.glob<{
+	default: SuperSubLocale;
+}>('./locales/*.ts', { eager: false });
 
-// --- Spanish Locale ---
-
-export const SUPER_SUB_LOCALE_ES: SuperSubLocale = {
-	superscriptLabel: 'Superíndice',
-	superscriptTooltip: (shortcut: string) => `Superíndice (${shortcut})`,
-	subscriptLabel: 'Subíndice',
-	subscriptTooltip: (shortcut: string) => `Subíndice (${shortcut})`,
-};
-
-// --- French Locale ---
-
-export const SUPER_SUB_LOCALE_FR: SuperSubLocale = {
-	superscriptLabel: 'Exposant',
-	superscriptTooltip: (shortcut: string) => `Exposant (${shortcut})`,
-	subscriptLabel: 'Indice',
-	subscriptTooltip: (shortcut: string) => `Indice (${shortcut})`,
-};
-
-// --- Chinese (Simplified) Locale ---
-
-export const SUPER_SUB_LOCALE_ZH: SuperSubLocale = {
-	superscriptLabel: '上标',
-	superscriptTooltip: (shortcut: string) => `上标 (${shortcut})`,
-	subscriptLabel: '下标',
-	subscriptTooltip: (shortcut: string) => `下标 (${shortcut})`,
-};
-
-// --- Russian Locale ---
-
-export const SUPER_SUB_LOCALE_RU: SuperSubLocale = {
-	superscriptLabel: 'Надстрочный',
-	superscriptTooltip: (shortcut: string) => `Надстрочный (${shortcut})`,
-	subscriptLabel: 'Подстрочный',
-	subscriptTooltip: (shortcut: string) => `Подстрочный (${shortcut})`,
-};
-
-// --- Arabic Locale ---
-
-export const SUPER_SUB_LOCALE_AR: SuperSubLocale = {
-	superscriptLabel: 'مرتفع',
-	superscriptTooltip: (shortcut: string) => `مرتفع (${shortcut})`,
-	subscriptLabel: 'منخفض',
-	subscriptTooltip: (shortcut: string) => `منخفض (${shortcut})`,
-};
-
-// --- Hindi Locale ---
-
-export const SUPER_SUB_LOCALE_HI: SuperSubLocale = {
-	superscriptLabel: 'सुपरस्क्रिप्ट',
-	superscriptTooltip: (shortcut: string) => `सुपरस्क्रिप्ट (${shortcut})`,
-	subscriptLabel: 'सबस्क्रिप्ट',
-	subscriptTooltip: (shortcut: string) => `सबस्क्रिप्ट (${shortcut})`,
-};
-
-// --- Locale Map ---
-
-export const SUPER_SUB_LOCALES: Record<string, SuperSubLocale> = {
-	en: SUPER_SUB_LOCALE_EN,
-	de: SUPER_SUB_LOCALE_DE,
-	es: SUPER_SUB_LOCALE_ES,
-	fr: SUPER_SUB_LOCALE_FR,
-	zh: SUPER_SUB_LOCALE_ZH,
-	ru: SUPER_SUB_LOCALE_RU,
-	ar: SUPER_SUB_LOCALE_AR,
-	hi: SUPER_SUB_LOCALE_HI,
-};
+export async function loadSuperSubLocale(lang: string): Promise<SuperSubLocale> {
+	if (lang === 'en') return SUPER_SUB_LOCALE_EN;
+	const loader = localeModules[`./locales/${lang}.ts`];
+	if (!loader) return SUPER_SUB_LOCALE_EN;
+	try {
+		const mod = await loader();
+		return mod.default;
+	} catch {
+		return SUPER_SUB_LOCALE_EN;
+	}
+}

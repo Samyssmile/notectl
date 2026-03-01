@@ -7,7 +7,6 @@ import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { CodeBlockPlugin } from '../plugins/code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../plugins/font-size/FontSizePlugin.js';
 import { FontPlugin } from '../plugins/font/FontPlugin.js';
-import { STARTER_FONTS } from '../plugins/font/StarterFonts.js';
 import { HardBreakPlugin } from '../plugins/hard-break/HardBreakPlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { HighlightPlugin } from '../plugins/highlight/HighlightPlugin.js';
@@ -26,6 +25,9 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
 /**
  * Creates a fully-featured editor preset with all standard plugins.
  *
+ * Pass `font.fonts` to supply font definitions (e.g. `STARTER_FONTS`).
+ * Without explicit fonts, the font picker toolbar renders empty.
+ *
  * Toolbar groups:
  * 1. Typography: Font, FontSize
  * 2. Inline marks: TextFormatting, Strikethrough, SuperSub
@@ -39,10 +41,7 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
 export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 	return {
 		toolbar: [
-			[
-				new FontPlugin({ fonts: STARTER_FONTS, ...options?.font }),
-				new FontSizePlugin(options?.fontSize),
-			],
+			[new FontPlugin({ fonts: [], ...options?.font }), new FontSizePlugin(options?.fontSize)],
 			[
 				new TextFormattingPlugin(options?.textFormatting),
 				new StrikethroughPlugin(options?.strikethrough),

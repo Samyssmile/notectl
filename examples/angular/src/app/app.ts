@@ -139,10 +139,10 @@ export class App {
     this.output.set(JSON.stringify(editorRef.getJSON(), null, 2));
   }
 
-  getContentHTML(): void {
+  async getContentHTML(): Promise<void> {
     const editorRef = this.editor();
     if (!editorRef) return;
-    this.output.set(editorRef.getContentHTML());
+    this.output.set(await editorRef.getContentHTML());
   }
 
   getText(): void {

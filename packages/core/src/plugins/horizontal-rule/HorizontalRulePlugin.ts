@@ -3,7 +3,7 @@
  * with NodeSpec, insert command, input rule, keyboard shortcut, and toolbar button.
  */
 
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { createBlockNode } from '../../model/Document.js';
 import { createBlockElement } from '../../model/NodeSpec.js';
 import {
@@ -16,7 +16,11 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { HORIZONTAL_RULE_LOCALES, type HorizontalRuleLocale } from './HorizontalRuleLocale.js';
+import {
+	HORIZONTAL_RULE_LOCALE_EN,
+	type HorizontalRuleLocale,
+	loadHorizontalRuleLocale,
+} from './HorizontalRuleLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -60,8 +64,15 @@ export class HorizontalRulePlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(HORIZONTAL_RULE_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale =
+				lang === 'en' ? HORIZONTAL_RULE_LOCALE_EN : await loadHorizontalRuleLocale(lang);
+		}
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);

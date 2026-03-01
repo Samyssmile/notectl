@@ -8,7 +8,7 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { Mark } from '../../model/Document.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
@@ -16,7 +16,7 @@ import { markType as mkType } from '../../model/TypeBrands.js';
 import type { RemoveMarkStep, Step } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
-import { SUPER_SUB_LOCALES, type SuperSubLocale } from './SuperSubLocale.js';
+import { SUPER_SUB_LOCALE_EN, type SuperSubLocale, loadSuperSubLocale } from './SuperSubLocale.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -153,8 +153,14 @@ export class SuperSubPlugin implements Plugin {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
-	init(context: PluginContext): void {
-		this.locale = resolvePluginLocale(SUPER_SUB_LOCALES, context, this.config.locale);
+	async init(context: PluginContext): Promise<void> {
+		if (this.config.locale) {
+			this.locale = this.config.locale;
+		} else {
+			const service = context.getService(LocaleServiceKey);
+			const lang: string = service?.getLocale() ?? 'en';
+			this.locale = lang === 'en' ? SUPER_SUB_LOCALE_EN : await loadSuperSubLocale(lang);
+		}
 
 		const enabledMarks: MarkDefinition[] = MARK_DEFINITIONS.filter(
 			(def) => this.config[def.configKey],
