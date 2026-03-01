@@ -323,7 +323,6 @@ export {
 	type ToolbarLayoutConfig,
 } from './plugins/toolbar/ToolbarPlugin.js';
 export { ToolbarOverflowBehavior } from './plugins/toolbar/ToolbarOverflowBehavior.js';
-export type { ToolbarOverflowBehavior as ToolbarOverflowBehaviorType } from './plugins/toolbar/ToolbarOverflowBehavior.js';
 export type {
 	ToolbarItem,
 	ToolbarItemCombobox,
