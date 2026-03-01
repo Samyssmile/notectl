@@ -14,10 +14,11 @@ If your CSP already allows scripts from `'self'`, notectl works out of the box:
 ```ts
 import { createEditor } from '@notectl/core';
 
-// Strict CSP mode is the default — no extra config needed
+// CSP-compliant out of the box — no extra config needed
 const editor = await createEditor({
-  target: document.getElementById('editor'),
+  placeholder: 'Start typing...',
 });
+document.getElementById('editor')!.appendChild(editor);
 ```
 
 No nonce, no `'unsafe-inline'`, no special headers. The editor renders, styles dynamically, and never writes a single inline `style` attribute.
@@ -28,7 +29,7 @@ Rich text editors traditionally rely on inline `style` attributes for dynamic fo
 
 ### Adopted Stylesheets
 
-In strict mode (the default), notectl creates a [`CSSStyleSheet`](https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleSheet) at initialization and attaches it to the Shadow DOM via [`adoptedStyleSheets`](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets):
+notectl creates a [`CSSStyleSheet`](https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleSheet) at initialization and attaches it to the Shadow DOM via [`adoptedStyleSheets`](https://developer.mozilla.org/en-US/docs/Web/API/Document/adoptedStyleSheets):
 
 ```
 new CSSStyleSheet() → shadow.adoptedStyleSheets.push(sheet)
@@ -63,7 +64,7 @@ const editor = await createEditor({
 
 ### `styleNonce`
 
-An optional nonce string for the fallback `<style>` element. Only relevant when strict mode falls back to a `<style>` element because the environment does not support `adoptedStyleSheets`.
+An optional nonce string for the fallback `<style>` element. Only relevant when the browser does not support `adoptedStyleSheets` and notectl falls back to a `<style>` element.
 
 ```ts
 const editor = await createEditor({
@@ -113,7 +114,7 @@ await createEditor({
 
 ## When Is a Nonce Needed?
 
-A nonce is **only** needed when the browser does not support `adoptedStyleSheets` and strict mode falls back to inserting a `<style>` element into the Shadow DOM.
+A nonce is **only** needed when the browser does not support `adoptedStyleSheets` and notectl falls back to inserting a `<style>` element into the Shadow DOM.
 
 | Feature | Nonce Needed? | Notes |
 |---------|:---:|-------|
@@ -259,11 +260,11 @@ Content Security Policy directive: "style-src-attr 'none'"
 
 This means something is writing an inline `style` attribute. notectl does not do this. Check for:
 
-- Third-party plugins that bypass `StyleRuntime` and write styles directly
-- Custom `NodeView` implementations using `el.style.x = ...` instead of the `setStyleProperty()` API
+- Third-party plugins that write inline styles directly via `el.style.x = ...`
+- Custom `NodeView` implementations that bypass the token-based style system
 
 <Aside type="caution">
-  If you write custom plugins or node views, use the `setStyleProperty()` and `setStyleText()` functions from `@notectl/core` instead of direct `el.style` manipulation. These functions route through the token-based system in strict mode.
+  If you write custom plugins or node views, use `context.registerStyleSheet()` to inject CSS rules instead of direct `el.style` manipulation. The editor's token-based style system ensures all dynamic styles are CSP-compliant.
 </Aside>
 
 ### "Refused to apply a stylesheet"
