@@ -160,15 +160,14 @@ export class ImagePlugin implements Plugin {
 				const alt: string = escapeHTML((node.attrs?.alt as string | undefined) ?? '');
 				const width: number | undefined = node.attrs?.width as number | undefined;
 				const height: number | undefined = node.attrs?.height as number | undefined;
-				const align: string = (node.attrs?.align as string | undefined) ?? 'center';
 
 				const sizeAttrs: string =
 					(width !== undefined ? ` width="${width}"` : '') +
 					(height !== undefined ? ` height="${height}"` : '');
 
-				const alignStyle: string = align ? ` style="text-align: ${escapeHTML(align)}"` : '';
-
-				return `<figure${alignStyle}><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
+				// Alignment is handled by the serializer's alignment injection,
+				// which works in both inline-style and CSS-class modes.
+				return `<figure><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
 			},
 			parseHTML: [
 				{
@@ -186,10 +185,16 @@ export class ImagePlugin implements Plugin {
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
 
-						// Check inline style first (new format), then class names (legacy)
+						// Check inline style first, then notectl-align-* classes, then legacy classes
 						const textAlign: string = el.style?.textAlign ?? '';
 						if (textAlign === 'left' || textAlign === 'right' || textAlign === 'center') {
 							attrs.align = textAlign;
+						} else if (el.classList.contains('notectl-align-left')) {
+							attrs.align = 'left';
+						} else if (el.classList.contains('notectl-align-right')) {
+							attrs.align = 'right';
+						} else if (el.classList.contains('notectl-align-center')) {
+							attrs.align = 'center';
 						} else if (el.classList.contains('notectl-image--left')) {
 							attrs.align = 'left';
 						} else if (el.classList.contains('notectl-image--right')) {

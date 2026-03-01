@@ -16,10 +16,29 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { VALID_ALIGNMENTS } from './DocumentSerializer.js';
 
+/** Options for `parseHTMLToDocument` when importing class-based HTML. */
+export interface ParseHTMLOptions {
+	/**
+	 * Style map from a previous `getContentHTML({ cssMode: 'classes' })` call.
+	 * Used to rehydrate class-based HTML back into styled content.
+	 */
+	readonly styleMap?: ReadonlyMap<string, string>;
+}
+
 /** Parses an HTML string into a Document, applying sanitization and schema parse rules. */
-export function parseHTMLToDocument(html: string, registry?: SchemaRegistry): Document {
+export function parseHTMLToDocument(
+	html: string,
+	registry?: SchemaRegistry,
+	options?: ParseHTMLOptions,
+): Document {
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+
+	// When a styleMap is provided, also allow `class` through DOMPurify
+	// so we can read class names and rehydrate styles before parsing.
+	if (options?.styleMap && !allowedAttrs.includes('class')) {
+		allowedAttrs.push('class');
+	}
 
 	const template = document.createElement('template');
 	template.innerHTML = DOMPurify.sanitize(html, {
@@ -27,6 +46,11 @@ export function parseHTMLToDocument(html: string, registry?: SchemaRegistry): Do
 		ALLOWED_ATTR: allowedAttrs,
 	});
 	const root: DocumentFragment = template.content;
+
+	// Rehydrate class-based HTML: convert notectl class names back to inline styles
+	if (options?.styleMap) {
+		rehydrateClasses(root, options.styleMap);
+	}
 
 	const blockRules = registry?.getBlockParseRules() ?? [];
 	const blocks: BlockNode[] = [];
@@ -232,11 +256,52 @@ function walkElement(
 	}
 }
 
-/** Extracts validated `text-align` from an element's style and adds it to attrs. */
+/** Extracts validated `text-align` from an element's style or class and adds it to attrs. */
 function extractAlignment(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
+	// Check inline style first (works for both normal and rehydrated HTML)
 	const align: string = el.style?.textAlign ?? '';
 	if (align && VALID_ALIGNMENTS.has(align)) {
 		attrs.align = align;
+		return;
+	}
+
+	// Check for notectl-align-* class names (from class-based HTML)
+	for (const cls of Array.from(el.classList)) {
+		const match: RegExpMatchArray | null = cls.match(/^notectl-align-(\w+)$/);
+		const alignValue: string | undefined = match?.[1];
+		if (alignValue && VALID_ALIGNMENTS.has(alignValue)) {
+			attrs.align = alignValue;
+			return;
+		}
+	}
+}
+
+/**
+ * Rehydrates class-based HTML by converting notectl class names back to inline styles.
+ * This allows existing parse rules (which read inline styles) to work unchanged.
+ */
+function rehydrateClasses(root: DocumentFragment, styleMap: ReadonlyMap<string, string>): void {
+	const elements: NodeListOf<Element> = root.querySelectorAll('[class]');
+	for (const el of Array.from(elements)) {
+		const htmlEl = el as HTMLElement;
+		const classes: string[] = Array.from(htmlEl.classList);
+		const toRemove: string[] = [];
+
+		for (const cls of classes) {
+			const declarations: string | undefined = styleMap.get(cls);
+			if (declarations) {
+				// Append declarations to existing inline style
+				const existing: string = htmlEl.getAttribute('style') ?? '';
+				const separator: string = existing && !existing.endsWith(';') ? '; ' : '';
+				htmlEl.setAttribute('style', existing + separator + declarations);
+				toRemove.push(cls);
+			}
+		}
+
+		// Remove rehydrated class names
+		for (const cls of toRemove) {
+			htmlEl.classList.remove(cls);
+		}
 	}
 }
 

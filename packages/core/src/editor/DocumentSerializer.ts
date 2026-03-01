@@ -15,6 +15,7 @@ import {
 	markSetsEqual,
 } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
+import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult } from './ContentHTMLTypes.js';
@@ -28,6 +29,7 @@ import {
 interface SerializerContext {
 	readonly registry?: SchemaRegistry;
 	readonly collector?: CSSClassCollector;
+	readonly exportCtx?: HTMLExportContext;
 }
 
 /** Known-safe alignment values accepted by the serializer (defense-in-depth). */
@@ -38,9 +40,31 @@ export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set([
 	'justify',
 ]);
 
+/** Creates an HTMLExportContext for inline style mode. */
+function createInlineExportContext(): HTMLExportContext {
+	return {
+		styleAttr(declarations: string): string {
+			if (!declarations) return '';
+			return ` style="${declarations}"`;
+		},
+	};
+}
+
+/** Creates an HTMLExportContext for CSS class mode. */
+function createClassExportContext(collector: CSSClassCollector): HTMLExportContext {
+	return {
+		styleAttr(declarations: string): string {
+			if (!declarations) return '';
+			const className: string = collector.getClassName(declarations);
+			return ` class="${className}"`;
+		},
+	};
+}
+
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
 export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
-	const ctx: SerializerContext = { registry };
+	const exportCtx: HTMLExportContext = createInlineExportContext();
+	const ctx: SerializerContext = { registry, exportCtx };
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
@@ -58,7 +82,8 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
  */
 export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry): ContentCSSResult {
 	const collector = new CSSClassCollector();
-	const ctx: SerializerContext = { registry, collector };
+	const exportCtx: HTMLExportContext = createClassExportContext(collector);
+	const ctx: SerializerContext = { registry, collector, exportCtx };
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
@@ -69,12 +94,16 @@ export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry)
 		allowedAttrs.push('class');
 	}
 
+	// Defense-in-depth: strip `style` attribute in class mode to guarantee
+	// zero inline styles — even from third-party plugins that forgot to use ctx.styleAttr().
+	const filteredAttrs: string[] = allowedAttrs.filter((a) => a !== 'style');
+
 	const sanitizedHTML: string = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
-		ALLOWED_ATTR: allowedAttrs,
+		ALLOWED_ATTR: filteredAttrs,
 	});
 
-	return { html: sanitizedHTML, css: collector.toCSS() };
+	return { html: sanitizedHTML, css: collector.toCSS(), styleMap: collector.toStyleMap() };
 }
 
 /** Serializes a sequence of blocks to HTML, grouping consecutive list items into wrappers. */
@@ -200,7 +229,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 
 	let html: string;
 	if (spec?.toHTML) {
-		html = spec.toHTML(block, content);
+		html = spec.toHTML(block, content, ctx.exportCtx);
 	} else {
 		html = `<p>${content || '<br>'}</p>`;
 	}
@@ -212,17 +241,34 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	if (align && align !== 'left' && VALID_ALIGNMENTS.has(align)) {
 		if (ctx.collector) {
 			// Class mode: use semantic alignment class on the outer element only
+			const className: string = ctx.collector.getAlignmentClassName(align);
 			const firstTagEnd: number = html.indexOf('>');
 			const firstTag: string = html.slice(0, firstTagEnd + 1);
-			const alreadyHasClass: boolean = /class="/.test(firstTag);
-			if (!alreadyHasClass) {
-				const className: string = ctx.collector.getAlignmentClassName(align);
+			const existingClass: RegExpMatchArray | null = firstTag.match(/class="([^"]*)"/);
+			if (existingClass) {
+				// Merge alignment class into existing class attribute
+				html = html.replace(
+					`class="${existingClass[1]}"`,
+					`class="${existingClass[1]} ${className}"`,
+				);
+			} else {
 				html = html.replace(/>/, ` class="${className}">`);
 			}
 		} else {
-			// Inline mode: inject style attribute
-			const alreadyHasAlign: boolean = /style="[^"]*text-align:/.test(html);
-			if (!alreadyHasAlign) {
+			// Inline mode: inject or merge style attribute
+			const firstTagEnd: number = html.indexOf('>');
+			const firstTag: string = html.slice(0, firstTagEnd + 1);
+			const existingStyle: RegExpMatchArray | null = firstTag.match(/style="([^"]*)"/);
+			const existingValue: string | undefined = existingStyle?.[1];
+			if (existingValue !== undefined) {
+				// Already has style — merge if no text-align yet
+				if (!/text-align:/.test(existingValue)) {
+					html = html.replace(
+						`style="${existingValue}"`,
+						`style="${existingValue}; text-align: ${align}"`,
+					);
+				}
+			} else {
 				html = html.replace(/>/, ` style="text-align: ${align}">`);
 			}
 		}

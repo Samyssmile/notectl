@@ -186,50 +186,66 @@ By default, `getContentHTML()` produces static HTML with inline `style` attribut
 
 If you render exported HTML on a page with `style-src-attr: 'none'`, the inline styles will be silently blocked by the browser.
 
-### Class-Based HTML Export
+### Class-Based HTML Export (Zero Inline Styles)
 
-To produce CSP-compliant exported HTML, use `cssMode: 'classes'`:
+To produce fully CSP-compliant exported HTML, use `cssMode: 'classes'`:
 
 ```ts
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css, styleMap } = editor.getContentHTML({ cssMode: 'classes' });
 ```
 
-This replaces all inline `style` attributes with CSS class names and returns the collected stylesheet alongside the HTML:
+This produces HTML with **zero** `style` attributes. All styling is expressed via CSS class names:
 
 ```html
 <!-- html -->
 <p class="notectl-align-center">
   Normal text and
-  <span class="notectl-s0">styled text</span>.
+  <span class="notectl-s-a3f2k9">styled text</span>.
 </p>
 ```
 
 ```css
 /* css */
-.notectl-s0 { color: red; font-size: 18px; }
+.notectl-s-a3f2k9 { color: red; font-size: 18px; }
 .notectl-align-center { text-align: center; }
 ```
 
-The generated CSS contains **only** the rules used in the document. Identical style combinations are deduplicated into a single class.
+**Key properties:**
+
+- **Zero inline styles** — guaranteed. Even third-party plugins that forget to use `ctx.styleAttr()` have their `style` attributes stripped by DOMPurify as a defense-in-depth measure.
+- **Deterministic class names** — the same CSS declarations always produce the same class name (content-hashed), regardless of encounter order. Different documents with the same styling produce identical class names.
+- **Minimal CSS** — only rules actually used in the document are emitted. Identical style combinations are deduplicated into a single class.
+- **Tables, code blocks, images** — all plugin-generated styles (table borders, code block backgrounds, image alignment) are converted to classes.
+
+<Aside type="note">
+  As of early 2026, notectl is the only major rich text editor to achieve zero inline styles in exported HTML. Other editors (CKEditor, Tiptap, ProseMirror, Lexical, Gutenberg) require `'unsafe-inline'` for exported content.
+</Aside>
 
 #### Rendering on a CSP-Strict Page
 
-Inject the generated CSS into a `<style>` element with a nonce, or serve it as an external stylesheet:
+Use the built-in `injectContentStyles` utility for CSP-compliant CSS injection:
 
 ```ts
-// Option 1: Nonce-based <style> element
+import { injectContentStyles, removeContentStyles } from '@notectl/core';
+
 const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
 
-const style = document.createElement('style');
-style.nonce = window.__CSP_NONCE__;
-style.textContent = css;
-document.head.appendChild(style);
+// Inject with nonce for strict CSP
+const style = injectContentStyles(css, {
+  nonce: window.__CSP_NONCE__,
+  id: 'notectl-content-styles',
+});
 
 contentContainer.innerHTML = html;
+
+// Later: clean up
+removeContentStyles('notectl-content-styles');
 ```
 
+Or serve as an external stylesheet:
+
 ```ts
-// Option 2: Store CSS alongside HTML and serve as external stylesheet
+// Store CSS alongside HTML
 await saveToBackend({ html, css });
 
 // On the rendering page:
@@ -241,13 +257,60 @@ await saveToBackend({ html, css });
   The `css` string is empty when the document has no dynamic marks or alignment — you can skip injecting the stylesheet entirely in that case.
 </Aside>
 
-#### When to Use Each Mode
+### Round-Trip: Re-Importing Class-Based HTML
 
-| Scenario | Recommended Mode |
-|----------|-----------------|
-| Storing HTML for email or external apps | `cssMode: 'inline'` (default) — self-contained |
-| Displaying HTML on a CSP-strict page | `cssMode: 'classes'` — no inline styles |
-| Clipboard copy/paste | Automatic — always uses inline styles for compatibility |
+The `styleMap` returned by `getContentHTML({ cssMode: 'classes' })` enables re-importing class-based HTML back into the editor with all styles preserved:
+
+```ts
+// Export
+const { html, css, styleMap } = editor.getContentHTML({ cssMode: 'classes' });
+
+// Store html, css, and styleMap (serialize the Map as needed)
+await saveToBackend({ html, css, styleMap: Object.fromEntries(styleMap) });
+
+// Later: re-import with full style preservation
+const savedStyleMap = new Map(Object.entries(saved.styleMap));
+editor.setContentHTML(saved.html, { styleMap: savedStyleMap });
+```
+
+Without the `styleMap`, class-based HTML can still be imported — but class-only styles (colors, fonts, etc.) will be lost since the class names have no meaning without their CSS declarations. The `styleMap` "rehydrates" classes back to inline styles before parsing.
+
+<Aside type="caution">
+  If you only need to store and re-display content, you can use JSON (`getJSON()` / `setJSON()`) which preserves all data perfectly. The `styleMap` round-trip is specifically for scenarios where you store class-based HTML and need to re-import it into an editor.
+</Aside>
+
+### Which Serialization Mode Should I Use?
+
+| Scenario | Mode | Notes |
+|----------|------|-------|
+| Storing HTML for email clients | `'inline'` (default) | Self-contained, widest compatibility |
+| Rendering on a CSP-strict page | `'classes'` | Zero inline styles, use `injectContentStyles` |
+| Clipboard copy/paste | Automatic | Always uses inline styles for cross-app compat |
+| Re-importing into the editor | `'classes'` + `styleMap` | Full round-trip preservation |
+| Storing editor state (lossless) | `getJSON()` / `setJSON()` | Best for editor-to-editor workflows |
+
+## `injectContentStyles` API Reference
+
+```ts
+import { injectContentStyles, removeContentStyles } from '@notectl/core';
+```
+
+### `injectContentStyles(css, options?)`
+
+Creates or updates a `<style>` element with the given CSS.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `nonce` | `string` | — | CSP nonce attribute for the `<style>` element |
+| `id` | `string` | — | Element ID. If an element with this ID exists, its content is replaced |
+| `container` | `HTMLElement` | `document.head` | Where to append the `<style>` element |
+| `document` | `Document` | `globalThis.document` | Target document (useful for iframes) |
+
+Returns the `HTMLStyleElement` for manual cleanup.
+
+### `removeContentStyles(id, document?)`
+
+Removes a `<style>` element by ID.
 
 ## Troubleshooting
 

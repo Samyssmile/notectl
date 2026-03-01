@@ -7,6 +7,7 @@
 import { TABLE_CSS } from '../../editor/styles/table.js';
 import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
+import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -156,10 +157,11 @@ export class TablePlugin implements Plugin {
 				wrapper.setAttribute('data-block-id', node.id);
 				return wrapper;
 			},
-			toHTML(node, content) {
+			toHTML(node, content, ctx?: HTMLExportContext) {
 				const borderColor: string | undefined = node.attrs?.borderColor as string | undefined;
 				const style: string = buildTableStyle(borderColor);
-				return `<table style="${style}">${content}</table>`;
+				const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
+				return `<table${attr}>${content}</table>`;
 			},
 			sanitize: { tags: ['table', 'tbody'] },
 		});
@@ -193,10 +195,11 @@ export class TablePlugin implements Plugin {
 				td.setAttribute('role', 'cell');
 				return td;
 			},
-			toHTML(node, content) {
+			toHTML(node, content, ctx?: HTMLExportContext) {
 				const colspan: number = (node.attrs?.colspan as number) ?? 1;
 				const rowspan: number = (node.attrs?.rowspan as number) ?? 1;
-				const attrs: string[] = [` style="${CELL_STYLE}"`];
+				const styleAttr: string = ctx?.styleAttr(CELL_STYLE) ?? ` style="${CELL_STYLE}"`;
+				const attrs: string[] = [styleAttr];
 				if (colspan > 1) attrs.push(` colspan="${colspan}"`);
 				if (rowspan > 1) attrs.push(` rowspan="${rowspan}"`);
 				return `<td${attrs.join('')}>${content}</td>`;

@@ -244,10 +244,11 @@ describe('ImagePlugin', () => {
 			expect(html).toContain('alt="A photo"');
 			expect(html).toContain('width="400"');
 			expect(html).toContain('height="300"');
-			expect(html).toContain('text-align: center');
+			// Alignment is now injected by the serializer, not by toHTML directly
+			expect(html).toContain('<figure>');
 		});
 
-		it('serializes left-aligned image with explicit text-align: left', async () => {
+		it('does not emit alignment in toHTML (handled by serializer)', async () => {
 			const plugin = new ImagePlugin();
 			const { pm } = await pluginHarness(plugin, defaultState());
 			const spec = pm.schemaRegistry.getNodeSpec('image');
@@ -259,7 +260,8 @@ describe('ImagePlugin', () => {
 			});
 
 			const html = spec?.toHTML?.(block, '');
-			expect(html).toContain('text-align: left');
+			expect(html).not.toContain('text-align');
+			expect(html).toContain('<figure>');
 		});
 	});
 

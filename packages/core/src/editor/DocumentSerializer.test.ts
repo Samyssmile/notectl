@@ -727,9 +727,9 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toContain('class="notectl-s0"');
+		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		expect(result.html).not.toContain('style=');
-		expect(result.css).toContain('.notectl-s0');
+		expect(result.css).toMatch(/\.notectl-s-[a-z0-9]+/);
 		expect(result.css).toContain('color: red');
 	});
 
@@ -753,9 +753,14 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
+		// Extract the generated class name from the first match
+		const classMatch: RegExpMatchArray | null = result.html.match(/class="(notectl-s-[a-z0-9]+)"/);
+		expect(classMatch).not.toBeNull();
+		const className: string | undefined = classMatch?.[1];
+		if (!className) return;
 		// Both paragraphs should use the same class
-		const classMatches = result.html.match(/notectl-s0/g);
-		expect(classMatches).toHaveLength(2);
+		const allMatches = result.html.match(new RegExp(className, 'g'));
+		expect(allMatches).toHaveLength(2);
 		// Only one CSS rule
 		expect(result.css.split('\n')).toHaveLength(1);
 	});
@@ -788,7 +793,9 @@ describe('serializeDocumentToCSS', () => {
 
 		const result = serializeDocumentToCSS(doc, registry);
 		// Bold wraps the class span
-		expect(result.html).toBe('<p><strong><span class="notectl-s0">hello</span></strong></p>');
+		expect(result.html).toMatch(
+			/<p><strong><span class="notectl-s-[a-z0-9]+">hello<\/span><\/strong><\/p>/,
+		);
 		expect(result.css).toContain('color: red');
 	});
 
@@ -806,9 +813,9 @@ describe('serializeDocumentToCSS', () => {
 		const result = serializeDocumentToCSS(doc, registry);
 		// Block has alignment class, inline has style class
 		expect(result.html).toContain('class="notectl-align-right"');
-		expect(result.html).toContain('class="notectl-s0"');
+		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		expect(result.css).toContain('.notectl-align-right');
-		expect(result.css).toContain('.notectl-s0');
+		expect(result.css).toMatch(/\.notectl-s-[a-z0-9]+/);
 	});
 
 	it('merges multiple style marks into a single class', () => {
@@ -823,7 +830,7 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toContain('class="notectl-s0"');
+		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		// Should not have nested spans
 		expect(result.html).not.toMatch(/<span[^>]*><span/);
 		expect(result.css).toContain('background-color: yellow');
@@ -849,5 +856,245 @@ describe('serializeDocumentToCSS', () => {
 		const result = serializeDocumentToCSS(doc);
 		expect(result.html).toBe('<p>hello</p>');
 		expect(result.css).toBe('');
+	});
+
+	// --- HTMLExportContext: plugin ctx.styleAttr() usage ---
+
+	describe('HTMLExportContext for plugins', () => {
+		function createTableClassRegistry(): SchemaRegistry {
+			const nodeSpecs = new Map<
+				string,
+				{
+					toHTML?: (
+						node: unknown,
+						content: string,
+						ctx?: { styleAttr: (d: string) => string },
+					) => string;
+				}
+			>([
+				['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+				[
+					'table',
+					{
+						toHTML: (_n, c, ctx) => {
+							const style = 'border-collapse: collapse; width: 100%';
+							const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
+							return `<table${attr}>${c}</table>`;
+						},
+					},
+				],
+				['table_row', { toHTML: (_n, c) => `<tr>${c}</tr>` }],
+				[
+					'table_cell',
+					{
+						toHTML: (_n, c, ctx) => {
+							const style = 'border: 1px solid #d0d0d0; padding: 8px';
+							const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
+							return `<td${attr}>${c}</td>`;
+						},
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
+				getAllowedAttrs: () => ['style', 'class', 'colspan', 'rowspan'],
+			} as unknown as SchemaRegistry;
+		}
+
+		it('table uses class instead of inline style in class mode', () => {
+			const registry: SchemaRegistry = createTableClassRegistry();
+			const cell = (text: string): ReturnType<typeof createBlockNode> =>
+				createBlockNode(nodeType('table_cell'), [
+					createBlockNode(nodeType('paragraph'), [createTextNode(text)]),
+				]);
+
+			const doc = createDocument([
+				createBlockNode(nodeType('table'), [
+					createBlockNode(nodeType('table_row'), [cell('A'), cell('B')]),
+				]),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			expect(result.html).not.toContain('style=');
+			expect(result.html).toContain('class="notectl-s');
+			expect(result.css).toContain('border-collapse: collapse');
+		});
+
+		it('table cell uses class in CSS output', () => {
+			const registry: SchemaRegistry = createTableClassRegistry();
+			const cell = (text: string): ReturnType<typeof createBlockNode> =>
+				createBlockNode(nodeType('table_cell'), [
+					createBlockNode(nodeType('paragraph'), [createTextNode(text)]),
+				]);
+
+			const doc = createDocument([
+				createBlockNode(nodeType('table'), [createBlockNode(nodeType('table_row'), [cell('X')])]),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			expect(result.css).toContain('border: 1px solid #d0d0d0');
+			expect(result.css).toContain('padding: 8px');
+		});
+
+		it('code block backgroundColor uses class instead of inline style', () => {
+			const nodeSpecs = new Map<
+				string,
+				{
+					toHTML?: (
+						node: unknown,
+						content: string,
+						ctx?: { styleAttr: (d: string) => string },
+					) => string;
+				}
+			>([
+				[
+					'code_block',
+					{
+						toHTML: (node: unknown, content: string, ctx) => {
+							const n = node as { attrs?: Record<string, unknown> };
+							const bg: string = (n.attrs?.backgroundColor as string) ?? '';
+							const bgAttr: string = bg
+								? (ctx?.styleAttr(`background-color: ${bg}`) ?? ` style="background-color: ${bg}"`)
+								: '';
+							return `<pre${bgAttr}><code>${content || ''}</code></pre>`;
+						},
+					},
+				],
+			]);
+
+			const registry: SchemaRegistry = {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['pre', 'code'],
+				getAllowedAttrs: () => ['style', 'class'],
+			} as unknown as SchemaRegistry;
+
+			const doc = createDocument([
+				createBlockNode(nodeType('code_block'), [createTextNode('const x = 1;')], undefined, {
+					backgroundColor: '#1e1e1e',
+				}),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			expect(result.html).not.toContain('style=');
+			expect(result.html).toContain('class="notectl-s');
+			expect(result.css).toContain('background-color: #1e1e1e');
+		});
+
+		it('merges alignment class into existing class from ctx.styleAttr()', () => {
+			const nodeSpecs = new Map<
+				string,
+				{
+					toHTML?: (
+						node: unknown,
+						content: string,
+						ctx?: { styleAttr: (d: string) => string },
+					) => string;
+				}
+			>([
+				[
+					'custom',
+					{
+						toHTML: (_n, c, ctx) => {
+							const attr: string = ctx?.styleAttr('padding: 10px') ?? '';
+							return `<div${attr}>${c}</div>`;
+						},
+					},
+				],
+			]);
+
+			const registry: SchemaRegistry = {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['div'],
+				getAllowedAttrs: () => ['style', 'class'],
+			} as unknown as SchemaRegistry;
+
+			const doc = createDocument([
+				createBlockNode(nodeType('custom' as never), [createTextNode('hello')], undefined, {
+					align: 'center',
+				}),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			// Both the style class and alignment class should be on the same element
+			expect(result.html).toMatch(/class="notectl-s[^ ]+ notectl-align-center"/);
+			expect(result.css).toContain('padding: 10px');
+			expect(result.css).toContain('text-align: center');
+		});
+
+		it('defense-in-depth: strips rogue inline style in class mode', () => {
+			const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+				[
+					'rogue',
+					{
+						// Plugin that forgot to use ctx.styleAttr()
+						toHTML: (_n, c) => `<div style="color: red">${c}</div>`,
+					},
+				],
+			]);
+
+			const registry: SchemaRegistry = {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['div'],
+				getAllowedAttrs: () => ['style', 'class'],
+			} as unknown as SchemaRegistry;
+
+			const doc = createDocument([
+				createBlockNode(nodeType('rogue' as never), [createTextNode('hello')]),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			// DOMPurify strips the style attribute in class mode
+			expect(result.html).not.toContain('style=');
+		});
+
+		it('image alignment via serializer produces class in class mode', () => {
+			const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+				[
+					'image',
+					{
+						toHTML: (node: unknown) => {
+							const n = node as { attrs?: Record<string, unknown> };
+							const src: string = (n.attrs?.src as string) ?? '';
+							return `<figure><img src="${src}" alt=""></figure>`;
+						},
+					},
+				],
+			]);
+
+			const registry: SchemaRegistry = {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['figure', 'img'],
+				getAllowedAttrs: () => ['style', 'class', 'src', 'alt'],
+			} as unknown as SchemaRegistry;
+
+			const doc = createDocument([
+				createBlockNode(nodeType('image'), [], undefined, {
+					src: 'photo.jpg',
+					align: 'center',
+				}),
+			]);
+
+			const result = serializeDocumentToCSS(doc, registry);
+			expect(result.html).toContain('class="notectl-align-center"');
+			expect(result.html).not.toContain('style=');
+			expect(result.css).toContain('text-align: center');
+		});
 	});
 });

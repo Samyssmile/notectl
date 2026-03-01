@@ -197,9 +197,9 @@ describe('serializeMarksToClassHTML', () => {
 			registry,
 			collector,
 		);
-		expect(html).toContain('class="notectl-s0"');
+		expect(html).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		expect(html).not.toContain('style=');
-		expect(collector.toCSS()).toBe('.notectl-s0 { color: red; }');
+		expect(collector.toCSS()).toMatch(/\.notectl-s-[a-z0-9]+ \{ color: red; \}/);
 	});
 
 	it('merges multiple style marks into single class', () => {
@@ -214,7 +214,7 @@ describe('serializeMarksToClassHTML', () => {
 			registry,
 			collector,
 		);
-		expect(html).toMatch(/class="notectl-s0"/);
+		expect(html).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		expect(html).not.toContain('style=');
 		expect(collector.toCSS()).toContain('background-color: yellow');
 		expect(collector.toCSS()).toContain('color: red');
@@ -229,7 +229,7 @@ describe('serializeMarksToClassHTML', () => {
 			registry,
 			collector,
 		);
-		expect(html).toBe('<strong><span class="notectl-s0">hello</span></strong>');
+		expect(html).toMatch(/^<strong><span class="notectl-s-[a-z0-9]+">hello<\/span><\/strong>$/);
 	});
 
 	it('deduplicates identical style declarations', () => {
@@ -238,8 +238,12 @@ describe('serializeMarksToClassHTML', () => {
 		const marks: readonly Mark[] = [{ type: markType('textColor'), attrs: { color: 'red' } }];
 		const html1: string = serializeMarksToClassHTML('hello', marks, registry, collector);
 		const html2: string = serializeMarksToClassHTML('world', marks, registry, collector);
-		expect(html1).toContain('notectl-s0');
-		expect(html2).toContain('notectl-s0');
+		// Both should use the same hashed class name
+		const classMatch: RegExpMatchArray | null = html1.match(/notectl-s-[a-z0-9]+/);
+		expect(classMatch).not.toBeNull();
+		const matched: string | undefined = classMatch?.[0];
+		if (!matched) return;
+		expect(html2).toContain(matched);
 		// Only one CSS rule
 		expect(collector.toCSS().split('\n')).toHaveLength(1);
 	});

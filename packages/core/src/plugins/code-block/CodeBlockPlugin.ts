@@ -14,7 +14,7 @@ import { resolvePluginLocale } from '../../i18n/resolvePluginLocale.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
+import { type HTMLExportContext, createBlockElement } from '../../model/NodeSpec.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -154,12 +154,14 @@ export class CodeBlockPlugin implements Plugin {
 				pre.appendChild(code);
 				return pre;
 			},
-			toHTML(node, content) {
+			toHTML(node, content, ctx?: HTMLExportContext) {
 				const lang: string = escapeHTML((node.attrs?.language as string) ?? '');
 				const bg: string = escapeHTML((node.attrs?.backgroundColor as string) ?? '');
 				const langClass: string = lang ? ` class="language-${lang}"` : '';
-				const bgStyle: string = bg ? ` style="background-color: ${bg}"` : '';
-				return `<pre${bgStyle}><code${langClass}>${content || ''}</code></pre>`;
+				const bgAttr: string = bg
+					? (ctx?.styleAttr(`background-color: ${bg}`) ?? ` style="background-color: ${bg}"`)
+					: '';
+				return `<pre${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
 			},
 			parseHTML: [
 				{

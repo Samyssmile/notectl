@@ -101,7 +101,13 @@ export type {
 export { isNodeOfType, isMarkOfType, isInlineNodeOfType } from './model/AttrRegistry.js';
 
 // --- NodeSpec & MarkSpec ---
-export type { NodeSpec, AttrSpec, ContentRule, WrapperSpec } from './model/NodeSpec.js';
+export type {
+	NodeSpec,
+	AttrSpec,
+	ContentRule,
+	WrapperSpec,
+	HTMLExportContext,
+} from './model/NodeSpec.js';
 export { createBlockElement } from './model/NodeSpec.js';
 export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
@@ -617,13 +623,26 @@ export { TABLE_LOCALES } from './plugins/table/TableLocale.js';
 export { getBlockTypeLabel } from './editor/Announcer.js';
 
 // --- HTML Serialization / Parsing ---
-export type { CSSMode, ContentHTMLOptions, ContentCSSResult } from './editor/ContentHTMLTypes.js';
+export type {
+	CSSMode,
+	ContentHTMLOptions,
+	ContentCSSResult,
+	SetContentHTMLOptions,
+} from './editor/ContentHTMLTypes.js';
 export {
 	serializeDocumentToHTML,
 	serializeDocumentToCSS,
 	VALID_ALIGNMENTS,
 } from './editor/DocumentSerializer.js';
 export { parseHTMLToDocument } from './editor/DocumentParser.js';
+export type { ParseHTMLOptions } from './editor/DocumentParser.js';
+
+// --- CSS Delivery Utilities ---
+export {
+	injectContentStyles,
+	removeContentStyles,
+} from './editor/ContentStyleInjector.js';
+export type { InjectStylesOptions } from './editor/ContentStyleInjector.js';
 
 // --- Editor ---
 export type {

@@ -39,6 +39,21 @@ export function createBlockElement(tag: string, blockId: BlockId): HTMLElement {
 	return el;
 }
 
+/**
+ * Context passed to `toHTML()` during serialization.
+ * Provides mode-aware helpers so plugins produce inline styles or CSS classes
+ * depending on the active `cssMode`.
+ */
+export interface HTMLExportContext {
+	/**
+	 * Returns an attribute fragment for the given CSS declarations.
+	 * - Inline mode: `' style="color: red"'`
+	 * - Class mode: `' class="notectl-s-a3f2k9"'`
+	 * - Empty/falsy input: `''`
+	 */
+	readonly styleAttr: (declarations: string) => string;
+}
+
 export interface NodeSpec<T extends string = string> {
 	readonly type: T;
 	/** Renders the block to a DOM element. Must set `data-block-id` on the root. */
@@ -60,8 +75,11 @@ export interface NodeSpec<T extends string = string> {
 	 * are stripped from the block's inline content.
 	 */
 	readonly excludeMarks?: readonly string[];
-	/** Serializes the block to an HTML string. `content` is the pre-serialized inline children. */
-	readonly toHTML?: (node: BlockNode, content: string) => string;
+	/**
+	 * Serializes the block to an HTML string. `content` is the pre-serialized inline children.
+	 * The optional `ctx` provides mode-aware helpers (inline style vs. CSS class).
+	 */
+	readonly toHTML?: (node: BlockNode, content: string, ctx?: HTMLExportContext) => string;
 	/** Rules for matching HTML elements to this block type during parsing. */
 	readonly parseHTML?: readonly ParseRule[];
 	/** Tags and attributes this spec needs through DOMPurify sanitization. */
