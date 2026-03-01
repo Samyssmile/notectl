@@ -38,7 +38,11 @@ import {
 } from '../style/StyleRuntime.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
-import type { ContentCSSResult, ContentHTMLOptions } from './ContentHTMLTypes.js';
+import type {
+	ContentCSSResult,
+	ContentHTMLOptions,
+	SetContentHTMLOptions,
+} from './ContentHTMLTypes.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 import { createEditorDOM } from './EditorDOM.js';
@@ -363,16 +367,18 @@ export class NotectlEditor extends HTMLElement {
 
 		if (options?.cssMode === 'classes') {
 			const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
-			return options.pretty ? { html: formatHTML(result.html), css: result.css } : result;
+			return options.pretty
+				? { html: formatHTML(result.html), css: result.css, styleMap: result.styleMap }
+				: result;
 		}
 
 		const html: string = serializeDocumentToHTML(doc, registry);
 		return options?.pretty ? formatHTML(html) : html;
 	}
 
-	/** Sets content from HTML (sanitized). */
-	setContentHTML(html: string): void {
-		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry);
+	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
+	setContentHTML(html: string, options?: SetContentHTMLOptions): void {
+		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry, options);
 		this.setJSON(doc);
 	}
 
