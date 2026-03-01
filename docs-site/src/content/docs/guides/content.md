@@ -55,10 +55,12 @@ For indented, human-readable output pass the `pretty` option:
 const pretty = editor.getContentHTML({ pretty: true });
 ```
 
-The HTML is sanitized with DOMPurify. Only safe tags and attributes are included:
+The HTML is sanitized with DOMPurify. The allowed tags and attributes are **schema-driven** — each plugin declares which HTML elements it produces. With a full preset, the allowed set includes:
 
-- **Tags**: `p`, `h1`-`h6`, `strong`, `em`, `u`, `s`, `a`, `span`, `ul`, `ol`, `li`, `hr`, `blockquote`, `div`, `br`
-- **Attributes**: `href`, `target`, `rel`, `style`
+- **Tags**: `p`, `div`, `span`, `br`, `h1`-`h6`, `strong`, `b`, `em`, `i`, `u`, `s`, `a`, `sup`, `sub`, `ul`, `ol`, `li`, `input`, `blockquote`, `hr`, `pre`, `code`, `table`, `tbody`, `tr`, `td`, `figure`, `img`
+- **Attributes**: `style`, `href`, `target`, `rel`, `colspan`, `rowspan`, `src`, `alt`, `width`, `height`, `class`
+
+If you use a subset of plugins, only the tags relevant to those plugins are allowed.
 
 ### HTML with CSS Classes (CSP-Compliant)
 
@@ -117,7 +119,7 @@ const text = editor.getText();
 editor.setContentHTML('<h1>Welcome</h1><p>Start editing...</p>');
 ```
 
-The HTML is parsed into the document model. Supported elements:
+The HTML is parsed into the document model. Supported elements depend on registered plugins. With a full preset:
 
 | HTML | Block Type |
 |------|-----------|
@@ -128,18 +130,26 @@ The HTML is parsed into the document model. Supported elements:
 | `<li>` with checkbox | `list_item` (checklist) |
 | `<hr>` | `horizontal_rule` |
 | `<blockquote>` | `blockquote` |
+| `<pre><code>` | `code_block` |
+| `<table>`, `<tr>`, `<td>` | `table`, `table_row`, `table_cell` |
+| `<figure>`, `<img>` | `image` |
 
 Inline formatting maps:
 
-| HTML | Mark Type |
+| HTML | Mark / Inline Type |
 |------|----------|
 | `<strong>`, `<b>` | `bold` |
 | `<em>`, `<i>` | `italic` |
 | `<u>` | `underline` |
 | `<s>` | `strikethrough` |
+| `<sup>` | `superscript` |
+| `<sub>` | `subscript` |
 | `<a href="...">` | `link` |
 | `<span style="color: ...">` | `textColor` |
+| `<span style="background-color: ...">` | `highlight` |
 | `<span style="font-family: ...">` | `font` |
+| `<span style="font-size: ...">` | `fontSize` |
+| `<br>` | `hard_break` (InlineNode) |
 
 ### From JSON
 
