@@ -3,7 +3,12 @@ import type { Mark } from '../model/Document.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { markType } from '../model/TypeBrands.js';
-import { buildMarkOrder, serializeMarksToHTML } from './MarkSerializer.js';
+import { CSSClassCollector } from './CSSClassCollector.js';
+import {
+	buildMarkOrder,
+	serializeMarksToClassHTML,
+	serializeMarksToHTML,
+} from './MarkSerializer.js';
 
 /** Creates a registry with tag-based and style-based mark specs. */
 function createRegistry(): SchemaRegistry {
@@ -148,5 +153,107 @@ describe('serializeMarksToHTML', () => {
 			markOrder,
 		);
 		expect(html).toBe('<strong>hello</strong>');
+	});
+});
+
+describe('serializeMarksToClassHTML', () => {
+	it('returns escaped text with no marks', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML('<b>hi</b>', [], registry, collector);
+		expect(html).toBe('&lt;b&gt;hi&lt;/b&gt;');
+	});
+
+	it('returns empty string for empty text', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'',
+			[{ type: markType('bold') }],
+			registry,
+			collector,
+		);
+		expect(html).toBe('');
+	});
+
+	it('wraps text with tag-based marks unchanged', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'hello',
+			[{ type: markType('bold') }],
+			registry,
+			collector,
+		);
+		expect(html).toBe('<strong>hello</strong>');
+	});
+
+	it('uses class name instead of inline style for style marks', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'hello',
+			[{ type: markType('textColor'), attrs: { color: 'red' } }],
+			registry,
+			collector,
+		);
+		expect(html).toContain('class="notectl-s0"');
+		expect(html).not.toContain('style=');
+		expect(collector.toCSS()).toBe('.notectl-s0 { color: red; }');
+	});
+
+	it('merges multiple style marks into single class', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'hello',
+			[
+				{ type: markType('textColor'), attrs: { color: 'red' } },
+				{ type: markType('highlight'), attrs: { color: 'yellow' } },
+			],
+			registry,
+			collector,
+		);
+		expect(html).toMatch(/class="notectl-s0"/);
+		expect(html).not.toContain('style=');
+		expect(collector.toCSS()).toContain('background-color: yellow');
+		expect(collector.toCSS()).toContain('color: red');
+	});
+
+	it('wraps tag marks outside class span', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'hello',
+			[{ type: markType('bold') }, { type: markType('textColor'), attrs: { color: 'red' } }],
+			registry,
+			collector,
+		);
+		expect(html).toBe('<strong><span class="notectl-s0">hello</span></strong>');
+	});
+
+	it('deduplicates identical style declarations', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const marks: readonly Mark[] = [{ type: markType('textColor'), attrs: { color: 'red' } }];
+		const html1: string = serializeMarksToClassHTML('hello', marks, registry, collector);
+		const html2: string = serializeMarksToClassHTML('world', marks, registry, collector);
+		expect(html1).toContain('notectl-s0');
+		expect(html2).toContain('notectl-s0');
+		// Only one CSS rule
+		expect(collector.toCSS().split('\n')).toHaveLength(1);
+	});
+
+	it('handles toHTMLStyle returning null', () => {
+		const registry: SchemaRegistry = createRegistry();
+		const collector = new CSSClassCollector();
+		const html: string = serializeMarksToClassHTML(
+			'hello',
+			[{ type: markType('textColor'), attrs: { color: '' } }],
+			registry,
+			collector,
+		);
+		expect(html).toBe('hello');
+		expect(collector.toCSS()).toBe('');
 	});
 });

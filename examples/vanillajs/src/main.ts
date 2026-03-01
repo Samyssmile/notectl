@@ -15,6 +15,7 @@ import {
 	TextColorPlugin,
 	TextFormattingPlugin,
 	ThemePreset,
+	ToolbarOverflowBehavior,
 	ToolbarPlugin,
 	createEditor,
 	createFullPreset,
@@ -64,13 +65,19 @@ const container = document.getElementById('editor-container') as HTMLElement;
 const output = document.getElementById('output') as HTMLElement;
 
 (async () => {
+	const preset = createFullPreset({
+		list: { interactiveCheckboxes: true },
+		codeBlock: {
+			keymap: { insertAfter: 'Mod-Shift-Enter', toggle: 'Mod-Shift-C' },
+		},
+	});
+
 	const editor = await createEditor({
-		...createFullPreset({
-			list: { interactiveCheckboxes: true },
-			codeBlock: {
-				keymap: { insertAfter: 'Mod-Shift-Enter', toggle: 'Mod-Shift-C' },
-			},
-		}),
+		...preset,
+		toolbar: {
+			groups: preset.toolbar,
+			overflow: ToolbarOverflowBehavior.Flow,
+		},
 		theme: ThemePreset.Light,
 		placeholder: 'Start typing...',
 		autofocus: true,
@@ -95,6 +102,11 @@ const output = document.getElementById('output') as HTMLElement;
 
 	document.getElementById('btn-get-html')?.addEventListener('click', () => {
 		output.textContent = editor.getContentHTML({ pretty: true });
+	});
+
+	document.getElementById('btn-get-css-html')?.addEventListener('click', () => {
+		const result = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+		output.textContent = `/* === CSS === */\n${result.css}\n\n/* === HTML === */\n${result.html}`;
 	});
 
 	document.getElementById('btn-get-text')?.addEventListener('click', () => {

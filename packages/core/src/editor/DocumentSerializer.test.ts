@@ -11,7 +11,7 @@ import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { isValidCSSColor } from '../plugins/shared/ColorValidation.js';
-import { serializeDocumentToHTML } from './DocumentSerializer.js';
+import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 
 /**
  * Creates a minimal SchemaRegistry stub that provides toHTML + sanitize
@@ -654,5 +654,200 @@ describe('serializeDocumentToHTML', () => {
 			expect(html).toContain('<ul>');
 			expect(html).toContain('<ol>');
 		});
+	});
+});
+
+describe('serializeDocumentToCSS', () => {
+	function createStyleMarkRegistry(): SchemaRegistry {
+		const markSpecs = new Map<string, MarkSpec>([
+			[
+				'textColor',
+				{
+					type: 'textColor',
+					rank: 5,
+					toDOM: () => document.createElement('span'),
+					toHTMLStyle: (mark: Mark) => {
+						const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+						return color ? `color: ${color}` : null;
+					},
+				},
+			],
+			[
+				'highlight',
+				{
+					type: 'highlight',
+					rank: 4,
+					toDOM: () => document.createElement('span'),
+					toHTMLStyle: (mark: Mark) => {
+						const color: string = String((mark.attrs as Record<string, unknown>)?.color ?? '');
+						return color ? `background-color: ${color}` : null;
+					},
+				},
+			],
+			[
+				'bold',
+				{
+					type: 'bold',
+					rank: 1,
+					toDOM: () => document.createElement('strong'),
+					toHTMLString: (_mark: Mark, content: string) => `<strong>${content}</strong>`,
+				},
+			],
+		]);
+
+		return {
+			getNodeSpec: () => undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: (type: string) => markSpecs.get(type) ?? undefined,
+			getMarkTypes: () => [...markSpecs.keys()],
+			getAllowedTags: () => ['p', 'br', 'span', 'strong'],
+			getAllowedAttrs: () => ['style'],
+		} as unknown as SchemaRegistry;
+	}
+
+	it('returns html and css fields', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('hello', [{ type: markType('textColor'), attrs: { color: 'red' } }]),
+			]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result).toHaveProperty('html');
+		expect(result).toHaveProperty('css');
+	});
+
+	it('uses class instead of inline style for style marks', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('hello', [{ type: markType('textColor'), attrs: { color: 'red' } }]),
+			]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result.html).toContain('class="notectl-s0"');
+		expect(result.html).not.toContain('style=');
+		expect(result.css).toContain('.notectl-s0');
+		expect(result.css).toContain('color: red');
+	});
+
+	it('returns empty css when no style marks in document', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('plain text')]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result.html).toBe('<p>plain text</p>');
+		expect(result.css).toBe('');
+	});
+
+	it('deduplicates identical styles across nodes', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const marks: Mark[] = [{ type: markType('textColor'), attrs: { color: 'red' } }];
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello', marks)]),
+			createBlockNode(nodeType('paragraph'), [createTextNode('world', marks)]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		// Both paragraphs should use the same class
+		const classMatches = result.html.match(/notectl-s0/g);
+		expect(classMatches).toHaveLength(2);
+		// Only one CSS rule
+		expect(result.css.split('\n')).toHaveLength(1);
+	});
+
+	it('generates alignment classes instead of inline styles', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('centered')], undefined, {
+				align: 'center',
+			}),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result.html).toContain('class="notectl-align-center"');
+		expect(result.html).not.toContain('style=');
+		expect(result.css).toContain('.notectl-align-center');
+		expect(result.css).toContain('text-align: center');
+	});
+
+	it('handles mixed tag + style marks', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('hello', [
+					{ type: markType('bold') },
+					{ type: markType('textColor'), attrs: { color: 'red' } },
+				]),
+			]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		// Bold wraps the class span
+		expect(result.html).toBe('<p><strong><span class="notectl-s0">hello</span></strong></p>');
+		expect(result.css).toContain('color: red');
+	});
+
+	it('handles alignment + style marks independently', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('hello', [{ type: markType('textColor'), attrs: { color: 'blue' } }])],
+				undefined,
+				{ align: 'right' },
+			),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		// Block has alignment class, inline has style class
+		expect(result.html).toContain('class="notectl-align-right"');
+		expect(result.html).toContain('class="notectl-s0"');
+		expect(result.css).toContain('.notectl-align-right');
+		expect(result.css).toContain('.notectl-s0');
+	});
+
+	it('merges multiple style marks into a single class', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('hello', [
+					{ type: markType('textColor'), attrs: { color: 'red' } },
+					{ type: markType('highlight'), attrs: { color: 'yellow' } },
+				]),
+			]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result.html).toContain('class="notectl-s0"');
+		// Should not have nested spans
+		expect(result.html).not.toMatch(/<span[^>]*><span/);
+		expect(result.css).toContain('background-color: yellow');
+		expect(result.css).toContain('color: red');
+	});
+
+	it('allows class attribute through DOMPurify', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('hello', [{ type: markType('textColor'), attrs: { color: 'red' } }]),
+			]),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		// class attribute should survive DOMPurify
+		expect(result.html).toContain('class=');
+	});
+
+	it('works without registry', () => {
+		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('hello')])]);
+
+		const result = serializeDocumentToCSS(doc);
+		expect(result.html).toBe('<p>hello</p>');
+		expect(result.css).toBe('');
 	});
 });
