@@ -3,7 +3,7 @@ import { createBlockNode, createTextNode } from '../../model/Document.js';
 import { blockId, nodeType } from '../../model/TypeBrands.js';
 import { stateBuilder } from '../../test/TestUtils.js';
 import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
-import type { CodeBlockConfig } from './CodeBlockPlugin.js';
+import type { CodeBlockConfig } from './CodeBlockTypes.js';
 
 const DEFAULT_CONFIG: CodeBlockConfig = {
 	showCopyButton: true,
