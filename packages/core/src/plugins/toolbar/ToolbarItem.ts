@@ -5,6 +5,7 @@
 import type { EditorState } from '../../state/EditorState.js';
 import { isMac } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
+import type { PopupCloseOptions } from '../shared/PopupManager.js';
 
 export interface GridPickerConfig {
 	readonly maxRows: number;
@@ -60,7 +61,11 @@ interface ToolbarItemDropdown extends ToolbarItemBase {
 
 interface ToolbarItemCustomPopup extends ToolbarItemBase {
 	readonly popupType: 'custom';
-	renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+	renderPopup(
+		container: HTMLElement,
+		context: PluginContext,
+		onClose: (options?: PopupCloseOptions) => void,
+	): void;
 }
 
 export interface ToolbarItemCombobox extends Omit<ToolbarItemBase, 'icon'> {
@@ -70,7 +75,11 @@ export interface ToolbarItemCombobox extends Omit<ToolbarItemBase, 'icon'> {
 	/** Pure function returning the current label text. Called on every state change. */
 	getLabel(state: EditorState): string;
 	/** Renders the popup content when the combobox is opened. */
-	renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+	renderPopup(
+		container: HTMLElement,
+		context: PluginContext,
+		onClose: (options?: PopupCloseOptions) => void,
+	): void;
 }
 
 export type ToolbarItem =

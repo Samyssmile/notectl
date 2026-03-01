@@ -8,6 +8,7 @@ import type { MarkAttrRegistry } from '../../model/AttrRegistry.js';
 import type { PluginContext } from '../Plugin.js';
 import { renderColorGrid } from './ColorGrid.js';
 import { applyColorMark, getActiveColor } from './ColorMarkOperations.js';
+import type { PopupCloseOptions } from './PopupManager.js';
 
 /** Color mark type names that have `{ color: string }` attrs. */
 type ColorMarkType = {
@@ -22,7 +23,7 @@ export interface ColorPickerConfig {
 	readonly resetLabel: string;
 	readonly resetCommand: string;
 	readonly ariaLabelPrefix: string;
-	readonly onClose: () => void;
+	readonly onClose: (options?: PopupCloseOptions) => void;
 }
 
 const COLUMNS = 10;
@@ -47,6 +48,7 @@ export function renderColorPickerPopup(
 	const state = context.getState();
 	const activeColor: string | null = getActiveColor(state, config.markType);
 	const columns: number = config.columns || COLUMNS;
+	const contentElement: HTMLElement = context.getContainer();
 
 	// --- Reset button ---
 	const resetBtn: HTMLButtonElement = document.createElement('button');
@@ -57,7 +59,7 @@ export function renderColorPickerPopup(
 		e.preventDefault();
 		e.stopPropagation();
 		context.executeCommand(config.resetCommand);
-		config.onClose();
+		config.onClose({ restoreFocusTo: contentElement });
 	});
 	resetBtn.addEventListener('keydown', (e: KeyboardEvent) => {
 		if (e.key === 'Escape') {
@@ -76,7 +78,7 @@ export function renderColorPickerPopup(
 		activeColor,
 		onSelect: (color: string) => {
 			applyColorMark(context, context.getState(), config.markType, color);
-			config.onClose();
+			config.onClose({ restoreFocusTo: contentElement });
 		},
 		onClose: config.onClose,
 	});

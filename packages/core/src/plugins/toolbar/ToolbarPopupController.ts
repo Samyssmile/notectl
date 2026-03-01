@@ -6,7 +6,7 @@
 
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
-import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
+import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import { findNextDropdownItem, navigateGrid } from './ToolbarKeyboardNav.js';
 import { highlightCells, renderDropdown, renderGridPicker } from './ToolbarRenderers.js';
@@ -100,7 +100,7 @@ export class ToolbarPopupController {
 				this.clearButtonState();
 				this.activePopup = null;
 			},
-			content: (popup: HTMLElement, close: () => void) => {
+			content: (popup: HTMLElement, close: (options?: PopupCloseOptions) => void) => {
 				this.activePopup = popup;
 				this.renderPopupContent(popup, item, context, close);
 				popup.addEventListener('keydown', (e: KeyboardEvent) => this.handlePopupKeydown(e));
@@ -153,7 +153,7 @@ export class ToolbarPopupController {
 		popup: HTMLElement,
 		item: ToolbarItem,
 		context: PluginContext,
-		close: () => void,
+		close: (options?: PopupCloseOptions) => void,
 	): void {
 		switch (item.popupType) {
 			case 'gridPicker':

@@ -9,9 +9,20 @@ import { type PopupPosition, appendToRoot, positionPopup } from './PopupPosition
 
 // --- Types ---
 
+/** Options for overriding focus restoration when closing a popup. */
+export interface PopupCloseOptions {
+	/**
+	 * Override the default focus target on close.
+	 * - `HTMLElement` → focus that element instead of `config.restoreFocusTo`
+	 * - `null` → skip focus restoration entirely
+	 * - `undefined` / omitted → use default `config.restoreFocusTo`
+	 */
+	readonly restoreFocusTo?: HTMLElement | null;
+}
+
 export interface PopupConfig {
 	readonly anchor: HTMLElement | DOMRect;
-	readonly content: (container: HTMLElement, close: () => void) => void;
+	readonly content: (container: HTMLElement, close: (options?: PopupCloseOptions) => void) => void;
 	readonly className?: string;
 	readonly ariaRole?: 'menu' | 'listbox' | 'grid' | 'dialog';
 	readonly ariaLabel?: string;
@@ -23,7 +34,7 @@ export interface PopupConfig {
 }
 
 export interface PopupHandle {
-	close(): void;
+	close(options?: PopupCloseOptions): void;
 	getElement(): HTMLElement;
 }
 
@@ -68,11 +79,11 @@ export class PopupManager implements PopupServiceAPI {
 		}
 
 		const handle: PopupHandle = {
-			close: () => this.closeEntry(entry),
+			close: (options?: PopupCloseOptions) => this.closeEntry(entry, options),
 			getElement: () => popup,
 		};
 
-		config.content(popup, () => this.closeEntry(entry));
+		config.content(popup, (options?: PopupCloseOptions) => this.closeEntry(entry, options));
 
 		const refNode: Node = config.referenceNode ?? this.referenceNode;
 		appendToRoot(popup, refNode);
@@ -150,7 +161,7 @@ export class PopupManager implements PopupServiceAPI {
 
 	// --- Internal ---
 
-	private closeEntry(entry: PopupEntry): void {
+	private closeEntry(entry: PopupEntry, options?: PopupCloseOptions): void {
 		const index: number = this.stack.indexOf(entry);
 		if (index === -1) return;
 
@@ -164,7 +175,9 @@ export class PopupManager implements PopupServiceAPI {
 
 		this.removeEntry(entry);
 
-		if (entry.config.restoreFocusTo) {
+		if (options !== undefined && 'restoreFocusTo' in options) {
+			options.restoreFocusTo?.focus();
+		} else if (entry.config.restoreFocusTo) {
 			entry.config.restoreFocusTo.focus();
 		}
 		entry.config.onClose?.();

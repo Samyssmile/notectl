@@ -291,6 +291,7 @@ export { EventKey, ServiceKey } from './plugins/Plugin.js';
 export {
 	PopupManager,
 	PopupServiceKey,
+	type PopupCloseOptions,
 	type PopupConfig,
 	type PopupHandle,
 	type PopupServiceAPI,

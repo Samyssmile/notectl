@@ -234,6 +234,64 @@ describe('PopupManager', () => {
 			trigger.remove();
 			manager.destroy();
 		});
+
+		it('close({ restoreFocusTo: element }) focuses the override element', () => {
+			const manager = createManager();
+			const trigger: HTMLButtonElement = document.createElement('button');
+			const other: HTMLDivElement = document.createElement('div');
+			other.tabIndex = 0;
+			document.body.appendChild(trigger);
+			document.body.appendChild(other);
+
+			const handle = manager.open({
+				anchor: new DOMRect(0, 0, 80, 30),
+				restoreFocusTo: trigger,
+				content: () => {},
+			});
+
+			handle.close({ restoreFocusTo: other });
+			expect(document.activeElement).toBe(other);
+
+			trigger.remove();
+			other.remove();
+			manager.destroy();
+		});
+
+		it('close({ restoreFocusTo: null }) skips focus restoration', () => {
+			const manager = createManager();
+			const trigger: HTMLButtonElement = document.createElement('button');
+			document.body.appendChild(trigger);
+
+			const handle = manager.open({
+				anchor: new DOMRect(0, 0, 80, 30),
+				restoreFocusTo: trigger,
+				content: () => {},
+			});
+
+			handle.close({ restoreFocusTo: null });
+			expect(document.activeElement).not.toBe(trigger);
+
+			trigger.remove();
+			manager.destroy();
+		});
+
+		it('close() with no args still focuses config.restoreFocusTo (regression)', () => {
+			const manager = createManager();
+			const trigger: HTMLButtonElement = document.createElement('button');
+			document.body.appendChild(trigger);
+
+			const handle = manager.open({
+				anchor: new DOMRect(0, 0, 80, 30),
+				restoreFocusTo: trigger,
+				content: () => {},
+			});
+
+			handle.close();
+			expect(document.activeElement).toBe(trigger);
+
+			trigger.remove();
+			manager.destroy();
+		});
 	});
 
 	describe('destroy', () => {
