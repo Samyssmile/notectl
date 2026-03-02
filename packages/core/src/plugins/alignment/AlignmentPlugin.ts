@@ -8,6 +8,7 @@
  */
 
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
+import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import type { BlockNode } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -23,7 +24,7 @@ import {
 
 // --- Public Types ---
 
-export type BlockAlignment = 'start' | 'center' | 'end' | 'justify';
+export type { BlockAlignment } from '../../model/BlockAlignment.js';
 
 export interface AlignmentConfig {
 	/** Which alignments to expose. Defaults to all four. */
