@@ -14,12 +14,6 @@ import {
 	getBlockMarksAtOffset,
 	isLeafBlock,
 } from '../model/Document.js';
-import {
-	isInsideIsolating,
-	isIsolatingBlock,
-	isVoidBlock,
-	sharesParent,
-} from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import {
 	createCollapsedSelection,
@@ -32,6 +26,12 @@ import {
 } from '../model/Selection.js';
 import { type BlockId, inlineType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import {
+	isInsideIsolating,
+	isIsolatingBlock,
+	isVoidBlock,
+	sharesParent,
+} from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import { createEmptyParagraph, resolveInsertPoint } from './CommandHelpers.js';
@@ -52,7 +52,7 @@ export {
 	isIsolatingBlock,
 	isVoidBlock,
 	sharesParent,
-} from '../model/NavigationUtils.js';
+} from '../state/NavigationQueries.js';
 
 export type { FeatureConfig } from './MarkCommands.js';
 export {
