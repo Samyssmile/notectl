@@ -103,6 +103,7 @@ const fallback = await loadTableLocale('unknown'); // → English
 | Highlight | `loadHighlightLocale()` | `HIGHLIGHT_LOCALE_EN` |
 | Horizontal Rule | `loadHorizontalRuleLocale()` | `HORIZONTAL_RULE_LOCALE_EN` |
 | Print | `loadPrintLocale()` | `PRINT_LOCALE_EN` |
+| Text Direction | `loadTextDirectionLocale()` | `TEXT_DIRECTION_LOCALE_EN` |
 | Toolbar | `loadToolbarLocale()` | `TOOLBAR_LOCALE_EN` |
 
 ## Custom Locales

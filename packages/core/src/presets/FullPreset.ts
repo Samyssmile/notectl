@@ -34,7 +34,7 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
  * 2. Inline marks: TextFormatting, Strikethrough, SuperSub
  * 3. Colors: TextColor, Highlight
  * 4. Block types: Heading, Blockquote, CodeBlock
- * 5. Paragraph layout: Alignment
+ * 5. Paragraph layout: Alignment, TextDirection
  * 6. Lists: List
  * 7. Insert objects: Link, Table, HorizontalRule, Image
  * 8. Utility: Print

@@ -87,6 +87,7 @@ export default defineConfig({
 						{ label: 'Hard Break', slug: 'plugins/hard-break' },
 						{ label: 'Print', slug: 'plugins/print' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
+						{ label: 'Text Direction', slug: 'plugins/text-direction' },
 						{ label: 'Caret Navigation', slug: 'plugins/caret-navigation' },
 						{ label: 'Gap Cursor', slug: 'plugins/gap-cursor' },
 					],
