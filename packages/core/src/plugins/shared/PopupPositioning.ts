@@ -13,6 +13,7 @@ export type PopupPosition = 'below-start' | 'below-end' | 'right';
 export interface PositionOptions {
 	readonly position: PopupPosition;
 	readonly offset?: number;
+	readonly isRtl?: boolean;
 }
 
 // --- Constants ---
@@ -44,49 +45,102 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 	switch (options.position) {
 		case 'below-start': {
 			let top: number = anchor.bottom + offset;
-			let left: number = anchor.left;
 
-			if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
-				left = vpWidth - popupWidth - POPUP_MIN_MARGIN;
+			if (options.isRtl) {
+				// RTL: anchor to physical right edge (visual start)
+				let right: number = vpWidth - anchor.right;
+				if (right + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+					right = vpWidth - popupWidth - POPUP_MIN_MARGIN;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = anchor.top - popupHeight - offset;
+				}
+				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.right = `${right}px`;
+				styles.left = 'auto';
+			} else {
+				let left: number = anchor.left;
+				if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+					left = vpWidth - popupWidth - POPUP_MIN_MARGIN;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = anchor.top - popupHeight - offset;
+				}
+				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.left = `${left}px`;
+				styles.right = 'auto';
 			}
-			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = anchor.top - popupHeight - offset;
-			}
-			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
-			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-			styles.top = `${top}px`;
-			styles.left = `${left}px`;
-			styles.right = 'auto';
 			break;
 		}
 		case 'below-end': {
 			let top: number = anchor.bottom + offset;
-			const rightEdge: number = vpWidth - anchor.right;
 
-			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = anchor.top - popupHeight - offset;
+			if (options.isRtl) {
+				// RTL: "end" = physical left edge
+				let left: number = anchor.left;
+				if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+					left = vpWidth - popupWidth - POPUP_MIN_MARGIN;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = anchor.top - popupHeight - offset;
+				}
+				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.left = `${left}px`;
+				styles.right = 'auto';
+			} else {
+				// LTR: "end" = physical right edge
+				let right: number = vpWidth - anchor.right;
+				if (right + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+					right = vpWidth - popupWidth - POPUP_MIN_MARGIN;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = anchor.top - popupHeight - offset;
+				}
+				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.right = `${right}px`;
+				styles.left = 'auto';
 			}
-			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-			styles.top = `${top}px`;
-			styles.right = `${rightEdge}px`;
-			styles.left = 'auto';
 			break;
 		}
 		case 'right': {
-			let left: number = anchor.right + offset;
 			let top: number = anchor.top;
 
-			if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
-				left = anchor.left - popupWidth - offset;
+			if (options.isRtl) {
+				// RTL: open submenu to the physical left
+				let left: number = anchor.left - popupWidth - offset;
+				if (left < POPUP_MIN_MARGIN) {
+					left = anchor.right + offset;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = vpHeight - popupHeight - POPUP_MIN_MARGIN;
+				}
+				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.left = `${left}px`;
+				styles.right = 'auto';
+			} else {
+				let left: number = anchor.right + offset;
+				if (left + popupWidth > vpWidth - POPUP_MIN_MARGIN) {
+					left = anchor.left - popupWidth - offset;
+				}
+				if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
+					top = vpHeight - popupHeight - POPUP_MIN_MARGIN;
+				}
+				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
+				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
+				styles.top = `${top}px`;
+				styles.left = `${left}px`;
+				styles.right = 'auto';
 			}
-			if (top + popupHeight > vpHeight - POPUP_MIN_MARGIN) {
-				top = vpHeight - popupHeight - POPUP_MIN_MARGIN;
-			}
-			if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
-			if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-			styles.top = `${top}px`;
-			styles.left = `${left}px`;
-			styles.right = 'auto';
 			break;
 		}
 	}

@@ -63,7 +63,7 @@ export const BASE_CSS = `
 	pointer-events: none;
 	position: absolute;
 	top: 12px;
-	left: 16px;
+	inset-inline-start: 16px;
 }
 
 /* Plugin container bottom */

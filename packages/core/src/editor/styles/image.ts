@@ -11,12 +11,12 @@ export const IMAGE_CSS = `
 	text-align: center;
 }
 
-.notectl-image--left {
-	text-align: left;
+.notectl-image--start {
+	text-align: start;
 }
 
-.notectl-image--right {
-	text-align: right;
+.notectl-image--end {
+	text-align: end;
 }
 
 .notectl-image__container {
@@ -134,26 +134,43 @@ export const IMAGE_CSS = `
 
 .notectl-image__resize-handle--nw {
 	top: -5px;
-	left: -5px;
+	inset-inline-start: -5px;
 	cursor: nwse-resize;
 }
 
 .notectl-image__resize-handle--ne {
 	top: -5px;
-	right: -5px;
+	inset-inline-end: -5px;
 	cursor: nesw-resize;
 }
 
 .notectl-image__resize-handle--sw {
 	bottom: -5px;
-	left: -5px;
+	inset-inline-start: -5px;
 	cursor: nesw-resize;
 }
 
 .notectl-image__resize-handle--se {
 	bottom: -5px;
-	right: -5px;
+	inset-inline-end: -5px;
 	cursor: nwse-resize;
+}
+
+/* RTL cursor overrides — flip diagonal cursors when in RTL context */
+[dir="rtl"] .notectl-image__resize-handle--nw {
+	cursor: nesw-resize;
+}
+
+[dir="rtl"] .notectl-image__resize-handle--ne {
+	cursor: nwse-resize;
+}
+
+[dir="rtl"] .notectl-image__resize-handle--sw {
+	cursor: nwse-resize;
+}
+
+[dir="rtl"] .notectl-image__resize-handle--se {
+	cursor: nesw-resize;
 }
 
 /* Size indicator tooltip */

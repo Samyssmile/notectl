@@ -40,7 +40,7 @@ export const PAPER_CSS: string = `
 /* Placeholder position override for paper mode */
 .notectl-editor[data-paper-mode] .notectl-content.notectl-content--empty::before {
 	top: ${PT}px;
-	left: ${PH}px;
+	inset-inline-start: ${PH}px;
 }
 
 /* Dark mode: darker viewport background */

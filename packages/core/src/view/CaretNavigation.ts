@@ -198,6 +198,7 @@ function skipInlineNodeLeft(
 export function navigateFromGapCursor(
 	state: EditorState,
 	direction: CaretDirection,
+	container?: HTMLElement,
 ): Transaction | null {
 	const sel = state.selection;
 	if (!isGapCursor(sel)) return null;
@@ -206,9 +207,12 @@ export function navigateFromGapCursor(
 	const blockIdx: number = blockOrder.indexOf(sel.blockId);
 	if (blockIdx < 0) return null;
 
+	// Resolve effective horizontal direction for RTL blocks
+	const effectiveDir: CaretDirection = resolveEffectiveDirection(direction, sel.blockId, container);
+
 	const towardVoid: boolean =
-		(sel.side === 'before' && (direction === 'right' || direction === 'down')) ||
-		(sel.side === 'after' && (direction === 'left' || direction === 'up'));
+		(sel.side === 'before' && (effectiveDir === 'right' || effectiveDir === 'down')) ||
+		(sel.side === 'after' && (effectiveDir === 'left' || effectiveDir === 'up'));
 
 	if (towardVoid) return nodeSelTx(state, sel.blockId);
 
@@ -227,9 +231,30 @@ export function navigateFromGapCursor(
 	if (!targetBlock) return null;
 
 	const targetOffset: number =
-		direction === 'left' || direction === 'up' ? getBlockLength(targetBlock) : 0;
+		effectiveDir === 'left' || effectiveDir === 'up' ? getBlockLength(targetBlock) : 0;
 
 	return moveTx(state, targetId, targetOffset);
+}
+
+/**
+ * Resolves the effective navigation direction by flipping left/right
+ * when the block is RTL. Vertical directions are unaffected.
+ */
+function resolveEffectiveDirection(
+	direction: CaretDirection,
+	blockId: BlockId,
+	container?: HTMLElement,
+): CaretDirection {
+	if (!container) return direction;
+	if (direction !== 'left' && direction !== 'right') return direction;
+
+	const blockEl: Element | null = container.querySelector(`[data-block-id="${blockId}"]`);
+	if (!(blockEl instanceof HTMLElement)) return direction;
+
+	const isRtl: boolean = getTextDirection(blockEl) === 'rtl';
+	if (!isRtl) return direction;
+
+	return direction === 'left' ? 'right' : 'left';
 }
 
 /** Returns the bounding rect of the current caret position, or null. */

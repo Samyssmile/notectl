@@ -142,7 +142,7 @@ export class SchemaRegistry {
 
 	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
 	getAllowedAttrs(): string[] {
-		const attrs = new Set<string>(['style']);
+		const attrs = new Set<string>(['style', 'dir']);
 		for (const spec of this._nodeSpecs.values()) {
 			if (spec.sanitize?.attrs) {
 				for (const attr of spec.sanitize.attrs) attrs.add(attr);

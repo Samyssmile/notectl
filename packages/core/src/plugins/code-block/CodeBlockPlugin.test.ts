@@ -85,6 +85,15 @@ describe('CodeBlockPlugin', () => {
 			expect(el.querySelector('code')).not.toBeNull();
 		});
 
+		it('toDOM always sets dir="ltr" to prevent RTL inheritance', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('const x = 1;')], 'test');
+			const el = spec.toDOM(node);
+			expect(el.getAttribute('dir')).toBe('ltr');
+		});
+
 		it('parseHTML matches <pre> tags', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const spec = h.getNodeSpec('code_block');

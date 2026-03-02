@@ -23,7 +23,7 @@ const GAP_CURSOR_CSS = `
 	content: '';
 	display: block;
 	position: absolute;
-	left: 0;
+	inset-inline-start: 0;
 	width: 100%;
 	height: 1px;
 	background: currentColor;
@@ -65,7 +65,8 @@ export class GapCursorPlugin implements Plugin {
 				const state: EditorState = context.getState();
 				if (!isGapCursor(state.selection)) return false;
 
-				const tr: Transaction | null = navigateFromGapCursor(state, dir);
+				const container: HTMLElement = context.getContainer();
+				const tr: Transaction | null = navigateFromGapCursor(state, dir, container);
 				if (tr) {
 					context.dispatch(tr);
 					return true;

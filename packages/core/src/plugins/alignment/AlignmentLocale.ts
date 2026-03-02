@@ -1,9 +1,9 @@
 /** Locale interface and default English locale for the AlignmentPlugin. */
 
 export interface AlignmentLocale {
-	readonly alignLeft: string;
+	readonly alignStart: string;
 	readonly alignCenter: string;
-	readonly alignRight: string;
+	readonly alignEnd: string;
 	readonly justify: string;
 	readonly toolbarLabel: string;
 	readonly toolbarTooltip: string;
@@ -12,9 +12,9 @@ export interface AlignmentLocale {
 // --- Default English Locale ---
 
 export const ALIGNMENT_LOCALE_EN: AlignmentLocale = {
-	alignLeft: 'Align Left',
+	alignStart: 'Align Start',
 	alignCenter: 'Align Center',
-	alignRight: 'Align Right',
+	alignEnd: 'Align End',
 	justify: 'Justify',
 	toolbarLabel: 'Alignment',
 	toolbarTooltip: 'Alignment',

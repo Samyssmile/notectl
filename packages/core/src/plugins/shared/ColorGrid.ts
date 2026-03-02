@@ -5,6 +5,7 @@
  */
 
 import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
+import { isRtlContext } from '../../view/Platform.js';
 import { applyRovingTabindex, navigateGrid } from '../toolbar/ToolbarKeyboardNav.js';
 import { getColorName, isLightColor } from './ColorNames.js';
 
@@ -134,12 +135,14 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 			const currentRow: number = Math.floor(focusedIndex / columns) + 1;
 			const currentCol: number = (focusedIndex % columns) + 1;
 
+			const rtl: boolean = isRtlContext(container);
 			const [newRow, newCol] = navigateGrid(
 				currentRow,
 				currentCol,
 				totalRows,
 				columns,
 				e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+				rtl,
 			);
 
 			let newIdx: number = (newRow - 1) * columns + (newCol - 1);

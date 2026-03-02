@@ -17,8 +17,10 @@ import {
 	splitBlockCommand,
 } from '../commands/Commands.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
+import type { BlockId } from '../model/TypeBrands.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
+import { getTextDirection } from '../view/Platform.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
 import type { KeymapRegistry } from './KeymapRegistry.js';
@@ -166,7 +168,8 @@ export class KeyboardHandler {
 						: key === 'ArrowUp'
 							? 'up'
 							: 'down';
-			const tr = navigateArrowIntoVoid(state, direction);
+			const isRtl: boolean = this.isSelectedBlockRtl(sel.nodeId);
+			const tr = navigateArrowIntoVoid(state, direction, isRtl);
 			if (tr) {
 				e.preventDefault();
 				this.dispatch(tr);
@@ -309,7 +312,7 @@ export class KeyboardHandler {
 					: key === 'ArrowUp'
 						? 'up'
 						: 'down';
-		const tr: Transaction | null = navigateFromGapCursor(state, direction);
+		const tr: Transaction | null = navigateFromGapCursor(state, direction, this.element);
 		if (tr && !selectionsEqual(tr.selectionAfter, sel)) {
 			e.preventDefault();
 			this.dispatch(tr);
@@ -346,6 +349,12 @@ export class KeyboardHandler {
 
 		this.element.blur();
 		return true;
+	}
+
+	/** Checks if the block with the given ID is rendered in RTL direction. */
+	private isSelectedBlockRtl(blockId: BlockId): boolean {
+		const blockEl: Element | null = this.element.querySelector(`[data-block-id="${blockId}"]`);
+		return blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
 	}
 
 	destroy(): void {

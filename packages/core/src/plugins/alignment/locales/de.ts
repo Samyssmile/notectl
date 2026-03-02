@@ -1,9 +1,9 @@
 import type { AlignmentLocale } from '../AlignmentLocale.js';
 
 const locale: AlignmentLocale = {
-	alignLeft: 'Linksbündig',
+	alignStart: 'Am Anfang ausrichten',
 	alignCenter: 'Zentriert',
-	alignRight: 'Rechtsbündig',
+	alignEnd: 'Am Ende ausrichten',
 	justify: 'Blocksatz',
 	toolbarLabel: 'Ausrichtung',
 	toolbarTooltip: 'Ausrichtung',

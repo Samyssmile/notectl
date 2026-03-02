@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode } from '../../model/Document.js';
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import { stateBuilder } from '../../test/TestUtils.js';
-import { createImageNodeViewFactory } from './ImageNodeView.js';
+import { createImageNodeViewFactory, getHandleLabel, getResizeXSign } from './ImageNodeView.js';
 import type { ImageKeymap, UploadState } from './ImageUpload.js';
 import { DEFAULT_IMAGE_CONFIG, DEFAULT_IMAGE_KEYMAP } from './ImageUpload.js';
 
@@ -76,10 +76,10 @@ describe('ImageNodeView', () => {
 		it('applies alignment class', () => {
 			const uploadStates = new Map<BlockId, UploadState>();
 			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
-			const node = makeImageBlock({ align: 'left' });
+			const node = makeImageBlock({ align: 'start' });
 			const view = factory(node, makeState, vi.fn());
 
-			expect(view.dom.classList.contains('notectl-image--left')).toBe(true);
+			expect(view.dom.classList.contains('notectl-image--start')).toBe(true);
 		});
 
 		it('has null contentDOM (void node)', () => {
@@ -102,7 +102,7 @@ describe('ImageNodeView', () => {
 			const updatedNode = createBlockNode(nodeType('image'), [], blockId('img1'), {
 				src: 'new.png',
 				alt: 'New',
-				align: 'right',
+				align: 'end',
 				width: 200,
 			});
 
@@ -112,7 +112,7 @@ describe('ImageNodeView', () => {
 			const img = view.dom.querySelector('img');
 			expect(img?.getAttribute('src')).toBe('new.png');
 			expect(img?.alt).toBe('New');
-			expect(view.dom.classList.contains('notectl-image--right')).toBe(true);
+			expect(view.dom.classList.contains('notectl-image--end')).toBe(true);
 		});
 
 		it('returns false for non-image node types', () => {
@@ -435,6 +435,38 @@ describe('ImageNodeView', () => {
 			view.deselectNode?.();
 			const hint = view.dom.querySelector('.notectl-image__keyboard-hint');
 			expect(hint).toBeNull();
+		});
+	});
+
+	describe('getResizeXSign', () => {
+		it('returns original signs in LTR', () => {
+			expect(getResizeXSign('nw', false)).toBe(-1);
+			expect(getResizeXSign('ne', false)).toBe(1);
+			expect(getResizeXSign('sw', false)).toBe(-1);
+			expect(getResizeXSign('se', false)).toBe(1);
+		});
+
+		it('flips signs in RTL', () => {
+			expect(getResizeXSign('nw', true)).toBe(1);
+			expect(getResizeXSign('ne', true)).toBe(-1);
+			expect(getResizeXSign('sw', true)).toBe(1);
+			expect(getResizeXSign('se', true)).toBe(-1);
+		});
+	});
+
+	describe('getHandleLabel', () => {
+		it('returns physical labels in LTR', () => {
+			expect(getHandleLabel('nw', false)).toBe('Resize top-left');
+			expect(getHandleLabel('ne', false)).toBe('Resize top-right');
+			expect(getHandleLabel('sw', false)).toBe('Resize bottom-left');
+			expect(getHandleLabel('se', false)).toBe('Resize bottom-right');
+		});
+
+		it('returns flipped labels in RTL', () => {
+			expect(getHandleLabel('nw', true)).toBe('Resize top-right');
+			expect(getHandleLabel('ne', true)).toBe('Resize top-left');
+			expect(getHandleLabel('sw', true)).toBe('Resize bottom-right');
+			expect(getHandleLabel('se', true)).toBe('Resize bottom-left');
 		});
 	});
 

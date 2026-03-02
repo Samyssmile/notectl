@@ -27,6 +27,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		const pre: HTMLElement = document.createElement('pre');
 		pre.className = 'notectl-code-block';
 		pre.setAttribute('data-block-id', node.id);
+		pre.setAttribute('dir', 'ltr');
 		pre.setAttribute('role', 'group');
 		pre.setAttribute('aria-roledescription', 'code block');
 

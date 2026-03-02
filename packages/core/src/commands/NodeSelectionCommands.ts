@@ -116,17 +116,26 @@ export function insertTextAfterNodeSelection(
 /**
  * Navigates arrow keys into/out of void blocks.
  * Returns a transaction if navigation should create a NodeSelection, or null.
+ *
+ * @param isRtl — When true, flips left/right to account for RTL block direction.
  */
 export function navigateArrowIntoVoid(
 	state: EditorState,
 	direction: 'left' | 'right' | 'up' | 'down',
+	isRtl?: boolean,
 ): Transaction | null {
 	const sel = state.selection;
 	const blockOrder = state.getBlockOrder();
+	const effectiveDir: 'left' | 'right' | 'up' | 'down' =
+		isRtl && (direction === 'left' || direction === 'right')
+			? direction === 'left'
+				? 'right'
+				: 'left'
+			: direction;
 
 	// If currently on a NodeSelection, navigate away from it
 	if (isNodeSelection(sel)) {
-		return navigateAwayFromNodeSelection(state, sel, direction, blockOrder);
+		return navigateAwayFromNodeSelection(state, sel, effectiveDir, blockOrder);
 	}
 
 	// GapCursor is handled by navigateFromGapCursor in CaretNavigation
@@ -135,7 +144,7 @@ export function navigateArrowIntoVoid(
 	// Text selection: check if navigating into a void block
 	if (!isCollapsed(sel)) return null;
 
-	return navigateIntoVoid(state, sel, direction, blockOrder);
+	return navigateIntoVoid(state, sel, effectiveDir, blockOrder);
 }
 
 /** Finds the first leaf (deepest-first-child) block ID in a subtree. */

@@ -9,6 +9,7 @@ import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { isRtlContext } from '../../view/Platform.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
 import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';
@@ -18,6 +19,7 @@ import {
 	findFirstEnabled,
 	findLastEnabled,
 	findNextEnabled,
+	resolveHorizontalDirection,
 } from './ToolbarKeyboardNav.js';
 import { TOOLBAR_LOCALE_EN, type ToolbarLocale, loadToolbarLocale } from './ToolbarLocale.js';
 import {
@@ -296,16 +298,13 @@ export class ToolbarPlugin implements Plugin {
 		this.syncFocusedIndex();
 
 		switch (e.key) {
-			case 'ArrowRight': {
-				e.preventDefault();
-				const next: number = findNextEnabled(elements, this.focusedIndex, 1);
-				this.setRovingFocus(next);
-				break;
-			}
+			case 'ArrowRight':
 			case 'ArrowLeft': {
 				e.preventDefault();
-				const prev: number = findNextEnabled(elements, this.focusedIndex, -1);
-				this.setRovingFocus(prev);
+				const rtl: boolean = this.toolbarElement ? isRtlContext(this.toolbarElement) : false;
+				const dir: 1 | -1 = resolveHorizontalDirection(e.key, rtl);
+				const next: number = findNextEnabled(elements, this.focusedIndex, dir);
+				this.setRovingFocus(next);
 				break;
 			}
 			case 'Home': {
@@ -505,6 +504,15 @@ export class ToolbarPlugin implements Plugin {
 			}
 			if (btn.comboLabelEl && btn.item.popupType === 'combobox') {
 				btn.comboLabelEl.textContent = btn.item.getLabel(state);
+			}
+			if (btn.item.getIcon) {
+				const newIcon: string = btn.item.getIcon(state);
+				const iconEl: HTMLSpanElement | null = btn.element.querySelector(
+					'.notectl-toolbar-btn__icon',
+				);
+				if (iconEl && iconEl.innerHTML !== newIcon) {
+					iconEl.innerHTML = newIcon;
+				}
 			}
 		}
 		this.overflowController?.updateItemStates(state);

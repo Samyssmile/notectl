@@ -15,13 +15,14 @@ import {
 	setStyleProperty,
 } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
+import { getTextDirection } from '../../view/Platform.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import type { ImageKeymap, ImagePluginConfig, UploadState } from './ImageUpload.js';
 
 const ALIGNMENT_CLASSES: Record<string, string> = {
-	left: 'notectl-image--left',
+	start: 'notectl-image--start',
 	center: 'notectl-image--center',
-	right: 'notectl-image--right',
+	end: 'notectl-image--end',
 };
 
 const MIN_IMAGE_WIDTH = 50;
@@ -43,12 +44,37 @@ const HANDLE_X_SIGN: Readonly<Record<HandlePosition, 1 | -1>> = {
 	se: 1,
 };
 
-const HANDLE_LABELS: Readonly<Record<HandlePosition, string>> = {
+const HANDLE_LABELS_LTR: Readonly<Record<HandlePosition, string>> = {
 	nw: 'Resize top-left',
 	ne: 'Resize top-right',
 	sw: 'Resize bottom-left',
 	se: 'Resize bottom-right',
 };
+
+const HANDLE_LABELS_RTL: Readonly<Record<HandlePosition, string>> = {
+	nw: 'Resize top-right',
+	ne: 'Resize top-left',
+	sw: 'Resize bottom-right',
+	se: 'Resize bottom-left',
+};
+
+const RTL_CURSOR_MAP: Readonly<Record<HandlePosition, string>> = {
+	nw: 'nesw-resize',
+	ne: 'nwse-resize',
+	sw: 'nwse-resize',
+	se: 'nesw-resize',
+};
+
+/** Returns the direction-aware ARIA label for a resize handle. */
+export function getHandleLabel(position: HandlePosition, isRtl: boolean): string {
+	return (isRtl ? HANDLE_LABELS_RTL : HANDLE_LABELS_LTR)[position];
+}
+
+/** Returns the X-sign for resize drag, flipped in RTL. */
+export function getResizeXSign(position: HandlePosition, isRtl: boolean): 1 | -1 {
+	const sign: 1 | -1 = HANDLE_X_SIGN[position];
+	return isRtl ? (-sign as 1 | -1) : sign;
+}
 
 // --- Global cursor override during resize ---
 
@@ -269,10 +295,11 @@ export function createImageNodeViewFactory(
 			let startX = 0;
 			let startWidth = 0;
 			let aspectRatio = 1;
+			let xSign: 1 | -1 = HANDLE_X_SIGN[position];
 
 			const onPointerMove = (e: PointerEvent): void => {
 				const deltaX: number = e.clientX - startX;
-				const newWidth: number = clampWidth(startWidth + deltaX * HANDLE_X_SIGN[position]);
+				const newWidth: number = clampWidth(startWidth + deltaX * xSign);
 				const newHeight: number = Math.round(newWidth / aspectRatio);
 
 				setStyleProperties(img, {
@@ -303,6 +330,9 @@ export function createImageNodeViewFactory(
 				e.preventDefault();
 				e.stopPropagation();
 
+				const isRtl: boolean = getTextDirection(figure) === 'rtl';
+				xSign = getResizeXSign(position, isRtl);
+
 				startX = e.clientX;
 				startWidth = img.getBoundingClientRect().width;
 				const imgHeight: number = img.getBoundingClientRect().height;
@@ -311,7 +341,8 @@ export function createImageNodeViewFactory(
 				figure.classList.add('notectl-image--resizing');
 				sizeIndicator.textContent = `${Math.round(startWidth)} \u00D7 ${Math.round(imgHeight)}`;
 				sizeIndicator.classList.add('notectl-image__size-indicator--visible');
-				setGlobalResizeCursor(HANDLE_CURSORS[position], figure);
+				const cursor: string = isRtl ? RTL_CURSOR_MAP[position] : HANDLE_CURSORS[position];
+				setGlobalResizeCursor(cursor, figure);
 
 				(e.target as HTMLElement).setPointerCapture(e.pointerId);
 				document.addEventListener('pointermove', onPointerMove);
@@ -330,12 +361,13 @@ export function createImageNodeViewFactory(
 			sizeIndicator.className = 'notectl-image__size-indicator';
 			resizeOverlay.appendChild(sizeIndicator);
 
+			const isRtl: boolean = getTextDirection(figure) === 'rtl';
 			const positions: readonly HandlePosition[] = ['nw', 'ne', 'sw', 'se'];
 			for (const pos of positions) {
 				const handle: HTMLDivElement = document.createElement('div');
 				handle.className = `notectl-image__resize-handle notectl-image__resize-handle--${pos}`;
 				handle.setAttribute('role', 'separator');
-				handle.setAttribute('aria-label', HANDLE_LABELS[pos]);
+				handle.setAttribute('aria-label', getHandleLabel(pos, isRtl));
 				attachHandleListeners(handle, pos, nodeId, sizeIndicator);
 				resizeOverlay.appendChild(handle);
 			}

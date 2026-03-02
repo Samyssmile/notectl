@@ -84,6 +84,8 @@ export interface NotectlEditorConfig {
 	styleNonce?: string;
 	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
 	paperSize?: PaperSize;
+	/** Document-level text direction. When set, applies `dir` on the content element. */
+	dir?: 'ltr' | 'rtl';
 	/** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
 	locale?: Locale;
 }
@@ -131,7 +133,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	static get observedAttributes(): string[] {
-		return ['placeholder', 'readonly', 'theme', 'paper-size'];
+		return ['placeholder', 'readonly', 'theme', 'paper-size', 'dir'];
 	}
 
 	connectedCallback(): void {
@@ -172,6 +174,17 @@ export class NotectlEditor extends HTMLElement {
 				this.configure({ paperSize: newValue });
 			}
 		}
+		if (name === 'dir' && this.contentElement) {
+			if (newValue === 'ltr' || newValue === 'rtl') {
+				this.editorWrapper?.setAttribute('dir', newValue);
+				this.contentElement.setAttribute('dir', newValue);
+				this.config = { ...this.config, dir: newValue };
+			} else {
+				this.editorWrapper?.removeAttribute('dir');
+				this.contentElement.removeAttribute('dir');
+				this.config = { ...this.config, dir: undefined };
+			}
+		}
 	}
 
 	/** Registers a plugin before initialization. */
@@ -203,6 +216,7 @@ export class NotectlEditor extends HTMLElement {
 		const dom = createEditorDOM({
 			readonly: this.config.readonly,
 			placeholder: this.config.placeholder,
+			dir: this.config.dir ?? (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
 		});
 		this.editorWrapper = dom.wrapper;
 		this.contentElement = dom.content;
@@ -535,6 +549,16 @@ export class NotectlEditor extends HTMLElement {
 
 		if ('paperSize' in config) {
 			this.applyPaperSize(config.paperSize);
+		}
+
+		if ('dir' in config && this.contentElement) {
+			if (config.dir === 'ltr' || config.dir === 'rtl') {
+				this.editorWrapper?.setAttribute('dir', config.dir);
+				this.contentElement.setAttribute('dir', config.dir);
+			} else {
+				this.editorWrapper?.removeAttribute('dir');
+				this.contentElement.removeAttribute('dir');
+			}
 		}
 
 		this.config = { ...this.config, ...config };
