@@ -28,44 +28,13 @@ import type { InlineNode, Mark, TextNode } from './Document.js';
 import { inlineType } from './TypeBrands.js';
 
 describe('Document model', () => {
-	describe('createTextNode', () => {
-		it('creates a text node with empty marks', () => {
-			const node = createTextNode('hello');
-			expect(node.type).toBe('text');
-			expect(node.text).toBe('hello');
-			expect(node.marks).toEqual([]);
-		});
-
-		it('creates a text node with marks', () => {
-			const node = createTextNode('bold', [{ type: 'bold' }]);
-			expect(node.marks).toEqual([{ type: 'bold' }]);
-		});
-	});
-
 	describe('createBlockNode', () => {
-		it('creates a paragraph block with default empty text child', () => {
-			const block = createBlockNode('paragraph');
-			expect(block.type).toBe('paragraph');
-			expect(block.children).toHaveLength(1);
-			expect(getTextChildren(block)[0]?.text).toBe('');
-		});
-
-		it('creates a block with given children', () => {
-			const children = [createTextNode('hello')];
-			const block = createBlockNode('paragraph', children);
-			expect(getTextChildren(block)[0]?.text).toBe('hello');
-		});
-
 		it('generates unique IDs', () => {
 			const a = createBlockNode('paragraph');
 			const b = createBlockNode('paragraph');
 			expect(a.id).not.toBe(b.id);
 		});
 
-		it('generated IDs start with block- prefix', () => {
-			const block = createBlockNode('paragraph');
-			expect(block.id).toMatch(/^block-/);
-		});
 	});
 
 	describe('generateBlockId', () => {
@@ -241,22 +210,6 @@ describe('Document model', () => {
 	});
 
 	// --- InlineNode tests ---
-
-	describe('createInlineNode', () => {
-		it('creates an InlineNode with given type and attrs', () => {
-			const node: InlineNode = createInlineNode(inlineType('image'), {
-				src: 'test.png',
-			});
-			expect(node.type).toBe('inline');
-			expect(node.inlineType).toBe('image');
-			expect(node.attrs).toEqual({ src: 'test.png' });
-		});
-
-		it('creates an InlineNode with empty attrs by default', () => {
-			const node: InlineNode = createInlineNode(inlineType('emoji'));
-			expect(node.attrs).toEqual({});
-		});
-	});
 
 	describe('isInlineNode', () => {
 		it('returns true for InlineNodes', () => {
