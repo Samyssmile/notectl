@@ -11,6 +11,7 @@ import {
 	createInlineNode,
 	createTextNode,
 } from '../model/Document.js';
+import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
@@ -44,6 +45,7 @@ export function parseHTMLToDocument(
 	template.innerHTML = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 	const root: DocumentFragment = template.content;
 
@@ -79,7 +81,10 @@ export function parseHTMLToDocument(
 			// Try block parse rules
 			const match = matchBlockParseRule(el, blockRules);
 			if (match) {
-				const inlineContent = parseElementToInlineContent(el, registry);
+				const spec = registry?.getNodeSpec(match.type);
+				const children: (TextNode | InlineNode)[] = spec?.isVoid
+					? []
+					: parseElementToInlineContent(el, registry);
 				const attrs: Record<string, string | number | boolean> = {
 					...(match.attrs as Record<string, string | number | boolean> | undefined),
 				};
@@ -88,7 +93,7 @@ export function parseHTMLToDocument(
 				blocks.push(
 					createBlockNode(
 						nodeType(match.type),
-						inlineContent,
+						children,
 						undefined,
 						Object.keys(attrs).length > 0 ? attrs : undefined,
 					),

@@ -9,6 +9,7 @@ import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { registerBlockquoteKeymaps } from './BlockquoteKeyboardHandlers.js';
 import {
 	BLOCKQUOTE_LOCALE_EN,
 	type BlockquoteLocale,
@@ -94,6 +95,7 @@ export class BlockquotePlugin implements Plugin {
 		context.registerKeymap({
 			'Mod-Shift->': () => context.executeCommand('toggleBlockquote'),
 		});
+		registerBlockquoteKeymaps(context);
 	}
 
 	private registerInputRule(context: PluginContext): void {
