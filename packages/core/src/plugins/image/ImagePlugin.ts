@@ -8,12 +8,12 @@ import { IMAGE_CSS } from '../../editor/styles/image.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import {
@@ -42,7 +42,7 @@ declare module '../../model/AttrRegistry.js' {
 			alt: string;
 			width?: number;
 			height?: number;
-			align: 'left' | 'center' | 'right';
+			align: 'start' | 'center' | 'end';
 		};
 	}
 }
@@ -149,9 +149,9 @@ export class ImagePlugin implements Plugin {
 
 				const align: string = (node.attrs?.align as string | undefined) ?? 'center';
 				const alignClass: string | undefined = {
-					left: 'notectl-image--left',
+					start: 'notectl-image--start',
 					center: 'notectl-image--center',
-					right: 'notectl-image--right',
+					end: 'notectl-image--end',
 				}[align];
 				if (alignClass) figure.classList.add(alignClass);
 
@@ -191,20 +191,30 @@ export class ImagePlugin implements Plugin {
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
 
-						// Check inline style first, then notectl-align-* classes, then legacy classes
+						// Check inline style first, then class names (new + legacy)
 						const textAlign: string = el.style?.textAlign ?? '';
-						if (textAlign === 'left' || textAlign === 'right' || textAlign === 'center') {
+						if (textAlign === 'start' || textAlign === 'end' || textAlign === 'center') {
 							attrs.align = textAlign;
-						} else if (el.classList.contains('notectl-align-left')) {
-							attrs.align = 'left';
-						} else if (el.classList.contains('notectl-align-right')) {
-							attrs.align = 'right';
+						} else if (textAlign === 'left') {
+							attrs.align = 'start';
+						} else if (textAlign === 'right') {
+							attrs.align = 'end';
+						} else if (
+							el.classList.contains('notectl-align-start') ||
+							el.classList.contains('notectl-align-left') ||
+							el.classList.contains('notectl-image--start') ||
+							el.classList.contains('notectl-image--left')
+						) {
+							attrs.align = 'start';
+						} else if (
+							el.classList.contains('notectl-align-end') ||
+							el.classList.contains('notectl-align-right') ||
+							el.classList.contains('notectl-image--end') ||
+							el.classList.contains('notectl-image--right')
+						) {
+							attrs.align = 'end';
 						} else if (el.classList.contains('notectl-align-center')) {
 							attrs.align = 'center';
-						} else if (el.classList.contains('notectl-image--left')) {
-							attrs.align = 'left';
-						} else if (el.classList.contains('notectl-image--right')) {
-							attrs.align = 'right';
 						}
 						return attrs;
 					},

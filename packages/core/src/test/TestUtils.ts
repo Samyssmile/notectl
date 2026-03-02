@@ -9,9 +9,9 @@
  */
 
 import { expect, vi } from 'vitest';
+import { registerBuiltinSpecs } from '../editor/BuiltinSpecs.js';
 import type { InputRule } from '../input/InputRule.js';
 import type { Keymap } from '../input/Keymap.js';
-import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
 import {
 	type BlockNode,
 	type Mark,

@@ -5,11 +5,19 @@
  * a paste event can verify the text matches before using the rich data.
  */
 
+/** A serialized inline segment preserving marks. */
+export interface RichSegment {
+	readonly text: string;
+	readonly marks: readonly { readonly type: string; readonly attrs?: Record<string, unknown> }[];
+}
+
 /** A serialized block from a text-selection copy. */
 export interface RichBlockData {
 	readonly type: string;
 	readonly text: string;
 	readonly attrs?: Record<string, unknown>;
+	/** Inline segments with marks. When present, used instead of plain `text`. */
+	readonly segments?: readonly RichSegment[];
 }
 
 interface RichClipboardEntry {
@@ -19,19 +27,24 @@ interface RichClipboardEntry {
 
 let current: RichClipboardEntry | undefined;
 
+/** Normalizes line endings to `\n` for consistent fingerprint matching. */
+function normalizeLineEndings(text: string): string {
+	return text.replace(/\r\n?/g, '\n');
+}
+
 /** Stores rich block data alongside its plain-text fingerprint. */
 export function setRichClipboard(plainText: string, blocks: readonly RichBlockData[]): void {
-	current = { plainText, blocks };
+	current = { plainText: normalizeLineEndings(plainText), blocks };
 }
 
 /**
  * Returns rich block data if the given plain text matches the stored
  * fingerprint (proving it came from our editor, not an external source).
- * Consumes the entry to prevent stale reuse.
+ * The entry is kept to allow multiple pastes from the same copy.
  */
 export function consumeRichClipboard(plainText: string): readonly RichBlockData[] | undefined {
 	if (!current) return undefined;
-	if (current.plainText !== plainText) return undefined;
+	if (current.plainText !== normalizeLineEndings(plainText)) return undefined;
 	const blocks = current.blocks;
 	// Don't clear — allow multiple pastes from same copy
 	return blocks;

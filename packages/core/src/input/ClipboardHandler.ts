@@ -5,16 +5,19 @@
  */
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
-import { buildMarkOrder, serializeMarksToHTML } from '../editor/MarkSerializer.js';
-import type { BlockNode } from '../model/Document.js';
+import type { BlockNode, Mark } from '../model/Document.js';
 import {
+	createDocument,
 	getBlockLength,
 	getBlockText,
 	getInlineChildren,
 	isInlineNode,
+	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { Selection } from '../model/Selection.js';
 import {
 	isCollapsed,
 	isGapCursor,
@@ -22,8 +25,11 @@ import {
 	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
+import { serializeDocumentToHTML } from '../serialization/DocumentSerializer.js';
+import { buildMarkOrder, serializeMarksToHTML } from '../serialization/MarkSerializer.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import type { RichBlockData, RichSegment } from './InternalClipboard.js';
 import { setRichClipboard } from './InternalClipboard.js';
 
 export interface ClipboardHandlerOptions {
@@ -150,17 +156,21 @@ export class ClipboardHandler {
 		if (isGapCursor(sel)) return;
 		if (isCollapsed(sel)) return;
 
+		// When selection spans composite blocks (tables) or void blocks (images),
+		// use full document serialization so HTML round-trips through paste correctly.
+		if (this.selectionRequiresDocumentSerializer(state)) {
+			this.writeCompositeSelectionToClipboard(clipboardData, state);
+			return;
+		}
+
 		const blockOrder = state.getBlockOrder();
 		const range = selectionRange(sel, blockOrder);
 		const fromIdx = blockOrder.indexOf(range.from.blockId);
 		const toIdx = blockOrder.indexOf(range.to.blockId);
 
 		const lines: string[] = [];
-		const richBlocks: Array<{
-			type: string;
-			text: string;
-			attrs?: Record<string, unknown>;
-		}> = [];
+		const richBlocks: RichBlockData[] = [];
+		const blockEntries: { block: BlockNode; start: number; end: number }[] = [];
 
 		for (let i = fromIdx; i <= toIdx; i++) {
 			const bid = blockOrder[i];
@@ -174,38 +184,143 @@ export class ClipboardHandler {
 			const end = i === toIdx ? range.to.offset : blockLen;
 			const sliced: string = text.slice(start, end);
 			lines.push(sliced);
+			blockEntries.push({ block, start, end });
 
+			const segments: readonly RichSegment[] = this.extractSegmentsForRange(block, start, end);
 			richBlocks.push({
 				type: block.type,
 				text: sliced,
 				...(block.attrs ? { attrs: { ...block.attrs } } : {}),
+				...(segments.length > 0 ? { segments } : {}),
 			});
 		}
 
 		const plainText: string = lines.join('\n');
 		clipboardData.setData('text/plain', plainText);
 
-		// Write text/html with inline marks so paste preserves formatting
+		// Write text/html with inline marks and proper block-level tags.
 		if (this.schemaRegistry) {
 			const markOrder: Map<string, number> = buildMarkOrder(this.schemaRegistry);
-			const htmlParts: string[] = [];
-			for (let i = fromIdx; i <= toIdx; i++) {
-				const bid = blockOrder[i];
-				if (!bid) continue;
-				const block = state.getBlock(bid);
-				if (!block) continue;
+			const multiBlock: boolean = fromIdx !== toIdx;
 
-				const start = i === fromIdx ? range.from.offset : 0;
-				const end = i === toIdx ? range.to.offset : getBlockLength(block);
-				htmlParts.push(this.serializeBlockRangeToHTML(block, start, end, markOrder));
+			if (multiBlock) {
+				const html: string = this.serializeBlocksToClipboardHTML(
+					blockEntries,
+					markOrder,
+					richBlocks,
+				);
+				clipboardData.setData('text/html', html);
+			} else {
+				const bid = blockOrder[fromIdx];
+				const block = bid ? state.getBlock(bid) : undefined;
+				if (block) {
+					const inlineHTML: string = this.serializeBlockRangeToHTML(
+						block,
+						range.from.offset,
+						range.to.offset,
+						markOrder,
+					);
+					clipboardData.setData('text/html', inlineHTML);
+				}
 			}
-			clipboardData.setData('text/html', htmlParts.join(''));
 		}
 
 		// Store rich block data in memory — system clipboard strips custom MIME
 		// types and rewrites text/html, so we use an in-memory store keyed by
 		// the plain-text fingerprint to verify origin on paste.
 		setRichClipboard(plainText, richBlocks);
+	}
+
+	/**
+	 * Checks whether the current selection requires the full document serializer.
+	 * Returns true when the selection is within a composite root (e.g. a table)
+	 * or spans multiple roots where at least one is composite or void.
+	 */
+	private selectionRequiresDocumentSerializer(state: EditorState): boolean {
+		const sel: Selection | undefined = this.getTextSelection(state);
+		if (!sel || isCollapsed(sel)) return false;
+
+		const blockOrder = state.getBlockOrder();
+		const range = selectionRange(sel, blockOrder);
+
+		const fromPath = findNodePath(state.doc, range.from.blockId);
+		const toPath = findNodePath(state.doc, range.to.blockId);
+		if (!fromPath || !toPath) return false;
+
+		// Both endpoints inside the same root — use document serializer for composite roots
+		if (fromPath[0] === toPath[0]) {
+			const rootBlock = state.doc.children.find((c) => c.id === fromPath[0]);
+			if (rootBlock && !isLeafBlock(rootBlock)) return true;
+			return false;
+		}
+
+		// Different root blocks — check if any root is composite or void
+		const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
+		const toRootIdx: number = state.doc.children.findIndex((c) => c.id === toPath[0]);
+		for (let i = fromRootIdx; i <= toRootIdx; i++) {
+			const block = state.doc.children[i];
+			if (!block) continue;
+			if (!isLeafBlock(block)) return true;
+			const spec = this.schemaRegistry?.getNodeSpec(block.type);
+			if (spec?.isVoid) return true;
+		}
+
+		return false;
+	}
+
+	/** Returns the text selection if the state has one, undefined otherwise. */
+	private getTextSelection(state: EditorState): Selection | undefined {
+		const sel = state.selection;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return undefined;
+		return sel;
+	}
+
+	/**
+	 * Serializes a selection that includes composite blocks (tables) to clipboard.
+	 * Uses serializeDocumentToHTML for HTML to preserve table structure.
+	 * Skips rich clipboard since composite blocks can't be represented as flat data.
+	 */
+	private writeCompositeSelectionToClipboard(
+		clipboardData: DataTransfer,
+		state: EditorState,
+	): void {
+		const sel: Selection | undefined = this.getTextSelection(state);
+		if (!sel) return;
+		const blockOrder = state.getBlockOrder();
+		const range = selectionRange(sel, blockOrder);
+		const fromIdx: number = blockOrder.indexOf(range.from.blockId);
+		const toIdx: number = blockOrder.indexOf(range.to.blockId);
+
+		// Plain text from leaf blocks
+		const lines: string[] = [];
+		for (let i = fromIdx; i <= toIdx; i++) {
+			const bid = blockOrder[i];
+			if (!bid) continue;
+			const block = state.getBlock(bid);
+			if (!block) continue;
+			const text: string = getBlockText(block);
+			const start: number = i === fromIdx ? range.from.offset : 0;
+			const end: number = i === toIdx ? range.to.offset : getBlockLength(block);
+			lines.push(text.slice(start, end));
+		}
+		clipboardData.setData('text/plain', lines.join('\n'));
+
+		// Serialize selected root blocks to full HTML (tables included)
+		if (this.schemaRegistry) {
+			const fromPath = findNodePath(state.doc, range.from.blockId);
+			const toPath = findNodePath(state.doc, range.to.blockId);
+			if (fromPath && toPath) {
+				const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
+				const toRootIdx: number = state.doc.children.findIndex((c) => c.id === toPath[0]);
+				const selectedRoots: readonly BlockNode[] = state.doc.children.slice(
+					fromRootIdx,
+					toRootIdx + 1,
+				);
+				const doc = createDocument(selectedRoots);
+				const html: string = serializeDocumentToHTML(doc, this.schemaRegistry);
+				clipboardData.setData('text/html', html);
+			}
+		}
 	}
 
 	/** Serializes a range of inline content within a block to an HTML string. */
@@ -246,6 +361,109 @@ export class ClipboardHandler {
 		}
 
 		return parts.join('');
+	}
+
+	/** Extracts inline text segments with marks for a block range. */
+	private extractSegmentsForRange(
+		block: BlockNode,
+		start: number,
+		end: number,
+	): readonly RichSegment[] {
+		const children = getInlineChildren(block);
+		const segments: RichSegment[] = [];
+		let pos = 0;
+
+		for (const child of children) {
+			const width: number = isInlineNode(child) ? 1 : child.text.length;
+			const childEnd: number = pos + width;
+
+			if (childEnd <= start || pos >= end) {
+				pos = childEnd;
+				continue;
+			}
+
+			if (isTextNode(child)) {
+				const sliceFrom: number = Math.max(0, start - pos);
+				const sliceTo: number = Math.min(child.text.length, end - pos);
+				const text: string = child.text.slice(sliceFrom, sliceTo);
+				if (text.length > 0) {
+					const marks: RichSegment['marks'] = child.marks.map((m: Mark) => ({
+						type: m.type,
+						...(m.attrs ? { attrs: { ...m.attrs } } : {}),
+					}));
+					segments.push({ text, marks });
+				}
+			}
+
+			pos = childEnd;
+		}
+
+		return segments;
+	}
+
+	/**
+	 * Serializes multi-block content to clipboard HTML using proper block-level tags.
+	 * Groups consecutive list_items into <ul>/<ol> wrappers.
+	 * Embeds rich block data as a hidden span for reliable round-trip.
+	 */
+	private serializeBlocksToClipboardHTML(
+		entries: readonly { block: BlockNode; start: number; end: number }[],
+		markOrder: Map<string, number>,
+		richBlocks: readonly RichBlockData[],
+	): string {
+		const htmlParts: string[] = [];
+		let listBuffer: string[] = [];
+		let currentListTag: string | undefined;
+
+		const flushList = (): void => {
+			if (listBuffer.length > 0 && currentListTag) {
+				htmlParts.push(`<${currentListTag}>${listBuffer.join('')}</${currentListTag}>`);
+				listBuffer = [];
+				currentListTag = undefined;
+			}
+		};
+
+		for (const entry of entries) {
+			const { block, start, end } = entry;
+			const inlineHTML: string = this.serializeBlockRangeToHTML(block, start, end, markOrder);
+			const spec = this.schemaRegistry?.getNodeSpec(block.type);
+
+			if (spec?.wrapper) {
+				const wrapperSpec = spec.wrapper(block as Parameters<typeof spec.wrapper>[0]);
+				const tag: string = wrapperSpec.tag;
+
+				if (currentListTag !== tag) {
+					flushList();
+					currentListTag = tag;
+				}
+
+				if (spec.toHTML) {
+					listBuffer.push(spec.toHTML(block, inlineHTML));
+				} else {
+					listBuffer.push(`<li>${inlineHTML}</li>`);
+				}
+			} else {
+				flushList();
+				if (spec?.toHTML) {
+					htmlParts.push(spec.toHTML(block, inlineHTML));
+				} else {
+					htmlParts.push(`<p>${inlineHTML}</p>`);
+				}
+			}
+		}
+
+		flushList();
+
+		// Embed rich block data for reliable round-trip
+		const richJson: string = JSON.stringify(richBlocks)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/'/g, '&#39;')
+			.replace(/"/g, '&quot;');
+		htmlParts.push(`<span data-notectl-rich="${richJson}" style="display:none"></span>`);
+
+		return htmlParts.join('');
 	}
 
 	destroy(): void {

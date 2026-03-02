@@ -1,9 +1,9 @@
 import type { AlignmentLocale } from '../AlignmentLocale.js';
 
 const locale: AlignmentLocale = {
-	alignLeft: '左对齐',
+	alignStart: '起始对齐',
 	alignCenter: '居中',
-	alignRight: '右对齐',
+	alignEnd: '末尾对齐',
 	justify: '两端对齐',
 	toolbarLabel: '对齐',
 	toolbarTooltip: '对齐',

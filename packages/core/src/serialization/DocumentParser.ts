@@ -11,10 +11,11 @@ import {
 	createInlineNode,
 	createTextNode,
 } from '../model/Document.js';
+import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
-import { VALID_ALIGNMENTS } from './DocumentSerializer.js';
+import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
@@ -32,7 +33,7 @@ export function parseHTMLToDocument(
 	options?: ParseHTMLOptions,
 ): Document {
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
 
 	// When a styleMap is provided, also allow `class` through DOMPurify
 	// so we can read class names and rehydrate styles before parsing.
@@ -44,6 +45,7 @@ export function parseHTMLToDocument(
 	template.innerHTML = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 	const root: DocumentFragment = template.content;
 
@@ -56,57 +58,83 @@ export function parseHTMLToDocument(
 	const blocks: BlockNode[] = [];
 
 	for (const child of Array.from(root.childNodes)) {
-		if (child.nodeType === Node.ELEMENT_NODE) {
-			const el = child as HTMLElement;
-			const tag: string = el.tagName.toLowerCase();
-
-			// Lists need cross-element logic — handle before parse rules
-			if (tag === 'ul' || tag === 'ol') {
-				const listType: string = tag === 'ol' ? 'ordered' : 'bullet';
-				parseListElement(el, listType, 0, blocks, registry);
-				continue;
-			}
-
-			// Try block parse rules
-			const match = matchBlockParseRule(el, blockRules);
-			if (match) {
-				const inlineContent = parseElementToInlineContent(el, registry);
-				const attrs: Record<string, string | number | boolean> = {
-					...(match.attrs as Record<string, string | number | boolean> | undefined),
-				};
-				extractAlignment(el, attrs);
-				blocks.push(
-					createBlockNode(
-						nodeType(match.type),
-						inlineContent,
-						undefined,
-						Object.keys(attrs).length > 0 ? attrs : undefined,
-					),
-				);
-				continue;
-			}
-
-			// Fallback to paragraph
-			const inlineContent = parseElementToInlineContent(el, registry);
-			const attrs: Record<string, string | number | boolean> = {};
-			extractAlignment(el, attrs);
-			blocks.push(
-				createBlockNode(
-					nodeType('paragraph'),
-					inlineContent,
-					undefined,
-					Object.keys(attrs).length > 0 ? attrs : undefined,
-				),
-			);
-		} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
-			blocks.push(
-				createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]),
-			);
-		}
+		parseChildNode(child, blocks, blockRules, registry);
 	}
 
 	if (blocks.length === 0) return createDocument();
 	return createDocument(blocks);
+}
+
+/**
+ * Parses a single child node into block(s), handling all supported block types:
+ * lists, tables, block parse rules (headings, blockquotes, code blocks, images, hr),
+ * and fallback paragraphs. Used by both top-level parsing and table cell content parsing.
+ */
+function parseChildNode(
+	child: ChildNode,
+	blocks: BlockNode[],
+	blockRules: readonly { readonly rule: ParseRule; readonly type: string }[],
+	registry?: SchemaRegistry,
+): void {
+	if (child.nodeType === Node.ELEMENT_NODE) {
+		const el = child as HTMLElement;
+		const tag: string = el.tagName.toLowerCase();
+
+		// Lists need cross-element logic — handle before parse rules
+		if (tag === 'ul' || tag === 'ol') {
+			const listType: string = tag === 'ol' ? 'ordered' : 'bullet';
+			const listDir: string | null = el.getAttribute('dir');
+			const parentDir: string | undefined =
+				listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
+			parseListElement(el, listType, 0, blocks, registry, parentDir);
+			return;
+		}
+
+		// Tables produce nested block structure: table > table_row > table_cell > paragraph
+		if (tag === 'table') {
+			parseTableElement(el, blocks, registry);
+			return;
+		}
+
+		// Try block parse rules
+		const match = matchBlockParseRule(el, blockRules);
+		if (match) {
+			const spec = registry?.getNodeSpec(match.type);
+			const children: (TextNode | InlineNode)[] = spec?.isVoid
+				? []
+				: parseElementToInlineContent(el, registry);
+			const attrs: Record<string, string | number | boolean> = {
+				...(match.attrs as Record<string, string | number | boolean> | undefined),
+			};
+			extractAlignment(el, attrs);
+			extractDirection(el, attrs);
+			blocks.push(
+				createBlockNode(
+					nodeType(match.type),
+					children,
+					undefined,
+					Object.keys(attrs).length > 0 ? attrs : undefined,
+				),
+			);
+			return;
+		}
+
+		// Fallback to paragraph
+		const inlineContent = parseElementToInlineContent(el, registry);
+		const attrs: Record<string, string | number | boolean> = {};
+		extractAlignment(el, attrs);
+		extractDirection(el, attrs);
+		blocks.push(
+			createBlockNode(
+				nodeType('paragraph'),
+				inlineContent,
+				undefined,
+				Object.keys(attrs).length > 0 ? attrs : undefined,
+			),
+		);
+	} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+		blocks.push(createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]));
+	}
 }
 
 /**
@@ -119,6 +147,7 @@ function parseListElement(
 	depth: number,
 	blocks: BlockNode[],
 	registry?: SchemaRegistry,
+	parentDir?: string,
 ): void {
 	for (const child of Array.from(listEl.children)) {
 		const tag: string = child.tagName.toLowerCase();
@@ -140,6 +169,14 @@ function parseListElement(
 				checked,
 			};
 
+			// Propagate direction: item's own dir > parent list dir
+			const liDir: string | null = li.getAttribute('dir');
+			const effectiveDir: string | undefined =
+				liDir && VALID_DIRECTIONS.has(liDir) ? liDir : parentDir;
+			if (effectiveDir) {
+				attrs.dir = effectiveDir;
+			}
+
 			blocks.push(createBlockNode(nodeType('list_item'), inlineContent, undefined, attrs));
 
 			// Check for nested lists inside this <li>
@@ -147,15 +184,138 @@ function parseListElement(
 				const liChildTag: string = liChild.tagName.toLowerCase();
 				if (liChildTag === 'ul' || liChildTag === 'ol') {
 					const nestedType: string = liChildTag === 'ol' ? 'ordered' : 'bullet';
-					parseListElement(liChild, nestedType, depth + 1, blocks, registry);
+					const nestedDir: string | null = liChild.getAttribute('dir');
+					const nestedEffectiveDir: string | undefined =
+						nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : effectiveDir;
+					parseListElement(liChild, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
 				}
 			}
 		} else if (tag === 'ul' || tag === 'ol') {
 			// Direct nested list without wrapping <li> — increment depth
 			const nestedType: string = tag === 'ol' ? 'ordered' : 'bullet';
-			parseListElement(child, nestedType, depth + 1, blocks, registry);
+			const nestedDir: string | null = child.getAttribute('dir');
+			const nestedEffectiveDir: string | undefined =
+				nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : parentDir;
+			parseListElement(child, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
 		}
 	}
+}
+
+/**
+ * Parses a `<table>` element into nested block structure:
+ * table > table_row > table_cell > paragraph.
+ * Handles `<thead>`, `<tbody>`, `<tfoot>` transparently.
+ */
+function parseTableElement(tableEl: Element, blocks: BlockNode[], registry?: SchemaRegistry): void {
+	const rows: BlockNode[] = [];
+
+	// Collect <tr> elements, handling <thead>/<tbody>/<tfoot> wrappers
+	const rowElements: Element[] = collectTableRows(tableEl);
+
+	for (const trEl of rowElements) {
+		const cells: BlockNode[] = [];
+
+		for (const cellChild of Array.from(trEl.children)) {
+			const cellTag: string = cellChild.tagName.toLowerCase();
+			if (cellTag !== 'td' && cellTag !== 'th') continue;
+
+			const cellEl: HTMLElement = cellChild as HTMLElement;
+			const cellContent: BlockNode[] = parseTableCellContent(cellEl, registry);
+			const cellAttrs: Record<string, string | number | boolean> = {};
+			extractCellSpanAttrs(cellEl, cellAttrs);
+			const cellBlock: BlockNode = createBlockNode(
+				nodeType('table_cell'),
+				cellContent,
+				undefined,
+				Object.keys(cellAttrs).length > 0 ? cellAttrs : undefined,
+			);
+			cells.push(cellBlock);
+		}
+
+		if (cells.length > 0) {
+			rows.push(createBlockNode(nodeType('table_row'), cells));
+		}
+	}
+
+	if (rows.length > 0) {
+		const tableAttrs: Record<string, string | number | boolean> = {};
+		extractTableBorderColor(tableEl as HTMLElement, tableAttrs);
+		blocks.push(
+			createBlockNode(
+				nodeType('table'),
+				rows,
+				undefined,
+				Object.keys(tableAttrs).length > 0 ? tableAttrs : undefined,
+			),
+		);
+	}
+}
+
+/** Collects `<tr>` elements from a table, traversing through `<thead>`/`<tbody>`/`<tfoot>`. */
+function collectTableRows(tableEl: Element): Element[] {
+	const rows: Element[] = [];
+	for (const child of Array.from(tableEl.children)) {
+		const tag: string = child.tagName.toLowerCase();
+		if (tag === 'tr') {
+			rows.push(child);
+		} else if (tag === 'thead' || tag === 'tbody' || tag === 'tfoot') {
+			for (const nested of Array.from(child.children)) {
+				if (nested.tagName.toLowerCase() === 'tr') {
+					rows.push(nested);
+				}
+			}
+		}
+	}
+	return rows;
+}
+
+/** Regex to extract the `--ntbl-bc` CSS custom property from inline styles. */
+const BORDER_COLOR_RE = /--ntbl-bc:\s*(#[0-9a-fA-F]{3,8}|transparent)/;
+
+/** Extracts `borderColor` from a table element's inline style (`--ntbl-bc` CSS variable). */
+function extractTableBorderColor(
+	el: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+): void {
+	const style: string = el.getAttribute('style') ?? '';
+	const match: RegExpMatchArray | null = BORDER_COLOR_RE.exec(style);
+	if (!match?.[1]) return;
+	attrs.borderColor = match[1] === 'transparent' ? 'none' : match[1];
+}
+
+/** Extracts `colspan` and `rowspan` attributes from a table cell element. */
+function extractCellSpanAttrs(
+	el: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+): void {
+	const colspan: string | null = el.getAttribute('colspan');
+	if (colspan) {
+		const value: number = Number.parseInt(colspan, 10);
+		if (value > 1) attrs.colspan = value;
+	}
+	const rowspan: string | null = el.getAttribute('rowspan');
+	if (rowspan) {
+		const value: number = Number.parseInt(rowspan, 10);
+		if (value > 1) attrs.rowspan = value;
+	}
+}
+
+/** Parses a table cell's content into blocks, supporting all block types (lists, quotes, etc.). */
+function parseTableCellContent(cellEl: HTMLElement, registry?: SchemaRegistry): BlockNode[] {
+	const blockRules = registry?.getBlockParseRules() ?? [];
+	const cellBlocks: BlockNode[] = [];
+
+	for (const child of Array.from(cellEl.childNodes)) {
+		parseChildNode(child, cellBlocks, blockRules, registry);
+	}
+
+	// No blocks produced: treat entire cell content as one paragraph
+	if (cellBlocks.length === 0) {
+		const inlineContent = parseElementToInlineContent(cellEl, registry);
+		cellBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));
+	}
+
+	return cellBlocks;
 }
 
 /**
@@ -256,10 +416,30 @@ function walkElement(
 	}
 }
 
+/** Extracts a validated `dir` attribute or inline `direction` style from an element. */
+function extractDirection(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
+	const dir: string | null = el.getAttribute('dir');
+	if (dir && VALID_DIRECTIONS.has(dir)) {
+		attrs.dir = dir;
+		return;
+	}
+
+	// Fallback: check inline style `direction: rtl/ltr` (common in paste from Word/Docs)
+	const styleDir: string = el.style?.direction ?? '';
+	if (styleDir && VALID_DIRECTIONS.has(styleDir)) {
+		attrs.dir = styleDir;
+	}
+}
+
+/** Legacy physical → logical alignment mapping for backward-compatible parsing. */
+const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', right: 'end' };
+
 /** Extracts validated `text-align` from an element's style or class and adds it to attrs. */
 function extractAlignment(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
 	// Check inline style first (works for both normal and rehydrated HTML)
-	const align: string = el.style?.textAlign ?? '';
+	let align: string = el.style?.textAlign ?? '';
+	const mappedAlign: string | undefined = LEGACY_ALIGNMENT_MAP[align];
+	if (mappedAlign) align = mappedAlign;
 	if (align && VALID_ALIGNMENTS.has(align)) {
 		attrs.align = align;
 		return;
@@ -268,7 +448,9 @@ function extractAlignment(el: HTMLElement, attrs: Record<string, string | number
 	// Check for notectl-align-* class names (from class-based HTML)
 	for (const cls of Array.from(el.classList)) {
 		const match: RegExpMatchArray | null = cls.match(/^notectl-align-(\w+)$/);
-		const alignValue: string | undefined = match?.[1];
+		let alignValue: string | undefined = match?.[1];
+		const mappedAlignValue: string | undefined = LEGACY_ALIGNMENT_MAP[alignValue ?? ''];
+		if (mappedAlignValue) alignValue = mappedAlignValue;
 		if (alignValue && VALID_ALIGNMENTS.has(alignValue)) {
 			attrs.align = alignValue;
 			return;

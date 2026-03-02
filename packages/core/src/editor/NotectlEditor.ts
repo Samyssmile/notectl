@@ -6,12 +6,13 @@ import { selectAll } from '../commands/Commands.js';
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
-import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
+import { InputManager } from '../input/InputManager.js';
 import { type Document, getBlockText } from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
 import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
+import { getTextDirection } from '../platform/Platform.js';
 import type {
 	EventKey,
 	Plugin,
@@ -24,6 +25,11 @@ import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
 import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
+import type {
+	ContentCSSResult,
+	ContentHTMLOptions,
+	SetContentHTMLOptions,
+} from '../serialization/ContentHTMLTypes.js';
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -32,13 +38,10 @@ import {
 	registerStyleRoot,
 	unregisterStyleRoot,
 } from '../style/StyleRuntime.js';
+import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
-import type {
-	ContentCSSResult,
-	ContentHTMLOptions,
-	SetContentHTMLOptions,
-} from './ContentHTMLTypes.js';
+import { registerBuiltinSpecs } from './BuiltinSpecs.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -84,6 +87,8 @@ export interface NotectlEditorConfig {
 	styleNonce?: string;
 	/** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
 	paperSize?: PaperSize;
+	/** Document-level text direction. When set, applies `dir` on the content element. */
+	dir?: 'ltr' | 'rtl';
 	/** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
 	locale?: Locale;
 }
@@ -106,6 +111,7 @@ type EventCallback<T> = (payload: T) => void;
 
 export class NotectlEditor extends HTMLElement {
 	private view: EditorView | null = null;
+	private inputManager: InputManager | null = null;
 	private pluginManager: PluginManager | null = null;
 	private contentElement: HTMLElement | null = null;
 	private editorWrapper: HTMLElement | null = null;
@@ -131,7 +137,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	static get observedAttributes(): string[] {
-		return ['placeholder', 'readonly', 'theme', 'paper-size'];
+		return ['placeholder', 'readonly', 'theme', 'paper-size', 'dir'];
 	}
 
 	connectedCallback(): void {
@@ -172,6 +178,17 @@ export class NotectlEditor extends HTMLElement {
 				this.configure({ paperSize: newValue });
 			}
 		}
+		if (name === 'dir' && this.contentElement) {
+			if (newValue === 'ltr' || newValue === 'rtl') {
+				this.editorWrapper?.setAttribute('dir', newValue);
+				this.contentElement.setAttribute('dir', newValue);
+				this.config = { ...this.config, dir: newValue };
+			} else {
+				this.editorWrapper?.removeAttribute('dir');
+				this.contentElement.removeAttribute('dir');
+				this.config = { ...this.config, dir: undefined };
+			}
+		}
 	}
 
 	/** Registers a plugin before initialization. */
@@ -203,6 +220,7 @@ export class NotectlEditor extends HTMLElement {
 		const dom = createEditorDOM({
 			readonly: this.config.readonly,
 			placeholder: this.config.placeholder,
+			dir: this.config.dir ?? (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
 		});
 		this.editorWrapper = dom.wrapper;
 		this.contentElement = dom.content;
@@ -280,11 +298,30 @@ export class NotectlEditor extends HTMLElement {
 			onBeforeReady: () => {
 				const schema = schemaFromRegistry(pluginMgr.schemaRegistry);
 				const state = EditorState.create({ schema });
+
+				// Create InputManager first — uses lazy view refs that resolve at call-time
+				this.inputManager = new InputManager(contentEl, {
+					getState: () => {
+						if (!this.view) throw new Error('View not initialized');
+						return this.view.getState();
+					},
+					dispatch: (tr) => this.dispatch(tr),
+					syncSelection: () => this.view?.syncSelection(),
+					undo: () => this.view?.undo(),
+					redo: () => this.view?.redo(),
+					schemaRegistry: pluginMgr.schemaRegistry,
+					keymapRegistry: pluginMgr.keymapRegistry,
+					inputRuleRegistry: pluginMgr.inputRuleRegistry,
+					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
+					isReadOnly: () => this.config.readonly ?? false,
+					getTextDirection,
+					navigateFromGapCursor,
+				});
+
 				this.view = new EditorView(contentEl, {
 					state,
 					schemaRegistry: pluginMgr.schemaRegistry,
 					keymapRegistry: pluginMgr.keymapRegistry,
-					inputRuleRegistry: pluginMgr.inputRuleRegistry,
 					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
 					nodeViewRegistry: pluginMgr.nodeViewRegistry,
 					maxHistoryDepth: this.config.maxHistoryDepth,
@@ -294,6 +331,7 @@ export class NotectlEditor extends HTMLElement {
 						this.onStateChange(oldState, newState, tr);
 					},
 					isReadOnly: () => this.config.readonly ?? false,
+					compositionState: this.inputManager.compositionTracker,
 				});
 				this.updateEmptyState();
 
@@ -366,7 +404,7 @@ export class NotectlEditor extends HTMLElement {
 		const registry = this.pluginManager?.schemaRegistry;
 
 		const { serializeDocumentToHTML, serializeDocumentToCSS } = await import(
-			'./DocumentSerializer.js'
+			'../serialization/DocumentSerializer.js'
 		);
 
 		if (options?.cssMode === 'classes') {
@@ -382,7 +420,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
 	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
-		const { parseHTMLToDocument } = await import('./DocumentParser.js');
+		const { parseHTMLToDocument } = await import('../serialization/DocumentParser.js');
 		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry, options);
 		this.setJSON(doc);
 	}
@@ -537,6 +575,16 @@ export class NotectlEditor extends HTMLElement {
 			this.applyPaperSize(config.paperSize);
 		}
 
+		if ('dir' in config && this.contentElement) {
+			if (config.dir === 'ltr' || config.dir === 'rtl') {
+				this.editorWrapper?.setAttribute('dir', config.dir);
+				this.contentElement.setAttribute('dir', config.dir);
+			} else {
+				this.editorWrapper?.removeAttribute('dir');
+				this.contentElement.removeAttribute('dir');
+			}
+		}
+
 		this.config = { ...this.config, ...config };
 	}
 
@@ -567,6 +615,8 @@ export class NotectlEditor extends HTMLElement {
 		this.teardownStyleRuntime();
 		this.themeController?.destroy();
 		this.themeController = null;
+		this.inputManager?.destroy();
+		this.inputManager = null;
 		this.view?.destroy();
 		const pluginTeardown = this.pluginManager?.destroy() ?? Promise.resolve();
 		this.view = null;

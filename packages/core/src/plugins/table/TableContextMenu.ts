@@ -168,19 +168,20 @@ export function createTableContextMenu(
 				return;
 			}
 
-			case 'ArrowRight': {
-				e.preventDefault();
-				const item = menuItems[focusedIndex];
-				if (item?.dataset.submenu) {
-					openSubmenu(item);
-				}
-				return;
-			}
-
+			case 'ArrowRight':
 			case 'ArrowLeft': {
 				e.preventDefault();
-				closeSubmenu();
-				menuItems[focusedIndex]?.focus();
+				const menuDir: string = getComputedStyle(menu).direction;
+				const openKey: string = menuDir === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
+				if (e.key === openKey) {
+					const item = menuItems[focusedIndex];
+					if (item?.dataset.submenu) {
+						openSubmenu(item);
+					}
+				} else {
+					closeSubmenu();
+					menuItems[focusedIndex]?.focus();
+				}
 				return;
 			}
 
@@ -244,7 +245,9 @@ export function createTableContextMenu(
 
 					popup.addEventListener('keydown', (e: KeyboardEvent) => {
 						e.stopPropagation();
-						if (e.key === 'ArrowLeft') {
+						const popupIsRtl: boolean = getComputedStyle(menu).direction === 'rtl';
+						const backKey: string = popupIsRtl ? 'ArrowRight' : 'ArrowLeft';
+						if (e.key === backKey) {
 							e.preventDefault();
 							closeSub();
 							trigger.focus();
@@ -262,7 +265,9 @@ export function createTableContextMenu(
 
 			subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
 				e.stopPropagation();
-				if (e.key === 'ArrowLeft') {
+				const menuIsRtl: boolean = getComputedStyle(menu).direction === 'rtl';
+				const closeKey: string = menuIsRtl ? 'ArrowRight' : 'ArrowLeft';
+				if (e.key === closeKey) {
 					e.preventDefault();
 					closeSubmenu();
 					trigger.focus();
@@ -275,14 +280,19 @@ export function createTableContextMenu(
 
 			const triggerRect: DOMRect = trigger.getBoundingClientRect();
 			const menuRect: DOMRect = menu.getBoundingClientRect();
-			let left: number = menuRect.right + 2;
 			let top: number = triggerRect.top;
 
 			const vpWidth: number = window.innerWidth;
 			const vpHeight: number = window.innerHeight;
+			const isRtl: boolean = getComputedStyle(menu).direction === 'rtl';
 
-			if (left + 200 > vpWidth) {
+			let left: number;
+			if (isRtl) {
 				left = menuRect.left - 200 - 2;
+				if (left < 0) left = menuRect.right + 2;
+			} else {
+				left = menuRect.right + 2;
+				if (left + 200 > vpWidth) left = menuRect.left - 200 - 2;
 			}
 			if (top + 200 > vpHeight) {
 				top = vpHeight - 200;

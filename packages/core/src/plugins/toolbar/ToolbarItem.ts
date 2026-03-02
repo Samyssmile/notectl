@@ -2,8 +2,8 @@
  * ToolbarItem: describes a toolbar button registered by a plugin.
  */
 
+import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { isMac } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
 
@@ -43,6 +43,8 @@ interface ToolbarItemBase {
 	readonly separatorAfter?: boolean;
 	isActive?(state: EditorState): boolean;
 	isEnabled?(state: EditorState): boolean;
+	/** Optional dynamic icon callback. When provided, icon updates on every state change. */
+	getIcon?(state: EditorState): string;
 }
 
 interface ToolbarItemNoPopup extends ToolbarItemBase {

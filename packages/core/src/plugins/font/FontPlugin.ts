@@ -154,7 +154,10 @@ export class FontPlugin implements Plugin {
 					getAttrs: (el) => {
 						const family: string = el.style.fontFamily;
 						if (!family) return false;
-						return { family };
+						// Browsers normalize CSS quotes to double-quotes;
+						// our internal convention uses single-quotes.
+						const normalized: string = family.replace(/"/g, "'");
+						return { family: normalized };
 					},
 				},
 			],
@@ -210,7 +213,7 @@ export class FontPlugin implements Plugin {
 	private resolveFontName(family: string | null): string {
 		if (!family) return this.defaultFont.name;
 		const match: FontDefinition | undefined = this.config.fonts.find((f) => f.family === family);
-		return match?.name ?? (family.split(',')[0] ?? '').trim().replace(/'/g, '');
+		return match?.name ?? (family.split(',')[0] ?? '').trim().replace(/['"]/g, '');
 	}
 
 	// --- State Queries ---
@@ -251,7 +254,7 @@ export class FontPlugin implements Plugin {
 			if (!font.fontFaces?.length) continue;
 
 			for (const face of font.fontFaces) {
-				const familyName: string = (font.family.split(',')[0] ?? '').trim().replace(/'/g, '');
+				const familyName: string = (font.family.split(',')[0] ?? '').trim().replace(/['"]/g, '');
 				const declarations: string[] = [`font-family: '${familyName}'`, `src: ${face.src}`];
 				if (face.weight) {
 					declarations.push(`font-weight: ${face.weight}`);

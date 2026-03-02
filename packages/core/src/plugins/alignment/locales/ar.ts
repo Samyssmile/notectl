@@ -1,9 +1,9 @@
 import type { AlignmentLocale } from '../AlignmentLocale.js';
 
 const locale: AlignmentLocale = {
-	alignLeft: 'محاذاة لليسار',
+	alignStart: 'محاذاة البداية',
 	alignCenter: 'توسيط',
-	alignRight: 'محاذاة لليمين',
+	alignEnd: 'محاذاة النهاية',
 	justify: 'ضبط',
 	toolbarLabel: 'المحاذاة',
 	toolbarTooltip: 'المحاذاة',

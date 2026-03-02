@@ -4,13 +4,16 @@
  * grid picker, multi-cell selection, and context menu.
  */
 
+import type { Decoration, DecorationSet } from '../../decorations/Decoration.js';
+import { node as nodeDecoration } from '../../decorations/Decoration.js';
+import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { TABLE_CSS } from '../../editor/styles/table.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidHexColor } from '../shared/ColorValidation.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
@@ -136,18 +139,30 @@ export class TablePlugin implements Plugin {
 		this.context = null;
 	}
 
-	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
-		// Clear multi-cell selection when cursor moves outside table
-		if (this.selectionService?.getSelectedRange()) {
-			const sel = newState.selection;
-			if (
-				isNodeSelection(sel) ||
-				isGapCursor(sel) ||
-				!isInsideTable(newState, sel.anchor.blockId)
-			) {
-				this.selectionService.setSelectedRange(null);
-			}
+	decorations(state: EditorState): DecorationSet {
+		if (!this.selectionService) return DecorationSetClass.empty;
+
+		const range = this.selectionService.getSelectedRange();
+		if (!range) return DecorationSetClass.empty;
+
+		// Side effect: clear stale selection when cursor leaves the table.
+		// Uses clearSelectionSilent() (no dispatch) to avoid re-entrancy,
+		// since decorations() runs inside the update cycle.
+		const sel = state.selection;
+		if (isNodeSelection(sel) || isGapCursor(sel) || !isInsideTable(state, sel.anchor.blockId)) {
+			this.selectionService.clearSelectionSilent();
+			return DecorationSetClass.empty;
 		}
+
+		const cellIds: readonly BlockId[] = this.selectionService.getSelectedCellIds();
+		if (cellIds.length === 0) return DecorationSetClass.empty;
+
+		const decorations: Decoration[] = [];
+		for (const cellId of cellIds) {
+			decorations.push(nodeDecoration(cellId, { class: 'notectl-table-cell--selected' }));
+		}
+
+		return DecorationSetClass.create(decorations);
 	}
 
 	private registerNodeSpecs(context: PluginContext): void {

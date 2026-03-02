@@ -29,7 +29,7 @@ export const FONT_SELECT_CSS = `
 	font-size: 14px;
 	color: var(--notectl-fg);
 	line-height: 1.4;
-	text-align: left;
+	text-align: start;
 	white-space: nowrap;
 	font-family: inherit;
 	transition: background 0.1s;

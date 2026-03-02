@@ -1,9 +1,9 @@
 ---
 title: Alignment Plugin
-description: Left, center, right, and justify text alignment with keyboard shortcuts and middleware.
+description: Start, center, end, and justify text alignment with logical CSS properties for RTL support.
 ---
 
-The `AlignmentPlugin` adds text alignment support for paragraphs, headings, and other alignable block types.
+The `AlignmentPlugin` adds text alignment support for paragraphs, headings, and other alignable block types. It uses **logical alignment values** (`start`/`end`) instead of physical values (`left`/`right`) for correct behavior in both LTR and RTL text directions.
 
 ![Text alignment options](../../../assets/screenshots/plugin-text-alignment.png)
 
@@ -14,14 +14,14 @@ import { AlignmentPlugin } from '@notectl/core';
 
 new AlignmentPlugin()
 // or restrict alignments:
-new AlignmentPlugin({ alignments: ['left', 'center', 'right'] })
+new AlignmentPlugin({ alignments: ['start', 'center', 'end'] })
 ```
 
 ## Configuration
 
 ```ts
 interface AlignmentConfig {
-  /** Enabled alignment options. Default: ['left', 'center', 'right', 'justify'] */
+  /** Enabled alignment options. Default: ['start', 'center', 'end', 'justify'] */
   readonly alignments: readonly BlockAlignment[];
   /** Block types that support alignment. Default: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell', 'image'] */
   readonly alignableTypes: readonly string[];
@@ -31,14 +31,27 @@ interface AlignmentConfig {
   readonly separatorAfter?: boolean;
 }
 
-type BlockAlignment = 'left' | 'center' | 'right' | 'justify';
+type BlockAlignment = 'start' | 'center' | 'end' | 'justify';
 ```
+
+### Logical Values and RTL Support
+
+The plugin uses CSS logical values instead of physical directions:
+
+| Logical Value | In LTR | In RTL |
+|--------------|--------|--------|
+| `start` | Left-aligned | Right-aligned |
+| `end` | Right-aligned | Left-aligned |
+| `center` | Centered | Centered |
+| `justify` | Justified | Justified |
+
+This ensures alignment works correctly regardless of text direction. When combined with the [TextDirectionPlugin](/notectl/plugins/text-direction/), alignment automatically adapts to the block's direction.
 
 ### Example: No justify
 
 ```ts
 new AlignmentPlugin({
-  alignments: ['left', 'center', 'right'],
+  alignments: ['start', 'center', 'end'],
 })
 ```
 
@@ -54,23 +67,23 @@ new AlignmentPlugin({
 
 | Command | Description | Returns |
 |---------|-------------|---------|
-| `alignLeft` | Align text left | `boolean` |
+| `alignStart` | Align text to start (left in LTR, right in RTL) | `boolean` |
 | `alignCenter` | Center text | `boolean` |
-| `alignRight` | Align text right | `boolean` |
+| `alignEnd` | Align text to end (right in LTR, left in RTL) | `boolean` |
 | `alignJustify` | Justify text | `boolean` |
 
 ```ts
 editor.executeCommand('alignCenter');
-editor.executeCommand('alignLeft');
+editor.executeCommand('alignStart');
 ```
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+L` / `Cmd+Shift+L` | Align left |
+| `Ctrl+Shift+L` / `Cmd+Shift+L` | Align start |
 | `Ctrl+Shift+E` / `Cmd+Shift+E` | Align center |
-| `Ctrl+Shift+R` / `Cmd+Shift+R` | Align right |
+| `Ctrl+Shift+R` / `Cmd+Shift+R` | Align end |
 | `Ctrl+Shift+J` / `Cmd+Shift+J` | Justify |
 
 ## Toolbar
@@ -87,6 +100,6 @@ The plugin patches existing node specs to add an `align` attribute:
 
 | Attribute | Type | Default | Renders As |
 |-----------|------|---------|-----------|
-| `align` | `string` | `'left'` | `style="text-align: center"` |
+| `align` | `string` | `'start'` | `style="text-align: center"` |
 
-When alignment is `'left'` (the default), no inline style is added to keep the DOM clean.
+When alignment is `'start'` (the default), no inline style is added to keep the DOM clean.

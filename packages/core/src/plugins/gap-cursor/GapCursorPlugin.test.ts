@@ -195,4 +195,60 @@ describe('GapCursorPlugin', () => {
 			expect(isTextSelection(sel)).toBe(false);
 		});
 	});
+
+	describe('decorations', () => {
+		it('returns empty when selection is not a gap cursor', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph'], [])
+				.build();
+
+			const plugin = new GapCursorPlugin();
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			expect(decos.isEmpty).toBe(true);
+		});
+
+		it('returns before NodeDecoration for gap cursor with side=before', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.voidBlock('horizontal_rule', 'hr1')
+				.paragraph('World', 'b2')
+				.gapCursor('hr1', 'before')
+				.schema(['paragraph', 'horizontal_rule'], [], makeGetNodeSpec(hrSpec))
+				.build();
+
+			const plugin = new GapCursorPlugin();
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			expect(decos.isEmpty).toBe(false);
+
+			const nodeDecos = decos.findNode('hr1' as BlockId);
+			expect(nodeDecos.length).toBe(1);
+			expect(nodeDecos[0]?.attrs.class).toBe('notectl-gap-cursor--before');
+		});
+
+		it('returns after NodeDecoration for gap cursor with side=after', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.voidBlock('horizontal_rule', 'hr1')
+				.paragraph('World', 'b2')
+				.gapCursor('hr1', 'after')
+				.schema(['paragraph', 'horizontal_rule'], [], makeGetNodeSpec(hrSpec))
+				.build();
+
+			const plugin = new GapCursorPlugin();
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			expect(decos.isEmpty).toBe(false);
+
+			const nodeDecos = decos.findNode('hr1' as BlockId);
+			expect(nodeDecos.length).toBe(1);
+			expect(nodeDecos[0]?.attrs.class).toBe('notectl-gap-cursor--after');
+		});
+	});
 });

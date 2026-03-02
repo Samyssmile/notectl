@@ -12,7 +12,7 @@ export interface ImageAttrs {
 	readonly alt: string;
 	readonly width?: number;
 	readonly height?: number;
-	readonly align: 'left' | 'center' | 'right';
+	readonly align: 'start' | 'center' | 'end';
 }
 
 // --- Upload Types ---

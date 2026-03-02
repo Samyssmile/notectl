@@ -1,9 +1,9 @@
 import type { AlignmentLocale } from '../AlignmentLocale.js';
 
 const locale: AlignmentLocale = {
-	alignLeft: 'По левому краю',
+	alignStart: 'По начальному краю',
 	alignCenter: 'По центру',
-	alignRight: 'По правому краю',
+	alignEnd: 'По конечному краю',
 	justify: 'По ширине',
 	toolbarLabel: 'Выравнивание',
 	toolbarTooltip: 'Выравнивание',

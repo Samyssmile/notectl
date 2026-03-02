@@ -106,14 +106,14 @@ describe('serializeDocumentToHTML', () => {
 		expect(html).toBe('<p style="text-align: center">hello</p>');
 	});
 
-	it('injects text-align style for right alignment', () => {
+	it('injects text-align style for end alignment', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
-				align: 'right',
+				align: 'end',
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p style="text-align: right">hello</p>');
+		expect(html).toBe('<p style="text-align: end">hello</p>');
 	});
 
 	it('injects text-align style for justify alignment', () => {
@@ -126,10 +126,10 @@ describe('serializeDocumentToHTML', () => {
 		expect(html).toBe('<p style="text-align: justify">hello</p>');
 	});
 
-	it('does not inject style for left alignment (default)', () => {
+	it('does not inject style for start alignment (default)', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
-				align: 'left',
+				align: 'start',
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
@@ -151,7 +151,7 @@ describe('serializeDocumentToHTML', () => {
 	it('ignores unknown alignment values', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
-				align: 'start',
+				align: 'middle',
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
@@ -654,8 +654,93 @@ describe('serializeDocumentToHTML', () => {
 			expect(html).toContain('<ul>');
 			expect(html).toContain('<ol>');
 		});
+
+		it('emits dir on li element for RTL list items', () => {
+			const registry: SchemaRegistry = createListDirRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('list_item'), [createTextNode('مرحبا')], undefined, {
+					listType: 'bullet',
+					indent: 0,
+					checked: false,
+					dir: 'rtl',
+				}),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('<li dir="rtl">');
+			expect(html).not.toContain('<ul dir=');
+		});
+
+		it('emits dir on li element for LTR ordered list items', () => {
+			const registry: SchemaRegistry = createListDirRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('list_item'), [createTextNode('Hello')], undefined, {
+					listType: 'ordered',
+					indent: 0,
+					checked: false,
+					dir: 'ltr',
+				}),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toContain('<li dir="ltr">');
+			expect(html).not.toContain('<ol dir=');
+		});
+
+		it('omits dir on wrapper for auto direction', () => {
+			const registry: SchemaRegistry = createListDirRegistry();
+			const doc = createDocument([listItem('Hello', 'bullet', 0)]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).not.toContain('dir=');
+		});
+
+		it('keeps mixed-direction items in a single wrapper with per-li dir', () => {
+			const registry: SchemaRegistry = createListDirRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('list_item'), [createTextNode('مرحبا')], undefined, {
+					listType: 'bullet',
+					indent: 0,
+					checked: false,
+					dir: 'rtl',
+				}),
+				createBlockNode(nodeType('list_item'), [createTextNode('Hello')], undefined, {
+					listType: 'bullet',
+					indent: 0,
+					checked: false,
+					dir: 'ltr',
+				}),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(html).toBe('<ul><li dir="rtl">مرحبا</li><li dir="ltr">Hello</li></ul>');
+		});
 	});
 });
+
+/** List registry that allows dir attribute through DOMPurify. */
+function createListDirRegistry(): SchemaRegistry {
+	const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+		['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+		[
+			'list_item',
+			{
+				toHTML: (_node: unknown, content: string) => {
+					return `<li>${content || '<br>'}</li>`;
+				},
+			},
+		],
+	]);
+
+	return {
+		getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+		getInlineNodeSpec: () => undefined,
+		getMarkSpec: () => undefined,
+		getMarkTypes: () => [],
+		getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li'],
+		getAllowedAttrs: () => ['style', 'dir'],
+	} as unknown as SchemaRegistry;
+}
 
 describe('serializeDocumentToCSS', () => {
 	function createStyleMarkRegistry(): SchemaRegistry {
@@ -806,15 +891,15 @@ describe('serializeDocumentToCSS', () => {
 				nodeType('paragraph'),
 				[createTextNode('hello', [{ type: markType('textColor'), attrs: { color: 'blue' } }])],
 				undefined,
-				{ align: 'right' },
+				{ align: 'end' },
 			),
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
 		// Block has alignment class, inline has style class
-		expect(result.html).toContain('class="notectl-align-right"');
+		expect(result.html).toContain('class="notectl-align-end"');
 		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
-		expect(result.css).toContain('.notectl-align-right');
+		expect(result.css).toContain('.notectl-align-end');
 		expect(result.css).toMatch(/\.notectl-s-[a-z0-9]+/);
 	});
 

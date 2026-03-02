@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **21 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **22 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -24,7 +24,7 @@ notectl ships with **21 built-in plugins**. Every editor feature — from bold t
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
 | [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`-` |
 | [TextColorPlugin](/notectl/plugins/text-color/) | `textColor` | Text color picker | - |
-| [AlignmentPlugin](/notectl/plugins/alignment/) | `alignment` | Left, center, right, justify | `Ctrl+Shift+L`/`E`/`R`/`J` |
+| [AlignmentPlugin](/notectl/plugins/alignment/) | `alignment` | Start, center, end, justify (logical values for RTL support) | `Ctrl+Shift+L`/`E`/`R`/`J` |
 | [StrikethroughPlugin](/notectl/plugins/strikethrough/) | `strikethrough` | Strikethrough text | `Ctrl+Shift+X` |
 | [SuperSubPlugin](/notectl/plugins/super-sub/) | `super-sub` | Superscript & subscript | `Ctrl+.`, `Ctrl+,` |
 | [HighlightPlugin](/notectl/plugins/highlight/) | `highlight` | Text highlight (background color) | - |
@@ -33,6 +33,7 @@ notectl ships with **21 built-in plugins**. Every editor feature — from bold t
 | [PrintPlugin](/notectl/plugins/print/) | `print` | Print with clean output and HTML export | `Ctrl+P` |
 | [ToolbarPlugin](/notectl/plugins/toolbar/) | `toolbar` | Toolbar UI (auto-created) | - |
 | [CaretNavigationPlugin](/notectl/plugins/caret-navigation/) | `caret-navigation` | Platform-aware keyboard navigation keymaps | Arrow keys, word/line/document movement |
+| [TextDirectionPlugin](/notectl/plugins/text-direction/) | `text-direction` | RTL language support with block direction and inline bidi isolation | `Ctrl+Shift+D`, `Ctrl+Shift+B` |
 | [GapCursorPlugin](/notectl/plugins/gap-cursor/) | `gap-cursor` | Virtual cursor at void-block boundaries | Arrow keys (when gap cursor active) |
 
 ## How Plugins Work

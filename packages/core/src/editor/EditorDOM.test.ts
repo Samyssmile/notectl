@@ -55,6 +55,18 @@ describe('createEditorDOM', () => {
 		expect(dom.announcer.getAttribute('aria-atomic')).toBe('true');
 	});
 
+	it('sets dir on both wrapper and content when configured', () => {
+		const dom = createEditorDOM({ dir: 'rtl' });
+		expect(dom.wrapper.getAttribute('dir')).toBe('rtl');
+		expect(dom.content.getAttribute('dir')).toBe('rtl');
+	});
+
+	it('omits dir from both wrapper and content when not configured', () => {
+		const dom = createEditorDOM({});
+		expect(dom.wrapper.getAttribute('dir')).toBeNull();
+		expect(dom.content.getAttribute('dir')).toBeNull();
+	});
+
 	it('assembles correct element hierarchy', () => {
 		const dom = createEditorDOM({});
 		const children = Array.from(dom.wrapper.children);

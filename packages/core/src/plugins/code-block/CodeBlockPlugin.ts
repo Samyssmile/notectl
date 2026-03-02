@@ -6,15 +6,18 @@
  * Middleware, Decorations, and lifecycle hooks (focus tracking).
  */
 
-import type { DecorationSet } from '../../decorations/Decoration.js';
-import { inline as inlineDecoration } from '../../decorations/Decoration.js';
+import type { Decoration, DecorationSet } from '../../decorations/Decoration.js';
+import {
+	inline as inlineDecoration,
+	node as nodeDecoration,
+} from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { type HTMLExportContext, createBlockElement } from '../../model/NodeSpec.js';
+import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -25,6 +28,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
@@ -101,13 +105,6 @@ export class CodeBlockPlugin implements Plugin {
 		const wasInCode: boolean = oldBlock?.type === 'code_block';
 		const nowInCode: boolean = newBlock?.type === 'code_block';
 
-		if (wasInCode && oldBlockId) {
-			this.setBlockFocused(oldBlockId, false);
-		}
-		if (nowInCode && newBlockId) {
-			this.setBlockFocused(newBlockId, true);
-		}
-
 		if (!wasInCode && nowInCode) {
 			this.context.announce(this.locale.enteredCodeBlock);
 		} else if (wasInCode && !nowInCode) {
@@ -116,31 +113,37 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	decorations(state: EditorState): DecorationSet {
-		if (!this.config.highlighter) return DecorationSetClass.empty;
+		const decorations: Decoration[] = [];
 
-		const decorations: ReturnType<typeof inlineDecoration>[] = [];
+		const focusedBlockId: BlockId | null = this.getFocusedCodeBlockId(state);
+		if (focusedBlockId) {
+			decorations.push(nodeDecoration(focusedBlockId, { class: 'notectl-code-block--focused' }));
+		}
+
 		const highlighter = this.config.highlighter;
+		if (highlighter) {
+			for (const bid of state.getBlockOrder()) {
+				const block: BlockNode | undefined = state.getBlock(bid);
+				if (!block || block.type !== 'code_block') continue;
 
-		for (const bid of state.getBlockOrder()) {
-			const block: BlockNode | undefined = state.getBlock(bid);
-			if (!block || block.type !== 'code_block') continue;
+				const lang: string = (block.attrs?.language as string) ?? '';
+				if (!lang) continue;
 
-			const lang: string = (block.attrs?.language as string) ?? '';
-			if (!lang) continue;
+				const text: string = getBlockText(block);
+				if (!text) continue;
 
-			const text: string = getBlockText(block);
-			if (!text) continue;
-
-			const tokens: readonly SyntaxToken[] = highlighter.tokenize(text, lang);
-			for (const token of tokens) {
-				decorations.push(
-					inlineDecoration(bid, token.from, token.to, {
-						class: `notectl-token--${token.type}`,
-					}),
-				);
+				const tokens: readonly SyntaxToken[] = highlighter.tokenize(text, lang);
+				for (const token of tokens) {
+					decorations.push(
+						inlineDecoration(bid, token.from, token.to, {
+							class: `notectl-token--${token.type}`,
+						}),
+					);
+				}
 			}
 		}
 
+		if (decorations.length === 0) return DecorationSetClass.empty;
 		return DecorationSetClass.create(decorations);
 	}
 
@@ -159,6 +162,7 @@ export class CodeBlockPlugin implements Plugin {
 			toDOM(node) {
 				const pre: HTMLElement = createBlockElement('pre', node.id);
 				pre.className = 'notectl-code-block';
+				pre.setAttribute('dir', 'ltr');
 				const code: HTMLElement = document.createElement('code');
 				code.className = 'notectl-code-block__content';
 				pre.appendChild(code);
@@ -171,7 +175,7 @@ export class CodeBlockPlugin implements Plugin {
 				const bgAttr: string = bg
 					? (ctx?.styleAttr(`background-color: ${bg}`) ?? ` style="background-color: ${bg}"`)
 					: '';
-				return `<pre${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
+				return `<pre dir="ltr"${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
 			},
 			parseHTML: [
 				{
@@ -300,12 +304,11 @@ export class CodeBlockPlugin implements Plugin {
 
 	// --- Helpers ---
 
-	private setBlockFocused(bid: BlockId, focused: boolean): void {
-		if (!this.context) return;
-		const container: HTMLElement = this.context.getContainer();
-		const el: Element | null = container.querySelector(`[data-block-id="${bid}"]`);
-		if (el) {
-			el.classList.toggle('notectl-code-block--focused', focused);
-		}
+	private getFocusedCodeBlockId(state: EditorState): BlockId | null {
+		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
+		const blockId: BlockId = state.selection.anchor.blockId;
+		const block: BlockNode | undefined = state.getBlock(blockId);
+		if (block?.type === 'code_block') return blockId;
+		return null;
 	}
 }

@@ -14,7 +14,7 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { escapeHTML } from '../model/HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeHTML } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
@@ -33,12 +33,10 @@ interface SerializerContext {
 }
 
 /** Known-safe alignment values accepted by the serializer (defense-in-depth). */
-export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set([
-	'left',
-	'center',
-	'right',
-	'justify',
-]);
+export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['start', 'center', 'end', 'justify']);
+
+/** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
+export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
 
 /** Creates an HTMLExportContext for inline style mode. */
 function createInlineExportContext(): HTMLExportContext {
@@ -68,11 +66,12 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
 
 	return DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 }
 
@@ -87,7 +86,7 @@ export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry)
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'class'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'class', 'dir'];
 
 	// In class mode, allow `class` attribute through DOMPurify
 	if (!allowedAttrs.includes('class')) {
@@ -101,6 +100,7 @@ export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry)
 	const sanitizedHTML: string = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: filteredAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 
 	return { html: sanitizedHTML, css: collector.toCSS(), styleMap: collector.toStyleMap() };
@@ -153,11 +153,10 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerializerContext)
 		const listType: string = (item.attrs?.listType as string) ?? 'bullet';
 		const indent: number = (item.attrs?.indent as number) ?? 0;
 		const tag: string = listType === 'ordered' ? 'ol' : 'ul';
-
 		// Pop wrapper levels that are deeper than current indent,
 		// or at the same level when the tag type changes
 		while (stack.length > 0) {
-			const top: { tag: string; indent: number } | undefined = stack[stack.length - 1];
+			const top = stack[stack.length - 1];
 			if (!top) break;
 
 			if (top.indent > indent) {
@@ -175,7 +174,7 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerializerContext)
 			parts.push(`<${tag}>`);
 			stack.push({ tag, indent });
 		} else {
-			const top: { tag: string; indent: number } | undefined = stack[stack.length - 1];
+			const top = stack[stack.length - 1];
 			if (top && indent > top.indent) {
 				parts.push(`<${tag}>`);
 				stack.push({ tag, indent });
@@ -200,7 +199,7 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerializerContext)
 
 	// Close all remaining open wrappers
 	while (stack.length > 0) {
-		const top: { tag: string; indent: number } | undefined = stack.pop();
+		const top = stack.pop();
 		if (!top) break;
 		parts.push(`</${top.tag}>`);
 		if (stack.length > 0) {
@@ -238,7 +237,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	const align: string | undefined = (block.attrs as Record<string, unknown>)?.align as
 		| string
 		| undefined;
-	if (align && align !== 'left' && VALID_ALIGNMENTS.has(align)) {
+	if (align && align !== 'start' && VALID_ALIGNMENTS.has(align)) {
 		if (ctx.collector) {
 			// Class mode: use semantic alignment class on the outer element only
 			const className: string = ctx.collector.getAlignmentClassName(align);
@@ -271,6 +270,19 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 			} else {
 				html = html.replace(/>/, ` style="text-align: ${align}">`);
 			}
+		}
+	}
+
+	// Defense-in-depth: inject dir into the first opening tag if not already present.
+	// NodeSpec toHTML may already inject it; this ensures it survives even without a plugin.
+	const dir: string | undefined = (block.attrs as Record<string, unknown>)?.dir as
+		| string
+		| undefined;
+	if (dir && VALID_DIRECTIONS.has(dir)) {
+		const firstTagEnd: number = html.indexOf('>');
+		const firstTag: string = html.slice(0, firstTagEnd + 1);
+		if (!firstTag.includes(' dir=')) {
+			html = `${html.slice(0, firstTagEnd)} dir="${escapeHTML(dir)}"${html.slice(firstTagEnd)}`;
 		}
 	}
 

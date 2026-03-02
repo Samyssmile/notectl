@@ -14,7 +14,7 @@ import type { Mark } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
-import { createMarkElement, getMarkRank } from './MarkRendering.js';
+import { wrapNodeWithMarks } from './MarkRendering.js';
 import { getSelection } from './SelectionSync.js';
 
 const ZWS = '\u200B';
@@ -56,20 +56,8 @@ export class CursorWrapper {
 		const textNode: Text = document.createTextNode(ZWS);
 
 		// Wrap the text node in sorted mark elements (innermost → outermost)
-		let current: Node = textNode;
-		const sortedMarks: readonly Mark[] = [...marks].sort(
-			(a, b) => getMarkRank(a, this.registry) - getMarkRank(b, this.registry),
-		);
-
-		for (let i: number = sortedMarks.length - 1; i >= 0; i--) {
-			const mark: Mark | undefined = sortedMarks[i];
-			if (!mark) continue;
-			const el: HTMLElement = createMarkElement(mark, this.registry);
-			el.appendChild(current);
-			current = el;
-		}
-
-		wrapper.appendChild(current);
+		const wrapped: Node = wrapNodeWithMarks(textNode, marks, this.registry);
+		wrapper.appendChild(wrapped);
 
 		// Insert at the current DOM cursor position
 		const domSel: globalThis.Selection | null = getSelection(this.container);

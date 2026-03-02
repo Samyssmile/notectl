@@ -4,6 +4,7 @@
  * for submenus/nested popups.
  */
 
+import { isRtlContext } from '../../platform/Platform.js';
 import { ServiceKey } from '../Plugin.js';
 import { type PopupPosition, appendToRoot, positionPopup } from './PopupPositioning.js';
 
@@ -92,6 +93,7 @@ export class PopupManager implements PopupServiceAPI {
 			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
 		positionPopup(popup, anchorRect, {
 			position: config.position ?? 'below-start',
+			isRtl: this.isRtlContext(),
 		});
 
 		const parentEntry: PopupEntry | null = config.parent
@@ -195,6 +197,14 @@ export class PopupManager implements PopupServiceAPI {
 	private findEntryByHandle(handle: PopupHandle): PopupEntry | null {
 		const element: HTMLElement = handle.getElement();
 		return this.stack.find((e) => e.element === element) ?? null;
+	}
+
+	/** Detects whether the editor context is RTL from the computed style. */
+	private isRtlContext(): boolean {
+		if (this.referenceNode instanceof HTMLElement) {
+			return isRtlContext(this.referenceNode);
+		}
+		return false;
 	}
 
 	private focusFirstItem(popup: HTMLElement): void {

@@ -17,11 +17,19 @@ import {
 	splitBlockCommand,
 } from '../commands/Commands.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
+import type { BlockId } from '../model/TypeBrands.js';
+import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
 import type { KeymapRegistry } from './KeymapRegistry.js';
+
+type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
+type GapCursorNavigateFn = (
+	state: EditorState,
+	direction: 'left' | 'right' | 'up' | 'down',
+	container?: HTMLElement,
+) => Transaction | null;
 
 export interface KeyboardHandlerOptions {
 	getState: GetStateFn;
@@ -31,6 +39,8 @@ export interface KeyboardHandlerOptions {
 	keymapRegistry?: KeymapRegistry;
 	isReadOnly?: () => boolean;
 	compositionTracker?: CompositionTracker;
+	getTextDirection?: TextDirectionFn;
+	navigateFromGapCursor?: GapCursorNavigateFn;
 }
 
 export class KeyboardHandler {
@@ -41,6 +51,8 @@ export class KeyboardHandler {
 	private readonly keymapRegistry?: KeymapRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly compositionTracker?: CompositionTracker;
+	private readonly getTextDirectionFn: TextDirectionFn;
+	private readonly navigateFromGapCursorFn: GapCursorNavigateFn | undefined;
 	private readonly handleKeydown: (e: KeyboardEvent) => void;
 
 	constructor(
@@ -54,6 +66,8 @@ export class KeyboardHandler {
 		this.keymapRegistry = options.keymapRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.compositionTracker = options.compositionTracker;
+		this.getTextDirectionFn = options.getTextDirection ?? (() => 'ltr');
+		this.navigateFromGapCursorFn = options.navigateFromGapCursor;
 
 		this.handleKeydown = this.onKeydown.bind(this);
 		element.addEventListener('keydown', this.handleKeydown);
@@ -166,7 +180,8 @@ export class KeyboardHandler {
 						: key === 'ArrowUp'
 							? 'up'
 							: 'down';
-			const tr = navigateArrowIntoVoid(state, direction);
+			const isRtl: boolean = this.isSelectedBlockRtl(sel.nodeId);
+			const tr = navigateArrowIntoVoid(state, direction, isRtl);
 			if (tr) {
 				e.preventDefault();
 				this.dispatch(tr);
@@ -309,7 +324,8 @@ export class KeyboardHandler {
 					: key === 'ArrowUp'
 						? 'up'
 						: 'down';
-		const tr: Transaction | null = navigateFromGapCursor(state, direction);
+		if (!this.navigateFromGapCursorFn) return false;
+		const tr: Transaction | null = this.navigateFromGapCursorFn(state, direction, this.element);
 		if (tr && !selectionsEqual(tr.selectionAfter, sel)) {
 			e.preventDefault();
 			this.dispatch(tr);
@@ -346,6 +362,12 @@ export class KeyboardHandler {
 
 		this.element.blur();
 		return true;
+	}
+
+	/** Checks if the block with the given ID is rendered in RTL direction. */
+	private isSelectedBlockRtl(blockId: BlockId): boolean {
+		const blockEl: Element | null = this.element.querySelector(`[data-block-id="${blockId}"]`);
+		return blockEl instanceof HTMLElement && this.getTextDirectionFn(blockEl) === 'rtl';
 	}
 
 	destroy(): void {

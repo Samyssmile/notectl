@@ -9,9 +9,9 @@
 
 import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
+import type { BlockAlignment } from '../../model/BlockAlignment.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import type { BlockAlignment } from '../alignment/AlignmentPlugin.js';
 import {
 	registerHeadingPickerEntries,
 	registerHeadingToolbarItem,

@@ -85,6 +85,15 @@ describe('CodeBlockPlugin', () => {
 			expect(el.querySelector('code')).not.toBeNull();
 		});
 
+		it('toDOM always sets dir="ltr" to prevent RTL inheritance', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('const x = 1;')], 'test');
+			const el = spec.toDOM(node);
+			expect(el.getAttribute('dir')).toBe('ltr');
+		});
+
 		it('parseHTML matches <pre> tags', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const spec = h.getNodeSpec('code_block');
@@ -873,13 +882,43 @@ describe('CodeBlockPlugin', () => {
 	});
 
 	describe('decorations', () => {
-		it('returns empty when no highlighter configured', async () => {
-			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }]);
+		it('returns empty when cursor is not in code block and no highlighter', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }]);
 			const plugin = new CodeBlockPlugin();
 			await pluginHarness(plugin, state);
 
 			const decos = plugin.decorations(state);
 			expect(decos.isEmpty).toBe(true);
+		});
+
+		it('returns focused NodeDecoration when cursor is in code block', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }]);
+			const plugin = new CodeBlockPlugin();
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			expect(decos.isEmpty).toBe(false);
+
+			const nodeDecos = decos.findNode('b1' as import('../../model/TypeBrands.js').BlockId);
+			expect(nodeDecos.length).toBe(1);
+			expect(nodeDecos[0]?.attrs.class).toBe('notectl-code-block--focused');
+		});
+
+		it('returns no focused decoration when cursor is in paragraph', async () => {
+			const state = makeState(
+				[
+					{ type: 'code_block', text: 'code', id: 'b1' },
+					{ type: 'paragraph', text: 'text', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+			const plugin = new CodeBlockPlugin();
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			const nodeDecos = decos.findNode('b1' as import('../../model/TypeBrands.js').BlockId);
+			expect(nodeDecos.length).toBe(0);
 		});
 
 		it('returns decorations from highlighter', async () => {
@@ -904,6 +943,31 @@ describe('CodeBlockPlugin', () => {
 
 			const decos = plugin.decorations(state);
 			expect(decos.isEmpty).toBe(false);
+		});
+
+		it('returns both focus and syntax decorations together', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'const x = 1', 'b1', {
+					attrs: { language: 'typescript' },
+				})
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], ['bold'])
+				.build();
+
+			const mockHighlighter = {
+				tokenize: () => [{ from: 0, to: 5, type: 'keyword' }],
+				getSupportedLanguages: () => ['typescript'] as const,
+			};
+
+			const plugin = new CodeBlockPlugin({ highlighter: mockHighlighter });
+			await pluginHarness(plugin, state);
+
+			const decos = plugin.decorations(state);
+			const blockId = 'b1' as import('../../model/TypeBrands.js').BlockId;
+			const nodeDecos = decos.findNode(blockId);
+			const inlineDecos = decos.findInline(blockId);
+			expect(nodeDecos.length).toBe(1);
+			expect(inlineDecos.length).toBe(1);
 		});
 	});
 

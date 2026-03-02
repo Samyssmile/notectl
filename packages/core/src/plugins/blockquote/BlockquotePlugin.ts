@@ -4,16 +4,18 @@
  */
 
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { registerBlockquoteKeymaps } from './BlockquoteKeyboardHandlers.js';
 import {
 	BLOCKQUOTE_LOCALE_EN,
 	type BlockquoteLocale,
 	loadBlockquoteLocale,
 } from './BlockquoteLocale.js';
+import { BLOCKQUOTE_CSS } from './BlockquoteStyles.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -55,6 +57,7 @@ export class BlockquotePlugin implements Plugin {
 			const lang: string = service?.getLocale() ?? 'en';
 			this.locale = lang === 'en' ? BLOCKQUOTE_LOCALE_EN : await loadBlockquoteLocale(lang);
 		}
+		context.registerStyleSheet(BLOCKQUOTE_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -92,6 +95,7 @@ export class BlockquotePlugin implements Plugin {
 		context.registerKeymap({
 			'Mod-Shift->': () => context.executeCommand('toggleBlockquote'),
 		});
+		registerBlockquoteKeymaps(context);
 	}
 
 	private registerInputRule(context: PluginContext): void {

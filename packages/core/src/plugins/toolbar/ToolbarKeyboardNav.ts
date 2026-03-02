@@ -76,9 +76,19 @@ export function findNextDropdownItem(
 	return (current + direction + len) % len;
 }
 
+/** Flips horizontal arrow keys for RTL contexts. */
+function flipHorizontalKey(
+	key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+): 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' {
+	if (key === 'ArrowLeft') return 'ArrowRight';
+	if (key === 'ArrowRight') return 'ArrowLeft';
+	return key;
+}
+
 /**
  * Navigates a grid of cells with arrow keys.
  * Returns the new [row, col] position.
+ * When `isRtl` is true, horizontal arrows are flipped to match visual direction.
  */
 export function navigateGrid(
 	row: number,
@@ -86,8 +96,13 @@ export function navigateGrid(
 	maxRows: number,
 	maxCols: number,
 	key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+	isRtl = false,
 ): [number, number] {
-	switch (key) {
+	const resolved: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' = isRtl
+		? flipHorizontalKey(key)
+		: key;
+
+	switch (resolved) {
 		case 'ArrowUp':
 			return [row > 1 ? row - 1 : maxRows, col];
 		case 'ArrowDown':
@@ -97,4 +112,16 @@ export function navigateGrid(
 		case 'ArrowRight':
 			return [row, col < maxCols ? col + 1 : 1];
 	}
+}
+
+/**
+ * Resolves a horizontal navigation direction based on text direction.
+ * In RTL, ArrowRight moves backward (-1) and ArrowLeft moves forward (1).
+ */
+export function resolveHorizontalDirection(
+	key: 'ArrowRight' | 'ArrowLeft',
+	isRtl: boolean,
+): 1 | -1 {
+	if (key === 'ArrowRight') return isRtl ? -1 : 1;
+	return isRtl ? 1 : -1;
 }

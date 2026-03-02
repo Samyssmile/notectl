@@ -63,8 +63,6 @@ export function renderGridPicker(
 			cell.addEventListener('mousedown', (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
-				config.onSelect(r, c);
-				onClose();
 			});
 
 			cell.addEventListener('click', () => {
@@ -128,8 +126,6 @@ export function renderDropdown(
 		btn.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			executeCommand(item.command);
-			onClose();
 		});
 
 		btn.addEventListener('click', () => {
