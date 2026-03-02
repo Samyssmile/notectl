@@ -5,7 +5,6 @@
 
 import type { BlockNode } from '../../model/Document.js';
 import { blockOffsetToTextOffset, getBlockText } from '../../model/Document.js';
-import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Step } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';

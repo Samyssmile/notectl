@@ -22,6 +22,8 @@ export interface CellRange {
 export interface TableSelectionService {
 	getSelectedRange(): CellRange | null;
 	setSelectedRange(range: CellRange | null): void;
+	/** Clears selection state without dispatching a transaction (for use in decorations). */
+	clearSelectionSilent(): void;
 	getSelectedCellIds(): readonly BlockId[];
 	isSelected(cellId: BlockId): boolean;
 }
@@ -68,7 +70,13 @@ export function createTableSelectionService(context: PluginContext): TableSelect
 		setSelectedRange(range: CellRange | null): void {
 			selectedRange = range;
 			updateCache();
-			updateCellHighlights(context, cachedCellIdSet);
+			const state: EditorState = context.getState();
+			context.dispatch(state.transaction('api').setSelection(state.selection).build());
+		},
+
+		clearSelectionSilent(): void {
+			selectedRange = null;
+			updateCache();
 		},
 
 		getSelectedCellIds(): readonly BlockId[] {
@@ -82,21 +90,6 @@ export function createTableSelectionService(context: PluginContext): TableSelect
 
 	context.registerService(TableSelectionServiceKey, service);
 	return service;
-}
-
-/** Updates CSS class on selected cells for visual highlighting. */
-function updateCellHighlights(context: PluginContext, selectedIds: Set<BlockId>): void {
-	const container: HTMLElement = context.getContainer();
-	const cells: NodeListOf<Element> = container.querySelectorAll('td[data-block-id]');
-
-	for (const cell of cells) {
-		const cellId = cell.getAttribute('data-block-id') as BlockId;
-		if (selectedIds.has(cellId)) {
-			cell.classList.add('notectl-table-cell--selected');
-		} else {
-			cell.classList.remove('notectl-table-cell--selected');
-		}
-	}
 }
 
 /**
