@@ -32,6 +32,7 @@ import {
 	endOfTextblock,
 	getCaretRectFromSelection,
 	navigateAcrossBlocks,
+	navigateFromGapCursor,
 	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
@@ -128,6 +129,8 @@ export class EditorView {
 			keymapRegistry: this.keymapRegistry,
 			isReadOnly: this.isReadOnly,
 			compositionTracker: this.compositionTracker,
+			getTextDirection,
+			navigateFromGapCursor,
 		});
 		this.pasteHandler = new PasteHandler(contentElement, {
 			getState: () => this.state,
