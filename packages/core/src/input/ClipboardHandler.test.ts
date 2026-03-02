@@ -316,6 +316,88 @@ describe('ClipboardHandler copy with void blocks', () => {
 	});
 });
 
+describe('ClipboardHandler copy with composite blocks (tables)', () => {
+	let element: HTMLElement;
+	let handler: ClipboardHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('uses document serializer for selection within a single table', () => {
+		const B4: BlockId = blockId('b4');
+		const B5: BlockId = blockId('b5');
+		const B6: BlockId = blockId('b6');
+		const B7: BlockId = blockId('b7');
+		const B8: BlockId = blockId('b8');
+		const B9: BlockId = blockId('b9');
+
+		// Table structure: table > row > cell > paragraph (leaf)
+		const cell1: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_cell',
+			[createBlockNode('paragraph', [createTextNode('Cell A')], B1)],
+			B4,
+		);
+		const cell2: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_cell',
+			[createBlockNode('paragraph', [createTextNode('Cell B')], B2)],
+			B5,
+		);
+		const row: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_row',
+			[cell1, cell2],
+			B6,
+		);
+		const table: ReturnType<typeof createBlockNode> = createBlockNode('table', [row], B7);
+
+		const doc = createDocument([table]);
+
+		// Select within the table (both endpoints in paragraphs inside the same table root)
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B2, offset: 6 }),
+		});
+		dispatch = vi.fn();
+		element = document.createElement('div');
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'table',
+			toDOM: () => document.createElement('table'),
+			toHTML: (_node, content) => `<table><tbody>${content}</tbody></table>`,
+			sanitize: { tags: ['table', 'tbody', 'thead', 'tfoot'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			toDOM: () => document.createElement('tr'),
+			toHTML: (_node, content) => `<tr>${content}</tr>`,
+			sanitize: { tags: ['tr'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			toDOM: () => document.createElement('td'),
+			toHTML: (_node, content) => `<td><p>${content}</p></td>`,
+			sanitize: { tags: ['td', 'th'] },
+		});
+
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(true);
+		const html: string = event.data.get('text/html') ?? '';
+		// Document serializer should produce proper table HTML, not flat paragraphs
+		expect(html).toContain('<table>');
+		expect(html).toContain('<td>');
+	});
+});
+
 describe('ClipboardHandler cut', () => {
 	let element: HTMLElement;
 	let handler: ClipboardHandler;

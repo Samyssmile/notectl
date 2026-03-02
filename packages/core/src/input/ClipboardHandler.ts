@@ -232,10 +232,9 @@ export class ClipboardHandler {
 	}
 
 	/**
-	 * Checks whether the current selection spans multiple root-level blocks
-	 * where at least one requires the full document serializer (composite or void).
-	 * Selections entirely within a single root (e.g. within one table)
-	 * use the standard leaf serializer.
+	 * Checks whether the current selection requires the full document serializer.
+	 * Returns true when the selection is within a composite root (e.g. a table)
+	 * or spans multiple roots where at least one is composite or void.
 	 */
 	private selectionRequiresDocumentSerializer(state: EditorState): boolean {
 		const sel: Selection | undefined = this.getTextSelection(state);
@@ -248,8 +247,12 @@ export class ClipboardHandler {
 		const toPath = findNodePath(state.doc, range.to.blockId);
 		if (!fromPath || !toPath) return false;
 
-		// Both endpoints inside the same root — leaf serializer handles this fine
-		if (fromPath[0] === toPath[0]) return false;
+		// Both endpoints inside the same root — use document serializer for composite roots
+		if (fromPath[0] === toPath[0]) {
+			const rootBlock = state.doc.children.find((c) => c.id === fromPath[0]);
+			if (rootBlock && !isLeafBlock(rootBlock)) return true;
+			return false;
+		}
 
 		// Different root blocks — check if any root is composite or void
 		const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
