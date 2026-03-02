@@ -6,7 +6,6 @@ import type { NodeAttrsFor } from './AttrRegistry.js';
 import type { BlockNode } from './Document.js';
 import type { ParseRule } from './ParseRule.js';
 import type { SanitizeConfig } from './SanitizeConfig.js';
-import type { BlockId } from './TypeBrands.js';
 
 export interface AttrSpec {
 	readonly default?: string | number | boolean;
@@ -30,13 +29,6 @@ export interface ContentRule {
 	readonly allow: readonly string[];
 	readonly min?: number;
 	readonly max?: number;
-}
-
-/** Creates an HTMLElement with the required `data-block-id` attribute. */
-export function createBlockElement(tag: string, blockId: BlockId): HTMLElement {
-	const el = document.createElement(tag);
-	el.setAttribute('data-block-id', blockId);
-	return el;
 }
 
 /**

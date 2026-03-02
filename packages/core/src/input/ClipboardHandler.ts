@@ -5,8 +5,6 @@
  */
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
-import { serializeDocumentToHTML } from '../editor/DocumentSerializer.js';
-import { buildMarkOrder, serializeMarksToHTML } from '../editor/MarkSerializer.js';
 import type { BlockNode, Mark } from '../model/Document.js';
 import {
 	createDocument,
@@ -27,6 +25,8 @@ import {
 	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
+import { serializeDocumentToHTML } from '../serialization/DocumentSerializer.js';
+import { buildMarkOrder, serializeMarksToHTML } from '../serialization/MarkSerializer.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';

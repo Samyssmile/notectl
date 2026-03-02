@@ -16,13 +16,13 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { createBlockElement } from '../model/NodeSpec.js';
 import type { WrapperSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { appendStyleText, setStyleText } from '../style/StyleRuntime.js';
+import { createBlockElement } from './DomUtils.js';
 import { createMarkElement, getMarkRank } from './MarkRendering.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';

@@ -8,12 +8,12 @@ import { IMAGE_CSS } from '../../editor/styles/image.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import {

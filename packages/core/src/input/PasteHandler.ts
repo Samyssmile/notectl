@@ -10,7 +10,6 @@ import {
 	insertTextCommand,
 } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
-import { parseHTMLToDocument } from '../editor/DocumentParser.js';
 import { plainTextSlice } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
@@ -38,6 +37,7 @@ import {
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
+import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import { HTMLParser } from './HTMLParser.js';

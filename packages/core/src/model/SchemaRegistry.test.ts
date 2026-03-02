@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createBlockElement } from '../view/DomUtils.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
-import { createBlockElement } from './NodeSpec.js';
 import { SchemaRegistry } from './SchemaRegistry.js';
 
 function makeNodeSpec(type: string): NodeSpec {

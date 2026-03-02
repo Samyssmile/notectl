@@ -120,7 +120,7 @@ export type {
 	WrapperSpec,
 	HTMLExportContext,
 } from './model/NodeSpec.js';
-export { createBlockElement } from './model/NodeSpec.js';
+export { createBlockElement } from './view/DomUtils.js';
 export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 
@@ -146,7 +146,7 @@ export {
 export { canContain, validateContent } from './model/ContentModel.js';
 
 // --- BuiltinSpecs ---
-export { registerBuiltinSpecs } from './model/BuiltinSpecs.js';
+export { registerBuiltinSpecs } from './editor/BuiltinSpecs.js';
 
 // --- State ---
 export { EditorState } from './state/EditorState.js';
