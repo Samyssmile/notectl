@@ -3,15 +3,15 @@
  * Works on DOM nodes (not strings), is schema-aware, and produces immutable output.
  */
 
-import type { ContentSlice, SliceBlock } from './ContentSlice.js';
-import type { Mark, TextSegment } from './Document.js';
-import { markSetsEqual } from './Document.js';
-import type { ParseRule } from './ParseRule.js';
-import type { Schema } from './Schema.js';
-import { isMarkAllowed, isNodeTypeAllowed } from './Schema.js';
-import type { SchemaRegistry } from './SchemaRegistry.js';
-import type { NodeTypeName } from './TypeBrands.js';
-import { markType, nodeType } from './TypeBrands.js';
+import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
+import type { Mark, TextSegment } from '../model/Document.js';
+import { markSetsEqual } from '../model/Document.js';
+import type { ParseRule } from '../model/ParseRule.js';
+import type { Schema } from '../model/Schema.js';
+import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
+import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { NodeTypeName } from '../model/TypeBrands.js';
+import { markType, nodeType } from '../model/TypeBrands.js';
 
 export interface HTMLParserOptions {
 	readonly schema: Schema;

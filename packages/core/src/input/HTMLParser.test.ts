@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { Schema } from '../model/Schema.js';
 import { HTMLParser } from './HTMLParser.js';
-import type { Schema } from './Schema.js';
 
 function createTestSchema(opts?: {
 	nodeTypes?: string[];

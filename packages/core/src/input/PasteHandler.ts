@@ -23,7 +23,6 @@ import {
 	isBlockNode,
 } from '../model/Document.js';
 import { generateBlockId } from '../model/Document.js';
-import { HTMLParser } from '../model/HTMLParser.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { AttrSpec } from '../model/NodeSpec.js';
@@ -41,6 +40,7 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
+import { HTMLParser } from './HTMLParser.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, type RichSegment, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
