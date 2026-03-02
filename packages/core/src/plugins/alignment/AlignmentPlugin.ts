@@ -24,8 +24,6 @@ import {
 
 // --- Public Types ---
 
-export type { BlockAlignment } from '../../model/BlockAlignment.js';
-
 export interface AlignmentConfig {
 	/** Which alignments to expose. Defaults to all four. */
 	readonly alignments: readonly BlockAlignment[];
