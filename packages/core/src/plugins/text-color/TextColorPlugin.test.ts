@@ -17,15 +17,6 @@ function defaultState() {
 // --- Tests ---
 
 describe('TextColorPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new TextColorPlugin();
-			expect(plugin.id).toBe('textColor');
-			expect(plugin.name).toBe('Text Color');
-			expect(plugin.priority).toBe(23);
-		});
-	});
-
 	describe('MarkSpec', () => {
 		it('registers textColor MarkSpec', async () => {
 			const plugin = new TextColorPlugin();

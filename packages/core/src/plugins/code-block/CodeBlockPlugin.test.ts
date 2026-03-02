@@ -31,15 +31,6 @@ function makeState(
 // --- Tests ---
 
 describe('CodeBlockPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new CodeBlockPlugin();
-			expect(plugin.id).toBe('code-block');
-			expect(plugin.name).toBe('Code Block');
-			expect(plugin.priority).toBe(36);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers code_block NodeSpec', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());

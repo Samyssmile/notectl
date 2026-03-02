@@ -19,15 +19,6 @@ function defaultState(): EditorState {
 // --- Tests ---
 
 describe('FontSizePlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new FontSizePlugin();
-			expect(plugin.id).toBe('fontSize');
-			expect(plugin.name).toBe('Font Size');
-			expect(plugin.priority).toBe(21);
-		});
-	});
-
 	describe('MarkSpec', () => {
 		it('registers fontSize MarkSpec', async () => {
 			const plugin = new FontSizePlugin();

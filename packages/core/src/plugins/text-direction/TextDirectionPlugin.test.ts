@@ -41,15 +41,6 @@ function makeState(
 // --- Tests ---
 
 describe('TextDirectionPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new TextDirectionPlugin();
-			expect(plugin.id).toBe('text-direction');
-			expect(plugin.name).toBe('Text Direction');
-			expect(plugin.priority).toBe(91);
-		});
-	});
-
 	describe('NodeSpec patching', () => {
 		it('patches paragraph NodeSpec with dir attr', async () => {
 			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);

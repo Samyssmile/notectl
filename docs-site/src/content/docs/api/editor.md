@@ -51,6 +51,8 @@ interface NotectlEditorConfig {
   styleNonce?: string;
   /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
   paperSize?: PaperSize;
+  /** Document-level text direction. When set, applies `dir` on the content element. */
+  dir?: 'ltr' | 'rtl';
   /** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
   locale?: Locale;
 }
@@ -330,7 +332,7 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `theme`.
+Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, `dir`, and `theme`.
 
 `styleNonce` is accepted in `configure()` but evaluated during initialization.
 
@@ -350,3 +352,4 @@ Cleans up the editor. The editor can be re-initialized after destruction.
 | `readonly` | Read-only mode (reflected) |
 | `theme` | Theme preset: `"light"`, `"dark"`, or `"system"` |
 | `paper-size` | Paper size: `"din-a4"`, `"din-a5"`, `"us-letter"`, or `"us-legal"` |
+| `dir` | Text direction: `"ltr"` or `"rtl"` |

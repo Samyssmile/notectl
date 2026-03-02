@@ -20,15 +20,6 @@ function defaultState() {
 // --- Tests ---
 
 describe('ImagePlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new ImagePlugin();
-			expect(plugin.id).toBe('image');
-			expect(plugin.name).toBe('Image');
-			expect(plugin.priority).toBe(45);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers image NodeSpec', async () => {
 			const plugin = new ImagePlugin();

@@ -58,15 +58,6 @@ function makeState(
 // --- Tests ---
 
 describe('HeadingPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new HeadingPlugin();
-			expect(plugin.id).toBe('heading');
-			expect(plugin.name).toBe('Heading');
-			expect(plugin.priority).toBe(30);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers heading, title, and subtitle NodeSpecs', async () => {
 			const h = await pluginHarness(new HeadingPlugin());

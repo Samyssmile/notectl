@@ -146,7 +146,7 @@ const editor = await createEditor({
 
 ## Auto-Registration
 
-`TextFormattingPlugin` is auto-registered with default settings if not explicitly provided. All other plugins must be added manually.
+`TextFormattingPlugin`, `CaretNavigationPlugin`, and `GapCursorPlugin` are auto-registered with default settings if not explicitly provided. All other plugins must be added manually.
 
 ## Learn More
 

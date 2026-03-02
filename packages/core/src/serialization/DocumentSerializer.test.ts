@@ -544,6 +544,181 @@ describe('serializeDocumentToHTML', () => {
 		});
 	});
 
+	// --- Table HTML serialization (migrated from e2e/table-html-serialization.spec.ts) ---
+
+	describe('table HTML serialization with inline styles', () => {
+		/**
+		 * Creates a SchemaRegistry that mirrors the real TablePlugin toHTML logic,
+		 * including border-collapse, width, cell padding/border CSS, and border color.
+		 */
+		function createRealTableRegistry(): SchemaRegistry {
+			const DEFAULT_BORDER_COLOR = '#d0d0d0';
+			const TABLE_BASE_STYLE = 'border-collapse: collapse; width: 100%; table-layout: fixed';
+			const CELL_STYLE = `border: 1px solid var(--ntbl-bc, ${DEFAULT_BORDER_COLOR}); padding: 8px 12px; vertical-align: top`;
+
+			function buildTableStyleLocal(borderColor: string | undefined): string {
+				if (!borderColor) return TABLE_BASE_STYLE;
+				if (borderColor === 'none') {
+					return `${TABLE_BASE_STYLE}; --ntbl-bc: transparent`;
+				}
+				if (/^#(?:[0-9a-fA-F]{3,4}){1,2}$/.test(borderColor)) {
+					return `${TABLE_BASE_STYLE}; --ntbl-bc: ${borderColor}`;
+				}
+				return TABLE_BASE_STYLE;
+			}
+
+			const nodeSpecs = new Map<
+				string,
+				{
+					toHTML?: (
+						node: unknown,
+						content: string,
+						ctx?: { styleAttr: (d: string) => string },
+					) => string;
+				}
+			>([
+				['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+				[
+					'table',
+					{
+						toHTML: (node: unknown, content: string, ctx?) => {
+							const n = node as { attrs?: Record<string, unknown> };
+							const borderColor: string | undefined = n.attrs?.borderColor as string | undefined;
+							const style: string = buildTableStyleLocal(borderColor);
+							const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
+							return `<table${attr}>${content}</table>`;
+						},
+					},
+				],
+				['table_row', { toHTML: (_n, c) => `<tr>${c}</tr>` }],
+				[
+					'table_cell',
+					{
+						toHTML: (node: unknown, content: string, ctx?) => {
+							const n = node as { attrs?: Record<string, unknown> };
+							const colspan: number = (n.attrs?.colspan as number) ?? 1;
+							const rowspan: number = (n.attrs?.rowspan as number) ?? 1;
+							const styleAttr: string = ctx?.styleAttr(CELL_STYLE) ?? ` style="${CELL_STYLE}"`;
+							const attrs: string[] = [styleAttr];
+							if (colspan > 1) attrs.push(` colspan="${colspan}"`);
+							if (rowspan > 1) attrs.push(` rowspan="${rowspan}"`);
+							return `<td${attrs.join('')}>${content}</td>`;
+						},
+					},
+				],
+			]);
+
+			return {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
+				getAllowedAttrs: () => ['style', 'colspan', 'rowspan'],
+			} as unknown as SchemaRegistry;
+		}
+
+		function cell(text: string): ReturnType<typeof createBlockNode> {
+			return createBlockNode(nodeType('table_cell'), [
+				createBlockNode(nodeType('paragraph'), [createTextNode(text)]),
+			]);
+		}
+
+		function makeTable(
+			cells: ReturnType<typeof createBlockNode>[][],
+			attrs?: Record<string, unknown>,
+		): ReturnType<typeof createDocument> {
+			const rows: ReturnType<typeof createBlockNode>[] = cells.map((rowCells) =>
+				createBlockNode(nodeType('table_row'), rowCells),
+			);
+			return createDocument([createBlockNode(nodeType('table'), rows, undefined, attrs)]);
+		}
+
+		it('produces table HTML with border-collapse, padding, and border CSS', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('AB')]]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('<table');
+			expect(html).toContain('border-collapse: collapse');
+			expect(html).toContain('<tr>');
+			expect(html).toContain('<td');
+			expect(html).toContain('border: 1px solid');
+			expect(html).toContain('padding: 8px 12px');
+			expect(html).toContain('AB');
+		});
+
+		it('includes width and vertical-align styles', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('Cell content')]]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('border-collapse: collapse');
+			expect(html).toContain('width: 100%');
+			expect(html).toContain('border: 1px solid');
+			expect(html).toContain('padding: 8px 12px');
+			expect(html).toContain('vertical-align: top');
+			expect(html).toContain('Cell content');
+		});
+
+		it('preserves text before and after a table', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('Before table')]),
+				createBlockNode(nodeType('table'), [createBlockNode(nodeType('table_row'), [cell('X')])]),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('Before table');
+			expect(html).toContain('<table');
+		});
+
+		it('reflects custom border color via --ntbl-bc custom property', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('A')]], { borderColor: '#e69138' });
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('--ntbl-bc: #e69138');
+			expect(html).toContain('var(--ntbl-bc');
+		});
+
+		it('renders borderless table with transparent borders', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('A')]], { borderColor: 'none' });
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('--ntbl-bc: transparent');
+		});
+
+		it('ignores invalid border color values', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('A')]], {
+				borderColor: 'red; background: url(evil)',
+			});
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).not.toContain('url(evil)');
+			// Table element must NOT set --ntbl-bc for invalid colors
+			expect(html).not.toContain('--ntbl-bc:');
+			expect(html).toContain('border-collapse: collapse');
+		});
+
+		it('uses default border color fallback in cell CSS var', () => {
+			const registry: SchemaRegistry = createRealTableRegistry();
+			const doc = makeTable([[cell('A')]]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+
+			expect(html).toContain('var(--ntbl-bc, #d0d0d0)');
+		});
+	});
+
 	// --- Nested list serialization ---
 
 	describe('nested list serialization', () => {

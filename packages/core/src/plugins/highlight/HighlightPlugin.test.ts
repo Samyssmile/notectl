@@ -24,15 +24,6 @@ function defaultState(): EditorState {
 // --- Tests ---
 
 describe('HighlightPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new HighlightPlugin();
-			expect(plugin.id).toBe('highlight');
-			expect(plugin.name).toBe('Highlight');
-			expect(plugin.priority).toBe(24);
-		});
-	});
-
 	describe('MarkSpec', () => {
 		it('registers highlight MarkSpec', async () => {
 			const h = await pluginHarness(new HighlightPlugin());

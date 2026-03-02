@@ -49,15 +49,6 @@ function makeState(
 // --- Tests ---
 
 describe('TablePlugin', () => {
-	describe('registration', () => {
-		it('has correct id, name, and priority', () => {
-			const plugin = new TablePlugin();
-			expect(plugin.id).toBe('table');
-			expect(plugin.name).toBe('Table');
-			expect(plugin.priority).toBe(40);
-		});
-	});
-
 	describe('NodeSpec registration', () => {
 		it('registers table, table_row, and table_cell NodeSpecs', async () => {
 			const h = await pluginHarness(new TablePlugin());

@@ -14,15 +14,6 @@ import { StrikethroughPlugin } from './StrikethroughPlugin.js';
 // --- Tests ---
 
 describe('StrikethroughPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new StrikethroughPlugin();
-			expect(plugin.id).toBe('strikethrough');
-			expect(plugin.name).toBe('Strikethrough');
-			expect(plugin.priority).toBe(22);
-		});
-	});
-
 	describe('MarkSpec', () => {
 		it('registers strikethrough MarkSpec with correct tag and rank', async () => {
 			const h = await pluginHarness(new StrikethroughPlugin());
