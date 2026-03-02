@@ -185,10 +185,12 @@ export class ClipboardHandler {
 		const plainText: string = lines.join('\n');
 		clipboardData.setData('text/plain', plainText);
 
-		// Write text/html with inline marks so paste preserves formatting
+		// Write text/html with inline marks so paste preserves formatting.
+		// Wrap each block in a <p> tag so multi-block selections round-trip correctly.
 		if (this.schemaRegistry) {
 			const markOrder: Map<string, number> = buildMarkOrder(this.schemaRegistry);
 			const htmlParts: string[] = [];
+			const multiBlock: boolean = fromIdx !== toIdx;
 			for (let i = fromIdx; i <= toIdx; i++) {
 				const bid = blockOrder[i];
 				if (!bid) continue;
@@ -197,7 +199,12 @@ export class ClipboardHandler {
 
 				const start = i === fromIdx ? range.from.offset : 0;
 				const end = i === toIdx ? range.to.offset : getBlockLength(block);
-				htmlParts.push(this.serializeBlockRangeToHTML(block, start, end, markOrder));
+				const inlineHTML: string = this.serializeBlockRangeToHTML(block, start, end, markOrder);
+				if (multiBlock) {
+					htmlParts.push(`<p>${inlineHTML}</p>`);
+				} else {
+					htmlParts.push(inlineHTML);
+				}
 			}
 			clipboardData.setData('text/html', htmlParts.join(''));
 		}
