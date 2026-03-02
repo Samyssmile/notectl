@@ -46,7 +46,8 @@ When set to `Locale.BROWSER` (the default), the editor detects the language from
 Every plugin that renders user-facing text accepts an optional `locale` config parameter. This allows overriding the global locale for a specific plugin.
 
 ```ts
-import { createEditor, Locale, TablePlugin, loadTableLocale } from '@notectl/core';
+import { createEditor, Locale } from '@notectl/core';
+import { TablePlugin, loadTableLocale } from '@notectl/core/plugins/table';
 
 // Load French locale for the table plugin
 const tableFr = await loadTableLocale('fr');
@@ -73,7 +74,7 @@ Plugins resolve their locale in this order:
 Every plugin exports an async `loadXxxLocale(lang)` function that loads translation data on demand. This keeps locale data out of the main bundle — only the requested language is fetched at runtime.
 
 ```ts
-import { loadTableLocale } from '@notectl/core';
+import { loadTableLocale } from '@notectl/core/plugins/table';
 
 // Load German table strings (async, code-split)
 const deLocale = await loadTableLocale('de');

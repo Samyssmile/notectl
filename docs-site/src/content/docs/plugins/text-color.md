@@ -10,7 +10,7 @@ The `TextColorPlugin` provides a color picker popup for changing text color, wit
 ## Usage
 
 ```ts
-import { TextColorPlugin } from '@notectl/core';
+import { TextColorPlugin } from '@notectl/core/plugins/text-color';
 
 new TextColorPlugin()
 // or with custom colors:

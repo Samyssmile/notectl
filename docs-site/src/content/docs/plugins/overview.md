@@ -98,7 +98,8 @@ Plugins register through the `PluginContext`:
 The fastest way to get all plugins is with `createFullPreset()`:
 
 ```ts
-import { createEditor, createFullPreset } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { createFullPreset } from '@notectl/core/presets';
 
 const editor = await createEditor({
   ...createFullPreset(),

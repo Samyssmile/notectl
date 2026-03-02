@@ -10,7 +10,7 @@ The `LinkPlugin` adds hyperlink support with a toolbar button that opens a URL i
 ## Usage
 
 ```ts
-import { LinkPlugin } from '@notectl/core';
+import { LinkPlugin } from '@notectl/core/plugins/link';
 
 new LinkPlugin()
 // or:

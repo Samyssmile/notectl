@@ -8,7 +8,7 @@ The `TextDirectionPlugin` adds full RTL (right-to-left) language support with bl
 ## Usage
 
 ```ts
-import { TextDirectionPlugin } from '@notectl/core';
+import { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
 
 new TextDirectionPlugin()
 // or customize directable block types:

@@ -12,7 +12,8 @@ By default, `readonly: true` blocks **all** interaction, including checkbox togg
 Pass `interactiveCheckboxes: true` to the `ListPlugin`:
 
 ```ts
-import { createEditor, ListPlugin } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { ListPlugin } from '@notectl/core/plugins/list';
 
 const editor = await createEditor({
   readonly: true,

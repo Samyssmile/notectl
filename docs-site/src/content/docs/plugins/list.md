@@ -10,7 +10,7 @@ The `ListPlugin` provides bullet lists, ordered (numbered) lists, and checklists
 ## Usage
 
 ```ts
-import { ListPlugin } from '@notectl/core';
+import { ListPlugin } from '@notectl/core/plugins/list';
 
 new ListPlugin()
 // or with custom config:
@@ -66,7 +66,7 @@ See the [Read-Only Checklist guide](/notectl/guides/readonly-checklist/) for a f
 Each plugin resolves its locale automatically from the editor's global `locale` setting. To override independently:
 
 ```ts
-import { ListPlugin, loadListLocale } from '@notectl/core';
+import { ListPlugin, loadListLocale } from '@notectl/core/plugins/list';
 
 const listDe = await loadListLocale('de');
 new ListPlugin({ locale: listDe })

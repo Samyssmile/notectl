@@ -8,7 +8,7 @@ The `HighlightPlugin` provides text highlighting (background color) with a color
 ## Usage
 
 ```ts
-import { HighlightPlugin } from '@notectl/core';
+import { HighlightPlugin } from '@notectl/core/plugins/highlight';
 
 new HighlightPlugin()
 // or with custom colors:

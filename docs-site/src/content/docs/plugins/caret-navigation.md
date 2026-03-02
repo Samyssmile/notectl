@@ -8,7 +8,8 @@ The **CaretNavigationPlugin** provides platform-aware keyboard navigation for al
 ## Usage
 
 ```ts
-import { createEditor, CaretNavigationPlugin } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { CaretNavigationPlugin } from '@notectl/core/plugins/caret-navigation';
 
 const editor = await createEditor({
   plugins: [new CaretNavigationPlugin()],

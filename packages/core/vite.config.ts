@@ -26,6 +26,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/gap-cursor': resolve(__dirname, 'src/plugins/gap-cursor/index.ts'),
 	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
 	'plugins/print': resolve(__dirname, 'src/plugins/print/index.ts'),
+	'plugins/text-direction': resolve(__dirname, 'src/plugins/text-direction/index.ts'),
 };
 
 const analyzePlugins: VitePlugin[] = [];

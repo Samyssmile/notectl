@@ -10,7 +10,7 @@ The `FontSizePlugin` provides a font size selector with preset sizes, custom inp
 ## Usage
 
 ```ts
-import { FontSizePlugin } from '@notectl/core';
+import { FontSizePlugin } from '@notectl/core/plugins/font-size';
 
 new FontSizePlugin()
 // or with custom config:
