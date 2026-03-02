@@ -5,6 +5,7 @@ import { createNodeSelection, isGapCursor, isNodeSelection } from '../model/Sele
 import { blockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { stateBuilder } from '../test/TestUtils.js';
+import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
 import { KeymapRegistry } from './KeymapRegistry.js';
@@ -520,6 +521,7 @@ describe('KeyboardHandler: GapCursor key handling', () => {
 			},
 			undo: vi.fn(),
 			redo: vi.fn(),
+			navigateFromGapCursor,
 		});
 
 		return { element, handler, dispatched, getState: () => currentState };
@@ -651,6 +653,7 @@ describe('KeyboardHandler: GapCursor arrow fallback (without plugin)', () => {
 			},
 			undo: vi.fn(),
 			redo: vi.fn(),
+			navigateFromGapCursor,
 		});
 
 		element.dispatchEvent(makeKeyEvent('ArrowRight'));
@@ -684,6 +687,7 @@ describe('KeyboardHandler: GapCursor arrow fallback (without plugin)', () => {
 			},
 			undo: vi.fn(),
 			redo: vi.fn(),
+			navigateFromGapCursor,
 		});
 
 		element.dispatchEvent(makeKeyEvent('ArrowLeft'));
@@ -715,10 +719,41 @@ describe('KeyboardHandler: GapCursor arrow fallback (without plugin)', () => {
 			},
 			undo: vi.fn(),
 			redo: vi.fn(),
+			navigateFromGapCursor,
 		});
 
 		element.dispatchEvent(makeKeyEvent('ArrowLeft'));
 		// No navigation possible — should be no-op
+		expect(dispatched).toHaveLength(0);
+		handler.destroy();
+	});
+
+	it('arrow on GapCursor without navigateFromGapCursor callback is a no-op', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('World', 'b2')
+			.gapCursor('hr1', 'before')
+			.schema(
+				['paragraph', 'horizontal_rule'],
+				[],
+				makeGetNodeSpec(hrSpec) as Schema['getNodeSpec'],
+			)
+			.build();
+
+		const dispatched: unknown[] = [];
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+			},
+			undo: vi.fn(),
+			redo: vi.fn(),
+			// deliberately omit navigateFromGapCursor
+		});
+
+		element.dispatchEvent(makeKeyEvent('ArrowRight'));
 		expect(dispatched).toHaveLength(0);
 		handler.destroy();
 	});
