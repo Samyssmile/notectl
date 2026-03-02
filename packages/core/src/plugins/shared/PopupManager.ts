@@ -4,7 +4,7 @@
  * for submenus/nested popups.
  */
 
-import { isRtlContext } from '../../view/Platform.js';
+import { isRtlContext } from '../../platform/Platform.js';
 import { ServiceKey } from '../Plugin.js';
 import { type PopupPosition, appendToRoot, positionPopup } from './PopupPositioning.js';
 

@@ -7,6 +7,7 @@
 
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import { getTextDirection } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import {
@@ -15,7 +16,6 @@ import {
 	setStyleProperty,
 } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
-import { getTextDirection } from '../../view/Platform.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import type { ImageKeymap, ImagePluginConfig, UploadState } from './ImageUpload.js';
 

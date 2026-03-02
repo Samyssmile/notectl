@@ -17,9 +17,9 @@ import {
 import { getBlockTypeLabel } from '../../editor/Announcer.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import { getTextDirection, isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { getTextDirection, isMac } from '../../view/Platform.js';
 import {
 	extendLineDown,
 	extendLineUp,

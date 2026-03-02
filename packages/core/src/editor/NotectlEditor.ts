@@ -6,11 +6,13 @@ import { selectAll } from '../commands/Commands.js';
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
+import { InputManager } from '../input/InputManager.js';
 import { type Document, getBlockText } from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
 import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
+import { getTextDirection } from '../platform/Platform.js';
 import type {
 	EventKey,
 	Plugin,
@@ -36,6 +38,7 @@ import {
 	registerStyleRoot,
 	unregisterStyleRoot,
 } from '../style/StyleRuntime.js';
+import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
 import { registerBuiltinSpecs } from './BuiltinSpecs.js';
@@ -108,6 +111,7 @@ type EventCallback<T> = (payload: T) => void;
 
 export class NotectlEditor extends HTMLElement {
 	private view: EditorView | null = null;
+	private inputManager: InputManager | null = null;
 	private pluginManager: PluginManager | null = null;
 	private contentElement: HTMLElement | null = null;
 	private editorWrapper: HTMLElement | null = null;
@@ -294,11 +298,30 @@ export class NotectlEditor extends HTMLElement {
 			onBeforeReady: () => {
 				const schema = schemaFromRegistry(pluginMgr.schemaRegistry);
 				const state = EditorState.create({ schema });
+
+				// Create InputManager first — uses lazy view refs that resolve at call-time
+				this.inputManager = new InputManager(contentEl, {
+					getState: () => {
+						if (!this.view) throw new Error('View not initialized');
+						return this.view.getState();
+					},
+					dispatch: (tr) => this.dispatch(tr),
+					syncSelection: () => this.view?.syncSelection(),
+					undo: () => this.view?.undo(),
+					redo: () => this.view?.redo(),
+					schemaRegistry: pluginMgr.schemaRegistry,
+					keymapRegistry: pluginMgr.keymapRegistry,
+					inputRuleRegistry: pluginMgr.inputRuleRegistry,
+					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
+					isReadOnly: () => this.config.readonly ?? false,
+					getTextDirection,
+					navigateFromGapCursor,
+				});
+
 				this.view = new EditorView(contentEl, {
 					state,
 					schemaRegistry: pluginMgr.schemaRegistry,
 					keymapRegistry: pluginMgr.keymapRegistry,
-					inputRuleRegistry: pluginMgr.inputRuleRegistry,
 					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
 					nodeViewRegistry: pluginMgr.nodeViewRegistry,
 					maxHistoryDepth: this.config.maxHistoryDepth,
@@ -308,6 +331,7 @@ export class NotectlEditor extends HTMLElement {
 						this.onStateChange(oldState, newState, tr);
 					},
 					isReadOnly: () => this.config.readonly ?? false,
+					compositionState: this.inputManager.compositionTracker,
 				});
 				this.updateEmptyState();
 
@@ -591,6 +615,8 @@ export class NotectlEditor extends HTMLElement {
 		this.teardownStyleRuntime();
 		this.themeController?.destroy();
 		this.themeController = null;
+		this.inputManager?.destroy();
+		this.inputManager = null;
 		this.view?.destroy();
 		const pluginTeardown = this.pluginManager?.destroy() ?? Promise.resolve();
 		this.view = null;

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { registerBuiltinSpecs } from '../../editor/BuiltinSpecs.js';
+import { resetPlatformCache } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { stateBuilder } from '../../test/TestUtils.js';
-import { resetPlatformCache } from '../../view/Platform.js';
 import { PluginManager } from '../PluginManager.js';
 import { TextDirectionPlugin } from './TextDirectionPlugin.js';
 

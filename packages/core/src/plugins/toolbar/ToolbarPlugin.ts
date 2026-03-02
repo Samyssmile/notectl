@@ -7,9 +7,9 @@
 
 import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
+import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { isRtlContext } from '../../view/Platform.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
 import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';

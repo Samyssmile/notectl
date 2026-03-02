@@ -4,8 +4,8 @@
  * TableBorderColor.
  */
 
+import { isRtlContext } from '../../platform/Platform.js';
 import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
-import { isRtlContext } from '../../view/Platform.js';
 import { applyRovingTabindex, navigateGrid } from '../toolbar/ToolbarKeyboardNav.js';
 import { getColorName, isLightColor } from './ColorNames.js';
 
