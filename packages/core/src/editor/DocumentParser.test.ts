@@ -722,6 +722,157 @@ describe('full round-trip: serializeDocumentToCSS → parseHTMLToDocument', () =
 	});
 });
 
+describe('table HTML parsing', () => {
+	/** Creates a registry that allows table-related tags. */
+	function createTableRegistry(): SchemaRegistry {
+		return {
+			getNodeSpec: () => undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getBlockParseRules: () => [],
+			getMarkParseRules: () => [],
+			getInlineParseRules: () => [],
+			getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'thead', 'tr', 'td', 'th'],
+			getAllowedAttrs: () => ['style', 'dir'],
+		} as unknown as SchemaRegistry;
+	}
+
+	it('parses a simple 2x2 table', () => {
+		const registry = createTableRegistry();
+		const html = '<table><tr><td>A1</td><td>B1</td></tr><tr><td>A2</td><td>B2</td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		expect(doc.children).toHaveLength(1);
+		const table = doc.children[0];
+		if (!table) return;
+		expect(table.type).toBe('table');
+		expect(table.children).toHaveLength(2);
+
+		// First row
+		const row0 = table.children[0];
+		if (!row0 || !('type' in row0)) return;
+		expect(row0.type).toBe('table_row');
+		expect(row0.children).toHaveLength(2);
+
+		// Cell A1
+		const cell00 = row0.children[0];
+		if (!cell00 || !('type' in cell00)) return;
+		expect(cell00.type).toBe('table_cell');
+		expect(cell00.children).toHaveLength(1);
+		const para00 = cell00.children[0];
+		if (!para00 || !('type' in para00)) return;
+		expect(para00.type).toBe('paragraph');
+		expect(getBlockText(para00)).toBe('A1');
+
+		// Cell B1
+		const cell01 = row0.children[1];
+		if (!cell01 || !('type' in cell01)) return;
+		expect(getBlockText(cell01.children[0] as never)).toBe('B1');
+	});
+
+	it('parses table with tbody wrapper', () => {
+		const registry = createTableRegistry();
+		const html = '<table><tbody><tr><td>cell</td></tr></tbody></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		expect(doc.children).toHaveLength(1);
+		const table = doc.children[0];
+		if (!table) return;
+		expect(table.type).toBe('table');
+		expect(table.children).toHaveLength(1);
+		expect(table.children[0]?.type).toBe('table_row');
+	});
+
+	it('parses table alongside paragraphs', () => {
+		const registry = createTableRegistry();
+		const html = '<p>Before</p><table><tr><td>Cell</td></tr></table><p>After</p>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		expect(doc.children).toHaveLength(3);
+		const first = doc.children[0];
+		const third = doc.children[2];
+		if (!first || !third) {
+			expect.unreachable('should have 3 children');
+			return;
+		}
+		expect(first.type).toBe('paragraph');
+		expect(getBlockText(first)).toBe('Before');
+		expect(doc.children[1]?.type).toBe('table');
+		expect(third.type).toBe('paragraph');
+		expect(getBlockText(third)).toBe('After');
+	});
+
+	it('produces empty paragraph for empty cells', () => {
+		const registry = createTableRegistry();
+		const html = '<table><tr><td></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+		expect(cell.children).toHaveLength(1);
+		expect(cell.children[0]?.type).toBe('paragraph');
+	});
+
+	it('preserves borderColor from --ntbl-bc CSS variable', () => {
+		const registry = createTableRegistry();
+		const html =
+			'<table style="border-collapse: collapse; width: 100%; --ntbl-bc: #f1c232">' +
+			'<tr><td>A</td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		expect(table.attrs?.borderColor).toBe('#f1c232');
+	});
+
+	it('converts transparent --ntbl-bc to borderColor "none"', () => {
+		const registry = createTableRegistry();
+		const html = '<table style="--ntbl-bc: transparent"><tr><td>A</td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		expect(table.attrs?.borderColor).toBe('none');
+	});
+
+	it('does not set borderColor when --ntbl-bc is absent', () => {
+		const registry = createTableRegistry();
+		const html = '<table style="border-collapse: collapse"><tr><td>A</td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		expect(table.attrs).toBeUndefined();
+	});
+
+	it('preserves colspan and rowspan on table cells', () => {
+		const registry = {
+			...createTableRegistry(),
+			getAllowedAttrs: () => ['style', 'dir', 'colspan', 'rowspan'],
+		} as unknown as SchemaRegistry;
+		const html = '<table><tr><td colspan="2" rowspan="3">Wide</td><td>B</td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell0 = row.children[0];
+		if (!cell0 || !('type' in cell0)) return;
+		expect(cell0.attrs?.colspan).toBe(2);
+		expect(cell0.attrs?.rowspan).toBe(3);
+
+		const cell1 = row.children[1];
+		if (!cell1 || !('type' in cell1)) return;
+		expect(cell1.attrs).toBeUndefined();
+	});
+});
+
 /** Creates a registry for list direction parsing tests. */
 function createListParseRegistry(): SchemaRegistry {
 	const nodeSpecs = new Map<

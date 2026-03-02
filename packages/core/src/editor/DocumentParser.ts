@@ -70,6 +70,12 @@ export function parseHTMLToDocument(
 				continue;
 			}
 
+			// Tables produce nested block structure: table > table_row > table_cell > paragraph
+			if (tag === 'table') {
+				parseTableElement(el, blocks, registry);
+				continue;
+			}
+
 			// Try block parse rules
 			const match = matchBlockParseRule(el, blockRules);
 			if (match) {
@@ -176,6 +182,152 @@ function parseListElement(
 			parseListElement(child, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
 		}
 	}
+}
+
+/**
+ * Parses a `<table>` element into nested block structure:
+ * table > table_row > table_cell > paragraph.
+ * Handles `<thead>`, `<tbody>`, `<tfoot>` transparently.
+ */
+function parseTableElement(tableEl: Element, blocks: BlockNode[], registry?: SchemaRegistry): void {
+	const rows: BlockNode[] = [];
+
+	// Collect <tr> elements, handling <thead>/<tbody>/<tfoot> wrappers
+	const rowElements: Element[] = collectTableRows(tableEl);
+
+	for (const trEl of rowElements) {
+		const cells: BlockNode[] = [];
+
+		for (const cellChild of Array.from(trEl.children)) {
+			const cellTag: string = cellChild.tagName.toLowerCase();
+			if (cellTag !== 'td' && cellTag !== 'th') continue;
+
+			const cellEl: HTMLElement = cellChild as HTMLElement;
+			const cellContent: BlockNode[] = parseTableCellContent(cellEl, registry);
+			const cellAttrs: Record<string, string | number | boolean> = {};
+			extractCellSpanAttrs(cellEl, cellAttrs);
+			const cellBlock: BlockNode = createBlockNode(
+				nodeType('table_cell'),
+				cellContent,
+				undefined,
+				Object.keys(cellAttrs).length > 0 ? cellAttrs : undefined,
+			);
+			cells.push(cellBlock);
+		}
+
+		if (cells.length > 0) {
+			rows.push(createBlockNode(nodeType('table_row'), cells));
+		}
+	}
+
+	if (rows.length > 0) {
+		const tableAttrs: Record<string, string | number | boolean> = {};
+		extractTableBorderColor(tableEl as HTMLElement, tableAttrs);
+		blocks.push(
+			createBlockNode(
+				nodeType('table'),
+				rows,
+				undefined,
+				Object.keys(tableAttrs).length > 0 ? tableAttrs : undefined,
+			),
+		);
+	}
+}
+
+/** Collects `<tr>` elements from a table, traversing through `<thead>`/`<tbody>`/`<tfoot>`. */
+function collectTableRows(tableEl: Element): Element[] {
+	const rows: Element[] = [];
+	for (const child of Array.from(tableEl.children)) {
+		const tag: string = child.tagName.toLowerCase();
+		if (tag === 'tr') {
+			rows.push(child);
+		} else if (tag === 'thead' || tag === 'tbody' || tag === 'tfoot') {
+			for (const nested of Array.from(child.children)) {
+				if (nested.tagName.toLowerCase() === 'tr') {
+					rows.push(nested);
+				}
+			}
+		}
+	}
+	return rows;
+}
+
+/** Regex to extract the `--ntbl-bc` CSS custom property from inline styles. */
+const BORDER_COLOR_RE = /--ntbl-bc:\s*(#[0-9a-fA-F]{3,8}|transparent)/;
+
+/** Extracts `borderColor` from a table element's inline style (`--ntbl-bc` CSS variable). */
+function extractTableBorderColor(
+	el: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+): void {
+	const style: string = el.getAttribute('style') ?? '';
+	const match: RegExpMatchArray | null = BORDER_COLOR_RE.exec(style);
+	if (!match?.[1]) return;
+	attrs.borderColor = match[1] === 'transparent' ? 'none' : match[1];
+}
+
+/** Extracts `colspan` and `rowspan` attributes from a table cell element. */
+function extractCellSpanAttrs(
+	el: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+): void {
+	const colspan: string | null = el.getAttribute('colspan');
+	if (colspan) {
+		const value: number = Number.parseInt(colspan, 10);
+		if (value > 1) attrs.colspan = value;
+	}
+	const rowspan: string | null = el.getAttribute('rowspan');
+	if (rowspan) {
+		const value: number = Number.parseInt(rowspan, 10);
+		if (value > 1) attrs.rowspan = value;
+	}
+}
+
+/** Parses a table cell's content into paragraph blocks. */
+function parseTableCellContent(cellEl: HTMLElement, registry?: SchemaRegistry): BlockNode[] {
+	const cellBlocks: BlockNode[] = [];
+
+	// Check for block-level children (paragraphs, etc.)
+	let hasBlockChildren = false;
+	for (const child of Array.from(cellEl.children)) {
+		const tag: string = child.tagName.toLowerCase();
+		if (tag === 'p' || tag === 'div' || tag === 'h1' || tag === 'h2' || tag === 'h3') {
+			hasBlockChildren = true;
+			break;
+		}
+	}
+
+	if (hasBlockChildren) {
+		for (const child of Array.from(cellEl.childNodes)) {
+			if (child.nodeType === Node.ELEMENT_NODE) {
+				const el = child as HTMLElement;
+				const inlineContent = parseElementToInlineContent(el, registry);
+				const attrs: Record<string, string | number | boolean> = {};
+				extractAlignment(el, attrs);
+				extractDirection(el, attrs);
+				cellBlocks.push(
+					createBlockNode(
+						nodeType('paragraph'),
+						inlineContent,
+						undefined,
+						Object.keys(attrs).length > 0 ? attrs : undefined,
+					),
+				);
+			} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+				cellBlocks.push(
+					createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]),
+				);
+			}
+		}
+	}
+
+	// No block children or empty: treat entire cell content as one paragraph
+	if (cellBlocks.length === 0) {
+		const inlineContent = parseElementToInlineContent(cellEl, registry);
+		cellBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));
+	}
+
+	return cellBlocks;
 }
 
 /**

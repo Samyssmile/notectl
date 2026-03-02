@@ -4,8 +4,13 @@
  */
 
 import DOMPurify from 'dompurify';
-import { insertTextCommand } from '../commands/Commands.js';
+import {
+	addDeleteSelectionSteps,
+	findLastLeafBlockId,
+	insertTextCommand,
+} from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
+import { parseHTMLToDocument } from '../editor/DocumentParser.js';
 import { plainTextSlice } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
@@ -24,8 +29,10 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
+	isCollapsed,
 	isGapCursor,
 	isNodeSelection,
+	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
@@ -34,6 +41,27 @@ import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
+
+/** Recursively clones a block tree, assigning new IDs to all block nodes. */
+function cloneBlockWithNewIds(block: BlockNode, newId: BlockId): BlockNode {
+	const children = block.children.map((child) => {
+		if (isBlockNode(child)) {
+			return cloneBlockWithNewIds(child, generateBlockId());
+		}
+		return child;
+	});
+	return createBlockNode(block.type, children, newId, block.attrs);
+}
+
+function findBlockRecursive(block: BlockNode, blockId: BlockId): BlockNode | undefined {
+	if (block.id === blockId) return block;
+	for (const child of block.children) {
+		if (!isBlockNode(child)) continue;
+		const found: BlockNode | undefined = findBlockRecursive(child, blockId);
+		if (found) return found;
+	}
+	return undefined;
+}
 
 /**
  * Validates incoming attributes against the declared AttrSpec.
@@ -148,6 +176,13 @@ export class PasteHandler {
 			});
 
 			if (this.schemaRegistry) {
+				// Table HTML requires DocumentParser (nested block structure);
+				// HTMLParser → ContentSlice can only represent flat inline content.
+				if (this.containsTableHTML(sanitized)) {
+					this.handleTablePaste(sanitized, state);
+					return;
+				}
+
 				const schema = schemaFromRegistry(this.schemaRegistry);
 				const parser = new HTMLParser({ schema, schemaRegistry: this.schemaRegistry });
 				const template = document.createElement('template');
@@ -502,6 +537,84 @@ export class PasteHandler {
 		const richEl: Element | null = template.content.querySelector('[data-notectl-rich]');
 		if (!richEl) return undefined;
 		return richEl.getAttribute('data-notectl-rich') ?? undefined;
+	}
+
+	/** Checks whether sanitized HTML contains a `<table>` element. */
+	private containsTableHTML(html: string): boolean {
+		return /<table[\s>]/i.test(html);
+	}
+
+	/**
+	 * Handles paste of HTML containing tables.
+	 * Uses parseHTMLToDocument to create proper nested block structure,
+	 * then inserts blocks via the transaction builder.
+	 */
+	private handleTablePaste(html: string, state: EditorState): void {
+		if (!this.schemaRegistry) return;
+
+		const doc = parseHTMLToDocument(html, this.schemaRegistry);
+		if (doc.children.length === 0) return;
+
+		const sel = state.selection;
+		const builder = state.transaction('paste');
+
+		// Delete current selection if non-collapsed
+		let landingId: BlockId | undefined;
+		if (isTextSelection(sel) && !isCollapsed(sel)) {
+			landingId = addDeleteSelectionSteps(state, builder);
+		}
+
+		// Determine insert anchor
+		const anchorBlockId: BlockId =
+			landingId ??
+			(isNodeSelection(sel) ? sel.nodeId : isGapCursor(sel) ? sel.blockId : sel.anchor.blockId);
+
+		const path = findNodePath(state.doc, anchorBlockId);
+		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+
+		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
+			parentPath.length === 0
+				? state.doc.children
+				: (() => {
+						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
+						return parent ? parent.children : [];
+					})();
+
+		const anchorIndex: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
+		if (anchorIndex < 0) return;
+
+		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
+		const isAnchorEmpty: boolean =
+			anchorBlock !== undefined &&
+			anchorBlock.type === 'paragraph' &&
+			getBlockText(anchorBlock) === '';
+
+		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
+		let insertIndex: number = anchorIndex + insertOffset;
+		let lastBlockId: BlockId | undefined;
+		let lastClonedRoot: BlockNode | undefined;
+
+		for (const block of doc.children) {
+			const newId: BlockId = generateBlockId();
+			const cloned: BlockNode = cloneBlockWithNewIds(block, newId);
+			builder.insertNode(parentPath, insertIndex, cloned);
+			insertIndex++;
+			lastBlockId = findLastLeafBlockId(cloned);
+			lastClonedRoot = cloned;
+		}
+
+		// Remove empty anchor paragraph
+		if (isAnchorEmpty && !isGapCursor(sel)) {
+			builder.removeNode(parentPath, anchorIndex);
+		}
+
+		if (lastBlockId && lastClonedRoot) {
+			const lastBlock = findBlockRecursive(lastClonedRoot, lastBlockId);
+			const len: number = lastBlock ? getBlockText(lastBlock).length : 0;
+			builder.setSelection(createCollapsedSelection(lastBlockId, len));
+		}
+
+		this.dispatch(builder.build());
 	}
 
 	private extractTextFromHTML(html: string): string {
