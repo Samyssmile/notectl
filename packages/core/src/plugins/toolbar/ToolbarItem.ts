@@ -2,8 +2,8 @@
  * ToolbarItem: describes a toolbar button registered by a plugin.
  */
 
+import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { isMac } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
 

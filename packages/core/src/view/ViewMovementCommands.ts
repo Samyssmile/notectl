@@ -6,11 +6,11 @@
  * (e.g. in happy-dom test environments).
  */
 
-import { findWordBoundaryBackward, findWordBoundaryForward } from '../commands/Commands.js';
-import { moveToBlockEnd, moveToBlockStart } from '../commands/MovementCommands.js';
 import { getBlockLength, getContentAtOffset } from '../model/Document.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { findWordBoundaryBackward, findWordBoundaryForward } from '../model/WordBoundary.js';
+import { moveToBlockEnd, moveToBlockStart } from '../state/BlockBoundaryMovement.js';
 import type { EditorState } from '../state/EditorState.js';
 import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
 import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';

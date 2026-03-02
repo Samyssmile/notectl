@@ -4,7 +4,7 @@
  * and custom popups). Delegates lifecycle to PopupManager.
  */
 
-import { isRtlContext } from '../../view/Platform.js';
+import { isRtlContext } from '../../platform/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';

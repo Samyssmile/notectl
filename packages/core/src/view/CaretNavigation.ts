@@ -20,7 +20,7 @@ const BLOCK_EDGE_INSET_PX = 2;
 
 /** Minimum vertical movement (pixels) for a Selection.modify probe to be considered a real move. */
 const VERTICAL_MOVEMENT_THRESHOLD_PX = 1;
-import { getTextDirection } from './Platform.js';
+import { getTextDirection } from '../platform/Platform.js';
 import { domPositionToState, getSelection } from './SelectionSync.js';
 
 export type CaretDirection = 'left' | 'right' | 'up' | 'down';

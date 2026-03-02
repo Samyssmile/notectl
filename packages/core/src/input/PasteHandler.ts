@@ -14,17 +14,11 @@ import { plainTextSlice } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
-	type Mark,
-	type TextNode,
 	createBlockNode,
-	createTextNode,
+	generateBlockId,
 	getBlockText,
-	isBlockNode,
 } from '../model/Document.js';
-import { generateBlockId } from '../model/Document.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
-import { findNodePath } from '../model/NodeResolver.js';
-import type { AttrSpec } from '../model/NodeSpec.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -39,67 +33,29 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
 import type { EditorState } from '../state/EditorState.js';
+import {
+	type InsertionContext,
+	cloneBlockWithNewIds,
+	createBlockFromRichData,
+	findBlockRecursive,
+	findTableCellAncestor,
+	resolveCellInsertionContext,
+	resolveRootInsertionContext,
+	sanitizeAttrs,
+	validateRichBlockData,
+} from './BlockInsertion.js';
 import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import { HTMLParser } from './HTMLParser.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import { type RichBlockData, type RichSegment, consumeRichClipboard } from './InternalClipboard.js';
+import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
 
-/** Recursively clones a block tree, assigning new IDs to all block nodes. */
-function cloneBlockWithNewIds(block: BlockNode, newId: BlockId): BlockNode {
-	const children = block.children.map((child) => {
-		if (isBlockNode(child)) {
-			return cloneBlockWithNewIds(child, generateBlockId());
-		}
-		return child;
-	});
-	return createBlockNode(block.type, children, newId, block.attrs);
-}
-
-function findBlockRecursive(block: BlockNode, blockId: BlockId): BlockNode | undefined {
-	if (block.id === blockId) return block;
-	for (const child of block.children) {
-		if (!isBlockNode(child)) continue;
-		const found: BlockNode | undefined = findBlockRecursive(child, blockId);
-		if (found) return found;
-	}
-	return undefined;
-}
-
-/**
- * Validates incoming attributes against the declared AttrSpec.
- * Only keys declared in the spec are kept; non-primitive values fall back to defaults.
- */
-function sanitizeAttrs(
-	incoming: Record<string, unknown> | undefined,
-	specAttrs: Readonly<Record<string, AttrSpec>> | undefined,
-): Record<string, string | number | boolean> | undefined {
-	if (!specAttrs) return undefined;
-
-	const result: Record<string, string | number | boolean> = {};
-	let hasKeys = false;
-
-	for (const key of Object.keys(specAttrs)) {
-		const spec: AttrSpec = specAttrs[key] as AttrSpec;
-		const raw: unknown = incoming?.[key];
-
-		if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-			result[key] = raw;
-		} else if (spec.default !== undefined) {
-			result[key] = spec.default;
-		}
-		if (key in result) hasKeys = true;
-	}
-
-	return hasKeys ? result : undefined;
-}
-
 export interface PasteHandlerOptions {
-	getState: GetStateFn;
-	dispatch: DispatchFn;
-	schemaRegistry?: SchemaRegistry;
-	fileHandlerRegistry?: FileHandlerRegistry;
-	isReadOnly?: () => boolean;
+	readonly getState: GetStateFn;
+	readonly dispatch: DispatchFn;
+	readonly schemaRegistry?: SchemaRegistry;
+	readonly fileHandlerRegistry?: FileHandlerRegistry;
+	readonly isReadOnly?: () => boolean;
 }
 
 export class PasteHandler {
@@ -131,37 +87,32 @@ export class PasteHandler {
 		const clipboardData = e.clipboardData;
 		if (!clipboardData) return;
 
-		// Check for internal block paste (from ClipboardHandler)
 		const blockJson: string = clipboardData.getData('application/x-notectl-block');
 		if (blockJson) {
 			this.handleBlockPaste(blockJson);
 			return;
 		}
 
-		// Check for file paste first
 		if (this.handleFilePaste(clipboardData)) return;
 
-		// Check in-memory rich clipboard (block structure from our own copy)
 		const plainText: string = clipboardData.getData('text/plain');
 		if (plainText) {
 			const richBlocks: readonly RichBlockData[] | undefined = consumeRichClipboard(plainText);
-			if (richBlocks && this.handleRichPaste(richBlocks)) {
-				return;
-			}
+			if (richBlocks && this.handleRichPaste(richBlocks)) return;
 		}
 
+		this.handleHTMLOrTextPaste(clipboardData, plainText);
+	}
+
+	/** Handles HTML or plain text paste from system clipboard. */
+	private handleHTMLOrTextPaste(clipboardData: DataTransfer, plainText: string): void {
 		const state = this.getState();
-
-		// Try HTML first, fall back to plain text
 		const html = clipboardData.getData('text/html');
-		if (html) {
-			// Check for embedded rich block data (from programmatic paste)
-			const richJson: string | undefined = this.extractRichData(html);
-			if (richJson && this.handleRichPasteFromJson(richJson)) {
-				return;
-			}
 
-			// Normalize legacy elements (e.g. <font>) before sanitization
+		if (html) {
+			const richJson: string | undefined = this.extractRichData(html);
+			if (richJson && this.handleRichPasteFromJson(richJson)) return;
+
 			const preTemplate: HTMLTemplateElement = document.createElement('template');
 			preTemplate.innerHTML = html;
 			normalizeLegacyHTML(preTemplate.content);
@@ -183,32 +134,28 @@ export class PasteHandler {
 				const template: HTMLTemplateElement = document.createElement('template');
 				template.innerHTML = sanitized;
 
-				// Tables and void blocks (images, HR) require the DocumentParser
-				// because ContentSlice can only represent flat inline content.
 				if (this.requiresDocumentParser(sanitized, template.content)) {
 					this.handleDocumentPaste(sanitized, state);
 					return;
 				}
 
 				const schema = schemaFromRegistry(this.schemaRegistry);
-				const parser = new HTMLParser({ schema, schemaRegistry: this.schemaRegistry });
+				const parser = new HTMLParser({
+					schema,
+					schemaRegistry: this.schemaRegistry,
+				});
 				const slice = parser.parse(template.content);
-				const tr = pasteSlice(state, slice);
-				this.dispatch(tr);
+				this.dispatch(pasteSlice(state, slice));
 			} else {
 				const text = this.extractTextFromHTML(sanitized);
-				if (text) {
-					const tr = insertTextCommand(state, text, 'paste');
-					this.dispatch(tr);
-				}
+				if (text) this.dispatch(insertTextCommand(state, text, 'paste'));
 			}
 			return;
 		}
 
 		if (plainText) {
 			const slice = plainTextSlice(plainText);
-			const tr = pasteSlice(this.getState(), slice);
-			this.dispatch(tr);
+			this.dispatch(pasteSlice(this.getState(), slice));
 		}
 	}
 
@@ -224,14 +171,11 @@ export class PasteHandler {
 		const typeName: string | undefined = parsed.type;
 		if (!typeName) return;
 
-		// Validate that this type is known (if we have a registry)
 		const spec = this.schemaRegistry?.getNodeSpec(typeName);
 		if (this.schemaRegistry && !spec) return;
 
 		const state = this.getState();
 		const sel = state.selection;
-
-		// Find anchor block to insert after
 		const anchorBlockId: BlockId = isNodeSelection(sel)
 			? sel.nodeId
 			: isGapCursor(sel)
@@ -249,44 +193,29 @@ export class PasteHandler {
 			attrs,
 		);
 
-		// Check if we're inside a table cell — insert as child of cell
-		const cellId: BlockId | undefined = this.findTableCellAncestor(state, anchorBlockId);
+		// Table cell: insert as last child
+		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
 		if (cellId) {
-			const cellPath: BlockId[] | undefined = findNodePath(state.doc, cellId) as
-				| BlockId[]
-				| undefined;
-			if (!cellPath) return;
-
+			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
+			if (!ctx) return;
 			const cell: BlockNode | undefined = state.getBlock(cellId);
 			if (!cell) return;
 
 			const builder = state.transaction('paste');
-			builder.insertNode(cellPath, cell.children.length, newBlock);
-			builder.setSelection(createNodeSelection(newBlockId, [...cellPath, newBlockId]));
+			builder.insertNode(ctx.parentPath, cell.children.length, newBlock);
+			builder.setSelection(createNodeSelection(newBlockId, [...ctx.parentPath, newBlockId]));
 			this.dispatch(builder.build());
 			return;
 		}
 
-		// Default: insert after the anchor block at the same level
-		const path = findNodePath(state.doc, anchorBlockId);
-		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
-			parentPath.length === 0
-				? state.doc.children
-				: (() => {
-						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-						return parent ? parent.children : [];
-					})();
-
-		const index: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
-		if (index < 0) return;
+		// Root: insert after anchor
+		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
+		if (!ctx) return;
 
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
 		const builder = state.transaction('paste');
-		builder.insertNode(parentPath, index + insertOffset, newBlock);
-		builder.setSelection(createNodeSelection(newBlockId, [...parentPath, newBlockId]));
-
+		builder.insertNode(ctx.parentPath, ctx.anchorIndex + insertOffset, newBlock);
+		builder.setSelection(createNodeSelection(newBlockId, [...ctx.parentPath, newBlockId]));
 		this.dispatch(builder.build());
 	}
 
@@ -303,14 +232,12 @@ export class PasteHandler {
 	}
 
 	/**
-	 * Handles paste of rich block data (text selections that carry block structure).
-	 * Returns true if the paste was handled, false to fall through to plain-text paste.
+	 * Handles paste of rich block data (text selections carrying block structure).
+	 * Returns true if handled, false to fall through to plain-text paste.
 	 */
 	private handleRichPaste(blocks: readonly RichBlockData[]): boolean {
 		if (blocks.length === 0) return false;
 
-		// Use rich paste when there are multiple blocks (preserves paragraph breaks)
-		// or when any block has a structured type (list_item, heading, etc.)
 		const hasStructured: boolean = blocks.some(
 			(b) => b.type !== undefined && b.type !== 'paragraph',
 		);
@@ -319,7 +246,6 @@ export class PasteHandler {
 		let state = this.getState();
 		const sel = state.selection;
 
-		// Delete current selection if non-collapsed before inserting blocks
 		if (isTextSelection(sel) && !isCollapsed(sel)) {
 			const delBuilder = state.transaction('paste');
 			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, delBuilder);
@@ -327,7 +253,7 @@ export class PasteHandler {
 			this.dispatch(delTr);
 			state = state.apply(delTr);
 			if (landingId) {
-				return this.insertRichBlocksAfterDelete(blocks, state, landingId);
+				return this.resolveAndInsertRichBlocks(blocks, state, landingId);
 			}
 		}
 
@@ -337,151 +263,65 @@ export class PasteHandler {
 				? sel.blockId
 				: sel.anchor.blockId;
 
-		const cellId: BlockId | undefined = this.findTableCellAncestor(state, anchorBlockId);
-
-		if (cellId) {
-			return this.insertRichBlocksIntoCell(blocks, state, anchorBlockId, cellId);
-		}
-		return this.insertRichBlocksAtRoot(blocks, state, anchorBlockId);
+		return this.resolveAndInsertRichBlocks(blocks, state, anchorBlockId);
 	}
 
-	/** Inserts rich blocks using the landing block from a prior selection delete. */
-	private insertRichBlocksAfterDelete(
-		blocks: readonly RichBlockData[],
-		state: EditorState,
-		landingId: BlockId,
-	): boolean {
-		const cellId: BlockId | undefined = this.findTableCellAncestor(state, landingId);
-		if (cellId) {
-			return this.insertRichBlocksIntoCell(blocks, state, landingId, cellId);
-		}
-		return this.insertRichBlocksAtRoot(blocks, state, landingId);
-	}
-
-	/** Inserts rich blocks as children of a table cell. */
-	private insertRichBlocksIntoCell(
-		blocks: readonly RichBlockData[],
-		state: EditorState,
-		anchorBlockId: BlockId,
-		cellId: BlockId,
-	): boolean {
-		const cellPath: BlockId[] | undefined = findNodePath(state.doc, cellId) as
-			| BlockId[]
-			| undefined;
-		if (!cellPath) return false;
-
-		const cell: BlockNode | undefined = state.getBlock(cellId);
-		if (!cell) return false;
-
-		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
-		const anchorIndex: number = cell.children.findIndex(
-			(c) => isBlockNode(c) && c.id === anchorBlockId,
-		);
-		const anchorSpec = anchorBlock ? this.schemaRegistry?.getNodeSpec(anchorBlock.type) : undefined;
-		const isAnchorEmpty: boolean =
-			anchorBlock !== undefined && !anchorSpec?.isVoid && getBlockText(anchorBlock) === '';
-
-		let insertIndex: number = anchorIndex >= 0 ? anchorIndex + 1 : cell.children.length;
-		const builder = state.transaction('paste');
-		let lastBlockId: BlockId | undefined;
-		let lastTextLen = 0;
-
-		for (const raw of blocks) {
-			const blockData: RichBlockData | undefined = this.validateRichBlockData(raw);
-			if (!blockData) continue;
-
-			const newId: BlockId = generateBlockId();
-			const text: string = blockData.text ?? '';
-			const children = this.createChildrenFromRichBlock(blockData, text);
-			const attrs: BlockAttrs | undefined = blockData.attrs
-				? (blockData.attrs as BlockAttrs)
-				: undefined;
-
-			const newBlock: BlockNode = createBlockNode(
-				nodeType(blockData.type) as NodeTypeName,
-				children,
-				newId,
-				attrs,
-			);
-
-			builder.insertNode(cellPath, insertIndex, newBlock);
-			insertIndex++;
-			lastBlockId = newId;
-			lastTextLen = text.length;
-		}
-
-		// Remove the empty anchor paragraph (it is still at anchorIndex in the working doc)
-		if (isAnchorEmpty && anchorIndex >= 0) {
-			builder.removeNode(cellPath, anchorIndex);
-		}
-
-		if (lastBlockId) {
-			builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
-		}
-
-		this.dispatch(builder.build());
-		return true;
-	}
-
-	/** Inserts rich blocks after the anchor block at the root/parent level. */
-	private insertRichBlocksAtRoot(
+	/** Resolves insertion context (cell or root) and inserts rich blocks. */
+	private resolveAndInsertRichBlocks(
 		blocks: readonly RichBlockData[],
 		state: EditorState,
 		anchorBlockId: BlockId,
 	): boolean {
-		const path = findNodePath(state.doc, anchorBlockId);
-		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
-			parentPath.length === 0
-				? state.doc.children
-				: (() => {
-						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-						return parent ? parent.children : [];
-					})();
-
-		const anchorIndex: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
-		if (anchorIndex < 0) return false;
-
-		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
-		const anchorSpec = anchorBlock ? this.schemaRegistry?.getNodeSpec(anchorBlock.type) : undefined;
-		const isAnchorEmpty: boolean =
-			anchorBlock !== undefined && !anchorSpec?.isVoid && getBlockText(anchorBlock) === '';
-
 		const sel = state.selection;
+		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
+
+		if (cellId) {
+			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
+			if (!ctx) return false;
+			const cell: BlockNode | undefined = state.getBlock(cellId);
+			const startIndex: number =
+				ctx.anchorIndex >= 0 ? ctx.anchorIndex + 1 : (cell?.children.length ?? 0);
+			return this.insertRichBlocks(blocks, state, ctx, startIndex, true);
+		}
+
+		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
+		if (!ctx) return false;
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		let insertIndex: number = anchorIndex + insertOffset;
+		return this.insertRichBlocks(
+			blocks,
+			state,
+			ctx,
+			ctx.anchorIndex + insertOffset,
+			!isGapCursor(sel),
+		);
+	}
+
+	/** Inserts validated rich blocks at the resolved position. */
+	private insertRichBlocks(
+		blocks: readonly RichBlockData[],
+		state: EditorState,
+		context: InsertionContext,
+		startIndex: number,
+		removeEmptyAnchor: boolean,
+	): boolean {
 		const builder = state.transaction('paste');
+		let insertIndex: number = startIndex;
 		let lastBlockId: BlockId | undefined;
 		let lastTextLen = 0;
 
 		for (const raw of blocks) {
-			const blockData: RichBlockData | undefined = this.validateRichBlockData(raw);
+			const blockData = validateRichBlockData(raw, this.schemaRegistry);
 			if (!blockData) continue;
 
-			const newId: BlockId = generateBlockId();
-			const text: string = blockData.text ?? '';
-			const children = this.createChildrenFromRichBlock(blockData, text);
-			const attrs: BlockAttrs | undefined = blockData.attrs
-				? (blockData.attrs as BlockAttrs)
-				: undefined;
-
-			const newBlock: BlockNode = createBlockNode(
-				nodeType(blockData.type) as NodeTypeName,
-				children,
-				newId,
-				attrs,
-			);
-
-			builder.insertNode(parentPath, insertIndex, newBlock);
+			const newBlock: BlockNode = createBlockFromRichData(blockData);
+			builder.insertNode(context.parentPath, insertIndex, newBlock);
 			insertIndex++;
-			lastBlockId = newId;
-			lastTextLen = text.length;
+			lastBlockId = newBlock.id;
+			lastTextLen = (blockData.text ?? '').length;
 		}
 
-		// Remove the empty anchor paragraph (don't remove void blocks at gap cursor)
-		if (isAnchorEmpty && !isGapCursor(sel)) {
-			builder.removeNode(parentPath, anchorIndex);
+		if (removeEmptyAnchor && context.isAnchorEmpty && context.anchorIndex >= 0) {
+			builder.removeNode(context.parentPath, context.anchorIndex);
 		}
 
 		if (lastBlockId) {
@@ -490,76 +330,13 @@ export class PasteHandler {
 
 		this.dispatch(builder.build());
 		return true;
-	}
-
-	/**
-	 * Creates inline children from rich block data.
-	 * Uses mark-preserving segments when available, falls back to plain text.
-	 */
-	private createChildrenFromRichBlock(
-		blockData: RichBlockData,
-		text: string,
-	): TextNode[] | undefined {
-		if (blockData.segments && blockData.segments.length > 0) {
-			return this.createChildrenFromSegments(blockData.segments);
-		}
-		return text ? [createTextNode(text)] : undefined;
-	}
-
-	/** Converts rich segments into TextNode children with marks. */
-	private createChildrenFromSegments(segments: readonly RichSegment[]): TextNode[] {
-		const children: TextNode[] = [];
-		for (const seg of segments) {
-			if (seg.text.length === 0) continue;
-			const marks: readonly Mark[] = seg.marks.map((m) => ({
-				type: m.type as Mark['type'],
-				...(m.attrs ? { attrs: m.attrs as Mark['attrs'] } : {}),
-			}));
-			children.push(createTextNode(seg.text, marks));
-		}
-		return children;
-	}
-
-	/** Validates a rich block against the schema registry. Returns undefined for invalid blocks. */
-	private validateRichBlockData(raw: RichBlockData): RichBlockData | undefined {
-		if (!raw.type) return undefined;
-
-		if (!this.schemaRegistry) return raw;
-
-		const spec = this.schemaRegistry.getNodeSpec(raw.type);
-		if (!spec) return undefined;
-
-		const attrs: Record<string, string | number | boolean> | undefined = sanitizeAttrs(
-			raw.attrs,
-			spec.attrs,
-		);
-
-		return { ...raw, attrs };
-	}
-
-	/** Finds a table_cell ancestor for the given block (or the block itself). */
-	private findTableCellAncestor(state: EditorState, blockId: BlockId): BlockId | undefined {
-		const block: BlockNode | undefined = state.getBlock(blockId);
-		if (block?.type === 'table_cell') return blockId;
-
-		const path: BlockId[] | undefined = findNodePath(state.doc, blockId) as BlockId[] | undefined;
-		if (!path) return undefined;
-
-		for (const id of path) {
-			const node: BlockNode | undefined = state.getBlock(id as BlockId);
-			if (node?.type === 'table_cell') return id as BlockId;
-		}
-		return undefined;
 	}
 
 	/** Checks for files in clipboard data and delegates to registered handlers. */
 	private handleFilePaste(clipboardData: DataTransfer): boolean {
 		if (!this.fileHandlerRegistry) return false;
 
-		// Check clipboardData.files first
 		const files: File[] = Array.from(clipboardData.files);
-
-		// Also check items for file entries (some browsers use items instead)
 		if (files.length === 0) {
 			for (let i = 0; i < clipboardData.items.length; i++) {
 				const item = clipboardData.items[i];
@@ -583,11 +360,10 @@ export class PasteHandler {
 				}
 			}
 		}
-
 		return handled;
 	}
 
-	/** Extracts embedded rich block JSON from HTML (data-notectl-rich attribute). */
+	/** Extracts embedded rich block JSON from HTML (data-notectl-rich). */
 	private extractRichData(html: string): string | undefined {
 		const template = document.createElement('template');
 		template.innerHTML = html;
@@ -596,11 +372,7 @@ export class PasteHandler {
 		return richEl.getAttribute('data-notectl-rich') ?? undefined;
 	}
 
-	/**
-	 * Checks whether sanitized HTML requires the DocumentParser.
-	 * Tables need nested block structure; void blocks (images, HR)
-	 * can't be represented as ContentSlice.
-	 */
+	/** Checks whether HTML requires the DocumentParser (tables, void blocks). */
 	private requiresDocumentParser(html: string, container: DocumentFragment): boolean {
 		if (/<table[\s>]/i.test(html)) return true;
 		return this.containsVoidBlockElements(container);
@@ -623,11 +395,7 @@ export class PasteHandler {
 		return false;
 	}
 
-	/**
-	 * Handles paste of HTML that requires the DocumentParser (tables, void blocks).
-	 * Uses parseHTMLToDocument to create proper block structure,
-	 * then inserts blocks via the transaction builder.
-	 */
+	/** Handles paste of HTML requiring the DocumentParser (tables, void blocks). */
 	private handleDocumentPaste(html: string, state: EditorState): void {
 		if (!this.schemaRegistry) return;
 
@@ -637,53 +405,34 @@ export class PasteHandler {
 		const sel = state.selection;
 		const builder = state.transaction('paste');
 
-		// Delete current selection if non-collapsed
 		let landingId: BlockId | undefined;
 		if (isTextSelection(sel) && !isCollapsed(sel)) {
 			landingId = addDeleteSelectionSteps(state, builder);
 		}
 
-		// Determine insert anchor
 		const anchorBlockId: BlockId =
 			landingId ??
 			(isNodeSelection(sel) ? sel.nodeId : isGapCursor(sel) ? sel.blockId : sel.anchor.blockId);
 
-		const path = findNodePath(state.doc, anchorBlockId);
-		const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
-
-		const siblings: readonly (BlockNode | import('../model/Document.js').ChildNode)[] =
-			parentPath.length === 0
-				? state.doc.children
-				: (() => {
-						const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-						return parent ? parent.children : [];
-					})();
-
-		const anchorIndex: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
-		if (anchorIndex < 0) return;
-
-		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
-		const anchorSpec = anchorBlock ? this.schemaRegistry?.getNodeSpec(anchorBlock.type) : undefined;
-		const isAnchorEmpty: boolean =
-			anchorBlock !== undefined && !anchorSpec?.isVoid && getBlockText(anchorBlock) === '';
+		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
+		if (!ctx) return;
 
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		let insertIndex: number = anchorIndex + insertOffset;
+		let insertIndex: number = ctx.anchorIndex + insertOffset;
 		let lastBlockId: BlockId | undefined;
 		let lastClonedRoot: BlockNode | undefined;
 
 		for (const block of doc.children) {
 			const newId: BlockId = generateBlockId();
 			const cloned: BlockNode = cloneBlockWithNewIds(block, newId);
-			builder.insertNode(parentPath, insertIndex, cloned);
+			builder.insertNode(ctx.parentPath, insertIndex, cloned);
 			insertIndex++;
 			lastBlockId = findLastLeafBlockId(cloned);
 			lastClonedRoot = cloned;
 		}
 
-		// Remove empty anchor paragraph
-		if (isAnchorEmpty && !isGapCursor(sel)) {
-			builder.removeNode(parentPath, anchorIndex);
+		if (ctx.isAnchorEmpty && !isGapCursor(sel)) {
+			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
 		}
 
 		if (lastBlockId && lastClonedRoot) {

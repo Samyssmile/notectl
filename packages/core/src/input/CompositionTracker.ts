@@ -6,8 +6,9 @@
  */
 
 import type { BlockId } from '../model/TypeBrands.js';
+import type { CompositionState } from '../view/CompositionState.js';
 
-export class CompositionTracker {
+export class CompositionTracker implements CompositionState {
 	private _composing = false;
 	private _activeBlockId: BlockId | null = null;
 

@@ -182,6 +182,8 @@ export type { HistoryResult } from './state/History.js';
 
 export { extendTx, moveTx, nodeSelTx } from './state/SelectionTransactions.js';
 
+export { moveToBlockEnd, moveToBlockStart } from './state/BlockBoundaryMovement.js';
+
 // --- Commands ---
 export type { FeatureConfig } from './commands/Commands.js';
 export {
@@ -220,8 +222,6 @@ export {
 export {
 	moveCharacterForward,
 	moveCharacterBackward,
-	moveToBlockStart,
-	moveToBlockEnd,
 	moveToDocumentStart,
 	moveToDocumentEnd,
 	extendCharacterForward,
@@ -256,6 +256,8 @@ export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './inp
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
 export { CompositionTracker } from './input/CompositionTracker.js';
+export { InputManager } from './input/InputManager.js';
+export type { InputManagerDeps } from './input/InputManager.js';
 
 // --- Focused Registries ---
 export { KeymapRegistry } from './input/KeymapRegistry.js';
@@ -265,13 +267,14 @@ export { FileHandlerRegistry } from './input/FileHandlerRegistry.js';
 export { NodeViewRegistry } from './view/NodeViewRegistry.js';
 
 // --- View ---
+export type { CompositionState } from './view/CompositionState.js';
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 
 // --- CursorWrapper ---
 export { CursorWrapper } from './view/CursorWrapper.js';
 
 // --- Platform ---
-export { isMac, isFirefox, isWebKit, getTextDirection, isRtlContext } from './view/Platform.js';
+export { isMac, isFirefox, isWebKit, getTextDirection, isRtlContext } from './platform/Platform.js';
 
 // --- Caret Navigation ---
 export {

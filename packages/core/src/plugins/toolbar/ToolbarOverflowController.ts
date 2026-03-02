@@ -5,9 +5,9 @@
  * Delegates popup lifecycle to PopupManager when available.
  */
 
+import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
-import { isRtlContext } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { appendToRoot } from '../shared/PopupPositioning.js';
