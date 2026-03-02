@@ -203,6 +203,181 @@ describe('Commands', () => {
 			expect(newState.selection.head.blockId).toBe('b2');
 			expect(newState.selection.head.offset).toBe(5);
 		});
+
+		it('selects leaf block endpoints when document contains a table', () => {
+			const table: BlockNode = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('A1')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph' as never, [createTextNode('Hello')], 'b1' as never),
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('World')], 'b2' as never),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1' as never, 0),
+				schema: { nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'], markTypes: [] },
+			});
+
+			const tr = selectAll(state);
+			const newState = state.apply(tr);
+			// Endpoints should be leaf blocks, not the table
+			expect(newState.selection.anchor.blockId).toBe('b1');
+			expect(newState.selection.anchor.offset).toBe(0);
+			expect(newState.selection.head.blockId).toBe('b2');
+			expect(newState.selection.head.offset).toBe(5);
+		});
+
+		it('selects leaf endpoints when table is first block', () => {
+			const table: BlockNode = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('cell')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('After')], 'b1' as never),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('p0_0' as never, 0),
+				schema: { nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'], markTypes: [] },
+			});
+
+			const tr = selectAll(state);
+			const newState = state.apply(tr);
+			// from should be the leaf inside the table, to should be the paragraph after
+			expect(newState.selection.anchor.blockId).toBe('p0_0');
+			expect(newState.selection.head.blockId).toBe('b1');
+			expect(newState.selection.head.offset).toBe(5);
+		});
+	});
+
+	describe('deleteSelectionCommand with cross-root selection', () => {
+		it('removes table when selection spans paragraph + table + paragraph', () => {
+			const table: BlockNode = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('A1')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph' as never, [createTextNode('Hello')], 'b1' as never),
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('World')], 'b2' as never),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createSelection(
+					{ blockId: 'b1' as never, offset: 0 },
+					{ blockId: 'b2' as never, offset: 5 },
+				),
+				schema: { nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'], markTypes: [] },
+			});
+
+			const tr = deleteSelectionCommand(state);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = state.apply(tr);
+			// Table should be removed, only one empty paragraph remains
+			expect(newState.doc.children).toHaveLength(1);
+			const firstChild = newState.doc.children[0];
+			if (!firstChild) {
+				expect.unreachable('should have at least one child');
+				return;
+			}
+			expect(firstChild.type).toBe('paragraph');
+			expect(getBlockText(firstChild)).toBe('');
+		});
+
+		it('removes table and preserves partial text from leaf roots', () => {
+			const table: BlockNode = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('A1')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph' as never, [createTextNode('Hello')], 'b1' as never),
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('World')], 'b2' as never),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createSelection(
+					{ blockId: 'b1' as never, offset: 2 },
+					{ blockId: 'b2' as never, offset: 3 },
+				),
+				schema: { nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'], markTypes: [] },
+			});
+
+			const tr = deleteSelectionCommand(state);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = state.apply(tr);
+			// Table removed, text merged: "He" + "ld" = "Held"
+			expect(newState.doc.children).toHaveLength(1);
+			const firstChild = newState.doc.children[0];
+			if (!firstChild) {
+				expect.unreachable('should have at least one child');
+				return;
+			}
+			expect(getBlockText(firstChild)).toBe('Held');
+		});
 	});
 
 	describe('forEachBlockInRange', () => {

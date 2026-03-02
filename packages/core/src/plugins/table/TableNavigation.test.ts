@@ -140,33 +140,18 @@ describe('TableNavigation', () => {
 	});
 
 	describe('Enter', () => {
-		it('moves to same column in next row', () => {
+		it('is not intercepted inside table cells (allows splitBlock)', () => {
 			const state = createNavState(3, 2, 0, 1);
-			const { pressKey, getState } = createContextWithKeymaps(state);
-
-			expect(pressKey('Enter')).toBe(true);
-			expect(getState().selection.anchor.blockId).toBe('p1_1');
-		});
-
-		it('blocks at last row to prevent splitBlock', () => {
-			const state = createNavState(2, 2, 1, 0);
-			const { pressKey, getState } = createContextWithKeymaps(state);
-
-			expect(pressKey('Enter')).toBe(true);
-			expect(getState().selection.anchor.blockId).toBe('p1_0');
-		});
-
-		it('returns false when not inside a table', () => {
-			const state = EditorState.create({
-				doc: createDocument([
-					createBlockNode('paragraph' as NodeTypeName, [createTextNode('hello')], 'p1' as BlockId),
-				]),
-				selection: createCollapsedSelection('p1' as BlockId, 0),
-				schema: TABLE_SCHEMA,
-			});
 			const { pressKey } = createContextWithKeymaps(state);
 
 			expect(pressKey('Enter')).toBe(false);
+		});
+
+		it('is not registered as a table keymap', () => {
+			const state = createNavState(2, 2, 0, 0);
+			const { keymaps } = createContextWithKeymaps(state);
+
+			expect(keymaps.Enter).toBeUndefined();
 		});
 	});
 

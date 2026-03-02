@@ -5,16 +5,21 @@
  */
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
+import { serializeDocumentToHTML } from '../editor/DocumentSerializer.js';
 import { buildMarkOrder, serializeMarksToHTML } from '../editor/MarkSerializer.js';
 import type { BlockNode } from '../model/Document.js';
 import {
+	createDocument,
 	getBlockLength,
 	getBlockText,
 	getInlineChildren,
 	isInlineNode,
+	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { Selection } from '../model/Selection.js';
 import {
 	isCollapsed,
 	isGapCursor,
@@ -150,6 +155,13 @@ export class ClipboardHandler {
 		if (isGapCursor(sel)) return;
 		if (isCollapsed(sel)) return;
 
+		// When selection spans composite blocks (tables), use full document
+		// serialization so table HTML round-trips through paste correctly.
+		if (this.selectionIncludesCompositeBlocks(state)) {
+			this.writeCompositeSelectionToClipboard(clipboardData, state);
+			return;
+		}
+
 		const blockOrder = state.getBlockOrder();
 		const range = selectionRange(sel, blockOrder);
 		const fromIdx = blockOrder.indexOf(range.from.blockId);
@@ -213,6 +225,91 @@ export class ClipboardHandler {
 		// types and rewrites text/html, so we use an in-memory store keyed by
 		// the plain-text fingerprint to verify origin on paste.
 		setRichClipboard(plainText, richBlocks);
+	}
+
+	/**
+	 * Checks whether the current selection spans multiple root-level blocks
+	 * where at least one is composite (non-leaf). Selections entirely within
+	 * a single root (e.g. within one table) use the standard leaf serializer.
+	 */
+	private selectionIncludesCompositeBlocks(state: EditorState): boolean {
+		const sel: Selection | undefined = this.getTextSelection(state);
+		if (!sel || isCollapsed(sel)) return false;
+
+		const blockOrder = state.getBlockOrder();
+		const range = selectionRange(sel, blockOrder);
+
+		const fromPath = findNodePath(state.doc, range.from.blockId);
+		const toPath = findNodePath(state.doc, range.to.blockId);
+		if (!fromPath || !toPath) return false;
+
+		// Both endpoints inside the same root — leaf serializer handles this fine
+		if (fromPath[0] === toPath[0]) return false;
+
+		// Different root blocks — check if any root between them is composite
+		const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
+		const toRootIdx: number = state.doc.children.findIndex((c) => c.id === toPath[0]);
+		for (let i = fromRootIdx; i <= toRootIdx; i++) {
+			const block = state.doc.children[i];
+			if (block && !isLeafBlock(block)) return true;
+		}
+
+		return false;
+	}
+
+	/** Returns the text selection if the state has one, undefined otherwise. */
+	private getTextSelection(state: EditorState): Selection | undefined {
+		const sel = state.selection;
+		if (isNodeSelection(sel) || isGapCursor(sel)) return undefined;
+		return sel;
+	}
+
+	/**
+	 * Serializes a selection that includes composite blocks (tables) to clipboard.
+	 * Uses serializeDocumentToHTML for HTML to preserve table structure.
+	 * Skips rich clipboard since composite blocks can't be represented as flat data.
+	 */
+	private writeCompositeSelectionToClipboard(
+		clipboardData: DataTransfer,
+		state: EditorState,
+	): void {
+		const sel: Selection | undefined = this.getTextSelection(state);
+		if (!sel) return;
+		const blockOrder = state.getBlockOrder();
+		const range = selectionRange(sel, blockOrder);
+		const fromIdx: number = blockOrder.indexOf(range.from.blockId);
+		const toIdx: number = blockOrder.indexOf(range.to.blockId);
+
+		// Plain text from leaf blocks
+		const lines: string[] = [];
+		for (let i = fromIdx; i <= toIdx; i++) {
+			const bid = blockOrder[i];
+			if (!bid) continue;
+			const block = state.getBlock(bid);
+			if (!block) continue;
+			const text: string = getBlockText(block);
+			const start: number = i === fromIdx ? range.from.offset : 0;
+			const end: number = i === toIdx ? range.to.offset : getBlockLength(block);
+			lines.push(text.slice(start, end));
+		}
+		clipboardData.setData('text/plain', lines.join('\n'));
+
+		// Serialize selected root blocks to full HTML (tables included)
+		if (this.schemaRegistry) {
+			const fromPath = findNodePath(state.doc, range.from.blockId);
+			const toPath = findNodePath(state.doc, range.to.blockId);
+			if (fromPath && toPath) {
+				const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
+				const toRootIdx: number = state.doc.children.findIndex((c) => c.id === toPath[0]);
+				const selectedRoots: readonly BlockNode[] = state.doc.children.slice(
+					fromRootIdx,
+					toRootIdx + 1,
+				);
+				const doc = createDocument(selectedRoots);
+				const html: string = serializeDocumentToHTML(doc, this.schemaRegistry);
+				clipboardData.setData('text/html', html);
+			}
+		}
 	}
 
 	/** Serializes a range of inline content within a block to an HTML string. */
