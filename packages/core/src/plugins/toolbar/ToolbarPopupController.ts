@@ -112,16 +112,21 @@ export class ToolbarPopupController {
 		context: PluginContext,
 		close: (options?: PopupCloseOptions) => void,
 	): void {
+		const closeAndFocusEditor = (): void => {
+			close({ restoreFocusTo: null });
+			context.getContainer().focus();
+		};
+
 		switch (item.popupType) {
 			case 'gridPicker':
-				renderGridPicker(popup, item.popupConfig, close);
+				renderGridPicker(popup, item.popupConfig, closeAndFocusEditor);
 				break;
 			case 'dropdown':
 				renderDropdown(
 					popup,
 					item.popupConfig,
 					(cmd: string) => context.executeCommand(cmd),
-					close,
+					closeAndFocusEditor,
 				);
 				break;
 			case 'custom':
