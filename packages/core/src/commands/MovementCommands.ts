@@ -15,10 +15,10 @@ import {
 	getContentAtOffset,
 } from '../model/Document.js';
 import { nextGraphemeSize, prevGraphemeSize } from '../model/GraphemeUtils.js';
-import { canCrossBlockBoundary, isVoidBlock } from '../model/NavigationUtils.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
 import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
 
