@@ -19,7 +19,6 @@ import {
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { findNodePath } from '../../model/NodeResolver.js';
 import { isCollapsed, isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { markType } from '../../model/TypeBrands.js';
@@ -353,10 +352,10 @@ export class TextDirectionPlugin implements Plugin {
 			const block = state.getBlock(id);
 			if (!block || !this.directableTypes.has(block.type)) continue;
 
-			const path = findNodePath(state.doc, id);
+			const path = state.getNodePath(id);
 			if (!path) continue;
 
-			tb.setNodeAttr(path as BlockId[], { ...block.attrs, dir: direction });
+			tb.setNodeAttr(path, { ...block.attrs, dir: direction });
 			changed = true;
 		}
 

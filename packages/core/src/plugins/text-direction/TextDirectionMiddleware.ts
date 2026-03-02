@@ -5,7 +5,6 @@
 
 import type { BlockNode } from '../../model/Document.js';
 import { blockOffsetToTextOffset, getBlockText } from '../../model/Document.js';
-import { findNodePath } from '../../model/NodeResolver.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Step } from '../../state/Transaction.js';
@@ -82,12 +81,12 @@ function buildDirChangeStep(
 	block: BlockNode,
 	dir: TextDirection | 'auto',
 ): Step | undefined {
-	const path = findNodePath(state.doc, block.id);
+	const path = state.getNodePath(block.id);
 	if (!path) return undefined;
 
 	return {
 		type: 'setNodeAttr',
-		path: path as BlockId[],
+		path,
 		attrs: { ...block.attrs, dir },
 		previousAttrs: block.attrs as Record<string, string | number | boolean>,
 	};
