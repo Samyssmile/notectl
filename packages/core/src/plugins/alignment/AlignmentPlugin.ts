@@ -10,7 +10,6 @@
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import type { BlockNode } from '../../model/Document.js';
-import { findNodePath } from '../../model/NodeResolver.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
@@ -236,7 +235,7 @@ export class AlignmentPlugin implements Plugin {
 		const id = getSelectedBlockId(state);
 		if (!id) return false;
 
-		const path = findNodePath(state.doc, id);
+		const path = state.getNodePath(id);
 		if (!path) return false;
 
 		const newAttrs = { ...block.attrs, align: alignment };
