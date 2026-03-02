@@ -125,8 +125,8 @@ jobs:
           ## Output Rules
           1. Identify ALL violations you find across the codebase
           2. Rank each by severity: CRITICAL > MAJOR > MINOR
-          3. Create GitHub issues ONLY for the top 3 CRITICAL findings
-          4. If fewer than 3 are genuinely critical, create fewer
+          3. Create a GitHub issue ONLY for the single most CRITICAL finding
+          4. Only ONE issue per review cycle — pick the worst violation
           5. If NOTHING is critical, create ZERO issues and output:
              "CLEAN CODE REVIEW PASSED — no critical violations found"
 
