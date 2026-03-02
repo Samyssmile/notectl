@@ -5,7 +5,6 @@
 
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { createBlockNode } from '../../model/Document.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -14,6 +13,7 @@ import {
 } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import {

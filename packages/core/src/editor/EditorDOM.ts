@@ -6,6 +6,7 @@
 export interface EditorDOMConfig {
 	readonly readonly?: boolean;
 	readonly placeholder?: string;
+	readonly dir?: 'ltr' | 'rtl';
 }
 
 export interface EditorDOMElements {
@@ -36,6 +37,11 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 	}
 	content.setAttribute('aria-description', 'Press Escape to exit the editor');
 	content.setAttribute('data-placeholder', config.placeholder ?? 'Start typing...');
+
+	if (config.dir) {
+		wrapper.setAttribute('dir', config.dir);
+		content.setAttribute('dir', config.dir);
+	}
 
 	const bottomPluginContainer: HTMLElement = document.createElement('div');
 	bottomPluginContainer.className = 'notectl-plugin-container--bottom';

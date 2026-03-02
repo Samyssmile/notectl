@@ -6,8 +6,8 @@
  * or whether navigation between two blocks is allowed.
  */
 
-import type { EditorState } from '../state/EditorState.js';
-import type { BlockId } from './TypeBrands.js';
+import type { BlockId } from '../model/TypeBrands.js';
+import type { EditorState } from './EditorState.js';
 
 /** Returns true if the block with the given ID is a void block (e.g. image, HR). */
 export function isVoidBlock(state: EditorState, bid: BlockId): boolean {

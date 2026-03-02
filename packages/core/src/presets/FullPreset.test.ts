@@ -16,6 +16,7 @@ import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugi
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
+import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import { createFullPreset } from './FullPreset.js';
 
@@ -64,12 +65,13 @@ describe('createFullPreset', () => {
 		expect(group?.[2]).toBeInstanceOf(CodeBlockPlugin);
 	});
 
-	it('group 5 contains Alignment', () => {
+	it('group 5 contains Alignment and TextDirection', () => {
 		const preset = createFullPreset();
 		const group = preset.toolbar[4];
 
-		expect(group).toHaveLength(1);
+		expect(group).toHaveLength(2);
 		expect(group?.[0]).toBeInstanceOf(AlignmentPlugin);
+		expect(group?.[1]).toBeInstanceOf(TextDirectionPlugin);
 	});
 
 	it('group 6 contains List', () => {

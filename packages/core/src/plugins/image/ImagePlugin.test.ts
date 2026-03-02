@@ -111,11 +111,11 @@ describe('ImagePlugin', () => {
 			const block = createBlockNode(nodeType('image'), [], blockId('test'), {
 				src: 'photo.jpg',
 				alt: '',
-				align: 'left',
+				align: 'start',
 			});
 
 			const el = spec?.toDOM(block);
-			expect(el?.classList.contains('notectl-image--left')).toBe(true);
+			expect(el?.classList.contains('notectl-image--start')).toBe(true);
 		});
 	});
 
@@ -256,7 +256,7 @@ describe('ImagePlugin', () => {
 			const block = createBlockNode(nodeType('image'), [], blockId('test'), {
 				src: 'photo.jpg',
 				alt: '',
-				align: 'left',
+				align: 'start',
 			});
 
 			const html = spec?.toHTML?.(block, '');

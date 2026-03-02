@@ -12,13 +12,8 @@ import {
 	generateBlockId,
 	getBlockLength,
 	getBlockMarksAtOffset,
+	isLeafBlock,
 } from '../model/Document.js';
-import {
-	isInsideIsolating,
-	isIsolatingBlock,
-	isVoidBlock,
-	sharesParent,
-} from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import {
 	createCollapsedSelection,
@@ -31,12 +26,20 @@ import {
 } from '../model/Selection.js';
 import { type BlockId, inlineType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import {
+	isInsideIsolating,
+	isIsolatingBlock,
+	isVoidBlock,
+	sharesParent,
+} from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
-import { resolveInsertPoint } from './CommandHelpers.js';
+import { createEmptyParagraph, resolveInsertPoint } from './CommandHelpers.js';
 import { insertParagraphAtGap, insertTextAtGap } from './GapCursorCommands.js';
 import {
 	deleteNodeSelection,
+	findFirstLeafBlockId,
+	findLastLeafBlockId,
 	insertParagraphAfterNodeSelection,
 	insertTextAfterNodeSelection,
 } from './NodeSelectionCommands.js';
@@ -49,7 +52,7 @@ export {
 	isIsolatingBlock,
 	isVoidBlock,
 	sharesParent,
-} from '../model/NavigationUtils.js';
+} from '../state/NavigationQueries.js';
 
 export type { FeatureConfig } from './MarkCommands.js';
 export {
@@ -122,14 +125,14 @@ export function insertTextCommand(
 	const builder = state.transaction(origin);
 	const marks = resolveActiveMarks(state);
 
+	let landingId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		landingId = addDeleteSelectionSteps(state, builder);
 	}
 
-	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
-		sel,
-		state.getBlockOrder(),
-	);
+	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
+	const insertBlockId: BlockId = landingId ?? resolved.blockId;
+	const insertOffset: number = landingId ? 0 : resolved.offset;
 
 	builder.insertText(insertBlockId, insertOffset, text, marks);
 	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + text.length));
@@ -146,10 +149,12 @@ export function deleteSelectionCommand(state: EditorState): Transaction | null {
 	if (isCollapsed(state.selection)) return null;
 
 	const builder = state.transaction('input');
-	addDeleteSelectionSteps(state, builder);
+	const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
 
 	const range = selectionRange(state.selection, state.getBlockOrder());
-	builder.setSelection(createCollapsedSelection(range.from.blockId, range.from.offset));
+	const cursorBlockId: BlockId = landingId ?? range.from.blockId;
+	const cursorOffset: number = landingId ? 0 : range.from.offset;
+	builder.setSelection(createCollapsedSelection(cursorBlockId, cursorOffset));
 
 	return builder.build();
 }
@@ -170,11 +175,14 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 
 	const builder = state.transaction('input');
 
+	let landingId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		landingId = addDeleteSelectionSteps(state, builder);
 	}
 
-	const { blockId, offset } = resolveInsertPoint(sel, state.getBlockOrder());
+	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
+	const blockId: BlockId = landingId ?? resolved.blockId;
+	const offset: number = landingId ? 0 : resolved.offset;
 	const newBlockId = generateBlockId();
 
 	// splitBlock operates at the same level in the tree — the StepApplication
@@ -193,18 +201,28 @@ export function insertHardBreakCommand(state: EditorState): Transaction | null {
 
 	const builder = state.transaction('input');
 
+	let cursorBlockId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
+		cursorBlockId = landingId;
 	}
 
-	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
-		sel,
-		state.getBlockOrder(),
-	);
-
-	const hardBreak = createInlineNode(inlineType('hard_break'));
-	builder.insertInlineNode(insertBlockId, insertOffset, hardBreak);
-	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + 1));
+	if (cursorBlockId) {
+		// Cross-root deletion replaced from-block; insert hard break in landing block
+		builder.insertInlineNode(cursorBlockId, 0, createInlineNode(inlineType('hard_break')));
+		builder.setSelection(createCollapsedSelection(cursorBlockId, 1));
+	} else {
+		const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
+			sel,
+			state.getBlockOrder(),
+		);
+		builder.insertInlineNode(
+			insertBlockId,
+			insertOffset,
+			createInlineNode(inlineType('hard_break')),
+		);
+		builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + 1));
+	}
 
 	return builder.build();
 }
@@ -295,21 +313,25 @@ export function mergeBlockForward(state: EditorState): Transaction | null {
 		.build();
 }
 
-/** Selects all content in the editor. */
+/** Selects all content in the editor, using leaf block endpoints. */
 export function selectAll(state: EditorState): Transaction {
 	const blocks = state.doc.children;
 	const firstBlock = blocks[0];
 	const lastBlock = blocks[blocks.length - 1];
 	if (!firstBlock || !lastBlock)
 		return state.transaction('command').setSelection(state.selection).build();
-	const lastBlockLen = getBlockLength(lastBlock);
+
+	const firstLeafId: BlockId = findFirstLeafBlockId(firstBlock);
+	const lastLeafId: BlockId = findLastLeafBlockId(lastBlock);
+	const lastLeaf = state.getBlock(lastLeafId);
+	const lastLeafLen: number = lastLeaf ? getBlockLength(lastLeaf) : 0;
 
 	return state
 		.transaction('command')
 		.setSelection(
 			createSelection(
-				{ blockId: firstBlock.id, offset: 0 },
-				{ blockId: lastBlock.id, offset: lastBlockLen },
+				{ blockId: firstLeafId, offset: 0 },
+				{ blockId: lastLeafId, offset: lastLeafLen },
 			),
 		)
 		.build();
@@ -327,8 +349,16 @@ function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	return getBlockMarksAtOffset(block, state.selection.anchor.offset);
 }
 
-export function addDeleteSelectionSteps(state: EditorState, builder: TransactionBuilder): void {
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
+/**
+ * Adds steps to delete the current text selection.
+ * Returns a replacement cursor block ID when the original from-block
+ * was inside a composite root that got removed (undefined otherwise).
+ */
+export function addDeleteSelectionSteps(
+	state: EditorState,
+	builder: TransactionBuilder,
+): BlockId | undefined {
+	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return undefined;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(state.selection, blockOrder);
 	const fromIdx = blockOrder.indexOf(range.from.blockId);
@@ -336,35 +366,130 @@ export function addDeleteSelectionSteps(state: EditorState, builder: Transaction
 
 	if (fromIdx === toIdx) {
 		builder.deleteTextAt(range.from.blockId, range.from.offset, range.to.offset);
-	} else {
-		const firstBlock = state.getBlock(range.from.blockId);
-		if (!firstBlock) return;
-		const firstLen = getBlockLength(firstBlock);
+		return undefined;
+	}
 
-		// Delete from the end of first block
-		if (range.from.offset < firstLen) {
-			builder.deleteTextAt(range.from.blockId, range.from.offset, firstLen);
+	const fromRootIdx: number = getRootBlockIndex(state, range.from.blockId);
+	const toRootIdx: number = getRootBlockIndex(state, range.to.blockId);
+
+	if (fromRootIdx === toRootIdx || fromRootIdx < 0 || toRootIdx < 0) {
+		deleteLeafRange(state, builder, blockOrder, range, fromIdx, toIdx);
+		return undefined;
+	}
+
+	return deleteCrossRootRange(state, builder, range, fromRootIdx, toRootIdx);
+}
+
+/** Returns the root-level ancestor index in doc.children for a given block. */
+function getRootBlockIndex(state: EditorState, blockId: BlockId): number {
+	const path = findNodePath(state.doc, blockId);
+	if (!path || path.length === 0) return -1;
+	const rootId: string = path[0] as string;
+	return state.doc.children.findIndex((c) => c.id === rootId);
+}
+
+/** Deletes a multi-block selection where all blocks share the same root ancestor. */
+function deleteLeafRange(
+	state: EditorState,
+	builder: TransactionBuilder,
+	blockOrder: readonly BlockId[],
+	range: {
+		readonly from: { readonly blockId: BlockId; readonly offset: number };
+		readonly to: { readonly blockId: BlockId; readonly offset: number };
+	},
+	fromIdx: number,
+	toIdx: number,
+): void {
+	const firstBlock = state.getBlock(range.from.blockId);
+	if (!firstBlock) return;
+	const firstLen = getBlockLength(firstBlock);
+
+	if (range.from.offset < firstLen) {
+		builder.deleteTextAt(range.from.blockId, range.from.offset, firstLen);
+	}
+
+	if (range.to.offset > 0) {
+		builder.deleteTextAt(range.to.blockId, 0, range.to.offset);
+	}
+
+	for (let i = fromIdx + 1; i < toIdx; i++) {
+		const midBlockId = blockOrder[i];
+		if (!midBlockId) continue;
+		const midBlock = state.getBlock(midBlockId);
+		if (!midBlock) continue;
+		const midLen = getBlockLength(midBlock);
+		if (midLen > 0) {
+			builder.deleteTextAt(midBlockId, 0, midLen);
 		}
+		builder.mergeBlocksAt(range.from.blockId, midBlockId);
+	}
 
-		// Delete from start of last block
-		if (range.to.offset > 0) {
-			builder.deleteTextAt(range.to.blockId, 0, range.to.offset);
-		}
+	builder.mergeBlocksAt(range.from.blockId, range.to.blockId);
+}
 
-		// Delete middle blocks entirely and merge last into first
-		for (let i = fromIdx + 1; i < toIdx; i++) {
-			const midBlockId = blockOrder[i];
-			if (!midBlockId) continue;
-			const midBlock = state.getBlock(midBlockId);
-			if (!midBlock) continue;
-			const midLen = getBlockLength(midBlock);
-			if (midLen > 0) {
-				builder.deleteTextAt(midBlockId, 0, midLen);
+/**
+ * Deletes a selection spanning different root-level ancestors.
+ * Removes intermediate and composite root blocks, merges leaf roots.
+ * Returns a replacement cursor block ID if from was inside a removed composite.
+ */
+function deleteCrossRootRange(
+	state: EditorState,
+	builder: TransactionBuilder,
+	range: {
+		readonly from: { readonly blockId: BlockId; readonly offset: number };
+		readonly to: { readonly blockId: BlockId; readonly offset: number };
+	},
+	fromRootIdx: number,
+	toRootIdx: number,
+): BlockId | undefined {
+	const fromRoot = state.doc.children[fromRootIdx];
+	const toRoot = state.doc.children[toRootIdx];
+	if (!fromRoot || !toRoot) return undefined;
+
+	const fromIsLeaf: boolean = isLeafBlock(fromRoot);
+	const toIsLeaf: boolean = isLeafBlock(toRoot);
+
+	// When from is inside a composite root, insert a landing paragraph
+	// so callers can reference a surviving block for cursor/insert.
+	let landingId: BlockId | undefined;
+	let indexShift = 0;
+
+	if (!fromIsLeaf) {
+		landingId = generateBlockId();
+		builder.insertNode([], fromRootIdx, createEmptyParagraph(landingId));
+		indexShift = 1;
+	}
+
+	// Delete text in from-leaf (only for leaf roots; composite roots are removed entirely)
+	if (fromIsLeaf) {
+		const fromBlock = state.getBlock(range.from.blockId);
+		if (fromBlock) {
+			const fromLen: number = getBlockLength(fromBlock);
+			if (range.from.offset < fromLen) {
+				builder.deleteTextAt(range.from.blockId, range.from.offset, fromLen);
 			}
-			builder.mergeBlocksAt(range.from.blockId, midBlockId);
 		}
+	}
 
-		// Merge last block into first
+	// Delete text in to-leaf (only for leaf roots)
+	if (toIsLeaf && range.to.offset > 0) {
+		builder.deleteTextAt(range.to.blockId, 0, range.to.offset);
+	}
+
+	// Remove root-level blocks in descending index order.
+	// Keep from-root if it's a leaf; remove if composite (shifted by indexShift).
+	// Keep to-root if it's a leaf (will merge into from); remove if composite.
+	const removeEnd: number = toIsLeaf ? toRootIdx - 1 + indexShift : toRootIdx + indexShift;
+	const removeStart: number = fromIsLeaf ? fromRootIdx + 1 : fromRootIdx + indexShift;
+
+	for (let i = removeEnd; i >= removeStart; i--) {
+		builder.removeNode([], i);
+	}
+
+	// Merge to-root into from if both are leaf roots
+	if (fromIsLeaf && toIsLeaf) {
 		builder.mergeBlocksAt(range.from.blockId, range.to.blockId);
 	}
+
+	return landingId;
 }

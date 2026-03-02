@@ -19,7 +19,8 @@ import {
 	isInsideTable,
 } from './TableHelpers.js';
 import { TablePlugin } from './TablePlugin.js';
-import { createTableStateWithRandomIds } from './TableTestUtils.js';
+import { TableSelectionServiceKey } from './TableSelection.js';
+import { createTableState, createTableStateWithRandomIds } from './TableTestUtils.js';
 
 // --- Helpers ---
 
@@ -291,6 +292,75 @@ describe('TableHelpers', () => {
 			const state = createTableStateWithRandomIds(2, 3);
 			expect(isInsideTable(state, 'para-after' as BlockId)).toBe(false);
 		});
+	});
+});
+
+describe('TablePlugin decorations', () => {
+	it('returns empty when no selection range', async () => {
+		const state = createTableState({ rows: 2, cols: 2 });
+		const plugin = new TablePlugin();
+		const h = await pluginHarness(plugin, state);
+
+		const decos = plugin.decorations(state);
+		expect(decos.isEmpty).toBe(true);
+	});
+
+	it('returns NodeDecorations for selected cells', async () => {
+		const state = createTableState({ rows: 2, cols: 2 });
+		const plugin = new TablePlugin();
+		const h = await pluginHarness(plugin, state);
+
+		const service = h.pm.getService(TableSelectionServiceKey);
+		expect(service).toBeDefined();
+
+		service?.setSelectedRange({
+			tableId: 't1' as BlockId,
+			fromRow: 0,
+			fromCol: 0,
+			toRow: 0,
+			toCol: 1,
+		});
+
+		const currentState: EditorState = h.getState();
+		const decos = plugin.decorations(currentState);
+		expect(decos.isEmpty).toBe(false);
+
+		// Cells c0_0 and c0_1 should have selected decoration
+		const deco0 = decos.findNode('c0_0' as BlockId);
+		expect(deco0.length).toBe(1);
+		expect(deco0[0]?.attrs.class).toBe('notectl-table-cell--selected');
+
+		const deco1 = decos.findNode('c0_1' as BlockId);
+		expect(deco1.length).toBe(1);
+		expect(deco1[0]?.attrs.class).toBe('notectl-table-cell--selected');
+	});
+
+	it('clears selection silently when cursor moves outside table', async () => {
+		const state = createTableState({ rows: 2, cols: 2, extraBlocks: 'after' });
+		const plugin = new TablePlugin();
+		const h = await pluginHarness(plugin, state);
+
+		const service = h.pm.getService(TableSelectionServiceKey);
+		expect(service).toBeDefined();
+
+		service?.setSelectedRange({
+			tableId: 't1' as BlockId,
+			fromRow: 0,
+			fromCol: 0,
+			toRow: 0,
+			toCol: 1,
+		});
+
+		// Create a state where cursor is outside the table
+		const outsideState: EditorState = EditorState.create({
+			doc: h.getState().doc,
+			selection: createCollapsedSelection('after' as BlockId, 0),
+			schema: h.getState().schema,
+		});
+
+		const decos = plugin.decorations(outsideState);
+		expect(decos.isEmpty).toBe(true);
+		expect(service?.getSelectedRange()).toBeNull();
 	});
 });
 

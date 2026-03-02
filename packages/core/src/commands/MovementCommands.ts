@@ -15,12 +15,15 @@ import {
 	getContentAtOffset,
 } from '../model/Document.js';
 import { nextGraphemeSize, prevGraphemeSize } from '../model/GraphemeUtils.js';
-import { canCrossBlockBoundary, isVoidBlock } from '../model/NavigationUtils.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
 import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
+
+// Re-export block boundary movement from state layer
+export { moveToBlockEnd, moveToBlockStart } from '../state/BlockBoundaryMovement.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -130,38 +133,6 @@ export function moveCharacterBackward(state: EditorState): Transaction | null {
 	const prevBlock = state.getBlock(prevId);
 	if (!prevBlock) return null;
 	return moveTx(state, prevId, getBlockLength(prevBlock));
-}
-
-// ---------------------------------------------------------------------------
-// Block Boundary Movement
-// ---------------------------------------------------------------------------
-
-/** Moves the cursor to the start of the current block. */
-export function moveToBlockStart(state: EditorState): Transaction | null {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-
-	const blockId: BlockId = isCollapsed(sel) ? sel.anchor.blockId : sel.head.blockId;
-	const offset: number = isCollapsed(sel) ? sel.anchor.offset : sel.head.offset;
-
-	if (offset === 0) return null;
-	return moveTx(state, blockId, 0);
-}
-
-/** Moves the cursor to the end of the current block. */
-export function moveToBlockEnd(state: EditorState): Transaction | null {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-
-	const blockId: BlockId = isCollapsed(sel) ? sel.anchor.blockId : sel.head.blockId;
-	const block = state.getBlock(blockId);
-	if (!block) return null;
-
-	const blockLen: number = getBlockLength(block);
-	const offset: number = isCollapsed(sel) ? sel.anchor.offset : sel.head.offset;
-
-	if (offset === blockLen) return null;
-	return moveTx(state, blockId, blockLen);
 }
 
 // ---------------------------------------------------------------------------

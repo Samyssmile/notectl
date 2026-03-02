@@ -69,6 +69,11 @@ export function getTextDirection(element: HTMLElement): 'ltr' | 'rtl' {
 	return dir === 'rtl' ? 'rtl' : 'ltr';
 }
 
+/** Returns `true` when the element is in an RTL context (computed direction is RTL). */
+export function isRtlContext(element: HTMLElement): boolean {
+	return getTextDirection(element) === 'rtl';
+}
+
 /**
  * Resets cached detection results.
  * Only intended for use in tests.

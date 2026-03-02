@@ -1,9 +1,9 @@
 import type { AlignmentLocale } from '../AlignmentLocale.js';
 
 const locale: AlignmentLocale = {
-	alignLeft: 'Alinear a la izquierda',
+	alignStart: 'Alinear al inicio',
 	alignCenter: 'Centrar',
-	alignRight: 'Alinear a la derecha',
+	alignEnd: 'Alinear al final',
 	justify: 'Justificar',
 	toolbarLabel: 'Alineación',
 	toolbarTooltip: 'Alineación',

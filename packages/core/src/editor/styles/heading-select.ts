@@ -28,7 +28,7 @@ export const HEADING_SELECT_CSS = `
 	cursor: pointer;
 	font-size: 14px;
 	color: var(--notectl-fg);
-	text-align: left;
+	text-align: start;
 	white-space: nowrap;
 	font-family: inherit;
 	transition: background 0.1s;

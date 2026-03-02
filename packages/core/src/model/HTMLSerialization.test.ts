@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { registerBuiltinSpecs } from './BuiltinSpecs.js';
+import { registerBuiltinSpecs } from '../editor/BuiltinSpecs.js';
 import type { ParseRule } from './ParseRule.js';
 import { SchemaRegistry } from './SchemaRegistry.js';
 

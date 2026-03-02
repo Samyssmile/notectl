@@ -11,7 +11,6 @@ import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
-import { createBlockElement } from '../../model/NodeSpec.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -21,6 +20,7 @@ import {
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
+import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { LIST_LOCALE_EN, type ListLocale, loadListLocale } from './ListLocale.js';
 
@@ -492,7 +492,9 @@ export class ListPlugin implements Plugin {
 			if (!li) return;
 
 			const rect: DOMRect = li.getBoundingClientRect();
-			if (e.clientX - rect.left >= LIST_MARKER_WIDTH) return;
+			const isRtl: boolean = getComputedStyle(li).direction === 'rtl';
+			const markerDistance: number = isRtl ? rect.right - e.clientX : e.clientX - rect.left;
+			if (markerDistance >= LIST_MARKER_WIDTH) return;
 
 			e.preventDefault();
 

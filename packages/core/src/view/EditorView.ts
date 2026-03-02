@@ -3,14 +3,8 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
-import { ClipboardHandler } from '../input/ClipboardHandler.js';
-import { CompositionTracker } from '../input/CompositionTracker.js';
 import type { FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
-import { InputHandler } from '../input/InputHandler.js';
-import type { InputRuleRegistry } from '../input/InputRuleRegistry.js';
-import { KeyboardHandler } from '../input/KeyboardHandler.js';
 import type { KeymapRegistry } from '../input/KeymapRegistry.js';
-import { PasteHandler } from '../input/PasteHandler.js';
 import { generateBlockId, getBlockLength } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { Position } from '../model/Selection.js';
@@ -24,6 +18,7 @@ import {
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { nodeType, blockId as toBlockId } from '../model/TypeBrands.js';
+import { getTextDirection } from '../platform/Platform.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -35,11 +30,11 @@ import {
 	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
+import type { CompositionState } from './CompositionState.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
-import { getTextDirection } from './Platform.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { domPositionToState, readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
 
@@ -53,22 +48,18 @@ export interface EditorViewOptions {
 	state: EditorState;
 	schemaRegistry?: SchemaRegistry;
 	keymapRegistry?: KeymapRegistry;
-	inputRuleRegistry?: InputRuleRegistry;
 	fileHandlerRegistry?: FileHandlerRegistry;
 	nodeViewRegistry?: NodeViewRegistry;
 	maxHistoryDepth?: number;
 	onStateChange?: StateChangeCallback;
 	getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	isReadOnly?: () => boolean;
+	compositionState?: CompositionState;
 }
 
 export class EditorView {
 	private state: EditorState;
 	private readonly contentElement: HTMLElement;
-	private readonly inputHandler: InputHandler;
-	private readonly keyboardHandler: KeyboardHandler;
-	private readonly pasteHandler: PasteHandler;
-	private readonly clipboardHandler: ClipboardHandler;
 	readonly history: HistoryManager;
 	private readonly stateChangeCallbacks: StateChangeCallback[] = [];
 	private readonly handleSelectionChange: () => void;
@@ -89,7 +80,7 @@ export class EditorView {
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
 	private navigationKeymap: Record<string, () => boolean> | null = null;
-	readonly compositionTracker: CompositionTracker = new CompositionTracker();
+	private readonly compositionState: CompositionState;
 	private readonly cursorWrapper: CursorWrapper;
 	private goalColumn: number | null = null;
 	private preserveGoalColumn = false;
@@ -103,6 +94,10 @@ export class EditorView {
 		this.nodeViewRegistry = options.nodeViewRegistry;
 		this.getDecorations = options.getDecorations;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.compositionState = options.compositionState ?? {
+			isComposing: false,
+			activeBlockId: null,
+		};
 
 		this.history = new HistoryManager({
 			maxDepth: options.maxHistoryDepth ?? 100,
@@ -111,38 +106,6 @@ export class EditorView {
 		if (options.onStateChange) {
 			this.stateChangeCallbacks.push(options.onStateChange);
 		}
-
-		this.inputHandler = new InputHandler(contentElement, {
-			getState: () => this.state,
-			dispatch: (tr: Transaction) => this.dispatch(tr),
-			syncSelection: () => this.syncSelectionFromDOM(),
-			inputRuleRegistry: options.inputRuleRegistry,
-			isReadOnly: this.isReadOnly,
-			compositionTracker: this.compositionTracker,
-		});
-		this.keyboardHandler = new KeyboardHandler(contentElement, {
-			getState: () => this.state,
-			dispatch: (tr: Transaction) => this.dispatch(tr),
-			undo: () => this.undo(),
-			redo: () => this.redo(),
-			keymapRegistry: this.keymapRegistry,
-			isReadOnly: this.isReadOnly,
-			compositionTracker: this.compositionTracker,
-		});
-		this.pasteHandler = new PasteHandler(contentElement, {
-			getState: () => this.state,
-			dispatch: (tr: Transaction) => this.dispatch(tr),
-			schemaRegistry: this.schemaRegistry,
-			fileHandlerRegistry: this.fileHandlerRegistry,
-			isReadOnly: this.isReadOnly,
-		});
-		this.clipboardHandler = new ClipboardHandler(contentElement, {
-			getState: () => this.state,
-			dispatch: (tr: Transaction) => this.dispatch(tr),
-			schemaRegistry: this.schemaRegistry,
-			syncSelection: () => this.syncSelectionFromDOM(),
-			isReadOnly: this.isReadOnly,
-		});
 
 		this.cursorWrapper = new CursorWrapper(contentElement, this.schemaRegistry);
 
@@ -215,11 +178,11 @@ export class EditorView {
 				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
-				compositionBlockId: this.compositionTracker.isComposing
-					? (this.compositionTracker.activeBlockId ?? undefined)
+				compositionBlockId: this.compositionState.isComposing
+					? (this.compositionState.activeBlockId ?? undefined)
 					: undefined,
 			});
-			if (!this.compositionTracker.isComposing) {
+			if (!this.compositionState.isComposing) {
 				syncSelectionToDOM(this.contentElement, newState.selection);
 			}
 
@@ -283,11 +246,11 @@ export class EditorView {
 				...this.reconcileOptions(oldState.selection),
 				decorations: newDecorations,
 				oldDecorations,
-				compositionBlockId: this.compositionTracker.isComposing
-					? (this.compositionTracker.activeBlockId ?? undefined)
+				compositionBlockId: this.compositionState.isComposing
+					? (this.compositionState.activeBlockId ?? undefined)
 					: undefined,
 			});
-			if (!this.compositionTracker.isComposing) {
+			if (!this.compositionState.isComposing) {
 				syncSelectionToDOM(this.contentElement, newState.selection);
 			}
 		} finally {
@@ -298,7 +261,7 @@ export class EditorView {
 	/** Syncs the DOM selection to the editor state. */
 	private syncSelectionFromDOM(): void {
 		// During IME composition, do not override the DOM selection
-		if (this.compositionTracker.isComposing) return;
+		if (this.compositionState.isComposing) return;
 
 		// Selection change outside composition means CursorWrapper is stale
 		if (this.cursorWrapper.isActive) {
@@ -656,13 +619,14 @@ export class EditorView {
 		}
 	}
 
+	/** Syncs the DOM selection into editor state. Exposed for external callers. */
+	syncSelection(): void {
+		this.syncSelectionFromDOM();
+	}
+
 	/** Cleans up all event listeners and handlers. */
 	destroy(): void {
 		this.cursorWrapper.cleanup();
-		this.inputHandler.destroy();
-		this.keyboardHandler.destroy();
-		this.pasteHandler.destroy();
-		this.clipboardHandler.destroy();
 		this.contentElement.removeEventListener(
 			'compositionstart',
 			this.handleCompositionStartForWrapper,

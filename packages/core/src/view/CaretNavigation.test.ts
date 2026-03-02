@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createInlineNode, createTextNode } from '../model/Document.js';
-import { canCrossBlockBoundary } from '../model/NavigationUtils.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { isGapCursor, isNodeSelection, isTextSelection } from '../model/Selection.js';
 import { inlineType, markType } from '../model/TypeBrands.js';
+import { canCrossBlockBoundary } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import { applyCommand, expectCursorAt, stateBuilder } from '../test/TestUtils.js';
 import {

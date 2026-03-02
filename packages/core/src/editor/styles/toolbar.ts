@@ -144,7 +144,7 @@ export const TOOLBAR_CSS = `
 	align-items: center;
 	width: 100%;
 	padding: 8px 12px;
-	text-align: left;
+	text-align: start;
 	border: none;
 	background: none;
 	cursor: pointer;
@@ -214,7 +214,7 @@ export const TOOLBAR_CSS = `
 	line-height: 1;
 	padding: 0;
 	flex-shrink: 0;
-	margin-left: auto;
+	margin-inline-start: auto;
 	transition: background 0.1s, border-color 0.1s;
 }
 
@@ -293,7 +293,7 @@ export const TOOLBAR_CSS = `
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	text-align: left;
+	text-align: start;
 	line-height: 30px;
 }
 

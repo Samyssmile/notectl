@@ -5,6 +5,7 @@
  * Delegates popup lifecycle to PopupManager when available.
  */
 
+import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
@@ -174,6 +175,15 @@ export class ToolbarOverflowController {
 				);
 				if (labelEl) {
 					labelEl.textContent = entry.item.getLabel(state);
+				}
+			}
+			if (entry.item.getIcon) {
+				const newIcon: string = entry.item.getIcon(state);
+				const iconEl: HTMLSpanElement | null = menuItem.querySelector(
+					'.notectl-dropdown__item-icon',
+				);
+				if (iconEl && iconEl.innerHTML !== newIcon) {
+					iconEl.innerHTML = newIcon;
 				}
 			}
 		}
@@ -355,15 +365,26 @@ export class ToolbarOverflowController {
 		if (!this.overflowButton) return;
 
 		const rect: DOMRect = this.overflowButton.getBoundingClientRect();
-		const rightEdge: number = window.innerWidth - rect.right;
+		const rtl: boolean = isRtlContext(this.toolbar);
 
-		setStyleProperties(dropdown, {
-			position: 'fixed',
-			top: `${rect.bottom + 2}px`,
-			right: `${rightEdge}px`,
-			left: 'auto',
-			zIndex: '10000',
-		});
+		if (rtl) {
+			setStyleProperties(dropdown, {
+				position: 'fixed',
+				top: `${rect.bottom + 2}px`,
+				left: `${rect.left}px`,
+				right: 'auto',
+				zIndex: '10000',
+			});
+		} else {
+			const rightEdge: number = window.innerWidth - rect.right;
+			setStyleProperties(dropdown, {
+				position: 'fixed',
+				top: `${rect.bottom + 2}px`,
+				right: `${rightEdge}px`,
+				left: 'auto',
+				zIndex: '10000',
+			});
+		}
 	}
 
 	private registerCloseHandler(): void {

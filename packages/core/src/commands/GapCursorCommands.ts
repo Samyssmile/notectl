@@ -4,12 +4,12 @@
  */
 
 import { generateBlockId, getBlockLength } from '../model/Document.js';
-import { isVoidBlock } from '../model/NavigationUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { GapCursorSelection, NodeSelection } from '../model/Selection.js';
 import { createCollapsedSelection, createNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import { createEmptyParagraph, getSiblings } from './CommandHelpers.js';
 import { deleteNodeSelection } from './NodeSelectionCommands.js';

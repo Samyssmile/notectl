@@ -110,6 +110,7 @@ export type {
 	InlineNodeAttrsFor,
 } from './model/AttrRegistry.js';
 export { isNodeOfType, isMarkOfType, isInlineNodeOfType } from './model/AttrRegistry.js';
+export type { BlockAlignment } from './model/BlockAlignment.js';
 
 // --- NodeSpec & MarkSpec ---
 export type {
@@ -119,7 +120,7 @@ export type {
 	WrapperSpec,
 	HTMLExportContext,
 } from './model/NodeSpec.js';
-export { createBlockElement } from './model/NodeSpec.js';
+export { createBlockElement } from './view/DomUtils.js';
 export type { MarkSpec } from './model/MarkSpec.js';
 export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 
@@ -145,7 +146,7 @@ export {
 export { canContain, validateContent } from './model/ContentModel.js';
 
 // --- BuiltinSpecs ---
-export { registerBuiltinSpecs } from './model/BuiltinSpecs.js';
+export { registerBuiltinSpecs } from './editor/BuiltinSpecs.js';
 
 // --- State ---
 export { EditorState } from './state/EditorState.js';
@@ -180,6 +181,8 @@ export { HistoryManager } from './state/History.js';
 export type { HistoryResult } from './state/History.js';
 
 export { extendTx, moveTx, nodeSelTx } from './state/SelectionTransactions.js';
+
+export { moveToBlockEnd, moveToBlockStart } from './state/BlockBoundaryMovement.js';
 
 // --- Commands ---
 export type { FeatureConfig } from './commands/Commands.js';
@@ -219,8 +222,6 @@ export {
 export {
 	moveCharacterForward,
 	moveCharacterBackward,
-	moveToBlockStart,
-	moveToBlockEnd,
 	moveToDocumentStart,
 	moveToDocumentEnd,
 	extendCharacterForward,
@@ -255,6 +256,8 @@ export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './inp
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
 export { CompositionTracker } from './input/CompositionTracker.js';
+export { InputManager } from './input/InputManager.js';
+export type { InputManagerDeps } from './input/InputManager.js';
 
 // --- Focused Registries ---
 export { KeymapRegistry } from './input/KeymapRegistry.js';
@@ -264,13 +267,14 @@ export { FileHandlerRegistry } from './input/FileHandlerRegistry.js';
 export { NodeViewRegistry } from './view/NodeViewRegistry.js';
 
 // --- View ---
+export type { CompositionState } from './view/CompositionState.js';
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 
 // --- CursorWrapper ---
 export { CursorWrapper } from './view/CursorWrapper.js';
 
 // --- Platform ---
-export { isMac, isFirefox, isWebKit, getTextDirection } from './view/Platform.js';
+export { isMac, isFirefox, isWebKit, getTextDirection, isRtlContext } from './platform/Platform.js';
 
 // --- Caret Navigation ---
 export {

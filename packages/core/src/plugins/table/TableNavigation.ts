@@ -32,7 +32,6 @@ export function registerTableKeymaps(context: PluginContext, locale?: TableLocal
 	const keymap: Keymap = {
 		Tab: () => handleTab(context, locale),
 		'Shift-Tab': () => handleShiftTab(context),
-		Enter: () => handleEnter(context),
 		Backspace: () => handleBackspace(context),
 		Delete: () => handleDelete(context),
 		ArrowDown: () => handleArrowDown(context),
@@ -107,27 +106,6 @@ function handleShiftTab(context: PluginContext): boolean {
 
 		return true;
 	});
-}
-
-/** Enter: move to same column in next row (spreadsheet behavior). */
-function handleEnter(context: PluginContext): boolean {
-	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
-
-	const block = state.getBlock(state.selection.anchor.blockId);
-	// Only intercept Enter for paragraphs inside table cells.
-	// Other block types (list_item, heading, etc.) are handled by their plugins.
-	if (block && block.type !== 'paragraph') return false;
-
-	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
-	if (!tableCtx) return false;
-
-	if (tableCtx.rowIndex < tableCtx.totalRows - 1) {
-		return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowIndex + 1, tableCtx.colIndex);
-	}
-
-	// On last row — block to prevent splitBlock
-	return true;
 }
 
 /** Backspace at deletion-boundary: select table node (first step of 2-step delete). */

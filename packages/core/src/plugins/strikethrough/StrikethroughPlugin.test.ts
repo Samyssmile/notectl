@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HTMLParser } from '../../model/HTMLParser.js';
+import { HTMLParser } from '../../input/HTMLParser.js';
 import {
 	expectCommandDispatches,
 	expectCommandRegistered,

@@ -4,7 +4,6 @@
  */
 
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
-import { findNodePath } from '../../model/NodeResolver.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
@@ -65,14 +64,11 @@ function setAttr(context: PluginContext, bid: BlockId, key: string, value: strin
 	const block: BlockNode | undefined = state.getBlock(bid);
 	if (!block || block.type !== 'code_block') return;
 
-	const path: string[] | undefined = findNodePath(state.doc, bid);
+	const path: BlockId[] | undefined = state.getNodePath(bid);
 	if (!path) return;
 
 	const newAttrs: BlockAttrs = { ...block.attrs, [key]: value };
-	const tr: Transaction = state
-		.transaction('command')
-		.setNodeAttr(path as BlockId[], newAttrs)
-		.build();
+	const tr: Transaction = state.transaction('command').setNodeAttr(path, newAttrs).build();
 
 	context.dispatch(tr);
 }
