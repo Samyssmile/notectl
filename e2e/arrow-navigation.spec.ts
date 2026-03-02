@@ -677,8 +677,8 @@ test.describe('Arrow Navigation', () => {
 			await page.keyboard.press('ArrowRight');
 			await page.waitForTimeout(200);
 
-			// Check for the gap cursor element (height:0 with ::before pseudo, so use toBeAttached)
-			const gapCursor = page.locator('notectl-editor .notectl-gap-cursor');
+			// Check for the gap cursor decoration class on a block element
+			const gapCursor = page.locator('notectl-editor [class*="notectl-gap-cursor--"]');
 			await expect(gapCursor).toBeAttached({ timeout: 2000 });
 		});
 	});
