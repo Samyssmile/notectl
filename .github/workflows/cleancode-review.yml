@@ -1,0 +1,160 @@
+name: Clean Code Review
+
+on:
+  push:
+    branches: [refactor/cleancode]
+  workflow_dispatch:
+    inputs:
+      max_turns:
+        description: 'Max Claude turns for review'
+        default: '20'
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: cleancode-cycle
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Collect diagnostics
+        run: |
+          pnpm test 2>&1 | tee /tmp/test-results.txt || true
+          pnpm lint 2>&1 | tee /tmp/lint-results.txt || true
+          pnpm typecheck 2>&1 | tee /tmp/typecheck-results.txt || true
+
+      - name: Ensure label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh label create cleancode-critical
+          --description "Auto-detected critical clean code violation"
+          --color B60205 --force
+
+      - name: Loop guard
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OPEN=$(gh issue list --label cleancode-critical --state open --json number --jq length)
+          CLOSED=$(gh issue list --label cleancode-critical --state closed --json number --jq length)
+          TOTAL=$((OPEN + CLOSED))
+          echo "open=$OPEN closed=$CLOSED total=$TOTAL"
+
+          if [ "$OPEN" -gt 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping review — $OPEN open issues still being fixed"
+          elif [ "$TOTAL" -ge 30 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Safety limit reached (30 total iterations). Stopping loop."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Claude Code
+        if: steps.guard.outputs.skip != 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run code review
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAX_TURNS="${{ inputs.max_turns || '20' }}"
+          claude -p --dangerously-skip-permissions --max-turns "$MAX_TURNS" \
+            --model claude-sonnet-4-6 <<'REVIEW_PROMPT'
+          You are a senior code reviewer performing a clean code audit on the
+          notectl rich text editor project.
+
+          ## Setup
+          1. Read CLAUDE.md to understand project conventions and architecture
+          2. Read diagnostics:
+             - /tmp/test-results.txt (test results)
+             - /tmp/lint-results.txt (linter output)
+             - /tmp/typecheck-results.txt (type check output)
+
+          ## Review Scope
+          Analyze ALL files in packages/core/src/ for these categories:
+
+          ### Architecture & Design (Highest Priority)
+          - Layer violations (model/ must not import view/, state/ must not import input/, etc.)
+          - Circular dependencies between modules
+          - God classes or functions with too many responsibilities (SRP violation)
+          - Missing or broken abstractions
+          - Wrong placement of logic (business logic in view/, DOM in model/, etc.)
+
+          ### Code Quality
+          - Functions longer than 30 lines
+          - Files longer than 500 lines
+          - Duplicated logic across files (DRY violations)
+          - Complex control flow (deep nesting > 3 levels, long conditionals)
+          - Poor or misleading naming
+
+          ### Type Safety & Correctness
+          - Usage of `any` type
+          - Missing return types or parameter types
+          - Unsafe type assertions (as any, as unknown as T)
+          - Missing null/undefined handling at system boundaries
+
+          ### Best Practices
+          - Mutable state where immutability is expected
+          - Missing error handling
+          - Side effects in pure layers (model/, state/)
+          - Violations of modern TypeScript patterns
+
+          ## Output Rules
+          1. Identify ALL violations you find across the codebase
+          2. Rank each by severity: CRITICAL > MAJOR > MINOR
+          3. Create a GitHub issue ONLY for the single most CRITICAL finding
+          4. Only ONE issue per review cycle — pick the worst violation
+          5. If NOTHING is critical, create ZERO issues and output:
+             "CLEAN CODE REVIEW PASSED — no critical violations found"
+
+          ## Issue Creation Format
+          For each critical finding, create an issue using gh CLI.
+          Use this format (adapt the body content for each issue):
+
+          gh issue create \
+            --title "[Clean Code] <concise problem description>" \
+            --label "cleancode-critical" \
+            --body "## Problem
+          <what is wrong and why it matters for maintainability>
+
+          ## Affected Files
+          - \`path/to/file.ts\` (lines X-Y): <specific violation>
+          - \`path/to/other.ts\` (lines X-Y): <specific violation>
+
+          ## Suggested Fix
+          <concrete, step-by-step approach to resolve this>
+
+          ## Principle Violated
+          <SOLID / DRY / SRP / OCP / etc. with brief explanation>"
+
+          ## Important Rules
+          - Only flag genuine architectural or design problems
+          - Do NOT create issues for: style preferences (linter handles those),
+            trivial naming quibbles, or minor improvements
+          - Each issue must be independently fixable
+          - Issues must be specific enough to implement without ambiguity
+          - Include exact file paths and line numbers
+          REVIEW_PROMPT
