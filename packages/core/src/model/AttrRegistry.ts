@@ -10,7 +10,7 @@
  * }
  */
 
-import type { BlockAlignment } from '../plugins/alignment/AlignmentPlugin.js';
+import type { BlockAlignment } from './BlockAlignment.js';
 import type { BlockNode, InlineNode, Mark } from './Document.js';
 import { isInlineNode } from './Document.js';
 

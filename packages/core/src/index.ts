@@ -110,6 +110,7 @@ export type {
 	InlineNodeAttrsFor,
 } from './model/AttrRegistry.js';
 export { isNodeOfType, isMarkOfType, isInlineNodeOfType } from './model/AttrRegistry.js';
+export type { BlockAlignment } from './model/BlockAlignment.js';
 
 // --- NodeSpec & MarkSpec ---
 export type {
