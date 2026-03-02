@@ -367,6 +367,72 @@ describe('FontPlugin', () => {
 		});
 	});
 
+	describe('parseHTML quote normalization', () => {
+		it('normalizes double-quoted font family from browser to single quotes', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const markSpec = h.getMarkSpec('font');
+			const rule = markSpec?.parseHTML?.[0];
+
+			const span: HTMLElement = document.createElement('span');
+			// Browsers normalize CSS quotes to double-quotes
+			span.style.fontFamily = '"Fira Code", monospace';
+
+			const attrs = rule?.getAttrs?.(span);
+			expect(attrs).toEqual({ family: "'Fira Code', monospace" });
+		});
+
+		it('preserves single-quoted font family as-is', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const markSpec = h.getMarkSpec('font');
+			const rule = markSpec?.parseHTML?.[0];
+
+			const span: HTMLElement = document.createElement('span');
+			span.style.fontFamily = "'Fira Code', monospace";
+
+			const attrs = rule?.getAttrs?.(span);
+			expect(attrs).toEqual({ family: "'Fira Code', monospace" });
+		});
+
+		it('returns false for span without fontFamily', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const markSpec = h.getMarkSpec('font');
+			const rule = markSpec?.parseHTML?.[0];
+
+			const span: HTMLElement = document.createElement('span');
+
+			const attrs = rule?.getAttrs?.(span);
+			expect(attrs).toBe(false);
+		});
+	});
+
+	describe('resolveFontName', () => {
+		it('strips double quotes from unrecognized font family', async () => {
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: '"Fira Code", monospace' } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
+
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			expectComboboxLabel(h, 'font', 'Fira Code');
+		});
+
+		it('matches config font when family uses single quotes', async () => {
+			const state = stateBuilder()
+				.paragraph('styled', 'b1', {
+					marks: [{ type: 'font', attrs: { family: "'Mono', monospace" } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
+
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			expectComboboxLabel(h, 'font', 'Mono');
+		});
+	});
+
 	describe('getActiveFont', () => {
 		it('returns null when no font mark is present', () => {
 			const state = stateBuilder()

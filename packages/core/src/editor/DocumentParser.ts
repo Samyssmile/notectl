@@ -58,71 +58,83 @@ export function parseHTMLToDocument(
 	const blocks: BlockNode[] = [];
 
 	for (const child of Array.from(root.childNodes)) {
-		if (child.nodeType === Node.ELEMENT_NODE) {
-			const el = child as HTMLElement;
-			const tag: string = el.tagName.toLowerCase();
-
-			// Lists need cross-element logic — handle before parse rules
-			if (tag === 'ul' || tag === 'ol') {
-				const listType: string = tag === 'ol' ? 'ordered' : 'bullet';
-				const listDir: string | null = el.getAttribute('dir');
-				const parentDir: string | undefined =
-					listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
-				parseListElement(el, listType, 0, blocks, registry, parentDir);
-				continue;
-			}
-
-			// Tables produce nested block structure: table > table_row > table_cell > paragraph
-			if (tag === 'table') {
-				parseTableElement(el, blocks, registry);
-				continue;
-			}
-
-			// Try block parse rules
-			const match = matchBlockParseRule(el, blockRules);
-			if (match) {
-				const spec = registry?.getNodeSpec(match.type);
-				const children: (TextNode | InlineNode)[] = spec?.isVoid
-					? []
-					: parseElementToInlineContent(el, registry);
-				const attrs: Record<string, string | number | boolean> = {
-					...(match.attrs as Record<string, string | number | boolean> | undefined),
-				};
-				extractAlignment(el, attrs);
-				extractDirection(el, attrs);
-				blocks.push(
-					createBlockNode(
-						nodeType(match.type),
-						children,
-						undefined,
-						Object.keys(attrs).length > 0 ? attrs : undefined,
-					),
-				);
-				continue;
-			}
-
-			// Fallback to paragraph
-			const inlineContent = parseElementToInlineContent(el, registry);
-			const attrs: Record<string, string | number | boolean> = {};
-			extractAlignment(el, attrs);
-			extractDirection(el, attrs);
-			blocks.push(
-				createBlockNode(
-					nodeType('paragraph'),
-					inlineContent,
-					undefined,
-					Object.keys(attrs).length > 0 ? attrs : undefined,
-				),
-			);
-		} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
-			blocks.push(
-				createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]),
-			);
-		}
+		parseChildNode(child, blocks, blockRules, registry);
 	}
 
 	if (blocks.length === 0) return createDocument();
 	return createDocument(blocks);
+}
+
+/**
+ * Parses a single child node into block(s), handling all supported block types:
+ * lists, tables, block parse rules (headings, blockquotes, code blocks, images, hr),
+ * and fallback paragraphs. Used by both top-level parsing and table cell content parsing.
+ */
+function parseChildNode(
+	child: ChildNode,
+	blocks: BlockNode[],
+	blockRules: readonly { readonly rule: ParseRule; readonly type: string }[],
+	registry?: SchemaRegistry,
+): void {
+	if (child.nodeType === Node.ELEMENT_NODE) {
+		const el = child as HTMLElement;
+		const tag: string = el.tagName.toLowerCase();
+
+		// Lists need cross-element logic — handle before parse rules
+		if (tag === 'ul' || tag === 'ol') {
+			const listType: string = tag === 'ol' ? 'ordered' : 'bullet';
+			const listDir: string | null = el.getAttribute('dir');
+			const parentDir: string | undefined =
+				listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
+			parseListElement(el, listType, 0, blocks, registry, parentDir);
+			return;
+		}
+
+		// Tables produce nested block structure: table > table_row > table_cell > paragraph
+		if (tag === 'table') {
+			parseTableElement(el, blocks, registry);
+			return;
+		}
+
+		// Try block parse rules
+		const match = matchBlockParseRule(el, blockRules);
+		if (match) {
+			const spec = registry?.getNodeSpec(match.type);
+			const children: (TextNode | InlineNode)[] = spec?.isVoid
+				? []
+				: parseElementToInlineContent(el, registry);
+			const attrs: Record<string, string | number | boolean> = {
+				...(match.attrs as Record<string, string | number | boolean> | undefined),
+			};
+			extractAlignment(el, attrs);
+			extractDirection(el, attrs);
+			blocks.push(
+				createBlockNode(
+					nodeType(match.type),
+					children,
+					undefined,
+					Object.keys(attrs).length > 0 ? attrs : undefined,
+				),
+			);
+			return;
+		}
+
+		// Fallback to paragraph
+		const inlineContent = parseElementToInlineContent(el, registry);
+		const attrs: Record<string, string | number | boolean> = {};
+		extractAlignment(el, attrs);
+		extractDirection(el, attrs);
+		blocks.push(
+			createBlockNode(
+				nodeType('paragraph'),
+				inlineContent,
+				undefined,
+				Object.keys(attrs).length > 0 ? attrs : undefined,
+			),
+		);
+	} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+		blocks.push(createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]));
+	}
 }
 
 /**
@@ -288,45 +300,16 @@ function extractCellSpanAttrs(
 	}
 }
 
-/** Parses a table cell's content into paragraph blocks. */
+/** Parses a table cell's content into blocks, supporting all block types (lists, quotes, etc.). */
 function parseTableCellContent(cellEl: HTMLElement, registry?: SchemaRegistry): BlockNode[] {
+	const blockRules = registry?.getBlockParseRules() ?? [];
 	const cellBlocks: BlockNode[] = [];
 
-	// Check for block-level children (paragraphs, etc.)
-	let hasBlockChildren = false;
-	for (const child of Array.from(cellEl.children)) {
-		const tag: string = child.tagName.toLowerCase();
-		if (tag === 'p' || tag === 'div' || tag === 'h1' || tag === 'h2' || tag === 'h3') {
-			hasBlockChildren = true;
-			break;
-		}
+	for (const child of Array.from(cellEl.childNodes)) {
+		parseChildNode(child, cellBlocks, blockRules, registry);
 	}
 
-	if (hasBlockChildren) {
-		for (const child of Array.from(cellEl.childNodes)) {
-			if (child.nodeType === Node.ELEMENT_NODE) {
-				const el = child as HTMLElement;
-				const inlineContent = parseElementToInlineContent(el, registry);
-				const attrs: Record<string, string | number | boolean> = {};
-				extractAlignment(el, attrs);
-				extractDirection(el, attrs);
-				cellBlocks.push(
-					createBlockNode(
-						nodeType('paragraph'),
-						inlineContent,
-						undefined,
-						Object.keys(attrs).length > 0 ? attrs : undefined,
-					),
-				);
-			} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
-				cellBlocks.push(
-					createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]),
-				);
-			}
-		}
-	}
-
-	// No block children or empty: treat entire cell content as one paragraph
+	// No blocks produced: treat entire cell content as one paragraph
 	if (cellBlocks.length === 0) {
 		const inlineContent = parseElementToInlineContent(cellEl, registry);
 		cellBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));

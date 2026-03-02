@@ -983,6 +983,229 @@ describe('table HTML parsing', () => {
 		expect(table.attrs).toBeUndefined();
 	});
 
+	/** Creates a rich registry that supports all block types inside table cells. */
+	function createRichTableRegistry(): SchemaRegistry {
+		const nodeSpecs = new Map<
+			string,
+			{
+				isVoid?: boolean;
+				parseHTML?: readonly {
+					tag: string;
+					getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+				}[];
+			}
+		>([
+			['paragraph', {}],
+			[
+				'heading',
+				{
+					parseHTML: [
+						{ tag: 'h1', getAttrs: () => ({ level: 1 }) },
+						{ tag: 'h2', getAttrs: () => ({ level: 2 }) },
+						{ tag: 'h3', getAttrs: () => ({ level: 3 }) },
+					],
+				},
+			],
+			['list_item', { parseHTML: [{ tag: 'li' }] }],
+			['blockquote', { parseHTML: [{ tag: 'blockquote' }] }],
+			['code_block', { parseHTML: [{ tag: 'pre' }] }],
+			[
+				'image',
+				{
+					isVoid: true,
+					parseHTML: [
+						{
+							tag: 'figure',
+							getAttrs(el: HTMLElement) {
+								const img: HTMLImageElement | null = el.querySelector('img');
+								if (!img) return false;
+								return { src: img.getAttribute('src') ?? '', alt: img.getAttribute('alt') ?? '' };
+							},
+						},
+					],
+				},
+			],
+			['horizontal_rule', { isVoid: true, parseHTML: [{ tag: 'hr' }] }],
+		]);
+
+		return {
+			getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getBlockParseRules: () => {
+				const rules: {
+					rule: { tag: string; getAttrs?: (el: HTMLElement) => Record<string, unknown> | false };
+					type: string;
+				}[] = [];
+				for (const [type, spec] of nodeSpecs) {
+					if (spec.parseHTML) {
+						for (const rule of spec.parseHTML) {
+							rules.push({ rule, type });
+						}
+					}
+				}
+				return rules;
+			},
+			getMarkParseRules: () => [],
+			getInlineParseRules: () => [],
+			getAllowedTags: () => [
+				'p',
+				'br',
+				'div',
+				'table',
+				'tbody',
+				'thead',
+				'tr',
+				'td',
+				'th',
+				'ul',
+				'ol',
+				'li',
+				'h1',
+				'h2',
+				'h3',
+				'blockquote',
+				'pre',
+				'code',
+				'figure',
+				'img',
+				'hr',
+				'input',
+			],
+			getAllowedAttrs: () => [
+				'style',
+				'dir',
+				'src',
+				'alt',
+				'type',
+				'checked',
+				'colspan',
+				'rowspan',
+			],
+		} as unknown as SchemaRegistry;
+	}
+
+	it('parses list items inside table cells', () => {
+		const registry = createRichTableRegistry();
+		const html = '<table><tr><td><ul><li>Item A</li><li>Item B</li></ul></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+
+		// Cell should contain 2 list_item blocks
+		expect(cell.children).toHaveLength(2);
+		expect(cell.children[0]?.type).toBe('list_item');
+		expect(cell.children[1]?.type).toBe('list_item');
+		expect(getBlockText(cell.children[0] as never)).toBe('Item A');
+		expect(getBlockText(cell.children[1] as never)).toBe('Item B');
+	});
+
+	it('parses blockquote inside table cells', () => {
+		const registry = createRichTableRegistry();
+		const html = '<table><tr><td><blockquote>A quote</blockquote></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+
+		expect(cell.children).toHaveLength(1);
+		expect(cell.children[0]?.type).toBe('blockquote');
+		expect(getBlockText(cell.children[0] as never)).toBe('A quote');
+	});
+
+	it('parses code block inside table cells', () => {
+		const registry = createRichTableRegistry();
+		const html = '<table><tr><td><pre><code>const x = 1;</code></pre></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+
+		expect(cell.children).toHaveLength(1);
+		expect(cell.children[0]?.type).toBe('code_block');
+	});
+
+	it('parses image inside table cells', () => {
+		const registry = createRichTableRegistry();
+		const html =
+			'<table><tr><td><figure><img src="https://example.com/img.png" alt="photo"></figure></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+
+		expect(cell.children).toHaveLength(1);
+		expect(cell.children[0]?.type).toBe('image');
+		expect((cell.children[0] as { attrs?: Record<string, unknown> })?.attrs?.src).toBe(
+			'https://example.com/img.png',
+		);
+	});
+
+	it('parses horizontal rule inside table cells', () => {
+		const registry = createRichTableRegistry();
+		const html = '<table><tr><td><p>Before</p><hr><p>After</p></td></tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+		const cell = row.children[0];
+		if (!cell || !('children' in cell)) return;
+
+		expect(cell.children).toHaveLength(3);
+		expect(cell.children[0]?.type).toBe('paragraph');
+		expect(cell.children[1]?.type).toBe('horizontal_rule');
+		expect(cell.children[2]?.type).toBe('paragraph');
+	});
+
+	it('parses mixed nested content in table cells', () => {
+		const registry = createRichTableRegistry();
+		const html =
+			'<table><tr>' +
+			'<td><h2>Title</h2><p>Text</p><ul><li>Item</li></ul></td>' +
+			'<td><blockquote>Quote</blockquote></td>' +
+			'</tr></table>';
+		const doc = parseHTMLToDocument(html, registry);
+
+		const table = doc.children[0];
+		if (!table) return;
+		const row = table.children[0];
+		if (!row || !('children' in row)) return;
+
+		// First cell: heading + paragraph + list_item
+		const cell0 = row.children[0];
+		if (!cell0 || !('children' in cell0)) return;
+		expect(cell0.children).toHaveLength(3);
+		expect(cell0.children[0]?.type).toBe('heading');
+		expect(cell0.children[1]?.type).toBe('paragraph');
+		expect(cell0.children[2]?.type).toBe('list_item');
+
+		// Second cell: blockquote
+		const cell1 = row.children[1];
+		if (!cell1 || !('children' in cell1)) return;
+		expect(cell1.children).toHaveLength(1);
+		expect(cell1.children[0]?.type).toBe('blockquote');
+	});
+
 	it('preserves colspan and rowspan on table cells', () => {
 		const registry = {
 			...createTableRegistry(),
