@@ -568,6 +568,300 @@ describe('PasteHandler rich paste schema validation', () => {
 	});
 });
 
+describe('PasteHandler void block HTML paste', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	function createImageRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'image',
+			isVoid: true,
+			selectable: true,
+			attrs: {
+				src: { default: '' },
+				alt: { default: '' },
+				align: { default: 'center' },
+			},
+			toDOM: () => document.createElement('figure'),
+			parseHTML: [
+				{
+					tag: 'figure',
+					getAttrs(el: HTMLElement) {
+						const img: HTMLImageElement | null = el.querySelector('img');
+						if (!img) return false;
+						return {
+							src: img.getAttribute('src') ?? '',
+							alt: img.getAttribute('alt') ?? '',
+							align: 'center',
+						};
+					},
+				},
+				{
+					tag: 'img',
+					getAttrs(el: HTMLElement) {
+						return {
+							src: el.getAttribute('src') ?? '',
+							alt: el.getAttribute('alt') ?? '',
+							align: 'center',
+						};
+					},
+				},
+			],
+			sanitize: {
+				tags: ['figure', 'img'],
+				attrs: ['src', 'alt', 'width', 'height', 'class', 'style'],
+			},
+		});
+		return registry;
+	}
+
+	it('inserts image block from pasted HTML with figure element', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		const registry: SchemaRegistry = createImageRegistry();
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const html = '<figure><img src="https://example.com/photo.png" alt="A photo"></figure>';
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const imageBlock = currentState.doc.children.find((c) => isBlockNode(c) && c.type === 'image');
+		expect(imageBlock).toBeDefined();
+		if (imageBlock && isBlockNode(imageBlock)) {
+			expect(imageBlock.attrs?.src).toBe('https://example.com/photo.png');
+			expect(imageBlock.attrs?.alt).toBe('A photo');
+		}
+	});
+
+	it('inserts image block from HTML with paragraphs and figure', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		const registry: SchemaRegistry = createImageRegistry();
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const html =
+			'<p>Before</p><figure><img src="https://example.com/photo.png" alt="pic"></figure><p>After</p>';
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const imageBlock = currentState.doc.children.find((c) => isBlockNode(c) && c.type === 'image');
+		expect(imageBlock).toBeDefined();
+		if (imageBlock && isBlockNode(imageBlock)) {
+			expect(imageBlock.attrs?.src).toBe('https://example.com/photo.png');
+			// Void blocks should have no text children
+			expect(imageBlock.children).toHaveLength(0);
+		}
+	});
+});
+
+describe('PasteHandler isAnchorEmpty with non-paragraph blocks', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	function createRegistryWithHeading(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			attrs: { level: { default: 1 } },
+			toDOM: () => document.createElement('h1'),
+		});
+		return registry;
+	}
+
+	function createRegistryWithBlockquote(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'blockquote',
+			toDOM: () => document.createElement('blockquote'),
+		});
+		return registry;
+	}
+
+	it('removes empty heading anchor when pasting rich blocks', () => {
+		element = document.createElement('div');
+		const headingBlock = createBlockNode('heading', [], blockId('h1'), { level: 2 });
+		const doc = createDocument([headingBlock]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(blockId('h1'), 0),
+		});
+
+		const registry: SchemaRegistry = createRegistryWithHeading();
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const richBlocks = [
+			{ type: 'heading', text: 'New Title', attrs: { level: 1 } },
+			{ type: 'heading', text: 'Subtitle', attrs: { level: 2 } },
+		];
+		const json: string = JSON.stringify(richBlocks);
+		const html: string = `<div data-notectl-rich='${json}'></div>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		// The empty heading anchor should have been removed
+		const headings = currentState.doc.children.filter(
+			(c) => isBlockNode(c) && c.type === 'heading',
+		);
+		expect(headings).toHaveLength(2);
+	});
+
+	it('removes empty blockquote anchor when pasting rich blocks', () => {
+		element = document.createElement('div');
+		const bqBlock = createBlockNode('blockquote', [], blockId('bq1'));
+		const doc = createDocument([bqBlock]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(blockId('bq1'), 0),
+		});
+
+		const registry: SchemaRegistry = createRegistryWithBlockquote();
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const richBlocks = [
+			{ type: 'blockquote', text: 'A quote' },
+			{ type: 'blockquote', text: 'More quote' },
+		];
+		const json: string = JSON.stringify(richBlocks);
+		const html: string = `<div data-notectl-rich='${json}'></div>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const blockquotes = currentState.doc.children.filter(
+			(c) => isBlockNode(c) && c.type === 'blockquote',
+		);
+		expect(blockquotes).toHaveLength(2);
+	});
+});
+
+describe('PasteHandler rich paste with mark segments', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('preserves bold marks from segments during rich paste', () => {
+		element = document.createElement('div');
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], B1)]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(B1, 0),
+		});
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: () => document.createElement('p'),
+		});
+		registry.registerMarkSpec({
+			type: 'bold',
+			rank: 1,
+			toDOM: () => document.createElement('strong'),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const richBlocks = [
+			{
+				type: 'paragraph',
+				text: 'hello world',
+				segments: [
+					{ text: 'hello ', marks: [] },
+					{ text: 'world', marks: [{ type: 'bold' }] },
+				],
+			},
+			{ type: 'paragraph', text: 'line two' },
+		];
+		const json: string = JSON.stringify(richBlocks);
+		const html: string = `<div data-notectl-rich='${json}'></div>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		// Find the paragraph that contains the bold-marked text
+		const allParas = currentState.doc.children.filter(
+			(c) => isBlockNode(c) && c.type === 'paragraph',
+		);
+		expect(allParas.length).toBeGreaterThanOrEqual(2);
+
+		// Find a block that has a 'world' text child with bold mark
+		let foundBold = false;
+		for (const para of allParas) {
+			if (!isBlockNode(para)) continue;
+			for (const ch of para.children) {
+				if (ch.type === 'text' && ch.text === 'world' && ch.marks.some((m) => m.type === 'bold')) {
+					foundBold = true;
+				}
+			}
+		}
+		expect(foundBold).toBe(true);
+	});
+});
+
 describe('FileHandlerRegistry MIME matching (via PasteHandler)', () => {
 	it('matches exact MIME type', () => {
 		const registry = new FileHandlerRegistry();

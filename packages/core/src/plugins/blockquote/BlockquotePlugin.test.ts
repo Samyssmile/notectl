@@ -138,6 +138,203 @@ describe('BlockquotePlugin', () => {
 		});
 	});
 
+	describe('keyboard: range selection guard', () => {
+		it('all handlers return false for range selections', async () => {
+			const state = stateBuilder()
+				.block('blockquote', 'Quote', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+				.schema(['paragraph', 'blockquote'], ['bold'])
+				.build();
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			for (const key of ['ArrowDown', 'ArrowUp', 'Enter', 'Backspace'] as const) {
+				const handler = h.getKeymaps().find((km) => km[key])?.[key];
+				assertDefined(handler);
+				expect(handler()).toBe(false);
+			}
+		});
+	});
+
+	describe('keyboard: ArrowDown', () => {
+		it('moves to next block when cursor is at end of blockquote', async () => {
+			const state = makeState(
+				[
+					{ type: 'blockquote', text: 'Quote', id: 'b1' },
+					{ type: 'paragraph', text: 'next', id: 'b2' },
+				],
+				'b1',
+				5,
+			);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b2');
+				expect(sel.anchor.offset).toBe(0);
+			}
+		});
+
+		it('creates paragraph when blockquote is last block', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 5);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+			handler();
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+		});
+
+		it('returns false when cursor is not at end of text', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 2);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('returns false when cursor is in a paragraph', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 4);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowDown)?.ArrowDown;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('keyboard: ArrowUp', () => {
+		it('moves to previous block when cursor is at start of blockquote', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'blockquote', text: 'Quote', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b1');
+				expect(sel.anchor.offset).toBe(4);
+			}
+		});
+
+		it('returns false when no previous block exists', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('returns false when cursor is not at start of text', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'prev', id: 'b1' },
+					{ type: 'blockquote', text: 'Quote', id: 'b2' },
+				],
+				'b2',
+				3,
+			);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.ArrowUp)?.ArrowUp;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('keyboard: Enter on empty', () => {
+		it('converts empty blockquote to paragraph', async () => {
+			const state = makeState([{ type: 'blockquote', text: '', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+		});
+
+		it('returns false for non-empty blockquote', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 5);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('returns false for non-blockquote blocks', async () => {
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('keyboard: Backspace at start', () => {
+		it('converts blockquote to paragraph on Backspace at offset 0', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			const handled: boolean = handler();
+			expect(handled).toBe(true);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+			expect(getBlockText(h.getState().doc.children[0])).toBe('Quote');
+		});
+
+		it('returns false when cursor is not at offset 0', async () => {
+			const state = makeState([{ type: 'blockquote', text: 'Quote', id: 'b1' }], 'b1', 3);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+
+		it('returns false for non-blockquote blocks', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			const handler = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(handler);
+
+			expect(handler()).toBe(false);
+		});
+	});
+
 	describe('toolbar item', () => {
 		it('registers a blockquote toolbar item', async () => {
 			const h = await pluginHarness(new BlockquotePlugin());

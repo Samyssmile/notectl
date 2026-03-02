@@ -2,6 +2,14 @@
  * HTML string escaping and formatting utilities shared across serialization and parsing.
  */
 
+/**
+ * URI scheme regex for DOMPurify that extends the default allowlist with `blob:` and `data:`.
+ * `blob:` is needed to preserve same-origin blob URLs (e.g. uploaded images) through
+ * clipboard round-trips and HTML serialization.
+ */
+export const SAFE_URI_REGEXP: RegExp =
+	/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|blob|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
 /** Escapes special HTML characters in text content. */
 export function escapeHTML(text: string): string {
 	return text

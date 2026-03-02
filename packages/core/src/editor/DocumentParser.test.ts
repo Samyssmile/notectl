@@ -722,6 +722,139 @@ describe('full round-trip: serializeDocumentToCSS → parseHTMLToDocument', () =
 	});
 });
 
+describe('void block parsing', () => {
+	function createImageRegistry(): SchemaRegistry {
+		const nodeSpecs = new Map<
+			string,
+			{
+				isVoid?: boolean;
+				parseHTML?: readonly {
+					tag: string;
+					getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+				}[];
+			}
+		>([
+			['paragraph', {}],
+			[
+				'image',
+				{
+					isVoid: true,
+					parseHTML: [
+						{
+							tag: 'figure',
+							getAttrs(el: HTMLElement) {
+								const img: HTMLImageElement | null = el.querySelector('img');
+								if (!img) return false;
+								return {
+									src: img.getAttribute('src') ?? '',
+									alt: img.getAttribute('alt') ?? '',
+									align: 'center',
+								};
+							},
+						},
+						{
+							tag: 'img',
+							getAttrs(el: HTMLElement) {
+								return {
+									src: el.getAttribute('src') ?? '',
+									alt: el.getAttribute('alt') ?? '',
+									align: 'center',
+								};
+							},
+						},
+					],
+				},
+			],
+		]);
+
+		return {
+			getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getBlockParseRules: () => {
+				const rules: {
+					rule: {
+						tag: string;
+						getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+					};
+					type: string;
+				}[] = [];
+				for (const [type, spec] of nodeSpecs) {
+					if (spec.parseHTML) {
+						for (const rule of spec.parseHTML) {
+							rules.push({ rule, type });
+						}
+					}
+				}
+				return rules;
+			},
+			getMarkParseRules: () => [],
+			getInlineParseRules: () => [],
+			getAllowedTags: () => ['p', 'br', 'div', 'figure', 'img'],
+			getAllowedAttrs: () => ['style', 'dir', 'src', 'alt', 'width', 'height'],
+		} as unknown as SchemaRegistry;
+	}
+
+	it('parses figure with img as image block', () => {
+		const registry = createImageRegistry();
+		const doc = parseHTMLToDocument(
+			'<figure><img src="https://example.com/photo.png" alt="A photo"></figure>',
+			registry,
+		);
+
+		expect(doc.children).toHaveLength(1);
+		const block = doc.children[0];
+		if (!block) return;
+		expect(block.type).toBe('image');
+		expect(block.attrs?.src).toBe('https://example.com/photo.png');
+		expect(block.attrs?.alt).toBe('A photo');
+	});
+
+	it('creates void blocks with empty children', () => {
+		const registry = createImageRegistry();
+		const doc = parseHTMLToDocument(
+			'<figure><img src="https://example.com/photo.png" alt=""></figure>',
+			registry,
+		);
+
+		expect(doc.children).toHaveLength(1);
+		const block = doc.children[0];
+		if (!block) return;
+		expect(block.type).toBe('image');
+		expect(block.children).toHaveLength(0);
+	});
+
+	it('parses figure alongside paragraphs', () => {
+		const registry = createImageRegistry();
+		const doc = parseHTMLToDocument(
+			'<p>Before</p><figure><img src="https://example.com/photo.png" alt=""></figure><p>After</p>',
+			registry,
+		);
+
+		expect(doc.children).toHaveLength(3);
+		const first = doc.children[0];
+		const second = doc.children[1];
+		const third = doc.children[2];
+		if (!first || !second || !third) return;
+		expect(first.type).toBe('paragraph');
+		expect(getBlockText(first)).toBe('Before');
+		expect(second.type).toBe('image');
+		expect(second.children).toHaveLength(0);
+		expect(third.type).toBe('paragraph');
+		expect(getBlockText(third)).toBe('After');
+	});
+
+	it('rejects figure without img child', () => {
+		const registry = createImageRegistry();
+		const doc = parseHTMLToDocument('<figure>Just text</figure>', registry);
+
+		expect(doc.children).toHaveLength(1);
+		// Should fall back to paragraph since getAttrs returns false
+		expect(doc.children[0]?.type).toBe('paragraph');
+	});
+});
+
 describe('table HTML parsing', () => {
 	/** Creates a registry that allows table-related tags. */
 	function createTableRegistry(): SchemaRegistry {

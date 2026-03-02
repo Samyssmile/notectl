@@ -14,7 +14,7 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { escapeHTML } from '../model/HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeHTML } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
@@ -71,6 +71,7 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
 	return DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 }
 
@@ -99,6 +100,7 @@ export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry)
 	const sanitizedHTML: string = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: filteredAttrs,
+		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 	});
 
 	return { html: sanitizedHTML, css: collector.toCSS(), styleMap: collector.toStyleMap() };

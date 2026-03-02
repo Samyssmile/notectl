@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHTML, formatHTML } from './HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeHTML, formatHTML } from './HTMLUtils.js';
+
+describe('SAFE_URI_REGEXP', () => {
+	it('allows blob: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('blob:http://localhost/abc-123')).toBe(true);
+	});
+
+	it('allows data: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('data:image/png;base64,abc')).toBe(true);
+	});
+
+	it('allows https: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('https://example.com')).toBe(true);
+	});
+
+	it('allows http: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('http://example.com')).toBe(true);
+	});
+
+	it('allows mailto: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('mailto:user@example.com')).toBe(true);
+	});
+
+	it('rejects javascript: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('javascript:alert(1)')).toBe(false);
+	});
+
+	it('rejects vbscript: URIs', () => {
+		expect(SAFE_URI_REGEXP.test('vbscript:exec')).toBe(false);
+	});
+});
 
 describe('escapeHTML', () => {
 	it('escapes ampersands, angle brackets, and quotes', () => {
