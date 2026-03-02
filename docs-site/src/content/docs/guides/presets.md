@@ -28,7 +28,7 @@ This gives you the same setup as manually configuring:
 | 2 | TextFormatting, Strikethrough, SuperSub | Inline marks |
 | 3 | TextColor, Highlight | Colors |
 | 4 | Heading, Blockquote, CodeBlock | Block types |
-| 5 | Alignment | Paragraph layout |
+| 5 | Alignment, TextDirection | Paragraph layout & direction |
 | 6 | List | Bullet, ordered, checklist |
 | 7 | Link, Table, HorizontalRule, Image | Insert objects |
 | 8 | Print | Utility |
@@ -79,7 +79,8 @@ const editor = await createEditor({
 | `heading` | HeadingPlugin | `{ levels: [1, 2, 3] }` |
 | `blockquote` | BlockquotePlugin | `{ separatorAfter: true }` |
 | `codeBlock` | CodeBlockPlugin | `{ highlighter: myHighlighter }` |
-| `alignment` | AlignmentPlugin | `{ alignments: ['left', 'center', 'right'] }` |
+| `alignment` | AlignmentPlugin | `{ alignments: ['start', 'center', 'end'] }` |
+| `textDirection` | TextDirectionPlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
 | `list` | ListPlugin | `{ interactiveCheckboxes: true }` |
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
 | `table` | TablePlugin | `{ maxPickerRows: 10 }` |
