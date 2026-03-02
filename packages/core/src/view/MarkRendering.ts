@@ -28,6 +28,32 @@ export function getMarkRank(mark: Mark, registry?: SchemaRegistry): number {
 	}
 }
 
+/**
+ * Wraps an inner DOM node with mark elements from inside-out.
+ * Marks are sorted by rank (lower = outermost) before wrapping.
+ */
+export function wrapNodeWithMarks(
+	innerNode: Node,
+	marks: readonly Mark[],
+	registry?: SchemaRegistry,
+): Node {
+	if (marks.length === 0) return innerNode;
+
+	const sortedMarks: readonly Mark[] = [...marks].sort(
+		(a, b) => getMarkRank(a, registry) - getMarkRank(b, registry),
+	);
+
+	let current: Node = innerNode;
+	for (let i: number = sortedMarks.length - 1; i >= 0; i--) {
+		const mark: Mark | undefined = sortedMarks[i];
+		if (!mark) continue;
+		const el: HTMLElement = createMarkElement(mark, registry);
+		el.appendChild(current);
+		current = el;
+	}
+	return current;
+}
+
 /** Creates a DOM element for a mark, using the registry spec or a built-in fallback. */
 export function createMarkElement(mark: Mark, registry?: SchemaRegistry): HTMLElement {
 	if (registry) {
