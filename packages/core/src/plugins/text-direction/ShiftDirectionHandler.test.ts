@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { registerBuiltinSpecs } from '../../model/BuiltinSpecs.js';
+import { registerBuiltinSpecs } from '../../editor/BuiltinSpecs.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { stateBuilder } from '../../test/TestUtils.js';

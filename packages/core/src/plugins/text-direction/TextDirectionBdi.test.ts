@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseHTMLToDocument } from '../../editor/DocumentParser.js';
-import { serializeDocumentToHTML } from '../../editor/DocumentSerializer.js';
 import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
+import { parseHTMLToDocument } from '../../serialization/DocumentParser.js';
+import { serializeDocumentToHTML } from '../../serialization/DocumentSerializer.js';
 import type { EditorState } from '../../state/EditorState.js';
 import {
 	expectCommandRegistered,

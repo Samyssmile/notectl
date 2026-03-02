@@ -6,8 +6,8 @@
  * TextFormattingPlugin, not here. Only structural node types belong here.
  */
 
-import { createBlockElement } from './NodeSpec.js';
-import type { SchemaRegistry } from './SchemaRegistry.js';
+import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createBlockElement } from '../view/DomUtils.js';
 
 /** Registers the built-in paragraph NodeSpec. */
 export function registerBuiltinSpecs(registry: SchemaRegistry): void {

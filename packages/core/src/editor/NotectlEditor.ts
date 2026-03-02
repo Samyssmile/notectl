@@ -6,7 +6,6 @@ import { selectAll } from '../commands/Commands.js';
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
-import { registerBuiltinSpecs } from '../model/BuiltinSpecs.js';
 import { type Document, getBlockText } from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
@@ -24,6 +23,11 @@ import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
 import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
+import type {
+	ContentCSSResult,
+	ContentHTMLOptions,
+	SetContentHTMLOptions,
+} from '../serialization/ContentHTMLTypes.js';
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -34,11 +38,7 @@ import {
 } from '../style/StyleRuntime.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
-import type {
-	ContentCSSResult,
-	ContentHTMLOptions,
-	SetContentHTMLOptions,
-} from './ContentHTMLTypes.js';
+import { registerBuiltinSpecs } from './BuiltinSpecs.js';
 import { createEditorDOM } from './EditorDOM.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -380,7 +380,7 @@ export class NotectlEditor extends HTMLElement {
 		const registry = this.pluginManager?.schemaRegistry;
 
 		const { serializeDocumentToHTML, serializeDocumentToCSS } = await import(
-			'./DocumentSerializer.js'
+			'../serialization/DocumentSerializer.js'
 		);
 
 		if (options?.cssMode === 'classes') {
@@ -396,7 +396,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
 	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
-		const { parseHTMLToDocument } = await import('./DocumentParser.js');
+		const { parseHTMLToDocument } = await import('../serialization/DocumentParser.js');
 		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry, options);
 		this.setJSON(doc);
 	}

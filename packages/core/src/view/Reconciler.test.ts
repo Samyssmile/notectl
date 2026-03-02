@@ -8,12 +8,12 @@ import {
 	createTextNode,
 } from '../model/Document.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
-import { createBlockElement } from '../model/NodeSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { createBlockElement } from './DomUtils.js';
 import { NodeViewRegistry } from './NodeViewRegistry.js';
 import { reconcile, renderBlock, renderBlockContent } from './Reconciler.js';
 
