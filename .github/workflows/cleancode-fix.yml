@@ -1,0 +1,121 @@
+name: Clean Code Fix
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: cleancode-cycle
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.issue.labels.*.name, 'cleancode-critical')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/cleancode
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch open issues
+        id: issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue list --label cleancode-critical --state open \
+            --json number,title,body > /tmp/open-issues.json
+          COUNT=$(jq length /tmp/open-issues.json)
+          echo "count=${COUNT:-0}" >> "$GITHUB_OUTPUT"
+          echo "Found $COUNT open cleancode-critical issues"
+
+      - name: Install Claude Code
+        if: steps.issues.outputs.count != '0'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Fix issues
+        if: steps.issues.outputs.count != '0'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          claude -p --dangerously-skip-permissions --max-turns 30 \
+            --model claude-sonnet-4-6 <<'FIX_PROMPT'
+          You are a senior developer fixing clean code violations in the notectl
+          rich text editor project.
+
+          ## Setup
+          1. Read CLAUDE.md to understand project conventions and architecture
+          2. Read /tmp/open-issues.json for all issues to fix
+
+          ## Fix Process
+          For EACH issue in /tmp/open-issues.json:
+            a. Read and understand the problem described
+            b. Read the affected files listed in the issue body
+            c. Implement a clean, minimal, focused fix
+            d. Ensure the fix follows project conventions from CLAUDE.md
+
+          ## Verification (MANDATORY before committing)
+          After implementing ALL fixes, run these in order:
+            1. pnpm build    — must pass
+            2. pnpm test     — must pass
+            3. pnpm lint     — must pass
+          If anything fails, debug and fix until all three are green.
+          Do NOT commit or push if any check fails.
+
+          ## Commit & Push
+          Once all checks pass:
+            1. Stage changes: git add -A
+            2. Commit with a descriptive message:
+               git commit -m "refactor: fix clean code violations
+
+               <one-line summary per fixed issue>
+
+               Closes #<number> for each fixed issue"
+            3. Push: git push origin refactor/cleancode
+
+          ## Close Issues
+          For each successfully fixed issue, close it:
+            gh issue close <number> --comment "Fixed in $(git rev-parse --short HEAD)"
+
+          ## Rules
+          - Do NOT break existing functionality or tests
+          - Keep fixes minimal — only change what the issue describes
+          - Follow existing code patterns and conventions
+          - If a fix is too complex or risky to do safely, SKIP that issue and
+            add a comment explaining why instead of closing it
+          - Never use `any` type, never add console.log
+          - Maintain immutability patterns in model/ and state/ layers
+          FIX_PROMPT
+
+      - name: Trigger next review cycle
+        if: success() && steps.issues.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "::notice::Triggering next review cycle..."
+          gh workflow run cleancode-review.yml --ref refactor/cleancode
