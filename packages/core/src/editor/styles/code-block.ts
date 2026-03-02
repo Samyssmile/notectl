@@ -74,7 +74,7 @@ export const CODE_BLOCK_CSS = `
 	display: none;
 	position: absolute;
 	bottom: 4px;
-	right: 8px;
+	inset-inline-end: 8px;
 	font-size: 11px;
 	color: var(--notectl-code-block-header-color);
 	opacity: 0.5;

@@ -1,19 +1,20 @@
 /**
- * AlignmentPlugin: adds left/center/right/justify alignment as a block
+ * AlignmentPlugin: adds start/center/end/justify alignment as a block
  * attribute on paragraphs, headings, images, and other alignable types.
- * Patches their NodeSpecs to render the `align` attribute via inline
- * `text-align` style and provides toggle commands, keyboard shortcuts,
- * and a toolbar dropdown. Handles both TextSelection and NodeSelection.
+ * Uses logical values (`start`/`end`) instead of physical (`left`/`right`)
+ * for correct behavior with RTL text direction. Patches NodeSpecs to render
+ * the `align` attribute via inline `text-align` style and provides toggle
+ * commands, keyboard shortcuts, and a toolbar dropdown.
  */
 
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
-import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { capitalize, getSelectedBlock, getSelectedBlockId } from '../shared/PluginHelpers.js';
 import {
 	ALIGNMENT_LOCALE_EN,
 	type AlignmentLocale,
@@ -22,14 +23,14 @@ import {
 
 // --- Public Types ---
 
-export type BlockAlignment = 'left' | 'center' | 'right' | 'justify';
+export type BlockAlignment = 'start' | 'center' | 'end' | 'justify';
 
 export interface AlignmentConfig {
 	/** Which alignments to expose. Defaults to all four. */
 	readonly alignments: readonly BlockAlignment[];
 	/** Block types that support alignment. Defaults to paragraph + heading + title + subtitle + table_cell + image. */
 	readonly alignableTypes: readonly string[];
-	/** Per-type default alignment (e.g. `{ image: 'center' }`). Falls back to `'left'`. */
+	/** Per-type default alignment (e.g. `{ image: 'center' }`). Falls back to `'start'`. */
 	readonly defaults: Readonly<Record<string, BlockAlignment>>;
 	/** When true, a separator is rendered after the toolbar item. */
 	readonly separatorAfter?: boolean;
@@ -39,17 +40,17 @@ export interface AlignmentConfig {
 // --- Constants ---
 
 const DEFAULT_CONFIG: AlignmentConfig = {
-	alignments: ['left', 'center', 'right', 'justify'],
+	alignments: ['start', 'center', 'end', 'justify'],
 	alignableTypes: ['paragraph', 'heading', 'title', 'subtitle', 'table_cell', 'image'],
 	defaults: { image: 'center' },
 };
 
 export const ALIGNMENT_ICONS: Readonly<Record<BlockAlignment, string>> = {
-	left: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>',
+	start:
+		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>',
 	center:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg>',
-	right:
-		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg>',
+	end: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg>',
 	justify:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zM3 3v2h18V3H3z"/></svg>',
 };
@@ -108,7 +109,7 @@ export class AlignmentPlugin implements Plugin {
 			if (spec.attrs?.align) continue;
 
 			const originalToDOM = spec.toDOM;
-			const defaultAlign: BlockAlignment = this.config.defaults[type] ?? 'left';
+			const defaultAlign: BlockAlignment = this.config.defaults[type] ?? 'start';
 
 			registry.removeNodeSpec(type);
 			registry.registerNodeSpec({
@@ -141,14 +142,14 @@ export class AlignmentPlugin implements Plugin {
 	private registerKeymaps(context: PluginContext): void {
 		const bindings: Record<string, () => boolean> = {};
 
-		if (this.config.alignments.includes('left')) {
-			bindings['Mod-Shift-L'] = () => context.executeCommand('alignLeft');
+		if (this.config.alignments.includes('start')) {
+			bindings['Mod-Shift-L'] = () => context.executeCommand('alignStart');
 		}
 		if (this.config.alignments.includes('center')) {
 			bindings['Mod-Shift-E'] = () => context.executeCommand('alignCenter');
 		}
-		if (this.config.alignments.includes('right')) {
-			bindings['Mod-Shift-R'] = () => context.executeCommand('alignRight');
+		if (this.config.alignments.includes('end')) {
+			bindings['Mod-Shift-R'] = () => context.executeCommand('alignEnd');
 		}
 		if (this.config.alignments.includes('justify')) {
 			bindings['Mod-Shift-J'] = () => context.executeCommand('alignJustify');
@@ -171,10 +172,10 @@ export class AlignmentPlugin implements Plugin {
 		context.registerToolbarItem({
 			id: 'alignment',
 			group: 'block',
-			icon: ALIGNMENT_ICONS.left,
+			icon: ALIGNMENT_ICONS.start,
 			label: this.locale.toolbarLabel,
 			tooltip: this.locale.toolbarTooltip,
-			command: 'alignLeft',
+			command: 'alignStart',
 			priority: 60,
 			popupType: 'dropdown',
 			popupConfig: { items: dropdownItems },
@@ -186,9 +187,9 @@ export class AlignmentPlugin implements Plugin {
 
 	private getAlignmentLabel(alignment: BlockAlignment): string {
 		const labels: Record<BlockAlignment, string> = {
-			left: this.locale.alignLeft,
+			start: this.locale.alignStart,
 			center: this.locale.alignCenter,
-			right: this.locale.alignRight,
+			end: this.locale.alignEnd,
 			justify: this.locale.justify,
 		};
 		return labels[alignment];
@@ -210,7 +211,7 @@ export class AlignmentPlugin implements Plugin {
 					if (!this.alignableTypes.has(step.nodeType)) return step;
 
 					const prevAlign = step.previousAttrs?.align;
-					if (!prevAlign || prevAlign === 'left') return step;
+					if (!prevAlign || prevAlign === 'start') return step;
 
 					// Carry forward align into new attrs
 					patched = true;
@@ -228,39 +229,15 @@ export class AlignmentPlugin implements Plugin {
 
 	// --- Alignment Logic ---
 
-	/**
-	 * Gets the selected block, handling both TextSelection and NodeSelection.
-	 */
-	private getSelectedBlock(state: EditorState): BlockNode | undefined {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) {
-			return state.getBlock(sel.nodeId);
-		}
-		if (isTextSelection(sel)) {
-			return state.getBlock(sel.anchor.blockId);
-		}
-		return undefined;
-	}
-
-	/**
-	 * Gets the block ID of the selected block, handling both selection types.
-	 */
-	private getSelectedBlockId(state: EditorState): BlockId | undefined {
-		const sel = state.selection;
-		if (isNodeSelection(sel)) return sel.nodeId;
-		if (isTextSelection(sel)) return sel.anchor.blockId;
-		return undefined;
-	}
-
 	private setAlignment(context: PluginContext, alignment: BlockAlignment): boolean {
 		const state = context.getState();
-		const block = this.getSelectedBlock(state);
+		const block = getSelectedBlock(state);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 
-		const blockId = this.getSelectedBlockId(state);
-		if (!blockId) return false;
+		const id = getSelectedBlockId(state);
+		if (!id) return false;
 
-		const path = findNodePath(state.doc, blockId);
+		const path = findNodePath(state.doc, id);
 		if (!path) return false;
 
 		const newAttrs = { ...block.attrs, align: alignment };
@@ -276,15 +253,15 @@ export class AlignmentPlugin implements Plugin {
 	}
 
 	private isNonDefaultAlignment(state: EditorState): boolean {
-		const block = this.getSelectedBlock(state);
+		const block = getSelectedBlock(state);
 		if (!block || !this.alignableTypes.has(block.type)) return false;
 		const align = block.attrs?.align;
-		const defaultAlign: BlockAlignment = this.config.defaults[block.type] ?? 'left';
+		const defaultAlign: BlockAlignment = this.config.defaults[block.type] ?? 'start';
 		return align != null && align !== defaultAlign;
 	}
 
 	private isAlignable(state: EditorState): boolean {
-		const block = this.getSelectedBlock(state);
+		const block = getSelectedBlock(state);
 		return block != null && this.alignableTypes.has(block.type);
 	}
 }
@@ -293,11 +270,7 @@ export class AlignmentPlugin implements Plugin {
 
 function applyAlignment(el: HTMLElement, node: BlockNode): void {
 	const align = node.attrs?.align;
-	if (typeof align === 'string' && align !== 'left') {
+	if (typeof align === 'string' && align !== 'start') {
 		setStyleProperty(el, 'textAlign', align);
 	}
-}
-
-function capitalize(s: string): string {
-	return s.charAt(0).toUpperCase() + s.slice(1);
 }

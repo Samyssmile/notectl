@@ -4,6 +4,7 @@
  * and custom popups). Delegates lifecycle to PopupManager.
  */
 
+import { isRtlContext } from '../../view/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
@@ -223,6 +224,7 @@ export class ToolbarPopupController {
 				maxRows,
 				maxCols,
 				e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+				this.activePopup ? isRtlContext(this.activePopup) : false,
 			);
 			const target: HTMLElement | null = grid.querySelector(
 				`.notectl-grid-picker__cell[data-row="${newRow}"][data-col="${newCol}"]`,

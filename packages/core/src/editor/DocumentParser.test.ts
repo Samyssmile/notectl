@@ -13,7 +13,7 @@ import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { markType, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
-import { serializeDocumentToCSS } from './DocumentSerializer.js';
+import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 
 /** Creates a registry stub with list, heading, inline (hard_break), and mark parse rules. */
 function createTestRegistry(): SchemaRegistry {
@@ -224,11 +224,11 @@ describe('parseHTMLToDocument', () => {
 			expect(block.attrs?.align).toBe('center');
 		});
 
-		it('parses text-align: right', () => {
+		it('parses text-align: right as end (backward compat)', () => {
 			const doc = parseHTMLToDocument('<p style="text-align: right">hello</p>');
 			const block = doc.children[0];
 			if (!block) return;
-			expect(block.attrs?.align).toBe('right');
+			expect(block.attrs?.align).toBe('end');
 		});
 
 		it('parses text-align: justify', () => {
@@ -238,11 +238,85 @@ describe('parseHTMLToDocument', () => {
 			expect(block.attrs?.align).toBe('justify');
 		});
 
-		it('ignores invalid alignment values', () => {
+		it('parses text-align: start as start', () => {
 			const doc = parseHTMLToDocument('<p style="text-align: start">hello</p>');
 			const block = doc.children[0];
 			if (!block) return;
+			expect(block.attrs?.align).toBe('start');
+		});
+
+		it('ignores invalid alignment values', () => {
+			const doc = parseHTMLToDocument('<p style="text-align: middle">hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
 			expect(block.attrs?.align).toBeUndefined();
+		});
+	});
+
+	// --- Direction parsing ---
+
+	describe('direction parsing', () => {
+		it('parses dir="rtl" from paragraph', () => {
+			const doc = parseHTMLToDocument('<p dir="rtl">مرحبا</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBe('rtl');
+		});
+
+		it('parses dir="ltr" from paragraph', () => {
+			const doc = parseHTMLToDocument('<p dir="ltr">Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBe('ltr');
+		});
+
+		it('omits dir for auto (default)', () => {
+			const doc = parseHTMLToDocument('<p dir="auto">Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBeUndefined();
+		});
+
+		it('omits dir when absent', () => {
+			const doc = parseHTMLToDocument('<p>Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBeUndefined();
+		});
+
+		it('ignores invalid dir values', () => {
+			const doc = parseHTMLToDocument('<p dir="diagonal">Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBeUndefined();
+		});
+
+		it('parses dir on div fallback elements', () => {
+			const doc = parseHTMLToDocument('<div dir="rtl">عنوان</div>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBe('rtl');
+		});
+
+		it('parses direction from inline style (Word/Docs paste)', () => {
+			const doc = parseHTMLToDocument('<p style="direction: rtl">مرحبا</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBe('rtl');
+		});
+
+		it('dir attribute takes priority over inline style direction', () => {
+			const doc = parseHTMLToDocument('<p dir="ltr" style="direction: rtl">Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBe('ltr');
+		});
+
+		it('ignores invalid inline style direction values', () => {
+			const doc = parseHTMLToDocument('<p style="direction: diagonal">Hello</p>');
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.attrs?.dir).toBeUndefined();
 		});
 	});
 
@@ -599,4 +673,83 @@ describe('full round-trip: serializeDocumentToCSS → parseHTMLToDocument', () =
 		expect(colorMark).toBeDefined();
 		expect((colorMark?.attrs as Record<string, unknown>)?.color).toBe('blue');
 	});
+
+	// --- List dir attribute parsing ---
+
+	describe('list dir parsing', () => {
+		it('parses dir from li elements onto list items', () => {
+			const html = '<ul><li dir="rtl">مرحبا</li><li dir="ltr">Hello</li></ul>';
+			const doc = parseHTMLToDocument(html, createListParseRegistry());
+
+			expect(doc.children).toHaveLength(2);
+			expect(doc.children[0]?.attrs?.dir).toBe('rtl');
+			expect(doc.children[1]?.attrs?.dir).toBe('ltr');
+		});
+
+		it('parses dir from ul element onto list items', () => {
+			const html = '<ul dir="rtl"><li>مرحبا</li><li>عالم</li></ul>';
+			const doc = parseHTMLToDocument(html, createListParseRegistry());
+
+			expect(doc.children).toHaveLength(2);
+			expect(doc.children[0]?.attrs?.dir).toBe('rtl');
+			expect(doc.children[1]?.attrs?.dir).toBe('rtl');
+		});
+
+		it('roundtrips list dir through serialize and parse', () => {
+			const registry = createListParseRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('list_item'), [createTextNode('مرحبا')], undefined, {
+					listType: 'bullet',
+					indent: 0,
+					checked: false,
+					dir: 'rtl',
+				}),
+				createBlockNode(nodeType('list_item'), [createTextNode('Hello')], undefined, {
+					listType: 'bullet',
+					indent: 0,
+					checked: false,
+					dir: 'ltr',
+				}),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			const parsed = parseHTMLToDocument(html, registry);
+
+			expect(parsed.children).toHaveLength(2);
+			expect(parsed.children[0]?.attrs?.dir).toBe('rtl');
+			expect(parsed.children[1]?.attrs?.dir).toBe('ltr');
+		});
+	});
 });
+
+/** Creates a registry for list direction parsing tests. */
+function createListParseRegistry(): SchemaRegistry {
+	const nodeSpecs = new Map<
+		string,
+		{
+			toHTML?: (node: unknown, content: string) => string;
+			parseHTML?: readonly { tag: string; getAttrs?: (el: HTMLElement) => unknown }[];
+		}
+	>([
+		['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+		[
+			'list_item',
+			{
+				toHTML: (_node: unknown, content: string) => `<li>${content || '<br>'}</li>`,
+				parseHTML: [{ tag: 'li' }],
+			},
+		],
+	]);
+
+	return {
+		getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+		getInlineNodeSpec: () => undefined,
+		getMarkSpec: () => undefined,
+		getMarkTypes: () => [],
+		getBlockParseRules: () => [],
+		getMarkParseRules: () => [],
+		getInlineParseRules: () => [],
+		getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li'],
+		getAllowedAttrs: () => ['style', 'dir'],
+	} as unknown as SchemaRegistry;
+}

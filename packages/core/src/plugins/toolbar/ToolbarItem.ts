@@ -43,6 +43,8 @@ interface ToolbarItemBase {
 	readonly separatorAfter?: boolean;
 	isActive?(state: EditorState): boolean;
 	isEnabled?(state: EditorState): boolean;
+	/** Optional dynamic icon callback. When provided, icon updates on every state change. */
+	getIcon?(state: EditorState): string;
 }
 
 interface ToolbarItemNoPopup extends ToolbarItemBase {

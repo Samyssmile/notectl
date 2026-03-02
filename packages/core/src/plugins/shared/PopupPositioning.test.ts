@@ -56,6 +56,51 @@ describe('PopupPositioning', () => {
 			expect(popup.style.position).toBe('fixed');
 			expect(popup.style.zIndex).toBe('10000');
 		});
+
+		it('below-start RTL anchors to right edge', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			const anchor = new DOMRect(100, 50, 80, 30);
+
+			positionPopup(popup, anchor, { position: 'below-start', isRtl: true });
+
+			expect(popup.style.position).toBe('fixed');
+			expect(popup.style.left).toBe('auto');
+			// right = vpWidth - anchor.right
+			expect(popup.style.right).toBeDefined();
+			expect(popup.style.right).not.toBe('auto');
+		});
+
+		it('below-start LTR anchors to left edge (unchanged)', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			const anchor = new DOMRect(100, 50, 80, 30);
+
+			positionPopup(popup, anchor, { position: 'below-start', isRtl: false });
+
+			expect(popup.style.left).toBe('100px');
+			expect(popup.style.right).toBe('auto');
+		});
+
+		it('below-end RTL anchors to left edge', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			const anchor = new DOMRect(100, 50, 80, 30);
+
+			positionPopup(popup, anchor, { position: 'below-end', isRtl: true });
+
+			expect(popup.style.position).toBe('fixed');
+			expect(popup.style.left).toBe('100px');
+			expect(popup.style.right).toBe('auto');
+		});
+
+		it('below-end LTR anchors to right edge (unchanged)', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			const anchor = new DOMRect(100, 50, 80, 30);
+
+			positionPopup(popup, anchor, { position: 'below-end', isRtl: false });
+
+			expect(popup.style.position).toBe('fixed');
+			expect(popup.style.right).not.toBe('auto');
+			expect(popup.style.left).toBe('auto');
+		});
 	});
 
 	describe('appendToRoot', () => {

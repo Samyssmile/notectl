@@ -18,6 +18,7 @@ import type { PrintPluginConfig } from '../plugins/print/PrintTypes.js';
 import type { StrikethroughConfig } from '../plugins/strikethrough/StrikethroughPlugin.js';
 import type { SuperSubConfig } from '../plugins/super-sub/SuperSubPlugin.js';
 import type { TextColorConfig } from '../plugins/text-color/TextColorPlugin.js';
+import type { TextDirectionConfig } from '../plugins/text-direction/TextDirectionPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 
 /**
@@ -47,6 +48,7 @@ export interface FullPresetOptions {
 	readonly blockquote?: Partial<BlockquoteConfig>;
 	readonly codeBlock?: Partial<CodeBlockConfig>;
 	readonly alignment?: Partial<AlignmentConfig>;
+	readonly textDirection?: Partial<TextDirectionConfig>;
 	readonly list?: Partial<ListConfig>;
 	readonly link?: Partial<LinkConfig>;
 	readonly table?: Partial<import('../plugins/table/TablePlugin.js').TableConfig>;

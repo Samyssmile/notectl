@@ -14,7 +14,7 @@ import {
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
-import { VALID_ALIGNMENTS } from './DocumentSerializer.js';
+import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
@@ -32,7 +32,7 @@ export function parseHTMLToDocument(
 	options?: ParseHTMLOptions,
 ): Document {
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
 
 	// When a styleMap is provided, also allow `class` through DOMPurify
 	// so we can read class names and rehydrate styles before parsing.
@@ -63,7 +63,10 @@ export function parseHTMLToDocument(
 			// Lists need cross-element logic — handle before parse rules
 			if (tag === 'ul' || tag === 'ol') {
 				const listType: string = tag === 'ol' ? 'ordered' : 'bullet';
-				parseListElement(el, listType, 0, blocks, registry);
+				const listDir: string | null = el.getAttribute('dir');
+				const parentDir: string | undefined =
+					listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
+				parseListElement(el, listType, 0, blocks, registry, parentDir);
 				continue;
 			}
 
@@ -75,6 +78,7 @@ export function parseHTMLToDocument(
 					...(match.attrs as Record<string, string | number | boolean> | undefined),
 				};
 				extractAlignment(el, attrs);
+				extractDirection(el, attrs);
 				blocks.push(
 					createBlockNode(
 						nodeType(match.type),
@@ -90,6 +94,7 @@ export function parseHTMLToDocument(
 			const inlineContent = parseElementToInlineContent(el, registry);
 			const attrs: Record<string, string | number | boolean> = {};
 			extractAlignment(el, attrs);
+			extractDirection(el, attrs);
 			blocks.push(
 				createBlockNode(
 					nodeType('paragraph'),
@@ -119,6 +124,7 @@ function parseListElement(
 	depth: number,
 	blocks: BlockNode[],
 	registry?: SchemaRegistry,
+	parentDir?: string,
 ): void {
 	for (const child of Array.from(listEl.children)) {
 		const tag: string = child.tagName.toLowerCase();
@@ -140,6 +146,14 @@ function parseListElement(
 				checked,
 			};
 
+			// Propagate direction: item's own dir > parent list dir
+			const liDir: string | null = li.getAttribute('dir');
+			const effectiveDir: string | undefined =
+				liDir && VALID_DIRECTIONS.has(liDir) ? liDir : parentDir;
+			if (effectiveDir) {
+				attrs.dir = effectiveDir;
+			}
+
 			blocks.push(createBlockNode(nodeType('list_item'), inlineContent, undefined, attrs));
 
 			// Check for nested lists inside this <li>
@@ -147,13 +161,19 @@ function parseListElement(
 				const liChildTag: string = liChild.tagName.toLowerCase();
 				if (liChildTag === 'ul' || liChildTag === 'ol') {
 					const nestedType: string = liChildTag === 'ol' ? 'ordered' : 'bullet';
-					parseListElement(liChild, nestedType, depth + 1, blocks, registry);
+					const nestedDir: string | null = liChild.getAttribute('dir');
+					const nestedEffectiveDir: string | undefined =
+						nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : effectiveDir;
+					parseListElement(liChild, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
 				}
 			}
 		} else if (tag === 'ul' || tag === 'ol') {
 			// Direct nested list without wrapping <li> — increment depth
 			const nestedType: string = tag === 'ol' ? 'ordered' : 'bullet';
-			parseListElement(child, nestedType, depth + 1, blocks, registry);
+			const nestedDir: string | null = child.getAttribute('dir');
+			const nestedEffectiveDir: string | undefined =
+				nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : parentDir;
+			parseListElement(child, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
 		}
 	}
 }
@@ -256,10 +276,30 @@ function walkElement(
 	}
 }
 
+/** Extracts a validated `dir` attribute or inline `direction` style from an element. */
+function extractDirection(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
+	const dir: string | null = el.getAttribute('dir');
+	if (dir && VALID_DIRECTIONS.has(dir)) {
+		attrs.dir = dir;
+		return;
+	}
+
+	// Fallback: check inline style `direction: rtl/ltr` (common in paste from Word/Docs)
+	const styleDir: string = el.style?.direction ?? '';
+	if (styleDir && VALID_DIRECTIONS.has(styleDir)) {
+		attrs.dir = styleDir;
+	}
+}
+
+/** Legacy physical → logical alignment mapping for backward-compatible parsing. */
+const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', right: 'end' };
+
 /** Extracts validated `text-align` from an element's style or class and adds it to attrs. */
 function extractAlignment(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
 	// Check inline style first (works for both normal and rehydrated HTML)
-	const align: string = el.style?.textAlign ?? '';
+	let align: string = el.style?.textAlign ?? '';
+	const mappedAlign: string | undefined = LEGACY_ALIGNMENT_MAP[align];
+	if (mappedAlign) align = mappedAlign;
 	if (align && VALID_ALIGNMENTS.has(align)) {
 		attrs.align = align;
 		return;
@@ -268,7 +308,9 @@ function extractAlignment(el: HTMLElement, attrs: Record<string, string | number
 	// Check for notectl-align-* class names (from class-based HTML)
 	for (const cls of Array.from(el.classList)) {
 		const match: RegExpMatchArray | null = cls.match(/^notectl-align-(\w+)$/);
-		const alignValue: string | undefined = match?.[1];
+		let alignValue: string | undefined = match?.[1];
+		const mappedAlignValue: string | undefined = LEGACY_ALIGNMENT_MAP[alignValue ?? ''];
+		if (mappedAlignValue) alignValue = mappedAlignValue;
 		if (alignValue && VALID_ALIGNMENTS.has(alignValue)) {
 			attrs.align = alignValue;
 			return;

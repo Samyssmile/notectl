@@ -88,17 +88,17 @@ describe('CSSClassCollector', () => {
 
 		it('deduplicates same alignment', () => {
 			const collector = new CSSClassCollector();
-			const cls1: string = collector.getAlignmentClassName('right');
-			const cls2: string = collector.getAlignmentClassName('right');
+			const cls1: string = collector.getAlignmentClassName('end');
+			const cls2: string = collector.getAlignmentClassName('end');
 			expect(cls1).toBe(cls2);
 		});
 
 		it('returns different classes for different alignments', () => {
 			const collector = new CSSClassCollector();
 			const cls1: string = collector.getAlignmentClassName('center');
-			const cls2: string = collector.getAlignmentClassName('right');
+			const cls2: string = collector.getAlignmentClassName('end');
 			expect(cls1).toBe('notectl-align-center');
-			expect(cls2).toBe('notectl-align-right');
+			expect(cls2).toBe('notectl-align-end');
 		});
 	});
 

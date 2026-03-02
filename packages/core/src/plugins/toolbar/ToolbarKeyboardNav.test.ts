@@ -7,6 +7,7 @@ import {
 	findNextEnabled,
 	getEnabledIndices,
 	navigateGrid,
+	resolveHorizontalDirection,
 } from './ToolbarKeyboardNav.js';
 
 function makeButtons(disabledIndices: number[] = [], count = 5): HTMLButtonElement[] {
@@ -146,6 +147,47 @@ describe('ToolbarKeyboardNav', () => {
 
 		it('wraps up to bottom', () => {
 			expect(navigateGrid(1, 1, 3, 3, 'ArrowUp')).toEqual([3, 1]);
+		});
+
+		describe('RTL mode (isRtl=true)', () => {
+			it('ArrowRight moves left (backward) in RTL', () => {
+				expect(navigateGrid(1, 2, 3, 3, 'ArrowRight', true)).toEqual([1, 1]);
+			});
+
+			it('ArrowLeft moves right (forward) in RTL', () => {
+				expect(navigateGrid(1, 1, 3, 3, 'ArrowLeft', true)).toEqual([1, 2]);
+			});
+
+			it('ArrowRight wraps right-to-left in RTL', () => {
+				expect(navigateGrid(1, 1, 3, 3, 'ArrowRight', true)).toEqual([1, 3]);
+			});
+
+			it('ArrowLeft wraps left-to-right in RTL', () => {
+				expect(navigateGrid(1, 3, 3, 3, 'ArrowLeft', true)).toEqual([1, 1]);
+			});
+
+			it('vertical navigation is unaffected in RTL', () => {
+				expect(navigateGrid(1, 1, 3, 3, 'ArrowDown', true)).toEqual([2, 1]);
+				expect(navigateGrid(1, 1, 3, 3, 'ArrowUp', true)).toEqual([3, 1]);
+			});
+		});
+	});
+
+	describe('resolveHorizontalDirection', () => {
+		it('ArrowRight returns 1 in LTR', () => {
+			expect(resolveHorizontalDirection('ArrowRight', false)).toBe(1);
+		});
+
+		it('ArrowLeft returns -1 in LTR', () => {
+			expect(resolveHorizontalDirection('ArrowLeft', false)).toBe(-1);
+		});
+
+		it('ArrowRight returns -1 in RTL', () => {
+			expect(resolveHorizontalDirection('ArrowRight', true)).toBe(-1);
+		});
+
+		it('ArrowLeft returns 1 in RTL', () => {
+			expect(resolveHorizontalDirection('ArrowLeft', true)).toBe(1);
 		});
 	});
 });

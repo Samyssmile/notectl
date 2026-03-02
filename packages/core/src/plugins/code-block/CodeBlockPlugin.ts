@@ -159,6 +159,7 @@ export class CodeBlockPlugin implements Plugin {
 			toDOM(node) {
 				const pre: HTMLElement = createBlockElement('pre', node.id);
 				pre.className = 'notectl-code-block';
+				pre.setAttribute('dir', 'ltr');
 				const code: HTMLElement = document.createElement('code');
 				code.className = 'notectl-code-block__content';
 				pre.appendChild(code);
@@ -171,7 +172,7 @@ export class CodeBlockPlugin implements Plugin {
 				const bgAttr: string = bg
 					? (ctx?.styleAttr(`background-color: ${bg}`) ?? ` style="background-color: ${bg}"`)
 					: '';
-				return `<pre${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
+				return `<pre dir="ltr"${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
 			},
 			parseHTML: [
 				{

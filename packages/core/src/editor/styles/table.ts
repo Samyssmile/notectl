@@ -56,7 +56,7 @@ export const TABLE_CSS = `
 	display: block;
 	width: 100%;
 	padding: 8px 12px;
-	text-align: left;
+	text-align: start;
 	border: none;
 	background: none;
 	cursor: pointer;
@@ -81,7 +81,8 @@ export const TABLE_CSS = `
 .ntbl-container {
 	position: relative;
 	margin: 8px 0;
-	padding: 24px 0 0 24px;
+	padding-block-start: 24px;
+	padding-inline-start: 24px;
 }
 
 .ntbl-container .notectl-table-wrapper {
@@ -98,7 +99,7 @@ export const TABLE_CSS = `
 .ntbl-col-bar {
 	position: absolute;
 	top: 0;
-	left: 24px;
+	inset-inline-start: 24px;
 	height: 20px;
 	display: flex;
 	opacity: 0;
@@ -122,7 +123,7 @@ export const TABLE_CSS = `
 .ntbl-row-bar {
 	position: absolute;
 	top: 24px;
-	left: 0;
+	inset-inline-start: 0;
 	width: 20px;
 	display: flex;
 	flex-direction: column;
@@ -167,7 +168,8 @@ export const TABLE_CSS = `
 .ntbl-row-handle {
 	width: 100%;
 	background: var(--notectl-hover-bg);
-	border-radius: 4px 0 0 4px;
+	border-start-start-radius: 4px;
+	border-end-start-radius: 4px;
 }
 
 .ntbl-row-handle:hover {
@@ -276,7 +278,7 @@ export const TABLE_CSS = `
 
 .ntbl-insert-line--vertical .ntbl-insert-btn {
 	top: 50%;
-	left: -9px;
+	inset-inline-start: -9px;
 	transform: translateY(-50%);
 }
 
@@ -325,7 +327,7 @@ export const TABLE_CSS = `
 .ntbl-delete-table-btn {
 	position: absolute;
 	top: 0;
-	left: 0;
+	inset-inline-start: 0;
 	width: 20px;
 	height: 20px;
 	border: 1px solid var(--notectl-danger);
@@ -361,7 +363,7 @@ export const TABLE_CSS = `
 .ntbl-context-hint {
 	position: absolute;
 	top: 4px;
-	right: 0;
+	inset-inline-end: 0;
 	font-size: 11px;
 	color: var(--notectl-fg-muted);
 	padding: 2px 8px;
@@ -383,7 +385,7 @@ export const TABLE_CSS = `
 .ntbl-actions-btn {
 	position: absolute;
 	top: 0;
-	left: 48px;
+	inset-inline-start: 48px;
 	width: 20px;
 	height: 20px;
 	border: 1px solid var(--notectl-border);
@@ -421,7 +423,7 @@ export const TABLE_CSS = `
 .ntbl-border-color-btn {
 	position: absolute;
 	top: 0;
-	left: 24px;
+	inset-inline-start: 24px;
 	width: 20px;
 	height: 20px;
 	border: 1px solid var(--notectl-border);
@@ -491,8 +493,9 @@ export const TABLE_CSS = `
 	bottom: 0;
 	height: 24px;
 	border: 1px dashed var(--notectl-border);
-	border-radius: 0 0 6px 6px;
-	border-top: none;
+	border-end-start-radius: 6px;
+	border-end-end-radius: 6px;
+	border-block-start: none;
 	color: var(--notectl-fg-muted);
 	transform: translateY(100%);
 }
@@ -510,14 +513,19 @@ export const TABLE_CSS = `
 }
 
 .ntbl-add-col {
-	right: 0;
+	inset-inline-end: 0;
 	top: 24px;
 	width: 24px;
 	border: 1px dashed var(--notectl-border);
-	border-radius: 0 6px 6px 0;
-	border-left: none;
+	border-start-end-radius: 6px;
+	border-end-end-radius: 6px;
+	border-inline-start: none;
 	color: var(--notectl-fg-muted);
 	transform: translateX(100%);
+}
+
+[dir="rtl"] .ntbl-add-col {
+	transform: translateX(-100%);
 }
 
 .ntbl-add-col:hover,

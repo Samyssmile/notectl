@@ -492,7 +492,9 @@ export class ListPlugin implements Plugin {
 			if (!li) return;
 
 			const rect: DOMRect = li.getBoundingClientRect();
-			if (e.clientX - rect.left >= LIST_MARKER_WIDTH) return;
+			const isRtl: boolean = getComputedStyle(li).direction === 'rtl';
+			const markerDistance: number = isRtl ? rect.right - e.clientX : e.clientX - rect.left;
+			if (markerDistance >= LIST_MARKER_WIDTH) return;
 
 			e.preventDefault();
 

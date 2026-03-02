@@ -42,7 +42,7 @@ declare module '../../model/AttrRegistry.js' {
 			alt: string;
 			width?: number;
 			height?: number;
-			align: 'left' | 'center' | 'right';
+			align: 'start' | 'center' | 'end';
 		};
 	}
 }
@@ -149,9 +149,9 @@ export class ImagePlugin implements Plugin {
 
 				const align: string = (node.attrs?.align as string | undefined) ?? 'center';
 				const alignClass: string | undefined = {
-					left: 'notectl-image--left',
+					start: 'notectl-image--start',
 					center: 'notectl-image--center',
-					right: 'notectl-image--right',
+					end: 'notectl-image--end',
 				}[align];
 				if (alignClass) figure.classList.add(alignClass);
 
@@ -191,20 +191,30 @@ export class ImagePlugin implements Plugin {
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
 
-						// Check inline style first, then notectl-align-* classes, then legacy classes
+						// Check inline style first, then class names (new + legacy)
 						const textAlign: string = el.style?.textAlign ?? '';
-						if (textAlign === 'left' || textAlign === 'right' || textAlign === 'center') {
+						if (textAlign === 'start' || textAlign === 'end' || textAlign === 'center') {
 							attrs.align = textAlign;
-						} else if (el.classList.contains('notectl-align-left')) {
-							attrs.align = 'left';
-						} else if (el.classList.contains('notectl-align-right')) {
-							attrs.align = 'right';
+						} else if (textAlign === 'left') {
+							attrs.align = 'start';
+						} else if (textAlign === 'right') {
+							attrs.align = 'end';
+						} else if (
+							el.classList.contains('notectl-align-start') ||
+							el.classList.contains('notectl-align-left') ||
+							el.classList.contains('notectl-image--start') ||
+							el.classList.contains('notectl-image--left')
+						) {
+							attrs.align = 'start';
+						} else if (
+							el.classList.contains('notectl-align-end') ||
+							el.classList.contains('notectl-align-right') ||
+							el.classList.contains('notectl-image--end') ||
+							el.classList.contains('notectl-image--right')
+						) {
+							attrs.align = 'end';
 						} else if (el.classList.contains('notectl-align-center')) {
 							attrs.align = 'center';
-						} else if (el.classList.contains('notectl-image--left')) {
-							attrs.align = 'left';
-						} else if (el.classList.contains('notectl-image--right')) {
-							attrs.align = 'right';
 						}
 						return attrs;
 					},

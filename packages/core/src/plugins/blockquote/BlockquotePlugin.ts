@@ -14,6 +14,7 @@ import {
 	type BlockquoteLocale,
 	loadBlockquoteLocale,
 } from './BlockquoteLocale.js';
+import { BLOCKQUOTE_CSS } from './BlockquoteStyles.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -55,6 +56,7 @@ export class BlockquotePlugin implements Plugin {
 			const lang: string = service?.getLocale() ?? 'en';
 			this.locale = lang === 'en' ? BLOCKQUOTE_LOCALE_EN : await loadBlockquoteLocale(lang);
 		}
+		context.registerStyleSheet(BLOCKQUOTE_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);

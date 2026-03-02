@@ -18,14 +18,15 @@ export const LIST_CSS = `
 /* List Items */
 .notectl-list-item {
 	margin: 0;
-	padding: 2px 0 2px ${LIST_MARKER_WIDTH}px;
+	padding: 2px 0;
+	padding-inline-start: ${LIST_MARKER_WIDTH}px;
 	min-height: 1.6em;
 	position: relative;
 }
 
 .notectl-list-item::before {
 	position: absolute;
-	left: 0;
+	inset-inline-start: 0;
 	display: inline-block;
 	width: ${LIST_MARKER_WIDTH}px;
 	text-align: center;

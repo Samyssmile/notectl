@@ -270,7 +270,7 @@ export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 export { CursorWrapper } from './view/CursorWrapper.js';
 
 // --- Platform ---
-export { isMac, isFirefox, isWebKit, getTextDirection } from './view/Platform.js';
+export { isMac, isFirefox, isWebKit, getTextDirection, isRtlContext } from './view/Platform.js';
 
 // --- Caret Navigation ---
 export {
