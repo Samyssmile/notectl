@@ -26,7 +26,7 @@ import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { isMac } from '../../view/Platform.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { capitalize, getSelectedBlock } from '../shared/PluginHelpers.js';
+import { getSelectedBlock } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../toolbar/ToolbarItem.js';
 import { getBlockDir } from './DirectionDetection.js';
 import { ShiftDirectionHandler } from './ShiftDirectionHandler.js';
@@ -265,17 +265,23 @@ export class TextDirectionPlugin implements Plugin {
 
 	private registerKeymaps(context: PluginContext): void {
 		context.registerKeymap({
-			'Mod-Shift-d': () => context.executeCommand('toggleDirection'),
-			'Mod-Shift-b': () => context.executeCommand('toggleBidiIsolation'),
+			'Mod-Shift-D': () => context.executeCommand('toggleDirection'),
+			'Mod-Shift-B': () => context.executeCommand('toggleBidiIsolation'),
 		});
 	}
 
 	// --- Toolbar ---
 
 	private registerToolbarItem(context: PluginContext): void {
+		const commandNames: Readonly<Record<TextDirection, string>> = {
+			ltr: 'setDirectionLTR',
+			rtl: 'setDirectionRTL',
+			auto: 'setDirectionAuto',
+		};
+
 		const dropdownItems = ALL_DIRECTIONS.map((dir) => ({
 			label: this.getDirectionLabel(dir),
-			command: `setDirection${capitalize(dir)}`,
+			command: commandNames[dir],
 			icon: DIRECTION_ICONS[dir],
 		}));
 
@@ -284,7 +290,7 @@ export class TextDirectionPlugin implements Plugin {
 			group: 'block',
 			icon: DIRECTION_ICONS.auto,
 			label: this.locale.toolbarLabel,
-			tooltip: `${this.locale.toolbarTooltip} (${formatShortcut('Mod-Shift-d')})`,
+			tooltip: `${this.locale.toolbarTooltip} (${formatShortcut('Mod-Shift-D')})`,
 			command: 'setDirectionAuto',
 			priority: 65,
 			popupType: 'dropdown',
@@ -314,7 +320,7 @@ export class TextDirectionPlugin implements Plugin {
 			group: 'format',
 			icon: INLINE_BDI_ICON,
 			label: this.locale.inlineLabel,
-			tooltip: `${this.locale.inlineTooltip} (${formatShortcut('Mod-Shift-b')})`,
+			tooltip: `${this.locale.inlineTooltip} (${formatShortcut('Mod-Shift-B')})`,
 			command: 'toggleBidiIsolation',
 			priority: 45,
 			popupType: 'dropdown',
@@ -328,20 +334,15 @@ export class TextDirectionPlugin implements Plugin {
 	}
 
 	private getDirectionLabel(dir: TextDirection): string {
-		const labels: Record<TextDirection, string> = {
-			ltr: this.locale.ltr,
-			rtl: this.locale.rtl,
-			auto: this.locale.auto,
-		};
-		return labels[dir];
+		if (dir === 'ltr') return this.locale.ltr;
+		if (dir === 'rtl') return this.locale.rtl;
+		return this.locale.auto;
 	}
 
 	// --- Direction Logic ---
 
 	private setDirection(context: PluginContext, direction: TextDirection): boolean {
 		const state = context.getState();
-		const sel = state.selection;
-
 		const blockIds: BlockId[] = this.getSelectedBlockIds(state);
 		if (blockIds.length === 0) return false;
 
@@ -361,12 +362,17 @@ export class TextDirectionPlugin implements Plugin {
 
 		if (!changed) return false;
 
-		const tr = tb.setSelection(sel).build();
+		const tr = tb.setSelection(state.selection).build();
 		context.dispatch(tr);
 		return true;
 	}
 
-	/** Returns all block IDs covered by the current selection. */
+	/**
+	 * Returns all block IDs covered by the current selection.
+	 * Only handles TextSelection and NodeSelection — other selection types
+	 * (e.g. GapCursorSelection) return an empty array intentionally, since
+	 * gap cursors sit between blocks and have no associated block content.
+	 */
 	private getSelectedBlockIds(state: EditorState): BlockId[] {
 		const sel = state.selection;
 

@@ -6,6 +6,7 @@
 import DOMPurify from 'dompurify';
 import { insertTextCommand } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
+import { plainTextSlice } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
@@ -165,7 +166,8 @@ export class PasteHandler {
 		}
 
 		if (plainText) {
-			const tr = insertTextCommand(this.getState(), plainText, 'paste');
+			const slice = plainTextSlice(plainText);
+			const tr = pasteSlice(this.getState(), slice);
 			this.dispatch(tr);
 		}
 	}
@@ -267,11 +269,12 @@ export class PasteHandler {
 	private handleRichPaste(blocks: readonly RichBlockData[]): boolean {
 		if (blocks.length === 0) return false;
 
-		// Only use rich paste for structured blocks (list_item, heading, etc.)
+		// Use rich paste when there are multiple blocks (preserves paragraph breaks)
+		// or when any block has a structured type (list_item, heading, etc.)
 		const hasStructured: boolean = blocks.some(
 			(b) => b.type !== undefined && b.type !== 'paragraph',
 		);
-		if (!hasStructured) return false;
+		if (!hasStructured && blocks.length <= 1) return false;
 
 		const state = this.getState();
 		const sel = state.selection;
