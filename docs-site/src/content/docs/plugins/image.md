@@ -104,7 +104,7 @@ The image button opens a **custom popup** with:
 |------|----------|-----------|-------------|
 | `image` | `<figure><img></figure>` | `src`, `alt`, `align`, `width?`, `height?` | Image block (void) |
 
-The image block is a **void block** — it is not editable but can be selected (node selection). The `align` attribute supports `'left'`, `'center'`, and `'right'` with corresponding CSS classes.
+The image block is a **void block** — it is not editable but can be selected (node selection). The `align` attribute supports `'start'`, `'center'`, and `'end'` with corresponding CSS classes. Legacy values (`left`/`right`) are accepted during parsing for backward compatibility.
 
 ## Image Upload Service
 

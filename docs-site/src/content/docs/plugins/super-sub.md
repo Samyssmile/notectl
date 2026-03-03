@@ -25,6 +25,8 @@ interface SuperSubConfig {
   readonly subscript: boolean;
   /** Control toolbar button visibility per mark. */
   readonly toolbar?: SuperSubToolbarConfig;
+  /** Custom locale for toolbar labels. */
+  readonly locale?: SuperSubLocale;
 }
 
 interface SuperSubToolbarConfig {

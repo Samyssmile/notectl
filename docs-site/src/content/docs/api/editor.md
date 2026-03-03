@@ -188,9 +188,12 @@ Returns an object that checks if the built-in convenience commands can be execut
 
 ```ts
 const can = editor.can();
-can.toggleBold();   // boolean
-can.undo();         // boolean
-can.redo();         // boolean
+can.toggleBold();      // boolean
+can.toggleItalic();    // boolean
+can.toggleUnderline(); // boolean
+can.undo();            // boolean
+can.redo();            // boolean
+can.selectAll();       // boolean
 ```
 
 ### `executeCommand(name: string): boolean`
@@ -332,7 +335,7 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, `dir`, and `theme`.
+Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `dir`. To change the theme at runtime, use `setTheme()` instead.
 
 `styleNonce` is accepted in `configure()` but evaluated during initialization.
 

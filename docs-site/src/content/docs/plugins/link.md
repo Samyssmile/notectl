@@ -23,6 +23,8 @@ new LinkPlugin({ openInNewTab: true })
 interface LinkConfig {
   /** Whether links open in a new tab (adds target="_blank"). Default: true */
   readonly openInNewTab: boolean;
+  /** Custom locale for toolbar labels and popup strings. */
+  readonly locale?: LinkLocale;
 }
 ```
 
@@ -31,7 +33,6 @@ interface LinkConfig {
 | Command | Description | Returns |
 |---------|-------------|---------|
 | `toggleLink` | Add or remove a link on the selection | `boolean` |
-| `setLink` | Set a link mark on the selection | `boolean` |
 | `removeLink` | Remove link mark from selection | `boolean` |
 
 The toolbar button is only enabled when there is a text range selection (not a collapsed cursor).

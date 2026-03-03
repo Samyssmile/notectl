@@ -16,11 +16,11 @@ class MyPlugin implements Plugin {
   readonly priority = 50;              // Optional: controls init order
   readonly dependencies = [];          // Optional: plugin IDs this depends on
 
-  init(context: PluginContext): void {
+  init(context: PluginContext): void | Promise<void> {
     // Register capabilities here
   }
 
-  destroy(): void {
+  destroy(): void | Promise<void> {
     // Clean up resources
   }
 
@@ -28,7 +28,7 @@ class MyPlugin implements Plugin {
     // React to state changes
   }
 
-  onReady(): void {
+  onReady(): void | Promise<void> {
     // Called after ALL plugins are initialized
   }
 
@@ -240,7 +240,7 @@ context.registerMiddleware((tr, state, next) => {
 
   // Pass through
   next(tr);
-}, 100); // Priority: lower = runs first
+}, { priority: 100 }); // Priority: lower = runs first
 ```
 
 ### DOM Access
@@ -300,6 +300,25 @@ Push announcements to screen readers via the aria-live region:
 
 ```ts
 context.announce('Image resized to 400 by 300 pixels.');
+```
+
+### Node Views
+
+Register a custom node view factory for a block type:
+
+```ts
+context.registerNodeView('image', (node, view) => {
+  // Return a NodeView implementation for custom rendering
+  return new ImageNodeView(node, view);
+});
+```
+
+### Runtime Config Updates
+
+Update your plugin's configuration at runtime (triggers re-initialization of affected features):
+
+```ts
+context.updateConfig({ maxWidth: 600 });
 ```
 
 ### Read-Only State
