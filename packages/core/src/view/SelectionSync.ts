@@ -17,13 +17,69 @@ interface DOMPosition {
 	offset: number;
 }
 
-/** Gets the selection object, preferring shadow root's selection for Shadow DOM. */
-export function getSelection(container: HTMLElement): globalThis.Selection | null {
-	const root = container.getRootNode();
-	if (root instanceof ShadowRoot && 'getSelection' in root) {
-		return (root as ShadowRoot & { getSelection(): globalThis.Selection | null }).getSelection();
-	}
+/** Gets the selection object for writing (collapse, setBaseAndExtent). */
+export function getSelection(_container: HTMLElement): globalThis.Selection | null {
 	return window.getSelection();
+}
+
+/**
+ * Endpoints returned by reading selection via getComposedRanges().
+ * Used to correctly read selection inside Shadow DOM on Safari 17+,
+ * Chrome 137+, and Firefox 142+.
+ */
+export interface SelectionEndpoints {
+	anchorNode: Node;
+	anchorOffset: number;
+	focusNode: Node;
+	focusOffset: number;
+}
+
+/**
+ * Reads the selection endpoints using getComposedRanges() when inside a
+ * Shadow DOM. Returns null if not in a shadow root or the API is unavailable.
+ *
+ * Handles two call signatures:
+ * - Modern (Chrome 137+, Firefox 142+): sel.getComposedRanges({ shadowRoots: [root] })
+ * - Legacy (Safari 17+): sel.getComposedRanges(root)
+ */
+export function readComposedSelection(
+	container: HTMLElement,
+	sel: globalThis.Selection,
+): SelectionEndpoints | null {
+	const root = container.getRootNode();
+	if (!(root instanceof ShadowRoot)) return null;
+	if (!('getComposedRanges' in sel)) return null;
+
+	let ranges: StaticRange[];
+	try {
+		// Modern syntax (Chrome 137+, Firefox 142+)
+		ranges = (
+			sel as unknown as {
+				getComposedRanges(opts: { shadowRoots: ShadowRoot[] }): StaticRange[];
+			}
+		).getComposedRanges({ shadowRoots: [root] });
+	} catch {
+		try {
+			// Legacy syntax (Safari 17+)
+			ranges = (
+				sel as unknown as {
+					getComposedRanges(...roots: ShadowRoot[]): StaticRange[];
+				}
+			).getComposedRanges(root);
+		} catch {
+			return null;
+		}
+	}
+
+	const range = ranges[0];
+	if (!range) return null;
+
+	return {
+		anchorNode: range.startContainer,
+		anchorOffset: range.startOffset,
+		focusNode: range.endContainer,
+		focusOffset: range.endOffset,
+	};
 }
 
 /** Syncs the editor state selection to the DOM. */
@@ -69,14 +125,18 @@ export function readSelectionFromDOM(container: HTMLElement): Selection | null {
 	const domSel = getSelection(container);
 	if (!domSel || domSel.rangeCount === 0) return null;
 
-	const anchorNode = domSel.anchorNode;
-	const focusNode = domSel.focusNode;
+	// Use getComposedRanges when in Shadow DOM for correct endpoints
+	const composed = readComposedSelection(container, domSel);
+	const anchorNode = composed?.anchorNode ?? domSel.anchorNode;
+	const anchorOffset = composed?.anchorOffset ?? domSel.anchorOffset;
+	const focusNode = composed?.focusNode ?? domSel.focusNode;
+	const focusOffset = composed?.focusOffset ?? domSel.focusOffset;
 
 	if (!anchorNode || !focusNode) return null;
 	if (!container.contains(anchorNode) || !container.contains(focusNode)) return null;
 
-	const anchor = domPositionToState(container, anchorNode, domSel.anchorOffset);
-	const head = domPositionToState(container, focusNode, domSel.focusOffset);
+	const anchor = domPositionToState(container, anchorNode, anchorOffset);
+	const head = domPositionToState(container, focusNode, focusOffset);
 
 	if (!anchor || !head) return null;
 
