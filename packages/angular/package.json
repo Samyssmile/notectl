@@ -7,7 +7,7 @@
 	"module": "./dist/fesm2022/notectl-angular.mjs",
 	"typings": "./dist/types/notectl-angular.d.ts",
 	"sideEffects": false,
-	"files": ["dist", "README.md"],
+	"files": ["dist", "README.md", "LICENSE"],
 	"keywords": [
 		"angular",
 		"rich-text-editor",
@@ -29,6 +29,8 @@
 	},
 	"scripts": {
 		"build": "ng-packagr -p ng-package.json",
+		"prepack": "cp ../../LICENSE ./LICENSE",
+		"postpack": "rm -f ./LICENSE",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit"
