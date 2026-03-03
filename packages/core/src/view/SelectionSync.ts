@@ -18,7 +18,7 @@ interface DOMPosition {
 }
 
 /** Gets the selection object for writing (collapse, setBaseAndExtent). */
-export function getSelection(_container: HTMLElement): globalThis.Selection | null {
+export function getSelection(): globalThis.Selection | null {
 	return window.getSelection();
 }
 
@@ -41,6 +41,14 @@ export interface SelectionEndpoints {
  * Handles two call signatures:
  * - Modern (Chrome 137+, Firefox 142+): sel.getComposedRanges({ shadowRoots: [root] })
  * - Legacy (Safari 17+): sel.getComposedRanges(root)
+ *
+ * StaticRange always uses document order. When `Selection.direction` is
+ * `"backward"`, anchor/focus are swapped to reconstruct the correct
+ * directional endpoints. When direction is `"none"` or absent the
+ * forward (document-order) mapping is used.
+ *
+ * Note: Safari 17–18 supports getComposedRanges but not
+ * Selection.direction — backward selections will be read as forward.
  */
 export function readComposedSelection(
 	container: HTMLElement,
@@ -74,17 +82,50 @@ export function readComposedSelection(
 	const range = ranges[0];
 	if (!range) return null;
 
+	const isBackward: boolean =
+		'direction' in sel && (sel as unknown as { direction: string }).direction === 'backward';
+
 	return {
-		anchorNode: range.startContainer,
-		anchorOffset: range.startOffset,
-		focusNode: range.endContainer,
-		focusOffset: range.endOffset,
+		anchorNode: isBackward ? range.endContainer : range.startContainer,
+		anchorOffset: isBackward ? range.endOffset : range.startOffset,
+		focusNode: isBackward ? range.startContainer : range.endContainer,
+		focusOffset: isBackward ? range.startOffset : range.endOffset,
+	};
+}
+
+/**
+ * Reads the DOM selection endpoints, preferring `getComposedRanges()` when
+ * the container is inside a Shadow DOM.
+ *
+ * Returns `null` when `anchorNode` is unavailable (no selection).
+ *
+ * In Shadow DOM mode the endpoints come from a `StaticRange` which uses
+ * document order. `Selection.direction` is used to reconstruct anchor/focus
+ * for backward selections.
+ */
+export function readDOMSelectionEndpoints(
+	container: HTMLElement,
+	domSel: globalThis.Selection,
+): SelectionEndpoints | null {
+	const composed: SelectionEndpoints | null = readComposedSelection(container, domSel);
+	if (composed) return composed;
+
+	const anchorNode: Node | null = domSel.anchorNode;
+	if (!anchorNode) return null;
+	const focusNode: Node | null = domSel.focusNode;
+	if (!focusNode) return null;
+
+	return {
+		anchorNode,
+		anchorOffset: domSel.anchorOffset,
+		focusNode,
+		focusOffset: domSel.focusOffset,
 	};
 }
 
 /** Syncs the editor state selection to the DOM. */
 export function syncSelectionToDOM(container: HTMLElement, selection: EditorSelection): void {
-	const domSel = getSelection(container);
+	const domSel = getSelection();
 	if (!domSel) return;
 
 	// GapCursor: clear browser selection (gap cursor has no DOM equivalent)
@@ -122,21 +163,18 @@ export function syncSelectionToDOM(container: HTMLElement, selection: EditorSele
 
 /** Reads the current DOM selection and converts it to a state selection. */
 export function readSelectionFromDOM(container: HTMLElement): Selection | null {
-	const domSel = getSelection(container);
+	const domSel = getSelection();
 	if (!domSel || domSel.rangeCount === 0) return null;
 
-	// Use getComposedRanges when in Shadow DOM for correct endpoints
-	const composed = readComposedSelection(container, domSel);
-	const anchorNode = composed?.anchorNode ?? domSel.anchorNode;
-	const anchorOffset = composed?.anchorOffset ?? domSel.anchorOffset;
-	const focusNode = composed?.focusNode ?? domSel.focusNode;
-	const focusOffset = composed?.focusOffset ?? domSel.focusOffset;
+	const endpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
+	if (!endpoints) return null;
 
-	if (!anchorNode || !focusNode) return null;
-	if (!container.contains(anchorNode) || !container.contains(focusNode)) return null;
+	if (!container.contains(endpoints.anchorNode) || !container.contains(endpoints.focusNode)) {
+		return null;
+	}
 
-	const anchor = domPositionToState(container, anchorNode, anchorOffset);
-	const head = domPositionToState(container, focusNode, focusOffset);
+	const anchor = domPositionToState(container, endpoints.anchorNode, endpoints.anchorOffset);
+	const head = domPositionToState(container, endpoints.focusNode, endpoints.focusOffset);
 
 	if (!anchor || !head) return null;
 

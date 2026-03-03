@@ -6,6 +6,7 @@ import {
 } from '../model/Selection.js';
 import {
 	readComposedSelection,
+	readDOMSelectionEndpoints,
 	readSelectionFromDOM,
 	syncSelectionToDOM,
 } from './SelectionSync.js';
@@ -331,7 +332,7 @@ describe('SelectionSync InlineNode support', () => {
 			document.body.appendChild(container);
 
 			const sel = window.getSelection();
-			if (!sel) return;
+			if (!sel) throw new Error('Selection unavailable');
 			const result = readComposedSelection(container, sel);
 			expect(result).toBeNull();
 
@@ -346,7 +347,7 @@ describe('SelectionSync InlineNode support', () => {
 
 			// Selection without getComposedRanges
 			const sel = window.getSelection();
-			if (!sel) return;
+			if (!sel) throw new Error('Selection unavailable');
 			const result = readComposedSelection(container, sel);
 			expect(result).toBeNull();
 
@@ -404,12 +405,12 @@ describe('SelectionSync InlineNode support', () => {
 				collapsed: false,
 			};
 
-			let callCount = 0;
+			let callIdx = 0;
 			const mockSel = {
-				getComposedRanges: vi.fn().mockImplementation((...args: unknown[]) => {
-					callCount++;
+				getComposedRanges: vi.fn().mockImplementation(() => {
+					callIdx++;
 					// First call (modern syntax with options dict) throws
-					if (callCount === 1) {
+					if (callIdx === 1) {
 						throw new TypeError('Invalid argument');
 					}
 					// Second call (legacy syntax with rest params) succeeds
@@ -421,7 +422,141 @@ describe('SelectionSync InlineNode support', () => {
 			expect(result).not.toBeNull();
 			expect(result?.anchorNode).toBe(textNode);
 			expect(result?.focusOffset).toBe(5);
-			expect(callCount).toBe(2);
+			expect(mockSel.getComposedRanges).toHaveBeenCalledTimes(2);
+
+			vi.restoreAllMocks();
+		});
+
+		it('restores backward direction from Selection.direction', () => {
+			const container = document.createElement('div');
+			const startNode = document.createTextNode('start');
+			const endNode = document.createTextNode('end');
+			container.appendChild(startNode);
+			container.appendChild(endNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: startNode,
+				startOffset: 2,
+				endContainer: endNode,
+				endOffset: 3,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				direction: 'backward',
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			// Backward: anchor = end, focus = start
+			expect(result?.anchorNode).toBe(endNode);
+			expect(result?.anchorOffset).toBe(3);
+			expect(result?.focusNode).toBe(startNode);
+			expect(result?.focusOffset).toBe(2);
+
+			vi.restoreAllMocks();
+		});
+
+		it('preserves forward direction (default)', () => {
+			const container = document.createElement('div');
+			const startNode = document.createTextNode('start');
+			const endNode = document.createTextNode('end');
+			container.appendChild(startNode);
+			container.appendChild(endNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: startNode,
+				startOffset: 0,
+				endContainer: endNode,
+				endOffset: 3,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				direction: 'forward',
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			// Forward: anchor = start, focus = end
+			expect(result?.anchorNode).toBe(startNode);
+			expect(result?.anchorOffset).toBe(0);
+			expect(result?.focusNode).toBe(endNode);
+			expect(result?.focusOffset).toBe(3);
+
+			vi.restoreAllMocks();
+		});
+
+		it('treats missing direction property as forward', () => {
+			const container = document.createElement('div');
+			const startNode = document.createTextNode('start');
+			const endNode = document.createTextNode('end');
+			container.appendChild(startNode);
+			container.appendChild(endNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: startNode,
+				startOffset: 1,
+				endContainer: endNode,
+				endOffset: 2,
+				collapsed: false,
+			};
+
+			// No direction property at all (e.g. Safari 17–18)
+			const mockSel = {
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(startNode);
+			expect(result?.anchorOffset).toBe(1);
+			expect(result?.focusNode).toBe(endNode);
+			expect(result?.focusOffset).toBe(2);
+
+			vi.restoreAllMocks();
+		});
+
+		it('treats direction "none" as forward', () => {
+			const container = document.createElement('div');
+			const startNode = document.createTextNode('start');
+			const endNode = document.createTextNode('end');
+			container.appendChild(startNode);
+			container.appendChild(endNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: startNode,
+				startOffset: 0,
+				endContainer: endNode,
+				endOffset: 3,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				direction: 'none',
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(startNode);
+			expect(result?.anchorOffset).toBe(0);
+			expect(result?.focusNode).toBe(endNode);
+			expect(result?.focusOffset).toBe(3);
 
 			vi.restoreAllMocks();
 		});
@@ -437,6 +572,137 @@ describe('SelectionSync InlineNode support', () => {
 
 			const result = readComposedSelection(container, mockSel);
 			expect(result).toBeNull();
+
+			vi.restoreAllMocks();
+		});
+	});
+
+	describe('readDOMSelectionEndpoints', () => {
+		it('returns endpoints from standard selection when not in Shadow DOM', () => {
+			const container = document.createElement('div');
+			const block = makeBlockEl('b1');
+			const textNode = document.createTextNode('hello');
+			block.appendChild(textNode);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			const sel = window.getSelection();
+			if (!sel) throw new Error('Selection unavailable');
+			sel.collapse(textNode, 2);
+
+			const result = readDOMSelectionEndpoints(container, sel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(textNode);
+			expect(result?.anchorOffset).toBe(2);
+			expect(result?.focusNode).toBe(textNode);
+			expect(result?.focusOffset).toBe(2);
+
+			document.body.removeChild(container);
+		});
+
+		it('returns composed endpoints when in Shadow DOM', () => {
+			const container = document.createElement('div');
+			const textNode = document.createTextNode('shadow');
+			container.appendChild(textNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: textNode,
+				startOffset: 1,
+				endContainer: textNode,
+				endOffset: 5,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				anchorNode: null,
+				anchorOffset: 0,
+				focusNode: null,
+				focusOffset: 0,
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readDOMSelectionEndpoints(container, mockSel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(textNode);
+			expect(result?.anchorOffset).toBe(1);
+			expect(result?.focusNode).toBe(textNode);
+			expect(result?.focusOffset).toBe(5);
+
+			vi.restoreAllMocks();
+		});
+
+		it('returns null when anchorNode is null', () => {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+
+			const mockSel = {
+				anchorNode: null,
+				anchorOffset: 0,
+				focusNode: null,
+				focusOffset: 0,
+			} as unknown as globalThis.Selection;
+
+			const result = readDOMSelectionEndpoints(container, mockSel);
+			expect(result).toBeNull();
+
+			document.body.removeChild(container);
+		});
+
+		it('returns null when focusNode is null', () => {
+			const container = document.createElement('div');
+			const textNode = document.createTextNode('hello');
+			container.appendChild(textNode);
+			document.body.appendChild(container);
+
+			const mockSel = {
+				anchorNode: textNode,
+				anchorOffset: 0,
+				focusNode: null,
+				focusOffset: 0,
+			} as unknown as globalThis.Selection;
+
+			const result = readDOMSelectionEndpoints(container, mockSel);
+			expect(result).toBeNull();
+
+			document.body.removeChild(container);
+		});
+
+		it('prefers composed ranges over standard selection properties', () => {
+			const container = document.createElement('div');
+			const composedNode = document.createTextNode('composed');
+			const standardNode = document.createTextNode('standard');
+			container.appendChild(composedNode);
+			container.appendChild(standardNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: composedNode,
+				startOffset: 0,
+				endContainer: composedNode,
+				endOffset: 3,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				anchorNode: standardNode,
+				anchorOffset: 1,
+				focusNode: standardNode,
+				focusOffset: 4,
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readDOMSelectionEndpoints(container, mockSel);
+			expect(result).not.toBeNull();
+			// Should use composed (composedNode), not standard (standardNode)
+			expect(result?.anchorNode).toBe(composedNode);
+			expect(result?.anchorOffset).toBe(0);
+			expect(result?.focusNode).toBe(composedNode);
+			expect(result?.focusOffset).toBe(3);
 
 			vi.restoreAllMocks();
 		});
