@@ -104,7 +104,11 @@ export class GapCursorPlugin implements Plugin {
 		}
 
 		context.registerKeymap(keymap, { priority: 'navigation' });
-		this.syncCursorClass(context.getState());
+	}
+
+	onReady(): void {
+		if (!this.context) return;
+		this.syncCursorClass(this.context.getState());
 	}
 
 	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {

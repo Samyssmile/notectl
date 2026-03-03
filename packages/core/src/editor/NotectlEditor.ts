@@ -195,7 +195,7 @@ export class NotectlEditor extends HTMLElement {
 		registerBuiltinSpecs(this.pluginManager.schemaRegistry);
 
 		// Process declarative toolbar config (registers ToolbarPlugin + toolbar plugins)
-		await processToolbarConfig(this.pluginManager, cfg.toolbar);
+		processToolbarConfig(this.pluginManager, cfg.toolbar);
 		if (!this.pluginManager) return;
 
 		// Register plugins from config
@@ -209,7 +209,7 @@ export class NotectlEditor extends HTMLElement {
 		}
 
 		// Auto-register essential plugins if none were explicitly provided
-		await ensureEssentialPlugins(this.pluginManager, cfg.features);
+		ensureEssentialPlugins(this.pluginManager, cfg.features);
 		if (!this.pluginManager) return;
 
 		// Set up DOM events before plugin init

@@ -1,15 +1,23 @@
 /**
- * Pure async functions that handle plugin auto-registration during editor init.
+ * Pure functions that handle plugin auto-registration during editor init.
  *
  * Extracted from NotectlEditor to keep the Web Component shell thin.
  * These functions only need a PluginManager + config — zero coupling to DOM.
+ *
+ * Static imports are used instead of dynamic `import()` to avoid
+ * double-bundling issues when consumers re-bundle @notectl/core.
  */
 
 import type { Plugin } from '../plugins/Plugin.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
-import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
+import { CaretNavigationPlugin } from '../plugins/caret-navigation/CaretNavigationPlugin.js';
+import { GapCursorPlugin } from '../plugins/gap-cursor/GapCursorPlugin.js';
+import {
+	type TextFormattingConfig,
+	TextFormattingPlugin,
+} from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
-import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
+import { type ToolbarLayoutConfig, ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
 import type { ToolbarConfig } from './NotectlEditor.js';
 
 type ToolbarInput = ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
@@ -23,10 +31,7 @@ function isToolbarConfig(toolbar: ToolbarInput): toolbar is ToolbarConfig {
  * with layout groups, then registers all plugins from the toolbar groups.
  * Accepts both the shorthand array and the full ToolbarConfig object.
  */
-export async function processToolbarConfig(
-	pm: PluginManager,
-	toolbar: ToolbarInput | undefined,
-): Promise<void> {
+export function processToolbarConfig(pm: PluginManager, toolbar: ToolbarInput | undefined): void {
 	if (!toolbar) return;
 
 	const pluginGroups: ReadonlyArray<ReadonlyArray<Plugin>> = isToolbarConfig(toolbar)
@@ -46,7 +51,6 @@ export async function processToolbarConfig(
 		groups.push(pluginIds);
 	}
 
-	const { ToolbarPlugin } = await import('../plugins/toolbar/ToolbarPlugin.js');
 	const layoutConfig: ToolbarLayoutConfig = { groups, overflow };
 	pm.register(new ToolbarPlugin(layoutConfig));
 }
@@ -55,19 +59,19 @@ export async function processToolbarConfig(
  * Auto-registers essential plugins if they were not explicitly provided.
  * Includes TextFormattingPlugin, CaretNavigationPlugin, and GapCursorPlugin.
  */
-export async function ensureEssentialPlugins(
+export function ensureEssentialPlugins(
 	pm: PluginManager,
 	features?: Partial<TextFormattingConfig>,
-): Promise<void> {
-	await ensureTextFormattingPlugin(pm, features);
-	await ensureCaretNavigationPlugin(pm);
-	await ensureGapCursorPlugin(pm);
+): void {
+	ensureTextFormattingPlugin(pm, features);
+	ensureCaretNavigationPlugin(pm);
+	ensureGapCursorPlugin(pm);
 }
 
-async function ensureTextFormattingPlugin(
+function ensureTextFormattingPlugin(
 	pm: PluginManager,
 	features?: Partial<TextFormattingConfig>,
-): Promise<void> {
+): void {
 	if (pm.get('text-formatting') !== undefined) return;
 
 	const config: TextFormattingConfig = {
@@ -76,24 +80,15 @@ async function ensureTextFormattingPlugin(
 		underline: features?.underline ?? true,
 	};
 
-	const { TextFormattingPlugin } = await import(
-		'../plugins/text-formatting/TextFormattingPlugin.js'
-	);
 	pm.register(new TextFormattingPlugin(config));
 }
 
-async function ensureCaretNavigationPlugin(pm: PluginManager): Promise<void> {
+function ensureCaretNavigationPlugin(pm: PluginManager): void {
 	if (pm.get('caret-navigation') !== undefined) return;
-
-	const { CaretNavigationPlugin } = await import(
-		'../plugins/caret-navigation/CaretNavigationPlugin.js'
-	);
 	pm.register(new CaretNavigationPlugin());
 }
 
-async function ensureGapCursorPlugin(pm: PluginManager): Promise<void> {
+function ensureGapCursorPlugin(pm: PluginManager): void {
 	if (pm.get('gap-cursor') !== undefined) return;
-
-	const { GapCursorPlugin } = await import('../plugins/gap-cursor/GapCursorPlugin.js');
 	pm.register(new GapCursorPlugin());
 }
