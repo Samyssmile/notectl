@@ -3,11 +3,11 @@
  */
 
 import type { DecorationSet } from '../decorations/Decoration.js';
-import type { InputRule } from '../input/InputRule.js';
-import type { InputRuleRegistry } from '../input/InputRuleRegistry.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
+import type { InputRule } from '../model/InputRule.js';
+import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { MarkSpec } from '../model/MarkSpec.js';

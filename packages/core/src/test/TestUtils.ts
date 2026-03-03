@@ -10,7 +10,6 @@
 
 import { expect, vi } from 'vitest';
 import { registerBuiltinSpecs } from '../editor/BuiltinSpecs.js';
-import type { InputRule } from '../input/InputRule.js';
 import {
 	type BlockNode,
 	type Mark,
@@ -19,6 +18,7 @@ import {
 	type createInlineNode,
 	createTextNode,
 } from '../model/Document.js';
+import type { InputRule } from '../model/InputRule.js';
 import type { Keymap } from '../model/Keymap.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';

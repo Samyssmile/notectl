@@ -251,7 +251,7 @@ export {
 } from './view/ViewMovementCommands.js';
 
 // --- Input ---
-export type { InputRule } from './input/InputRule.js';
+export type { InputRule } from './model/InputRule.js';
 export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './model/Keymap.js';
 export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
@@ -261,7 +261,7 @@ export type { InputManagerDeps } from './input/InputManager.js';
 
 // --- Focused Registries ---
 export { KeymapRegistry } from './model/KeymapRegistry.js';
-export { InputRuleRegistry } from './input/InputRuleRegistry.js';
+export { InputRuleRegistry } from './model/InputRuleRegistry.js';
 export type { FileHandler, FileHandlerEntry } from './model/FileHandlerRegistry.js';
 export { FileHandlerRegistry } from './model/FileHandlerRegistry.js';
 export { NodeViewRegistry } from './view/NodeViewRegistry.js';
