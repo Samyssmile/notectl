@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
 	createSelection,
 } from '../model/Selection.js';
-import { readSelectionFromDOM, syncSelectionToDOM } from './SelectionSync.js';
+import {
+	readComposedSelection,
+	readSelectionFromDOM,
+	syncSelectionToDOM,
+} from './SelectionSync.js';
 
 describe('SelectionSync InlineNode support', () => {
 	function makeBlockEl(id: string): HTMLElement {
@@ -318,6 +322,123 @@ describe('SelectionSync InlineNode support', () => {
 			// (state→DOM) directly rather than roundtrip for range selections.
 
 			document.body.removeChild(container);
+		});
+	});
+
+	describe('readComposedSelection', () => {
+		it('returns null when container is not in a shadow root', () => {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+
+			const sel = window.getSelection();
+			if (!sel) return;
+			const result = readComposedSelection(container, sel);
+			expect(result).toBeNull();
+
+			document.body.removeChild(container);
+		});
+
+		it('returns null when getComposedRanges is not available', () => {
+			// Create a mock container whose getRootNode returns a ShadowRoot-like object
+			const container = document.createElement('div');
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			// Selection without getComposedRanges
+			const sel = window.getSelection();
+			if (!sel) return;
+			const result = readComposedSelection(container, sel);
+			expect(result).toBeNull();
+
+			vi.restoreAllMocks();
+		});
+
+		it('uses modern syntax and returns endpoints from StaticRange', () => {
+			const container = document.createElement('div');
+			const textNode = document.createTextNode('hello');
+			container.appendChild(textNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: textNode,
+				startOffset: 1,
+				endContainer: textNode,
+				endOffset: 4,
+				collapsed: false,
+			};
+
+			const mockSel = {
+				getComposedRanges: vi.fn().mockReturnValue([mockRange]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(textNode);
+			expect(result?.anchorOffset).toBe(1);
+			expect(result?.focusNode).toBe(textNode);
+			expect(result?.focusOffset).toBe(4);
+
+			// Verify modern syntax was called with options dict
+			expect(mockSel.getComposedRanges).toHaveBeenCalledWith({
+				shadowRoots: [fakeShadowRoot],
+			});
+
+			vi.restoreAllMocks();
+		});
+
+		it('falls back to legacy syntax when modern throws', () => {
+			const container = document.createElement('div');
+			const textNode = document.createTextNode('world');
+			container.appendChild(textNode);
+
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockRange: StaticRange = {
+				startContainer: textNode,
+				startOffset: 0,
+				endContainer: textNode,
+				endOffset: 5,
+				collapsed: false,
+			};
+
+			let callCount = 0;
+			const mockSel = {
+				getComposedRanges: vi.fn().mockImplementation((...args: unknown[]) => {
+					callCount++;
+					// First call (modern syntax with options dict) throws
+					if (callCount === 1) {
+						throw new TypeError('Invalid argument');
+					}
+					// Second call (legacy syntax with rest params) succeeds
+					return [mockRange];
+				}),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).not.toBeNull();
+			expect(result?.anchorNode).toBe(textNode);
+			expect(result?.focusOffset).toBe(5);
+			expect(callCount).toBe(2);
+
+			vi.restoreAllMocks();
+		});
+
+		it('returns null when getComposedRanges returns empty array', () => {
+			const container = document.createElement('div');
+			const fakeShadowRoot = Object.create(ShadowRoot.prototype);
+			vi.spyOn(container, 'getRootNode').mockReturnValue(fakeShadowRoot);
+
+			const mockSel = {
+				getComposedRanges: vi.fn().mockReturnValue([]),
+			} as unknown as globalThis.Selection;
+
+			const result = readComposedSelection(container, mockSel);
+			expect(result).toBeNull();
+
+			vi.restoreAllMocks();
 		});
 	});
 
