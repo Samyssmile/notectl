@@ -101,13 +101,17 @@ function parseChildNode(
 		if (match) {
 			const spec = registry?.getNodeSpec(match.type);
 			const children: (TextNode | InlineNode)[] = spec?.isVoid
-				? []
+				? [createTextNode('')]
 				: parseElementToInlineContent(el, registry);
 			const attrs: Record<string, string | number | boolean> = {
 				...(match.attrs as Record<string, string | number | boolean> | undefined),
 			};
-			extractAlignment(el, attrs);
-			extractDirection(el, attrs);
+			if (spec?.attrs?.align) {
+				extractAlignment(el, attrs);
+			}
+			if (spec?.attrs?.dir) {
+				extractDirection(el, attrs);
+			}
 			blocks.push(
 				createBlockNode(
 					nodeType(match.type),
