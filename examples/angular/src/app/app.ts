@@ -14,6 +14,7 @@ import {
   BlockquotePlugin,
   CodeBlockPlugin,
   AlignmentPlugin,
+  TextDirectionPlugin,
   ListPlugin,
   LinkPlugin,
   TablePlugin,
@@ -86,7 +87,7 @@ export class App {
         },
       }),
     ],
-    [new AlignmentPlugin()],
+    [new AlignmentPlugin(), new TextDirectionPlugin()],
     [new ListPlugin()],
     [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
   ];

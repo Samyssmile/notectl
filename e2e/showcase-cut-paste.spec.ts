@@ -1,10 +1,9 @@
 import { expect, test } from './fixtures/editor-page';
 import {
-	type DocDef,
 	type JsonChild,
-	buildShowcaseDocument,
-	loadAndRoundtrip,
-	normalize,
+	buildShowcaseViaInteraction,
+	normalizeDoc,
+	performCutPasteRoundtrip,
 } from './fixtures/showcase-data';
 
 test.beforeEach(async ({ context }) => {
@@ -16,37 +15,21 @@ test.beforeEach(async ({ context }) => {
 });
 
 test.describe('Showcase document cut/paste roundtrip', () => {
-	test('select-all → cut → paste preserves the full document', async ({ editor, page }) => {
-		const showcase: DocDef = buildShowcaseDocument();
+	test('build via toolbar → cut → paste preserves full document', async ({ editor, page }) => {
+		test.setTimeout(120_000);
 
-		await editor.setJSON(showcase);
-		await page.waitForTimeout(500);
+		await buildShowcaseViaInteraction(page, editor);
+		const { beforeJson, afterJson } = await performCutPasteRoundtrip(page, editor);
 
-		// Capture the "before" snapshot
-		const beforeJson: { children: JsonChild[] } = await editor.getJSON();
 		expect(beforeJson.children.length).toBeGreaterThan(10);
-
-		// Select All → Cut
-		await editor.focus();
-		await page.keyboard.press('Control+a');
-		await page.keyboard.press('Control+x');
-		await page.waitForTimeout(200);
-
-		// Verify the editor is empty (single empty paragraph)
-		const emptyJson: { children: JsonChild[] } = await editor.getJSON();
-		expect(emptyJson.children.length).toBeLessThanOrEqual(1);
-
-		// Paste
-		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(300);
-
-		// Capture the "after" snapshot and deep-compare with normalization
-		const afterJson: { children: JsonChild[] } = await editor.getJSON();
-		expect(normalize(afterJson)).toEqual(normalize(beforeJson));
+		expect(normalizeDoc(afterJson)).toEqual(normalizeDoc(beforeJson));
 	});
 
 	test('all block types survive the roundtrip', async ({ editor, page }) => {
-		const { afterJson } = await loadAndRoundtrip(editor, page);
+		test.setTimeout(120_000);
+
+		await buildShowcaseViaInteraction(page, editor);
+		const { afterJson } = await performCutPasteRoundtrip(page, editor);
 		const types: string[] = afterJson.children.map((c) => c.type);
 
 		expect(types).toContain('heading');
@@ -56,12 +39,15 @@ test.describe('Showcase document cut/paste roundtrip', () => {
 		expect(types).toContain('list_item');
 		expect(types).toContain('table');
 		expect(types).toContain('horizontal_rule');
+		expect(types).toContain('image');
 	});
 
 	test('all inline mark types survive the roundtrip', async ({ editor, page }) => {
-		const { afterJson } = await loadAndRoundtrip(editor, page);
+		test.setTimeout(120_000);
 
-		// Find the paragraph that has multiple mark types (the showcase marks paragraph)
+		await buildShowcaseViaInteraction(page, editor);
+		const { afterJson } = await performCutPasteRoundtrip(page, editor);
+
 		const markParagraph: JsonChild | undefined = afterJson.children.find(
 			(c) =>
 				c.type === 'paragraph' &&

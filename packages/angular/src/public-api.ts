@@ -82,5 +82,6 @@ export { TextColorPlugin } from '@notectl/core/plugins/text-color';
 export { FontPlugin } from '@notectl/core/plugins/font';
 export { FontSizePlugin } from '@notectl/core/plugins/font-size';
 export { AlignmentPlugin } from '@notectl/core/plugins/alignment';
+export { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
 export { SuperSubPlugin } from '@notectl/core/plugins/super-sub';
 export { ToolbarPlugin } from '@notectl/core/plugins/toolbar';
