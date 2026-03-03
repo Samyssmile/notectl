@@ -179,6 +179,17 @@ describe('serializeDocumentToHTML', () => {
 		expect(html).toBe('<p>hello</p>');
 	});
 
+	it('produces well-formed attributes for all valid alignment values', () => {
+		for (const align of ['center', 'end', 'justify'] as const) {
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('x')], undefined, { align }),
+			]);
+			const html: string = serializeDocumentToHTML(doc);
+			expect(html).toMatch(new RegExp(`style="text-align: ${align}"`));
+			expect(html).not.toContain('><');
+		}
+	});
+
 	it('does not double-inject text-align when toHTML already emits it', () => {
 		const registry: SchemaRegistry = {
 			getNodeSpec: (type: string) => {
@@ -203,6 +214,37 @@ describe('serializeDocumentToHTML', () => {
 		// Should NOT inject a second text-align style
 		const matches: RegExpMatchArray | null = html.match(/text-align/g);
 		expect(matches).toHaveLength(1);
+	});
+
+	it('injects alignment without breaking tags that contain > inside attribute values', () => {
+		const registry: SchemaRegistry = {
+			getNodeSpec: (type: string) => {
+				if (type === 'paragraph') {
+					return {
+						toHTML: (_n: unknown, content: string) => `<p title="a > b">${content || '<br>'}</p>`,
+					};
+				}
+				return undefined;
+			},
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getAllowedTags: () => ['p', 'br'],
+			getAllowedAttrs: () => ['style', 'title'],
+		} as unknown as SchemaRegistry;
+
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'center',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc, registry);
+		const template: HTMLTemplateElement = document.createElement('template');
+		template.innerHTML = html;
+		const paragraph: HTMLParagraphElement | null = template.content.querySelector('p');
+		expect(paragraph).toBeTruthy();
+		expect(paragraph?.getAttribute('title')).toBe('a > b');
+		expect(paragraph?.getAttribute('style')).toContain('text-align: center');
 	});
 
 	// Coverage for compound block serialization (nested BlockNode children)

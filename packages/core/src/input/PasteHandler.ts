@@ -50,6 +50,17 @@ import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { normalizeLegacyHTML } from './LegacyHTMLNormalizer.js';
 
+/** Tags forbidden in pre-sanitization (active content that must never reach innerHTML). */
+const PRE_SANITIZE_FORBID: string[] = [
+	'script',
+	'style',
+	'iframe',
+	'object',
+	'embed',
+	'form',
+	'noscript',
+];
+
 export interface PasteHandlerOptions {
 	readonly getState: GetStateFn;
 	readonly dispatch: DispatchFn;
@@ -110,11 +121,15 @@ export class PasteHandler {
 		const html = clipboardData.getData('text/html');
 
 		if (html) {
-			const richJson: string | undefined = this.extractRichData(html);
+			const preSanitized: string = DOMPurify.sanitize(html, {
+				FORBID_TAGS: PRE_SANITIZE_FORBID,
+				ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			});
+			const richJson: string | undefined = this.extractRichData(preSanitized);
 			if (richJson && this.handleRichPasteFromJson(richJson)) return;
 
 			const preTemplate: HTMLTemplateElement = document.createElement('template');
-			preTemplate.innerHTML = html;
+			preTemplate.innerHTML = preSanitized;
 			normalizeLegacyHTML(preTemplate.content);
 			const normalizedHTML: string = preTemplate.innerHTML;
 
@@ -368,8 +383,19 @@ export class PasteHandler {
 		const template = document.createElement('template');
 		template.innerHTML = html;
 		const richEl: Element | null = template.content.querySelector('[data-notectl-rich]');
-		if (!richEl) return undefined;
-		return richEl.getAttribute('data-notectl-rich') ?? undefined;
+		const encoded: string | null | undefined = richEl?.getAttribute('data-notectl-rich');
+		if (!encoded) return undefined;
+		return this.decodeHTMLEntities(encoded);
+	}
+
+	/** Decodes HTML entities produced by ClipboardHandler's encoding. */
+	private decodeHTMLEntities(text: string): string {
+		return text
+			.replace(/&quot;/g, '"')
+			.replace(/&#39;/g, "'")
+			.replace(/&gt;/g, '>')
+			.replace(/&lt;/g, '<')
+			.replace(/&amp;/g, '&');
 	}
 
 	/** Checks whether HTML requires the DocumentParser (tables, void blocks). */

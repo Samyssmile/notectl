@@ -868,3 +868,160 @@ describe('PasteHandler rich paste with mark segments', () => {
 		expect(foundBold).toBe(true);
 	});
 });
+
+describe('PasteHandler XSS prevention', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('strips script tags from pasted HTML', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, { getState: () => currentState, dispatch });
+
+		const event: ClipboardEvent = createPasteEvent({
+			html: '<p>safe</p><script>alert("xss")</script>',
+		});
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const finalText: string = currentState.doc.children
+			.map((b) => (isBlockNode(b) ? getBlockText(b) : ''))
+			.join('');
+		expect(finalText).not.toContain('alert');
+		expect(finalText).toContain('safe');
+	});
+
+	it('strips event handler attributes from pasted HTML', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, { getState: () => currentState, dispatch });
+
+		const event: ClipboardEvent = createPasteEvent({
+			html: '<p>safe</p><p onerror="alert(1)">text</p>',
+		});
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const finalText: string = currentState.doc.children
+			.map((b) => (isBlockNode(b) ? getBlockText(b) : ''))
+			.join('');
+		expect(finalText).not.toContain('alert');
+		expect(finalText).toContain('safe');
+	});
+
+	it('extractRichData returns undefined for HTML without data-notectl-rich', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+
+		handler = new PasteHandler(element, { getState: () => state, dispatch });
+
+		const event: ClipboardEvent = createPasteEvent({
+			html: '<p>no rich data here</p>',
+		});
+		element.dispatchEvent(event);
+
+		// Should fall through to plain HTML paste, not rich paste
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(tr.metadata.origin).toBe('paste');
+	});
+
+	it('does not extract rich data from script text fragments', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			attrs: { level: { default: 1 } },
+			toDOM: () => document.createElement('h1'),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const richJson: string = JSON.stringify([
+			{ type: 'heading', text: 'ShouldNotAppear', attrs: { level: 2 } },
+		]);
+		const encoded: string = richJson
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/'/g, '&#39;')
+			.replace(/"/g, '&quot;');
+		const html: string = `<p>safe</p><script>const marker = 'data-notectl-rich="${encoded}"';</script>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const foundHeading: boolean = currentState.doc.children.some(
+			(c) => isBlockNode(c) && c.type === 'heading',
+		);
+		expect(foundHeading).toBe(false);
+	});
+
+	it('extractRichData correctly decodes entity-encoded attribute values', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			attrs: { level: { default: 1 } },
+			toDOM: () => document.createElement('h1'),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		// Simulate ClipboardHandler's encoding: double-quoted, entity-encoded
+		const richJson: string = JSON.stringify([
+			{ type: 'heading', text: 'Title', attrs: { level: 2 } },
+		]);
+		const encoded: string = richJson
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/'/g, '&#39;')
+			.replace(/"/g, '&quot;');
+		const html: string = `<span data-notectl-rich="${encoded}" hidden></span>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const heading = currentState.doc.children.find((c) => isBlockNode(c) && c.type === 'heading');
+		expect(heading).toBeDefined();
+	});
+});
