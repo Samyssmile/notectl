@@ -4,7 +4,7 @@ import {
 	PAPER_MARGIN_HORIZONTAL_PX,
 	PAPER_MARGIN_TOP_PX,
 	PAPER_VIEWPORT_PADDING_PX,
-} from '../PaperSize.js';
+} from '../../model/PaperSize.js';
 
 const PT: number = PAPER_MARGIN_TOP_PX;
 const PH: number = PAPER_MARGIN_HORIZONTAL_PX;

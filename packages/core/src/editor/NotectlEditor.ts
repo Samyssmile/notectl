@@ -8,6 +8,7 @@ import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
 import { InputManager } from '../input/InputManager.js';
 import type { Document } from '../model/Document.js';
+import type { PaperSize } from '../model/PaperSize.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
 import { selectionsEqual } from '../model/Selection.js';
 import { getTextDirection } from '../platform/Platform.js';
@@ -50,7 +51,6 @@ import { EDITOR_LOCALE_EN, type EditorLocale, loadEditorLocale } from './EditorL
 import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
-import type { PaperSize } from './PaperSize.js';
 import { ensureEssentialPlugins, processToolbarConfig } from './PluginBootstrapper.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 

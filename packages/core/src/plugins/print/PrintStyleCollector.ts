@@ -7,7 +7,7 @@ import {
 	PAPER_MARGIN_HORIZONTAL_PX,
 	PAPER_MARGIN_TOP_PX,
 	getPaperCSSSize,
-} from '../../editor/PaperSize.js';
+} from '../../model/PaperSize.js';
 import type { PrintOptions } from './PrintTypes.js';
 
 /** Extracts CSS text from all adopted stylesheets on a ShadowRoot. */

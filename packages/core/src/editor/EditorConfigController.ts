@@ -5,10 +5,10 @@
  * `configure()` into a single source of truth.
  */
 
+import { type PaperSize, isValidPaperSize } from '../model/PaperSize.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
 import type { EditorThemeController } from './EditorThemeController.js';
 import type { NotectlEditorConfig } from './NotectlEditor.js';
-import { type PaperSize, isValidPaperSize } from './PaperSize.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /** External dependencies the config controller needs to apply changes. */

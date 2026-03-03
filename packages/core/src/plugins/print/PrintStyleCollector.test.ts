@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PaperSize } from '../../editor/PaperSize.js';
+import { PaperSize } from '../../model/PaperSize.js';
 import {
 	collectAll,
 	extractAdoptedStyles,

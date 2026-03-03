@@ -353,8 +353,8 @@ export {
 	PAPER_MARGIN_TOP_PX,
 	PAPER_MARGIN_HORIZONTAL_PX,
 	PAPER_VIEWPORT_PADDING_PX,
-} from './editor/PaperSize.js';
-export type { PaperDimensions } from './editor/PaperSize.js';
+} from './model/PaperSize.js';
+export type { PaperDimensions } from './model/PaperSize.js';
 
 // --- i18n ---
 export { Locale } from './i18n/Locale.js';
@@ -362,7 +362,7 @@ export type { Locale as LocaleType } from './i18n/Locale.js';
 export { LocaleService, LocaleServiceKey } from './i18n/LocaleService.js';
 
 // --- Announcer ---
-export { getBlockTypeLabel } from './editor/Announcer.js';
+export { getBlockTypeLabel } from './model/BlockTypeLabels.js';
 
 // --- CSS Delivery Utilities ---
 export {
