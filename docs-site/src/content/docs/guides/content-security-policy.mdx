@@ -191,7 +191,7 @@ If you render exported HTML on a page with `style-src-attr: 'none'`, the inline 
 To produce fully CSP-compliant exported HTML, use `cssMode: 'classes'`:
 
 ```ts
-const { html, css, styleMap } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css, styleMap } = await editor.getContentHTML({ cssMode: 'classes' });
 ```
 
 This produces HTML with **zero** `style` attributes. All styling is expressed via CSS class names:
@@ -228,7 +228,7 @@ This produces HTML with **zero** `style` attributes. All styling is expressed vi
 ```ts
 import { adoptContentStyles, removeAdoptedStyles } from '@notectl/core';
 
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 
 const sheet = adoptContentStyles(css);
 contentContainer.innerHTML = html;
@@ -244,7 +244,7 @@ This also works with Shadow DOM — pass `{ target: shadowRoot }`.
 ```ts
 import { injectContentStyles, removeContentStyles } from '@notectl/core';
 
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 
 const style = injectContentStyles(css, {
   nonce: window.__CSP_NONCE__,
@@ -278,7 +278,7 @@ The `styleMap` returned by `getContentHTML({ cssMode: 'classes' })` enables re-i
 
 ```ts
 // Export
-const { html, css, styleMap } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css, styleMap } = await editor.getContentHTML({ cssMode: 'classes' });
 
 // Store html, css, and styleMap (serialize the Map as needed)
 await saveToBackend({ html, css, styleMap: Object.fromEntries(styleMap) });

@@ -3,19 +3,40 @@ title: Text Direction Plugin
 description: RTL language support with block-level text direction, inline bidi isolation, auto-detection, and keyboard shortcuts.
 ---
 
-The `TextDirectionPlugin` adds full RTL (right-to-left) language support with block-level text direction control and inline bidi isolation for mixed-direction content.
+notectl provides two text direction plugins — a lean **Core** plugin for block-level direction only, and an **Advanced** plugin that adds inline bidi isolation, smart middleware, and automatic direction detection.
+
+| Feature | Core | Advanced |
+|---------|:----:|:--------:|
+| Block-level direction (`dir` attribute) | Yes | Yes |
+| Block direction commands (4) | Yes | Yes |
+| Block direction toolbar dropdown | Yes | Yes |
+| `Mod-Shift-D` keymap | Yes | Yes |
+| Ctrl+Shift-Left/Right (Windows/Linux) | Yes | Yes |
+| Inline bidi isolation (`<bdi>` mark) | — | Yes |
+| Inline bidi commands (5) | — | Yes |
+| Inline direction toolbar dropdown | — | Yes |
+| `Mod-Shift-B` keymap | — | Yes |
+| Auto-detect, preserve, inherit middleware | — | Yes |
 
 ## Usage
 
 ```ts
+// Core plugin — block-level direction only
 import { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
 
 new TextDirectionPlugin()
-// or customize directable block types:
 new TextDirectionPlugin({ directableTypes: ['paragraph', 'heading'] })
+
+// Advanced plugin — block + inline bidi + middleware
+import { TextDirectionAdvancedPlugin } from '@notectl/core/plugins/text-direction-advanced';
+
+new TextDirectionAdvancedPlugin()
+new TextDirectionAdvancedPlugin({ directableTypes: ['paragraph', 'heading'] })
 ```
 
 ## Configuration
+
+Both plugins share the same configuration interface:
 
 ```ts
 interface TextDirectionConfig {
@@ -36,7 +57,7 @@ new TextDirectionPlugin({
 
 ## Block-Level Direction
 
-The plugin patches existing NodeSpecs for directable block types to add a `dir` attribute. This controls the overall text direction of the entire block.
+Both plugins patch existing NodeSpecs for directable block types to add a `dir` attribute. This controls the overall text direction of the entire block.
 
 | Attribute | Type | Default | Renders As |
 |-----------|------|---------|-----------|
@@ -56,9 +77,26 @@ editor.executeCommand('setDirectionRTL');
 editor.executeCommand('toggleDirection');
 ```
 
-## Inline Bidi Isolation
+### Block Direction Keyboard Shortcuts
 
-For mixed-direction content within a single block (e.g., an English phrase inside Arabic text), the plugin registers a `bdi` mark that wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Shift+D` / `Cmd+Shift+D` | Toggle block direction (cycles auto → rtl → ltr → auto) |
+
+**Windows/Linux only:**
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl` + Left `Shift` key | Set direction to LTR |
+| `Ctrl` + Right `Shift` key | Set direction to RTL |
+
+### Block Direction Toolbar
+
+The plugin renders a **Text Direction** toolbar dropdown (block group) with LTR, RTL, and Auto options. The icon updates to reflect the current block's direction.
+
+## Inline Bidi Isolation (Advanced only)
+
+The `TextDirectionAdvancedPlugin` registers a `bdi` mark for mixed-direction content within a single block (e.g., an English phrase inside Arabic text). The mark wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
 
 ### Inline Bidi Commands
 
@@ -75,30 +113,25 @@ editor.executeCommand('toggleBidiLTR');
 editor.executeCommand('removeBidi');
 ```
 
-## Keyboard Shortcuts
+### Inline Bidi Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+D` / `Cmd+Shift+D` | Toggle block direction (cycles auto → rtl → ltr → auto) |
 | `Ctrl+Shift+B` / `Cmd+Shift+B` | Toggle inline bidi isolation |
 
-**Windows/Linux only:**
+### Inline Direction Toolbar
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl` + Left `Shift` key | Set direction to LTR |
-| `Ctrl` + Right `Shift` key | Set direction to RTL |
+The advanced plugin renders a second toolbar dropdown — **Inline Direction** (format group) — with LTR, RTL, Auto, and Remove options for bidi isolation. Only enabled when text is selected.
 
-## Toolbar
+### Mark Spec
 
-The plugin renders two toolbar dropdowns:
+| Type | HTML Tag | Attributes | Description |
+|------|----------|------------|-------------|
+| `bdi` | `<bdi>` | `dir` | Inline bidi isolation element |
 
-1. **Text Direction** (block group) — Dropdown with LTR, RTL, and Auto options. The icon updates to reflect the current block's direction.
-2. **Inline Direction** (format group) — Dropdown with LTR, RTL, Auto, and Remove options for bidi isolation. Only enabled when text is selected.
+## Smart Middleware (Advanced only)
 
-## Smart Middleware
-
-The plugin registers three transaction middleware handlers that work automatically:
+The `TextDirectionAdvancedPlugin` registers three transaction middleware handlers that work automatically:
 
 ### Preserve Direction
 
@@ -111,12 +144,6 @@ When text is inserted or deleted in a block with `dir="auto"`, the plugin automa
 ### Inherit Direction
 
 When a new block is created (e.g., pressing Enter), the plugin inherits the `dir` attribute from the nearest sibling block. This provides a seamless writing experience in RTL documents.
-
-## Mark Spec
-
-| Type | HTML Tag | Attributes | Description |
-|------|----------|------------|-------------|
-| `bdi` | `<bdi>` | `dir` | Inline bidi isolation element |
 
 ## Accessibility
 

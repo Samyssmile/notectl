@@ -139,7 +139,6 @@ When hovering over a table, interactive overlay controls appear:
 |----------|--------|
 | `Tab` | Move to next cell (wraps to next row, adds row at end) |
 | `Shift+Tab` | Move to previous cell |
-| `Enter` | Move to cell below |
 | `Shift+F10` | Open context menu |
 | `Backspace` | Delete content or merge with previous cell |
 | `Delete` | Delete content or merge with next cell |

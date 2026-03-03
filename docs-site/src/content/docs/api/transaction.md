@@ -171,5 +171,5 @@ context.registerMiddleware((tr, state, next) => {
   // Inspect or modify the transaction
   console.log(`${tr.steps.length} steps`);
   next(tr); // Call next to continue, or skip to cancel
-}, 100);
+}, { priority: 100 });
 ```
