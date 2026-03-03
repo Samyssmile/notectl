@@ -136,7 +136,7 @@
 		}
 	},
 	"customElements": "custom-elements.json",
-	"files": ["dist", "README.md", "custom-elements.json"],
+	"files": ["dist", "README.md", "LICENSE", "custom-elements.json"],
 	"keywords": [
 		"rich-text-editor",
 		"web-component",
@@ -159,8 +159,8 @@
 	},
 	"scripts": {
 		"build": "vite build && vite build --config vite.config.umd.ts",
-		"prepack": "cp ../../README.md ./README.md",
-		"postpack": "rm -f ./README.md",
+		"prepack": "cp ../../README.md ./README.md && cp ../../LICENSE ./LICENSE",
+		"postpack": "rm -f ./README.md ./LICENSE",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit",
