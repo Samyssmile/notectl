@@ -339,6 +339,12 @@
 			"gzip": true
 		},
 		{
+			"name": "Plugin: Text Direction Advanced",
+			"path": "dist/plugins/text-direction-advanced.mjs",
+			"limit": "5 KB",
+			"gzip": true
+		},
+		{
 			"name": "Full (kitchen sink)",
 			"path": "dist/full.mjs",
 			"limit": "375 KB",

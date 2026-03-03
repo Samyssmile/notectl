@@ -117,13 +117,13 @@ export function buildActionsButton(label?: string): HTMLButtonElement {
 }
 
 /** Builds the context menu discovery hint shown on first focus. */
-export function buildContextHint(label?: string): HTMLDivElement {
+export function buildContextHint(label: string): HTMLDivElement {
 	const hint: HTMLDivElement = document.createElement('div');
 	hint.className = 'ntbl-context-hint';
 	hint.setAttribute('aria-hidden', 'true');
 	hint.setAttribute('contenteditable', 'false');
 	hint.setAttribute('data-notectl-no-print', '');
-	hint.textContent = label ?? 'Right-click or Shift+F10 for table actions';
+	hint.textContent = label;
 	return hint;
 }
 
