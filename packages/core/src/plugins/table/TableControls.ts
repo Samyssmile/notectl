@@ -154,7 +154,7 @@ class TableControls implements TableControlsHandle {
 		// Border color button and actions button (only when plugin context available)
 		if (pluginContext) {
 			const currentColor: string | undefined = getTableBorderColor(getState(), this.tableId);
-			this.borderColorBtn = buildBorderColorButton(currentColor);
+			this.borderColorBtn = buildBorderColorButton(locale.borderColor, currentColor);
 			this.actionsBtn = buildActionsButton(locale.tableActionsHint);
 		} else {
 			this.borderColorBtn = null;

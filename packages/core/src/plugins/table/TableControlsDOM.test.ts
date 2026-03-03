@@ -32,7 +32,7 @@ describe('TableControlsDOM', () => {
 
 	describe('buildInsertLine', () => {
 		it('creates horizontal insert line with correct classes', () => {
-			const line: HTMLDivElement = buildInsertLine('horizontal');
+			const line: HTMLDivElement = buildInsertLine('horizontal', 'Insert row');
 
 			expect(line.classList.contains('ntbl-insert-line')).toBe(true);
 			expect(line.classList.contains('ntbl-insert-line--horizontal')).toBe(true);
@@ -40,14 +40,14 @@ describe('TableControlsDOM', () => {
 		});
 
 		it('creates vertical insert line with correct classes', () => {
-			const line: HTMLDivElement = buildInsertLine('vertical');
+			const line: HTMLDivElement = buildInsertLine('vertical', 'Insert column');
 
 			expect(line.classList.contains('ntbl-insert-line')).toBe(true);
 			expect(line.classList.contains('ntbl-insert-line--vertical')).toBe(true);
 		});
 
-		it('contains a button child with insert-btn class', () => {
-			const line: HTMLDivElement = buildInsertLine('horizontal');
+		it('contains a button child with insert-btn class and provided label', () => {
+			const line: HTMLDivElement = buildInsertLine('horizontal', 'Insert row');
 			const btn = line.querySelector('.ntbl-insert-btn');
 
 			expect(btn).not.toBeNull();
@@ -55,8 +55,8 @@ describe('TableControlsDOM', () => {
 			expect(btn?.getAttribute('aria-label')).toBe('Insert row');
 		});
 
-		it('uses "Insert column" label for vertical orientation', () => {
-			const line: HTMLDivElement = buildInsertLine('vertical');
+		it('uses the provided label for vertical orientation', () => {
+			const line: HTMLDivElement = buildInsertLine('vertical', 'Insert column');
 			const btn = line.querySelector('.ntbl-insert-btn');
 
 			expect(btn?.getAttribute('aria-label')).toBe('Insert column');
