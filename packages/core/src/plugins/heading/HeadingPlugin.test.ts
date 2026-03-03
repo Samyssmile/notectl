@@ -107,6 +107,48 @@ describe('HeadingPlugin', () => {
 			expect(el?.classList.contains('notectl-subtitle')).toBe(true);
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 		});
+
+		it('title toHTML includes notectl-title class for round-trip', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('title');
+			const block = createBlockNode(nodeType('title'), [createTextNode('Hello')], blockId('t'));
+			const html: string | undefined = spec?.toHTML?.(block as BlockWithAttrs, 'Hello');
+			expect(html).toBe('<h1 class="notectl-title">Hello</h1>');
+		});
+
+		it('subtitle toHTML includes notectl-subtitle class for round-trip', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('subtitle');
+			const block = createBlockNode(nodeType('subtitle'), [createTextNode('Sub')], blockId('s'));
+			const html: string | undefined = spec?.toHTML?.(block as BlockWithAttrs, 'Sub');
+			expect(html).toBe('<h2 class="notectl-subtitle">Sub</h2>');
+		});
+
+		it('heading toHTML does not include class attribute', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('heading');
+			const block = createBlockNode(nodeType('heading'), [createTextNode('H')], blockId('h'), {
+				level: 3,
+			});
+			const html: string | undefined = spec?.toHTML?.(block as BlockWithAttrs, 'H');
+			expect(html).toBe('<h3>H</h3>');
+		});
+
+		it('title parseHTML rules match h1 with notectl-title class', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('title');
+			const rule = spec?.parseHTML?.[0];
+			expect(rule?.tag).toBe('h1');
+			expect(rule?.priority).toBe(60);
+		});
+
+		it('subtitle parseHTML rules match h2 with notectl-subtitle class', async () => {
+			const h = await pluginHarness(new HeadingPlugin());
+			const spec = h.getNodeSpec('subtitle');
+			const rule = spec?.parseHTML?.[0];
+			expect(rule?.tag).toBe('h2');
+			expect(rule?.priority).toBe(60);
+		});
 	});
 
 	describe('commands', () => {

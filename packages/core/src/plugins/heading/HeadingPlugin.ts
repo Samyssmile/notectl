@@ -100,9 +100,16 @@ export class HeadingPlugin implements Plugin {
 				return el;
 			},
 			toHTML(_node, content) {
-				return `<h1>${content || '<br>'}</h1>`;
+				return `<h1 class="notectl-title">${content || '<br>'}</h1>`;
 			},
-			sanitize: { tags: ['h1'] },
+			parseHTML: [
+				{
+					tag: 'h1',
+					priority: 60,
+					getAttrs: (el) => (el.classList.contains('notectl-title') ? {} : false),
+				},
+			],
+			sanitize: { tags: ['h1'], attrs: ['class'] },
 		});
 
 		context.registerNodeSpec({
@@ -116,9 +123,16 @@ export class HeadingPlugin implements Plugin {
 				return el;
 			},
 			toHTML(_node, content) {
-				return `<h2>${content || '<br>'}</h2>`;
+				return `<h2 class="notectl-subtitle">${content || '<br>'}</h2>`;
 			},
-			sanitize: { tags: ['h2'] },
+			parseHTML: [
+				{
+					tag: 'h2',
+					priority: 60,
+					getAttrs: (el) => (el.classList.contains('notectl-subtitle') ? {} : false),
+				},
+			],
+			sanitize: { tags: ['h2'], attrs: ['class'] },
 		});
 
 		context.registerNodeSpec({
