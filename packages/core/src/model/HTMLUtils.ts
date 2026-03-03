@@ -129,7 +129,8 @@ function tokenizeHTML(html: string): readonly string[] {
 		if (nameStart < html.length && html[nameStart] === '/') {
 			nameStart += 1;
 		}
-		if (nameStart >= html.length || !isASCIILetter(html[nameStart])) {
+		const nameChar: string | undefined = html[nameStart];
+	if (nameStart >= html.length || !nameChar || !isASCIILetter(nameChar)) {
 			i += 1;
 			continue;
 		}
