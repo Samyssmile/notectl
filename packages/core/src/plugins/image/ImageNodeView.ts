@@ -157,17 +157,7 @@ export function createImageNodeViewFactory(
 			const alt: string = (n.attrs?.alt as string | undefined) ?? '';
 			const width: number | undefined = n.attrs?.width as number | undefined;
 			const height: number | undefined = n.attrs?.height as number | undefined;
-
-			const parts: string[] = [];
-			if (alt) {
-				parts.push(alt);
-			} else {
-				parts.push('Image');
-			}
-			if (width !== undefined && height !== undefined) {
-				parts.push(`${width} by ${height} pixels`);
-			}
-			figure.setAttribute('aria-label', parts.join(', '));
+			figure.setAttribute('aria-label', locale.imageAria(alt, width, height));
 		}
 
 		// --- Attribute Application ---

@@ -310,7 +310,7 @@ describe('ImageNodeView', () => {
 
 			const overlayEl = view.dom.querySelector('.notectl-image__overlay');
 			expect(overlayEl?.classList.contains('notectl-image__overlay--error')).toBe(true);
-			expect(overlayEl?.textContent).toBe('Upload failed');
+			expect(overlayEl?.textContent).toBe('Upload failed.');
 		});
 
 		it('sets aria-busy during upload', () => {

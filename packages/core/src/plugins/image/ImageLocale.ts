@@ -45,7 +45,7 @@ export const IMAGE_LOCALE_EN: ImageLocale = {
 		return parts.join(', ');
 	},
 	resetToNaturalSize: 'Image reset to natural size.',
-	uploadFailed: 'Upload failed',
+	uploadFailed: 'Upload failed.',
 	uploading: 'Uploading...',
 	resizeHandleLabel: (position: string) => `Resize ${position}`,
 	imageSelected: 'Image selected.',
