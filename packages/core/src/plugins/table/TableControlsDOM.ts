@@ -51,15 +51,14 @@ export function createButton(
 /** Builds the insert-line element (horizontal or vertical) with a plus-icon button. */
 export function buildInsertLine(
 	orientation: 'horizontal' | 'vertical',
-	label?: string,
+	label: string,
 ): HTMLDivElement {
 	const line: HTMLDivElement = document.createElement('div');
 	line.className = `ntbl-insert-line ntbl-insert-line--${orientation}`;
 	line.setAttribute('contenteditable', 'false');
 	line.setAttribute('data-notectl-no-print', '');
 
-	const title: string = label ?? (orientation === 'horizontal' ? 'Insert row' : 'Insert column');
-	const btn: HTMLButtonElement = createButton('ntbl-insert-btn', PLUS_SVG, title);
+	const btn: HTMLButtonElement = createButton('ntbl-insert-btn', PLUS_SVG, label);
 	line.appendChild(btn);
 
 	return line;
@@ -106,12 +105,8 @@ export const ACTIONS_SVG: string =
 	'<circle cx="12" cy="19" r="2"/></svg>';
 
 /** Builds the table actions button (kebab menu icon). */
-export function buildActionsButton(label?: string): HTMLButtonElement {
-	const btn: HTMLButtonElement = createButton(
-		'ntbl-actions-btn',
-		ACTIONS_SVG,
-		label ?? 'Table actions (Right-click or Shift+F10)',
-	);
+export function buildActionsButton(label: string): HTMLButtonElement {
+	const btn: HTMLButtonElement = createButton('ntbl-actions-btn', ACTIONS_SVG, label);
 	btn.setAttribute('data-notectl-no-print', '');
 	return btn;
 }
@@ -135,12 +130,8 @@ export const BORDER_COLOR_SVG: string =
 	'stroke="currentColor" stroke-width="1.5"/></svg>';
 
 /** Builds the border color button with a color indicator swatch. */
-export function buildBorderColorButton(currentColor?: string): HTMLButtonElement {
-	const btn: HTMLButtonElement = createButton(
-		'ntbl-border-color-btn',
-		BORDER_COLOR_SVG,
-		'Border color',
-	);
+export function buildBorderColorButton(label: string, currentColor?: string): HTMLButtonElement {
+	const btn: HTMLButtonElement = createButton('ntbl-border-color-btn', BORDER_COLOR_SVG, label);
 	btn.setAttribute('data-notectl-no-print', '');
 
 	const swatch: HTMLSpanElement = document.createElement('span');
