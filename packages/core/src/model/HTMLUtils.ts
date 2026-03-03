@@ -175,10 +175,7 @@ function findTagEnd(html: string, from: number): number | undefined {
 }
 
 function isASCIILetter(char: string): boolean {
-	return (
-		(char >= 'a' && char <= 'z') ||
-		(char >= 'A' && char <= 'Z')
-	);
+	return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
 }
 
 /** Extracts the tag name from an HTML tag string like `<p>` or `</div class="x">`. */
