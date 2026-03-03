@@ -22,11 +22,36 @@ function createTestRegistry(): SchemaRegistry {
 		{
 			parseHTML?: readonly {
 				tag: string;
+				priority?: number;
 				getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
 			}[];
 		}
 	>([
 		['paragraph', {}],
+		[
+			'title',
+			{
+				parseHTML: [
+					{
+						tag: 'h1',
+						priority: 60,
+						getAttrs: (el: HTMLElement) => (el.classList.contains('notectl-title') ? {} : false),
+					},
+				],
+			},
+		],
+		[
+			'subtitle',
+			{
+				parseHTML: [
+					{
+						tag: 'h2',
+						priority: 60,
+						getAttrs: (el: HTMLElement) => (el.classList.contains('notectl-subtitle') ? {} : false),
+					},
+				],
+			},
+		],
 		[
 			'heading',
 			{
@@ -89,7 +114,11 @@ function createTestRegistry(): SchemaRegistry {
 		getMarkTypes: () => [...markSpecs.keys()],
 		getBlockParseRules: () => {
 			const rules: {
-				rule: { tag: string; getAttrs?: (el: HTMLElement) => Record<string, unknown> | false };
+				rule: {
+					tag: string;
+					priority?: number;
+					getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+				};
 				type: string;
 			}[] = [];
 			for (const [type, spec] of nodeSpecs) {
@@ -99,7 +128,7 @@ function createTestRegistry(): SchemaRegistry {
 					}
 				}
 			}
-			return rules;
+			return rules.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
 		},
 		getMarkParseRules: () => {
 			const rules: {
@@ -144,7 +173,7 @@ function createTestRegistry(): SchemaRegistry {
 			'li',
 			'input',
 		],
-		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked'],
+		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class'],
 	} as unknown as SchemaRegistry;
 }
 
@@ -317,6 +346,119 @@ describe('parseHTMLToDocument', () => {
 			const block = doc.children[0];
 			if (!block) return;
 			expect(block.attrs?.dir).toBeUndefined();
+		});
+	});
+
+	// --- Title / Subtitle round-trip parsing ---
+
+	describe('title and subtitle parsing', () => {
+		it('parses <h1 class="notectl-title"> as title block', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<h1 class="notectl-title">My Title</h1>', registry);
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.type).toBe('title');
+			expect(getBlockText(block)).toBe('My Title');
+		});
+
+		it('parses <h2 class="notectl-subtitle"> as subtitle block', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<h2 class="notectl-subtitle">My Subtitle</h2>', registry);
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.type).toBe('subtitle');
+			expect(getBlockText(block)).toBe('My Subtitle');
+		});
+
+		it('parses plain <h1> as heading level 1 (not title)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<h1>Heading One</h1>', registry);
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.type).toBe('heading');
+			expect(block.attrs?.level).toBe(1);
+		});
+
+		it('parses plain <h2> as heading level 2 (not subtitle)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<h2>Heading Two</h2>', registry);
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.type).toBe('heading');
+			expect(block.attrs?.level).toBe(2);
+		});
+
+		it('parses mixed title, subtitle, and heading blocks', () => {
+			const registry = createTestRegistry();
+			const html =
+				'<h1 class="notectl-title">Title</h1>' +
+				'<h2 class="notectl-subtitle">Subtitle</h2>' +
+				'<h1>Heading 1</h1>' +
+				'<h2>Heading 2</h2>';
+			const doc = parseHTMLToDocument(html, registry);
+			expect(doc.children).toHaveLength(4);
+			expect(doc.children[0]?.type).toBe('title');
+			expect(doc.children[1]?.type).toBe('subtitle');
+			expect(doc.children[2]?.type).toBe('heading');
+			expect(doc.children[2]?.attrs?.level).toBe(1);
+			expect(doc.children[3]?.type).toBe('heading');
+			expect(doc.children[3]?.attrs?.level).toBe(2);
+		});
+
+		it('round-trips title and subtitle through serialize → parse', () => {
+			const registry = createTestRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('title'), [createTextNode('My Title')]),
+				createBlockNode(nodeType('subtitle'), [createTextNode('My Subtitle')]),
+				createBlockNode(nodeType('heading'), [createTextNode('H1')], undefined, { level: 1 }),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, {
+				...registry,
+				getNodeSpec: (type: string) => {
+					if (type === 'title') {
+						return {
+							type: 'title',
+							toHTML: (_n: unknown, content: string) =>
+								`<h1 class="notectl-title">${content || '<br>'}</h1>`,
+						} as never;
+					}
+					if (type === 'subtitle') {
+						return {
+							type: 'subtitle',
+							toHTML: (_n: unknown, content: string) =>
+								`<h2 class="notectl-subtitle">${content || '<br>'}</h2>`,
+						} as never;
+					}
+					if (type === 'heading') {
+						return {
+							type: 'heading',
+							toHTML: (node: { attrs?: { level?: number } }, content: string) => {
+								const tag = `h${node.attrs?.level ?? 1}`;
+								return `<${tag}>${content || '<br>'}</${tag}>`;
+							},
+						} as never;
+					}
+					return undefined;
+				},
+			} as unknown as SchemaRegistry);
+
+			const imported = parseHTMLToDocument(html, registry);
+			expect(imported.children).toHaveLength(3);
+			const titleBlock = imported.children[0];
+			const subtitleBlock = imported.children[1];
+			const headingBlock = imported.children[2];
+			if (!titleBlock || !subtitleBlock || !headingBlock) return;
+			expect(titleBlock.type).toBe('title');
+			expect(getBlockText(titleBlock)).toBe('My Title');
+			expect(subtitleBlock.type).toBe('subtitle');
+			expect(getBlockText(subtitleBlock)).toBe('My Subtitle');
+			expect(headingBlock.type).toBe('heading');
+			expect(headingBlock.attrs?.level).toBe(1);
 		});
 	});
 
