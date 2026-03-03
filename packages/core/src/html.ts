@@ -20,5 +20,6 @@ export {
 	serializeDocumentToHTML,
 	serializeDocumentToCSS,
 	VALID_ALIGNMENTS,
+	VALID_DIRECTIONS,
 } from './serialization/index.js';
 export { parseHTMLToDocument, type ParseHTMLOptions } from './serialization/index.js';

@@ -58,7 +58,6 @@ const DEFAULT_CONFIG: ListConfig = {
 
 interface ListTypeDefinition {
 	readonly type: ListType;
-	readonly label: string;
 	readonly icon: string;
 	readonly inputPattern: RegExp;
 	readonly inputPrefix: string;
@@ -74,21 +73,18 @@ const CHECKLIST_ICON =
 const LIST_TYPE_DEFINITIONS: readonly ListTypeDefinition[] = [
 	{
 		type: 'bullet',
-		label: 'Bullet List',
 		icon: BULLET_LIST_ICON,
 		inputPattern: /^[-*] $/,
 		inputPrefix: '- ',
 	},
 	{
 		type: 'ordered',
-		label: 'Numbered List',
 		icon: NUMBERED_LIST_ICON,
 		inputPattern: /^\d+\. $/,
 		inputPrefix: '1. ',
 	},
 	{
 		type: 'checklist',
-		label: 'Checklist',
 		icon: CHECKLIST_ICON,
 		inputPattern: /^\[[ x]] $/,
 		inputPrefix: '[ ] ',

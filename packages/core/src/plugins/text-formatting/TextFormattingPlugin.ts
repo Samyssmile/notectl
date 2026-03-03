@@ -57,7 +57,6 @@ interface MarkDefinition {
 	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale'>;
 	readonly rank: number;
 	readonly tag: string;
-	readonly label: string;
 	readonly icon: string;
 	readonly keyBinding: string;
 	readonly toHTMLString: (content: string) => string;
@@ -78,7 +77,6 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		configKey: 'bold',
 		rank: 0,
 		tag: 'strong',
-		label: 'Bold',
 		icon: BOLD_ICON,
 		keyBinding: 'Mod-B',
 		toHTMLString: (content) => `<strong>${content}</strong>`,
@@ -109,7 +107,6 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		configKey: 'italic',
 		rank: 1,
 		tag: 'em',
-		label: 'Italic',
 		icon: ITALIC_ICON,
 		keyBinding: 'Mod-I',
 		toHTMLString: (content) => `<em>${content}</em>`,
@@ -130,7 +127,6 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		configKey: 'underline',
 		rank: 2,
 		tag: 'u',
-		label: 'Underline',
 		icon: UNDERLINE_ICON,
 		keyBinding: 'Mod-U',
 		toHTMLString: (content) => `<u>${content}</u>`,

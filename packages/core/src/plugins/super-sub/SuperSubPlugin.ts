@@ -56,7 +56,6 @@ interface MarkDefinition {
 	readonly configKey: keyof Omit<SuperSubConfig, 'toolbar' | 'locale'>;
 	readonly rank: number;
 	readonly tag: string;
-	readonly label: string;
 	readonly icon: string;
 	readonly keyBinding: string;
 	readonly toHTMLString: (content: string) => string;
@@ -112,7 +111,6 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		configKey: 'superscript',
 		rank: 4,
 		tag: 'sup',
-		label: 'Superscript',
 		icon: SUPERSCRIPT_ICON,
 		keyBinding: 'Mod-.',
 		toHTMLString: (content) => `<sup>${content}</sup>`,
@@ -125,7 +123,6 @@ const MARK_DEFINITIONS: readonly MarkDefinition[] = [
 		configKey: 'subscript',
 		rank: 4,
 		tag: 'sub',
-		label: 'Subscript',
 		icon: SUBSCRIPT_ICON,
 		keyBinding: 'Mod-,',
 		toHTMLString: (content) => `<sub>${content}</sub>`,
