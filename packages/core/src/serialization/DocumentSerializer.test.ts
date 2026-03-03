@@ -136,6 +136,26 @@ describe('serializeDocumentToHTML', () => {
 		expect(html).toBe('<p>hello</p>');
 	});
 
+	it('normalizes legacy align: right to end', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'right',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p style="text-align: end">hello</p>');
+	});
+
+	it('normalizes legacy align: left to start (no style injected)', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'left',
+			}),
+		]);
+		const html: string = serializeDocumentToHTML(doc);
+		expect(html).toBe('<p>hello</p>');
+	});
+
 	it('ignores invalid alignment values', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
@@ -1038,6 +1058,19 @@ describe('serializeDocumentToCSS', () => {
 		expect(result.html).not.toContain('style=');
 		expect(result.css).toContain('.notectl-align-center');
 		expect(result.css).toContain('text-align: center');
+	});
+
+	it('normalizes legacy align: right to end in CSS class mode', () => {
+		const registry: SchemaRegistry = createStyleMarkRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], undefined, {
+				align: 'right',
+			}),
+		]);
+
+		const result = serializeDocumentToCSS(doc, registry);
+		expect(result.html).toContain('class="notectl-align-end"');
+		expect(result.html).not.toContain('notectl-align-right');
 	});
 
 	it('handles mixed tag + style marks', () => {

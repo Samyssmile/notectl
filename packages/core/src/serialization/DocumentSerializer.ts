@@ -35,6 +35,9 @@ interface SerializerContext {
 /** Known-safe alignment values accepted by the serializer (defense-in-depth). */
 export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['start', 'center', 'end', 'justify']);
 
+/** Legacy physical → logical alignment mapping (mirrors DocumentParser). */
+const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', right: 'end' };
+
 /** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
 export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
 
@@ -234,9 +237,12 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	}
 
 	// Inject alignment into the first opening tag (validated against allowlist).
-	const align: string | undefined = (block.attrs as Record<string, unknown>)?.align as
+	const rawAlign: string | undefined = (block.attrs as Record<string, unknown>)?.align as
 		| string
 		| undefined;
+	const align: string | undefined = rawAlign
+		? (LEGACY_ALIGNMENT_MAP[rawAlign] ?? rawAlign)
+		: undefined;
 	if (align && align !== 'start' && VALID_ALIGNMENTS.has(align)) {
 		if (ctx.collector) {
 			// Class mode: use semantic alignment class on the outer element only
