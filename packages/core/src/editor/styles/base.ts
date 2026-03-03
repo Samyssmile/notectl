@@ -32,6 +32,8 @@ export const BASE_CSS = `
 	position: relative;
 	white-space: pre-wrap;
 	word-wrap: break-word;
+	-webkit-user-select: text;
+	user-select: text;
 	-moz-tab-size: 4;
 	tab-size: 4;
 }

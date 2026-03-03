@@ -15,7 +15,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { wrapNodeWithMarks } from './MarkRendering.js';
-import { getSelection } from './SelectionSync.js';
+import { getSelection, readComposedSelection } from './SelectionSync.js';
 
 const ZWS = '\u200B';
 const CURSOR_WRAPPER_ATTR = 'data-cursor-wrapper';
@@ -63,7 +63,21 @@ export class CursorWrapper {
 		const domSel: globalThis.Selection | null = getSelection(this.container);
 		if (!domSel || domSel.rangeCount === 0) return;
 
-		const range: Range = domSel.getRangeAt(0);
+		// Use getComposedRanges in Shadow DOM for correct range
+		let range: Range;
+		const composed = readComposedSelection(this.container, domSel);
+		if (composed) {
+			const r = document.createRange();
+			try {
+				r.setStart(composed.anchorNode, composed.anchorOffset);
+				r.setEnd(composed.focusNode, composed.focusOffset);
+			} catch {
+				return;
+			}
+			range = r;
+		} else {
+			range = domSel.getRangeAt(0);
+		}
 		range.insertNode(wrapper);
 
 		// Place browser cursor inside the ZWS text node
