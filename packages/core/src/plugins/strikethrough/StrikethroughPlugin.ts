@@ -7,7 +7,7 @@ import { isMarkActive, toggleMark } from '../../commands/Commands.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	STRIKETHROUGH_LOCALE_EN,
 	type StrikethroughLocale,

@@ -7,6 +7,10 @@ export interface CodeBlockLocale {
 	readonly tooltip: (shortcut?: string) => string;
 	readonly enteredCodeBlock: string;
 	readonly leftCodeBlock: string;
+	readonly copyCodeAria: string;
+	readonly escToExit: string;
+	readonly codeBlockAriaLabel: (lang: string) => string;
+	readonly copiedToClipboard: string;
 }
 
 // --- Default English Locale ---
@@ -16,6 +20,10 @@ export const CODE_BLOCK_LOCALE_EN: CodeBlockLocale = {
 	tooltip: (shortcut?: string) => (shortcut ? `Code Block (${shortcut})` : 'Code Block'),
 	enteredCodeBlock: 'Entered code block. Press Escape to exit.',
 	leftCodeBlock: 'Left code block.',
+	copyCodeAria: 'Copy code',
+	escToExit: 'Esc to exit',
+	codeBlockAriaLabel: (lang: string) => `${lang} code block. Press Escape to exit.`,
+	copiedToClipboard: 'Copied to clipboard',
 };
 
 // --- Lazy Locale Loader ---

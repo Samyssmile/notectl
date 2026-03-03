@@ -9,9 +9,9 @@
 import type { BlockId } from '../../model/TypeBrands.js';
 import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
+import { applyRovingTabindex } from '../shared/KeyboardNav.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { positionPopup } from '../shared/PopupPositioning.js';
-import { applyRovingTabindex } from '../toolbar/ToolbarKeyboardNav.js';
 import { renderBorderColorPicker } from './TableBorderColor.js';
 import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
 

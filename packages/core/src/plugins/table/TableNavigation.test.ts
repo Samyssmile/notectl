@@ -10,6 +10,7 @@ import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
+import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { registerTableKeymaps } from './TableNavigation.js';
 import { TABLE_SCHEMA, createTableState } from './TableTestUtils.js';
 
@@ -35,7 +36,7 @@ function createContextWithKeymaps(initialState: EditorState) {
 		getContainer: () => document.createElement('div'),
 	} as unknown as PluginContext;
 
-	registerTableKeymaps(context);
+	registerTableKeymaps(context, TABLE_LOCALE_EN);
 
 	return {
 		keymaps,

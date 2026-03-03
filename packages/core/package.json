@@ -50,6 +50,10 @@
 			"types": "./dist/plugins/toolbar/index.d.ts",
 			"import": "./dist/plugins/toolbar.mjs"
 		},
+		"./plugins/shared": {
+			"types": "./dist/plugins/shared/index.d.ts",
+			"import": "./dist/plugins/shared.mjs"
+		},
 		"./plugins/table": {
 			"types": "./dist/plugins/table/index.d.ts",
 			"import": "./dist/plugins/table.mjs"
@@ -125,6 +129,10 @@
 		"./plugins/text-direction": {
 			"types": "./dist/plugins/text-direction/index.d.ts",
 			"import": "./dist/plugins/text-direction.mjs"
+		},
+		"./plugins/text-direction-advanced": {
+			"types": "./dist/plugins/text-direction-advanced/index.d.ts",
+			"import": "./dist/plugins/text-direction-advanced.mjs"
 		}
 	},
 	"customElements": "custom-elements.json",
@@ -177,7 +185,7 @@
 		{
 			"name": "Presets (full)",
 			"path": "dist/presets/full.mjs",
-			"limit": "65 KB",
+			"limit": "68 KB",
 			"gzip": true
 		},
 		{
@@ -195,7 +203,7 @@
 		{
 			"name": "Plugin: Table",
 			"path": "dist/plugins/table.mjs",
-			"limit": "20 KB",
+			"limit": "22 KB",
 			"gzip": true
 		},
 		{
@@ -213,6 +221,12 @@
 		{
 			"name": "Plugin: Toolbar",
 			"path": "dist/plugins/toolbar.mjs",
+			"limit": "15 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Shared",
+			"path": "dist/plugins/shared.mjs",
 			"limit": "15 KB",
 			"gzip": true
 		},
@@ -309,7 +323,7 @@
 		{
 			"name": "Plugin: Gap Cursor",
 			"path": "dist/plugins/gap-cursor.mjs",
-			"limit": "2 KB",
+			"limit": "3 KB",
 			"gzip": true
 		},
 		{

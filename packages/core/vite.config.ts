@@ -7,6 +7,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/text-formatting': resolve(__dirname, 'src/plugins/text-formatting/index.ts'),
 	'plugins/heading': resolve(__dirname, 'src/plugins/heading/index.ts'),
 	'plugins/toolbar': resolve(__dirname, 'src/plugins/toolbar/index.ts'),
+	'plugins/shared': resolve(__dirname, 'src/plugins/shared/index.ts'),
 	'plugins/table': resolve(__dirname, 'src/plugins/table/index.ts'),
 	'plugins/image': resolve(__dirname, 'src/plugins/image/index.ts'),
 	'plugins/code-block': resolve(__dirname, 'src/plugins/code-block/index.ts'),
@@ -26,6 +27,10 @@ const pluginEntries: Record<string, string> = {
 	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
 	'plugins/print': resolve(__dirname, 'src/plugins/print/index.ts'),
 	'plugins/text-direction': resolve(__dirname, 'src/plugins/text-direction/index.ts'),
+	'plugins/text-direction-advanced': resolve(
+		__dirname,
+		'src/plugins/text-direction-advanced/index.ts',
+	),
 };
 
 const analyzePlugins: VitePlugin[] = [];

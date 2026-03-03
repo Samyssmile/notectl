@@ -16,7 +16,7 @@ import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugi
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
-import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
+import { TextDirectionCorePlugin } from '../plugins/text-direction/TextDirectionCorePlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import { createFullPreset } from './FullPreset.js';
 
@@ -71,7 +71,7 @@ describe('createFullPreset', () => {
 
 		expect(group).toHaveLength(2);
 		expect(group?.[0]).toBeInstanceOf(AlignmentPlugin);
-		expect(group?.[1]).toBeInstanceOf(TextDirectionPlugin);
+		expect(group?.[1]).toBeInstanceOf(TextDirectionCorePlugin);
 	});
 
 	it('group 6 contains List', () => {

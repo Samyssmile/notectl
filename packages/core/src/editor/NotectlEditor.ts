@@ -46,6 +46,7 @@ import { EditorConfigController } from './EditorConfigController.js';
 import { type EditorDOMElements, createEditorDOM } from './EditorDOM.js';
 import { EditorEventEmitter, type EditorEventMap } from './EditorEventEmitter.js';
 import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
+import { EDITOR_LOCALE_EN, type EditorLocale, loadEditorLocale } from './EditorLocale.js';
 import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -159,11 +160,17 @@ export class NotectlEditor extends HTMLElement {
 		this.styleCoordinator.setup(shadow, cfg.styleNonce, this.themeController);
 		this.themeController.apply(cfg.theme ?? ThemePreset.Light);
 
+		// Resolve editor locale for DOM labels
+		const resolvedLang: string = new LocaleService(cfg.locale ?? 'browser').getLocale();
+		const editorLocale: EditorLocale =
+			resolvedLang === 'en' ? EDITOR_LOCALE_EN : await loadEditorLocale(resolvedLang);
+
 		// 1. Build DOM structure
 		this.domElements = createEditorDOM({
 			readonly: cfg.readonly,
 			placeholder: cfg.placeholder,
 			dir: cfg.dir ?? (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
+			locale: editorLocale,
 		});
 
 		shadow.appendChild(this.domElements.wrapper);

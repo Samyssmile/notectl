@@ -7,7 +7,7 @@
 
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { PRINT_LOCALE_EN, type PrintLocale, loadPrintLocale } from './PrintLocale.js';
 import { createPrintService } from './PrintServiceImpl.js';
 import type { PrintOptions, PrintPluginConfig, PrintService } from './PrintTypes.js';
