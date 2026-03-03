@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createDocument, createTextNode, isBlockNode } from '../model/Document.js';
+import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
-import { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { PasteHandler } from './PasteHandler.js';
 

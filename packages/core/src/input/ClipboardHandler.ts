@@ -464,7 +464,7 @@ export class ClipboardHandler {
 			.replace(/>/g, '&gt;')
 			.replace(/'/g, '&#39;')
 			.replace(/"/g, '&quot;');
-		htmlParts.push(`<span data-notectl-rich="${richJson}" style="display:none"></span>`);
+		htmlParts.push(`<span data-notectl-rich="${richJson}" hidden></span>`);
 
 		return htmlParts.join('');
 	}

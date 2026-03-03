@@ -62,7 +62,11 @@ export function serializeMarksToHTML(
 
 	// Wrap with merged style span first (closest to text)
 	if (styleParts.length > 0) {
-		html = `<span style="${styleParts.join('; ')}">${html}</span>`;
+		const declarations: string = styleParts.join('; ');
+		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
+		if (attr) {
+			html = `<span${attr}>${html}</span>`;
+		}
 	}
 
 	// Then wrap with tag-based marks in rank order

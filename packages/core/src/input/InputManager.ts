@@ -7,16 +7,16 @@
  * concrete input classes, maintaining proper layer separation.
  */
 
+import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
 import { CompositionTracker } from './CompositionTracker.js';
-import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import { InputHandler } from './InputHandler.js';
 import type { InputRuleRegistry } from './InputRuleRegistry.js';
 import { KeyboardHandler } from './KeyboardHandler.js';
-import type { KeymapRegistry } from './KeymapRegistry.js';
 import { PasteHandler } from './PasteHandler.js';
 
 type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
