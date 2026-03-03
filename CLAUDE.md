@@ -185,7 +185,7 @@ Low-level tests for `model/`, `state/`, and `view/` layers should create state d
 
 ## Code Changes
 After code changes, always run unit tests, e2e tests and biom linting.
-After writing new features or fixing bugs, please add tests to cover the new code paths. Aim for high coverage, but prioritize meaningful tests over 100% coverage.
+After writing new features or fixing bugs, please add tests to cover the new code paths. Prioritize meaningful tests over test coverage.
 Never do bad workarounds or hacks. If something is hard to implement, it's likely a sign of a design issue. Refactor the architecture or data structures as needed to support the feature cleanly.
 
 

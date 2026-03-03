@@ -153,10 +153,12 @@ Used with `registerCommand()` to allow specific commands (e.g. checklist toggle)
 
 ```ts
 interface KeymapOptions {
-  /** When true, the keymap is active even in read-only mode. */
-  readonly readonlyAllowed?: boolean;
+  /** Priority level for dispatch ordering. */
+  readonly priority?: KeymapPriority;
 }
 ```
+
+See [Input System — Priority System](/notectl/api/input/#priority-system) for details on `KeymapPriority`.
 
 ## MiddlewareOptions
 
@@ -208,3 +210,100 @@ interface PickerEntryStyle {
 ```
 
 The HeadingPlugin registers its built-in entries at priorities 10–106 (paragraph=10, title=20, subtitle=30, headings=101–106). Use a higher priority value (e.g. 200+) to append entries after the built-in ones.
+
+---
+
+## PluginManager
+
+The `PluginManager` orchestrates plugin lifecycle, registration, and dispatch. It is primarily used internally by the editor, but its API is exported for advanced use cases.
+
+```ts
+import { PluginManager } from '@notectl/core';
+```
+
+### PluginManagerInitOptions
+
+```ts
+interface PluginManagerInitOptions {
+  getState(): EditorState;
+  dispatch(transaction: Transaction): void;
+  getContainer(): HTMLElement;
+  getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
+  announce?(text: string): void;
+  hasAnnouncement?(): boolean;
+  onBeforeReady?(): void | Promise<void>;
+}
+```
+
+### Key Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `register` | `(plugin: Plugin) => void` | Register a plugin (must be called before `init`) |
+| `init` | `(options: PluginManagerInitOptions) => Promise<void>` | Initialize all plugins in dependency/priority order |
+| `destroy` | `() => Promise<void>` | Destroy all plugins in reverse init order |
+| `notifyStateChange` | `(oldState, newState, tr) => void` | Notify all plugins of a state change |
+| `collectDecorations` | `(state, tr?) => DecorationSet` | Collect and merge decorations from all plugins |
+| `dispatchWithMiddleware` | `(tr, state, finalDispatch) => void` | Dispatch through the middleware chain |
+| `canExecuteCommand` | `(name: string) => boolean` | Check if a command exists and is not blocked by readonly |
+| `executeCommand` | `(name: string) => boolean` | Execute a named command |
+| `configurePlugin` | `(pluginId, config) => void` | Configure a plugin at runtime |
+| `isReadOnly` | `() => boolean` | Get current readonly state |
+| `setReadOnly` | `(readonly: boolean) => void` | Update readonly state and notify plugins |
+| `getPluginIds` | `() => string[]` | List all registered plugin IDs |
+| `get` | `(id: string) => Plugin \| undefined` | Get a plugin by ID |
+| `getService` | `<T>(key: ServiceKey<T>) => T \| undefined` | Get a registered service |
+| `onEvent` | `<T>(key: EventKey<T>, cb) => () => void` | Subscribe to an event (returns unsubscribe) |
+| `getMiddlewareChain` | `() => readonly MiddlewareInfo[]` | Get middleware in execution order |
+| `getPluginStyleSheets` | `() => readonly CSSStyleSheet[]` | Get all plugin-registered stylesheets |
+
+### Public Registries
+
+The `PluginManager` exposes its internal registries as readonly properties:
+
+```ts
+manager.schemaRegistry;          // SchemaRegistry
+manager.keymapRegistry;          // KeymapRegistry
+manager.inputRuleRegistry;       // InputRuleRegistry
+manager.fileHandlerRegistry;     // FileHandlerRegistry
+manager.nodeViewRegistry;        // NodeViewRegistry
+manager.toolbarRegistry;         // ToolbarRegistry
+manager.blockTypePickerRegistry; // BlockTypePickerRegistry
+```
+
+### MiddlewareInfo
+
+Describes a registered middleware entry (returned by `getMiddlewareChain()`):
+
+```ts
+interface MiddlewareInfo {
+  readonly name: string;
+  readonly priority: number;
+  readonly pluginId: string;
+}
+```
+
+---
+
+## EventBus
+
+Type-safe event bus used for inter-plugin communication. Plugins access it via `context.getEventBus()`.
+
+```ts
+import { EventBus, EventKey } from '@notectl/core';
+
+const bus = new EventBus();
+```
+
+### Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `emit` | `<T>(key: EventKey<T>, payload: T) => void` | Emit an event to all subscribers |
+| `on` | `<T>(key: EventKey<T>, callback) => () => void` | Subscribe to an event (returns unsubscribe function) |
+| `off` | `<T>(key: EventKey<T>, callback) => void` | Remove a specific listener |
+| `clear` | `() => void` | Remove all listeners |
+
+### Error Isolation
+
+If a subscriber throws, the error is caught and logged — other subscribers still receive the event. This prevents a buggy plugin from breaking the event system.
