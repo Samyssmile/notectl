@@ -86,4 +86,16 @@ export const CODE_BLOCK_CSS = `
 .notectl-code-block--focused .notectl-code-block__esc-hint {
 	display: block;
 }
+
+/* Syntax highlighting token classes */
+.notectl-token--keyword    { color: var(--notectl-code-token-keyword); }
+.notectl-token--string     { color: var(--notectl-code-token-string); }
+.notectl-token--comment    { color: var(--notectl-code-token-comment); font-style: italic; }
+.notectl-token--number     { color: var(--notectl-code-token-number); }
+.notectl-token--function   { color: var(--notectl-code-token-function); }
+.notectl-token--operator   { color: var(--notectl-code-token-operator); }
+.notectl-token--punctuation { color: var(--notectl-code-token-punctuation); }
+.notectl-token--boolean    { color: var(--notectl-code-token-boolean); }
+.notectl-token--null       { color: var(--notectl-code-token-null); }
+.notectl-token--property   { color: var(--notectl-code-token-property); }
 `;

@@ -82,6 +82,26 @@ export interface MiddlewareOptions {
 	readonly priority?: number;
 }
 
+// --- Paste Interceptors ---
+
+/**
+ * Paste interceptor callback. Receives raw clipboard text and HTML,
+ * plus the current state. Returns a Transaction to claim the paste,
+ * or null to pass through to the next interceptor / default handling.
+ */
+export type PasteInterceptor = (
+	plainText: string,
+	html: string,
+	state: EditorState,
+) => Transaction | null;
+
+export interface PasteInterceptorOptions {
+	/** Human-readable name for debugging and introspection. */
+	readonly name?: string;
+	/** Execution priority (lower values run first). Defaults to 100. */
+	readonly priority?: number;
+}
+
 // --- Plugin Context ---
 
 export interface PluginContext {
@@ -107,6 +127,7 @@ export interface PluginContext {
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
+	registerPasteInterceptor(interceptor: PasteInterceptor, options?: PasteInterceptorOptions): void;
 	getSchemaRegistry(): SchemaRegistry;
 	getKeymapRegistry(): KeymapRegistry;
 	getInputRuleRegistry(): InputRuleRegistry;

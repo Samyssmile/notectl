@@ -256,6 +256,7 @@ export class NotectlEditor extends HTMLElement {
 					inputRuleRegistry: pluginMgr.inputRuleRegistry,
 					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
 					isReadOnly: () => this.configController.isReadOnly,
+					getPasteInterceptors: () => pluginMgr.getPasteInterceptors(),
 					getTextDirection,
 					navigateFromGapCursor,
 				});

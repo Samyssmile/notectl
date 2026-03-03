@@ -29,6 +29,20 @@ export interface ThemeToolbar {
 	readonly borderColor: string;
 }
 
+/** Syntax highlighting token colors. */
+export interface ThemeSyntax {
+	readonly keyword: string;
+	readonly string: string;
+	readonly comment: string;
+	readonly number: string;
+	readonly function: string;
+	readonly operator: string;
+	readonly punctuation: string;
+	readonly boolean: string;
+	readonly null: string;
+	readonly property: string;
+}
+
 /** Component-level code block overrides. */
 export interface ThemeCodeBlock {
 	readonly background: string;
@@ -36,6 +50,7 @@ export interface ThemeCodeBlock {
 	readonly headerBackground: string;
 	readonly headerForeground: string;
 	readonly headerBorder: string;
+	readonly syntax?: ThemeSyntax;
 }
 
 /** Component-level tooltip overrides. */
@@ -58,7 +73,9 @@ export interface PartialTheme {
 	readonly name: string;
 	readonly primitives?: Partial<ThemePrimitives>;
 	readonly toolbar?: Partial<ThemeToolbar>;
-	readonly codeBlock?: Partial<ThemeCodeBlock>;
+	readonly codeBlock?: Partial<Omit<ThemeCodeBlock, 'syntax'>> & {
+		readonly syntax?: Partial<ThemeSyntax>;
+	};
 	readonly tooltip?: Partial<ThemeTooltip>;
 }
 
@@ -98,6 +115,18 @@ export const LIGHT_THEME: Theme = {
 		headerBackground: '#f1f5f9',
 		headerForeground: '#64748b',
 		headerBorder: '#e2e8f0',
+		syntax: {
+			keyword: '#d73a49',
+			string: '#032f62',
+			comment: '#6a737d',
+			number: '#005cc5',
+			function: '#6f42c1',
+			operator: '#d73a49',
+			punctuation: '#24292e',
+			boolean: '#005cc5',
+			null: '#005cc5',
+			property: '#005cc5',
+		},
 	},
 	tooltip: {
 		background: '#1a1a1a',
@@ -133,6 +162,18 @@ export const DARK_THEME: Theme = {
 		headerBackground: '#181825',
 		headerForeground: '#7f849c',
 		headerBorder: 'rgba(205, 214, 244, 0.08)',
+		syntax: {
+			keyword: '#cba6f7',
+			string: '#a6e3a1',
+			comment: '#6c7086',
+			number: '#fab387',
+			function: '#89b4fa',
+			operator: '#89dceb',
+			punctuation: '#bac2de',
+			boolean: '#fab387',
+			null: '#f38ba8',
+			property: '#89b4fa',
+		},
 	},
 	tooltip: {
 		background: '#585b70',
@@ -146,7 +187,15 @@ export function createTheme(base: Theme, overrides: PartialTheme): Theme {
 		name: overrides.name,
 		primitives: { ...base.primitives, ...overrides.primitives },
 		toolbar: overrides.toolbar ? { ...base.toolbar, ...overrides.toolbar } : base.toolbar,
-		codeBlock: overrides.codeBlock ? { ...base.codeBlock, ...overrides.codeBlock } : base.codeBlock,
+		codeBlock: overrides.codeBlock
+			? {
+					...base.codeBlock,
+					...overrides.codeBlock,
+					syntax: overrides.codeBlock.syntax
+						? ({ ...base.codeBlock?.syntax, ...overrides.codeBlock.syntax } as ThemeSyntax)
+						: base.codeBlock?.syntax,
+				}
+			: base.codeBlock,
 		tooltip: overrides.tooltip ? { ...base.tooltip, ...overrides.tooltip } : base.tooltip,
 	};
 }

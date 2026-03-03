@@ -25,6 +25,8 @@ import type {
 	EventKey,
 	MiddlewareNext,
 	MiddlewareOptions,
+	PasteInterceptor,
+	PasteInterceptorOptions,
 	Plugin,
 	PluginConfig,
 	PluginContext,
@@ -52,10 +54,18 @@ export interface MiddlewareInfo {
 	readonly pluginId: string;
 }
 
+export interface PasteInterceptorEntry {
+	readonly name: string;
+	readonly pluginId: string;
+	readonly interceptor: PasteInterceptor;
+	readonly priority: number;
+}
+
 interface PluginRegistrations {
 	commands: string[];
 	services: string[];
 	middlewares: MiddlewareEntry[];
+	pasteInterceptors: PasteInterceptorEntry[];
 	unsubscribers: (() => void)[];
 	nodeSpecs: string[];
 	markSpecs: string[];
@@ -87,6 +97,7 @@ export class PluginManager {
 	private readonly commands = new Map<string, CommandEntry>();
 	private readonly services = new Map<string, unknown>();
 	private readonly middlewares: MiddlewareEntry[] = [];
+	private readonly pasteInterceptors: PasteInterceptorEntry[] = [];
 	private readonly registrations = new Map<string, PluginRegistrations>();
 	private readonly eventBus = new EventBus();
 	private readonly pluginStyleSheets: CSSStyleSheet[] = [];
@@ -98,6 +109,7 @@ export class PluginManager {
 	readonly toolbarRegistry = new ToolbarRegistry();
 	readonly blockTypePickerRegistry = new BlockTypePickerRegistry();
 	private middlewareSorted: MiddlewareEntry[] | null = null;
+	private pasteInterceptorsSorted: PasteInterceptorEntry[] | null = null;
 	private initOrder: string[] = [];
 	private initialized = false;
 	private initializing = false;
@@ -318,6 +330,11 @@ export class PluginManager {
 		}));
 	}
 
+	/** Returns paste interceptors in priority order. */
+	getPasteInterceptors(): readonly PasteInterceptorEntry[] {
+		return this.getSortedPasteInterceptors();
+	}
+
 	/** Gets a plugin by ID. */
 	get(id: string): Plugin | undefined {
 		return this.plugins.get(id);
@@ -349,6 +366,8 @@ export class PluginManager {
 		this.services.clear();
 		this.middlewares.length = 0;
 		this.middlewareSorted = null;
+		this.pasteInterceptors.length = 0;
+		this.pasteInterceptorsSorted = null;
 		this.pluginStyleSheets.length = 0;
 		this.eventBus.clear();
 		this.registrations.clear();
@@ -387,6 +406,10 @@ export class PluginManager {
 			const idx = this.middlewares.indexOf(entry);
 			if (idx !== -1) this.middlewares.splice(idx, 1);
 		}
+		for (const entry of reg.pasteInterceptors) {
+			const idx = this.pasteInterceptors.indexOf(entry);
+			if (idx !== -1) this.pasteInterceptors.splice(idx, 1);
+		}
 		for (const unsub of reg.unsubscribers) unsub();
 
 		// Clean up schema registrations
@@ -413,6 +436,7 @@ export class PluginManager {
 		}
 
 		this.middlewareSorted = null;
+		this.pasteInterceptorsSorted = null;
 		this.registrations.delete(id);
 	}
 
@@ -423,11 +447,21 @@ export class PluginManager {
 		return this.middlewareSorted;
 	}
 
+	private getSortedPasteInterceptors(): PasteInterceptorEntry[] {
+		if (!this.pasteInterceptorsSorted) {
+			this.pasteInterceptorsSorted = [...this.pasteInterceptors].sort(
+				(a, b) => a.priority - b.priority,
+			);
+		}
+		return this.pasteInterceptorsSorted;
+	}
+
 	private createContext(pluginId: string, options: PluginManagerInitOptions): PluginContext {
 		const reg: PluginRegistrations = {
 			commands: [],
 			services: [],
 			middlewares: [],
+			pasteInterceptors: [],
 			unsubscribers: [],
 			nodeSpecs: [],
 			markSpecs: [],
@@ -550,6 +584,18 @@ export class PluginManager {
 			registerBlockTypePickerEntry: (entry) => {
 				this.blockTypePickerRegistry.registerBlockTypePickerEntry(entry);
 				reg.blockTypePickerEntries.push(entry.id);
+			},
+
+			registerPasteInterceptor: (
+				interceptor: PasteInterceptor,
+				options?: PasteInterceptorOptions,
+			) => {
+				const name: string = options?.name ?? 'anonymous';
+				const priority: number = options?.priority ?? DEFAULT_PRIORITY;
+				const entry: PasteInterceptorEntry = { name, pluginId, interceptor, priority };
+				this.pasteInterceptors.push(entry);
+				reg.pasteInterceptors.push(entry);
+				this.pasteInterceptorsSorted = null;
 			},
 
 			getSchemaRegistry: () => this.schemaRegistry,

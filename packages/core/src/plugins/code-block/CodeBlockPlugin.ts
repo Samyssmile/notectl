@@ -40,8 +40,20 @@ import {
 } from './CodeBlockLocale.js';
 import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
-import type { CodeBlockConfig, CodeBlockKeymap, SyntaxToken } from './CodeBlockTypes.js';
-import { CODE_BLOCK_ICON, DEFAULT_CONFIG, DEFAULT_KEYMAP } from './CodeBlockTypes.js';
+import type {
+	CodeBlockConfig,
+	CodeBlockKeymap,
+	SyntaxHighlighter,
+	SyntaxToken,
+} from './CodeBlockTypes.js';
+import {
+	CODE_BLOCK_ICON,
+	DEFAULT_CONFIG,
+	DEFAULT_KEYMAP,
+	SYNTAX_HIGHLIGHTER_SERVICE_KEY,
+} from './CodeBlockTypes.js';
+import { RegexTokenizer } from './highlighter/RegexTokenizer.js';
+import { JSON_LANGUAGE } from './highlighter/languages/json.js';
 
 export class CodeBlockPlugin implements Plugin {
 	readonly id = 'code-block';
@@ -52,6 +64,15 @@ export class CodeBlockPlugin implements Plugin {
 	private readonly resolvedKeymap: Readonly<Record<keyof CodeBlockKeymap, string | null>>;
 	private context: PluginContext | null = null;
 	private locale!: CodeBlockLocale;
+	private highlighter: SyntaxHighlighter | null = null;
+	private readonly tokenCache = new Map<
+		BlockId,
+		{
+			readonly text: string;
+			readonly language: string;
+			readonly tokens: readonly SyntaxToken[];
+		}
+	>();
 
 	constructor(config?: Partial<CodeBlockConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -72,6 +93,7 @@ export class CodeBlockPlugin implements Plugin {
 		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 
+		this.initHighlighter();
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
 		registerCodeBlockCommands(context, this.config);
@@ -80,11 +102,14 @@ export class CodeBlockPlugin implements Plugin {
 		this.registerToolbarItem(context);
 		this.registerMiddleware(context);
 		registerCodeBlockService(context, this.config, () => this.context);
+		this.registerSyntaxHighlighterService(context);
 		this.patchTableCellContent(context);
 	}
 
 	destroy(): void {
 		this.context = null;
+		this.highlighter = null;
+		this.tokenCache.clear();
 	}
 
 	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
@@ -120,8 +145,8 @@ export class CodeBlockPlugin implements Plugin {
 			decorations.push(nodeDecoration(focusedBlockId, { class: 'notectl-code-block--focused' }));
 		}
 
-		const highlighter = this.config.highlighter;
-		if (highlighter) {
+		if (this.highlighter) {
+			const activeBlockIds = new Set<BlockId>();
 			for (const bid of state.getBlockOrder()) {
 				const block: BlockNode | undefined = state.getBlock(bid);
 				if (!block || block.type !== 'code_block') continue;
@@ -132,13 +157,21 @@ export class CodeBlockPlugin implements Plugin {
 				const text: string = getBlockText(block);
 				if (!text) continue;
 
-				const tokens: readonly SyntaxToken[] = highlighter.tokenize(text, lang);
+				activeBlockIds.add(bid);
+				const tokens: readonly SyntaxToken[] = this.getCachedTokens(bid, text, lang);
 				for (const token of tokens) {
 					decorations.push(
 						inlineDecoration(bid, token.from, token.to, {
 							class: `notectl-token--${token.type}`,
 						}),
 					);
+				}
+			}
+
+			// Purge stale cache entries
+			for (const cachedId of this.tokenCache.keys()) {
+				if (!activeBlockIds.has(cachedId)) {
+					this.tokenCache.delete(cachedId);
 				}
 			}
 		}
@@ -301,6 +334,44 @@ export class CodeBlockPlugin implements Plugin {
 				allow: [...currentAllow, 'code_block'],
 			},
 		});
+	}
+
+	// --- Highlighter Setup ---
+
+	private initHighlighter(): void {
+		if (this.config.highlighter) {
+			this.highlighter = this.config.highlighter;
+		} else {
+			this.highlighter = new RegexTokenizer([JSON_LANGUAGE]);
+		}
+	}
+
+	private registerSyntaxHighlighterService(context: PluginContext): void {
+		const tokenizer = this.highlighter;
+		if (!tokenizer) return;
+
+		context.registerService(SYNTAX_HIGHLIGHTER_SERVICE_KEY, {
+			registerLanguage: (def) => {
+				tokenizer.registerLanguage?.(def);
+				this.tokenCache.clear();
+			},
+			getSupportedLanguages: () => tokenizer.getSupportedLanguages(),
+			tokenize: (code, language) => tokenizer.tokenize(code, language),
+		});
+	}
+
+	private getCachedTokens(
+		blockId: BlockId,
+		text: string,
+		language: string,
+	): readonly SyntaxToken[] {
+		const cached = this.tokenCache.get(blockId);
+		if (cached && cached.text === text && cached.language === language) {
+			return cached.tokens;
+		}
+		const tokens: readonly SyntaxToken[] = this.highlighter?.tokenize(text, language) ?? [];
+		this.tokenCache.set(blockId, { text, language, tokens });
+		return tokens;
 	}
 
 	// --- Helpers ---

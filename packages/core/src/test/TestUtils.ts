@@ -456,6 +456,7 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerInlineNodeSpec: vi.fn(),
 		registerFileHandler: vi.fn(),
 		registerBlockTypePickerEntry: vi.fn(),
+		registerPasteInterceptor: vi.fn(),
 		getSchemaRegistry: vi.fn() as never,
 		getKeymapRegistry: vi.fn() as never,
 		getInputRuleRegistry: vi.fn() as never,

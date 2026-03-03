@@ -22,9 +22,12 @@ import {
 import { findNodePath } from '../model/NodeResolver.js';
 import type { AttrSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { EditorSelection } from '../model/Selection.js';
+import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import type { TransactionBuilder } from '../state/Transaction.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';
 
 /**
@@ -97,6 +100,65 @@ export function findTableCellAncestor(state: EditorState, blockId: BlockId): Blo
 		if (node?.type === 'table_cell') return id as BlockId;
 	}
 	return undefined;
+}
+
+/**
+ * Resolves the anchor block ID from the current editor selection.
+ * Handles text selection, node selection, and gap cursor uniformly.
+ */
+export function resolveAnchorBlockId(selection: EditorSelection): BlockId {
+	if (isNodeSelection(selection)) return selection.nodeId;
+	if (isGapCursor(selection)) return selection.blockId;
+	return selection.anchor.blockId;
+}
+
+/**
+ * Inserts a block node after the anchor position, resolving cell vs root context.
+ * Removes the anchor block if it is empty (matching standard paste behavior).
+ * Returns true on success, false if context resolution fails.
+ */
+export function insertBlockAfterAnchor(
+	state: EditorState,
+	builder: TransactionBuilder,
+	anchorBlockId: BlockId,
+	block: BlockNode,
+	selection: EditorSelection,
+	schemaRegistry?: SchemaRegistry,
+): boolean {
+	const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
+
+	if (cellId) {
+		const ctx: InsertionContext | undefined = resolveCellInsertionContext(
+			state,
+			anchorBlockId,
+			cellId,
+			schemaRegistry,
+		);
+		if (!ctx) return false;
+
+		const insertIndex: number = ctx.anchorIndex + 1;
+		builder.insertNode(ctx.parentPath, insertIndex, block);
+
+		if (ctx.isAnchorEmpty && ctx.anchorIndex >= 0) {
+			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
+		}
+	} else {
+		const ctx: InsertionContext | undefined = resolveRootInsertionContext(
+			state,
+			anchorBlockId,
+			schemaRegistry,
+		);
+		if (!ctx) return false;
+
+		const insertOffset: number = isGapCursor(selection) && selection.side === 'before' ? 0 : 1;
+		builder.insertNode(ctx.parentPath, ctx.anchorIndex + insertOffset, block);
+
+		if (ctx.isAnchorEmpty && !isGapCursor(selection)) {
+			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
+		}
+	}
+
+	return true;
 }
 
 /** Recursively clones a block tree, assigning new IDs to all block nodes. */

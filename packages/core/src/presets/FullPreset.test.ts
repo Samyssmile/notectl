@@ -101,10 +101,10 @@ describe('createFullPreset', () => {
 		expect(group?.[0]).toBeInstanceOf(PrintPlugin);
 	});
 
-	it('includes HardBreakPlugin in non-toolbar plugins', () => {
+	it('includes HardBreakPlugin and SmartPastePlugin in non-toolbar plugins', () => {
 		const preset = createFullPreset();
 
-		expect(preset.plugins).toHaveLength(1);
+		expect(preset.plugins).toHaveLength(2);
 		expect(preset.plugins[0]).toBeInstanceOf(HardBreakPlugin);
 	});
 
