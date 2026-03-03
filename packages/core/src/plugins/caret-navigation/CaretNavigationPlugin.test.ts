@@ -3,6 +3,7 @@ import { createCollapsedSelection, isCollapsed } from '../../model/Selection.js'
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { CARET_NAVIGATION_LOCALE_EN, resolveBlockLabel } from './CaretNavigationLocale.js';
 import { CaretNavigationPlugin } from './CaretNavigationPlugin.js';
 
 describe('CaretNavigationPlugin', () => {
@@ -127,10 +128,10 @@ describe('CaretNavigationPlugin', () => {
 			vi.restoreAllMocks();
 		});
 
-		function initRtlPlugin(initialState: EditorState): {
+		async function initRtlPlugin(initialState: EditorState): Promise<{
 			getState: () => EditorState;
 			getHandler: (key: string) => (() => boolean) | undefined;
-		} {
+		}> {
 			const plugin = new CaretNavigationPlugin();
 			let currentState = initialState;
 			const container: HTMLElement = document.createElement('div');
@@ -150,7 +151,7 @@ describe('CaretNavigationPlugin', () => {
 				registerKeymap,
 			});
 
-			plugin.init(ctx);
+			await plugin.init(ctx);
 			const keymap = registerKeymap.mock.calls[0]?.[0] as Record<string, () => boolean> | undefined;
 			return {
 				getState: () => currentState,
@@ -158,12 +159,12 @@ describe('CaretNavigationPlugin', () => {
 			};
 		}
 
-		it('maps Shift-ArrowLeft to logical forward in RTL', () => {
+		it('maps Shift-ArrowLeft to logical forward in RTL', async () => {
 			vi.spyOn(window, 'getComputedStyle').mockReturnValue({
 				direction: 'rtl',
 			} as CSSStyleDeclaration);
 			const state = stateBuilder().paragraph('ABC', 'b1').cursor('b1', 0).build();
-			const { getHandler, getState } = initRtlPlugin(state);
+			const { getHandler, getState } = await initRtlPlugin(state);
 			const handler = getHandler('Shift-ArrowLeft');
 
 			if (!handler) {
@@ -180,12 +181,12 @@ describe('CaretNavigationPlugin', () => {
 			expect(next.selection.head.offset).toBe(1);
 		});
 
-		it('maps Shift-ArrowRight to logical backward in RTL', () => {
+		it('maps Shift-ArrowRight to logical backward in RTL', async () => {
 			vi.spyOn(window, 'getComputedStyle').mockReturnValue({
 				direction: 'rtl',
 			} as CSSStyleDeclaration);
 			const state = stateBuilder().paragraph('ABC', 'b1').cursor('b1', 2).build();
-			const { getHandler, getState } = initRtlPlugin(state);
+			const { getHandler, getState } = await initRtlPlugin(state);
 			const handler = getHandler('Shift-ArrowRight');
 
 			if (!handler) {
@@ -217,10 +218,10 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		vi.useRealTimers();
 	});
 
-	function initPlugin(): {
+	async function initPlugin(): Promise<{
 		plugin: CaretNavigationPlugin;
 		announce: ReturnType<typeof vi.fn>;
-	} {
+	}> {
 		const plugin = new CaretNavigationPlugin();
 		const announce = vi.fn();
 		const state = stateBuilder()
@@ -233,12 +234,12 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 			getState: () => state,
 			announce,
 		});
-		plugin.init(ctx);
+		await plugin.init(ctx);
 		return { plugin, announce };
 	}
 
-	it('announces block type on cross-block navigation', () => {
-		const { plugin, announce } = initPlugin();
+	it('announces block type on cross-block navigation', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const state1 = stateBuilder()
 			.paragraph('Hello', 'b1')
@@ -267,8 +268,8 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		expect(announce).toHaveBeenCalledWith('Paragraph');
 	});
 
-	it('debounces rapid navigation — only announces last block', () => {
-		const { plugin, announce } = initPlugin();
+	it('debounces rapid navigation — only announces last block', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const stateB1 = stateBuilder()
 			.paragraph('A', 'b1')
@@ -311,8 +312,8 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		expect(announce).toHaveBeenCalledWith('Paragraph');
 	});
 
-	it('does not announce when staying in same block', () => {
-		const { plugin, announce } = initPlugin();
+	it('does not announce when staying in same block', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
 		const state2 = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 3).build();
@@ -331,8 +332,8 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		expect(announce).not.toHaveBeenCalled();
 	});
 
-	it('does not announce for NodeSelection', () => {
-		const { plugin, announce } = initPlugin();
+	it('does not announce for NodeSelection', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const state1 = stateBuilder()
 			.paragraph('Hello', 'b1')
@@ -357,8 +358,8 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		expect(announce).not.toHaveBeenCalled();
 	});
 
-	it('cancels pending timer when selection switches to NodeSelection', () => {
-		const { plugin, announce } = initPlugin();
+	it('cancels pending timer when selection switches to NodeSelection', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const state1 = stateBuilder()
 			.paragraph('Hello', 'b1')
@@ -395,8 +396,8 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 		expect(announce).not.toHaveBeenCalled();
 	});
 
-	it('destroy clears pending timer', () => {
-		const { plugin, announce } = initPlugin();
+	it('destroy clears pending timer', async () => {
+		const { plugin, announce } = await initPlugin();
 
 		const state1 = stateBuilder()
 			.paragraph('Hello', 'b1')
@@ -420,5 +421,41 @@ describe('CaretNavigationPlugin ARIA announcements', () => {
 
 		vi.advanceTimersByTime(200);
 		expect(announce).not.toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveBlockLabel
+// ---------------------------------------------------------------------------
+
+describe('resolveBlockLabel', () => {
+	const locale = CARET_NAVIGATION_LOCALE_EN;
+
+	it('resolves known block types to locale strings', () => {
+		expect(resolveBlockLabel(locale, 'paragraph')).toBe('Paragraph');
+		expect(resolveBlockLabel(locale, 'code_block')).toBe('Code Block');
+		expect(resolveBlockLabel(locale, 'blockquote')).toBe('Block Quote');
+		expect(resolveBlockLabel(locale, 'list_item')).toBe('List Item');
+		expect(resolveBlockLabel(locale, 'horizontal_rule')).toBe('Horizontal Rule');
+		expect(resolveBlockLabel(locale, 'image')).toBe('Image');
+		expect(resolveBlockLabel(locale, 'table')).toBe('Table');
+	});
+
+	it('resolves heading levels 1–6', () => {
+		for (let level = 1; level <= 6; level++) {
+			expect(resolveBlockLabel(locale, 'heading', { level })).toBe(`Heading ${level}`);
+		}
+	});
+
+	it('falls back to typeName for unknown block types', () => {
+		expect(resolveBlockLabel(locale, 'my_custom_block')).toBe('my_custom_block');
+	});
+
+	it('falls back to typeName for heading with invalid level', () => {
+		expect(resolveBlockLabel(locale, 'heading', { level: 99 })).toBe('heading');
+	});
+
+	it('falls back to typeName for heading without attrs', () => {
+		expect(resolveBlockLabel(locale, 'heading')).toBe('heading');
 	});
 });
