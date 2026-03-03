@@ -2,7 +2,7 @@
  * Type definitions, service keys, and event keys for the PrintPlugin.
  */
 
-import type { PaperSize } from '../../editor/PaperSize.js';
+import type { PaperSize } from '../../model/PaperSize.js';
 import type { NodeTypeName } from '../../model/TypeBrands.js';
 import { EventKey, ServiceKey } from '../Plugin.js';
 

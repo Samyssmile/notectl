@@ -4,28 +4,12 @@
  */
 
 import { isMarkActive } from '../commands/Commands.js';
+import { getBlockTypeLabel } from '../model/BlockTypeLabels.js';
 import { markType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 
-const BLOCK_TYPE_LABELS: Record<string, string> = {
-	paragraph: 'Paragraph',
-	heading: 'Heading',
-	code_block: 'Code Block',
-	blockquote: 'Block Quote',
-	list_item: 'List Item',
-	horizontal_rule: 'Horizontal Rule',
-	image: 'Image',
-	table: 'Table',
-};
-
-/** Returns a human-readable label for a block type (used in screen reader announcements). */
-export function getBlockTypeLabel(typeName: string, attrs?: Record<string, unknown>): string {
-	if (typeName === 'heading' && attrs?.level) {
-		return `Heading ${attrs.level}`;
-	}
-	return BLOCK_TYPE_LABELS[typeName] ?? typeName;
-}
+export { getBlockTypeLabel } from '../model/BlockTypeLabels.js';
 
 /**
  * Derives an announcement string from a state transition.

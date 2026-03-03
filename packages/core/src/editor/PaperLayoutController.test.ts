@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PaperSize } from '../model/PaperSize.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
-import { PaperSize } from './PaperSize.js';
 
 /**
  * Creates a minimal editor DOM matching the structure from EditorDOM.ts.

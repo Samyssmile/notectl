@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PaperSize } from '../../editor/PaperSize.js';
+import { PaperSize } from '../../model/PaperSize.js';
 import { EventBus } from '../EventBus.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { buildHTMLDocument, createPrintService } from './PrintServiceImpl.js';

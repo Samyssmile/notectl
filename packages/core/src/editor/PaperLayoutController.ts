@@ -7,8 +7,12 @@
  * the paper, producing a Google Docs-like shrink-to-fit effect.
  */
 
+import {
+	PAPER_VIEWPORT_PADDING_PX,
+	type PaperSize,
+	getPaperDimensions,
+} from '../model/PaperSize.js';
 import { setStyleProperty } from '../style/StyleRuntime.js';
-import { PAPER_VIEWPORT_PADDING_PX, type PaperSize, getPaperDimensions } from './PaperSize.js';
 
 export class PaperLayoutController {
 	private readonly wrapper: HTMLElement;

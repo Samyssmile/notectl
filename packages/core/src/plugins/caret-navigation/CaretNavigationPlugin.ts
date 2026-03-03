@@ -14,7 +14,7 @@ import {
 	moveToDocumentEnd,
 	moveToDocumentStart,
 } from '../../commands/MovementCommands.js';
-import { getBlockTypeLabel } from '../../editor/Announcer.js';
+import { getBlockTypeLabel } from '../../model/BlockTypeLabels.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { getTextDirection, isMac } from '../../platform/Platform.js';
