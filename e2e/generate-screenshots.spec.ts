@@ -556,10 +556,17 @@ const HR_CONTENT: DocDef = {
 test.describe('Documentation screenshots', () => {
 	test.beforeEach(async ({ page }) => {
 		counter = 0;
-		await page.goto('/');
-		const editor = page.locator('notectl-editor');
-		await editor.waitFor();
-		await editor.locator('div.notectl-content').waitFor();
+		for (let attempt = 0; attempt < 3; attempt++) {
+			await page.goto('/', { waitUntil: 'networkidle' });
+			try {
+				const editor = page.locator('notectl-editor');
+				await editor.waitFor({ state: 'visible', timeout: 10_000 });
+				await editor.locator('div.notectl-content').waitFor({ state: 'visible', timeout: 5_000 });
+				break;
+			} catch {
+				if (attempt === 2) throw new Error('Editor failed to initialize after 3 attempts');
+			}
+		}
 		await page.waitForTimeout(500);
 		await cleanPage(page);
 	});
