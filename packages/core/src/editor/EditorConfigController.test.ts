@@ -19,11 +19,6 @@ function createMockDeps(overrides?: Partial<ConfigControllerDeps>): ConfigContro
 
 describe('EditorConfigController', () => {
 	describe('getConfig / setConfig / mergeConfig', () => {
-		it('starts with empty config', () => {
-			const ctrl = new EditorConfigController();
-			expect(ctrl.getConfig()).toEqual({});
-		});
-
 		it('setConfig replaces entire config', () => {
 			const ctrl = new EditorConfigController();
 			ctrl.setConfig({ readonly: true });

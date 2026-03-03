@@ -148,9 +148,7 @@ export function collectAll(
 	// WYSIWYG: snapshot host typography so the print iframe matches the editor.
 	// In the editor, .notectl-content inherits font from :host (shadow DOM).
 	// The print iframe is a regular document where :host doesn't apply.
-	if (options.paperSize) {
-		parts.push(snapshotTypography(host));
-	}
+	parts.push(snapshotTypography(host));
 
 	const printCSS: string = generatePrintCSS(options);
 	if (printCSS) parts.push(printCSS);

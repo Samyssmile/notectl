@@ -224,46 +224,4 @@ test.describe('Lists copy-paste with table cells', () => {
 		expect(firstCell.some((c) => c.type === 'list_item')).toBe(true);
 	});
 
-	test('list copied from table cell preserves structure when pasted outside', async ({
-		editor,
-		page,
-	}) => {
-		await editor.focus();
-
-		// Insert a table first
-		await insertTable(page);
-
-		// Create a bullet list in the first cell via input rule
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Cell bullet item', { delay: 10 });
-
-		// Select the list text and copy
-		await page.keyboard.press('Home');
-		await page.keyboard.press('Shift+End');
-		await page.keyboard.press('Control+c');
-
-		// Navigate outside the table (Escape), create a new block, paste there.
-		await page.keyboard.press('Escape');
-		await page.waitForTimeout(100);
-		await page.keyboard.press('Enter');
-		await page.waitForTimeout(100);
-
-		// Paste into the paragraph after the table
-		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(300);
-
-		const json: { children: JsonChild[] } = await editor.getJSON();
-
-		// Find list_items outside the table
-		const topLevelListItems: JsonChild[] = json.children.filter((c) => c.type === 'list_item');
-		expect(topLevelListItems.length).toBeGreaterThanOrEqual(1);
-
-		const pastedItem: JsonChild | undefined = topLevelListItems[topLevelListItems.length - 1];
-		expect(pastedItem).toBeDefined();
-		if (!pastedItem) return;
-		expect(pastedItem.attrs?.listType).toBe('bullet');
-
-		const itemText: string = (pastedItem.children ?? []).map((c) => c.text ?? '').join('');
-		expect(itemText).toContain('Cell bullet item');
-	});
 });

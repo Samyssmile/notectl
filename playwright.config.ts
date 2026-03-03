@@ -1,5 +1,38 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/**
+ * Spec files that exercise browser-specific behavior (contenteditable,
+ * Selection API, beforeinput, Clipboard, DOM rendering, focus management)
+ * and therefore must be validated on both Chromium AND Firefox.
+ *
+ * Tests not listed here run only on Chromium — add a spec here when it
+ * covers behaviour that diverges between Gecko and Blink.
+ */
+const CROSS_BROWSER_SPECS: RegExp = new RegExp(
+	[
+		'basic-editing',
+		'arrow-navigation',
+		'movement-commands',
+		'goal-column',
+		'hard-break',
+		'input-rules',
+		'special-characters',
+		'code-block',
+		'marks',
+		'history',
+		'cut-paste-block-types',
+		'table-cut-paste',
+		'image-cut-paste',
+		'table-editing',
+		'table-deletion',
+		'list-in-table',
+		'checklist',
+		'tab-key',
+		'dom-move',
+		'accessibility',
+	].join('|'),
+);
+
 export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
@@ -34,7 +67,7 @@ export default defineConfig({
 				...devices['Desktop Firefox'],
 				baseURL: 'http://localhost:3000',
 			},
-			testIgnore: /angular|demo-showcase|touch/,
+			testMatch: CROSS_BROWSER_SPECS,
 		},
 		{
 			name: 'touch',

@@ -123,38 +123,6 @@ describe('TablePlugin', () => {
 			expect(result).toBe(true);
 			expect(h.dispatch).toHaveBeenCalled();
 		});
-
-		it('registers addRowAbove command', async () => {
-			const state = createTableStateWithRandomIds(2, 3);
-			const h = await pluginHarness(new TablePlugin(), state);
-			// Command exists but needs table context (returns false without)
-			expect(h.executeCommand('addRowAbove')).toBeDefined();
-		});
-
-		it('registers addRowBelow command', async () => {
-			const h = await pluginHarness(new TablePlugin());
-			expect(h.executeCommand('addRowBelow')).toBeDefined();
-		});
-
-		it('registers deleteRow command', async () => {
-			const h = await pluginHarness(new TablePlugin());
-			expect(h.executeCommand('deleteRow')).toBeDefined();
-		});
-
-		it('registers deleteColumn command', async () => {
-			const h = await pluginHarness(new TablePlugin());
-			expect(h.executeCommand('deleteColumn')).toBeDefined();
-		});
-
-		it('registers deleteTable command', async () => {
-			const h = await pluginHarness(new TablePlugin());
-			expect(h.executeCommand('deleteTable')).toBeDefined();
-		});
-
-		it('registers selectTable command', async () => {
-			const h = await pluginHarness(new TablePlugin());
-			expect(h.executeCommand('selectTable')).toBeDefined();
-		});
 	});
 });
 

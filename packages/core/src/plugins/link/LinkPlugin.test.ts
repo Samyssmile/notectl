@@ -48,11 +48,6 @@ function makeState(
 
 describe('LinkPlugin', () => {
 	describe('MarkSpec', () => {
-		it('registers link MarkSpec', async () => {
-			const h = await pluginHarness(new LinkPlugin());
-			expect(h.getMarkSpec('link')).toBeDefined();
-		});
-
 		it('link MarkSpec creates <a> element', async () => {
 			const h = await pluginHarness(new LinkPlugin());
 			const spec = h.getMarkSpec('link');

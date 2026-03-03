@@ -33,11 +33,6 @@ function makeState(
 
 describe('ListPlugin', () => {
 	describe('NodeSpec', () => {
-		it('registers list_item NodeSpec', async () => {
-			const h = await pluginHarness(new ListPlugin());
-			expect(h.getNodeSpec('list_item')).toBeDefined();
-		});
-
 		it('creates DOM with correct attributes for bullet list', async () => {
 			const h = await pluginHarness(new ListPlugin());
 			const spec = h.getNodeSpec('list_item');

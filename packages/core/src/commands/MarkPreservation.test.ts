@@ -265,34 +265,4 @@ describe('P0 2.4: History survives content replacement', () => {
 		expect(undoResult).not.toBeNull();
 		expect(getBlockText(undoResult?.state.doc.children[0])).toBe('hello');
 	});
-
-	it('demonstrates that creating a new EditorView (replaceState pattern) loses history', () => {
-		// This test documents the behavior: if you create a new HistoryManager
-		// (as replaceState does via new EditorView), previous history is lost.
-		const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
-		const state = EditorState.create({
-			doc,
-			selection: createCollapsedSelection('b1', 5),
-		});
-
-		const history1 = new HistoryManager();
-
-		// Type some text
-		const tr = insertTextCommand(state, ' world');
-		const state2 = state.apply(tr);
-		history1.push(tr);
-
-		expect(history1.canUndo()).toBe(true);
-
-		// Simulate replaceState: create new HistoryManager (like new EditorView does)
-		const history2 = new HistoryManager();
-
-		// The new history has no entries — all undo capability is lost
-		expect(history2.canUndo()).toBe(false);
-
-		// This documents the behavior: setJSON/setHTML resets undo history
-		// Whether this is a "bug" or "by design" depends on the intended API semantics.
-		// For a "load document" operation it may be acceptable.
-		// For incremental content updates it's problematic.
-	});
 });

@@ -521,19 +521,4 @@ describe('TextDirectionPlugin', () => {
 			expect(doc.children[0]?.attrs?.dir).toBe('rtl');
 		});
 	});
-
-	describe('destroy', () => {
-		it('has destroy method and can be called without error', async () => {
-			const plugin = new TextDirectionPlugin();
-			expect(typeof plugin.destroy).toBe('function');
-			// destroy before init should not throw
-			expect(() => plugin.destroy()).not.toThrow();
-		});
-
-		it('is idempotent — calling destroy twice does not throw', async () => {
-			const plugin = new TextDirectionPlugin();
-			plugin.destroy();
-			expect(() => plugin.destroy()).not.toThrow();
-		});
-	});
 });

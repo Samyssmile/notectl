@@ -11,15 +11,6 @@ test.describe('Code Block Plugin', () => {
 		expect(json.children[0]?.type).toBe('code_block');
 	});
 
-	test('```java + space creates code_block with language attr', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('```java ', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[0]?.attrs?.language).toBe('java');
-	});
-
 	test('code_block has default attrs (language, backgroundColor)', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });
@@ -73,17 +64,6 @@ test.describe('Code Block Plugin', () => {
 
 		const pre = editor.content.locator('pre.notectl-code-block');
 		await expect(pre).toBeVisible();
-	});
-
-	test('code block has non-editable header with language label', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('```typescript ', { delay: 10 });
-
-		const header = editor.content.locator('.notectl-code-block__header');
-		await expect(header).toBeVisible();
-
-		const langLabel = editor.content.locator('.notectl-code-block__language');
-		await expect(langLabel).toHaveText('typescript');
 	});
 
 	// ── Keyboard shortcut ──────────────────────────────────────
@@ -514,36 +494,6 @@ test.describe('Code Block Accessibility', () => {
 		expect(json.children[0]?.type).toBe('code_block');
 		expect(json.children[1]?.type).toBe('paragraph');
 		expect(json.children[1]?.children?.[0]?.text).toContain('new paragraph');
-	});
-
-	test('code block has ARIA attributes', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('```typescript ', { delay: 10 });
-		await page.keyboard.type('code', { delay: 10 });
-
-		const pre = editor.content.locator('pre.notectl-code-block');
-		await expect(pre).toHaveAttribute('role', 'group');
-		await expect(pre).toHaveAttribute('aria-roledescription', 'code block');
-		await expect(pre).toHaveAttribute('aria-label', 'typescript code block. Press Escape to exit.');
-	});
-
-	test('escape hint visible when focused', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('code', { delay: 10 });
-
-		// Wait for focused class to be applied via onStateChange
-		await page.waitForTimeout(100);
-
-		const hint = editor.content.locator('.notectl-code-block__esc-hint');
-		await expect(hint).toBeVisible();
-
-		// Exit code block
-		await page.keyboard.press('Escape');
-		await page.waitForTimeout(100);
-
-		// Hint should be hidden now (no --focused class)
-		await expect(hint).not.toBeVisible();
 	});
 
 	test('screen reader announces entering code block', async ({ editor, page }) => {

@@ -7,11 +7,6 @@ function stubPlugin(id: string): Plugin {
 }
 
 describe('EditorLifecycleCoordinator', () => {
-	it('starts as not initialized', () => {
-		const lc = new EditorLifecycleCoordinator();
-		expect(lc.isInitialized()).toBe(false);
-	});
-
 	it('markInitialized returns true on first call', () => {
 		const lc = new EditorLifecycleCoordinator();
 		expect(lc.markInitialized()).toBe(true);

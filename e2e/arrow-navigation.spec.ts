@@ -21,8 +21,18 @@ test.describe('Arrow Navigation', () => {
 
 		test('ArrowLeft moves cursor backward', async ({ editor, page }) => {
 			await editor.typeText('Hello');
-			await page.waitForTimeout(100);
+
+			// Poll until the editor has fully processed and settled the cursor
+			await expect(async () => {
+				const text: string = await editor.getText();
+				expect(text.trim()).toBe('Hello');
+			}).toPass({ timeout: 2_000 });
+
+			// Move cursor one position left (offset 5 → 4)
 			await page.keyboard.press('ArrowLeft');
+			await page.waitForTimeout(50);
+
+			// Insert at current position to verify cursor moved
 			await page.keyboard.type('X', { delay: 10 });
 			const text: string = await editor.getText();
 			expect(text.trim()).toBe('HellXo');

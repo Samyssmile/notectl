@@ -146,13 +146,6 @@ describe('TableNavigation', () => {
 
 			expect(pressKey('Enter')).toBe(false);
 		});
-
-		it('is not registered as a table keymap', () => {
-			const state = createNavState(2, 2, 0, 0);
-			const { keymaps } = createContextWithKeymaps(state);
-
-			expect(keymaps.Enter).toBeUndefined();
-		});
 	});
 
 	describe('ArrowDown', () => {

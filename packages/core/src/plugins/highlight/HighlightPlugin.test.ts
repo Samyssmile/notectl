@@ -155,11 +155,6 @@ describe('HighlightPlugin', () => {
 			expect(swatches.length).toBe(3);
 		});
 
-		it('accepts shorthand hex colors (#RGB)', () => {
-			const plugin = new HighlightPlugin({ colors: ['#f00', '#0f0', '#00f'] });
-			expect(plugin).toBeDefined();
-		});
-
 		it('normalizes colors to lowercase and deduplicates', async () => {
 			const h = await pluginHarness(
 				new HighlightPlugin({

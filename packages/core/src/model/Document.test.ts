@@ -34,7 +34,6 @@ describe('Document model', () => {
 			const b = createBlockNode('paragraph');
 			expect(a.id).not.toBe(b.id);
 		});
-
 	});
 
 	describe('generateBlockId', () => {

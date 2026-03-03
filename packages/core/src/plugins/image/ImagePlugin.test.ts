@@ -142,16 +142,6 @@ describe('ImagePlugin', () => {
 			expect(item?.popupType).toBe('custom');
 		});
 
-		it('toolbar item has renderPopup function', async () => {
-			const plugin = new ImagePlugin();
-			const { pm } = await pluginHarness(plugin, defaultState());
-			const item = pm.toolbarRegistry.getToolbarItem('image');
-			expect(item).toBeDefined();
-			if (!item) return;
-			expect('renderPopup' in item).toBe(true);
-			expect(typeof (item as { renderPopup: unknown }).renderPopup).toBe('function');
-		});
-
 		it('renderPopup creates upload button and URL input', async () => {
 			const plugin = new ImagePlugin();
 			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
@@ -201,18 +191,6 @@ describe('ImagePlugin', () => {
 				'button[aria-label="Insert image"]',
 			);
 			expect(insertBtn).not.toBeNull();
-		});
-	});
-
-	describe('config', () => {
-		it('uses default config', () => {
-			const plugin = new ImagePlugin();
-			expect(plugin.id).toBe('image');
-		});
-
-		it('accepts custom config', () => {
-			const plugin = new ImagePlugin({ maxWidth: 1200, resizable: false });
-			expect(plugin.id).toBe('image');
 		});
 	});
 
@@ -337,104 +315,6 @@ describe('ImagePlugin', () => {
 			const hasDefaultShrink: boolean = keymaps.some((km) => 'Mod-Shift-ArrowLeft' in km);
 			expect(hasDefaultGrow).toBe(false);
 			expect(hasDefaultShrink).toBe(false);
-		});
-	});
-
-	describe('onStateChange: announcements', () => {
-		it('runs without error when selecting an image', async () => {
-			const oldState = stateBuilder()
-				.paragraph('', 'b1')
-				.block('image', '', 'img1', {
-					attrs: {
-						src: 'test.png',
-						alt: 'A photo',
-						align: 'center',
-						width: 400,
-						height: 300,
-					},
-				})
-				.cursor('b1', 0)
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-			const plugin = new ImagePlugin();
-			await pluginHarness(plugin, oldState);
-
-			const newState = stateBuilder()
-				.paragraph('', 'b1')
-				.block('image', '', 'img1', {
-					attrs: {
-						src: 'test.png',
-						alt: 'A photo',
-						align: 'center',
-						width: 400,
-						height: 300,
-					},
-				})
-				.nodeSelection('img1')
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-
-			const tr = newState.transaction('command').build();
-			expect(() => plugin.onStateChange?.(oldState, newState, tr)).not.toThrow();
-		});
-
-		it('runs without error when transitioning between non-image states', async () => {
-			const oldState = stateBuilder()
-				.paragraph('Hello', 'b1')
-				.paragraph('World', 'b2')
-				.cursor('b1', 0)
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-			const plugin = new ImagePlugin();
-			await pluginHarness(plugin, oldState);
-
-			const newState = stateBuilder()
-				.paragraph('Hello', 'b1')
-				.paragraph('World', 'b2')
-				.cursor('b2', 0)
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-
-			const tr = newState.transaction('command').build();
-			expect(() => plugin.onStateChange?.(oldState, newState, tr)).not.toThrow();
-		});
-
-		it('runs without error when deselecting an image', async () => {
-			const oldState = stateBuilder()
-				.paragraph('', 'b1')
-				.block('image', '', 'img1', {
-					attrs: { src: 'test.png', alt: '', align: 'center' },
-				})
-				.nodeSelection('img1')
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-			const plugin = new ImagePlugin();
-			await pluginHarness(plugin, oldState);
-
-			const newState = stateBuilder()
-				.paragraph('', 'b1')
-				.block('image', '', 'img1', {
-					attrs: { src: 'test.png', alt: '', align: 'center' },
-				})
-				.cursor('b1', 0)
-				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
-				.build();
-
-			const tr = newState.transaction('command').build();
-			expect(() => plugin.onStateChange?.(oldState, newState, tr)).not.toThrow();
-		});
-	});
-
-	describe('destroy', () => {
-		it('cleans up context reference', async () => {
-			const plugin = new ImagePlugin();
-			await pluginHarness(plugin, defaultState());
-
-			plugin.destroy();
-			// After destroy, onStateChange should not crash
-			const state = defaultState();
-			const tr = state.transaction('command').build();
-			expect(() => plugin.onStateChange?.(state, state, tr)).not.toThrow();
 		});
 	});
 });

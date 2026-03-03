@@ -120,10 +120,4 @@ describe('TableControlsLayout', () => {
 			expect(result.border?.index).toBe(1);
 		});
 	});
-
-	describe('BORDER_THRESHOLD', () => {
-		it('is 10 pixels', () => {
-			expect(BORDER_THRESHOLD).toBe(10);
-		});
-	});
 });

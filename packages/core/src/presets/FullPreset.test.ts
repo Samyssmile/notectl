@@ -143,27 +143,4 @@ describe('createFullPreset', () => {
 		// Non-toolbar plugins should also be distinct
 		expect(preset1.plugins[0]).not.toBe(preset2.plugins[0]);
 	});
-
-	it('is composable with additional toolbar groups', () => {
-		const preset = createFullPreset();
-		const extended: ReadonlyArray<ReadonlyArray<unknown>> = [
-			...preset.toolbar,
-			[{ id: 'custom', name: 'Custom' }],
-		];
-
-		expect(extended).toHaveLength(9);
-	});
-
-	it('spreads cleanly into editor config shape', () => {
-		const preset = createFullPreset();
-
-		const config = {
-			...preset,
-			placeholder: 'Start typing...',
-		};
-
-		expect(config.toolbar).toBe(preset.toolbar);
-		expect(config.plugins).toBe(preset.plugins);
-		expect(config.placeholder).toBe('Start typing...');
-	});
 });

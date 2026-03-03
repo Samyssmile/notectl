@@ -141,21 +141,4 @@ describe('TableControlsDOM', () => {
 			expect(deletedIndex).toBe(3);
 		});
 	});
-
-	describe('SVG constants', () => {
-		it('PLUS_SVG contains an SVG element', () => {
-			expect(PLUS_SVG).toContain('<svg');
-			expect(PLUS_SVG).toContain('</svg>');
-		});
-
-		it('DELETE_SVG contains an SVG element', () => {
-			expect(DELETE_SVG).toContain('<svg');
-			expect(DELETE_SVG).toContain('</svg>');
-		});
-
-		it('TABLE_DELETE_SVG contains an SVG element', () => {
-			expect(TABLE_DELETE_SVG).toContain('<svg');
-			expect(TABLE_DELETE_SVG).toContain('</svg>');
-		});
-	});
 });

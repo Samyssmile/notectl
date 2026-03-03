@@ -238,15 +238,6 @@ describe('TextFormattingPlugin', () => {
 	});
 
 	describe('config defaults', () => {
-		it('enables all marks by default', async () => {
-			const plugin = new TextFormattingPlugin();
-			const h = await pluginHarness(plugin);
-
-			expect(h.getMarkSpec('bold')).toBeDefined();
-			expect(h.getMarkSpec('italic')).toBeDefined();
-			expect(h.getMarkSpec('underline')).toBeDefined();
-		});
-
 		it('partial config merges with defaults', async () => {
 			const plugin = new TextFormattingPlugin({ italic: false });
 			const h = await pluginHarness(plugin);

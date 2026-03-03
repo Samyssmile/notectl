@@ -281,5 +281,38 @@ describe('PrintServiceImpl', () => {
 
 			document.body.removeChild(host);
 		});
+
+		it('includes body rule with font-family without paperSize', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+
+			const html: string = service.toHTML({});
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
+			expect(bodyRuleMatch).toBeTruthy();
+
+			document.body.removeChild(host);
+		});
+
+		it('includes font-size and line-height without paperSize', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+			host.style.fontSize = '18px';
+			host.style.lineHeight = '1.8';
+
+			const html: string = service.toHTML({});
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*\}/);
+			if (!bodyRuleMatch) {
+				expect.unreachable('Expected body rule in print HTML');
+				return;
+			}
+
+			const bodyRule: string = bodyRuleMatch[0];
+			expect(bodyRule).toContain('font-size');
+			expect(bodyRule).toContain('line-height');
+
+			document.body.removeChild(host);
+		});
 	});
 });

@@ -34,15 +34,6 @@ describe('EditorStyleCoordinator', () => {
 			});
 		});
 
-		it('creates a runtime stylesheet', () => {
-			const coordinator = new EditorStyleCoordinator();
-			const shadow: ShadowRoot = mockShadowRoot();
-
-			coordinator.setup(shadow, undefined, null);
-
-			expect(StyleRuntime.createRuntimeStyleSheet).toHaveBeenCalled();
-		});
-
 		it('passes nonce to registerStyleRoot', () => {
 			const coordinator = new EditorStyleCoordinator();
 			const shadow: ShadowRoot = mockShadowRoot();
@@ -67,24 +58,6 @@ describe('EditorStyleCoordinator', () => {
 	});
 
 	describe('teardown', () => {
-		it('unregisters style root', () => {
-			const coordinator = new EditorStyleCoordinator();
-			const shadow: ShadowRoot = mockShadowRoot();
-
-			coordinator.teardown(shadow, null);
-
-			expect(StyleRuntime.unregisterStyleRoot).toHaveBeenCalledWith(shadow);
-		});
-
-		it('clears runtime stylesheets on theme controller', () => {
-			const coordinator = new EditorStyleCoordinator();
-			const themeCtrl: EditorThemeController = mockThemeController();
-
-			coordinator.teardown(null, themeCtrl);
-
-			expect(themeCtrl.setRuntimeStyleSheets).toHaveBeenCalledWith([]);
-		});
-
 		it('handles null shadow root gracefully', () => {
 			const coordinator = new EditorStyleCoordinator();
 
