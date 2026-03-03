@@ -46,13 +46,13 @@ platform/         -> Browser & platform detection utilities
 
 ### Layer Responsibilities
 
-- **`model/`** — Immutable data types (`Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection`, `Schema`, `SchemaRegistry`). All deeply `readonly`. Mutations always create new instances.
+- **`model/`** — Immutable data types (`Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection`, `Schema`, `SchemaRegistry`), registries (`InputRuleRegistry`, `KeymapRegistry`, `FileHandlerRegistry`), and handler signatures (`InputRule`). All deeply `readonly`. Mutations always create new instances.
 - **`state/`** — `EditorState` (immutable container), `Transaction` (atomic step-based changes), `StepApplication` (pure functions), `History` (undo/redo grouping via transaction inversion).
 - **`decorations/`** — Transient view annotations that do not modify the document model. Three types: `InlineDecoration` (text range styling), `NodeDecoration` (whole-block styling), `WidgetDecoration` (injected DOM elements). Managed via `DecorationSet` with position mapping through transactions.
 - **`platform/`** — Pure utility functions for browser and OS detection: `isMac()`, `isFirefox()`, `isWebKit()`, `getTextDirection()`, `isRtlContext()`. No dependencies on other layers. Results are cached after first call.
 - **`serialization/`** — HTML import/export. `DocumentSerializer` produces sanitized HTML (inline-style or CSS-class mode). `DocumentParser` parses sanitized HTML back into `Document` using schema parse rules. `CSSClassCollector` generates deterministic class names (FNV-1a hash) for the CSS-class export mode.
 - **`view/`** — `EditorView` (orchestrates dispatch, reconciliation, input), `Reconciler` (block-level DOM diffing with decoration support), `SelectionSync`, `NodeView` interface.
-- **`input/`** — `InputHandler` (beforeinput -> commands), `KeyboardHandler` (keymap dispatch), `PasteHandler`, `ClipboardHandler`, `InputRule` (pattern-based transforms like `# ` -> heading), `CompositionTracker` (IME handling).
+- **`input/`** — `InputHandler` (beforeinput -> commands), `KeyboardHandler` (keymap dispatch), `PasteHandler`, `ClipboardHandler`, `CompositionTracker` (IME handling).
 - **`commands/`** — High-level editing commands (`toggleMark`, `insertText`, `splitBlock`, `deleteBackward`, `deleteWordForward`, etc.).
 - **`plugins/`** — Plugin system + all feature plugins. Each plugin folder contains implementation + co-located tests.
 - **`editor/`** — `NotectlEditor` Web Component (public API, DOM setup, composition root).

@@ -347,6 +347,84 @@ describe('parseHTMLToDocument', () => {
 			if (!block) return;
 			expect(block.attrs?.dir).toBeUndefined();
 		});
+
+		it('does not extract dir from blocks whose spec omits dir attr', () => {
+			const nodeSpecs = new Map<
+				string,
+				{
+					attrs?: Record<string, { default: string }>;
+					parseHTML?: readonly {
+						tag: string;
+						getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+					}[];
+				}
+			>([
+				['paragraph', { attrs: { dir: { default: 'auto' } } }],
+				[
+					'code_block',
+					{
+						attrs: { language: { default: '' } },
+						parseHTML: [
+							{
+								tag: 'pre',
+								getAttrs: (el: HTMLElement) => {
+									const code: HTMLElement | null = el.querySelector('code');
+									const lang: string = code?.className.match(/language-(\S+)/)?.[1] ?? '';
+									return { language: lang };
+								},
+							},
+						],
+					},
+				],
+			]);
+
+			const registry = {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getBlockParseRules: () => {
+					const rules: {
+						rule: {
+							tag: string;
+							getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+						};
+						type: string;
+					}[] = [];
+					for (const [type, spec] of nodeSpecs) {
+						if (spec.parseHTML) {
+							for (const rule of spec.parseHTML) {
+								rules.push({ rule, type });
+							}
+						}
+					}
+					return rules;
+				},
+				getMarkParseRules: () => [],
+				getInlineParseRules: () => [],
+				getAllowedTags: () => ['p', 'pre', 'code'],
+				getAllowedAttrs: () => ['style', 'dir', 'class'],
+			} as unknown as SchemaRegistry;
+
+			const doc = parseHTMLToDocument(
+				'<pre dir="ltr"><code class="language-ts">x = 1</code></pre>' + '<p dir="rtl">مرحبا</p>',
+				registry,
+			);
+
+			expect(doc.children).toHaveLength(2);
+			const codeBlock = doc.children[0];
+			const para = doc.children[1];
+			if (!codeBlock || !para) return;
+
+			// code_block spec has no dir attr → dir must NOT leak through
+			expect(codeBlock.type).toBe('code_block');
+			expect(codeBlock.attrs?.language).toBe('ts');
+			expect(codeBlock.attrs?.dir).toBeUndefined();
+
+			// paragraph spec declares dir → dir must be preserved
+			expect(para.type).toBe('paragraph');
+			expect(para.attrs?.dir).toBe('rtl');
+		});
 	});
 
 	// --- Title / Subtitle round-trip parsing ---
@@ -964,7 +1042,8 @@ describe('void block parsing', () => {
 		const block = doc.children[0];
 		if (!block) return;
 		expect(block.type).toBe('image');
-		expect(block.children).toHaveLength(0);
+		expect(block.children).toHaveLength(1);
+		expect(getBlockText(block)).toBe('');
 	});
 
 	it('parses figure alongside paragraphs', () => {
@@ -982,7 +1061,8 @@ describe('void block parsing', () => {
 		expect(first.type).toBe('paragraph');
 		expect(getBlockText(first)).toBe('Before');
 		expect(second.type).toBe('image');
-		expect(second.children).toHaveLength(0);
+		expect(second.children).toHaveLength(1);
+		expect(getBlockText(second)).toBe('');
 		expect(third.type).toBe('paragraph');
 		expect(getBlockText(third)).toBe('After');
 	});

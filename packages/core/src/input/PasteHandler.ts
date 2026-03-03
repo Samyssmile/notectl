@@ -188,7 +188,7 @@ export class PasteHandler {
 			| undefined;
 		const newBlock: BlockNode = createBlockNode(
 			nodeType(typeName) as NodeTypeName,
-			[],
+			undefined,
 			newBlockId,
 			attrs,
 		);

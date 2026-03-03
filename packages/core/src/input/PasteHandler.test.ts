@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createTextNode, isBlockNode } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createTextNode,
+	getBlockText,
+	isBlockNode,
+} from '../model/Document.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -676,8 +682,9 @@ describe('PasteHandler void block HTML paste', () => {
 		expect(imageBlock).toBeDefined();
 		if (imageBlock && isBlockNode(imageBlock)) {
 			expect(imageBlock.attrs?.src).toBe('https://example.com/photo.png');
-			// Void blocks should have no text children
-			expect(imageBlock.children).toHaveLength(0);
+			// Void blocks retain a single empty text child (canonical form)
+			expect(imageBlock.children).toHaveLength(1);
+			expect(getBlockText(imageBlock)).toBe('');
 		}
 	});
 });
