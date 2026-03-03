@@ -117,26 +117,68 @@ export function formatHTML(html: string, indent = '  '): string {
 /** Splits HTML into a flat list of tokens: tags and text segments between block boundaries. */
 function tokenizeHTML(html: string): readonly string[] {
 	const tokens: string[] = [];
-	const tagPattern: RegExp = /(<\/?[a-zA-Z][^>]*>)/g;
-	let lastIndex = 0;
-
-	let match: RegExpExecArray | null = tagPattern.exec(html);
-	while (match !== null) {
-		const text: string = html.slice(lastIndex, match.index);
-		if (text.length > 0) {
-			tokens.push(text);
+	let textStart = 0;
+	let i = 0;
+	while (i < html.length) {
+		if (html[i] !== '<') {
+			i += 1;
+			continue;
 		}
-		tokens.push(match[1] ?? match[0]);
-		lastIndex = tagPattern.lastIndex;
-		match = tagPattern.exec(html);
+
+		let nameStart = i + 1;
+		if (nameStart < html.length && html[nameStart] === '/') {
+			nameStart += 1;
+		}
+		if (nameStart >= html.length || !isASCIILetter(html[nameStart])) {
+			i += 1;
+			continue;
+		}
+
+		const tagEnd: number | undefined = findTagEnd(html, nameStart + 1);
+		if (tagEnd === undefined) {
+			break;
+		}
+
+		if (i > textStart) {
+			tokens.push(html.slice(textStart, i));
+		}
+		tokens.push(html.slice(i, tagEnd + 1));
+		i = tagEnd + 1;
+		textStart = i;
 	}
 
-	const remaining: string = html.slice(lastIndex);
-	if (remaining.length > 0) {
-		tokens.push(remaining);
+	if (textStart < html.length) {
+		tokens.push(html.slice(textStart));
 	}
-
 	return tokens;
+}
+
+function findTagEnd(html: string, from: number): number | undefined {
+	let quote: '"' | "'" | undefined;
+	for (let i = from; i < html.length; i += 1) {
+		const char: string = html[i] ?? '';
+		if (quote) {
+			if (char === quote) {
+				quote = undefined;
+			}
+			continue;
+		}
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
+		if (char === '>') {
+			return i;
+		}
+	}
+	return undefined;
+}
+
+function isASCIILetter(char: string): boolean {
+	return (
+		(char >= 'a' && char <= 'z') ||
+		(char >= 'A' && char <= 'Z')
+	);
 }
 
 /** Extracts the tag name from an HTML tag string like `<p>` or `</div class="x">`. */
