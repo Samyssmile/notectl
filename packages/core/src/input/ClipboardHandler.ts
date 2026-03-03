@@ -25,8 +25,11 @@ import {
 	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
-import { serializeDocumentToHTML } from '../serialization/DocumentSerializer.js';
-import { buildMarkOrder, serializeMarksToHTML } from '../serialization/MarkSerializer.js';
+import {
+	buildMarkOrder,
+	serializeDocumentToHTML,
+	serializeMarksToHTML,
+} from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';

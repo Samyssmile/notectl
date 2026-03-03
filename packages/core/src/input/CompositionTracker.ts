@@ -5,8 +5,8 @@
  * that would break an active browser composition session.
  */
 
+import type { CompositionState } from '../model/CompositionState.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import type { CompositionState } from '../view/CompositionState.js';
 
 export class CompositionTracker implements CompositionState {
 	private _composing = false;

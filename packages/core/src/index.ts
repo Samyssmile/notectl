@@ -267,7 +267,7 @@ export { FileHandlerRegistry } from './input/FileHandlerRegistry.js';
 export { NodeViewRegistry } from './view/NodeViewRegistry.js';
 
 // --- View ---
-export type { CompositionState } from './view/CompositionState.js';
+export type { CompositionState } from './model/CompositionState.js';
 export type { NodeView, NodeViewFactory } from './view/NodeView.js';
 
 // --- CursorWrapper ---
