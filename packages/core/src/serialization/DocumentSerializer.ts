@@ -14,7 +14,7 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { SAFE_URI_REGEXP, escapeHTML } from '../model/HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeAttr, escapeHTML } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
@@ -60,6 +60,61 @@ function createClassExportContext(collector: CSSClassCollector): HTMLExportConte
 			return ` class="${className}"`;
 		},
 	};
+}
+
+/**
+ * Injects or merges an attribute into the first opening tag of an HTML fragment.
+ * Values are expected to be pre-escaped by the caller.
+ */
+function injectAttrIntoFirstTag(html: string, attr: string, value: string): string {
+	const firstTagRange: { start: number; end: number } | undefined = findFirstOpeningTagRange(html);
+	if (!firstTagRange) return html;
+	const firstTag: string = html.slice(firstTagRange.start, firstTagRange.end + 1);
+	const pattern: RegExp = new RegExp(`\\s${attr}\\s*=\\s*(\"([^\"]*)\"|'([^']*)')`);
+	const existing: RegExpMatchArray | null = firstTag.match(pattern);
+	if (existing) {
+		const existingValue: string = existing[2] ?? existing[3] ?? '';
+		if (attr === 'style' && /(?:^|;)\s*text-align\s*:/i.test(existingValue)) {
+			return html;
+		}
+		const sep: string = attr === 'style' ? '; ' : ' ';
+		const mergedAttr: string = ` ${attr}="${existingValue}${sep}${value}"`;
+		const nextFirstTag: string = firstTag.replace(pattern, mergedAttr);
+		return `${html.slice(0, firstTagRange.start)}${nextFirstTag}${html.slice(firstTagRange.end + 1)}`;
+	}
+	const isSelfClosing: boolean = firstTag.endsWith('/>');
+	const injectedFirstTag: string = isSelfClosing
+		? `${firstTag.slice(0, -2)} ${attr}="${value}"/>`
+		: `${firstTag.slice(0, -1)} ${attr}="${value}">`;
+	return `${html.slice(0, firstTagRange.start)}${injectedFirstTag}${html.slice(firstTagRange.end + 1)}`;
+}
+
+/** Finds the first opening tag range, treating `>` inside quotes as attribute text. */
+function findFirstOpeningTagRange(html: string): { start: number; end: number } | undefined {
+	let start: number = html.indexOf('<');
+	while (start >= 0) {
+		const nextChar: string | undefined = html[start + 1];
+		if (nextChar && /[A-Za-z]/.test(nextChar)) {
+			let quote: '"' | "'" | undefined;
+			for (let i = start + 2; i < html.length; i++) {
+				const char: string = html[i] ?? '';
+				if (quote) {
+					if (char === quote) quote = undefined;
+					continue;
+				}
+				if (char === '"' || char === "'") {
+					quote = char;
+					continue;
+				}
+				if (char === '>') {
+					return { start, end: i };
+				}
+			}
+			return undefined;
+		}
+		start = html.indexOf('<', start + 1);
+	}
+	return undefined;
 }
 
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
@@ -244,38 +299,12 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 		? (LEGACY_ALIGNMENT_MAP[rawAlign] ?? rawAlign)
 		: undefined;
 	if (align && align !== 'start' && VALID_ALIGNMENTS.has(align)) {
+		const safeAlign: string = escapeAttr(align);
 		if (ctx.collector) {
-			// Class mode: use semantic alignment class on the outer element only
 			const className: string = ctx.collector.getAlignmentClassName(align);
-			const firstTagEnd: number = html.indexOf('>');
-			const firstTag: string = html.slice(0, firstTagEnd + 1);
-			const existingClass: RegExpMatchArray | null = firstTag.match(/class="([^"]*)"/);
-			if (existingClass) {
-				// Merge alignment class into existing class attribute
-				html = html.replace(
-					`class="${existingClass[1]}"`,
-					`class="${existingClass[1]} ${className}"`,
-				);
-			} else {
-				html = html.replace(/>/, ` class="${className}">`);
-			}
+			html = injectAttrIntoFirstTag(html, 'class', escapeAttr(className));
 		} else {
-			// Inline mode: inject or merge style attribute
-			const firstTagEnd: number = html.indexOf('>');
-			const firstTag: string = html.slice(0, firstTagEnd + 1);
-			const existingStyle: RegExpMatchArray | null = firstTag.match(/style="([^"]*)"/);
-			const existingValue: string | undefined = existingStyle?.[1];
-			if (existingValue !== undefined) {
-				// Already has style — merge if no text-align yet
-				if (!/text-align:/.test(existingValue)) {
-					html = html.replace(
-						`style="${existingValue}"`,
-						`style="${existingValue}; text-align: ${align}"`,
-					);
-				}
-			} else {
-				html = html.replace(/>/, ` style="text-align: ${align}">`);
-			}
+			html = injectAttrIntoFirstTag(html, 'style', `text-align: ${safeAlign}`);
 		}
 	}
 
@@ -288,7 +317,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 		const firstTagEnd: number = html.indexOf('>');
 		const firstTag: string = html.slice(0, firstTagEnd + 1);
 		if (!firstTag.includes(' dir=')) {
-			html = `${html.slice(0, firstTagEnd)} dir="${escapeHTML(dir)}"${html.slice(firstTagEnd)}`;
+			html = injectAttrIntoFirstTag(html, 'dir', escapeAttr(dir));
 		}
 	}
 

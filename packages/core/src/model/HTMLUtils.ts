@@ -19,6 +19,15 @@ export function escapeHTML(text: string): string {
 		.replace(/"/g, '&quot;');
 }
 
+/** Escapes a value for safe interpolation into an HTML attribute (double-quoted). */
+export function escapeAttr(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+}
+
 /** Block-level HTML tags that should appear on their own line with indentation. */
 const BLOCK_TAGS: ReadonlySet<string> = new Set([
 	'p',
@@ -108,7 +117,7 @@ export function formatHTML(html: string, indent = '  '): string {
 /** Splits HTML into a flat list of tokens: tags and text segments between block boundaries. */
 function tokenizeHTML(html: string): readonly string[] {
 	const tokens: string[] = [];
-	const tagPattern: RegExp = /(<\/?[a-zA-Z][^>]*\/?>)/g;
+	const tagPattern: RegExp = /(<\/?[a-zA-Z][^>]*>)/g;
 	let lastIndex = 0;
 
 	let match: RegExpExecArray | null = tagPattern.exec(html);

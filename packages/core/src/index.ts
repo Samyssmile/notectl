@@ -127,7 +127,7 @@ export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 // --- ParseRule & SanitizeConfig ---
 export type { ParseRule } from './model/ParseRule.js';
 export type { SanitizeConfig } from './model/SanitizeConfig.js';
-export { escapeHTML, formatHTML } from './model/HTMLUtils.js';
+export { escapeAttr, escapeHTML, formatHTML } from './model/HTMLUtils.js';
 
 // --- SchemaRegistry ---
 export { SchemaRegistry } from './model/SchemaRegistry.js';

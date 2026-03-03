@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SAFE_URI_REGEXP, escapeHTML, formatHTML } from './HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML } from './HTMLUtils.js';
 
 describe('SAFE_URI_REGEXP', () => {
 	it('allows blob: URIs', () => {
@@ -85,5 +85,57 @@ describe('formatHTML', () => {
 	it('handles elements with attributes', () => {
 		const result: string = formatHTML('<p style="text-align: center">Centered</p>');
 		expect(result).toBe('<p style="text-align: center">\n  Centered\n</p>');
+	});
+
+	it('tokenizes self-closing tags correctly', () => {
+		const result: string = formatHTML('<p>Line 1<br/>Line 2</p>');
+		expect(result).toContain('Line 1');
+		expect(result).toContain('Line 2');
+	});
+
+	it('tokenizes self-closing tags with space correctly', () => {
+		const result: string = formatHTML('<p>Line 1<br />Line 2</p>');
+		expect(result).toContain('Line 1');
+		expect(result).toContain('Line 2');
+	});
+});
+
+describe('formatHTML ReDoS resistance', () => {
+	it('completes in reasonable time with long input and no closing bracket', () => {
+		const malicious: string = `<${'a'.repeat(1000)}${'/'.repeat(500)}`;
+		const start: number = performance.now();
+		formatHTML(malicious);
+		const elapsed: number = performance.now() - start;
+		expect(elapsed).toBeLessThan(100);
+	});
+
+	it('completes in reasonable time with repeated slashes', () => {
+		const malicious: string = `<div ${'/'.repeat(1000)}>`;
+		const start: number = performance.now();
+		formatHTML(malicious);
+		const elapsed: number = performance.now() - start;
+		expect(elapsed).toBeLessThan(100);
+	});
+});
+
+describe('escapeAttr', () => {
+	it('escapes double quotes', () => {
+		expect(escapeAttr('a"b')).toBe('a&quot;b');
+	});
+
+	it('escapes ampersands', () => {
+		expect(escapeAttr('a&b')).toBe('a&amp;b');
+	});
+
+	it('escapes angle brackets', () => {
+		expect(escapeAttr('a<b>c')).toBe('a&lt;b&gt;c');
+	});
+
+	it('leaves safe strings unchanged', () => {
+		expect(escapeAttr('hello world')).toBe('hello world');
+	});
+
+	it('handles all special characters together', () => {
+		expect(escapeAttr('"&<>')).toBe('&quot;&amp;&lt;&gt;');
 	});
 });
