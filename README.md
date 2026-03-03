@@ -49,7 +49,7 @@ const editor = await createEditor({
 document.body.appendChild(editor);
 ```
 
-All 17 plugins, toolbar groups, and keyboard shortcuts — ready to go.
+All 19 plugins, toolbar groups, and keyboard shortcuts — ready to go.
 
 ### Custom — pick exactly what you need
 
@@ -164,7 +164,7 @@ See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/over
 Read and write content in any format:
 
 ```ts
-editor.getContentHTML();                                     // export as HTML
+await editor.getContentHTML();                               // export as HTML
 editor.setContentHTML('<p>Hello <strong>world</strong></p>'); // import HTML
 editor.getJSON();                                            // structured JSON
 editor.setJSON(doc);                                         // import JSON

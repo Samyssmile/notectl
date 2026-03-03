@@ -42,7 +42,7 @@ The plugin patches existing NodeSpecs for directable block types to add a `dir` 
 |-----------|------|---------|-----------|
 | `dir` | `'ltr' \| 'rtl' \| 'auto'` | `'auto'` | `dir="rtl"` on the block element |
 
-### Commands
+### Block Direction Commands
 
 | Command | Description | Returns |
 |---------|-------------|---------|
@@ -60,7 +60,7 @@ editor.executeCommand('toggleDirection');
 
 For mixed-direction content within a single block (e.g., an English phrase inside Arabic text), the plugin registers a `bdi` mark that wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
 
-### Commands
+### Inline Bidi Commands
 
 | Command | Description | Returns |
 |---------|-------------|---------|

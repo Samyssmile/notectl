@@ -90,7 +90,7 @@ interface TextNode {
 }
 ```
 
-### Factory
+### TextNode Factory
 
 ```ts
 import { createTextNode, markType } from '@notectl/core';
@@ -121,7 +121,7 @@ interface InlineNode {
 }
 ```
 
-### Factory
+### InlineNode Factory
 
 ```ts
 import { createInlineNode, inlineType } from '@notectl/core';
