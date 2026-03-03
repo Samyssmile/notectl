@@ -16,7 +16,8 @@ import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.j
 import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateAcrossBlocks } from './CaretNavigation.js';
-import { getSelection, readSelectionFromDOM } from './SelectionSync.js';
+import type { SelectionEndpoints } from './SelectionSync.js';
+import { getSelection, readDOMSelectionEndpoints, readSelectionFromDOM } from './SelectionSync.js';
 
 type Direction = 'forward' | 'backward';
 type Granularity = 'word' | 'lineboundary' | 'line';
@@ -38,17 +39,14 @@ export function viewMove(
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
-	const domSel: globalThis.Selection | null = getSelection(container);
+	const domSel: globalThis.Selection | null = getSelection();
 	if (!domSel?.modify) {
 		return fallbackMove(state, direction, granularity);
 	}
 
-	// Save original DOM selection
-	const origAnchor: Node | null = domSel.anchorNode;
-	const origAnchorOff: number = domSel.anchorOffset;
-	const origFocus: Node | null = domSel.focusNode;
-	const origFocusOff: number = domSel.focusOffset;
-	if (!origAnchor || !origFocus) return fallbackMove(state, direction, granularity);
+	// Save original DOM selection (using composed ranges for Shadow DOM)
+	const origEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
+	if (!origEndpoints) return fallbackMove(state, direction, granularity);
 
 	try {
 		domSel.modify('move', direction, granularity);
@@ -85,7 +83,12 @@ export function viewMove(
 	} finally {
 		// Restore original DOM selection (dispatch cycle will set the correct one)
 		try {
-			domSel.setBaseAndExtent(origAnchor, origAnchorOff, origFocus, origFocusOff);
+			domSel.setBaseAndExtent(
+				origEndpoints.anchorNode,
+				origEndpoints.anchorOffset,
+				origEndpoints.focusNode,
+				origEndpoints.focusOffset,
+			);
 		} catch {
 			// Restore may fail if DOM changed
 		}
@@ -105,16 +108,13 @@ export function viewExtend(
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
-	const domSel: globalThis.Selection | null = getSelection(container);
+	const domSel: globalThis.Selection | null = getSelection();
 	if (!domSel?.modify) {
 		return fallbackExtend(state, direction, granularity);
 	}
 
-	const origAnchor: Node | null = domSel.anchorNode;
-	const origAnchorOff: number = domSel.anchorOffset;
-	const origFocus: Node | null = domSel.focusNode;
-	const origFocusOff: number = domSel.focusOffset;
-	if (!origAnchor || !origFocus) return fallbackExtend(state, direction, granularity);
+	const origEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
+	if (!origEndpoints) return fallbackExtend(state, direction, granularity);
 
 	try {
 		domSel.modify('extend', direction, granularity);
@@ -155,7 +155,12 @@ export function viewExtend(
 		);
 	} finally {
 		try {
-			domSel.setBaseAndExtent(origAnchor, origAnchorOff, origFocus, origFocusOff);
+			domSel.setBaseAndExtent(
+				origEndpoints.anchorNode,
+				origEndpoints.anchorOffset,
+				origEndpoints.focusNode,
+				origEndpoints.focusOffset,
+			);
 		} catch {
 			// Restore may fail
 		}

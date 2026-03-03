@@ -235,7 +235,7 @@ export class ToolbarPlugin implements Plugin {
 		if (this.layoutConfig) {
 			this.renderItemsByLayout();
 		} else {
-			this.renderItemsByPriority();
+			this.renderItemsByGroup();
 		}
 
 		if (this.buttons.length > 0 && !this.toolbarElement.parentElement) {
@@ -354,7 +354,6 @@ export class ToolbarPlugin implements Plugin {
 				const items: ToolbarItem[] = toolbarReg
 					.getToolbarItemsByPlugin(pId)
 					.filter((item) => !this.hiddenItems.has(item.id));
-				items.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
 				groupItems.push(...items);
 			}
 
@@ -377,7 +376,7 @@ export class ToolbarPlugin implements Plugin {
 		}
 	}
 
-	private renderItemsByPriority(): void {
+	private renderItemsByGroup(): void {
 		if (!this.context || !this.toolbarElement) return;
 
 		const toolbarRegistry = this.context.getToolbarRegistry();
@@ -389,44 +388,24 @@ export class ToolbarPlugin implements Plugin {
 			return;
 		}
 
-		const sorted: ToolbarItem[] = [...items].sort(
-			(a, b) => (a.priority ?? 100) - (b.priority ?? 100),
-		);
+		const groups = new Map<string, ToolbarItem[]>();
+		for (const item of items) {
+			const list: ToolbarItem[] = groups.get(item.group) ?? [];
+			list.push(item);
+			groups.set(item.group, list);
+		}
 
-		const hasSeparatorAfter: boolean = sorted.some((item) => item.separatorAfter);
+		let firstGroup = true;
+		for (const [, groupItems] of groups) {
+			if (!firstGroup) {
+				this.toolbarElement.appendChild(createSeparator());
+			}
+			firstGroup = false;
 
-		if (hasSeparatorAfter) {
-			for (let i = 0; i < sorted.length; i++) {
-				const item: ToolbarItem | undefined = sorted[i];
-				if (!item) continue;
+			for (const item of groupItems) {
 				const btn: ToolbarButton = this.createButton(item);
 				this.toolbarElement.appendChild(btn.element);
 				this.buttons.push(btn);
-
-				if (item.separatorAfter && i < sorted.length - 1) {
-					this.toolbarElement.appendChild(createSeparator());
-				}
-			}
-		} else {
-			const groups = new Map<string, ToolbarItem[]>();
-			for (const item of sorted) {
-				const list: ToolbarItem[] = groups.get(item.group) ?? [];
-				list.push(item);
-				groups.set(item.group, list);
-			}
-
-			let firstGroup = true;
-			for (const [, groupItems] of groups) {
-				if (!firstGroup) {
-					this.toolbarElement.appendChild(createSeparator());
-				}
-				firstGroup = false;
-
-				for (const item of groupItems) {
-					const btn: ToolbarButton = this.createButton(item);
-					this.toolbarElement.appendChild(btn.element);
-					this.buttons.push(btn);
-				}
 			}
 		}
 	}

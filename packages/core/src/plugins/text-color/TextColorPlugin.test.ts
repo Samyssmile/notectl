@@ -58,7 +58,6 @@ describe('TextColorPlugin', () => {
 			expectToolbarItem(h, 'textColor', {
 				group: 'format',
 				label: 'Text Color',
-				priority: 45,
 				popupType: 'custom',
 			});
 		});
@@ -91,13 +90,6 @@ describe('TextColorPlugin', () => {
 			const h = await pluginHarness(plugin, state);
 
 			expectToolbarActive(h, 'textColor', false);
-		});
-
-		it('respects separatorAfter config', async () => {
-			const plugin = new TextColorPlugin({ separatorAfter: true });
-			const h = await pluginHarness(plugin);
-
-			expectToolbarItem(h, 'textColor', { separatorAfter: true });
 		});
 	});
 

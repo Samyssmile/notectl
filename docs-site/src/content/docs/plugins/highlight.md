@@ -28,8 +28,6 @@ interface HighlightConfig {
    * When omitted, the full 50-color default palette is shown.
    */
   readonly colors?: readonly string[];
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 ```
 

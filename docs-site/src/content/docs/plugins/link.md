@@ -23,8 +23,6 @@ new LinkPlugin({ openInNewTab: true })
 interface LinkConfig {
   /** Whether links open in a new tab (adds target="_blank"). Default: true */
   readonly openInNewTab: boolean;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 ```
 

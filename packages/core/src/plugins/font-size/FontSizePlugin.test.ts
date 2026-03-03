@@ -98,7 +98,6 @@ describe('FontSizePlugin', () => {
 			expectToolbarItem(h, 'fontSize', {
 				group: 'format',
 				label: 'Font Size',
-				priority: 6,
 				popupType: 'combobox',
 			});
 		});
@@ -149,13 +148,6 @@ describe('FontSizePlugin', () => {
 			const h = await pluginHarness(plugin, state);
 
 			expectToolbarActive(h, 'fontSize', false);
-		});
-
-		it('respects separatorAfter config', async () => {
-			const plugin = new FontSizePlugin({ separatorAfter: true });
-			const h = await pluginHarness(plugin);
-
-			expectToolbarItem(h, 'fontSize', { separatorAfter: true });
 		});
 	});
 

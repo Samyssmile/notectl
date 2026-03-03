@@ -84,11 +84,6 @@ describe('StrikethroughPlugin', () => {
 			const h = await pluginHarness(new StrikethroughPlugin(), state);
 			expectToolbarActive(h, 'strikethrough', false);
 		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new StrikethroughPlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'strikethrough', { separatorAfter: true });
-		});
 	});
 
 	describe('parseHTML rules', () => {

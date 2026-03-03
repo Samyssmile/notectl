@@ -33,8 +33,6 @@ interface TextFormattingConfig {
   readonly underline: boolean;
   /** Control toolbar button visibility per mark */
   readonly toolbar?: TextFormattingToolbarConfig;
-  /** Render a separator after the last visible button. Default: undefined */
-  readonly separatorAfter?: boolean;
 }
 
 interface TextFormattingToolbarConfig {
@@ -115,13 +113,13 @@ editor.commands.toggleBold();
 
 ## Mark Specs
 
-| Mark | HTML Tag | Rank | Priority |
-|------|----------|------|----------|
-| `bold` | `<strong>` | 0 | 10 |
-| `italic` | `<em>` | 1 | 20 |
-| `underline` | `<u>` | 2 | 30 |
+| Mark | HTML Tag | Rank |
+|------|----------|------|
+| `bold` | `<strong>` | 0 |
+| `italic` | `<em>` | 1 |
+| `underline` | `<u>` | 2 |
 
-The `rank` determines the nesting order when multiple marks overlap. Lower rank = outer element. The `priority` controls toolbar button ordering.
+The `rank` determines the nesting order when multiple marks overlap. Lower rank = outer element.
 
 ## Toolbar Items
 

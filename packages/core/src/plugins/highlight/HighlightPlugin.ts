@@ -36,8 +36,6 @@ export interface HighlightConfig {
 	 * When omitted, the full default palette is shown.
 	 */
 	readonly colors?: readonly string[];
-	/** When true, a separator is rendered after the highlight toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: HighlightLocale;
 }
 
@@ -194,9 +192,7 @@ export class HighlightPlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeHighlight',
-			priority: 46,
 			popupType: 'custom',
-			separatorAfter: this.config.separatorAfter,
 			renderPopup: (container, ctx, onClose) => {
 				renderColorPickerPopup(container, ctx, {
 					markType: 'highlight',

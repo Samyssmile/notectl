@@ -28,8 +28,6 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface BlockquoteConfig {
-	/** When true, a separator is rendered after the blockquote toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: BlockquoteLocale;
 }
 
@@ -130,8 +128,6 @@ export class BlockquotePlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift->')),
 			command: 'toggleBlockquote',
-			priority: 55,
-			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => {
 				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 				const block = state.getBlock(state.selection.anchor.blockId);

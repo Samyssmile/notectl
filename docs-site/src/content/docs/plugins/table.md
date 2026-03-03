@@ -25,8 +25,6 @@ interface TableConfig {
   readonly maxPickerRows?: number;
   /** Maximum columns in grid picker. Default: 8 */
   readonly maxPickerCols?: number;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
   /** Locale for all user-facing strings. Defaults to auto-detected language. */
   readonly locale?: TableLocale;
 }

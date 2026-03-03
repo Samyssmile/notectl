@@ -143,8 +143,8 @@ describe('ToolbarRegistry toolbar pluginId tracking', () => {
 describe('ToolbarPlugin', () => {
 	it('renders items in layout-group order with separators between groups', async () => {
 		const pluginA = createFakePlugin('plugin-a', [
-			makeToolbarItem({ id: 'a1', priority: 10 }),
-			makeToolbarItem({ id: 'a2', priority: 20 }),
+			makeToolbarItem({ id: 'a1' }),
+			makeToolbarItem({ id: 'a2' }),
 		]);
 		const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
 		const pluginC = createFakePlugin('plugin-c', [makeToolbarItem({ id: 'c1' })]);
@@ -216,11 +216,10 @@ describe('ToolbarPlugin', () => {
 		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a2');
 	});
 
-	it('falls back to priority sorting without layout config', async () => {
-		const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1', priority: 20 })]);
-		const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1', priority: 10 })]);
+	it('renders items in registration order without layout config', async () => {
+		const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+		const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
 
-		// No layout config — legacy mode
 		const toolbar = new ToolbarPlugin();
 
 		const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
@@ -228,16 +227,15 @@ describe('ToolbarPlugin', () => {
 		const toolbarEl = container.querySelector('.notectl-toolbar');
 		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 
-		// b1 (priority 10) should come before a1 (priority 20)
-		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('b1');
-		expect(buttons?.[1]?.getAttribute('data-toolbar-item')).toBe('a1');
+		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a1');
+		expect(buttons?.[1]?.getAttribute('data-toolbar-item')).toBe('b1');
 	});
 
-	it('within a plugin, items are sorted by priority in layout mode', async () => {
+	it('preserves registration order within a plugin in layout mode', async () => {
 		const pluginA = createFakePlugin('plugin-a', [
-			makeToolbarItem({ id: 'a-high', priority: 30 }),
-			makeToolbarItem({ id: 'a-low', priority: 10 }),
-			makeToolbarItem({ id: 'a-mid', priority: 20 }),
+			makeToolbarItem({ id: 'a-first' }),
+			makeToolbarItem({ id: 'a-second' }),
+			makeToolbarItem({ id: 'a-third' }),
 		]);
 
 		const layoutConfig: ToolbarLayoutConfig = {
@@ -250,9 +248,9 @@ describe('ToolbarPlugin', () => {
 		const toolbarEl = container.querySelector('.notectl-toolbar');
 		const buttons = toolbarEl?.querySelectorAll('button.notectl-toolbar-btn');
 
-		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a-low');
-		expect(buttons?.[1]?.getAttribute('data-toolbar-item')).toBe('a-mid');
-		expect(buttons?.[2]?.getAttribute('data-toolbar-item')).toBe('a-high');
+		expect(buttons?.[0]?.getAttribute('data-toolbar-item')).toBe('a-first');
+		expect(buttons?.[1]?.getAttribute('data-toolbar-item')).toBe('a-second');
+		expect(buttons?.[2]?.getAttribute('data-toolbar-item')).toBe('a-third');
 	});
 
 	describe('readonly mode', () => {

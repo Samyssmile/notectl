@@ -32,8 +32,6 @@ declare module '../../model/AttrRegistry.js' {
 export interface LinkConfig {
 	/** Whether to add rel="noopener noreferrer" and target="_blank" by default. */
 	readonly openInNewTab: boolean;
-	/** When true, a separator is rendered after the link toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: LinkLocale;
 }
 
@@ -143,9 +141,7 @@ export class LinkPlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip(formatShortcut('Mod-K')),
 			command: 'toggleLink',
-			priority: 60,
 			popupType: 'custom',
-			separatorAfter: this.config.separatorAfter,
 			renderPopup: (container, ctx, onClose) => {
 				this.renderLinkPopup(container, ctx, onClose);
 			},

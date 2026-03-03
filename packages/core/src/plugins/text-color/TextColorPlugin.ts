@@ -36,8 +36,6 @@ export interface TextColorConfig {
 	 * When omitted, the full default palette is shown.
 	 */
 	readonly colors?: readonly string[];
-	/** When true, a separator is rendered after the textColor toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: TextColorLocale;
 }
 
@@ -216,9 +214,7 @@ export class TextColorPlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeTextColor',
-			priority: 45,
 			popupType: 'custom',
-			separatorAfter: this.config.separatorAfter,
 			renderPopup: (container, ctx, onClose) => {
 				renderColorPickerPopup(container, ctx, {
 					markType: 'textColor',

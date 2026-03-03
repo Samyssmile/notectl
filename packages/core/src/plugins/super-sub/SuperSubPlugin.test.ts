@@ -90,7 +90,6 @@ describe('SuperSubPlugin', () => {
 				group: 'format',
 				label: 'Superscript',
 				command: 'toggleSuperscript',
-				priority: 50,
 				hasSvgIcon: true,
 			});
 		});
@@ -101,7 +100,6 @@ describe('SuperSubPlugin', () => {
 				group: 'format',
 				label: 'Subscript',
 				command: 'toggleSubscript',
-				priority: 51,
 				hasSvgIcon: true,
 			});
 		});
@@ -138,15 +136,6 @@ describe('SuperSubPlugin', () => {
 			const h = await pluginHarness(new SuperSubPlugin(), state);
 			expectToolbarActive(h, 'superscript', false);
 			expectToolbarActive(h, 'subscript', false);
-		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new SuperSubPlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'subscript', { separatorAfter: true });
-
-			// superscript should not have separator (only last visible item)
-			const supItem = h.getToolbarItem('superscript');
-			expect(supItem?.separatorAfter).toBeFalsy();
 		});
 	});
 

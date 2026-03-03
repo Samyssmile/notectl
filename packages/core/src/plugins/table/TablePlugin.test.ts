@@ -106,13 +106,7 @@ describe('TablePlugin', () => {
 				group: 'insert',
 				label: 'Insert Table',
 				popupType: 'gridPicker',
-				priority: 80,
 			});
-		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new TablePlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'table', { separatorAfter: true });
 		});
 	});
 

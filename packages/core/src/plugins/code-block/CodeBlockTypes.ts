@@ -63,7 +63,6 @@ export interface CodeBlockConfig {
 	readonly useSpaces?: boolean;
 	readonly spaceCount?: number;
 	readonly showCopyButton?: boolean;
-	readonly separatorAfter?: boolean;
 	/** Default body background color (overrides --notectl-code-block-bg). */
 	readonly background?: string;
 	/** Default header background color (overrides --notectl-code-block-header-bg). */

@@ -119,10 +119,8 @@ export interface ExpectedToolbarItem {
 	readonly group?: string;
 	readonly label?: string;
 	readonly command?: string;
-	readonly priority?: number;
 	readonly popupType?: string;
 	readonly hasSvgIcon?: boolean;
-	readonly separatorAfter?: boolean;
 }
 
 /**
@@ -155,17 +153,11 @@ export function expectToolbarItem(
 	if (expected.command !== undefined) {
 		expect(item?.command).toBe(expected.command);
 	}
-	if (expected.priority !== undefined) {
-		expect(item?.priority).toBe(expected.priority);
-	}
 	if (expected.popupType !== undefined) {
 		expect(item?.popupType).toBe(expected.popupType);
 	}
 	if (expected.hasSvgIcon === true) {
 		expect(item?.icon).toContain('<svg');
-	}
-	if (expected.separatorAfter !== undefined) {
-		expect(item?.separatorAfter).toBe(expected.separatorAfter);
 	}
 }
 

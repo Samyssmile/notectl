@@ -25,8 +25,6 @@ new TextColorPlugin({
 interface TextColorConfig {
   /** Custom color palette (hex values). Default: Google Docs 70-color palette */
   readonly colors?: string[];
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 ```
 
