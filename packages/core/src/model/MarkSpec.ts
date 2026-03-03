@@ -4,7 +4,7 @@
 
 import type { MarkAttrsFor } from './AttrRegistry.js';
 import type { Mark } from './Document.js';
-import type { AttrSpec } from './NodeSpec.js';
+import type { AttrSpec, HTMLExportContext } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
 import type { SanitizeConfig } from './SanitizeConfig.js';
 
@@ -16,7 +16,7 @@ export interface MarkSpec<T extends string = string> {
 	readonly rank?: number;
 	readonly attrs?: Readonly<Record<string, AttrSpec>>;
 	/** Serializes the mark as an HTML wrapper. `content` is the pre-serialized inner HTML. */
-	readonly toHTMLString?: (mark: Mark, content: string) => string;
+	readonly toHTMLString?: (mark: Mark, content: string, ctx?: HTMLExportContext) => string;
 	/**
 	 * Returns a CSS style declaration for this mark (e.g. `"color: red"`).
 	 * When defined, the serializer merges all `toHTMLStyle` results into a single

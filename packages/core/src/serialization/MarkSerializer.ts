@@ -7,6 +7,7 @@
 import type { Mark } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
+import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { CSSClassCollector } from './CSSClassCollector.js';
 
@@ -31,6 +32,7 @@ export function serializeMarksToHTML(
 	marks: readonly Mark[],
 	registry: SchemaRegistry,
 	markOrder?: Map<string, number>,
+	exportCtx?: HTMLExportContext,
 ): string {
 	if (text === '') return '';
 
@@ -67,7 +69,7 @@ export function serializeMarksToHTML(
 	for (const mark of tagMarks) {
 		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
 		if (markSpec?.toHTMLString) {
-			html = markSpec.toHTMLString(mark, html);
+			html = markSpec.toHTMLString(mark, html, exportCtx);
 		}
 	}
 
@@ -85,6 +87,7 @@ export function serializeMarksToClassHTML(
 	registry: SchemaRegistry,
 	collector: CSSClassCollector,
 	markOrder?: Map<string, number>,
+	exportCtx?: HTMLExportContext,
 ): string {
 	if (text === '') return '';
 
@@ -123,7 +126,7 @@ export function serializeMarksToClassHTML(
 	for (const mark of tagMarks) {
 		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
 		if (markSpec?.toHTMLString) {
-			html = markSpec.toHTMLString(mark, html);
+			html = markSpec.toHTMLString(mark, html, exportCtx);
 		}
 	}
 

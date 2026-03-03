@@ -306,10 +306,19 @@ function serializeInlineContent(block: BlockNode, ctx: SerializerContext): strin
 			}
 		} else if (ctx.registry && ctx.collector) {
 			parts.push(
-				serializeMarksToClassHTML(child.text, child.marks, ctx.registry, ctx.collector, markOrder),
+				serializeMarksToClassHTML(
+					child.text,
+					child.marks,
+					ctx.registry,
+					ctx.collector,
+					markOrder,
+					ctx.exportCtx,
+				),
 			);
 		} else if (ctx.registry) {
-			parts.push(serializeMarksToHTML(child.text, child.marks, ctx.registry, markOrder));
+			parts.push(
+				serializeMarksToHTML(child.text, child.marks, ctx.registry, markOrder, ctx.exportCtx),
+			);
 		} else if (child.text !== '') {
 			parts.push(escapeHTML(child.text));
 		}

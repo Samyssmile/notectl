@@ -7,6 +7,7 @@
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
+import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -112,10 +113,12 @@ export class FontSizePlugin implements Plugin {
 				}
 				return span;
 			},
-			toHTMLString: (mark, content) => {
+			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
 				const size: string = String(mark.attrs?.size ?? '');
 				if (!size || !isValidCSSFontSize(size)) return content;
-				return `<span style="font-size: ${escapeHTML(size)}">${content}</span>`;
+				const decl: string = `font-size: ${escapeHTML(size)}`;
+				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
+				return `<span${attr}>${content}</span>`;
 			},
 			toHTMLStyle: (mark) => {
 				const size: string = String(mark.attrs?.size ?? '');
