@@ -3,7 +3,7 @@
  * for paste and drop operations, with MIME pattern matching.
  */
 
-import type { Position } from '../model/Selection.js';
+import type { Position } from './Selection.js';
 
 /** Handler for a single file pasted or dropped into the editor. */
 export type FileHandler = (file: File, position: Position | null) => boolean | Promise<boolean>;

@@ -16,13 +16,13 @@ import {
 	selectAll,
 	splitBlockCommand,
 } from '../commands/Commands.js';
+import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
-import type { KeymapRegistry } from './KeymapRegistry.js';
 
 type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
 type GapCursorNavigateFn = (

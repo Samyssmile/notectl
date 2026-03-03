@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import type { Schema } from '../model/Schema.js';
 import { createNodeSelection, isGapCursor, isNodeSelection } from '../model/Selection.js';
@@ -8,7 +9,6 @@ import { stateBuilder } from '../test/TestUtils.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
-import { KeymapRegistry } from './KeymapRegistry.js';
 
 function makeKeyEvent(
 	key: string,

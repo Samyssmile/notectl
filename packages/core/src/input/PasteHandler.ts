@@ -18,6 +18,7 @@ import {
 	generateBlockId,
 	getBlockText,
 } from '../model/Document.js';
+import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -44,7 +45,6 @@ import {
 	sanitizeAttrs,
 	validateRichBlockData,
 } from './BlockInsertion.js';
-import type { FileHandlerRegistry } from './FileHandlerRegistry.js';
 import { HTMLParser } from './HTMLParser.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';

@@ -8,11 +8,11 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
-import { type FileHandler, FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
 import type { InputRule } from '../input/InputRule.js';
 import { InputRuleRegistry } from '../input/InputRuleRegistry.js';
-import type { Keymap, KeymapOptions } from '../input/Keymap.js';
-import { KeymapRegistry } from '../input/KeymapRegistry.js';
+import { type FileHandler, FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { Keymap, KeymapOptions } from '../model/Keymap.js';
+import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';

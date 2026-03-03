@@ -3,8 +3,8 @@
  * Handles Tab, Shift-Tab, arrow keys, Enter, Backspace, Delete, and Escape.
  */
 
-import type { Keymap } from '../../input/Keymap.js';
 import { getBlockLength } from '../../model/Document.js';
+import type { Keymap } from '../../model/Keymap.js';
 import {
 	type Selection,
 	createCollapsedSelection,
