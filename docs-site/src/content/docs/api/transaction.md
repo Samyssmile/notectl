@@ -173,3 +173,132 @@ context.registerMiddleware((tr, state, next) => {
   next(tr); // Call next to continue, or skip to cancel
 }, { priority: 100 });
 ```
+
+---
+
+## Step Application
+
+Pure functions for applying and inverting individual steps.
+
+### `applyStep(doc, step)`
+
+Applies a single step to a document, returning a new `Document`:
+
+```ts
+import { applyStep } from '@notectl/core';
+
+const newDoc: Document = applyStep(doc, step);
+```
+
+This is the low-level primitive used by `EditorState.apply()`. It handles all step types: `insertText`, `deleteText`, `splitBlock`, `mergeBlocks`, `addMark`, `removeMark`, `setBlockType`, `setStoredMarks`, `insertNode`, `removeNode`, `setNodeAttr`, `insertInlineNode`, `removeInlineNode`, and `setInlineNodeAttr`.
+
+### `invertStep(step)`
+
+Returns a step that undoes the given step:
+
+```ts
+import { invertStep } from '@notectl/core';
+
+const undo = invertStep(step);
+// applyStep(applyStep(doc, step), undo) ≈ doc
+```
+
+### `invertTransaction(tr)`
+
+Returns a transaction whose steps undo all steps of the original, in reverse order:
+
+```ts
+import { invertTransaction } from '@notectl/core';
+
+const undo = invertTransaction(tr);
+```
+
+---
+
+## Readonly Guards
+
+Pure functions to determine whether a transaction is allowed in readonly mode.
+
+### `isSelectionOnlyTransaction(tr)`
+
+Returns `true` if the transaction contains no document-mutating steps (i.e. all steps are `setStoredMarks`, or there are no steps at all):
+
+```ts
+import { isSelectionOnlyTransaction } from '@notectl/core';
+
+if (isSelectionOnlyTransaction(tr)) {
+  // Safe to apply in readonly mode
+}
+```
+
+### `isAllowedInReadonly(tr)`
+
+Returns `true` if the transaction may proceed in readonly mode — either it has `metadata.readonlyAllowed` set, or it is selection-only:
+
+```ts
+import { isAllowedInReadonly } from '@notectl/core';
+
+const allowed: boolean = isAllowedInReadonly(tr);
+```
+
+---
+
+## Selection Transaction Helpers
+
+Convenience functions for building selection-only transactions.
+
+### `moveTx(state, blockId, offset)`
+
+Builds a collapsed-cursor transaction and clears stored marks:
+
+```ts
+import { moveTx } from '@notectl/core';
+
+const tr = moveTx(state, blockId('b1'), 5);
+```
+
+### `extendTx(state, anchorBlockId, anchorOffset, headBlockId, headOffset)`
+
+Builds a range-selection transaction and clears stored marks:
+
+```ts
+import { extendTx } from '@notectl/core';
+
+const tr = extendTx(state, blockId('b1'), 0, blockId('b1'), 10);
+```
+
+### `nodeSelTx(state, targetId)`
+
+Builds a node-selection transaction and clears stored marks:
+
+```ts
+import { nodeSelTx } from '@notectl/core';
+
+const tr = nodeSelTx(state, blockId('img-1'));
+```
+
+---
+
+## Block Boundary Movement
+
+State-level functions for moving the cursor to block boundaries.
+
+### `moveToBlockStart(state)`
+
+Moves the cursor to offset 0 of the current block. Returns `null` if already at the start or if the selection is a node/gap cursor:
+
+```ts
+import { moveToBlockStart } from '@notectl/core';
+
+const tr = moveToBlockStart(state);
+```
+
+### `moveToBlockEnd(state)`
+
+Moves the cursor to the end of the current block. Returns `null` if already at the end:
+
+```ts
+import { moveToBlockEnd } from '@notectl/core';
+
+const tr = moveToBlockEnd(state);
+```

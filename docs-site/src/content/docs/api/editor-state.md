@@ -59,7 +59,7 @@ const tr = state.transaction('command')
 
 Applies a transaction to produce a new state. This is a pure function — the original state is unchanged.
 
-### `toJSON(): object`
+### `toJSON(): { readonly doc: Document; readonly selection: EditorSelection }`
 
 Serializes the state (document and selection) to a JSON-compatible object.
 
@@ -92,3 +92,87 @@ This enables:
 - **Undo/redo** via state snapshots
 - **Safe comparison** between old and new states
 - **Predictable plugin behavior** — plugins always see consistent state
+
+---
+
+## HistoryManager
+
+Manages undo/redo stacks with automatic transaction grouping.
+
+```ts
+import { HistoryManager } from '@notectl/core';
+
+const history = new HistoryManager({ groupTimeoutMs: 500, maxDepth: 100 });
+```
+
+### Constructor Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `groupTimeoutMs` | `number` | `500` | Time window for grouping consecutive input transactions |
+| `maxDepth` | `number` | `100` | Maximum number of undo groups to retain |
+
+### Methods
+
+#### `push(tr)`
+
+Pushes a transaction onto the undo stack. Consecutive input transactions within `groupTimeoutMs` are grouped together — undoing the group reverts all of them at once.
+
+```ts
+history.push(transaction);
+```
+
+#### `undo(state)`
+
+Undoes the last group. Returns a `HistoryResult` with the new state and the inverse transaction, or `null` if nothing to undo:
+
+```ts
+const result = history.undo(state);
+if (result) {
+  // result.state — new EditorState after undo
+  // result.transaction — the inverse transaction that was applied
+}
+```
+
+#### `redo(state)`
+
+Redoes the last undone group. Returns a `HistoryResult` or `null`:
+
+```ts
+const result = history.redo(state);
+```
+
+#### `canUndo()` / `canRedo()`
+
+Returns `true` if there are groups available to undo or redo:
+
+```ts
+if (history.canUndo()) { /* show undo button */ }
+if (history.canRedo()) { /* show redo button */ }
+```
+
+#### `clear()`
+
+Clears both undo and redo stacks:
+
+```ts
+history.clear();
+```
+
+### HistoryResult
+
+```ts
+interface HistoryResult {
+  readonly state: EditorState;
+  readonly transaction: Transaction;
+}
+```
+
+### Grouping Behavior
+
+The `HistoryManager` groups consecutive transactions of the same input type (e.g. typing characters) into a single undo group when they arrive within `groupTimeoutMs` of each other. This means pressing undo after typing "hello" undoes the entire word, not individual characters.
+
+Groups are broken when:
+- The timeout between transactions exceeds `groupTimeoutMs`
+- The transaction origin changes (e.g. from `'input'` to `'command'`)
+- A non-input transaction is pushed
