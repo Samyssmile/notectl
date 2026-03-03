@@ -223,5 +223,4 @@ test.describe('Lists copy-paste with table cells', () => {
 		// list_item must be present
 		expect(firstCell.some((c) => c.type === 'list_item')).toBe(true);
 	});
-
 });

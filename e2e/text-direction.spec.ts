@@ -71,5 +71,4 @@ test.describe('Text direction', () => {
 		});
 		expect(dirAttr).toBe('rtl');
 	});
-
 });

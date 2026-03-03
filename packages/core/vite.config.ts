@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import terser from '@rollup/plugin-terser';
 import type { Plugin as VitePlugin } from 'vite';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
@@ -67,14 +66,12 @@ export default defineConfig({
 				entryFileNames: '[name].mjs',
 				chunkFileNames: 'chunks/[name]-[hash].mjs',
 			},
-			plugins: [
-				terser({
-					compress: { passes: 2 },
-				}),
-			],
 		},
 		sourcemap: true,
-		minify: false,
+		minify: 'terser',
+		terserOptions: {
+			compress: { passes: 2 },
+		},
 	},
 	test: {
 		environment: 'happy-dom',

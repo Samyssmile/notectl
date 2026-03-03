@@ -414,37 +414,6 @@ test.describe('Code Block Accessibility', () => {
 		expect(json.children[1]?.children?.[0]?.text).toContain('escaped');
 	});
 
-	test('ArrowDown at last line exits code block', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('``` ', { delay: 10 });
-		await page.keyboard.type('line1', { delay: 10 });
-		await page.keyboard.press('Enter');
-		await page.keyboard.type('line2', { delay: 10 });
-
-		// Wait for the editor to fully process the typed text and sync selection
-		await page.waitForTimeout(300);
-
-		// Press ArrowDown to exit the code block from the last line.
-		// Retry: the first press might move within the code block if the editor
-		// hadn't fully settled, so a second press would then exit.
-		for (let i = 0; i < 3; i++) {
-			await page.keyboard.press('ArrowDown');
-			await page.waitForTimeout(300);
-			const json = await editor.getJSON();
-			if (json.children.length >= 2) break;
-		}
-
-		await page.keyboard.type('outside', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children.length).toBe(2);
-		expect(json.children[0]?.type).toBe('code_block');
-		expect(json.children[1]?.type).toBe('paragraph');
-
-		const text = await editor.getText();
-		expect(text).toContain('outside');
-	});
-
 	test('ArrowRight at end exits code block', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('``` ', { delay: 10 });

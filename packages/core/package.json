@@ -335,11 +335,11 @@
 		"dompurify": "^3.3.1"
 	},
 	"devDependencies": {
-		"@rollup/plugin-terser": "^0.4.4",
 		"@size-limit/preset-small-lib": "^12.0.0",
 		"happy-dom": "^20.7.0",
-		"size-limit": "^12.0.0",
 		"rollup-plugin-visualizer": "^5.14.0",
+		"size-limit": "^12.0.0",
+		"terser": "^5.46.0",
 		"vite": "^7.3.1",
 		"vite-plugin-dts": "^4.5.4",
 		"vitest": "^4.0.18"
