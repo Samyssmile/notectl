@@ -19,27 +19,185 @@
 							"kind": "field",
 							"name": "commands",
 							"type": {
-								"text": "{ toggleBold(): boolean | undefined; toggleItalic(): boolean | undefined; toggleUnderline(): boolean | undefined; undo(): void; redo(): void; selectAll(): void; }"
+								"text": "{ toggleBold(): boolean; toggleItalic(): boolean; toggleUnderline(): boolean; undo(): void; redo(): void; selectAll(): void; }"
 							},
 							"description": "Convenience accessors for common formatting commands.",
 							"readonly": true
 						},
 						{
-							"kind": "method",
-							"name": "getHTML",
-							"return": {
-								"type": {
-									"text": "string"
-								}
+							"kind": "field",
+							"name": "isReadOnly",
+							"type": {
+								"text": "boolean"
 							},
-							"description": "Returns sanitized HTML representation of the document."
+							"description": "Returns whether the editor is in read-only mode.",
+							"readonly": true
 						},
 						{
 							"kind": "method",
-							"name": "setHTML",
+							"name": "init",
+							"return": {
+								"type": {
+									"text": "Promise<void>"
+								}
+							},
+							"parameters": [
+								{
+									"name": "config",
+									"optional": true,
+									"type": {
+										"text": "NotectlEditorConfig"
+									},
+									"description": "Optional editor configuration (plugins, theme, placeholder, etc.)."
+								}
+							],
+							"description": "Initializes the editor with the given config. Automatically called on connectedCallback, but can be called manually for deferred initialization."
+						},
+						{
+							"kind": "method",
+							"name": "whenReady",
+							"return": {
+								"type": {
+									"text": "Promise<void>"
+								}
+							},
+							"description": "Returns a promise that resolves when the editor is fully initialized and all plugins are ready."
+						},
+						{
+							"kind": "method",
+							"name": "configure",
 							"return": {
 								"type": {
 									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "config",
+									"type": {
+										"text": "Partial<NotectlEditorConfig>"
+									},
+									"description": "Partial configuration to merge into the current editor config."
+								}
+							],
+							"description": "Updates configuration at runtime (e.g. placeholder, readonly, dir)."
+						},
+						{
+							"kind": "method",
+							"name": "registerPlugin",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "plugin",
+									"type": {
+										"text": "Plugin"
+									},
+									"description": "A plugin instance to register."
+								}
+							],
+							"description": "Registers a plugin before initialization. Must be called before init() or DOM insertion."
+						},
+						{
+							"kind": "method",
+							"name": "configurePlugin",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "pluginId",
+									"type": {
+										"text": "string"
+									},
+									"description": "The ID of the plugin to configure."
+								},
+								{
+									"name": "config",
+									"type": {
+										"text": "PluginConfig"
+									},
+									"description": "Configuration object to pass to the plugin."
+								}
+							],
+							"description": "Configures a plugin at runtime."
+						},
+						{
+							"kind": "method",
+							"name": "getService",
+							"return": {
+								"type": {
+									"text": "T | undefined"
+								}
+							},
+							"parameters": [
+								{
+									"name": "key",
+									"type": {
+										"text": "ServiceKey<T>"
+									},
+									"description": "Typed service key registered by a plugin."
+								}
+							],
+							"description": "Returns a registered plugin service by typed key."
+						},
+						{
+							"kind": "method",
+							"name": "onPluginEvent",
+							"return": {
+								"type": {
+									"text": "() => void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "key",
+									"type": {
+										"text": "EventKey<T>"
+									},
+									"description": "Typed event key registered by a plugin."
+								},
+								{
+									"name": "callback",
+									"type": {
+										"text": "PluginEventCallback<T>"
+									},
+									"description": "Callback invoked when the event fires."
+								}
+							],
+							"description": "Subscribes to a plugin event. Returns an unsubscribe function."
+						},
+						{
+							"kind": "method",
+							"name": "getContentHTML",
+							"return": {
+								"type": {
+									"text": "Promise<string | ContentCSSResult>"
+								}
+							},
+							"parameters": [
+								{
+									"name": "options",
+									"optional": true,
+									"type": {
+										"text": "ContentHTMLOptions"
+									},
+									"description": "Options for HTML export. Pass { pretty: true } for formatted output, or { cssMode: 'classes' } for CSS class-based export returning a ContentCSSResult."
+								}
+							],
+							"description": "Returns sanitized HTML representation of the document. Supports pretty-printing and CSS class export for round-trip."
+						},
+						{
+							"kind": "method",
+							"name": "setContentHTML",
+							"return": {
+								"type": {
+									"text": "Promise<void>"
 								}
 							},
 							"parameters": [
@@ -49,9 +207,17 @@
 										"text": "string"
 									},
 									"description": "HTML string to set as content."
+								},
+								{
+									"name": "options",
+									"optional": true,
+									"type": {
+										"text": "SetContentHTMLOptions"
+									},
+									"description": "Options for HTML import, including optional styleMap for class-based round-trip."
 								}
 							],
-							"description": "Sets the editor content from an HTML string (sanitized via DOMPurify)."
+							"description": "Sets the editor content from an HTML string (sanitized). Accepts optional styleMap for class-based round-trip."
 						},
 						{
 							"kind": "method",
@@ -104,6 +270,35 @@
 						},
 						{
 							"kind": "method",
+							"name": "can",
+							"return": {
+								"type": {
+									"text": "{ toggleBold(): boolean; toggleItalic(): boolean; toggleUnderline(): boolean; undo(): boolean; redo(): boolean; selectAll(): boolean; }"
+								}
+							},
+							"description": "Returns an object with methods that check whether each built-in command can be executed in the current state."
+						},
+						{
+							"kind": "method",
+							"name": "canExecuteCommand",
+							"return": {
+								"type": {
+									"text": "boolean"
+								}
+							},
+							"parameters": [
+								{
+									"name": "name",
+									"type": {
+										"text": "string"
+									},
+									"description": "The name of a registered command."
+								}
+							],
+							"description": "Returns whether a named command (registered by a plugin) can be executed in the current state."
+						},
+						{
+							"kind": "method",
 							"name": "executeCommand",
 							"return": {
 								"type": {
@@ -120,6 +315,87 @@
 								}
 							],
 							"description": "Executes a named command registered by a plugin."
+						},
+						{
+							"kind": "method",
+							"name": "getState",
+							"return": {
+								"type": {
+									"text": "EditorState"
+								}
+							},
+							"description": "Returns the current immutable editor state."
+						},
+						{
+							"kind": "method",
+							"name": "dispatch",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "tr",
+									"type": {
+										"text": "Transaction"
+									},
+									"description": "A transaction to apply. Routed through plugin middleware before application."
+								}
+							],
+							"description": "Dispatches a transaction (routed through middleware if any). Respects read-only mode."
+						},
+						{
+							"kind": "method",
+							"name": "on",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "event",
+									"type": {
+										"text": "keyof EditorEventMap"
+									},
+									"description": "The event name ('ready', 'focus', 'blur', 'stateChange', 'selectionChange')."
+								},
+								{
+									"name": "callback",
+									"type": {
+										"text": "(payload: EditorEventMap[K]) => void"
+									},
+									"description": "Callback invoked when the event fires."
+								}
+							],
+							"description": "Registers a type-safe event listener."
+						},
+						{
+							"kind": "method",
+							"name": "off",
+							"return": {
+								"type": {
+									"text": "void"
+								}
+							},
+							"parameters": [
+								{
+									"name": "event",
+									"type": {
+										"text": "keyof EditorEventMap"
+									},
+									"description": "The event name."
+								},
+								{
+									"name": "callback",
+									"type": {
+										"text": "(payload: EditorEventMap[K]) => void"
+									},
+									"description": "The previously registered callback to remove."
+								}
+							],
+							"description": "Removes a previously registered event listener."
 						},
 						{
 							"kind": "method",
@@ -149,6 +425,16 @@
 								}
 							},
 							"description": "Returns the current theme setting."
+						},
+						{
+							"kind": "method",
+							"name": "getPaperSize",
+							"return": {
+								"type": {
+									"text": "PaperSize | undefined"
+								}
+							},
+							"description": "Returns the currently configured paper size, or undefined if using fluid layout."
 						},
 						{
 							"kind": "method",
@@ -182,6 +468,20 @@
 								"text": "'light' | 'dark' | 'system'"
 							},
 							"description": "Sets the built-in theme preset. Defaults to 'light'."
+						},
+						{
+							"name": "paper-size",
+							"type": {
+								"text": "'din-a4' | 'din-a5' | 'us-letter' | 'us-legal'"
+							},
+							"description": "Sets a fixed paper size for WYSIWYG layout. Omit for fluid layout."
+						},
+						{
+							"name": "dir",
+							"type": {
+								"text": "'ltr' | 'rtl'"
+							},
+							"description": "Sets the document-level text direction."
 						}
 					],
 					"events": [
@@ -289,6 +589,50 @@
 						{
 							"name": "--notectl-focus-ring",
 							"description": "Focus ring color for keyboard navigation."
+						},
+						{
+							"name": "--notectl-toolbar-bg",
+							"description": "Toolbar background color. Defaults to --notectl-surface-raised."
+						},
+						{
+							"name": "--notectl-toolbar-border",
+							"description": "Toolbar border color. Defaults to --notectl-border."
+						},
+						{
+							"name": "--notectl-code-block-bg",
+							"description": "Code block background color. Defaults to --notectl-surface-raised."
+						},
+						{
+							"name": "--notectl-code-block-color",
+							"description": "Code block text color. Defaults to --notectl-fg."
+						},
+						{
+							"name": "--notectl-code-block-header-bg",
+							"description": "Code block header background color."
+						},
+						{
+							"name": "--notectl-code-block-header-color",
+							"description": "Code block header text color."
+						},
+						{
+							"name": "--notectl-code-block-header-border",
+							"description": "Code block header border color."
+						},
+						{
+							"name": "--notectl-tooltip-bg",
+							"description": "Tooltip background color. Defaults to --notectl-fg."
+						},
+						{
+							"name": "--notectl-tooltip-fg",
+							"description": "Tooltip foreground color. Defaults to --notectl-bg."
+						},
+						{
+							"name": "--notectl-content-min-height",
+							"description": "Minimum height of the content area. Defaults to 400px."
+						},
+						{
+							"name": "--notectl-paper-viewport-bg",
+							"description": "Background of the paper viewport when in paper mode."
 						}
 					]
 				},
