@@ -10,7 +10,7 @@ The `BlockquotePlugin` adds block quote support with a toggle command, keyboard 
 ## Usage
 
 ```ts
-import { BlockquotePlugin } from '@notectl/core';
+import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
 
 new BlockquotePlugin()
 ```

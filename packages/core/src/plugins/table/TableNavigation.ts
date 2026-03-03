@@ -28,7 +28,7 @@ import {
 import type { TableLocale } from './TableLocale.js';
 
 /** Registers all table navigation keymaps. */
-export function registerTableKeymaps(context: PluginContext, locale?: TableLocale): void {
+export function registerTableKeymaps(context: PluginContext, locale: TableLocale): void {
 	const keymap: Keymap = {
 		Tab: () => handleTab(context, locale),
 		'Shift-Tab': () => handleShiftTab(context),
@@ -63,7 +63,7 @@ function withTableContext(
 }
 
 /** Tab: move to next cell. At end of table, add a new row. */
-function handleTab(context: PluginContext, locale?: TableLocale): boolean {
+function handleTab(context: PluginContext, locale: TableLocale): boolean {
 	return withTableContext(context, (_state, _sel, tableCtx) => {
 		if (tableCtx.colIndex < tableCtx.totalCols - 1) {
 			return moveToCellAndSelect(

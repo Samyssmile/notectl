@@ -4,14 +4,18 @@
  * the document edge adjacent to a void block).
  */
 
-import type { DecorationSet } from '../../decorations/Decoration.js';
-import { node as nodeDecoration } from '../../decorations/Decoration.js';
-import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isGapCursor } from '../../model/Selection.js';
+import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { navigateFromGapCursor } from '../../view/CaretNavigation.js';
+import { navigateFromGapCursor } from '../../view/GapCursorNavigation.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import {
+	GAP_CURSOR_LOCALE_EN,
+	type GapCursorLocale,
+	loadGapCursorLocale,
+} from './GapCursorLocale.js';
 
 const GAP_CURSOR_CSS = `
 .notectl-gap-cursor--before,
@@ -63,8 +67,15 @@ export class GapCursorPlugin implements Plugin {
 	readonly priority = 5;
 
 	private context: PluginContext | null = null;
+	private activeCursorBlockId: BlockId | null = null;
+	private activeCursorSide: 'before' | 'after' | null = null;
+	private locale: GapCursorLocale = GAP_CURSOR_LOCALE_EN;
 
-	init(context: PluginContext): void {
+	async init(context: PluginContext): Promise<void> {
+		const service = context.getService(LocaleServiceKey);
+		const lang: string = service?.getLocale() ?? 'en';
+		this.locale = lang === 'en' ? GAP_CURSOR_LOCALE_EN : await loadGapCursorLocale(lang);
+
 		this.context = context;
 
 		context.registerStyleSheet(GAP_CURSOR_CSS);
@@ -93,27 +104,54 @@ export class GapCursorPlugin implements Plugin {
 		}
 
 		context.registerKeymap(keymap, { priority: 'navigation' });
+		this.syncCursorClass(context.getState());
 	}
 
 	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
 		if (!this.context) return;
 
+		this.syncCursorClass(newState);
+
 		if (!isGapCursor(oldState.selection) && isGapCursor(newState.selection)) {
-			this.context.announce('Gap cursor active. Type to insert new paragraph.');
+			this.context.announce(this.locale.gapCursorActive);
 		}
 	}
 
-	decorations(state: EditorState): DecorationSet {
-		if (!isGapCursor(state.selection)) return DecorationSetClass.empty;
-
-		const sel = state.selection;
-		const cssClass: string =
-			sel.side === 'before' ? 'notectl-gap-cursor--before' : 'notectl-gap-cursor--after';
-
-		return DecorationSetClass.create([nodeDecoration(sel.blockId, { class: cssClass })]);
+	destroy(): void {
+		this.clearCursorClass();
+		this.context = null;
 	}
 
-	destroy(): void {
-		this.context = null;
+	private syncCursorClass(state: EditorState): void {
+		this.clearCursorClass();
+		if (!isGapCursor(state.selection) || !this.context) return;
+
+		const className: string =
+			state.selection.side === 'before'
+				? 'notectl-gap-cursor--before'
+				: 'notectl-gap-cursor--after';
+
+		const blockEl: Element | null = this.context
+			.getContainer()
+			.querySelector(`[data-block-id="${state.selection.blockId}"]`);
+		if (!(blockEl instanceof HTMLElement)) return;
+
+		blockEl.classList.add(className);
+		this.activeCursorBlockId = state.selection.blockId;
+		this.activeCursorSide = state.selection.side;
+	}
+
+	private clearCursorClass(): void {
+		if (!this.context || !this.activeCursorBlockId || !this.activeCursorSide) return;
+
+		const blockEl: Element | null = this.context
+			.getContainer()
+			.querySelector(`[data-block-id="${this.activeCursorBlockId}"]`);
+		if (blockEl instanceof HTMLElement) {
+			blockEl.classList.remove('notectl-gap-cursor--before', 'notectl-gap-cursor--after');
+		}
+
+		this.activeCursorBlockId = null;
+		this.activeCursorSide = null;
 	}
 }

@@ -31,6 +31,8 @@ pnpm typecheck
 
 ## Architecture
 
+See `ARCHITECTURE.md` for the full architecture guide (layer model, dependency matrix, plugin system, data flow, bundle rules, i18n, CSP). All code changes must conform to it.
+
 **notectl** is a rich text editor shipped as a Web Component (`<notectl-editor>`). Single package at `packages/core`.
 
 ### Data Flow

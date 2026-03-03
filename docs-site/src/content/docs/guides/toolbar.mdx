@@ -18,12 +18,10 @@ The notectl toolbar is fully declarative. You configure it by passing a `toolbar
 The `toolbar` option is an array of arrays. Each inner array represents a visual group of toolbar buttons, with separators rendered between groups:
 
 ```ts
-import {
-  createEditor,
-  TextFormattingPlugin,
-  HeadingPlugin,
-  ListPlugin,
-} from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
+import { HeadingPlugin } from '@notectl/core/plugins/heading';
+import { ListPlugin } from '@notectl/core/plugins/list';
 
 const editor = await createEditor({
   toolbar: [
@@ -92,26 +90,24 @@ const editor = await createEditor({
 Here's a complete toolbar setup with all built-in plugins organized into logical groups:
 
 ```ts
-import {
-  createEditor,
-  TextFormattingPlugin,
-  HeadingPlugin,
-  BlockquotePlugin,
-  LinkPlugin,
-  ListPlugin,
-  TablePlugin,
-  CodeBlockPlugin,
-  HorizontalRulePlugin,
-  StrikethroughPlugin,
-  SuperSubPlugin,
-  HighlightPlugin,
-  TextColorPlugin,
-  AlignmentPlugin,
-  FontPlugin,
-  FontSizePlugin,
-  ImagePlugin,
-  HardBreakPlugin,
-} from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
+import { HeadingPlugin } from '@notectl/core/plugins/heading';
+import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
+import { LinkPlugin } from '@notectl/core/plugins/link';
+import { ListPlugin } from '@notectl/core/plugins/list';
+import { TablePlugin } from '@notectl/core/plugins/table';
+import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
+import { HorizontalRulePlugin } from '@notectl/core/plugins/horizontal-rule';
+import { StrikethroughPlugin } from '@notectl/core/plugins/strikethrough';
+import { SuperSubPlugin } from '@notectl/core/plugins/super-sub';
+import { HighlightPlugin } from '@notectl/core/plugins/highlight';
+import { TextColorPlugin } from '@notectl/core/plugins/text-color';
+import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
+import { FontPlugin } from '@notectl/core/plugins/font';
+import { FontSizePlugin } from '@notectl/core/plugins/font-size';
+import { ImagePlugin } from '@notectl/core/plugins/image';
+import { HardBreakPlugin } from '@notectl/core/plugins/hard-break';
 import { STARTER_FONTS } from '@notectl/core/fonts';
 
 const editor = await createEditor({
@@ -164,7 +160,8 @@ Click the "..." button to reveal the hidden items in a dropdown menu:
 ![Toolbar overflow dropdown open](../../../assets/screenshots/toolbar-overflow-burger-open.png)
 
 ```ts
-import { createEditor, ToolbarOverflowBehavior } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 
 const editor = await createEditor({
   toolbar: {

@@ -31,6 +31,7 @@ export * from './fonts.js';
 export * from './plugins/text-formatting/index.js';
 export * from './plugins/heading/index.js';
 export * from './plugins/toolbar/index.js';
+export * from './plugins/shared/index.js';
 export * from './plugins/table/index.js';
 export * from './plugins/image/index.js';
 export * from './plugins/code-block/index.js';

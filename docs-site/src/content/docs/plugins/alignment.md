@@ -10,7 +10,7 @@ The `AlignmentPlugin` adds text alignment support for paragraphs, headings, and 
 ## Usage
 
 ```ts
-import { AlignmentPlugin } from '@notectl/core';
+import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 
 new AlignmentPlugin()
 // or restrict alignments:

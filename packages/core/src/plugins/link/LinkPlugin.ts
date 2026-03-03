@@ -16,7 +16,7 @@ import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
 
 // --- Attribute Registry Augmentation ---

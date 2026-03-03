@@ -405,7 +405,7 @@ class TableControls implements TableControlsHandle {
 			const handle: HTMLDivElement = buildHandle(
 				'ntbl-col-handle',
 				i,
-				'Delete column',
+				this.locale.deleteColumn,
 				(idx: number) => {
 					this.dispatchTransaction(
 						buildDeleteColumnTransaction(this.getState(), this.tableId, idx),
@@ -422,7 +422,7 @@ class TableControls implements TableControlsHandle {
 			const handle: HTMLDivElement = buildHandle(
 				'ntbl-row-handle',
 				i,
-				'Delete row',
+				this.locale.deleteRow,
 				(idx: number) => {
 					this.dispatchTransaction(buildDeleteRowTransaction(this.getState(), this.tableId, idx));
 				},

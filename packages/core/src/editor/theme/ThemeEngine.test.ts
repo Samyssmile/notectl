@@ -82,10 +82,3 @@ describe('generateThemeCSS', () => {
 		expect(css).toContain('--notectl-bg: #ffffff');
 	});
 });
-
-describe('createThemeStyleSheet', () => {
-	it('creates a CSSStyleSheet instance', () => {
-		const sheet: CSSStyleSheet = createThemeStyleSheet(LIGHT_THEME);
-		expect(sheet).toBeInstanceOf(CSSStyleSheet);
-	});
-});

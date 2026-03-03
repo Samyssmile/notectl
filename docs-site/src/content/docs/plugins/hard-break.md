@@ -8,7 +8,7 @@ The `HardBreakPlugin` adds line break support within blocks. Press `Shift+Enter`
 ## Usage
 
 ```ts
-import { HardBreakPlugin } from '@notectl/core';
+import { HardBreakPlugin } from '@notectl/core/plugins/hard-break';
 
 new HardBreakPlugin()
 ```

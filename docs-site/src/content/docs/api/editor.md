@@ -51,6 +51,8 @@ interface NotectlEditorConfig {
   styleNonce?: string;
   /** Paper size for WYSIWYG page layout. When set, content renders at exact paper width. */
   paperSize?: PaperSize;
+  /** Document-level text direction. When set, applies `dir` on the content element. */
+  dir?: 'ltr' | 'rtl';
   /** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
   locale?: Locale;
 }
@@ -70,7 +72,8 @@ interface ToolbarConfig {
 ```
 
 ```ts
-import { createEditor, ToolbarOverflowBehavior } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 
 const editor = await createEditor({
   toolbar: {
@@ -95,28 +98,28 @@ Returns the document as a JSON-serializable `Document` object.
 
 Replaces the editor content with the given document.
 
-### `getContentHTML(options?): string | ContentCSSResult`
+### `getContentHTML(options?): Promise<string | ContentCSSResult>`
 
 Returns sanitized HTML representation of the document. The return type depends on the options:
 
 ```ts
 // Default — returns inline-styled HTML string
-const html = editor.getContentHTML();
+const html = await editor.getContentHTML();
 
 // Pretty-printed — returns indented HTML string
-const pretty = editor.getContentHTML({ pretty: true });
+const pretty = await editor.getContentHTML({ pretty: true });
 
-// Class-based CSS mode — returns { html, css } object
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
-const { html, css } = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+// Class-based CSS mode — returns { html, css, styleMap } object
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
 ```
 
 #### Overloads
 
 ```ts
-getContentHTML(): string;
-getContentHTML(options: { pretty?: boolean }): string;
-getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): ContentCSSResult;
+getContentHTML(): Promise<string>;
+getContentHTML(options: { pretty?: boolean }): Promise<string>;
+getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): Promise<ContentCSSResult>;
 ```
 
 #### `ContentHTMLOptions`
@@ -134,6 +137,7 @@ interface ContentHTMLOptions {
 interface ContentCSSResult {
   readonly html: string;  // HTML with class attributes instead of inline styles
   readonly css: string;   // Collected CSS rules for the classes used
+  readonly styleMap: ReadonlyMap<string, string>;  // Maps class names to CSS declarations for round-trip
 }
 ```
 
@@ -142,7 +146,7 @@ interface ContentCSSResult {
 When `cssMode: 'classes'` is set, dynamic marks (text color, highlight, font size, font family) are serialized as CSS class names instead of inline `style` attributes. This is useful for rendering exported HTML in strict CSP environments where `style-src-attr: 'none'` blocks inline styles.
 
 ```ts
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 // html: '<p class="notectl-align-center"><strong><span class="notectl-s0">Hello</span></strong></p>'
 // css:  '.notectl-s0 { color: #ff0000; }\n.notectl-align-center { text-align: center; }'
 ```
@@ -151,7 +155,7 @@ Identical style combinations are deduplicated — multiple elements with the sam
 
 See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for integration examples.
 
-### `setContentHTML(html: string): void`
+### `setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void>`
 
 Parses HTML and sets it as the editor content.
 
@@ -249,7 +253,7 @@ Unsubscribe from an event.
 Retrieves a typed service registered by any plugin. Returns `undefined` if not found.
 
 ```ts
-import { TableSelectionServiceKey } from '@notectl/core';
+import { TableSelectionServiceKey } from '@notectl/core/plugins/table';
 
 const tableService = editor.getService(TableSelectionServiceKey);
 tableService?.getSelectedCells();
@@ -260,7 +264,7 @@ tableService?.getSelectedCells();
 Subscribes to typed plugin events from outside the plugin system. Returns an unsubscribe function.
 
 ```ts
-import { BEFORE_PRINT, AFTER_PRINT } from '@notectl/core';
+import { BEFORE_PRINT, AFTER_PRINT } from '@notectl/core/plugins/print';
 
 const unsubscribe = editor.onPluginEvent(BEFORE_PRINT, () => {
   console.log('Printing...');
@@ -328,7 +332,7 @@ Returns a promise that resolves when the editor is fully initialized.
 
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
-Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `theme`.
+Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, `dir`, and `theme`.
 
 `styleNonce` is accepted in `configure()` but evaluated during initialization.
 
@@ -348,3 +352,4 @@ Cleans up the editor. The editor can be re-initialized after destruction.
 | `readonly` | Read-only mode (reflected) |
 | `theme` | Theme preset: `"light"`, `"dark"`, or `"system"` |
 | `paper-size` | Paper size: `"din-a4"`, `"din-a5"`, `"us-letter"`, or `"us-legal"` |
+| `dir` | Text direction: `"ltr"` or `"rtl"` |

@@ -1,23 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PaperSize } from '../../editor/PaperSize.js';
 import { EventBus } from '../EventBus.js';
-import { EventKey } from '../Plugin.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { buildHTMLDocument, createPrintService } from './PrintServiceImpl.js';
 import type { BeforePrintEvent, PrintService } from './PrintTypes.js';
 import { AFTER_PRINT, BEFORE_PRINT } from './PrintTypes.js';
 
 /** Creates a minimal test environment for PrintService. */
-function createTestEnv(): {
+function createTestEnv(contentHTML?: string): {
 	service: PrintService;
 	eventBus: PluginEventBus;
 	container: HTMLElement;
+	host: HTMLElement;
 } {
 	const hostEl: HTMLElement = document.createElement('div');
+	document.body.appendChild(hostEl);
 	const shadow: ShadowRoot = hostEl.attachShadow({ mode: 'open' });
 
 	const content: HTMLElement = document.createElement('div');
 	content.className = 'notectl-content';
-	content.innerHTML = '<p data-block-type="paragraph">Hello World</p>';
+	content.innerHTML = contentHTML ?? '<p data-block-type="paragraph">Hello World</p>';
 	shadow.appendChild(content);
 
 	const bus = new EventBus();
@@ -29,7 +31,7 @@ function createTestEnv(): {
 
 	const service: PrintService = createPrintService(shadow, hostEl, content, pluginEventBus);
 
-	return { service, eventBus: pluginEventBus, container: content };
+	return { service, eventBus: pluginEventBus, container: content, host: hostEl };
 }
 
 describe('PrintServiceImpl', () => {
@@ -173,6 +175,144 @@ describe('PrintServiceImpl', () => {
 			expect(document.querySelector('iframe')).toBeNull();
 
 			vi.restoreAllMocks();
+		});
+	});
+
+	describe('print output preserves inline color styles', () => {
+		it('preserves highlight background-color in print HTML', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-type="paragraph">' +
+					'<span style="background-color: #fff176">Highlighted text</span>' +
+					'</p>',
+			);
+
+			const html: string = service.toHTML();
+
+			expect(html).toContain('background-color');
+			expect(html).toContain('Highlighted text');
+
+			document.body.removeChild(host);
+		});
+
+		it('includes print-color-adjust for highlight colors', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-type="paragraph">' +
+					'<span style="background-color: #fff176">Highlighted</span>' +
+					'</p>',
+			);
+
+			const html: string = service.toHTML();
+
+			expect(html).toContain('print-color-adjust');
+
+			document.body.removeChild(host);
+		});
+
+		it('preserves text-color foreground color in print HTML', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-type="paragraph">' +
+					'<span style="color: #e53935">Colored text</span>' +
+					'</p>',
+			);
+
+			const html: string = service.toHTML();
+
+			expect(html).toContain('color:');
+			expect(html).toContain('Colored text');
+
+			document.body.removeChild(host);
+		});
+
+		it('includes print-color-adjust for text colors', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-type="paragraph">' + '<span style="color: #e53935">Colored</span>' + '</p>',
+			);
+
+			const html: string = service.toHTML();
+
+			expect(html).toContain('print-color-adjust');
+
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('print output preserves host typography', () => {
+		it('includes body rule with font-family when paperSize is set', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+
+			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
+			expect(bodyRuleMatch).toBeTruthy();
+
+			document.body.removeChild(host);
+		});
+
+		it('includes font-size and line-height in body rule with paperSize', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+			host.style.fontSize = '16px';
+			host.style.lineHeight = '1.5';
+
+			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*\}/);
+			if (!bodyRuleMatch) {
+				expect.unreachable('Expected body rule in print HTML');
+				return;
+			}
+
+			const bodyRule: string = bodyRuleMatch[0];
+			expect(bodyRule).toContain('font-size');
+			expect(bodyRule).toContain('line-height');
+
+			document.body.removeChild(host);
+		});
+
+		it('includes body rule with font-family in paper mode', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Georgia, serif';
+
+			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
+			expect(bodyRuleMatch).toBeTruthy();
+
+			document.body.removeChild(host);
+		});
+
+		it('includes body rule with font-family without paperSize', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+
+			const html: string = service.toHTML({});
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
+			expect(bodyRuleMatch).toBeTruthy();
+
+			document.body.removeChild(host);
+		});
+
+		it('includes font-size and line-height without paperSize', () => {
+			const { service, host } = createTestEnv();
+			host.style.fontFamily = 'Arial, sans-serif';
+			host.style.fontSize = '18px';
+			host.style.lineHeight = '1.8';
+
+			const html: string = service.toHTML({});
+
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*\}/);
+			if (!bodyRuleMatch) {
+				expect.unreachable('Expected body rule in print HTML');
+				return;
+			}
+
+			const bodyRule: string = bodyRuleMatch[0];
+			expect(bodyRule).toContain('font-size');
+			expect(bodyRule).toContain('line-height');
+
+			document.body.removeChild(host);
 		});
 	});
 });

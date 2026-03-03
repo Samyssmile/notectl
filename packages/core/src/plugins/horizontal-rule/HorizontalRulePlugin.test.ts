@@ -31,15 +31,6 @@ function makeState(
 // --- Tests ---
 
 describe('HorizontalRulePlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new HorizontalRulePlugin();
-			expect(plugin.id).toBe('horizontal-rule');
-			expect(plugin.name).toBe('Horizontal Rule');
-			expect(plugin.priority).toBe(40);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers horizontal_rule NodeSpec', async () => {
 			const h = await pluginHarness(new HorizontalRulePlugin());

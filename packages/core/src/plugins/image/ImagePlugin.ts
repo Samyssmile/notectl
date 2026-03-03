@@ -15,7 +15,7 @@ import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	insertImage,
 	registerImageCommands,
@@ -245,7 +245,7 @@ export class ImagePlugin implements Plugin {
 	private registerNodeView(context: PluginContext): void {
 		context.registerNodeView(
 			'image',
-			createImageNodeViewFactory(this.config, this.uploadStates, this.resolvedKeymap),
+			createImageNodeViewFactory(this.config, this.uploadStates, this.resolvedKeymap, this.locale),
 		);
 	}
 
@@ -546,16 +546,16 @@ export class ImagePlugin implements Plugin {
 		const width: number | undefined = block.attrs?.width as number | undefined;
 		const height: number | undefined = block.attrs?.height as number | undefined;
 
-		const parts: string[] = ['Image selected.'];
-		if (alt) parts.push(`Alt text: ${alt}.`);
+		const parts: string[] = [this.locale.imageSelected];
+		if (alt) parts.push(`${this.locale.altTextPrefix}${alt}.`);
 		if (width !== undefined && height !== undefined) {
-			parts.push(`Size: ${width} by ${height} pixels.`);
+			parts.push(this.locale.imageSizeAnnounce(width, height));
 		}
 
 		const shrinkKey: string | null = this.resolvedKeymap.shrinkWidth ?? null;
 		const growKey: string | null = this.resolvedKeymap.growWidth ?? null;
 		if (shrinkKey && growKey) {
-			parts.push(`${formatShortcut(shrinkKey)} / ${formatShortcut(growKey)} to resize.`);
+			parts.push(this.locale.resizeHint(formatShortcut(shrinkKey), formatShortcut(growKey)));
 		}
 
 		this.context.announce(parts.join(' '));
@@ -572,7 +572,7 @@ export class ImagePlugin implements Plugin {
 		const width: number | undefined = block.attrs?.width as number | undefined;
 		const height: number | undefined = block.attrs?.height as number | undefined;
 		if (width !== undefined && height !== undefined) {
-			context.announce(`Image resized to ${width} by ${height} pixels.`);
+			context.announce(this.locale.imageResized(width, height));
 		}
 	}
 }

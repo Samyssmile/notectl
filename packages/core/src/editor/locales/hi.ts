@@ -1,0 +1,12 @@
+import type { EditorLocale } from '../EditorLocale.js';
+
+const locale: EditorLocale = {
+	ariaLabel:
+		'\u0930\u093f\u091a \u091f\u0947\u0915\u094d\u0938\u094d\u091f \u090f\u0921\u093f\u091f\u0930',
+	ariaDescription:
+		'\u090f\u0921\u093f\u091f\u0930 \u0938\u0947 \u092c\u093e\u0939\u0930 \u0928\u093f\u0915\u0932\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f Escape \u0926\u092c\u093e\u090f\u0901',
+	defaultPlaceholder:
+		'\u091f\u093e\u0907\u092a \u0915\u0930\u0928\u093e \u0936\u0941\u0930\u0942 \u0915\u0930\u0947\u0902...',
+};
+
+export default locale;

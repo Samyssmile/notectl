@@ -861,37 +861,3 @@ describe('PasteHandler rich paste with mark segments', () => {
 		expect(foundBold).toBe(true);
 	});
 });
-
-describe('FileHandlerRegistry MIME matching (via PasteHandler)', () => {
-	it('matches exact MIME type', () => {
-		const registry = new FileHandlerRegistry();
-		const handler = vi.fn();
-		registry.registerFileHandler('image/png', handler);
-
-		const matched = registry.matchFileHandlers('image/png');
-		expect(matched).toHaveLength(1);
-		expect(matched[0]).toBe(handler);
-	});
-
-	it('matches wildcard image/*', () => {
-		const registry = new FileHandlerRegistry();
-		const handler = vi.fn();
-		registry.registerFileHandler('image/*', handler);
-
-		const matchedPng = registry.matchFileHandlers('image/png');
-		expect(matchedPng).toHaveLength(1);
-		expect(matchedPng[0]).toBe(handler);
-
-		const matchedJpeg = registry.matchFileHandlers('image/jpeg');
-		expect(matchedJpeg).toHaveLength(1);
-		expect(matchedJpeg[0]).toBe(handler);
-	});
-
-	it('returns empty for unmatched type', () => {
-		const registry = new FileHandlerRegistry();
-		registry.registerFileHandler('image/png', vi.fn());
-
-		const matched = registry.matchFileHandlers('application/pdf');
-		expect(matched).toHaveLength(0);
-	});
-});

@@ -15,7 +15,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	HORIZONTAL_RULE_LOCALE_EN,
 	type HorizontalRuleLocale,

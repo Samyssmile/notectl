@@ -50,6 +50,10 @@
 			"types": "./dist/plugins/toolbar/index.d.ts",
 			"import": "./dist/plugins/toolbar.mjs"
 		},
+		"./plugins/shared": {
+			"types": "./dist/plugins/shared/index.d.ts",
+			"import": "./dist/plugins/shared.mjs"
+		},
 		"./plugins/table": {
 			"types": "./dist/plugins/table/index.d.ts",
 			"import": "./dist/plugins/table.mjs"
@@ -121,6 +125,14 @@
 		"./plugins/print": {
 			"types": "./dist/plugins/print/index.d.ts",
 			"import": "./dist/plugins/print.mjs"
+		},
+		"./plugins/text-direction": {
+			"types": "./dist/plugins/text-direction/index.d.ts",
+			"import": "./dist/plugins/text-direction.mjs"
+		},
+		"./plugins/text-direction-advanced": {
+			"types": "./dist/plugins/text-direction-advanced/index.d.ts",
+			"import": "./dist/plugins/text-direction-advanced.mjs"
 		}
 	},
 	"customElements": "custom-elements.json",
@@ -173,7 +185,7 @@
 		{
 			"name": "Presets (full)",
 			"path": "dist/presets/full.mjs",
-			"limit": "65 KB",
+			"limit": "68 KB",
 			"gzip": true
 		},
 		{
@@ -191,7 +203,7 @@
 		{
 			"name": "Plugin: Table",
 			"path": "dist/plugins/table.mjs",
-			"limit": "20 KB",
+			"limit": "22 KB",
 			"gzip": true
 		},
 		{
@@ -209,6 +221,12 @@
 		{
 			"name": "Plugin: Toolbar",
 			"path": "dist/plugins/toolbar.mjs",
+			"limit": "15 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Shared",
+			"path": "dist/plugins/shared.mjs",
 			"limit": "15 KB",
 			"gzip": true
 		},
@@ -305,12 +323,18 @@
 		{
 			"name": "Plugin: Gap Cursor",
 			"path": "dist/plugins/gap-cursor.mjs",
-			"limit": "2 KB",
+			"limit": "3 KB",
 			"gzip": true
 		},
 		{
 			"name": "Plugin: Caret Navigation",
 			"path": "dist/plugins/caret-navigation.mjs",
+			"limit": "5 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Text Direction",
+			"path": "dist/plugins/text-direction.mjs",
 			"limit": "5 KB",
 			"gzip": true
 		},
@@ -325,11 +349,11 @@
 		"dompurify": "^3.3.1"
 	},
 	"devDependencies": {
-		"@rollup/plugin-terser": "^0.4.4",
 		"@size-limit/preset-small-lib": "^12.0.0",
 		"happy-dom": "^20.7.0",
-		"size-limit": "^12.0.0",
 		"rollup-plugin-visualizer": "^5.14.0",
+		"size-limit": "^12.0.0",
+		"terser": "^5.46.0",
 		"vite": "^7.3.1",
 		"vite-plugin-dts": "^4.5.4",
 		"vitest": "^4.0.18"

@@ -5,6 +5,7 @@
 export interface ToolbarLocale {
 	readonly formattingOptionsAria: string;
 	readonly moreToolsAria: string;
+	readonly gridPickerLabel: (rows: number, cols: number) => string;
 }
 
 // --- Default English Locale ---
@@ -12,6 +13,7 @@ export interface ToolbarLocale {
 export const TOOLBAR_LOCALE_EN: ToolbarLocale = {
 	formattingOptionsAria: 'Formatting options',
 	moreToolsAria: 'More tools',
+	gridPickerLabel: (rows: number, cols: number) => `${rows} x ${cols}`,
 };
 
 // --- Lazy Locale Loader ---

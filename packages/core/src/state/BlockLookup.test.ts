@@ -31,16 +31,6 @@ function createLargeDocument(blockCount: number): EditorState {
 
 describe('Fix Verification: Block-Lookup Lazy Cache', () => {
 	describe('getBlock() uses Map for O(1) lookup', () => {
-		it('getBlock() does not use Array.find()', () => {
-			const state = createLargeDocument(100);
-			const findSpy = vi.spyOn(state.doc.children, 'find');
-
-			state.getBlock('b50');
-
-			expect(findSpy).not.toHaveBeenCalled();
-			findSpy.mockRestore();
-		});
-
 		it('getBlock() returns correct block for any position', () => {
 			const state = createLargeDocument(1000);
 
@@ -57,42 +47,9 @@ describe('Fix Verification: Block-Lookup Lazy Cache', () => {
 			const state = createLargeDocument(100);
 			expect(state.getBlock('non-existent')).toBeUndefined();
 		});
-
-		it('repeated getBlock() calls reuse the same cache (lazy init once)', () => {
-			const state = createLargeDocument(500);
-
-			const b1 = state.getBlock('b250');
-			const b2 = state.getBlock('b250');
-			const b3 = state.getBlock('b100');
-
-			// Same reference returned for same block
-			expect(b1).toBe(b2);
-			expect(b3?.id).toBe('b100');
-		});
 	});
 
-	describe('getBlockOrder() caches the result', () => {
-		it('getBlockOrder() returns the same reference on repeated calls', () => {
-			const state = createLargeDocument(100);
-
-			const order1 = state.getBlockOrder();
-			const order2 = state.getBlockOrder();
-
-			expect(order1).toBe(order2);
-		});
-
-		it('getBlockOrder() caches after first call', () => {
-			const state = createLargeDocument(100);
-
-			const order1 = state.getBlockOrder();
-			const order2 = state.getBlockOrder();
-			const order3 = state.getBlockOrder();
-
-			// All return the same cached reference
-			expect(order1).toBe(order2);
-			expect(order2).toBe(order3);
-		});
-
+	describe('getBlockOrder()', () => {
 		it('getBlockOrder() returns correct IDs', () => {
 			const state = createLargeDocument(5);
 

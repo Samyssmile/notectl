@@ -33,7 +33,8 @@ Runtime styling defaults to strict CSP-safe mode. For CSP policies and nonce wir
 The fastest way to get a production editor with all plugins is using `createFullPreset()`:
 
 ```ts
-import { createEditor, createFullPreset, ThemePreset } from '@notectl/core';
+import { createEditor, ThemePreset } from '@notectl/core';
+import { createFullPreset } from '@notectl/core/presets';
 
 const editor = await createEditor({
   ...createFullPreset(),
@@ -70,16 +71,14 @@ If you need full control over which plugins appear and how they're grouped, conf
 1. **Import the plugins you need**
 
    ```ts
-   import {
-     createEditor,
-     TextFormattingPlugin,
-     HeadingPlugin,
-     ListPlugin,
-     LinkPlugin,
-     BlockquotePlugin,
-     TablePlugin,
-     CodeBlockPlugin,
-   } from '@notectl/core';
+   import { createEditor } from '@notectl/core';
+   import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
+   import { HeadingPlugin } from '@notectl/core/plugins/heading';
+   import { ListPlugin } from '@notectl/core/plugins/list';
+   import { LinkPlugin } from '@notectl/core/plugins/link';
+   import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
+   import { TablePlugin } from '@notectl/core/plugins/table';
+   import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
    ```
 
 2. **Configure the toolbar layout**
@@ -160,7 +159,7 @@ notectl provides multiple output formats:
 const json = editor.getJSON();
 
 // Get sanitized HTML
-const html = editor.getContentHTML();
+const html = await editor.getContentHTML();
 
 // Get plain text
 const text = editor.getText();
@@ -173,7 +172,7 @@ const empty = editor.isEmpty();
 
 ```ts
 // Set content from HTML
-editor.setContentHTML('<h1>Hello</h1><p>Welcome to <strong>notectl</strong>!</p>');
+await editor.setContentHTML('<h1>Hello</h1><p>Welcome to <strong>notectl</strong>!</p>');
 
 // Set content from JSON (Document model)
 editor.setJSON({

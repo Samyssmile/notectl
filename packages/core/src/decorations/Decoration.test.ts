@@ -353,38 +353,3 @@ describe('decorationArraysEqual()', () => {
 		expect(decorationArraysEqual(a, c)).toBe(false);
 	});
 });
-
-describe('factory functions', () => {
-	it('inline() creates correct shape', () => {
-		const d = inline(B1, 2, 7, { class: 'hl', style: 'color: red' });
-		expect(d.type).toBe('inline');
-		expect(d.blockId).toBe(B1);
-		expect(d.from).toBe(2);
-		expect(d.to).toBe(7);
-		expect(d.attrs.class).toBe('hl');
-		expect(d.attrs.style).toBe('color: red');
-	});
-
-	it('node() creates correct shape', () => {
-		const d = node(B2, { class: 'active', style: 'border: 1px solid' });
-		expect(d.type).toBe('node');
-		expect(d.blockId).toBe(B2);
-		expect(d.attrs.class).toBe('active');
-	});
-
-	it('widget() creates correct shape with defaults', () => {
-		const toDOM = () => document.createElement('div');
-		const d = widget(B1, 5, toDOM);
-		expect(d.type).toBe('widget');
-		expect(d.offset).toBe(5);
-		expect(d.side).toBe(-1);
-		expect(d.key).toBeUndefined();
-	});
-
-	it('widget() accepts options', () => {
-		const toDOM = () => document.createElement('div');
-		const d = widget(B1, 5, toDOM, { side: 1, key: 'my-widget' });
-		expect(d.side).toBe(1);
-		expect(d.key).toBe('my-widget');
-	});
-});

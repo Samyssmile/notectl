@@ -30,7 +30,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
 import {
@@ -200,7 +200,10 @@ export class CodeBlockPlugin implements Plugin {
 	// --- NodeView ---
 
 	private registerNodeView(context: PluginContext): void {
-		context.registerNodeView('code_block', createCodeBlockNodeViewFactory(this.config));
+		context.registerNodeView(
+			'code_block',
+			createCodeBlockNodeViewFactory(this.config, this.locale),
+		);
 	}
 
 	// --- Input Rule ---

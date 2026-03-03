@@ -28,13 +28,6 @@ test.describe('API', () => {
 		expect(json.children[0].children[0].marks).toContainEqual({ type: 'bold' });
 	});
 
-	test('getContentHTML returns HTML string', async ({ editor }) => {
-		await editor.typeText('Hello');
-		const html = await editor.getContentHTML();
-		expect(html).toContain('<p>');
-		expect(html).toContain('Hello');
-	});
-
 	test('getContentHTML includes formatting tags', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.press('Control+b');

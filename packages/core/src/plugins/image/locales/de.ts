@@ -19,6 +19,24 @@ const locale: ImageLocale = {
 	},
 	resetToNaturalSize: 'Bild auf Originalgr\u00f6\u00dfe zur\u00fcckgesetzt.',
 	uploadFailed: 'Bild-Upload fehlgeschlagen.',
+	uploading: 'Wird hochgeladen...',
+	resizeHandleLabel: (position: string) => {
+		const positions: Record<string, string> = {
+			'top-left': 'oben links',
+			'top-right': 'oben rechts',
+			'bottom-left': 'unten links',
+			'bottom-right': 'unten rechts',
+		};
+		return `Gr\u00f6\u00dfe \u00e4ndern ${positions[position] ?? position}`;
+	},
+	imageSelected: 'Bild ausgew\u00e4hlt.',
+	altTextPrefix: 'Alternativtext: ',
+	imageSizeAnnounce: (w: number, h: number) => `Gr\u00f6\u00dfe: ${w} mal ${h} Pixel.`,
+	resizeHint: (shrink: string, grow: string) =>
+		`${shrink} / ${grow} zum \u00c4ndern der Gr\u00f6\u00dfe.`,
+	imageResized: (w: number, h: number) => `Bild auf ${w} mal ${h} Pixel ge\u00e4ndert.`,
+	keyboardResizeHint: (shrink: string, grow: string) =>
+		`${shrink} / ${grow} zum \u00c4ndern der Gr\u00f6\u00dfe`,
 };
 
 export default locale;

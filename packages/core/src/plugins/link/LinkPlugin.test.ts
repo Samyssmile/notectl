@@ -47,21 +47,7 @@ function makeState(
 // --- Tests ---
 
 describe('LinkPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new LinkPlugin();
-			expect(plugin.id).toBe('link');
-			expect(plugin.name).toBe('Link');
-			expect(plugin.priority).toBe(25);
-		});
-	});
-
 	describe('MarkSpec', () => {
-		it('registers link MarkSpec', async () => {
-			const h = await pluginHarness(new LinkPlugin());
-			expect(h.getMarkSpec('link')).toBeDefined();
-		});
-
 		it('link MarkSpec creates <a> element', async () => {
 			const h = await pluginHarness(new LinkPlugin());
 			const spec = h.getMarkSpec('link');

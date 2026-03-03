@@ -7,11 +7,9 @@ import { DecorationSet } from '../decorations/Decoration.js';
 import type { Locale } from '../i18n/Locale.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
 import { InputManager } from '../input/InputManager.js';
-import { type Document, getBlockText } from '../model/Document.js';
-import { formatHTML } from '../model/HTMLUtils.js';
+import type { Document } from '../model/Document.js';
 import { isMarkAllowed, schemaFromRegistry } from '../model/Schema.js';
-import { createCollapsedSelection, selectionsEqual } from '../model/Selection.js';
-import { blockId } from '../model/TypeBrands.js';
+import { selectionsEqual } from '../model/Selection.js';
 import { getTextDirection } from '../platform/Platform.js';
 import type {
 	EventKey,
@@ -24,7 +22,6 @@ import { PluginManager } from '../plugins/PluginManager.js';
 import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
-import type { ToolbarLayoutConfig } from '../plugins/toolbar/ToolbarPlugin.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -33,19 +30,28 @@ import type {
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
-import {
-	createRuntimeStyleSheet,
-	registerStyleRoot,
-	unregisterStyleRoot,
-} from '../style/StyleRuntime.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { EditorView } from '../view/EditorView.js';
 import { buildAnnouncement } from './Announcer.js';
 import { registerBuiltinSpecs } from './BuiltinSpecs.js';
-import { createEditorDOM } from './EditorDOM.js';
+import {
+	getEditorContentHTML,
+	getEditorJSON,
+	getEditorText,
+	isEditorEmpty,
+	setEditorContentHTML,
+	setEditorJSON,
+} from './ContentSerializer.js';
+import { EditorConfigController } from './EditorConfigController.js';
+import { type EditorDOMElements, createEditorDOM } from './EditorDOM.js';
+import { EditorEventEmitter, type EditorEventMap } from './EditorEventEmitter.js';
+import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
+import { EDITOR_LOCALE_EN, type EditorLocale, loadEditorLocale } from './EditorLocale.js';
+import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
-import { type PaperSize, isValidPaperSize } from './PaperSize.js';
+import type { PaperSize } from './PaperSize.js';
+import { ensureEssentialPlugins, processToolbarConfig } from './PluginBootstrapper.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /**
@@ -93,46 +99,23 @@ export interface NotectlEditorConfig {
 	locale?: Locale;
 }
 
-export interface StateChangeEvent {
-	oldState: EditorState;
-	newState: EditorState;
-	transaction: Transaction;
-}
-
-type EventMap = {
-	stateChange: StateChangeEvent;
-	selectionChange: { selection: import('../model/Selection.js').EditorSelection };
-	focus: undefined;
-	blur: undefined;
-	ready: undefined;
-};
-
-type EventCallback<T> = (payload: T) => void;
+export type { StateChangeEvent } from './EditorEventEmitter.js';
+export type { EditorEventMap } from './EditorEventEmitter.js';
 
 export class NotectlEditor extends HTMLElement {
 	private view: EditorView | null = null;
 	private inputManager: InputManager | null = null;
 	private pluginManager: PluginManager | null = null;
-	private contentElement: HTMLElement | null = null;
-	private editorWrapper: HTMLElement | null = null;
-	private topPluginContainer: HTMLElement | null = null;
-	private bottomPluginContainer: HTMLElement | null = null;
-	private announcer: HTMLElement | null = null;
-	private config: NotectlEditorConfig = {};
-	private eventListeners: Map<string, Set<EventCallback<unknown>>> = new Map();
-	private readyPromiseResolve: (() => void) | null = null;
-	private readonly readyPromise: Promise<void>;
-	private initialized = false;
-	private preInitPlugins: Plugin[] = [];
+	private domElements: EditorDOMElements | null = null;
+	private readonly configController = new EditorConfigController();
+	private readonly events = new EditorEventEmitter();
+	private readonly lifecycle = new EditorLifecycleCoordinator();
+	private readonly styleCoordinator = new EditorStyleCoordinator();
 	private themeController: EditorThemeController | null = null;
 	private paperLayout: PaperLayoutController | null = null;
-	private runtimeStyleSheet: CSSStyleSheet | null = null;
 
 	constructor() {
 		super();
-		this.readyPromise = new Promise((resolve) => {
-			this.readyPromiseResolve = resolve;
-		});
 		this.attachShadow({ mode: 'open' });
 	}
 
@@ -141,7 +124,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	connectedCallback(): void {
-		if (this.initialized) return;
+		if (this.lifecycle.isInitialized()) return;
 		this.init();
 	}
 
@@ -154,135 +137,94 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
-		if (name === 'placeholder' && this.contentElement) {
-			this.contentElement.setAttribute('data-placeholder', newValue ?? '');
-		}
-		if (name === 'readonly' && this.contentElement) {
-			const isReadonly: boolean = newValue !== null;
-			this.contentElement.contentEditable = isReadonly ? 'false' : 'true';
-			if (isReadonly) {
-				this.contentElement.setAttribute('aria-readonly', 'true');
-			} else {
-				this.contentElement.removeAttribute('aria-readonly');
-			}
-			this.config = { ...this.config, readonly: isReadonly };
-			this.pluginManager?.setReadOnly(isReadonly);
-		}
-		if (name === 'theme' && this.themeController) {
-			this.themeController.apply((newValue as ThemePreset) ?? ThemePreset.Light);
-		}
-		if (name === 'paper-size') {
-			if (newValue === null) {
-				this.configure({ paperSize: undefined });
-			} else if (isValidPaperSize(newValue)) {
-				this.configure({ paperSize: newValue });
-			}
-		}
-		if (name === 'dir' && this.contentElement) {
-			if (newValue === 'ltr' || newValue === 'rtl') {
-				this.editorWrapper?.setAttribute('dir', newValue);
-				this.contentElement.setAttribute('dir', newValue);
-				this.config = { ...this.config, dir: newValue };
-			} else {
-				this.editorWrapper?.removeAttribute('dir');
-				this.contentElement.removeAttribute('dir');
-				this.config = { ...this.config, dir: undefined };
-			}
-		}
+		this.configController.applyAttribute(name, newValue, this.getConfigDeps());
 	}
 
 	/** Registers a plugin before initialization. */
 	registerPlugin(plugin: Plugin): void {
-		if (this.initialized) {
-			throw new Error(
-				'Cannot register plugins after initialization. Register before calling init() or adding to DOM.',
-			);
-		}
-		this.preInitPlugins.push(plugin);
+		this.lifecycle.registerPreInitPlugin(plugin);
 	}
 
 	/** Initializes the editor with the given config. */
 	async init(config?: NotectlEditorConfig): Promise<void> {
-		if (this.initialized) return;
-		this.initialized = true;
+		if (!this.lifecycle.markInitialized()) return;
 
-		if (config) this.config = config;
+		if (config) this.configController.setConfig(config);
+		const cfg: NotectlEditorConfig = this.configController.getConfig();
 
 		const shadow = this.shadowRoot;
 		if (!shadow) return;
 
 		// Apply theme (default: Light) — must happen before editor stylesheet
 		this.themeController = new EditorThemeController(shadow);
-		this.setupStyleRuntime(shadow);
-		this.themeController.apply(this.config.theme ?? ThemePreset.Light);
+		this.styleCoordinator.setup(shadow, cfg.styleNonce, this.themeController);
+		this.themeController.apply(cfg.theme ?? ThemePreset.Light);
+
+		// Resolve editor locale for DOM labels
+		const resolvedLang: string = new LocaleService(cfg.locale ?? 'browser').getLocale();
+		const editorLocale: EditorLocale =
+			resolvedLang === 'en' ? EDITOR_LOCALE_EN : await loadEditorLocale(resolvedLang);
 
 		// 1. Build DOM structure
-		const dom = createEditorDOM({
-			readonly: this.config.readonly,
-			placeholder: this.config.placeholder,
-			dir: this.config.dir ?? (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
+		this.domElements = createEditorDOM({
+			readonly: cfg.readonly,
+			placeholder: cfg.placeholder,
+			dir: cfg.dir ?? (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
+			locale: editorLocale,
 		});
-		this.editorWrapper = dom.wrapper;
-		this.contentElement = dom.content;
-		this.topPluginContainer = dom.topPluginContainer;
-		this.bottomPluginContainer = dom.bottomPluginContainer;
-		this.announcer = dom.announcer;
 
-		shadow.appendChild(this.editorWrapper);
+		shadow.appendChild(this.domElements.wrapper);
 
 		// Apply paper layout if configured (before plugins, so initial render is correct)
-		if (this.config.paperSize) {
-			this.paperLayout = new PaperLayoutController(this.editorWrapper, this.contentElement);
-			this.paperLayout.apply(this.config.paperSize);
+		if (cfg.paperSize) {
+			this.paperLayout = new PaperLayoutController(
+				this.domElements.wrapper,
+				this.domElements.content,
+			);
+			this.paperLayout.apply(cfg.paperSize);
 		}
 
 		// 2. Create PluginManager (SchemaRegistry is available)
 		this.pluginManager = new PluginManager();
 
 		// Register global LocaleService before plugins so they can resolve locale
-		const localeService = new LocaleService(this.config.locale ?? 'browser');
+		const localeService = new LocaleService(cfg.locale ?? 'browser');
 		this.pluginManager.registerService(LocaleServiceKey, localeService);
 
 		// 3. Register built-in specs on the registry
 		registerBuiltinSpecs(this.pluginManager.schemaRegistry);
 
 		// Process declarative toolbar config (registers ToolbarPlugin + toolbar plugins)
-		await this.processToolbarConfig();
+		await processToolbarConfig(this.pluginManager, cfg.toolbar);
 		if (!this.pluginManager) return;
 
 		// Register plugins from config
-		for (const plugin of this.config.plugins ?? []) {
+		for (const plugin of cfg.plugins ?? []) {
 			this.pluginManager.register(plugin);
 		}
 
 		// Register plugins from registerPlugin() calls
-		for (const plugin of this.preInitPlugins) {
+		for (const plugin of this.lifecycle.consumePreInitPlugins()) {
 			this.pluginManager.register(plugin);
 		}
-		this.preInitPlugins = [];
 
 		// Auto-register essential plugins if none were explicitly provided
-		await this.ensureTextFormattingPlugin();
-		if (!this.pluginManager) return;
-		await this.ensureCaretNavigationPlugin();
-		if (!this.pluginManager) return;
-		await this.ensureGapCursorPlugin();
+		await ensureEssentialPlugins(this.pluginManager, cfg.features);
 		if (!this.pluginManager) return;
 
 		// Set up DOM events before plugin init
-		this.contentElement.addEventListener('focus', () => this.emit('focus', undefined));
-		this.contentElement.addEventListener('blur', () => this.emit('blur', undefined));
+		this.domElements.content.addEventListener('focus', () => this.events.emit('focus', undefined));
+		this.domElements.content.addEventListener('blur', () => this.events.emit('blur', undefined));
 
 		// 4. Initialize plugins — specs are registered during init().
 		//    onBeforeReady fires after all init() but before onReady(),
 		//    so the schema is complete and the view renders once.
-		const contentEl = this.contentElement;
-		const pluginMgr = this.pluginManager;
-		const topContainer = this.topPluginContainer;
-		const bottomContainer = this.bottomPluginContainer;
-		if (!contentEl || !pluginMgr || !topContainer || !bottomContainer) return;
-
-		const announcer = this.announcer;
+		const dom: EditorDOMElements = this.domElements;
+		const contentEl: HTMLElement = dom.content;
+		const pluginMgr: PluginManager = this.pluginManager;
+		const topContainer: HTMLElement = dom.topPluginContainer;
+		const bottomContainer: HTMLElement = dom.bottomPluginContainer;
+		const announcer: HTMLElement = dom.announcer;
 		await pluginMgr.init({
 			getState: () => {
 				if (!this.view) throw new Error('View not initialized');
@@ -313,7 +255,7 @@ export class NotectlEditor extends HTMLElement {
 					keymapRegistry: pluginMgr.keymapRegistry,
 					inputRuleRegistry: pluginMgr.inputRuleRegistry,
 					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
-					isReadOnly: () => this.config.readonly ?? false,
+					isReadOnly: () => this.configController.isReadOnly,
 					getTextDirection,
 					navigateFromGapCursor,
 				});
@@ -324,13 +266,13 @@ export class NotectlEditor extends HTMLElement {
 					keymapRegistry: pluginMgr.keymapRegistry,
 					fileHandlerRegistry: pluginMgr.fileHandlerRegistry,
 					nodeViewRegistry: pluginMgr.nodeViewRegistry,
-					maxHistoryDepth: this.config.maxHistoryDepth,
+					maxHistoryDepth: cfg.maxHistoryDepth,
 					getDecorations: (s, tr) =>
 						this.pluginManager?.collectDecorations(s, tr) ?? DecorationSet.empty,
 					onStateChange: (oldState, newState, tr) => {
 						this.onStateChange(oldState, newState, tr);
 					},
-					isReadOnly: () => this.config.readonly ?? false,
+					isReadOnly: () => this.configController.isReadOnly,
 					compositionState: this.inputManager.compositionTracker,
 				});
 				this.updateEmptyState();
@@ -347,28 +289,28 @@ export class NotectlEditor extends HTMLElement {
 		if (!this.pluginManager) return;
 
 		// Notify plugins of initial readonly state
-		if (this.config.readonly) {
+		if (cfg.readonly) {
 			this.pluginManager.setReadOnly(true);
 		}
 
 		// Register BEFORE_PRINT listener to inject paperSize as fallback
 		this.pluginManager.onEvent(BEFORE_PRINT, (event) => {
-			if (!event.options.paperSize && this.config.paperSize) {
-				event.options = { ...event.options, paperSize: this.config.paperSize };
+			if (!event.options.paperSize && this.configController.getPaperSize()) {
+				event.options = { ...event.options, paperSize: this.configController.getPaperSize() };
 			}
 		});
 
-		if (this.config.autofocus) {
-			requestAnimationFrame(() => this.contentElement?.focus());
+		if (cfg.autofocus) {
+			requestAnimationFrame(() => this.domElements?.content.focus());
 		}
 
-		this.readyPromiseResolve?.();
-		this.emit('ready', undefined);
+		this.lifecycle.resolveReady();
+		this.events.emit('ready', undefined);
 	}
 
 	/** Returns whether the editor is in read-only mode. */
 	get isReadOnly(): boolean {
-		return this.config.readonly ?? false;
+		return this.configController.isReadOnly;
 	}
 
 	// --- Content API ---
@@ -376,20 +318,12 @@ export class NotectlEditor extends HTMLElement {
 	/** Returns the document as JSON. */
 	getJSON(): Document {
 		if (!this.view) throw new Error('Editor not initialized');
-		return this.view.getState().doc;
+		return getEditorJSON(this.view.getState());
 	}
 
 	/** Sets the document from JSON. */
 	setJSON(doc: Document): void {
-		const schema = this.pluginManager
-			? schemaFromRegistry(this.pluginManager.schemaRegistry)
-			: undefined;
-		const state = EditorState.create({
-			doc,
-			schema,
-			selection: createCollapsedSelection(doc.children[0]?.id ?? blockId(''), 0),
-		});
-		this.replaceState(state);
+		setEditorJSON(doc, this.pluginManager?.schemaRegistry, (s) => this.replaceState(s));
 	}
 
 	/** Returns sanitized HTML representation of the document. */
@@ -400,47 +334,29 @@ export class NotectlEditor extends HTMLElement {
 	): Promise<ContentCSSResult>;
 	async getContentHTML(options?: ContentHTMLOptions): Promise<string | ContentCSSResult> {
 		if (!this.view) throw new Error('Editor not initialized');
-		const doc = this.view.getState().doc;
-		const registry = this.pluginManager?.schemaRegistry;
-
-		const { serializeDocumentToHTML, serializeDocumentToCSS } = await import(
-			'../serialization/DocumentSerializer.js'
-		);
-
-		if (options?.cssMode === 'classes') {
-			const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
-			return options.pretty
-				? { html: formatHTML(result.html), css: result.css, styleMap: result.styleMap }
-				: result;
-		}
-
-		const html: string = serializeDocumentToHTML(doc, registry);
-		return options?.pretty ? formatHTML(html) : html;
+		return getEditorContentHTML(this.view.getState(), this.pluginManager?.schemaRegistry, options);
 	}
 
 	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
 	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
-		const { parseHTMLToDocument } = await import('../serialization/DocumentParser.js');
-		const doc = parseHTMLToDocument(html, this.pluginManager?.schemaRegistry, options);
-		this.setJSON(doc);
+		return setEditorContentHTML(
+			html,
+			this.pluginManager?.schemaRegistry,
+			(s) => this.replaceState(s),
+			options,
+		);
 	}
 
 	/** Returns plain text content. */
 	getText(): string {
 		if (!this.view) throw new Error('Editor not initialized');
-		const doc = this.view.getState().doc;
-		return doc.children.map((b) => getBlockText(b)).join('\n');
+		return getEditorText(this.view.getState());
 	}
 
 	/** Returns true if the editor is empty (single empty paragraph). */
 	isEmpty(): boolean {
 		if (!this.view) return true;
-		const doc = this.view.getState().doc;
-		if (doc.children.length === 0) return true;
-		if (doc.children.length > 1) return false;
-		const block = doc.children[0];
-		if (!block) return true;
-		return block.type === 'paragraph' && getBlockText(block) === '';
+		return isEditorEmpty(this.view.getState().doc);
 	}
 
 	// --- Command API ---
@@ -450,11 +366,11 @@ export class NotectlEditor extends HTMLElement {
 		toggleItalic: () => this.executeCommand('toggleItalic'),
 		toggleUnderline: () => this.executeCommand('toggleUnderline'),
 		undo: () => {
-			if (this.config.readonly) return;
+			if (this.configController.isReadOnly) return;
 			this.view?.undo();
 		},
 		redo: () => {
-			if (this.config.readonly) return;
+			if (this.configController.isReadOnly) return;
 			this.view?.redo();
 		},
 		selectAll: () => {
@@ -474,7 +390,7 @@ export class NotectlEditor extends HTMLElement {
 		selectAll: () => boolean;
 	} {
 		const schema = this.view?.getState().schema;
-		const readonly: boolean = this.config.readonly ?? false;
+		const readonly: boolean = this.configController.isReadOnly;
 		return {
 			toggleBold: () => !readonly && (schema ? isMarkAllowed(schema, 'bold') : false),
 			toggleItalic: () => !readonly && (schema ? isMarkAllowed(schema, 'italic') : false),
@@ -522,7 +438,7 @@ export class NotectlEditor extends HTMLElement {
 	dispatch(tr: Transaction): void {
 		if (!this.view || !this.pluginManager) return;
 		if (
-			this.config.readonly &&
+			this.configController.isReadOnly &&
 			!isAllowedInReadonly(tr) &&
 			!this.pluginManager.isReadonlyBypassed()
 		) {
@@ -536,83 +452,57 @@ export class NotectlEditor extends HTMLElement {
 	// --- Event API ---
 
 	/** Registers an event listener. */
-	on<K extends keyof EventMap>(event: K, callback: EventCallback<EventMap[K]>): void {
-		if (!this.eventListeners.has(event)) {
-			this.eventListeners.set(event, new Set());
-		}
-		this.eventListeners.get(event)?.add(callback as EventCallback<unknown>);
+	on<K extends keyof EditorEventMap>(
+		event: K,
+		callback: (payload: EditorEventMap[K]) => void,
+	): void {
+		this.events.on(event, callback);
 	}
 
 	/** Removes an event listener. */
-	off<K extends keyof EventMap>(event: K, callback: EventCallback<EventMap[K]>): void {
-		this.eventListeners.get(event)?.delete(callback as EventCallback<unknown>);
+	off<K extends keyof EditorEventMap>(
+		event: K,
+		callback: (payload: EditorEventMap[K]) => void,
+	): void {
+		this.events.off(event, callback);
 	}
 
 	// --- Lifecycle ---
 
 	/** Waits for the editor to be ready. */
 	whenReady(): Promise<void> {
-		return this.readyPromise;
+		return this.lifecycle.whenReady();
 	}
 
 	/** Updates configuration at runtime. */
 	configure(config: Partial<NotectlEditorConfig>): void {
-		if (config.placeholder !== undefined && this.contentElement) {
-			this.contentElement.setAttribute('data-placeholder', config.placeholder);
-		}
-
-		if (config.readonly !== undefined && this.contentElement) {
-			this.contentElement.contentEditable = config.readonly ? 'false' : 'true';
-			if (config.readonly) {
-				this.contentElement.setAttribute('aria-readonly', 'true');
-			} else {
-				this.contentElement.removeAttribute('aria-readonly');
-			}
-			this.pluginManager?.setReadOnly(config.readonly);
-		}
-
-		if ('paperSize' in config) {
-			this.applyPaperSize(config.paperSize);
-		}
-
-		if ('dir' in config && this.contentElement) {
-			if (config.dir === 'ltr' || config.dir === 'rtl') {
-				this.editorWrapper?.setAttribute('dir', config.dir);
-				this.contentElement.setAttribute('dir', config.dir);
-			} else {
-				this.editorWrapper?.removeAttribute('dir');
-				this.contentElement.removeAttribute('dir');
-			}
-		}
-
-		this.config = { ...this.config, ...config };
+		this.configController.applyRuntimeConfig(config, this.getConfigDeps());
 	}
 
 	// --- Theme API ---
 
 	/** Changes the theme at runtime. */
 	setTheme(theme: ThemePreset | Theme): void {
-		this.config = { ...this.config, theme };
-		this.themeController?.apply(theme);
+		this.configController.applyTheme(theme, this.themeController);
 	}
 
 	/** Returns the current theme setting. */
 	getTheme(): ThemePreset | Theme {
-		return this.config.theme ?? ThemePreset.Light;
+		return this.configController.getTheme();
 	}
 
 	// --- Paper Size API ---
 
 	/** Returns the currently configured paper size, or undefined if fluid layout. */
 	getPaperSize(): PaperSize | undefined {
-		return this.config.paperSize;
+		return this.configController.getPaperSize();
 	}
 
 	/** Cleans up the editor. Awaiting ensures async plugin teardown completes. */
 	destroy(): Promise<void> {
 		this.paperLayout?.destroy();
 		this.paperLayout = null;
-		this.teardownStyleRuntime();
+		this.styleCoordinator.teardown(this.shadowRoot, this.themeController);
 		this.themeController?.destroy();
 		this.themeController = null;
 		this.inputManager?.destroy();
@@ -621,94 +511,25 @@ export class NotectlEditor extends HTMLElement {
 		const pluginTeardown = this.pluginManager?.destroy() ?? Promise.resolve();
 		this.view = null;
 		this.pluginManager = null;
-		this.initialized = false;
-		this.editorWrapper?.remove();
-		this.editorWrapper = null;
-		this.contentElement = null;
-		this.topPluginContainer = null;
-		this.bottomPluginContainer = null;
-		this.announcer = null;
+		this.lifecycle.reset();
+		this.events.clear();
+		this.domElements?.wrapper.remove();
+		this.domElements = null;
 		return pluginTeardown;
 	}
 
-	/**
-	 * Processes the declarative `toolbar` config: registers a ToolbarPlugin
-	 * with layout groups, then registers all plugins from the toolbar groups.
-	 * Accepts both the shorthand array and the full ToolbarConfig object.
-	 */
-	private async processToolbarConfig(): Promise<void> {
-		if (!this.pluginManager || !this.config.toolbar) return;
-
-		const toolbarCfg = this.config.toolbar;
-		const isShorthand: boolean = Array.isArray(toolbarCfg);
-		const pluginGroups: ReadonlyArray<ReadonlyArray<Plugin>> = isShorthand
-			? (toolbarCfg as ReadonlyArray<ReadonlyArray<Plugin>>)
-			: (toolbarCfg as ToolbarConfig).groups;
-		const overflow: ToolbarOverflowBehavior | undefined = isShorthand
-			? undefined
-			: (toolbarCfg as ToolbarConfig).overflow;
-
-		const groups: string[][] = [];
-		for (const group of pluginGroups) {
-			const pluginIds: string[] = [];
-			for (const plugin of group) {
-				pluginIds.push(plugin.id);
-				this.pluginManager.register(plugin);
-			}
-			groups.push(pluginIds);
-		}
-
-		const { ToolbarPlugin } = await import('../plugins/toolbar/ToolbarPlugin.js');
-		if (!this.pluginManager) return;
-		const layoutConfig: ToolbarLayoutConfig = { groups, overflow };
-		this.pluginManager.register(new ToolbarPlugin(layoutConfig));
-	}
-
-	/**
-	 * Auto-registers TextFormattingPlugin if no plugin with id 'text-formatting'
-	 * was explicitly registered. Uses the `features` config to determine which marks to enable.
-	 */
-	private async ensureTextFormattingPlugin(): Promise<void> {
-		if (!this.pluginManager) return;
-		if (this.pluginManager.get('text-formatting') !== undefined) return;
-
-		const features: TextFormattingConfig = {
-			bold: this.config.features?.bold ?? true,
-			italic: this.config.features?.italic ?? true,
-			underline: this.config.features?.underline ?? true,
+	private getConfigDeps(): import('./EditorConfigController.js').ConfigControllerDeps {
+		return {
+			contentElement: this.domElements?.content ?? null,
+			editorWrapper: this.domElements?.wrapper ?? null,
+			pluginManager: this.pluginManager,
+			themeController: this.themeController,
+			applyPaperSize: (size) => this.applyPaperSize(size),
 		};
-
-		const { TextFormattingPlugin } = await import(
-			'../plugins/text-formatting/TextFormattingPlugin.js'
-		);
-		if (!this.pluginManager) return;
-		this.pluginManager.register(new TextFormattingPlugin(features));
-	}
-
-	/** Auto-registers CaretNavigationPlugin if not explicitly provided. */
-	private async ensureCaretNavigationPlugin(): Promise<void> {
-		if (!this.pluginManager) return;
-		if (this.pluginManager.get('caret-navigation') !== undefined) return;
-
-		const { CaretNavigationPlugin } = await import(
-			'../plugins/caret-navigation/CaretNavigationPlugin.js'
-		);
-		if (!this.pluginManager) return;
-		this.pluginManager.register(new CaretNavigationPlugin());
-	}
-
-	/** Auto-registers GapCursorPlugin if not explicitly provided. */
-	private async ensureGapCursorPlugin(): Promise<void> {
-		if (!this.pluginManager) return;
-		if (this.pluginManager.get('gap-cursor') !== undefined) return;
-
-		const { GapCursorPlugin } = await import('../plugins/gap-cursor/GapCursorPlugin.js');
-		if (!this.pluginManager) return;
-		this.pluginManager.register(new GapCursorPlugin());
 	}
 
 	private applyPaperSize(paperSize: PaperSize | undefined): void {
-		if (!this.editorWrapper || !this.contentElement) return;
+		if (!this.domElements) return;
 
 		if (!paperSize) {
 			this.paperLayout?.apply(null);
@@ -716,46 +537,19 @@ export class NotectlEditor extends HTMLElement {
 		}
 
 		if (!this.paperLayout) {
-			this.paperLayout = new PaperLayoutController(this.editorWrapper, this.contentElement);
+			this.paperLayout = new PaperLayoutController(
+				this.domElements.wrapper,
+				this.domElements.content,
+			);
 		}
 		this.paperLayout.apply(paperSize);
 	}
 
-	private setupStyleRuntime(shadow: ShadowRoot): void {
-		unregisterStyleRoot(shadow);
-		this.runtimeStyleSheet = createRuntimeStyleSheet();
-
-		this.themeController?.setRuntimeStyleSheets(
-			this.runtimeStyleSheet ? [this.runtimeStyleSheet] : [],
-		);
-
-		registerStyleRoot(shadow, {
-			nonce: this.config.styleNonce,
-			sheet: this.runtimeStyleSheet,
-		});
-	}
-
-	private teardownStyleRuntime(): void {
-		const shadow = this.shadowRoot;
-		if (shadow) {
-			unregisterStyleRoot(shadow);
-		}
-		this.runtimeStyleSheet = null;
-		this.themeController?.setRuntimeStyleSheets([]);
-	}
-
-	private emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void {
-		const listeners = this.eventListeners.get(event);
-		if (listeners) {
-			for (const cb of listeners) {
-				(cb as EventCallback<EventMap[K]>)(payload);
-			}
-		}
-	}
-
 	private onStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
+		const announcer: HTMLElement | undefined = this.domElements?.announcer;
+
 		// Clear announcer so plugin announcements can be detected
-		if (this.announcer) this.announcer.textContent = '';
+		if (announcer) announcer.textContent = '';
 
 		// Notify plugins (with transaction) — plugins may call context.announce()
 		this.pluginManager?.notifyStateChange(oldState, newState, tr);
@@ -764,24 +558,23 @@ export class NotectlEditor extends HTMLElement {
 		this.updateEmptyState();
 
 		// Emit events
-		this.emit('stateChange', { oldState, newState, transaction: tr });
+		this.events.emit('stateChange', { oldState, newState, transaction: tr });
 
 		if (!selectionsEqual(oldState.selection, newState.selection)) {
-			this.emit('selectionChange', { selection: newState.selection });
+			this.events.emit('selectionChange', { selection: newState.selection });
 		}
 
 		// Announce state changes for screen readers (skip if a plugin already announced)
-		if (!this.announcer?.textContent) {
+		if (!announcer?.textContent) {
 			const announcement: string | null = buildAnnouncement(oldState, newState, tr);
-			if (announcement && this.announcer) {
-				this.announcer.textContent = announcement;
+			if (announcement && announcer) {
+				announcer.textContent = announcement;
 			}
 		}
 	}
 
 	private updateEmptyState(): void {
-		if (!this.contentElement) return;
-		this.contentElement.classList.toggle('notectl-content--empty', this.isEmpty());
+		this.domElements?.content.classList.toggle('notectl-content--empty', this.isEmpty());
 	}
 
 	private replaceState(newState: EditorState): void {

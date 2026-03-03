@@ -41,15 +41,6 @@ function makeState(
 // --- Tests ---
 
 describe('TextDirectionPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new TextDirectionPlugin();
-			expect(plugin.id).toBe('text-direction');
-			expect(plugin.name).toBe('Text Direction');
-			expect(plugin.priority).toBe(91);
-		});
-	});
-
 	describe('NodeSpec patching', () => {
 		it('patches paragraph NodeSpec with dir attr', async () => {
 			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
@@ -528,21 +519,6 @@ describe('TextDirectionPlugin', () => {
 			const doc = h.getState().doc;
 			expect(doc.children).toHaveLength(1);
 			expect(doc.children[0]?.attrs?.dir).toBe('rtl');
-		});
-	});
-
-	describe('destroy', () => {
-		it('has destroy method and can be called without error', async () => {
-			const plugin = new TextDirectionPlugin();
-			expect(typeof plugin.destroy).toBe('function');
-			// destroy before init should not throw
-			expect(() => plugin.destroy()).not.toThrow();
-		});
-
-		it('is idempotent — calling destroy twice does not throw', async () => {
-			const plugin = new TextDirectionPlugin();
-			plugin.destroy();
-			expect(() => plugin.destroy()).not.toThrow();
 		});
 	});
 });

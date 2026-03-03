@@ -1,9 +1,9 @@
 export {
-	TextDirectionPlugin,
+	TextDirectionCorePlugin as TextDirectionPlugin,
 	DIRECTION_ICONS,
 	type TextDirectionConfig,
 	type TextDirection,
-} from './TextDirectionPlugin.js';
+} from './TextDirectionCorePlugin.js';
 
 export { detectTextDirection, findSiblingDirection, getBlockDir } from './DirectionDetection.js';
 

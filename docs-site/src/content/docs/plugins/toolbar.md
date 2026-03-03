@@ -26,7 +26,7 @@ Each inner array becomes a visual **toolbar group** separated by dividers.
 For advanced use cases, you can create the ToolbarPlugin manually:
 
 ```ts
-import { ToolbarPlugin } from '@notectl/core';
+import { ToolbarPlugin } from '@notectl/core/plugins/toolbar';
 
 const toolbar = new ToolbarPlugin({
   groups: [['text-formatting'], ['heading']],
@@ -144,7 +144,7 @@ Returns the current overflow behavior mode.
 Switches the overflow behavior at runtime. Triggers an immediate re-layout.
 
 ```ts
-import { ToolbarOverflowBehavior } from '@notectl/core';
+import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 
 // Switch to flow mode at runtime
 toolbarPlugin.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
@@ -155,7 +155,7 @@ toolbarPlugin.setOverflowBehavior(ToolbarOverflowBehavior.Flow);
 The toolbar exposes a typed service for programmatic control:
 
 ```ts
-import { ToolbarServiceKey } from '@notectl/core';
+import { ToolbarServiceKey } from '@notectl/core/plugins/toolbar';
 
 const toolbarService = context.getService(ToolbarServiceKey);
 

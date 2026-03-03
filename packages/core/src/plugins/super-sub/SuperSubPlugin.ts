@@ -15,7 +15,7 @@ import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { RemoveMarkStep, Step } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { SUPER_SUB_LOCALE_EN, type SuperSubLocale, loadSuperSubLocale } from './SuperSubLocale.js';
 
 // --- Attribute Registry Augmentation ---

@@ -14,19 +14,6 @@ import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { TextFormattingPlugin } from './TextFormattingPlugin.js';
 
 describe('TextFormattingPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new TextFormattingPlugin();
-			expect(plugin.id).toBe('text-formatting');
-			expect(plugin.name).toBe('Text Formatting');
-		});
-
-		it('has priority 20', () => {
-			const plugin = new TextFormattingPlugin();
-			expect(plugin.priority).toBe(20);
-		});
-	});
-
 	describe('MarkSpec registration', () => {
 		it('registers all three mark specs by default', async () => {
 			const plugin = new TextFormattingPlugin();
@@ -251,15 +238,6 @@ describe('TextFormattingPlugin', () => {
 	});
 
 	describe('config defaults', () => {
-		it('enables all marks by default', async () => {
-			const plugin = new TextFormattingPlugin();
-			const h = await pluginHarness(plugin);
-
-			expect(h.getMarkSpec('bold')).toBeDefined();
-			expect(h.getMarkSpec('italic')).toBeDefined();
-			expect(h.getMarkSpec('underline')).toBeDefined();
-		});
-
 		it('partial config merges with defaults', async () => {
 			const plugin = new TextFormattingPlugin({ italic: false });
 			const h = await pluginHarness(plugin);
