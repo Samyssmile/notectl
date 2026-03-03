@@ -8,13 +8,13 @@ function stubPlugin(id: string): Plugin {
 }
 
 describe('processToolbarConfig', () => {
-	it('registers toolbar plugins from shorthand groups', async () => {
+	it('registers toolbar plugins from shorthand groups', () => {
 		const pm = new PluginManager();
 		const bold: Plugin = stubPlugin('bold');
 		const italic: Plugin = stubPlugin('italic');
 		const heading: Plugin = stubPlugin('heading');
 
-		await processToolbarConfig(pm, [[bold, italic], [heading]]);
+		processToolbarConfig(pm, [[bold, italic], [heading]]);
 
 		expect(pm.get('bold')).toBe(bold);
 		expect(pm.get('italic')).toBe(italic);
@@ -22,70 +22,70 @@ describe('processToolbarConfig', () => {
 		expect(pm.get('toolbar')).toBeDefined();
 	});
 
-	it('registers toolbar plugins from full ToolbarConfig', async () => {
+	it('registers toolbar plugins from full ToolbarConfig', () => {
 		const pm = new PluginManager();
 		const bold: Plugin = stubPlugin('bold');
 
-		await processToolbarConfig(pm, { groups: [[bold]], overflow: undefined });
+		processToolbarConfig(pm, { groups: [[bold]], overflow: undefined });
 
 		expect(pm.get('bold')).toBe(bold);
 		expect(pm.get('toolbar')).toBeDefined();
 	});
 
-	it('does nothing when toolbar is undefined', async () => {
+	it('does nothing when toolbar is undefined', () => {
 		const pm = new PluginManager();
 
-		await processToolbarConfig(pm, undefined);
+		processToolbarConfig(pm, undefined);
 
 		expect(pm.getPluginIds()).toHaveLength(0);
 	});
 });
 
 describe('ensureEssentialPlugins', () => {
-	it('registers text-formatting, caret-navigation, and gap-cursor', async () => {
+	it('registers text-formatting, caret-navigation, and gap-cursor', () => {
 		const pm = new PluginManager();
 
-		await ensureEssentialPlugins(pm);
+		ensureEssentialPlugins(pm);
 
 		expect(pm.get('text-formatting')).toBeDefined();
 		expect(pm.get('caret-navigation')).toBeDefined();
 		expect(pm.get('gap-cursor')).toBeDefined();
 	});
 
-	it('skips text-formatting if already registered', async () => {
+	it('skips text-formatting if already registered', () => {
 		const pm = new PluginManager();
 		const existing: Plugin = stubPlugin('text-formatting');
 		pm.register(existing);
 
-		await ensureEssentialPlugins(pm);
+		ensureEssentialPlugins(pm);
 
 		expect(pm.get('text-formatting')).toBe(existing);
 	});
 
-	it('skips caret-navigation if already registered', async () => {
+	it('skips caret-navigation if already registered', () => {
 		const pm = new PluginManager();
 		const existing: Plugin = stubPlugin('caret-navigation');
 		pm.register(existing);
 
-		await ensureEssentialPlugins(pm);
+		ensureEssentialPlugins(pm);
 
 		expect(pm.get('caret-navigation')).toBe(existing);
 	});
 
-	it('skips gap-cursor if already registered', async () => {
+	it('skips gap-cursor if already registered', () => {
 		const pm = new PluginManager();
 		const existing: Plugin = stubPlugin('gap-cursor');
 		pm.register(existing);
 
-		await ensureEssentialPlugins(pm);
+		ensureEssentialPlugins(pm);
 
 		expect(pm.get('gap-cursor')).toBe(existing);
 	});
 
-	it('passes feature config to text-formatting', async () => {
+	it('passes feature config to text-formatting', () => {
 		const pm = new PluginManager();
 
-		await ensureEssentialPlugins(pm, { bold: false, italic: true });
+		ensureEssentialPlugins(pm, { bold: false, italic: true });
 
 		expect(pm.get('text-formatting')).toBeDefined();
 	});
