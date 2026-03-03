@@ -45,6 +45,14 @@ export class AngularEditorPage {
 		return this.root.locator(`button[data-toolbar-item="${type}"]`);
 	}
 
+	popup(): Locator {
+		return this.root.locator('.notectl-toolbar-popup');
+	}
+
+	dropdownItems(): Locator {
+		return this.root.locator('[role="menuitem"]');
+	}
+
 	controlButton(name: string): Locator {
 		return this.page.locator('.controls').getByRole('button', { name });
 	}
