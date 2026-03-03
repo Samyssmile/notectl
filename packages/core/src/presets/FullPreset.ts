@@ -19,7 +19,7 @@ import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugi
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
-import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
+import { TextDirectionCorePlugin } from '../plugins/text-direction/TextDirectionCorePlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
 
@@ -54,7 +54,10 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 				new BlockquotePlugin(options?.blockquote),
 				new CodeBlockPlugin(options?.codeBlock),
 			],
-			[new AlignmentPlugin(options?.alignment), new TextDirectionPlugin(options?.textDirection)],
+			[
+				new AlignmentPlugin(options?.alignment),
+				new TextDirectionCorePlugin(options?.textDirection),
+			],
 			[new ListPlugin(options?.list)],
 			[
 				new LinkPlugin(options?.link),

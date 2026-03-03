@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import terser from '@rollup/plugin-terser';
 import { defineConfig } from 'vite';
 
 /**
@@ -21,15 +20,13 @@ export default defineConfig({
 					dompurify: 'DOMPurify',
 				},
 			},
-			plugins: [
-				terser({
-					compress: { passes: 2 },
-				}),
-			],
 		},
 		outDir: 'dist',
 		emptyOutDir: false,
 		sourcemap: true,
-		minify: false,
+		minify: 'terser',
+		terserOptions: {
+			compress: { passes: 2 },
+		},
 	},
 });

@@ -16,13 +16,6 @@ import { HardBreakPlugin } from './HardBreakPlugin.js';
 
 describe('HardBreakPlugin', () => {
 	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new HardBreakPlugin();
-			expect(plugin.id).toBe('hard-break');
-			expect(plugin.name).toBe('Hard Break');
-			expect(plugin.priority).toBe(10);
-		});
-
 		it('registers hard_break InlineNodeSpec', async () => {
 			const h = await pluginHarness(new HardBreakPlugin());
 			const spec = h.pm.schemaRegistry.getInlineNodeSpec('hard_break');

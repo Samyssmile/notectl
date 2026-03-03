@@ -32,6 +32,22 @@ interface NotectlEditorElement extends HTMLElement {
 type El = NotectlEditorElement;
 const SEL = 'notectl-editor';
 
+/** Descriptor for a plugin class exposed on `window` by the example app. */
+interface PluginDescriptor {
+	/** Class name on `window`, e.g. `'FontSizePlugin'` or `'TextFormattingPlugin'`. */
+	readonly name: string;
+	/** Optional constructor config passed to `new Plugin(config)`. */
+	readonly config?: unknown;
+}
+
+/** Options for {@link EditorPage.recreateWithPlugins}. */
+interface PluginRecreateOptions {
+	/** Toolbar groups — each group is displayed as a visual section. */
+	readonly toolbar: ReadonlyArray<ReadonlyArray<PluginDescriptor>>;
+	/** Whether to autofocus the editor. Defaults to `true`. */
+	readonly autofocus?: boolean;
+}
+
 /** Page-object model for `<notectl-editor>`. */
 export class EditorPage {
 	readonly root: Locator;
@@ -77,6 +93,53 @@ export class EditorPage {
 				if (attempt === 2) throw new Error('Editor failed to initialize after 3 attempts');
 			}
 		}
+	}
+
+	/**
+	 * Destroys the current editor and creates a fresh one with arbitrary
+	 * plugin configurations. Each toolbar group is an array of plugin
+	 * descriptors referencing classes exposed on `window` by the example app
+	 * (see `examples/vanillajs/src/main.ts`).
+	 *
+	 * @example
+	 * ```ts
+	 * await editor.recreateWithPlugins({
+	 *   toolbar: [
+	 *     [{ name: 'FontSizePlugin', config: { sizes: [12, 16], defaultSize: 12 } }],
+	 *     [{ name: 'TextFormattingPlugin', config: { bold: true } }],
+	 *   ],
+	 *   autofocus: true,
+	 * });
+	 * ```
+	 */
+	async recreateWithPlugins(options: PluginRecreateOptions): Promise<void> {
+		await this.page.evaluate(async (opts) => {
+			const container = document.getElementById('editor-container');
+			const existing = container?.querySelector('notectl-editor');
+			if (existing) {
+				(existing as unknown as El).destroy();
+				existing.remove();
+			}
+			if (!container) return;
+
+			const W = window as unknown as Record<string, new (cfg?: unknown) => unknown>;
+			const toolbarGroups: unknown[][] = (opts.toolbar ?? []).map(
+				(group: { name: string; config?: unknown }[]) =>
+					group.map((desc) => {
+						const Ctor = W[desc.name];
+						if (!Ctor) throw new Error(`Plugin "${desc.name}" not found on window`);
+						return new Ctor(desc.config);
+					}),
+			);
+
+			const el = document.createElement('notectl-editor') as unknown as El;
+			await el.init({
+				toolbar: toolbarGroups,
+				autofocus: opts.autofocus ?? true,
+			});
+			container.appendChild(el);
+		}, options);
+		await this.content.waitFor();
 	}
 
 	/** Destroys the current editor and creates a fresh one with the given config. */

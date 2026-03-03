@@ -11,13 +11,17 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
+import { CODE_BLOCK_LOCALE_EN, type CodeBlockLocale } from './CodeBlockLocale.js';
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
 
 const COPY_ICON =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
 
 /** Creates a NodeViewFactory for code_block nodes. */
-export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeViewFactory {
+export function createCodeBlockNodeViewFactory(
+	config: CodeBlockConfig,
+	locale: CodeBlockLocale = CODE_BLOCK_LOCALE_EN,
+): NodeViewFactory {
 	return (
 		node: BlockNode,
 		getState: () => EditorState,
@@ -45,7 +49,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		if (showCopy) {
 			copyBtn = document.createElement('button');
 			copyBtn.className = 'notectl-code-block__copy';
-			copyBtn.setAttribute('aria-label', 'Copy code');
+			copyBtn.setAttribute('aria-label', locale.copyCodeAria);
 			copyBtn.setAttribute('data-notectl-no-print', '');
 			copyBtn.type = 'button';
 			copyBtn.innerHTML = COPY_ICON;
@@ -73,7 +77,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 		escHint.setAttribute('contenteditable', 'false');
 		escHint.setAttribute('aria-hidden', 'true');
 		escHint.setAttribute('data-notectl-no-print', '');
-		escHint.textContent = 'Esc to exit';
+		escHint.textContent = locale.escToExit;
 
 		pre.appendChild(header);
 		pre.appendChild(code);
@@ -101,7 +105,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 			const lang: string = (n.attrs?.language as string) ?? '';
 			const langName: string = lang || 'plain';
 			langLabel.textContent = langName;
-			pre.setAttribute('aria-label', `${langName} code block. Press Escape to exit.`);
+			pre.setAttribute('aria-label', locale.codeBlockAriaLabel(langName));
 
 			if (lang) {
 				code.setAttribute('data-language', lang);
@@ -130,7 +134,7 @@ export function createCodeBlockNodeViewFactory(config: CodeBlockConfig): NodeVie
 				navigator.clipboard.writeText(text);
 
 				// Announce to screen readers
-				copyAnnouncer.textContent = 'Copied to clipboard';
+				copyAnnouncer.textContent = locale.copiedToClipboard;
 				setTimeout(() => {
 					copyAnnouncer.textContent = '';
 				}, 1000);

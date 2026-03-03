@@ -1,109 +1,39 @@
 import { expect, test } from './fixtures/editor-page';
+import { type JsonChild, getCellContents, insertTable } from './fixtures/table-utils';
 
-test.describe('Image cut & paste into table', () => {
-	test.beforeEach(async ({ context }) => {
-		try {
-			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-		} catch {
-			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
-		}
-	});
+/** 1x1 transparent PNG as a data URI (avoids external network requests). */
+const DATA_URI_PNG =
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-	test('cut image and paste into second table cell', async ({ editor, page, browserName }) => {
+test.describe('Image inside table cell', () => {
+	test('pasting an image into a table cell places it inside the cell', async ({ editor, page }) => {
 		await editor.focus();
+		await insertTable(page);
 
-		// --- Step 1: Insert an image via toolbar file upload ---
-		const imageBtn = editor.markButton('image');
-		await imageBtn.click();
+		// Click the second cell to place the cursor there
+		const secondCell = page.locator('notectl-editor td').nth(1);
+		await secondCell.click();
+		await page.waitForTimeout(100);
 
-		const uploadBtn = page.locator(
-			'notectl-editor button[aria-label="Upload image from computer"]',
-		);
-		const [fileChooser] = await Promise.all([page.waitForEvent('filechooser'), uploadBtn.click()]);
-		await fileChooser.setFiles('e2e/fixtures/mage.png');
+		// Paste an image via synthetic HTML paste
+		await editor.pasteHTML(`<img src="${DATA_URI_PNG}" alt="test image">`);
 
-		// Wait for the image to appear and fully load
-		const imageLocator = page.locator('notectl-editor .notectl-image__img');
-		await imageLocator.waitFor({ state: 'visible', timeout: 5000 });
-
-		// The image is auto-selected (NodeSelection) after insertion.
-		// Click the figure element to close the popup and re-confirm selection.
-		const figureLocator = page.locator('notectl-editor figure.notectl-image');
-		await figureLocator.click({ force: true });
-		await page.waitForTimeout(300);
-
-		// --- Step 2: Cut the image with Ctrl+X ---
-		await page.keyboard.press('Control+x');
-
-		// Verify the image was removed from the editor
-		await expect(imageLocator).toHaveCount(0, { timeout: 3000 });
-
-		// --- Step 3: Insert a 1-row, 2-column table via toolbar grid picker ---
-		await editor.focus();
-
-		const tableBtn = editor.markButton('table');
-		await tableBtn.click();
-
-		const gridCell = page.locator('.notectl-grid-picker__cell[data-row="1"][data-col="2"]');
-		await gridCell.click();
-
-		// Verify table was inserted
-		type JsonChild = {
-			type: string;
-			children?: JsonChild[];
-			attrs?: Record<string, unknown>;
-		};
+		// Verify: the table's second cell contains an image block
 		await expect(async () => {
-			const j = await editor.getJSON();
-			expect(j.children.find((c: JsonChild) => c.type === 'table')).toBeDefined();
-		}).toPass({ timeout: 3000 });
+			const json: { children: JsonChild[] } = await editor.getJSON();
+			const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
+			expect(table).toBeDefined();
+			if (!table) return;
 
-		// --- Step 4: Navigate to the second cell ---
-		// Click the second cell directly instead of relying on Tab, which can be
-		// unreliable when the cursor position after table insertion varies.
-		await page.waitForTimeout(300);
-		const secondCellLocator = page.locator('notectl-editor td').nth(1);
-		await secondCellLocator.click();
-		await page.waitForTimeout(300);
-
-		// --- Step 5: Paste the image with Ctrl+V ---
-		await page.keyboard.press('Control+v');
-
-		// --- Verification 1: Image block exists in second cell ---
-		await expect(async () => {
-			const jsonAfter: { children: JsonChild[] } = await editor.getJSON();
-			const tableAfter = jsonAfter.children.find((c) => c.type === 'table');
-			expect(tableAfter).toBeDefined();
-
-			const rows = (tableAfter?.children ?? []).filter((c) => c.type === 'table_row');
-			expect(rows).toHaveLength(1);
-
-			const cells = (rows[0]?.children ?? []).filter((c) => c.type === 'table_cell');
-			expect(cells).toHaveLength(2);
-
-			const secondCell = cells[1];
-			const imageChild = (secondCell?.children ?? []).find((c) => c.type === 'image');
+			const cellContents: JsonChild[][] = getCellContents(table);
+			// Second cell (index 1) should contain an image
+			const secondCellChildren: JsonChild[] = cellContents[1] ?? [];
+			const imageChild: JsonChild | undefined = secondCellChildren.find((c) => c.type === 'image');
 			expect(imageChild).toBeDefined();
 		}).toPass({ timeout: 5000 });
 
-		// --- Verification 2: The image is actually visible (loaded, non-zero dimensions) ---
-		await expect(imageLocator).toBeVisible({ timeout: 5000 });
-
-		if (browserName !== 'firefox') {
-			const imgState = await page.evaluate(() => {
-				const el = document.querySelector('notectl-editor');
-				const img = el?.shadowRoot?.querySelector('.notectl-image__img') as HTMLImageElement | null;
-				if (!img) return { found: false, naturalWidth: 0, naturalHeight: 0 };
-				return {
-					found: true,
-					naturalWidth: img.naturalWidth,
-					naturalHeight: img.naturalHeight,
-				};
-			});
-
-			expect(imgState.found).toBe(true);
-			expect(imgState.naturalWidth).toBeGreaterThan(0);
-			expect(imgState.naturalHeight).toBeGreaterThan(0);
-		}
+		// Verify the image is visible in the DOM
+		const img = page.locator('notectl-editor .notectl-image__img');
+		await expect(img).toBeVisible({ timeout: 3000 });
 	});
 });

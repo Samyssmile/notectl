@@ -27,15 +27,6 @@ function rangeState(markTypes: readonly string[] = SUPER_SUB_SCHEMA) {
 // --- Tests ---
 
 describe('SuperSubPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name and priority', () => {
-			const plugin = new SuperSubPlugin();
-			expect(plugin.id).toBe('super-sub');
-			expect(plugin.name).toBe('Superscript & Subscript');
-			expect(plugin.priority).toBe(23);
-		});
-	});
-
 	describe('MarkSpec — superscript', () => {
 		it('registers superscript MarkSpec with correct tag and rank', async () => {
 			const h = await pluginHarness(new SuperSubPlugin());

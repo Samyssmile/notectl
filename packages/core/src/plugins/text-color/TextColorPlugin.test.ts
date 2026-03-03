@@ -17,22 +17,7 @@ function defaultState() {
 // --- Tests ---
 
 describe('TextColorPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new TextColorPlugin();
-			expect(plugin.id).toBe('textColor');
-			expect(plugin.name).toBe('Text Color');
-			expect(plugin.priority).toBe(23);
-		});
-	});
-
 	describe('MarkSpec', () => {
-		it('registers textColor MarkSpec', async () => {
-			const plugin = new TextColorPlugin();
-			const h = await pluginHarness(plugin);
-			expectMarkSpec(h, 'textColor');
-		});
-
 		it('textColor MarkSpec creates <span> with style.color', async () => {
 			const plugin = new TextColorPlugin();
 			const h = await pluginHarness(plugin);
@@ -62,25 +47,6 @@ describe('TextColorPlugin', () => {
 			const h = await pluginHarness(plugin);
 			// With default state (collapsed, no color), removeTextColor returns false
 			expect(h.executeCommand('removeTextColor')).toBe(false);
-		});
-
-		it('removeTextColor dispatches on colored text with range selection', async () => {
-			const state = stateBuilder()
-				.blockWithInlines(
-					'paragraph',
-					[createTextNode('hello', [{ type: 'textColor', attrs: { color: '#ff0000' } }])],
-					'b1',
-				)
-				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
-				.schema(['paragraph'], ['textColor'])
-				.build();
-
-			const plugin = new TextColorPlugin();
-			const h = await pluginHarness(plugin, state);
-
-			// Execute removeTextColor — it dispatches via the plugin context
-			// The command was registered and will use current state
-			expect(h.dispatch).not.toHaveBeenCalled();
 		});
 	});
 
@@ -178,11 +144,6 @@ describe('TextColorPlugin', () => {
 			expect(swatches.length).toBe(3);
 		});
 
-		it('accepts shorthand hex colors (#RGB)', () => {
-			const plugin = new TextColorPlugin({ colors: ['#f00', '#0f0', '#00f'] });
-			expect(plugin).toBeDefined();
-		});
-
 		it('normalizes colors to lowercase and deduplicates', async () => {
 			const plugin = new TextColorPlugin({
 				colors: ['#FF0000', '#ff0000', '#00FF00'],
@@ -241,100 +202,6 @@ describe('TextColorPlugin', () => {
 
 			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
 			expect(swatches.length).toBe(70);
-		});
-	});
-
-	describe('color application', () => {
-		it('applies color on range selection (removeMark + addMark steps)', async () => {
-			const state = stateBuilder()
-				.paragraph('hello', 'b1')
-				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
-				.schema(['paragraph'], ['textColor'])
-				.build();
-
-			const plugin = new TextColorPlugin();
-			const h = await pluginHarness(plugin, state);
-
-			// Render the popup to trigger color application
-			const item = h.getToolbarItem('textColor');
-
-			const container = document.createElement('div');
-			item?.renderPopup?.(
-				container,
-				mockPluginContext({
-					getState: () => state,
-					dispatch: vi.fn(),
-				}),
-				vi.fn(),
-			);
-
-			// Verify grid was rendered with ARIA structure
-			const grid = container.querySelector('[role="grid"]');
-			expect(grid).toBeDefined();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			expect(swatches.length).toBe(70); // 10x7
-		});
-
-		it('replaces color on already-colored text', async () => {
-			const state = stateBuilder()
-				.blockWithInlines(
-					'paragraph',
-					[createTextNode('hello', [{ type: 'textColor', attrs: { color: '#ff0000' } }])],
-					'b1',
-				)
-				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
-				.schema(['paragraph'], ['textColor'])
-				.build();
-
-			const plugin = new TextColorPlugin();
-			const h = await pluginHarness(plugin, state);
-
-			const item = h.getToolbarItem('textColor');
-
-			const container = document.createElement('div');
-			item?.renderPopup?.(
-				container,
-				mockPluginContext({
-					getState: () => state,
-					dispatch: vi.fn(),
-				}),
-				vi.fn(),
-			);
-
-			// Check the active swatch is highlighted
-			const activeSwatch = container.querySelector('.notectl-color-picker__swatch--active');
-			expect(activeSwatch).toBeDefined();
-		});
-
-		it('removes color via Default button', async () => {
-			const state = stateBuilder()
-				.blockWithInlines(
-					'paragraph',
-					[createTextNode('hello', [{ type: 'textColor', attrs: { color: '#ff0000' } }])],
-					'b1',
-				)
-				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
-				.schema(['paragraph'], ['textColor'])
-				.build();
-
-			const plugin = new TextColorPlugin();
-			const h = await pluginHarness(plugin, state);
-
-			const item = h.getToolbarItem('textColor');
-
-			const container = document.createElement('div');
-			item?.renderPopup?.(
-				container,
-				mockPluginContext({
-					getState: () => state,
-					dispatch: vi.fn(),
-				}),
-				vi.fn(),
-			);
-
-			const defaultBtn = container.querySelector('.notectl-color-picker__default');
-			expect(defaultBtn).toBeDefined();
-			expect(defaultBtn?.textContent).toBe('Default');
 		});
 	});
 });

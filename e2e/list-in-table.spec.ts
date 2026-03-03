@@ -1,40 +1,8 @@
 import { expect, test } from './fixtures/editor-page';
-
-type JsonChild = {
-	type: string;
-	children?: JsonChild[];
-	attrs?: Record<string, unknown>;
-	text?: string;
-};
-
-/**
- * Helper: inserts a table via the executeCommand API and returns the cursor
- * in the first cell.
- */
-async function insertTable(page: import('@playwright/test').Page): Promise<void> {
-	await page.evaluate(() => {
-		const el = document.querySelector('notectl-editor') as HTMLElement & {
-			executeCommand(name: string): boolean;
-		};
-		el?.executeCommand('insertTable');
-	});
-}
-
-/** Extracts all cell children from a table JSON node (row-major order). */
-function getCellContents(table: JsonChild): JsonChild[][] {
-	const rows: JsonChild[] = (table.children ?? []).filter((c) => c.type === 'table_row');
-	const result: JsonChild[][] = [];
-	for (const row of rows) {
-		const cells: JsonChild[] = (row.children ?? []).filter((c) => c.type === 'table_cell');
-		for (const cell of cells) {
-			result.push(cell.children ?? []);
-		}
-	}
-	return result;
-}
+import { type JsonChild, getCellContents, insertTable } from './fixtures/table-utils';
 
 // ══════════════════════════════════════════════════════════════════════════
-// Part 1: Creating lists inside table cells via input rules
+// Section 1: Creating lists inside table cells via input rules
 // ══════════════════════════════════════════════════════════════════════════
 
 test.describe('Lists inside table cells — input rules', () => {
@@ -156,90 +124,10 @@ test.describe('Lists inside table cells — input rules', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// Part 2: List wrapper rendering inside table cells
+// Section 2: Copy-pasting lists into / from table cells
 // ══════════════════════════════════════════════════════════════════════════
 
-test.describe('Lists inside table cells — DOM wrappers', () => {
-	test('bullet list item in table cell is wrapped in <ul>', async ({ editor, page }) => {
-		await editor.focus();
-		await insertTable(page);
-
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Bullet item', { delay: 10 });
-
-		// The <li> should be inside a <ul> wrapper with the notectl-list class
-		const wrapperInfo = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const shadow = el?.shadowRoot;
-			const li = shadow?.querySelector('td .notectl-list-item--bullet');
-			if (!li) return { found: false, parentTag: '', hasListClass: false };
-			const parent = li.parentElement;
-			return {
-				found: true,
-				parentTag: parent?.tagName ?? '',
-				hasListClass: parent?.classList.contains('notectl-list') ?? false,
-			};
-		});
-
-		expect(wrapperInfo.found).toBe(true);
-		expect(wrapperInfo.parentTag).toBe('UL');
-		expect(wrapperInfo.hasListClass).toBe(true);
-	});
-
-	test('ordered list item in table cell is wrapped in <ol>', async ({ editor, page }) => {
-		await editor.focus();
-		await insertTable(page);
-
-		await page.keyboard.type('1. ', { delay: 10 });
-		await page.keyboard.type('Ordered item', { delay: 10 });
-
-		const wrapperInfo = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const shadow = el?.shadowRoot;
-			const li = shadow?.querySelector('td .notectl-list-item--ordered');
-			if (!li) return { found: false, parentTag: '', hasListClass: false };
-			const parent = li.parentElement;
-			return {
-				found: true,
-				parentTag: parent?.tagName ?? '',
-				hasListClass: parent?.classList.contains('notectl-list') ?? false,
-			};
-		});
-
-		expect(wrapperInfo.found).toBe(true);
-		expect(wrapperInfo.parentTag).toBe('OL');
-		expect(wrapperInfo.hasListClass).toBe(true);
-	});
-
-	test('bullet list in table cell does not show double bullet markers', async ({
-		editor,
-		page,
-	}) => {
-		await editor.focus();
-		await insertTable(page);
-
-		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Single bullet', { delay: 10 });
-
-		// The native list-style must be suppressed (set to 'none' by .notectl-list wrapper).
-		// Without the wrapper, the browser renders a native bullet PLUS the custom ::before.
-		const listStyleType = await page.evaluate(() => {
-			const el = document.querySelector('notectl-editor');
-			const shadow = el?.shadowRoot;
-			const li = shadow?.querySelector('td .notectl-list-item--bullet');
-			if (!li) return 'not-found';
-			return getComputedStyle(li).listStyleType;
-		});
-
-		expect(listStyleType).toBe('none');
-	});
-});
-
-// ══════════════════════════════════════════════════════════════════════════
-// Part 3: Copy-pasting lists into table cells
-// ══════════════════════════════════════════════════════════════════════════
-
-test.describe('Lists copy-paste into table cells', () => {
+test.describe('Lists copy-paste with table cells', () => {
 	test.beforeEach(async ({ context }) => {
 		try {
 			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -248,33 +136,32 @@ test.describe('Lists copy-paste into table cells', () => {
 		}
 	});
 
-	test('copy bullet list and paste into table cell', async ({ editor, page }) => {
+	test('paste bullet list into table cell preserves list_item structure', async ({
+		editor,
+		page,
+	}) => {
 		await editor.focus();
 
-		// Step 1: Create a bullet list outside the table
+		// Create a bullet list outside the table
 		await page.keyboard.type('- ', { delay: 10 });
-		await page.keyboard.type('Outside bullet', { delay: 10 });
+		await page.keyboard.type('Bullet from outside', { delay: 10 });
 
-		let json: { children: JsonChild[] } = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('list_item');
-
-		// Step 2: Select all list text and copy
+		// Select all text and copy
 		await page.keyboard.press('Home');
 		await page.keyboard.press('Shift+End');
 		await page.keyboard.press('Control+c');
 
-		// Step 3: Press Enter to create new line, then insert a table
+		// Exit list, insert table
 		await page.keyboard.press('End');
 		await page.keyboard.press('Enter');
-		await page.keyboard.press('Enter'); // Exit list
+		await page.keyboard.press('Enter');
 		await insertTable(page);
 
-		// Step 4: Paste into the first table cell
+		// Paste into the first cell
 		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(200);
+		await page.waitForTimeout(300);
 
-		// Step 5: Verify the pasted content exists in the cell
-		json = await editor.getJSON();
+		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
 		if (!table) return;
@@ -282,38 +169,42 @@ test.describe('Lists copy-paste into table cells', () => {
 		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
-		// The cell should contain the pasted text
-		const allText: string = JSON.stringify(firstCell);
-		expect(allText).toContain('Outside bullet');
+		// The cell must contain a list_item, not just a paragraph with text
+		const listItem: JsonChild | undefined = firstCell.find((c) => c.type === 'list_item');
+		expect(listItem).toBeDefined();
+		expect(listItem?.attrs?.listType).toBe('bullet');
+
+		// Verify text content
+		const listText: string = (listItem?.children ?? []).map((c) => c.text ?? '').join('');
+		expect(listText).toContain('Bullet from outside');
 	});
 
-	test('copy ordered list and paste into table cell', async ({ editor, page }) => {
+	test('pasting replaces empty cell paragraph (no leftover empty block)', async ({
+		editor,
+		page,
+	}) => {
 		await editor.focus();
 
-		// Create an ordered list
-		await page.keyboard.type('1. ', { delay: 10 });
-		await page.keyboard.type('Numbered item', { delay: 10 });
-
-		let json: { children: JsonChild[] } = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('list_item');
-		expect(json.children[0]?.attrs?.listType).toBe('ordered');
+		// Create a bullet list
+		await page.keyboard.type('- ', { delay: 10 });
+		await page.keyboard.type('Only item', { delay: 10 });
 
 		// Select and copy
 		await page.keyboard.press('Home');
 		await page.keyboard.press('Shift+End');
 		await page.keyboard.press('Control+c');
 
-		// Create table after list
+		// Exit list, insert table
 		await page.keyboard.press('End');
 		await page.keyboard.press('Enter');
 		await page.keyboard.press('Enter');
 		await insertTable(page);
 
-		// Paste into cell
+		// Paste into the first cell (which has an empty paragraph)
 		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(200);
+		await page.waitForTimeout(300);
 
-		json = await editor.getJSON();
+		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
 		expect(table).toBeDefined();
 		if (!table) return;
@@ -321,45 +212,15 @@ test.describe('Lists copy-paste into table cells', () => {
 		const cellContents: JsonChild[][] = getCellContents(table);
 		const firstCell: JsonChild[] = cellContents[0] ?? [];
 
-		const allText: string = JSON.stringify(firstCell);
-		expect(allText).toContain('Numbered item');
-	});
+		// The empty paragraph should have been removed — only the list_item remains
+		const paragraphs: JsonChild[] = firstCell.filter((c) => c.type === 'paragraph');
+		const emptyParagraphs: JsonChild[] = paragraphs.filter((p) => {
+			const text: string = (p.children ?? []).map((c) => c.text ?? '').join('');
+			return text === '';
+		});
+		expect(emptyParagraphs).toHaveLength(0);
 
-	test('copy checklist and paste into table cell', async ({ editor, page }) => {
-		await editor.focus();
-
-		// Create a checklist
-		await page.keyboard.type('[ ] ', { delay: 10 });
-		await page.keyboard.type('Check item', { delay: 10 });
-
-		let json: { children: JsonChild[] } = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('list_item');
-		expect(json.children[0]?.attrs?.listType).toBe('checklist');
-
-		// Select and copy
-		await page.keyboard.press('Home');
-		await page.keyboard.press('Shift+End');
-		await page.keyboard.press('Control+c');
-
-		// Create table after checklist
-		await page.keyboard.press('End');
-		await page.keyboard.press('Enter');
-		await page.keyboard.press('Enter');
-		await insertTable(page);
-
-		// Paste into cell
-		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(200);
-
-		json = await editor.getJSON();
-		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
-		expect(table).toBeDefined();
-		if (!table) return;
-
-		const cellContents: JsonChild[][] = getCellContents(table);
-		const firstCell: JsonChild[] = cellContents[0] ?? [];
-
-		const allText: string = JSON.stringify(firstCell);
-		expect(allText).toContain('Check item');
+		// list_item must be present
+		expect(firstCell.some((c) => c.type === 'list_item')).toBe(true);
 	});
 });

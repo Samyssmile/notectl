@@ -8,7 +8,7 @@ The `SuperSubPlugin` adds superscript and subscript text support with toggle com
 ## Usage
 
 ```ts
-import { SuperSubPlugin } from '@notectl/core';
+import { SuperSubPlugin } from '@notectl/core/plugins/super-sub';
 
 new SuperSubPlugin()
 // or enable only one:

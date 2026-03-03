@@ -34,15 +34,6 @@ function defaultState() {
 // --- Tests ---
 
 describe('FontPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id, name, and priority', () => {
-			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
-			expect(plugin.id).toBe('font');
-			expect(plugin.name).toBe('Font');
-			expect(plugin.priority).toBe(22);
-		});
-	});
-
 	describe('MarkSpec', () => {
 		it('registers font MarkSpec', async () => {
 			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));

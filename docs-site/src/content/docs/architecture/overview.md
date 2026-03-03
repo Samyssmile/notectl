@@ -94,6 +94,15 @@ The public API layer:
 - **`NotectlEditor`** — Web Component (`<notectl-editor>`)
 - **`createEditor()`** — Factory function
 
+Internally decomposed into focused controllers:
+
+- **`EditorLifecycleCoordinator`** — Init/destroy state machine and readiness tracking
+- **`EditorConfigController`** — Runtime config and observed attribute management
+- **`EditorEventEmitter`** — Typed event emitter (`stateChange`, `focus`, `blur`, etc.)
+- **`EditorStyleCoordinator`** — Shadow DOM stylesheet management
+- **`PluginBootstrapper`** — Auto-registration of essential plugins and toolbar processing
+- **`ContentSerializer`** — Pure content serialization (JSON, HTML, plain text)
+
 ## Key Design Principles
 
 ### DOM Isolation

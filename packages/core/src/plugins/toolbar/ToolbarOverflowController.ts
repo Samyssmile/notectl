@@ -9,10 +9,10 @@ import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
+import { findNextDropdownItem } from '../shared/KeyboardNav.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { appendToRoot } from '../shared/PopupPositioning.js';
 import type { ToolbarItem } from './ToolbarItem.js';
-import { findNextDropdownItem } from './ToolbarKeyboardNav.js';
 
 // --- Types ---
 

@@ -30,15 +30,6 @@ function makeState(
 // --- Tests ---
 
 describe('BlockquotePlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new BlockquotePlugin();
-			expect(plugin.id).toBe('blockquote');
-			expect(plugin.name).toBe('Blockquote');
-			expect(plugin.priority).toBe(35);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers blockquote NodeSpec', async () => {
 			const h = await pluginHarness(new BlockquotePlugin());

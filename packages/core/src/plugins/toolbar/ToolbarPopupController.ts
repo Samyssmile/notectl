@@ -6,9 +6,10 @@
 
 import { isRtlContext } from '../../platform/Platform.js';
 import type { PluginContext } from '../Plugin.js';
+import { findNextDropdownItem, navigateGrid } from '../shared/KeyboardNav.js';
 import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
-import { findNextDropdownItem, navigateGrid } from './ToolbarKeyboardNav.js';
+import { TOOLBAR_LOCALE_EN, type ToolbarLocale } from './ToolbarLocale.js';
 import { highlightCells, renderDropdown, renderGridPicker } from './ToolbarRenderers.js';
 
 export class ToolbarPopupController {
@@ -16,10 +17,12 @@ export class ToolbarPopupController {
 	private activePopupButton: HTMLButtonElement | null = null;
 	private activeHandle: PopupHandle | null = null;
 	private readonly getActiveElement: () => Element | null;
+	private readonly locale: ToolbarLocale;
 	private popupManager: PopupManager | null = null;
 
-	constructor(getActiveElement: () => Element | null) {
+	constructor(getActiveElement: () => Element | null, locale: ToolbarLocale = TOOLBAR_LOCALE_EN) {
 		this.getActiveElement = getActiveElement;
+		this.locale = locale;
 	}
 
 	/** Injects the PopupManager instance (called after service registration). */
@@ -119,7 +122,7 @@ export class ToolbarPopupController {
 
 		switch (item.popupType) {
 			case 'gridPicker':
-				renderGridPicker(popup, item.popupConfig, closeAndFocusEditor);
+				renderGridPicker(popup, item.popupConfig, closeAndFocusEditor, this.locale);
 				break;
 			case 'dropdown':
 				renderDropdown(
@@ -239,7 +242,7 @@ export class ToolbarPopupController {
 			highlightCells(grid as HTMLElement, newRow, newCol);
 			const label: Element | null =
 				this.activePopup?.querySelector('.notectl-grid-picker__label') ?? null;
-			if (label) label.textContent = `${newRow} x ${newCol}`;
+			if (label) label.textContent = this.locale.gridPickerLabel(newRow, newCol);
 		}
 
 		if (e.key === 'Enter' || e.key === ' ') {

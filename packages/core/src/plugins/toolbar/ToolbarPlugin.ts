@@ -12,10 +12,10 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
+import { applyRovingTabindex } from '../shared/KeyboardNav.js';
 import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import {
-	applyRovingTabindex,
 	findFirstEnabled,
 	findLastEnabled,
 	findNextEnabled,
@@ -95,7 +95,7 @@ export class ToolbarPlugin implements Plugin {
 		this.popupManager = new PopupManager(context.getContainer());
 		context.registerService(PopupServiceKey, this.popupManager);
 
-		this.popupController = new ToolbarPopupController(() => this.getActiveElement());
+		this.popupController = new ToolbarPopupController(() => this.getActiveElement(), this.locale);
 		this.popupController.setPopupManager(this.popupManager);
 		this.tooltip = new ToolbarTooltip(() => this.popupController?.isOpen() ?? false);
 

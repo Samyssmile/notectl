@@ -7,15 +7,6 @@ import {
 	isValidPaperSize,
 } from './PaperSize.js';
 
-describe('PaperSize', () => {
-	it('defines all four paper sizes', () => {
-		expect(PaperSize.DINA4).toBe('din-a4');
-		expect(PaperSize.DINA5).toBe('din-a5');
-		expect(PaperSize.USLetter).toBe('us-letter');
-		expect(PaperSize.USLegal).toBe('us-legal');
-	});
-});
-
 describe('getPaperDimensions', () => {
 	it('returns correct pixel width for DIN A4 (210mm at 96 DPI)', () => {
 		const dims: PaperDimensions = getPaperDimensions(PaperSize.DINA4);

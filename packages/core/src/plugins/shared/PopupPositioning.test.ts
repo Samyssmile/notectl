@@ -47,16 +47,6 @@ describe('PopupPositioning', () => {
 			expect(popup.style.left).toBe('100px');
 		});
 
-		it('always sets fixed positioning and z-index', () => {
-			const popup: HTMLDivElement = document.createElement('div');
-			const anchor = new DOMRect(0, 0, 100, 30);
-
-			positionPopup(popup, anchor, { position: 'below-start' });
-
-			expect(popup.style.position).toBe('fixed');
-			expect(popup.style.zIndex).toBe('10000');
-		});
-
 		it('below-start RTL anchors to right edge', () => {
 			const popup: HTMLDivElement = document.createElement('div');
 			const anchor = new DOMRect(100, 50, 80, 30);

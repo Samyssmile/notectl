@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import terser from '@rollup/plugin-terser';
 import type { Plugin as VitePlugin } from 'vite';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
@@ -8,6 +7,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/text-formatting': resolve(__dirname, 'src/plugins/text-formatting/index.ts'),
 	'plugins/heading': resolve(__dirname, 'src/plugins/heading/index.ts'),
 	'plugins/toolbar': resolve(__dirname, 'src/plugins/toolbar/index.ts'),
+	'plugins/shared': resolve(__dirname, 'src/plugins/shared/index.ts'),
 	'plugins/table': resolve(__dirname, 'src/plugins/table/index.ts'),
 	'plugins/image': resolve(__dirname, 'src/plugins/image/index.ts'),
 	'plugins/code-block': resolve(__dirname, 'src/plugins/code-block/index.ts'),
@@ -26,6 +26,11 @@ const pluginEntries: Record<string, string> = {
 	'plugins/gap-cursor': resolve(__dirname, 'src/plugins/gap-cursor/index.ts'),
 	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
 	'plugins/print': resolve(__dirname, 'src/plugins/print/index.ts'),
+	'plugins/text-direction': resolve(__dirname, 'src/plugins/text-direction/index.ts'),
+	'plugins/text-direction-advanced': resolve(
+		__dirname,
+		'src/plugins/text-direction-advanced/index.ts',
+	),
 };
 
 const analyzePlugins: VitePlugin[] = [];
@@ -66,14 +71,12 @@ export default defineConfig({
 				entryFileNames: '[name].mjs',
 				chunkFileNames: 'chunks/[name]-[hash].mjs',
 			},
-			plugins: [
-				terser({
-					compress: { passes: 2 },
-				}),
-			],
 		},
 		sourcemap: true,
-		minify: false,
+		minify: 'terser',
+		terserOptions: {
+			compress: { passes: 2 },
+		},
 	},
 	test: {
 		environment: 'happy-dom',

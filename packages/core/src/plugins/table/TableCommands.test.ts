@@ -18,6 +18,7 @@ import {
 	createDeleteTableTransaction,
 	deleteTable,
 } from './TableCommands.js';
+import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { TABLE_SCHEMA, createTableState, createTestTableNode } from './TableTestUtils.js';
 
 // --- Test-specific Helpers ---
@@ -322,7 +323,7 @@ describe('deleteTable', () => {
 		const state = createTableState({ rows: 2, cols: 2 });
 		const { context, getState } = createMockContext(state);
 
-		expect(deleteTable(context)).toBe(true);
+		expect(deleteTable(context, TABLE_LOCALE_EN)).toBe(true);
 		expect(getState().getBlock('t1' as BlockId)).toBeUndefined();
 	});
 
@@ -349,7 +350,7 @@ describe('deleteTable', () => {
 			announce: () => {},
 		} as unknown as PluginContext;
 
-		expect(deleteTable(context)).toBe(true);
+		expect(deleteTable(context, TABLE_LOCALE_EN)).toBe(true);
 		expect(currentState.doc.children.map((node) => node.id)).toEqual(['before']);
 	});
 });

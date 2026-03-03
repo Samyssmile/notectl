@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mockPluginContext, stateBuilder } from '../../test/TestUtils.js';
+import { FONT_SIZE_LOCALE_EN } from './FontSizeLocale.js';
 import type { FontSizePopupConfig } from './FontSizePopup.js';
 import { renderFontSizePopup } from './FontSizePopup.js';
 
@@ -13,6 +14,7 @@ function makeConfig(overrides?: Partial<FontSizePopupConfig>): FontSizePopupConf
 		defaultSize: 16,
 		onClose: vi.fn(),
 		contentElement: document.createElement('div'),
+		locale: FONT_SIZE_LOCALE_EN,
 		...overrides,
 	};
 }

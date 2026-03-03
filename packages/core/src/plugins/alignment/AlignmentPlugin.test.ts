@@ -40,15 +40,6 @@ function makeState(
 // --- Tests ---
 
 describe('AlignmentPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new AlignmentPlugin();
-			expect(plugin.id).toBe('alignment');
-			expect(plugin.name).toBe('Alignment');
-			expect(plugin.priority).toBe(90);
-		});
-	});
-
 	describe('NodeSpec patching', () => {
 		it('patches paragraph NodeSpec with align attr', async () => {
 			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);

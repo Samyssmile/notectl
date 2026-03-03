@@ -18,7 +18,7 @@ import type { PrintPluginConfig } from '../plugins/print/PrintTypes.js';
 import type { StrikethroughConfig } from '../plugins/strikethrough/StrikethroughPlugin.js';
 import type { SuperSubConfig } from '../plugins/super-sub/SuperSubPlugin.js';
 import type { TextColorConfig } from '../plugins/text-color/TextColorPlugin.js';
-import type { TextDirectionConfig } from '../plugins/text-direction/TextDirectionPlugin.js';
+import type { TextDirectionConfig } from '../plugins/text-direction/TextDirectionCorePlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 
 /**

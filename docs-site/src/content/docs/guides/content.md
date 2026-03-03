@@ -45,14 +45,14 @@ Returns a `Document` object:
 Sanitized HTML output suitable for rendering or storage:
 
 ```ts
-const html = editor.getContentHTML();
+const html = await editor.getContentHTML();
 // "<h1>Hello <strong>World</strong></h1><p>Some text here.</p>"
 ```
 
 For indented, human-readable output pass the `pretty` option:
 
 ```ts
-const pretty = editor.getContentHTML({ pretty: true });
+const pretty = await editor.getContentHTML({ pretty: true });
 ```
 
 The HTML is sanitized with DOMPurify. The allowed tags and attributes are **schema-driven** — each plugin declares which HTML elements it produces. With a full preset, the allowed set includes:
@@ -67,7 +67,7 @@ If you use a subset of plugins, only the tags relevant to those plugins are allo
 For environments with strict Content Security Policy where inline `style` attributes are blocked, use the `cssMode: 'classes'` option. Instead of inline styles, dynamic marks and alignment are emitted as CSS class names:
 
 ```ts
-const { html, css } = editor.getContentHTML({ cssMode: 'classes' });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 ```
 
 This returns a `ContentCSSResult` object with two fields:
@@ -97,7 +97,7 @@ Identical style combinations are deduplicated: if multiple text spans share the 
 The `pretty` option works with class mode:
 
 ```ts
-const { html, css } = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+const { html, css } = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
 ```
 
 See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for how to integrate the generated CSS into your page.
@@ -116,7 +116,7 @@ const text = editor.getText();
 ### From HTML
 
 ```ts
-editor.setContentHTML('<h1>Welcome</h1><p>Start editing...</p>');
+await editor.setContentHTML('<h1>Welcome</h1><p>Start editing...</p>');
 ```
 
 The HTML is parsed into the document model. Supported elements depend on registered plugins. With a full preset:
@@ -178,9 +178,9 @@ The editor is considered empty when it contains a single empty paragraph.
 ## Listening for Changes
 
 ```ts
-editor.on('stateChange', ({ oldState, newState, transaction }) => {
+editor.on('stateChange', async ({ oldState, newState, transaction }) => {
   // Called on every state change
-  const html = editor.getContentHTML();
+  const html = await editor.getContentHTML();
   saveToBackend(html);
 });
 ```

@@ -8,7 +8,7 @@ The `CodeBlockPlugin` adds fenced code blocks with a non-editable header (langua
 ## Usage
 
 ```ts
-import { CodeBlockPlugin } from '@notectl/core';
+import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
 
 // Default (dark theme)
 new CodeBlockPlugin()
@@ -210,7 +210,7 @@ The code block button appears in the **block** toolbar group with the `</>` icon
 The plugin registers a typed service for programmatic access:
 
 ```ts
-import { CODE_BLOCK_SERVICE_KEY } from '@notectl/core';
+import { CODE_BLOCK_SERVICE_KEY } from '@notectl/core/plugins/code-block';
 
 const service = context.getService(CODE_BLOCK_SERVICE_KEY);
 

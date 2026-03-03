@@ -10,7 +10,7 @@ The `HorizontalRulePlugin` adds horizontal rule (divider) support with a toolbar
 ## Usage
 
 ```ts
-import { HorizontalRulePlugin } from '@notectl/core';
+import { HorizontalRulePlugin } from '@notectl/core/plugins/horizontal-rule';
 
 new HorizontalRulePlugin()
 ```

@@ -5,6 +5,10 @@ const locale: CodeBlockLocale = {
 	tooltip: (shortcut?: string) => (shortcut ? `Bloco de Código (${shortcut})` : 'Bloco de Código'),
 	enteredCodeBlock: 'Entrou no bloco de código. Pressione Escape para sair.',
 	leftCodeBlock: 'Saiu do bloco de código.',
+	copyCodeAria: 'Copiar código',
+	escToExit: 'Esc para sair',
+	codeBlockAriaLabel: (lang: string) => `Bloco de código ${lang}. Pressione Escape para sair.`,
+	copiedToClipboard: 'Copiado para a área de transferência',
 };
 
 export default locale;

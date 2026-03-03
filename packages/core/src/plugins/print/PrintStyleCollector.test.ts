@@ -223,12 +223,31 @@ describe('PrintStyleCollector', () => {
 			document.body.removeChild(host);
 		});
 
-		it('does not include typography snapshot without paperSize', () => {
+		it('includes typography snapshot without paperSize', () => {
 			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
 			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
 
 			const result: string = collectAll(shadow, host, {});
-			expect(result).not.toContain('body {');
+			expect(result).toContain('body {');
+			expect(result).toContain('margin: 0');
+
+			document.body.removeChild(host);
+		});
+
+		it('always includes typography snapshot regardless of options', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const host: HTMLElement = document.createElement('div');
+			host.style.fontFamily = 'Georgia, serif';
+			document.body.appendChild(host);
+
+			const withPaper: string = collectAll(shadow, host, { paperSize: PaperSize.DINA4 });
+			const withoutPaper: string = collectAll(shadow, host, {});
+
+			expect(withPaper).toContain('body {');
+			expect(withoutPaper).toContain('body {');
+
+			document.body.removeChild(host);
 		});
 	});
 });

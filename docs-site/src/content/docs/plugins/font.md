@@ -12,7 +12,7 @@ For a complete guide on using custom fonts, see [Custom Fonts](/notectl/guides/c
 ## Usage
 
 ```ts
-import { FontPlugin } from '@notectl/core';
+import { FontPlugin } from '@notectl/core/plugins/font';
 import { STARTER_FONTS } from '@notectl/core/fonts';
 
 new FontPlugin({
@@ -93,7 +93,7 @@ When the user selects the `defaultFont`, the font mark is **removed** rather tha
 ## Custom Font Example
 
 ```ts
-import { FontPlugin } from '@notectl/core';
+import { FontPlugin } from '@notectl/core/plugins/font';
 import { STARTER_FONTS } from '@notectl/core/fonts';
 import type { FontDefinition } from '@notectl/core';
 

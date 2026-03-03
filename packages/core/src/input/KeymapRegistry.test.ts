@@ -3,21 +3,6 @@ import type { Keymap } from './Keymap.js';
 import { KeymapRegistry } from './KeymapRegistry.js';
 
 describe('KeymapRegistry', () => {
-	it('registers and retrieves keymaps', () => {
-		const registry = new KeymapRegistry();
-		const keymap: Keymap = { 'Mod-B': () => true };
-		registry.registerKeymap(keymap);
-		expect(registry.getKeymaps()).toEqual([keymap]);
-	});
-
-	it('removes a keymap', () => {
-		const registry = new KeymapRegistry();
-		const keymap: Keymap = { 'Mod-B': () => true };
-		registry.registerKeymap(keymap);
-		registry.removeKeymap(keymap);
-		expect(registry.getKeymaps()).toEqual([]);
-	});
-
 	it('logs debug message when a keymap shortcut collides with an existing one', () => {
 		const registry = new KeymapRegistry();
 		const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});

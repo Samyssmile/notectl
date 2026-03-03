@@ -3,10 +3,13 @@
  * Pure function — returns a struct of freshly created elements.
  */
 
+import { EDITOR_LOCALE_EN, type EditorLocale } from './EditorLocale.js';
+
 export interface EditorDOMConfig {
 	readonly readonly?: boolean;
 	readonly placeholder?: string;
 	readonly dir?: 'ltr' | 'rtl';
+	readonly locale?: EditorLocale;
 }
 
 export interface EditorDOMElements {
@@ -19,6 +22,8 @@ export interface EditorDOMElements {
 
 /** Creates the editor DOM tree and returns references to all key elements. */
 export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
+	const locale: EditorLocale = config.locale ?? EDITOR_LOCALE_EN;
+
 	const wrapper: HTMLElement = document.createElement('div');
 	wrapper.className = 'notectl-editor';
 
@@ -31,12 +36,12 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 	content.contentEditable = config.readonly ? 'false' : 'true';
 	content.setAttribute('role', 'textbox');
 	content.setAttribute('aria-multiline', 'true');
-	content.setAttribute('aria-label', 'Rich text editor');
+	content.setAttribute('aria-label', locale.ariaLabel);
 	if (config.readonly) {
 		content.setAttribute('aria-readonly', 'true');
 	}
-	content.setAttribute('aria-description', 'Press Escape to exit the editor');
-	content.setAttribute('data-placeholder', config.placeholder ?? 'Start typing...');
+	content.setAttribute('aria-description', locale.ariaDescription);
+	content.setAttribute('data-placeholder', config.placeholder ?? locale.defaultPlaceholder);
 
 	if (config.dir) {
 		wrapper.setAttribute('dir', config.dir);

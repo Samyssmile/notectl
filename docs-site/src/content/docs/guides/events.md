@@ -112,6 +112,9 @@ editor.configure({ placeholder: 'New placeholder...' });
 // Toggle readonly mode
 editor.configure({ readonly: true });
 editor.configure({ readonly: false });
+
+// Change text direction
+editor.configure({ dir: 'rtl' });
 ```
 
 ### Plugin Configuration
@@ -153,6 +156,9 @@ The Web Component observes these HTML attributes:
 
 <!-- Paper size -->
 <notectl-editor paper-size="din-a4"></notectl-editor>
+
+<!-- Text direction -->
+<notectl-editor dir="rtl"></notectl-editor>
 ```
 
 Changes to these attributes are reflected immediately.

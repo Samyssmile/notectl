@@ -26,7 +26,7 @@ import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { getSelectedBlock } from '../shared/PluginHelpers.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { getBlockDir } from './DirectionDetection.js';
 import { ShiftDirectionHandler } from './ShiftDirectionHandler.js';
 import {

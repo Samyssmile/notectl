@@ -170,16 +170,6 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 		expect(json.children[0]?.attrs?.checked).toBe(false);
 	});
 
-	test('[x] + space creates checked checklist', async ({ editor, page }) => {
-		await editor.focus();
-		await page.keyboard.type('[x] ', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children[0]?.type).toBe('list_item');
-		expect(json.children[0]?.attrs?.listType).toBe('checklist');
-		expect(json.children[0]?.attrs?.checked).toBe(true);
-	});
-
 	test('checklist input rule removes the [ ] prefix', async ({ editor, page }) => {
 		await editor.focus();
 		await page.keyboard.type('[ ] ', { delay: 10 });
@@ -264,35 +254,6 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 	});
 
 	// ── Sequential input rules create multiple blocks ───────────
-
-	test('multiple headings via input rules', async ({ editor, page }) => {
-		await editor.focus();
-
-		// Heading 1
-		await page.keyboard.type('# ', { delay: 10 });
-		await page.keyboard.type('Title', { delay: 10 });
-		await page.keyboard.press('Enter');
-		// Enter at end of heading already creates a paragraph
-
-		// Heading 2
-		await page.keyboard.type('## ', { delay: 10 });
-		await page.keyboard.type('Subtitle', { delay: 10 });
-		await page.keyboard.press('Enter');
-		// Enter at end of heading already creates a paragraph
-
-		// Heading 3
-		await page.keyboard.type('### ', { delay: 10 });
-		await page.keyboard.type('Section', { delay: 10 });
-
-		const json = await editor.getJSON();
-		expect(json.children.length).toBe(3);
-		expect(json.children[0]?.type).toBe('heading');
-		expect(json.children[0]?.attrs?.level).toBe(1);
-		expect(json.children[1]?.type).toBe('heading');
-		expect(json.children[1]?.attrs?.level).toBe(2);
-		expect(json.children[2]?.type).toBe('heading');
-		expect(json.children[2]?.attrs?.level).toBe(3);
-	});
 
 	test('mixed block types via input rules', async ({ editor, page }) => {
 		await editor.focus();

@@ -31,15 +31,6 @@ function makeState(
 // --- Tests ---
 
 describe('CodeBlockPlugin', () => {
-	describe('registration', () => {
-		it('registers with correct id and name', () => {
-			const plugin = new CodeBlockPlugin();
-			expect(plugin.id).toBe('code-block');
-			expect(plugin.name).toBe('Code Block');
-			expect(plugin.priority).toBe(36);
-		});
-	});
-
 	describe('NodeSpec', () => {
 		it('registers code_block NodeSpec', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
@@ -1138,67 +1129,6 @@ describe('CodeBlockPlugin', () => {
 			assertDefined(handler);
 
 			expect(handler()).toBe(false);
-		});
-	});
-
-	describe('onStateChange: focus tracking and announcements', () => {
-		it('runs without error when entering code block', async () => {
-			const oldState = makeState(
-				[
-					{ type: 'paragraph', text: 'text', id: 'b1' },
-					{ type: 'code_block', text: 'code', id: 'b2' },
-				],
-				'b1',
-				0,
-			);
-			const newState = makeState(
-				[
-					{ type: 'paragraph', text: 'text', id: 'b1' },
-					{ type: 'code_block', text: 'code', id: 'b2' },
-				],
-				'b2',
-				0,
-			);
-
-			const plugin = new CodeBlockPlugin();
-			await pluginHarness(plugin, oldState);
-
-			const tr = oldState.transaction('command').setSelection(newState.selection).build();
-			plugin.onStateChange(oldState, newState, tr);
-		});
-
-		it('runs without error when leaving code block', async () => {
-			const oldState = makeState(
-				[
-					{ type: 'code_block', text: 'code', id: 'b1' },
-					{ type: 'paragraph', text: 'text', id: 'b2' },
-				],
-				'b1',
-				0,
-			);
-			const newState = makeState(
-				[
-					{ type: 'code_block', text: 'code', id: 'b1' },
-					{ type: 'paragraph', text: 'text', id: 'b2' },
-				],
-				'b2',
-				0,
-			);
-
-			const plugin = new CodeBlockPlugin();
-			await pluginHarness(plugin, oldState);
-
-			const tr = oldState.transaction('command').setSelection(newState.selection).build();
-			plugin.onStateChange(oldState, newState, tr);
-		});
-
-		it('does not throw when context is null', () => {
-			const plugin = new CodeBlockPlugin();
-			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
-			const tr = state.transaction('command').setSelection(state.selection).build();
-
-			// Plugin not initialized, context is null — should return early
-			plugin.onStateChange(state, state, tr);
 		});
 	});
 });

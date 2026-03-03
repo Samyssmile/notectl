@@ -10,7 +10,7 @@ The `TextFormattingPlugin` provides inline text formatting marks: **bold**, *ita
 ## Usage
 
 ```ts
-import { TextFormattingPlugin } from '@notectl/core';
+import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
 
 new TextFormattingPlugin({
   bold: true,

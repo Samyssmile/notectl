@@ -94,14 +94,14 @@ import { ThemePreset, createEditor } from '@notectl/core';
 		let rafId: number | null = null;
 		let idleId: number | null = null;
 
-		function serializeOutput(): string {
+		async function serializeOutput(): Promise<string> {
 			switch (activeTab) {
 				case 'json':
 					return JSON.stringify(editor.getJSON(), null, 2);
 				case 'html':
-					return editor.getContentHTML({ pretty: true });
+					return await editor.getContentHTML({ pretty: true });
 				case 'css-html': {
-					const result = editor.getContentHTML({ cssMode: 'classes', pretty: true });
+					const result = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
 					const cssSection = result.css
 						? `/* === CSS === */\n${result.css}`
 						: '/* No dynamic styles in document */';
@@ -126,16 +126,16 @@ import { ThemePreset, createEditor } from '@notectl/core';
 			}
 		}
 
-		function updateOutputNow(): void {
-			renderOutput(serializeOutput());
+		async function updateOutputNow(): Promise<void> {
+			renderOutput(await serializeOutput());
 		}
 
 		function scheduleOutputUpdate(): void {
 			if (rafId !== null) return;
 
-			rafId = requestAnimationFrame(() => {
+			rafId = requestAnimationFrame(async () => {
 				rafId = null;
-				const text = serializeOutput();
+				const text = await serializeOutput();
 				if (text.length > MAX_OUTPUT_CHARS) {
 					const scheduleIdle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 0));
 					if (idleId !== null) {

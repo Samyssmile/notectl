@@ -8,7 +8,7 @@ import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerBlockquoteKeymaps } from './BlockquoteKeyboardHandlers.js';
 import {
 	BLOCKQUOTE_LOCALE_EN,

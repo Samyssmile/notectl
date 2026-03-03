@@ -1,0 +1,8 @@
+import type { GapCursorLocale } from '../GapCursorLocale.js';
+
+const locale: GapCursorLocale = {
+	gapCursorActive:
+		'\u0917\u0948\u092a \u0915\u0930\u094d\u0938\u0930 \u0938\u0915\u094d\u0930\u093f\u092f\u0964 \u0928\u092f\u093e \u0905\u0928\u0941\u091a\u094d\u091b\u0947\u0926 \u0921\u093e\u0932\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u091f\u093e\u0907\u092a \u0915\u0930\u0947\u0902\u0964',
+};
+
+export default locale;

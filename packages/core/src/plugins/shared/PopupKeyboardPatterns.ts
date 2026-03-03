@@ -1,14 +1,10 @@
 /**
  * Pure functions that attach WAI-ARIA keyboard patterns to popup containers.
  * Supports menu, listbox, and grid navigation patterns.
- * Delegates to ToolbarKeyboardNav for shared navigation logic.
+ * Delegates to shared keyboard navigation helpers.
  */
 
-import {
-	applyRovingTabindex,
-	findNextDropdownItem,
-	navigateGrid,
-} from '../toolbar/ToolbarKeyboardNav.js';
+import { applyRovingTabindex, findNextDropdownItem, navigateGrid } from './KeyboardNav.js';
 
 // --- Types ---
 

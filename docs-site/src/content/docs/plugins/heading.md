@@ -10,7 +10,7 @@ The `HeadingPlugin` adds heading support (H1-H6) with a toolbar dropdown selecto
 ## Usage
 
 ```ts
-import { HeadingPlugin } from '@notectl/core';
+import { HeadingPlugin } from '@notectl/core/plugins/heading';
 
 new HeadingPlugin()
 // or with custom config:

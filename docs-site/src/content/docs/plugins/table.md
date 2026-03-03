@@ -10,7 +10,7 @@ The `TablePlugin` provides comprehensive table support including a grid picker f
 ## Usage
 
 ```ts
-import { TablePlugin } from '@notectl/core';
+import { TablePlugin } from '@notectl/core/plugins/table';
 
 new TablePlugin()
 // or with custom picker size:
@@ -37,7 +37,7 @@ interface TableConfig {
 Each plugin resolves its locale automatically from the editor's global `locale` setting. To override the table locale independently:
 
 ```ts
-import { TablePlugin, loadTableLocale } from '@notectl/core';
+import { TablePlugin, loadTableLocale } from '@notectl/core/plugins/table';
 
 const tableDe = await loadTableLocale('de');
 new TablePlugin({ locale: tableDe })
@@ -116,7 +116,7 @@ The color grid supports full keyboard navigation with arrow keys, Home/End, Ente
 ### Programmatic Border Color
 
 ```ts
-import { TableSelectionServiceKey } from '@notectl/core';
+import { TableSelectionServiceKey } from '@notectl/core/plugins/table';
 
 // Reset to default
 editor.executeCommand('resetTableBorderColor');
@@ -169,7 +169,7 @@ The table plugin supports selecting multiple cells by click-and-drag. Selected c
 Access the selection service programmatically:
 
 ```ts
-import { TableSelectionServiceKey } from '@notectl/core';
+import { TableSelectionServiceKey } from '@notectl/core/plugins/table';
 
 const service = editor.getService(TableSelectionServiceKey);
 ```

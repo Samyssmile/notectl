@@ -16,7 +16,8 @@ import {
 	setStyleProperty,
 } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
+import { IMAGE_LOCALE_EN, type ImageLocale } from './ImageLocale.js';
 import type { ImageKeymap, ImagePluginConfig, UploadState } from './ImageUpload.js';
 
 const ALIGNMENT_CLASSES: Record<string, string> = {
@@ -44,18 +45,18 @@ const HANDLE_X_SIGN: Readonly<Record<HandlePosition, 1 | -1>> = {
 	se: 1,
 };
 
-const HANDLE_LABELS_LTR: Readonly<Record<HandlePosition, string>> = {
-	nw: 'Resize top-left',
-	ne: 'Resize top-right',
-	sw: 'Resize bottom-left',
-	se: 'Resize bottom-right',
+const HANDLE_POSITIONS_LTR: Readonly<Record<HandlePosition, string>> = {
+	nw: 'top-left',
+	ne: 'top-right',
+	sw: 'bottom-left',
+	se: 'bottom-right',
 };
 
-const HANDLE_LABELS_RTL: Readonly<Record<HandlePosition, string>> = {
-	nw: 'Resize top-right',
-	ne: 'Resize top-left',
-	sw: 'Resize bottom-right',
-	se: 'Resize bottom-left',
+const HANDLE_POSITIONS_RTL: Readonly<Record<HandlePosition, string>> = {
+	nw: 'top-right',
+	ne: 'top-left',
+	sw: 'bottom-right',
+	se: 'bottom-left',
 };
 
 const RTL_CURSOR_MAP: Readonly<Record<HandlePosition, string>> = {
@@ -66,8 +67,13 @@ const RTL_CURSOR_MAP: Readonly<Record<HandlePosition, string>> = {
 };
 
 /** Returns the direction-aware ARIA label for a resize handle. */
-export function getHandleLabel(position: HandlePosition, isRtl: boolean): string {
-	return (isRtl ? HANDLE_LABELS_RTL : HANDLE_LABELS_LTR)[position];
+export function getHandleLabel(
+	position: HandlePosition,
+	isRtl: boolean,
+	locale: ImageLocale = IMAGE_LOCALE_EN,
+): string {
+	const positionName: string = (isRtl ? HANDLE_POSITIONS_RTL : HANDLE_POSITIONS_LTR)[position];
+	return locale.resizeHandleLabel(positionName);
 }
 
 /** Returns the X-sign for resize drag, flipped in RTL. */
@@ -101,11 +107,12 @@ function clearGlobalResizeCursor(): void {
 /** Builds the keyboard-hint text from the resolved keymap. */
 function buildKeyboardHintText(
 	resolvedKeymap: Readonly<Record<keyof ImageKeymap, string | null>>,
+	locale: ImageLocale,
 ): string {
 	const shrink: string | null = resolvedKeymap.shrinkWidth ?? null;
 	const grow: string | null = resolvedKeymap.growWidth ?? null;
 	if (!shrink || !grow) return '';
-	return `${formatShortcut(shrink)} / ${formatShortcut(grow)} to resize`;
+	return locale.keyboardResizeHint(formatShortcut(shrink), formatShortcut(grow));
 }
 
 /** Creates a NodeViewFactory for image blocks. */
@@ -113,6 +120,7 @@ export function createImageNodeViewFactory(
 	config: ImagePluginConfig,
 	uploadStates: Map<BlockId, UploadState>,
 	resolvedKeymap?: Readonly<Record<keyof ImageKeymap, string | null>>,
+	locale: ImageLocale = IMAGE_LOCALE_EN,
 ): NodeViewFactory {
 	return (
 		node: BlockNode,
@@ -200,9 +208,9 @@ export function createImageNodeViewFactory(
 			overlay.classList.toggle('notectl-image__overlay--error', uploadState === 'error');
 
 			if (isUploading) {
-				overlay.textContent = 'Uploading...';
+				overlay.textContent = locale.uploading;
 			} else if (uploadState === 'error') {
-				overlay.textContent = 'Upload failed';
+				overlay.textContent = locale.uploadFailed;
 			} else {
 				overlay.textContent = '';
 			}
@@ -367,14 +375,14 @@ export function createImageNodeViewFactory(
 				const handle: HTMLDivElement = document.createElement('div');
 				handle.className = `notectl-image__resize-handle notectl-image__resize-handle--${pos}`;
 				handle.setAttribute('role', 'separator');
-				handle.setAttribute('aria-label', getHandleLabel(pos, isRtl));
+				handle.setAttribute('aria-label', getHandleLabel(pos, isRtl, locale));
 				attachHandleListeners(handle, pos, nodeId, sizeIndicator);
 				resizeOverlay.appendChild(handle);
 			}
 
 			// Keyboard hint (hidden from screenreaders, visual only)
 			if (resolvedKeymap) {
-				const hintText: string = buildKeyboardHintText(resolvedKeymap);
+				const hintText: string = buildKeyboardHintText(resolvedKeymap, locale);
 				if (hintText) {
 					const hint: HTMLDivElement = document.createElement('div');
 					hint.className = 'notectl-image__keyboard-hint';

@@ -5,6 +5,7 @@
 
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { DropdownConfig, GridPickerConfig } from './ToolbarItem.js';
+import { TOOLBAR_LOCALE_EN, type ToolbarLocale } from './ToolbarLocale.js';
 
 const HIGHLIGHTED_CLASS = 'notectl-grid-picker__cell--highlighted';
 
@@ -16,6 +17,7 @@ export function renderGridPicker(
 	container: HTMLElement,
 	config: GridPickerConfig,
 	onClose: () => void,
+	locale: ToolbarLocale = TOOLBAR_LOCALE_EN,
 ): void {
 	container.className += ' notectl-grid-picker';
 
@@ -31,7 +33,7 @@ export function renderGridPicker(
 
 	const label: HTMLDivElement = document.createElement('div');
 	label.className = 'notectl-grid-picker__label';
-	label.textContent = '1 x 1';
+	label.textContent = locale.gridPickerLabel(1, 1);
 	setStyleProperties(label, {
 		textAlign: 'center',
 		padding: '4px',
@@ -45,7 +47,7 @@ export function renderGridPicker(
 			cell.className = 'notectl-grid-picker__cell';
 			cell.setAttribute('role', 'gridcell');
 			cell.setAttribute('tabindex', '-1');
-			cell.setAttribute('aria-label', `${r} x ${c}`);
+			cell.setAttribute('aria-label', locale.gridPickerLabel(r, c));
 			setStyleProperties(cell, {
 				width: '20px',
 				height: '20px',
@@ -57,7 +59,7 @@ export function renderGridPicker(
 
 			cell.addEventListener('mouseenter', () => {
 				highlightCells(grid, r, c);
-				label.textContent = `${r} x ${c}`;
+				label.textContent = locale.gridPickerLabel(r, c);
 			});
 
 			cell.addEventListener('mousedown', (e: MouseEvent) => {

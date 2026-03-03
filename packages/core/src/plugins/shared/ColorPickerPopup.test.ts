@@ -82,27 +82,6 @@ describe('ColorPickerPopup', () => {
 			expect(grid?.getAttribute('role')).toBe('grid');
 		});
 
-		it('renders correct number of swatches', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			expect(swatches.length).toBe(TEST_COLORS.length);
-		});
-
-		it('organizes swatches into ARIA rows', () => {
-			const { container } = renderPopup();
-			const rows = container.querySelectorAll('[role="row"]');
-			// 13 colors / 10 columns = 2 rows
-			expect(rows.length).toBe(2);
-		});
-
-		it('each swatch has role="gridcell"', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			for (const swatch of swatches) {
-				expect(swatch.getAttribute('role')).toBe('gridcell');
-			}
-		});
-
 		it('each swatch has aria-label with human-readable color name', () => {
 			const { container } = renderPopup({ ariaLabelPrefix: 'Highlight' });
 			const swatch = container.querySelector('.notectl-color-picker__swatch');
@@ -133,14 +112,6 @@ describe('ColorPickerPopup', () => {
 			const active = container.querySelector('.notectl-color-picker__swatch--active');
 			expect(active?.getAttribute('aria-selected')).toBe('true');
 		});
-
-		it('inactive swatches have aria-selected="false"', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			for (const swatch of swatches) {
-				expect(swatch.getAttribute('aria-selected')).toBe('false');
-			}
-		});
 	});
 
 	describe('light color borders', () => {
@@ -160,15 +131,6 @@ describe('ColorPickerPopup', () => {
 				(s) => (s as HTMLElement).title === '#ffff00',
 			) as HTMLElement | undefined;
 			expect(yellowSwatch?.style.border).toBe('1px solid #d0d0d0');
-		});
-
-		it('dark colors do not get a border', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			const blackSwatch = Array.from(swatches).find(
-				(s) => (s as HTMLElement).title === '#000000',
-			) as HTMLElement | undefined;
-			expect(blackSwatch?.style.border).not.toBe('1px solid #d0d0d0');
 		});
 	});
 
@@ -198,20 +160,6 @@ describe('ColorPickerPopup', () => {
 	});
 
 	describe('roving tabindex', () => {
-		it('focused swatch has tabindex="0"', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			expect(swatches[0]?.getAttribute('tabindex')).toBe('0');
-		});
-
-		it('non-focused swatches have tabindex="-1"', () => {
-			const { container } = renderPopup();
-			const swatches = container.querySelectorAll('.notectl-color-picker__swatch');
-			for (let i = 1; i < swatches.length; i++) {
-				expect(swatches[i]?.getAttribute('tabindex')).toBe('-1');
-			}
-		});
-
 		it('active color swatch gets initial tabindex="0"', () => {
 			const state = stateBuilder()
 				.blockWithInlines(

@@ -20,7 +20,7 @@ export interface FontSizePopupConfig {
 	readonly defaultSize: number;
 	readonly onClose: (options?: PopupCloseOptions) => void;
 	readonly contentElement: HTMLElement;
-	readonly locale?: FontSizeLocale;
+	readonly locale: FontSizeLocale;
 }
 
 // --- Public Entry Point ---
@@ -54,7 +54,7 @@ function buildCustomInput(currentSize: number, config: FontSizePopupConfig): HTM
 	input.min = String(MIN_CUSTOM_SIZE);
 	input.max = String(MAX_CUSTOM_SIZE);
 	input.value = String(currentSize);
-	input.setAttribute('aria-label', config.locale?.customFontSizeAria ?? 'Custom font size');
+	input.setAttribute('aria-label', config.locale.customFontSizeAria);
 	return input;
 }
 
@@ -81,7 +81,7 @@ function buildSizeList(
 	const list: HTMLDivElement = document.createElement('div');
 	list.className = 'notectl-font-size-picker__list';
 	list.setAttribute('role', 'listbox');
-	list.setAttribute('aria-label', config.locale?.fontSizesAria ?? 'Font sizes');
+	list.setAttribute('aria-label', config.locale.fontSizesAria);
 
 	const items: HTMLButtonElement[] = [];
 

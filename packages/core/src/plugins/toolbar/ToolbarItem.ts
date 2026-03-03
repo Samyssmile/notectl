@@ -2,7 +2,6 @@
  * ToolbarItem: describes a toolbar button registered by a plugin.
  */
 
-import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
@@ -90,21 +89,3 @@ export type ToolbarItem =
 	| ToolbarItemDropdown
 	| ToolbarItemCustomPopup
 	| ToolbarItemCombobox;
-
-/**
- * Formats a keymap binding string into a human-readable shortcut,
- * using platform-appropriate modifier symbols (⌘ on Mac, Ctrl on others).
- *
- * @example formatShortcut('Mod-B') → "Ctrl+B" or "⌘B"
- * @example formatShortcut('Mod-Shift-X') → "Ctrl+Shift+X" or "⌘⇧X"
- */
-export function formatShortcut(binding: string): string {
-	if (isMac()) {
-		return binding
-			.replace(/Mod/g, '⌘')
-			.replace(/Shift/g, '⇧')
-			.replace(/Alt/g, '⌥')
-			.replace(/-/g, '');
-	}
-	return binding.replace(/Mod/g, 'Ctrl').replace(/-/g, '+');
-}

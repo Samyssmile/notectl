@@ -98,7 +98,8 @@ Plugins register through the `PluginContext`:
 The fastest way to get all plugins is with `createFullPreset()`:
 
 ```ts
-import { createEditor, createFullPreset } from '@notectl/core';
+import { createEditor } from '@notectl/core';
+import { createFullPreset } from '@notectl/core/presets';
 
 const editor = await createEditor({
   ...createFullPreset(),
@@ -145,7 +146,7 @@ const editor = await createEditor({
 
 ## Auto-Registration
 
-`TextFormattingPlugin` is auto-registered with default settings if not explicitly provided. All other plugins must be added manually.
+`TextFormattingPlugin`, `CaretNavigationPlugin`, and `GapCursorPlugin` are auto-registered with default settings if not explicitly provided. All other plugins must be added manually.
 
 ## Learn More
 

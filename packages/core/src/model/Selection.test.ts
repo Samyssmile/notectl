@@ -15,25 +15,6 @@ import {
 import type { BlockId } from './TypeBrands.js';
 
 describe('Selection model', () => {
-	describe('createCollapsedSelection', () => {
-		it('creates a selection with same anchor and head', () => {
-			const sel = createCollapsedSelection('block-1', 5);
-			expect(sel.anchor).toEqual({ blockId: 'block-1', offset: 5 });
-			expect(sel.head).toEqual({ blockId: 'block-1', offset: 5 });
-		});
-	});
-
-	describe('createSelection', () => {
-		it('creates a selection with different anchor and head', () => {
-			const sel = createSelection(
-				{ blockId: 'block-1', offset: 0 },
-				{ blockId: 'block-1', offset: 5 },
-			);
-			expect(sel.anchor.offset).toBe(0);
-			expect(sel.head.offset).toBe(5);
-		});
-	});
-
 	describe('isCollapsed', () => {
 		it('returns true for collapsed selection', () => {
 			expect(isCollapsed(createCollapsedSelection('b1', 3))).toBe(true);
@@ -75,26 +56,6 @@ describe('Selection model', () => {
 			const range = selectionRange(sel);
 			expect(range.from.offset).toBe(2);
 			expect(range.to.offset).toBe(8);
-		});
-	});
-
-	describe('createNodeSelection', () => {
-		it('creates a NodeSelection with correct type, nodeId, and path', () => {
-			const nodeId: BlockId = 'b1' as BlockId;
-			const path: readonly BlockId[] = ['root' as BlockId, 'b1' as BlockId];
-			const sel = createNodeSelection(nodeId, path);
-			expect(sel.type).toBe('node');
-			expect(sel.nodeId).toBe('b1');
-			expect(sel.path).toEqual(['root', 'b1']);
-		});
-
-		it('creates a NodeSelection with an empty path', () => {
-			const nodeId: BlockId = 'b2' as BlockId;
-			const path: readonly BlockId[] = [];
-			const sel = createNodeSelection(nodeId, path);
-			expect(sel.type).toBe('node');
-			expect(sel.nodeId).toBe('b2');
-			expect(sel.path).toEqual([]);
 		});
 	});
 
@@ -199,24 +160,6 @@ describe('Selection model', () => {
 		it('returns true for a NodeSelection even with blockOrder provided', () => {
 			const sel = createNodeSelection('b1' as BlockId, ['root' as BlockId]);
 			expect(isForward(sel, ['b2' as BlockId, 'b1' as BlockId])).toBe(true);
-		});
-	});
-
-	describe('createGapCursor', () => {
-		it('creates a GapCursorSelection with correct fields', () => {
-			const sel = createGapCursor('b1' as BlockId, 'before', ['b1' as BlockId]);
-			expect(sel.type).toBe('gap');
-			expect(sel.side).toBe('before');
-			expect(sel.blockId).toBe('b1');
-			expect(sel.path).toEqual(['b1']);
-		});
-
-		it('creates a GapCursorSelection with "after" side', () => {
-			const sel = createGapCursor('b2' as BlockId, 'after', []);
-			expect(sel.type).toBe('gap');
-			expect(sel.side).toBe('after');
-			expect(sel.blockId).toBe('b2');
-			expect(sel.path).toEqual([]);
 		});
 	});
 

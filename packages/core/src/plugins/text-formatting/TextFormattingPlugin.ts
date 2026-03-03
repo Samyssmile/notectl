@@ -19,7 +19,7 @@ import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { formatShortcut } from '../toolbar/ToolbarItem.js';
+import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	TEXT_FORMATTING_LOCALE_EN,
 	type TextFormattingLocale,
