@@ -14,7 +14,7 @@ import {
 	moveToDocumentEnd,
 	moveToDocumentStart,
 } from '../../commands/MovementCommands.js';
-import { getBlockTypeLabel } from '../../model/BlockTypeLabels.js';
+import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { getTextDirection, isMac } from '../../platform/Platform.js';
@@ -35,6 +35,12 @@ import {
 	moveWordForward,
 } from '../../view/ViewMovementCommands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import {
+	CARET_NAVIGATION_LOCALE_EN,
+	type CaretNavigationLocale,
+	loadCaretNavigationLocale,
+	resolveBlockLabel,
+} from './CaretNavigationLocale.js';
 
 type ViewCommandFn = (container: HTMLElement, state: EditorState) => Transaction | null;
 type ViewCommandKey = `${'word' | 'lineboundary' | 'line'}:${'forward' | 'backward'}`;
@@ -70,8 +76,14 @@ export class CaretNavigationPlugin implements Plugin {
 	private lastAnnouncedBlockId: BlockId | null = null;
 	private announceTimer: ReturnType<typeof setTimeout> | null = null;
 	private announce: ((text: string) => void) | null = null;
+	private locale: CaretNavigationLocale = CARET_NAVIGATION_LOCALE_EN;
 
-	init(context: PluginContext): void {
+	async init(context: PluginContext): Promise<void> {
+		const service = context.getService(LocaleServiceKey);
+		const lang: string = service?.getLocale() ?? 'en';
+		this.locale =
+			lang === 'en' ? CARET_NAVIGATION_LOCALE_EN : await loadCaretNavigationLocale(lang);
+
 		this.context = context;
 		this.announce = (text: string) => context.announce(text);
 		const mac: boolean = isMac();
@@ -171,7 +183,8 @@ export class CaretNavigationPlugin implements Plugin {
 			if (this.context?.hasAnnouncement()) return;
 			const block = newState.getBlock(newBlockId);
 			if (!block) return;
-			const label: string = getBlockTypeLabel(
+			const label: string = resolveBlockLabel(
+				this.locale,
 				block.type,
 				block.attrs as Record<string, unknown> | undefined,
 			);
