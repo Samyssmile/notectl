@@ -51,3 +51,4 @@ export * from './plugins/gap-cursor/index.js';
 export * from './plugins/caret-navigation/index.js';
 export * from './plugins/print/index.js';
 export * from './plugins/text-direction/index.js';
+export { TextDirectionAdvancedPlugin } from './plugins/text-direction-advanced/index.js';
