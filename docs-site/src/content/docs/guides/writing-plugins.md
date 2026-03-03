@@ -307,9 +307,9 @@ context.announce('Image resized to 400 by 300 pixels.');
 Register a custom node view factory for a block type:
 
 ```ts
-context.registerNodeView('image', (node, view) => {
+context.registerNodeView('image', (node, getState, dispatch) => {
   // Return a NodeView implementation for custom rendering
-  return new ImageNodeView(node, view);
+  return new ImageNodeView(node, getState, dispatch);
 });
 ```
 
