@@ -5,12 +5,20 @@
  * Every function is stateless — it receives EditorState / Document and returns data.
  */
 
-import { type Document, getBlockText } from '../model/Document.js';
+import type { BlockNode, ChildNode } from '../model/Document.js';
+import {
+	type Document,
+	createBlockNode,
+	getBlockText,
+	isInlineNode,
+	isLeafBlock,
+	isTextNode,
+} from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
-import { blockId } from '../model/TypeBrands.js';
+import { blockId, nodeType } from '../model/TypeBrands.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -29,13 +37,54 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
+	const normalized: Document = registry ? normalizeCompositeBlocks(doc, registry) : doc;
 	const schema = registry ? schemaFromRegistry(registry) : undefined;
 	const state: EditorState = EditorState.create({
-		doc,
+		doc: normalized,
 		schema,
-		selection: createCollapsedSelection(doc.children[0]?.id ?? blockId(''), 0),
+		selection: createCollapsedSelection(normalized.children[0]?.id ?? blockId(''), 0),
 	});
 	replaceState(state);
+}
+
+/**
+ * Normalizes composite blocks so bare inline children are wrapped in paragraphs.
+ * Composite blocks (those with a `content` rule, e.g. table_cell) must contain
+ * block-level children. When JSON input provides inline children directly,
+ * this wraps them in a paragraph to enforce schema consistency.
+ */
+export function normalizeCompositeBlocks(doc: Document, registry: SchemaRegistry): Document {
+	const children: readonly BlockNode[] = doc.children.map((block) =>
+		normalizeBlock(block, registry),
+	);
+	return { children };
+}
+
+/** Leaf blocks use `content: { allow: ['text'] }`; composite blocks allow block types. */
+function isCompositeContentRule(content: { readonly allow: readonly string[] }): boolean {
+	return content.allow.length > 0 && !content.allow.includes('text');
+}
+
+function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
+	const spec = registry.getNodeSpec(block.type);
+
+	// No content rule, or content allows 'text' → leaf block, no normalization needed
+	if (!spec?.content || !isCompositeContentRule(spec.content)) return block;
+
+	// Composite block with all-inline children → wrap in paragraph
+	if (isLeafBlock(block)) {
+		const children: readonly ChildNode[] | undefined =
+			block.children.length > 0 ? block.children : undefined;
+		const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
+		return createBlockNode(block.type, [paragraph], block.id, block.attrs);
+	}
+
+	// Composite block with block children → recurse
+	const normalized: readonly ChildNode[] = block.children.map((child) => {
+		if (isTextNode(child) || isInlineNode(child)) return child;
+		return normalizeBlock(child, registry);
+	});
+	return createBlockNode(block.type, normalized, block.id, block.attrs);
 }
 
 /** Returns sanitized HTML representation of the document. */

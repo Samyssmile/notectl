@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import type { Mark } from '../model/Document.js';
 import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import {
 	getEditorContentHTML,
 	getEditorJSON,
 	getEditorText,
 	isEditorEmpty,
+	normalizeCompositeBlocks,
 	setEditorJSON,
 } from './ContentSerializer.js';
 
@@ -115,5 +118,225 @@ describe('getEditorContentHTML', () => {
 
 		expect(typeof html).toBe('string');
 		expect(html).toContain('hello');
+	});
+});
+
+describe('normalizeCompositeBlocks', () => {
+	function createTableRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			group: 'block',
+			toDOM(node) {
+				const el = document.createElement('p');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		registry.registerNodeSpec({
+			type: 'table',
+			group: 'block',
+			content: { allow: ['table_row'], min: 1 },
+			toDOM(node) {
+				const el = document.createElement('table');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			group: 'table_content',
+			content: { allow: ['table_cell'], min: 1 },
+			toDOM(node) {
+				const el = document.createElement('tr');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			group: 'table_content',
+			content: { allow: ['paragraph'] },
+			toDOM(node) {
+				const el = document.createElement('td');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		return registry;
+	}
+
+	it('wraps bare inline children of composite blocks in a paragraph', () => {
+		const registry = createTableRegistry();
+		const boldMark: Mark = { type: markType('bold') };
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table'),
+				[
+					createBlockNode(
+						nodeType('table_row'),
+						[
+							createBlockNode(
+								nodeType('table_cell'),
+								[createTextNode('Feature', [boldMark])],
+								blockId('cell1'),
+							),
+						],
+						blockId('row1'),
+					),
+				],
+				blockId('tbl1'),
+			),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		const cell = result.children[0]?.children[0]?.children[0];
+		expect(cell).toBeDefined();
+		expect(cell?.type).toBe('table_cell');
+		// Cell should now have a paragraph child wrapping the text
+		expect(cell?.children).toHaveLength(1);
+		const para = cell?.children[0];
+		expect(para).toBeDefined();
+		expect(para?.type).toBe('paragraph');
+		const paraChildren = (para as { children: unknown[] }).children;
+		expect(paraChildren).toHaveLength(1);
+		expect(paraChildren[0]).toMatchObject({
+			type: 'text',
+			text: 'Feature',
+			marks: [{ type: 'bold' }],
+		});
+	});
+
+	it('wraps multiple inline children into a single paragraph', () => {
+		const registry = createTableRegistry();
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table'),
+				[
+					createBlockNode(
+						nodeType('table_row'),
+						[
+							createBlockNode(
+								nodeType('table_cell'),
+								[createTextNode('Hello '), createTextNode('World')],
+								blockId('cell1'),
+							),
+						],
+						blockId('row1'),
+					),
+				],
+				blockId('tbl1'),
+			),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		const cell = result.children[0]?.children[0]?.children[0];
+		expect(cell?.children).toHaveLength(1);
+		const para = cell?.children[0];
+		expect(para?.type).toBe('paragraph');
+		const paraChildren = (para as { children: unknown[] }).children;
+		expect(paraChildren).toHaveLength(2);
+		expect(paraChildren[0]).toMatchObject({ type: 'text', text: 'Hello ' });
+		expect(paraChildren[1]).toMatchObject({ type: 'text', text: 'World' });
+	});
+
+	it('handles empty composite block children with default text node', () => {
+		const registry = createTableRegistry();
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table'),
+				[
+					createBlockNode(
+						nodeType('table_row'),
+						[createBlockNode(nodeType('table_cell'), [], blockId('cell1'))],
+						blockId('row1'),
+					),
+				],
+				blockId('tbl1'),
+			),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		const cell = result.children[0]?.children[0]?.children[0];
+		expect(cell?.children).toHaveLength(1);
+		const para = cell?.children[0];
+		expect(para?.type).toBe('paragraph');
+		const paraChildren = (para as { children: unknown[] }).children;
+		expect(paraChildren).toHaveLength(1);
+		expect(paraChildren[0]).toMatchObject({ type: 'text', text: '' });
+	});
+
+	it('preserves already-normalized composite blocks', () => {
+		const registry = createTableRegistry();
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table'),
+				[
+					createBlockNode(
+						nodeType('table_row'),
+						[
+							createBlockNode(
+								nodeType('table_cell'),
+								[
+									createBlockNode(
+										nodeType('paragraph'),
+										[createTextNode('Feature')],
+										blockId('p1'),
+									),
+								],
+								blockId('cell1'),
+							),
+						],
+						blockId('row1'),
+					),
+				],
+				blockId('tbl1'),
+			),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		const cell = result.children[0]?.children[0]?.children[0];
+		expect(cell?.children).toHaveLength(1);
+		const para = cell?.children[0];
+		expect(para?.type).toBe('paragraph');
+	});
+
+	it('does not modify leaf blocks', () => {
+		const registry = createTableRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('p1')),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		expect(result.children[0]?.children).toHaveLength(1);
+		expect(result.children[0]?.children[0]).toMatchObject({ type: 'text', text: 'hello' });
+	});
+
+	it('does not wrap leaf blocks with text content rules', () => {
+		const registry = createTableRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			group: 'block',
+			content: { allow: ['text'] },
+			toDOM(node) {
+				const el = document.createElement('h1');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		const doc = createDocument([
+			createBlockNode(nodeType('heading'), [createTextNode('Title')], blockId('h1'), { level: 1 }),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		expect(result.children[0]?.type).toBe('heading');
+		expect(result.children[0]?.children).toHaveLength(1);
+		expect(result.children[0]?.children[0]).toMatchObject({ type: 'text', text: 'Title' });
 	});
 });
