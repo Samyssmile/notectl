@@ -130,7 +130,7 @@ function tokenizeHTML(html: string): readonly string[] {
 			nameStart += 1;
 		}
 		const nameChar: string | undefined = html[nameStart];
-	if (nameStart >= html.length || !nameChar || !isASCIILetter(nameChar)) {
+		if (nameStart >= html.length || !nameChar || !isASCIILetter(nameChar)) {
 			i += 1;
 			continue;
 		}
