@@ -61,7 +61,7 @@ platform/         -> Browser & platform detection utilities
 
 | Layer | Responsibility | May import | Must NOT import |
 |---|---|---|---|
-| `model/` | Data model, types, specs | other `model/*` | `state/`, `view/`, `input/`, `plugins/`, `editor/` |
+| `model/` | Data model, types, specs | other `model/*` ¹ | `state/`, `view/`, `input/`, `plugins/`, `editor/` |
 | `platform/` | Browser/OS detection | — (no dependencies) | everything else |
 | `state/` | Transaction/History/State | `model/*` | `view/`, `input/`, `plugins/`, `editor/` |
 | `decorations/` | View annotations | `model/*`, `state/*` | `view/`, `input/`, `plugins/`, `editor/` |
@@ -71,6 +71,8 @@ platform/         -> Browser & platform detection utilities
 | `view/` | DOM rendering + SelectionSync | `model/*`, `state/*`, `decorations/*` | `editor/*` internals |
 | `plugins/` | Features via `PluginContext` | `commands/*`, `model/*`, `state/*`, `view/*` (targeted), `decorations/*`, `platform/*`, `i18n/*`, `editor/styles/*` | direct use of private editor fields |
 | `editor/` | Composition root (`NotectlEditor`) | all lower layers | cyclic back-references into deep layers |
+
+¹ `model/` files may use `import type` from `state/` for handler signatures (e.g. `EditorState`, `Transaction` in `InputRule`). These are type-only imports with zero runtime coupling.
 
 Rule: If a feature can work without the DOM, it does not belong in `view/`.
 

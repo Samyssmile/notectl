@@ -8,9 +8,9 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
-import type { InputRule } from '../input/InputRule.js';
-import { InputRuleRegistry } from '../input/InputRuleRegistry.js';
 import { type FileHandler, FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { InputRule } from '../model/InputRule.js';
+import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';

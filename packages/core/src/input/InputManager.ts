@@ -8,6 +8,7 @@
  */
 
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -15,7 +16,6 @@ import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { InputHandler } from './InputHandler.js';
-import type { InputRuleRegistry } from './InputRuleRegistry.js';
 import { KeyboardHandler } from './KeyboardHandler.js';
 import { PasteHandler } from './PasteHandler.js';
 

@@ -18,9 +18,9 @@ import { getBlockText } from '../model/Document.js';
 import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
+import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import { CompositionTracker } from './CompositionTracker.js';
-import type { InputRuleRegistry } from './InputRuleRegistry.js';
 
 export type DispatchFn = (tr: Transaction) => void;
 export type GetStateFn = () => EditorState;
