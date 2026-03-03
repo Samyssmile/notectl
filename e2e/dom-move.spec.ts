@@ -32,11 +32,8 @@ test.describe('DOM Move', () => {
 		expect(text.trim()).toBe('Persistent content');
 	});
 
-	test('permanently removing editor from DOM triggers destroy', async ({ page }) => {
-		await page.goto('/', { waitUntil: 'networkidle' });
-
+	test('permanently removing editor from DOM triggers destroy', async ({ editor, page }) => {
 		const editorEl = page.locator('notectl-editor');
-		await editorEl.waitFor({ state: 'visible' });
 
 		// Remove the editor from the DOM entirely
 		await page.evaluate(() => {
