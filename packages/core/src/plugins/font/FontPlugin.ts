@@ -13,6 +13,7 @@ import {
 import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
 import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
+import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
@@ -136,10 +137,12 @@ export class FontPlugin implements Plugin {
 				}
 				return span;
 			},
-			toHTMLString: (mark, content) => {
+			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
 				const family: string = String(mark.attrs?.family ?? '');
 				if (!family || !isValidCSSFontFamily(family)) return content;
-				return `<span style="font-family: ${escapeHTML(family)}">${content}</span>`;
+				const decl: string = `font-family: ${escapeHTML(family)}`;
+				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
+				return `<span${attr}>${content}</span>`;
 			},
 			toHTMLStyle: (mark) => {
 				const family: string = String(mark.attrs?.family ?? '');
