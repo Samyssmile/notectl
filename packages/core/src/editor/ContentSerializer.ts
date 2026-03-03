@@ -15,7 +15,7 @@ import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
 	SetContentHTMLOptions,
-} from '../serialization/ContentHTMLTypes.js';
+} from '../serialization/index.js';
 import { EditorState } from '../state/EditorState.js';
 
 /** Returns the document as JSON from the given state. */

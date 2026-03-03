@@ -15,10 +15,10 @@ export type {
 	ContentHTMLOptions,
 	ContentCSSResult,
 	SetContentHTMLOptions,
-} from './serialization/ContentHTMLTypes.js';
+} from './serialization/index.js';
 export {
 	serializeDocumentToHTML,
 	serializeDocumentToCSS,
 	VALID_ALIGNMENTS,
-} from './serialization/DocumentSerializer.js';
-export { parseHTMLToDocument, type ParseHTMLOptions } from './serialization/DocumentParser.js';
+} from './serialization/index.js';
+export { parseHTMLToDocument, type ParseHTMLOptions } from './serialization/index.js';

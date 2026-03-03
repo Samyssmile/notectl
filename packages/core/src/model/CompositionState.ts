@@ -3,11 +3,11 @@
  *
  * EditorView needs to read composition state during reconciliation
  * and selection sync to avoid disrupting active IME sessions.
- * This interface decouples view/ from the concrete CompositionTracker
- * in input/, maintaining proper layer separation.
+ * This interface lives in model/ so that both input/ and view/ can
+ * import it without cross-layer violations.
  */
 
-import type { BlockId } from '../model/TypeBrands.js';
+import type { BlockId } from './TypeBrands.js';
 
 export interface CompositionState {
 	/** Whether an IME composition session is currently active. */

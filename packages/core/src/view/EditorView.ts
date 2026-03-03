@@ -5,6 +5,7 @@
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { FileHandlerRegistry } from '../input/FileHandlerRegistry.js';
 import type { KeymapRegistry } from '../input/KeymapRegistry.js';
+import type { CompositionState } from '../model/CompositionState.js';
 import { generateBlockId, getBlockLength } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { Position } from '../model/Selection.js';
@@ -30,7 +31,6 @@ import {
 	navigateVerticalWithGoalColumn,
 	skipInlineNode,
 } from './CaretNavigation.js';
-import type { CompositionState } from './CompositionState.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
 import type { NodeView } from './NodeView.js';

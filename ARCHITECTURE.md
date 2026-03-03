@@ -67,7 +67,7 @@ platform/         -> Browser & platform detection utilities
 | `decorations/` | View annotations | `model/*`, `state/*` | `view/`, `input/`, `plugins/`, `editor/` |
 | `serialization/` | HTML import/export | `model/*` | `state/`, `view/`, `input/`, `plugins/`, `editor/` |
 | `commands/` | Editing operations | `model/*`, `state/*` | `editor/*` |
-| `input/` | Browser input -> commands | `commands/*`, `model/*`, `state/*` | `editor/*` internals |
+| `input/` | Browser input -> commands | `commands/*`, `model/*`, `state/*`, `serialization/*` (clipboard) | `editor/*` internals |
 | `view/` | DOM rendering + SelectionSync | `model/*`, `state/*`, `decorations/*` | `editor/*` internals |
 | `plugins/` | Features via `PluginContext` | `commands/*`, `model/*`, `state/*`, `view/*` (targeted), `decorations/*`, `platform/*`, `i18n/*`, `editor/styles/*` | direct use of private editor fields |
 | `editor/` | Composition root (`NotectlEditor`) | all lower layers | cyclic back-references into deep layers |

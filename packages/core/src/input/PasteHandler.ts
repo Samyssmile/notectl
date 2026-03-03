@@ -31,7 +31,7 @@ import {
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
-import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
+import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import {
 	type InsertionContext,

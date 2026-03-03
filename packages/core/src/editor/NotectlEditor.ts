@@ -27,7 +27,7 @@ import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
 	SetContentHTMLOptions,
-} from '../serialization/ContentHTMLTypes.js';
+} from '../serialization/index.js';
 import { EditorState } from '../state/EditorState.js';
 import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
