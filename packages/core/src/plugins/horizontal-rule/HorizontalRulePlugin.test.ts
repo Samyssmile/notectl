@@ -205,10 +205,5 @@ describe('HorizontalRulePlugin', () => {
 			const h = await pluginHarness(new HorizontalRulePlugin(), state);
 			expectToolbarActive(h, 'horizontal-rule', false);
 		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new HorizontalRulePlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'horizontal-rule', { separatorAfter: true });
-		});
 	});
 });

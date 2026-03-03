@@ -32,8 +32,6 @@ interface ImagePluginConfig {
   readonly acceptedTypes: readonly string[];
   /** Enable resize handles on images. */
   readonly resizable: boolean;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
   /** Pixels to grow/shrink per small resize step. @default 10 */
   readonly resizeStep?: number;
   /** Pixels to grow/shrink per large resize step. @default 50 */

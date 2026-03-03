@@ -74,19 +74,19 @@ const editor = await createEditor({
 | `font` | FontPlugin | `{ fonts: [...STARTER_FONTS, myFont] }` |
 | `fontSize` | FontSizePlugin | `{ sizes: [12, 16, 24], defaultSize: 16 }` |
 | `textFormatting` | TextFormattingPlugin | `{ bold: true, italic: true, underline: false }` |
-| `strikethrough` | StrikethroughPlugin | `{ separatorAfter: true }` |
+| `strikethrough` | StrikethroughPlugin | `{}` |
 | `superSub` | SuperSubPlugin | `{ superscript: true, subscript: false }` |
 | `textColor` | TextColorPlugin | `{ colors: ['#000', '#f00', '#0f0'] }` |
 | `highlight` | HighlightPlugin | `{ colors: ['#ff0', '#0ff'] }` |
 | `heading` | HeadingPlugin | `{ levels: [1, 2, 3] }` |
-| `blockquote` | BlockquotePlugin | `{ separatorAfter: true }` |
+| `blockquote` | BlockquotePlugin | `{}` |
 | `codeBlock` | CodeBlockPlugin | `{ highlighter: myHighlighter }` |
 | `alignment` | AlignmentPlugin | `{ alignments: ['start', 'center', 'end'] }` |
 | `textDirection` | TextDirectionPlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
 | `list` | ListPlugin | `{ interactiveCheckboxes: true }` |
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
 | `table` | TablePlugin | `{ maxPickerRows: 10 }` |
-| `horizontalRule` | HorizontalRulePlugin | `{ separatorAfter: true }` |
+| `horizontalRule` | HorizontalRulePlugin | `{}` |
 | `image` | ImagePlugin | `{ uploadService: myUploader }` |
 | `print` | PrintPlugin | `{ keyBinding: 'Mod-Shift-P' }` |
 

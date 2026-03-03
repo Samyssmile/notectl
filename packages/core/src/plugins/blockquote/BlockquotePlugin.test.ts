@@ -347,10 +347,5 @@ describe('BlockquotePlugin', () => {
 			const h = await pluginHarness(new BlockquotePlugin(), state);
 			expectToolbarActive(h, 'blockquote', false);
 		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new BlockquotePlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'blockquote', { separatorAfter: true });
-		});
 	});
 });

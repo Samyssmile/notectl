@@ -247,8 +247,6 @@ export class CodeBlockPlugin implements Plugin {
 				this.resolvedKeymap.toggle ? formatShortcut(this.resolvedKeymap.toggle) : undefined,
 			),
 			command: 'toggleCodeBlock',
-			priority: 56,
-			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => {
 				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
 				const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);

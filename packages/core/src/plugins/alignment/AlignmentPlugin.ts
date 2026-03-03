@@ -30,8 +30,6 @@ export interface AlignmentConfig {
 	readonly alignableTypes: readonly string[];
 	/** Per-type default alignment (e.g. `{ image: 'center' }`). Falls back to `'start'`. */
 	readonly defaults: Readonly<Record<string, BlockAlignment>>;
-	/** When true, a separator is rendered after the toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: AlignmentLocale;
 }
 
@@ -174,10 +172,8 @@ export class AlignmentPlugin implements Plugin {
 			label: this.locale.toolbarLabel,
 			tooltip: this.locale.toolbarTooltip,
 			command: 'alignStart',
-			priority: 60,
 			popupType: 'dropdown',
 			popupConfig: { items: dropdownItems },
-			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => this.isNonDefaultAlignment(state),
 			isEnabled: (state) => this.isAlignable(state),
 		});

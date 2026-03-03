@@ -27,8 +27,6 @@ interface AlignmentConfig {
   readonly alignableTypes: readonly string[];
   /** Per-type default alignment. E.g. { image: 'center' } */
   readonly defaults: Readonly<Record<string, BlockAlignment>>;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 
 type BlockAlignment = 'start' | 'center' | 'end' | 'justify';

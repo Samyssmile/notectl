@@ -152,17 +152,14 @@ describe('TextFormattingPlugin', () => {
 			});
 		});
 
-		it('toolbar items have correct priority ordering', async () => {
+		it('toolbar items are registered in correct order', async () => {
 			const plugin = new TextFormattingPlugin();
 			const h = await pluginHarness(plugin);
 
 			const items = h.getToolbarItems();
-			const boldPriority = items.find((i) => i.id === 'bold')?.priority;
-			const italicPriority = items.find((i) => i.id === 'italic')?.priority;
-			const underlinePriority = items.find((i) => i.id === 'underline')?.priority;
+			const ids: string[] = items.map((i) => i.id);
 
-			expect(boldPriority).toBeLessThan(italicPriority);
-			expect(italicPriority).toBeLessThan(underlinePriority);
+			expect(ids).toEqual(['bold', 'italic', 'underline']);
 		});
 
 		it('toolbar items report active state', async () => {

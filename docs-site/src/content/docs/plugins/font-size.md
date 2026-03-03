@@ -28,8 +28,6 @@ interface FontSizeConfig {
   readonly sizes?: number[];
   /** Base font size (no mark applied). Default: 16 */
   readonly defaultSize?: number;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 ```
 

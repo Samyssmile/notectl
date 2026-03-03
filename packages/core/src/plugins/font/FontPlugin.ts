@@ -77,8 +77,6 @@ export interface FontConfig {
 	 * Defaults to the first font in the list.
 	 */
 	readonly defaultFont?: string;
-	/** When true, a separator is rendered after the font toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: FontLocale;
 }
 
@@ -199,9 +197,7 @@ export class FontPlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeFont',
-			priority: 5,
 			popupType: 'combobox',
-			separatorAfter: this.config.separatorAfter,
 			getLabel: (state: EditorState): string => this.resolveFontName(this.getActiveFont(state)),
 			renderPopup: (container, ctx, onClose) => {
 				this.renderFontPopup(container, ctx, onClose);

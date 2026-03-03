@@ -22,7 +22,8 @@ const BLOCK_EDGE_INSET_PX = 2;
 /** Minimum vertical movement (pixels) for a Selection.modify probe to be considered a real move. */
 const VERTICAL_MOVEMENT_THRESHOLD_PX = 1;
 import { getTextDirection } from '../platform/Platform.js';
-import { domPositionToState, getSelection } from './SelectionSync.js';
+import type { SelectionEndpoints } from './SelectionSync.js';
+import { domPositionToState, getSelection, readDOMSelectionEndpoints } from './SelectionSync.js';
 
 export type CaretDirection = 'left' | 'right' | 'up' | 'down';
 
@@ -73,7 +74,7 @@ export function endOfTextblock(
 	if (direction === 'down' && offset === blockLength) return true;
 
 	// Vertical: try Selection.modify probing for multi-line blocks
-	const domSel: globalThis.Selection | null = getSelection(container);
+	const domSel: globalThis.Selection | null = getSelection();
 	if (!domSel || !domSel.modify) {
 		// Fallback: offset heuristic (no Selection.modify in test environments)
 		return direction === 'up' ? offset === 0 : offset === blockLength;
@@ -291,13 +292,11 @@ function probeVerticalBoundary(
 	direction: 'up' | 'down',
 	preReadRect?: DOMRect | null,
 ): boolean {
-	const origAnchor: Node | null = domSel.anchorNode;
-	const origAnchorOffset: number = domSel.anchorOffset;
-	const origFocus: Node | null = domSel.focusNode;
-	const origFocusOffset: number = domSel.focusOffset;
+	// Save original DOM selection (using composed ranges for Shadow DOM)
+	const origEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
 
 	// Cannot determine position → safe default: not at boundary (let browser handle)
-	if (!origAnchor || !origFocus) return false;
+	if (!origEndpoints) return false;
 
 	const origRect: DOMRect | null = preReadRect ?? getCaretRectFromSelection(domSel);
 	const dirStr: string = direction === 'up' ? 'backward' : 'forward';
@@ -305,22 +304,23 @@ function probeVerticalBoundary(
 	try {
 		domSel.modify('move', dirStr, 'line');
 
-		const newFocus: Node | null = domSel.focusNode;
-		if (!newFocus) return false;
+		// Read post-modify endpoints via composed ranges
+		const postEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
+		if (!postEndpoints) return false;
 
 		// Check if the new position is still within the same block
-		const origBlock: HTMLElement | null = findBlockAncestor(container, origFocus);
-		const newBlock: HTMLElement | null = findBlockAncestor(container, newFocus);
+		const origBlock: HTMLElement | null = findBlockAncestor(container, origEndpoints.focusNode);
+		const newBlock: HTMLElement | null = findBlockAncestor(container, postEndpoints.focusNode);
 
 		// Moved to a different block → definitely at boundary
 		if (origBlock !== newBlock) return true;
 
 		// Selection didn't move at all → at boundary
 		const didNotMove: boolean =
-			domSel.anchorNode === origAnchor &&
-			domSel.anchorOffset === origAnchorOffset &&
-			domSel.focusNode === origFocus &&
-			domSel.focusOffset === origFocusOffset;
+			postEndpoints.anchorNode === origEndpoints.anchorNode &&
+			postEndpoints.anchorOffset === origEndpoints.anchorOffset &&
+			postEndpoints.focusNode === origEndpoints.focusNode &&
+			postEndpoints.focusOffset === origEndpoints.focusOffset;
 		if (didNotMove) return true;
 
 		// Cross-check with getBoundingClientRect: if vertical position unchanged,
@@ -338,7 +338,12 @@ function probeVerticalBoundary(
 	} finally {
 		// Restore original selection
 		try {
-			domSel.setBaseAndExtent(origAnchor, origAnchorOffset, origFocus, origFocusOffset);
+			domSel.setBaseAndExtent(
+				origEndpoints.anchorNode,
+				origEndpoints.anchorOffset,
+				origEndpoints.focusNode,
+				origEndpoints.focusOffset,
+			);
 		} catch {
 			// Selection restore may fail if DOM changed
 		}

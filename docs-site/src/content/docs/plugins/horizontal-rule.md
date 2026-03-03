@@ -17,12 +17,7 @@ new HorizontalRulePlugin()
 
 ## Configuration
 
-```ts
-interface HorizontalRuleConfig {
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
-}
-```
+This plugin has no configuration options.
 
 ## Commands
 

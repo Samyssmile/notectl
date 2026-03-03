@@ -17,12 +17,7 @@ new StrikethroughPlugin()
 
 ## Configuration
 
-```ts
-interface StrikethroughConfig {
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
-}
-```
+This plugin has no configuration options.
 
 ## Commands
 

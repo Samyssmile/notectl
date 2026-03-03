@@ -23,8 +23,6 @@ new HeadingPlugin({ levels: [1, 2, 3] })
 interface HeadingConfig {
   /** Which heading levels to enable. Default: [1, 2, 3, 4, 5, 6] */
   readonly levels: HeadingLevel[];
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;

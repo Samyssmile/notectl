@@ -25,8 +25,6 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface StrikethroughConfig {
-	/** When true, a separator is rendered after the strikethrough toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: StrikethroughLocale;
 }
 
@@ -111,8 +109,6 @@ export class StrikethroughPlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-X')),
 			command: 'toggleStrikethrough',
-			priority: 40,
-			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => isMarkActive(state, markType('strikethrough')),
 		});
 	}

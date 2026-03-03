@@ -28,8 +28,6 @@ interface FontConfig {
   readonly fonts: FontDefinition[];
   /** Name of the default font. Selecting it removes the mark. */
   readonly defaultFont?: string;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 
 interface FontDefinition {

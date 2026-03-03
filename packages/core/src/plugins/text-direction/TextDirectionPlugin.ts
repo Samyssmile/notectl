@@ -55,8 +55,6 @@ export type TextDirection = 'ltr' | 'rtl' | 'auto';
 export interface TextDirectionConfig {
 	/** Block types that support direction. */
 	readonly directableTypes: readonly string[];
-	/** When true, a separator is rendered after the toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: TextDirectionLocale;
 }
 
@@ -291,10 +289,8 @@ export class TextDirectionPlugin implements Plugin {
 			label: this.locale.toolbarLabel,
 			tooltip: `${this.locale.toolbarTooltip} (${formatShortcut('Mod-Shift-D')})`,
 			command: 'setDirectionAuto',
-			priority: 65,
 			popupType: 'dropdown',
 			popupConfig: { items: dropdownItems },
-			separatorAfter: this.config.separatorAfter,
 			isActive: (state) => this.isNonDefaultDirection(state),
 			isEnabled: (state) => this.isDirectable(state),
 			getIcon: (state) => {
@@ -321,7 +317,6 @@ export class TextDirectionPlugin implements Plugin {
 			label: this.locale.inlineLabel,
 			tooltip: `${this.locale.inlineTooltip} (${formatShortcut('Mod-Shift-B')})`,
 			command: 'toggleBidiIsolation',
-			priority: 45,
 			popupType: 'dropdown',
 			popupConfig: { items: inlineItems },
 			isActive: (state) => isAttributedMarkActive(state, 'bdi'),

@@ -154,7 +154,6 @@ context.registerToolbarItem({
   label: 'My Action',         // Accessible label
   tooltip: 'Do something',
   command: 'myCommand',        // Command to execute on click
-  priority: 50,
   isActive: (state) => false,  // Highlight when active
   isDisabled: (state) => false,
 });
@@ -363,7 +362,6 @@ class HighlightPlugin implements Plugin {
       label: 'Highlight',
       tooltip: 'Highlight (Cmd+Shift+H)',
       command: 'toggleHighlight',
-      priority: 47,
       isActive: (state) => isMarkActive(state, markType('highlight')),
     });
   }

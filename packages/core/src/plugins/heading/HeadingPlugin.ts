@@ -38,8 +38,6 @@ export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export interface HeadingConfig {
 	/** Which heading levels to enable. Defaults to [1, 2, 3, 4, 5, 6]. */
 	readonly levels: readonly HeadingLevel[];
-	/** When true, a separator is rendered after the heading toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: HeadingLocale;
 }
 
@@ -87,7 +85,7 @@ export class HeadingPlugin implements Plugin {
 		registerHeadingKeymaps(context, this.config);
 		registerHeadingInputRules(context, this.config);
 		registerHeadingPickerEntries(context, this.config, this.locale);
-		registerHeadingToolbarItem(context, this.config, this.locale);
+		registerHeadingToolbarItem(context, this.locale);
 	}
 
 	private registerNodeSpecs(context: PluginContext): void {

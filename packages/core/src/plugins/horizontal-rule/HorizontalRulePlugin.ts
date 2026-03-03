@@ -33,8 +33,6 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface HorizontalRuleConfig {
-	/** When true, a separator is rendered after the toolbar item. */
-	readonly separatorAfter?: boolean;
 	/** Locale override for user-facing strings. */
 	readonly locale?: HorizontalRuleLocale;
 }
@@ -146,8 +144,6 @@ export class HorizontalRulePlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-H')),
 			command: 'insertHorizontalRule',
-			priority: 60,
-			separatorAfter: this.config.separatorAfter,
 			isActive: () => false,
 		});
 	}

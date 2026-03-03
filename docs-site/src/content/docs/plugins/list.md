@@ -25,8 +25,6 @@ interface ListConfig {
   readonly types: ListType[];
   /** Maximum nesting level. Default: 4 */
   readonly maxIndent: number;
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
   /** Allow checkbox toggling in read-only mode. Default: false */
   readonly interactiveCheckboxes?: boolean;
   /** Override the plugin locale independently from the global editor locale. */

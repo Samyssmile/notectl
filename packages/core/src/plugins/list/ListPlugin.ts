@@ -41,8 +41,6 @@ export interface ListConfig {
 	readonly types: readonly ListType[];
 	/** Maximum indent depth. Defaults to 4. */
 	readonly maxIndent: number;
-	/** When true, a separator is rendered after the last list toolbar item. */
-	readonly separatorAfter?: boolean;
 	/**
 	 * When true, checklist checkboxes remain interactive even in read-only mode.
 	 * Defaults to false (checkboxes are fully read-only).
@@ -286,7 +284,6 @@ export class ListPlugin implements Plugin {
 
 	private registerToolbarItems(context: PluginContext): void {
 		const enabledTypes = this.getEnabledTypes();
-		const lastType = enabledTypes.at(-1);
 
 		for (const def of enabledTypes) {
 			context.registerToolbarItem({
@@ -295,8 +292,6 @@ export class ListPlugin implements Plugin {
 				icon: def.icon,
 				label: this.getListLabel(def.type),
 				command: `toggleList:${def.type}`,
-				priority: def.type === 'bullet' ? 70 : def.type === 'ordered' ? 71 : 72,
-				separatorAfter: this.config.separatorAfter && def === lastType,
 				isActive: (state) => this.isListActive(state, def.type),
 			});
 		}

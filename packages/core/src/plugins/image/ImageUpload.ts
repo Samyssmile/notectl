@@ -63,7 +63,6 @@ export interface ImagePluginConfig {
 	readonly maxFileSize: number;
 	readonly acceptedTypes: readonly string[];
 	readonly resizable: boolean;
-	readonly separatorAfter?: boolean;
 	/** Pixels to grow/shrink per small resize step. @default 10 */
 	readonly resizeStep?: number;
 	/** Pixels to grow/shrink per large resize step. @default 50 */

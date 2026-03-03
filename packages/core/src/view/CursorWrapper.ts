@@ -60,7 +60,7 @@ export class CursorWrapper {
 		wrapper.appendChild(wrapped);
 
 		// Insert at the current DOM cursor position
-		const domSel: globalThis.Selection | null = getSelection(this.container);
+		const domSel: globalThis.Selection | null = getSelection();
 		if (!domSel || domSel.rangeCount === 0) return;
 
 		// Use getComposedRanges in Shadow DOM for correct range

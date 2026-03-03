@@ -49,8 +49,6 @@ export interface TableConfig {
 	readonly maxPickerRows?: number;
 	/** Maximum columns in grid picker. Defaults to 8. */
 	readonly maxPickerCols?: number;
-	/** When true, a separator is rendered after the table toolbar item. */
-	readonly separatorAfter?: boolean;
 	/** Locale for all user-facing strings. Defaults to English. */
 	readonly locale?: TableLocale;
 }
@@ -248,8 +246,6 @@ export class TablePlugin implements Plugin {
 			label: this.locale.insertTable,
 			tooltip: this.locale.insertTable,
 			command: 'insertTable',
-			priority: 80,
-			separatorAfter: this.config.separatorAfter,
 			popupType: 'gridPicker',
 			popupConfig: {
 				maxRows,

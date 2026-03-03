@@ -53,8 +53,6 @@ export interface FontSizeConfig {
 	 * Defaults to 16.
 	 */
 	readonly defaultSize?: number;
-	/** When true, a separator is rendered after the fontSize toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: FontSizeLocale;
 }
 
@@ -180,9 +178,7 @@ export class FontSizePlugin implements Plugin {
 			label: this.locale.label,
 			tooltip: this.locale.tooltip,
 			command: 'removeFontSize',
-			priority: 6,
 			popupType: 'combobox',
-			separatorAfter: this.config.separatorAfter,
 			getLabel: (state: EditorState): string =>
 				String(getActiveSizeNumeric(state, this.defaultSize)),
 			renderPopup: (container, ctx, onClose) => {

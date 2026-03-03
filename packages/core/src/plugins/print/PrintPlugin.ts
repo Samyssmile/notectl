@@ -87,7 +87,6 @@ export class PrintPlugin implements Plugin {
 				tooltip: this.locale.tooltip(shortcut),
 				icon: PRINT_ICON,
 				command: 'print',
-				priority: 900,
 			});
 		}
 	}

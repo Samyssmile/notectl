@@ -396,9 +396,7 @@ export class ImagePlugin implements Plugin {
 			label: this.locale.insertImage,
 			tooltip: this.locale.insertImageTooltip,
 			command: 'insertImage',
-			priority: 50,
 			popupType: 'custom',
-			separatorAfter: this.config.separatorAfter,
 			renderPopup: (container, ctx, onClose) => {
 				this.renderImagePopup(container, ctx, onClose);
 			},

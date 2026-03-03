@@ -30,16 +30,6 @@ interface ToolbarItemBase {
 	readonly tooltip?: string;
 	/** Command name to execute on click. */
 	readonly command: string;
-	/**
-	 * Lower priority renders further left.
-	 * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
-	 */
-	readonly priority?: number;
-	/**
-	 * When true, a visual separator is rendered after this item.
-	 * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
-	 */
-	readonly separatorAfter?: boolean;
 	isActive?(state: EditorState): boolean;
 	isEnabled?(state: EditorState): boolean;
 	/** Optional dynamic icon callback. When provided, icon updates on every state change. */

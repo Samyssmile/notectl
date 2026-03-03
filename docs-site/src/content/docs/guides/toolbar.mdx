@@ -211,26 +211,19 @@ const editor = await createEditor({
 You can also use the shorthand array syntax (`toolbar: [[...], [...]]`) — it defaults to `BurgerMenu` overflow. Switch to the object syntax only when you need a different overflow mode.
 </Aside>
 
-## Plugin Priority
+## Toolbar Item Ordering
 
-Each plugin has a `priority` number that determines its rendering order within a toolbar group. Lower numbers render first. You generally don't need to worry about this — the defaults produce a natural ordering.
+Within each toolbar group, items are rendered in **registration order** — the order in which plugins call `context.registerToolbarItem()` during `init()`. Since plugins are initialized in the order you list them in the `toolbar` config, you control the button order directly:
 
-| Plugin | Default Priority |
-|--------|-----------------|
-| HardBreakPlugin | 10 |
-| TextFormattingPlugin | 20 |
-| FontSizePlugin | 21 |
-| FontPlugin | 22 |
-| StrikethroughPlugin | 22 |
-| SuperSubPlugin | 23 |
-| TextColorPlugin | 23 |
-| HighlightPlugin | 24 |
-| LinkPlugin | 25 |
-| HeadingPlugin | 30 |
-| BlockquotePlugin | 35 |
-| ListPlugin | 35 |
-| CodeBlockPlugin | 36 |
-| HorizontalRulePlugin | 40 |
-| TablePlugin | 40 |
-| ImagePlugin | 45 |
-| AlignmentPlugin | 90 |
+```ts
+const editor = await createEditor({
+  toolbar: [
+    // Bold appears before Italic because TextFormattingPlugin registers them in that order
+    [new TextFormattingPlugin({ bold: true, italic: true })],
+    // HeadingPlugin buttons appear in this group, after the separator
+    [new HeadingPlugin()],
+  ],
+});
+```
+
+To reorder buttons, rearrange the plugins within the group arrays.

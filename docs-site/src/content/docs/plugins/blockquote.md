@@ -17,12 +17,7 @@ new BlockquotePlugin()
 
 ## Configuration
 
-```ts
-interface BlockquoteConfig {
-  /** Render separator after toolbar item. */
-  readonly separatorAfter?: boolean;
-}
-```
+This plugin has no configuration options.
 
 ## Commands
 

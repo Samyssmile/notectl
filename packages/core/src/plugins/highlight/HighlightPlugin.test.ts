@@ -85,7 +85,6 @@ describe('HighlightPlugin', () => {
 			expectToolbarItem(h, 'highlight', {
 				group: 'format',
 				label: 'Highlight',
-				priority: 46,
 				popupType: 'custom',
 			});
 		});
@@ -110,11 +109,6 @@ describe('HighlightPlugin', () => {
 
 			const h = await pluginHarness(new HighlightPlugin(), state);
 			expectToolbarActive(h, 'highlight', false);
-		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new HighlightPlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'highlight', { separatorAfter: true });
 		});
 	});
 

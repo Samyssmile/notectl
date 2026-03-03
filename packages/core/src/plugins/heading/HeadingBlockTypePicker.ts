@@ -79,20 +79,14 @@ export function registerHeadingPickerEntries(
 // --- Toolbar Item ---
 
 /** Registers the heading toolbar dropdown with a combobox picker popup. */
-export function registerHeadingToolbarItem(
-	context: PluginContext,
-	config: HeadingConfig,
-	locale: HeadingLocale,
-): void {
+export function registerHeadingToolbarItem(context: PluginContext, locale: HeadingLocale): void {
 	context.registerToolbarItem({
 		id: 'heading',
 		group: 'block',
 		label: locale.blockTypeLabel,
 		tooltip: locale.blockTypeLabel,
 		command: 'setParagraph',
-		priority: 50,
 		popupType: 'combobox',
-		separatorAfter: config.separatorAfter,
 		getLabel: (state: EditorState): string => getActiveLabel(state, context, locale),
 		renderPopup: (container, ctx, onClose) => {
 			renderHeadingPopup(container, ctx, locale, onClose);

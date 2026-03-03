@@ -179,7 +179,7 @@ editor.isEmpty();                                            // check if empty
 | | Framework | How |
 |---|---|---|
 | **Any** | Vanilla JS, React, Vue, Svelte | `<notectl-editor>` Web Component |
-| **Angular** | Angular 17+ | [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular) native integration |
+| **Angular** | Angular 21+ | [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular) native integration |
 
 See [`examples/vanillajs`](examples/vanillajs) and [`examples/angular`](examples/angular) for full working demos.
 

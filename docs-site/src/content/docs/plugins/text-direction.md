@@ -21,8 +21,6 @@ new TextDirectionPlugin({ directableTypes: ['paragraph', 'heading'] })
 interface TextDirectionConfig {
   /** Block types that support direction. Default: paragraph, heading, title, subtitle, table_cell, blockquote, list_item */
   readonly directableTypes: readonly string[];
-  /** When true, a separator is rendered after the toolbar item. */
-  readonly separatorAfter?: boolean;
   /** Custom locale for toolbar labels and announcements. */
   readonly locale?: TextDirectionLocale;
 }

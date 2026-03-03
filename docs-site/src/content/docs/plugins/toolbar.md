@@ -72,16 +72,6 @@ interface ToolbarItemBase {
   readonly tooltip?: string;
   /** Command to execute on click. */
   readonly command: string;
-  /**
-   * Ordering within group (lower = further left).
-   * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
-   */
-  readonly priority?: number;
-  /**
-   * Render a separator after this button.
-   * @deprecated Use the declarative `toolbar` config on `createEditor()` instead.
-   */
-  readonly separatorAfter?: boolean;
   /** Returns true when the item should appear active/pressed. */
   isActive?(state: EditorState): boolean;
   /** Returns true when the item should be enabled. */

@@ -41,8 +41,6 @@ export interface TextFormattingConfig {
 	readonly italic: boolean;
 	readonly underline: boolean;
 	readonly toolbar?: TextFormattingToolbarConfig;
-	/** When true, a separator is rendered after the last text-formatting toolbar item. */
-	readonly separatorAfter?: boolean;
 	readonly locale?: TextFormattingLocale;
 }
 
@@ -56,7 +54,7 @@ const DEFAULT_CONFIG: TextFormattingConfig = {
 
 interface MarkDefinition {
 	readonly type: string;
-	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter' | 'locale'>;
+	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale'>;
 	readonly rank: number;
 	readonly tag: string;
 	readonly label: string;
@@ -175,13 +173,8 @@ export class TextFormattingPlugin implements Plugin {
 
 		const enabledMarks = MARK_DEFINITIONS.filter((def) => this.config[def.configKey]);
 
-		// Determine which marks will have visible toolbar items
-		const visibleToolbarMarks = enabledMarks.filter((def) => this.isToolbarVisible(def.configKey));
-		const lastVisibleMark = visibleToolbarMarks.at(-1);
-
 		for (const def of enabledMarks) {
-			const isSeparatorTarget = this.config.separatorAfter && def === lastVisibleMark;
-			this.registerMark(context, def, isSeparatorTarget);
+			this.registerMark(context, def);
 		}
 
 		this.registerKeymaps(context, enabledMarks);
@@ -191,11 +184,7 @@ export class TextFormattingPlugin implements Plugin {
 		this.registerDisabledToolbarItems(context);
 	}
 
-	private registerMark(
-		context: PluginContext,
-		def: MarkDefinition,
-		separatorAfter?: boolean,
-	): void {
+	private registerMark(context: PluginContext, def: MarkDefinition): void {
 		const commandName = toCommandName(def.type);
 		const toolbarVisible = this.isToolbarVisible(def.configKey);
 
@@ -228,8 +217,6 @@ export class TextFormattingPlugin implements Plugin {
 				label,
 				tooltip: `${label} (${formatShortcut(def.keyBinding)})`,
 				command: commandName,
-				priority: def.rank * 10 + 10,
-				separatorAfter,
 				isActive: (state) => isMarkActive(state, mkType(def.type)),
 			});
 		}
@@ -264,7 +251,6 @@ export class TextFormattingPlugin implements Plugin {
 					icon: def.icon,
 					label: this.getMarkLabel(def.type),
 					command: toCommandName(def.type),
-					priority: def.rank * 10 + 10,
 					isEnabled: () => false,
 				});
 			}
@@ -278,7 +264,7 @@ export class TextFormattingPlugin implements Plugin {
 
 	/** Checks if a toolbar button should be visible for a given mark. */
 	private isToolbarVisible(
-		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'separatorAfter' | 'locale'>,
+		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale'>,
 	): boolean {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;

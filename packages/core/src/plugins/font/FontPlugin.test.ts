@@ -158,7 +158,6 @@ describe('FontPlugin', () => {
 			expectToolbarItem(h, 'font', {
 				group: 'format',
 				label: 'Font',
-				priority: 5,
 				popupType: 'combobox',
 			});
 		});
@@ -203,11 +202,6 @@ describe('FontPlugin', () => {
 
 			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
 			expectToolbarActive(h, 'font', false);
-		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT], separatorAfter: true }));
-			expectToolbarItem(h, 'font', { separatorAfter: true });
 		});
 	});
 

@@ -25,8 +25,6 @@ interface SuperSubConfig {
   readonly subscript: boolean;
   /** Control toolbar button visibility per mark. */
   readonly toolbar?: SuperSubToolbarConfig;
-  /** Render separator after the last visible toolbar item. */
-  readonly separatorAfter?: boolean;
 }
 
 interface SuperSubToolbarConfig {
@@ -74,10 +72,10 @@ editor.executeCommand('toggleSubscript');
 
 ## Mark Specs
 
-| Mark | HTML Tag | Rank | Priority |
-|------|----------|------|----------|
-| `superscript` | `<sup>` | 4 | 50 |
-| `subscript` | `<sub>` | 4 | 51 |
+| Mark | HTML Tag | Rank |
+|------|----------|------|
+| `superscript` | `<sup>` | 4 |
+| `subscript` | `<sub>` | 4 |
 
 ## Mutual Exclusivity
 

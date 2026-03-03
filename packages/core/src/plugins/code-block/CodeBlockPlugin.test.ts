@@ -780,11 +780,6 @@ describe('CodeBlockPlugin', () => {
 			const h = await pluginHarness(new CodeBlockPlugin(), state);
 			expectToolbarActive(h, 'code_block', false);
 		});
-
-		it('respects separatorAfter config', async () => {
-			const h = await pluginHarness(new CodeBlockPlugin({ separatorAfter: true }));
-			expectToolbarItem(h, 'code_block', { separatorAfter: true });
-		});
 	});
 
 	describe('middleware (mark prevention)', () => {
