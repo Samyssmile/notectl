@@ -41,7 +41,7 @@ export class SmartPastePlugin implements Plugin {
 	private readonly config: SmartPasteConfig;
 	private readonly detectors: ContentDetector[] = [];
 	private context: PluginContext | null = null;
-	private locale!: SmartPasteLocale;
+	private locale: SmartPasteLocale = SMART_PASTE_LOCALE_EN;
 
 	constructor(config?: Partial<SmartPasteConfig>) {
 		this.config = { ...config };
