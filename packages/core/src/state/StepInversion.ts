@@ -3,8 +3,16 @@
  * Each step type has a corresponding inverse that reverses its effect.
  */
 
+import type { BlockId } from '../model/TypeBrands.js';
 import type { Step } from './Steps.js';
 import type { Transaction } from './Transaction.js';
+
+/** Returns a path spread object if the step has a path, or empty object otherwise. */
+function optionalPath(
+	step: { readonly path?: readonly BlockId[] },
+): { readonly path: readonly BlockId[] } | Record<string, never> {
+	return step.path ? { path: step.path } : {};
+}
 
 /** Inverts a single step for undo. */
 export function invertStep(step: Step): Step {
@@ -18,7 +26,7 @@ export function invertStep(step: Step): Step {
 				deletedText: step.text,
 				deletedMarks: step.marks,
 				deletedSegments: step.segments ?? [{ text: step.text, marks: [...step.marks] }],
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'deleteText':
 			return {
@@ -28,7 +36,7 @@ export function invertStep(step: Step): Step {
 				text: step.deletedText,
 				marks: step.deletedMarks,
 				segments: step.deletedSegments,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'splitBlock':
 			return {
@@ -36,7 +44,7 @@ export function invertStep(step: Step): Step {
 				targetBlockId: step.blockId,
 				sourceBlockId: step.newBlockId,
 				targetLengthBefore: step.offset,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'mergeBlocks':
 			return {
@@ -44,7 +52,7 @@ export function invertStep(step: Step): Step {
 				blockId: step.targetBlockId,
 				offset: step.targetLengthBefore,
 				newBlockId: step.sourceBlockId,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'addMark':
 			return {
@@ -53,7 +61,7 @@ export function invertStep(step: Step): Step {
 				from: step.from,
 				to: step.to,
 				mark: step.mark,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'removeMark':
 			return {
@@ -62,7 +70,7 @@ export function invertStep(step: Step): Step {
 				from: step.from,
 				to: step.to,
 				mark: step.mark,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'setStoredMarks':
 			return {
@@ -78,7 +86,7 @@ export function invertStep(step: Step): Step {
 				attrs: step.previousAttrs,
 				previousNodeType: step.nodeType,
 				previousAttrs: step.attrs,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'insertNode':
 			return {
@@ -107,7 +115,7 @@ export function invertStep(step: Step): Step {
 				blockId: step.blockId,
 				offset: step.offset,
 				removedNode: step.node,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'removeInlineNode':
 			return {
@@ -115,7 +123,7 @@ export function invertStep(step: Step): Step {
 				blockId: step.blockId,
 				offset: step.offset,
 				node: step.removedNode,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 		case 'setInlineNodeAttr':
 			return {
@@ -124,7 +132,7 @@ export function invertStep(step: Step): Step {
 				offset: step.offset,
 				attrs: step.previousAttrs,
 				previousAttrs: step.attrs,
-				...(step.path ? { path: step.path } : {}),
+				...optionalPath(step),
 			};
 	}
 }

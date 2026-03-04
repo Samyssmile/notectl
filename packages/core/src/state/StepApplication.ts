@@ -79,31 +79,17 @@ export function applyStep(doc: Document, step: Step): Document {
 }
 
 function applyInsertText(doc: Document, step: InsertTextStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = step.segments
-			? insertSegmentsIntoInlineContent(inlineChildren, step.offset, step.segments)
-			: insertTextIntoInlineContent(inlineChildren, step.offset, step.text, step.marks);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		step.segments
+			? insertSegmentsIntoInlineContent(inline, step.offset, step.segments)
+			: insertTextIntoInlineContent(inline, step.offset, step.text, step.marks),
+	);
 }
 
 function applyDeleteText(doc: Document, step: DeleteTextStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = deleteFromInlineContent(
-			inlineChildren,
-			step.from,
-			step.to,
-		);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		deleteFromInlineContent(inline, step.from, step.to),
+	);
 }
 
 function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
@@ -191,81 +177,53 @@ function applyMergeBlocks(doc: Document, step: MergeBlocksStep): Document {
 }
 
 function applyAddMark(doc: Document, step: AddMarkStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = applyMarkToInlineContent(
-			inlineChildren,
-			step.from,
-			step.to,
-			step.mark,
-			true,
-		);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		applyMarkToInlineContent(inline, step.from, step.to, step.mark, true),
+	);
 }
 
 function applyRemoveMark(doc: Document, step: RemoveMarkStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = applyMarkToInlineContent(
-			inlineChildren,
-			step.from,
-			step.to,
-			step.mark,
-			false,
-		);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		applyMarkToInlineContent(inline, step.from, step.to, step.mark, false),
+	);
 }
 
 // --- InlineNode Step Application ---
 
 function applyInsertInlineNode(doc: Document, step: InsertInlineNodeStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = insertInlineNodeAtOffset(
-			inlineChildren,
-			step.offset,
-			step.node,
-		);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		insertInlineNodeAtOffset(inline, step.offset, step.node),
+	);
 }
 
 function applyRemoveInlineNode(doc: Document, step: RemoveInlineNodeStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
-		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = removeInlineNodeAtOffset(
-			inlineChildren,
-			step.offset,
-		);
-		return {
-			...block,
-			children: replaceInlineChildren(block.children, normalizeInlineContent(newChildren)),
-		};
-	});
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		removeInlineNodeAtOffset(inline, step.offset),
+	);
 }
 
 function applySetInlineNodeAttr(doc: Document, step: SetInlineNodeAttrStep): Document {
-	return mapBlock(doc, step.blockId, (block) => {
+	return mapBlockInlineContent(doc, step.blockId, (inline) =>
+		setInlineNodeAttrsAtOffset(inline, step.offset, step.attrs),
+	false);
+}
+
+/** Maps inline content of a block, optionally normalizing the result. */
+function mapBlockInlineContent(
+	doc: Document,
+	blockId: string,
+	fn: (inline: readonly (TextNode | InlineNode)[]) => (TextNode | InlineNode)[],
+	normalize = true,
+): Document {
+	return mapBlock(doc, blockId, (block) => {
 		const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-		const newChildren: (TextNode | InlineNode)[] = setInlineNodeAttrsAtOffset(
-			inlineChildren,
-			step.offset,
-			step.attrs,
-		);
+		const newChildren: (TextNode | InlineNode)[] = fn(inlineChildren);
 		return {
 			...block,
-			children: replaceInlineChildren(block.children, newChildren),
+			children: replaceInlineChildren(
+				block.children,
+				normalize ? normalizeInlineContent(newChildren) : newChildren,
+			),
 		};
 	});
 }
