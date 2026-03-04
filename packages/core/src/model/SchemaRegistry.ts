@@ -82,34 +82,40 @@ export class SchemaRegistry {
 
 	/** Returns all NodeSpec parseHTML rules, sorted by priority descending. */
 	getBlockParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
-		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
-		for (const [type, spec] of this._nodeSpecs) {
-			if (spec.parseHTML) {
-				for (const rule of spec.parseHTML) {
-					results.push({ rule, type });
-				}
-			}
-		}
-		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+		return this.collectParseRules(this._nodeSpecs);
 	}
 
 	/** Returns all InlineNodeSpec parseHTML rules, sorted by priority descending. */
 	getInlineParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
-		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
-		for (const [type, spec] of this._inlineNodeSpecs) {
-			if (spec.parseHTML) {
-				for (const rule of spec.parseHTML) {
-					results.push({ rule, type });
-				}
-			}
-		}
-		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+		return this.collectParseRules(this._inlineNodeSpecs);
 	}
 
 	/** Returns all MarkSpec parseHTML rules, sorted by priority descending. */
 	getMarkParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
+		return this.collectParseRules(this._markSpecs);
+	}
+
+	/** Returns all allowed HTML tags from base defaults + all spec sanitize configs. */
+	getAllowedTags(): string[] {
+		return [...this.collectSanitizeValues(
+			new Set(['p', 'br', 'div', 'span']),
+			(spec) => spec.sanitize?.tags,
+		)];
+	}
+
+	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
+	getAllowedAttrs(): string[] {
+		return [...this.collectSanitizeValues(
+			new Set(['style', 'dir']),
+			(spec) => spec.sanitize?.attrs,
+		)];
+	}
+
+	private collectParseRules(
+		specs: ReadonlyMap<string, { readonly parseHTML?: readonly ParseRule[] }>,
+	): { readonly rule: ParseRule; readonly type: string }[] {
 		const results: { readonly rule: ParseRule; readonly type: string }[] = [];
-		for (const [type, spec] of this._markSpecs) {
+		for (const [type, spec] of specs) {
 			if (spec.parseHTML) {
 				for (const rule of spec.parseHTML) {
 					results.push({ rule, type });
@@ -119,46 +125,24 @@ export class SchemaRegistry {
 		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
 	}
 
-	/** Returns all allowed HTML tags from base defaults + all spec sanitize configs. */
-	getAllowedTags(): string[] {
-		const tags = new Set<string>(['p', 'br', 'div', 'span']);
-		for (const spec of this._nodeSpecs.values()) {
-			if (spec.sanitize?.tags) {
-				for (const tag of spec.sanitize.tags) tags.add(tag);
+	private collectSanitizeValues(
+		initial: Set<string>,
+		extractor: (spec: { readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] } }) => readonly string[] | undefined,
+	): Set<string> {
+		const allSpecs: ReadonlyMap<string, { readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] } }>[] = [
+			this._nodeSpecs,
+			this._inlineNodeSpecs,
+			this._markSpecs,
+		];
+		for (const specMap of allSpecs) {
+			for (const spec of specMap.values()) {
+				const values: readonly string[] | undefined = extractor(spec);
+				if (values) {
+					for (const value of values) initial.add(value);
+				}
 			}
 		}
-		for (const spec of this._inlineNodeSpecs.values()) {
-			if (spec.sanitize?.tags) {
-				for (const tag of spec.sanitize.tags) tags.add(tag);
-			}
-		}
-		for (const spec of this._markSpecs.values()) {
-			if (spec.sanitize?.tags) {
-				for (const tag of spec.sanitize.tags) tags.add(tag);
-			}
-		}
-		return [...tags];
-	}
-
-	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
-	getAllowedAttrs(): string[] {
-		const attrs = new Set<string>(['style', 'dir']);
-		for (const spec of this._nodeSpecs.values()) {
-			if (spec.sanitize?.attrs) {
-				for (const attr of spec.sanitize.attrs) attrs.add(attr);
-			}
-		}
-		for (const spec of this._inlineNodeSpecs.values()) {
-			if (spec.sanitize?.attrs) {
-				for (const attr of spec.sanitize.attrs) attrs.add(attr);
-			}
-		}
-		for (const spec of this._markSpecs.values()) {
-			if (spec.sanitize?.attrs) {
-				for (const attr of spec.sanitize.attrs) attrs.add(attr);
-			}
-		}
-		return [...attrs];
+		return initial;
 	}
 
 	// --- Bulk ---
