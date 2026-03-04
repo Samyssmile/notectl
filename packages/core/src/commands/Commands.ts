@@ -232,44 +232,7 @@ export function insertHardBreakCommand(state: EditorState): Transaction | null {
  * isolating boundaries and void blocks.
  */
 export function mergeBlockBackward(state: EditorState): Transaction | null {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-	const blockOrder = state.getBlockOrder();
-	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
-
-	if (blockIdx <= 0) return null;
-
-	const prevBlockId = blockOrder[blockIdx - 1];
-	if (!prevBlockId) return null;
-
-	// Never merge isolating blocks directly (e.g. table cells).
-	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, prevBlockId)) {
-		return null;
-	}
-
-	// Prevent merge across isolating boundaries
-	if (!sharesParent(state, sel.anchor.blockId, prevBlockId)) {
-		if (isInsideIsolating(state, sel.anchor.blockId)) return null;
-	}
-
-	// If previous block is void, select it instead of merging
-	if (isVoidBlock(state, prevBlockId)) {
-		const path = findNodePath(state.doc, prevBlockId) ?? [];
-		return state
-			.transaction('input')
-			.setSelection(createNodeSelection(prevBlockId, path as BlockId[]))
-			.build();
-	}
-
-	const prevBlock = state.getBlock(prevBlockId);
-	if (!prevBlock) return null;
-	const prevLen = getBlockLength(prevBlock);
-
-	return state
-		.transaction('input')
-		.mergeBlocksAt(prevBlockId, sel.anchor.blockId)
-		.setSelection(createCollapsedSelection(prevBlockId, prevLen))
-		.build();
+	return mergeAdjacentBlock(state, 'backward');
 }
 
 /**
@@ -277,38 +240,58 @@ export function mergeBlockBackward(state: EditorState): Transaction | null {
  * isolating boundaries and void blocks.
  */
 export function mergeBlockForward(state: EditorState): Transaction | null {
+	return mergeAdjacentBlock(state, 'forward');
+}
+
+/**
+ * Shared implementation for merging adjacent blocks in either direction.
+ * Validates selection, isolating boundaries, and void blocks before merging.
+ */
+function mergeAdjacentBlock(
+	state: EditorState,
+	direction: 'backward' | 'forward',
+): Transaction | null {
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+
 	const blockOrder = state.getBlockOrder();
-	const blockIdx = blockOrder.indexOf(sel.anchor.blockId);
+	const blockIdx: number = blockOrder.indexOf(sel.anchor.blockId);
 
-	if (blockIdx >= blockOrder.length - 1) return null;
+	const adjacentIdx: number = direction === 'backward' ? blockIdx - 1 : blockIdx + 1;
+	if (adjacentIdx < 0 || adjacentIdx >= blockOrder.length) return null;
 
-	const nextBlockId = blockOrder[blockIdx + 1];
-	if (!nextBlockId) return null;
+	const adjacentId: BlockId | undefined = blockOrder[adjacentIdx];
+	if (!adjacentId) return null;
 
-	// Never merge isolating blocks directly (e.g. table cells).
-	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, nextBlockId)) {
+	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, adjacentId)) {
 		return null;
 	}
-
-	// Prevent merge across isolating boundaries
-	if (!sharesParent(state, sel.anchor.blockId, nextBlockId)) {
+	if (!sharesParent(state, sel.anchor.blockId, adjacentId)) {
 		if (isInsideIsolating(state, sel.anchor.blockId)) return null;
 	}
 
-	// If next block is void, select it instead of merging
-	if (isVoidBlock(state, nextBlockId)) {
-		const path = findNodePath(state.doc, nextBlockId) ?? [];
+	if (isVoidBlock(state, adjacentId)) {
+		const path = findNodePath(state.doc, adjacentId) ?? [];
 		return state
 			.transaction('input')
-			.setSelection(createNodeSelection(nextBlockId, path as BlockId[]))
+			.setSelection(createNodeSelection(adjacentId, path as BlockId[]))
+			.build();
+	}
+
+	if (direction === 'backward') {
+		const prevBlock = state.getBlock(adjacentId);
+		if (!prevBlock) return null;
+		const prevLen: number = getBlockLength(prevBlock);
+		return state
+			.transaction('input')
+			.mergeBlocksAt(adjacentId, sel.anchor.blockId)
+			.setSelection(createCollapsedSelection(adjacentId, prevLen))
 			.build();
 	}
 
 	return state
 		.transaction('input')
-		.mergeBlocksAt(sel.anchor.blockId, nextBlockId)
+		.mergeBlocksAt(sel.anchor.blockId, adjacentId)
 		.setSelection(createCollapsedSelection(sel.anchor.blockId, sel.anchor.offset))
 		.build();
 }
