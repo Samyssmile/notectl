@@ -14,7 +14,6 @@ import {
 	moveToDocumentEnd,
 	moveToDocumentStart,
 } from '../../commands/MovementCommands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { getTextDirection, isMac } from '../../platform/Platform.js';
@@ -35,6 +34,7 @@ import {
 	moveWordForward,
 } from '../../view/ViewMovementCommands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	CARET_NAVIGATION_LOCALE_EN,
 	type CaretNavigationLocale,
@@ -79,10 +79,12 @@ export class CaretNavigationPlugin implements Plugin {
 	private locale: CaretNavigationLocale = CARET_NAVIGATION_LOCALE_EN;
 
 	async init(context: PluginContext): Promise<void> {
-		const service = context.getService(LocaleServiceKey);
-		const lang: string = service?.getLocale() ?? 'en';
-		this.locale =
-			lang === 'en' ? CARET_NAVIGATION_LOCALE_EN : await loadCaretNavigationLocale(lang);
+		this.locale = await resolveLocale(
+			context,
+			undefined,
+			CARET_NAVIGATION_LOCALE_EN,
+			loadCaretNavigationLocale,
+		);
 
 		this.context = context;
 		this.announce = (text: string) => context.announce(text);

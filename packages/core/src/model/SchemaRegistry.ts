@@ -97,18 +97,19 @@ export class SchemaRegistry {
 
 	/** Returns all allowed HTML tags from base defaults + all spec sanitize configs. */
 	getAllowedTags(): string[] {
-		return [...this.collectSanitizeValues(
-			new Set(['p', 'br', 'div', 'span']),
-			(spec) => spec.sanitize?.tags,
-		)];
+		return [
+			...this.collectSanitizeValues(
+				new Set(['p', 'br', 'div', 'span']),
+				(spec) => spec.sanitize?.tags,
+			),
+		];
 	}
 
 	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
 	getAllowedAttrs(): string[] {
-		return [...this.collectSanitizeValues(
-			new Set(['style', 'dir']),
-			(spec) => spec.sanitize?.attrs,
-		)];
+		return [
+			...this.collectSanitizeValues(new Set(['style', 'dir']), (spec) => spec.sanitize?.attrs),
+		];
 	}
 
 	private collectParseRules(
@@ -127,13 +128,19 @@ export class SchemaRegistry {
 
 	private collectSanitizeValues(
 		initial: Set<string>,
-		extractor: (spec: { readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] } }) => readonly string[] | undefined,
+		extractor: (spec: {
+			readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] };
+		}) => readonly string[] | undefined,
 	): Set<string> {
-		const allSpecs: ReadonlyMap<string, { readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] } }>[] = [
-			this._nodeSpecs,
-			this._inlineNodeSpecs,
-			this._markSpecs,
-		];
+		const allSpecs: ReadonlyMap<
+			string,
+			{
+				readonly sanitize?: {
+					readonly tags?: readonly string[];
+					readonly attrs?: readonly string[];
+				};
+			}
+		>[] = [this._nodeSpecs, this._inlineNodeSpecs, this._markSpecs];
 		for (const specMap of allSpecs) {
 			for (const spec of specMap.values()) {
 				const values: readonly string[] | undefined = extractor(spec);

@@ -7,6 +7,7 @@
  * recursive lookup, and attribute sanitization against a NodeSpec.
  */
 
+import { extractParentPath, findSiblingIndex, getSiblings } from '../commands/CommandHelpers.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
@@ -26,7 +27,6 @@ import type { EditorSelection } from '../model/Selection.js';
 import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
-import { extractParentPath, findSiblingIndex, getSiblings } from '../commands/CommandHelpers.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';

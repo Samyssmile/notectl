@@ -377,7 +377,6 @@ export class TransactionBuilder {
 	}
 }
 
-
 /** Resolves the block node to be removed from a parent path and index. */
 function resolveRemovedNode(
 	doc: Document,

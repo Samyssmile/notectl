@@ -203,9 +203,12 @@ function applyRemoveInlineNode(doc: Document, step: RemoveInlineNodeStep): Docum
 }
 
 function applySetInlineNodeAttr(doc: Document, step: SetInlineNodeAttrStep): Document {
-	return mapBlockInlineContent(doc, step.blockId, (inline) =>
-		setInlineNodeAttrsAtOffset(inline, step.offset, step.attrs),
-	false);
+	return mapBlockInlineContent(
+		doc,
+		step.blockId,
+		(inline) => setInlineNodeAttrsAtOffset(inline, step.offset, step.attrs),
+		false,
+	);
 }
 
 /** Maps inline content of a block, optionally normalizing the result. */

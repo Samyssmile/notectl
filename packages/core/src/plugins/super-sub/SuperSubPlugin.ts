@@ -8,13 +8,13 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { Mark } from '../../model/Document.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { RemoveMarkStep, Step } from '../../state/Transaction.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale, toCommandName } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { SUPER_SUB_LOCALE_EN, type SuperSubLocale, loadSuperSubLocale } from './SuperSubLocale.js';
 
@@ -146,13 +146,12 @@ export class SuperSubPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? SUPER_SUB_LOCALE_EN : await loadSuperSubLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			SUPER_SUB_LOCALE_EN,
+			loadSuperSubLocale,
+		);
 
 		const enabledMarks: MarkDefinition[] = MARK_DEFINITIONS.filter(
 			(def) => this.config[def.configKey],
@@ -325,9 +324,4 @@ export class SuperSubPlugin implements Plugin {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;
 	}
-}
-
-/** Converts a mark type to its toggle command name (e.g. 'superscript' → 'toggleSuperscript'). */
-function toCommandName(markType: string): string {
-	return `toggle${markType.charAt(0).toUpperCase()}${markType.slice(1)}`;
 }

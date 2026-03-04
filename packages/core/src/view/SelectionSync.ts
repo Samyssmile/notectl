@@ -329,7 +329,6 @@ export function domPositionToState(
 	return createPosition(bid, 0, path.length > 1 ? path : undefined);
 }
 
-
 /** Checks if a node is inside a contentEditable="false" inline element. */
 function isInsideInlineElement(node: Node, root: Element): boolean {
 	let parent: Node | null = node.parentNode;

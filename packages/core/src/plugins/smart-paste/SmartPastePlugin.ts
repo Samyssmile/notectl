@@ -4,7 +4,6 @@
  */
 
 import { addDeleteSelectionSteps } from '../../commands/Commands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { insertBlockAfterAnchor, resolveAnchorBlockId } from '../../input/BlockInsertion.js';
 import {
 	type BlockNode,
@@ -24,6 +23,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	SMART_PASTE_LOCALE_EN,
 	type SmartPasteLocale,
@@ -51,13 +51,12 @@ export class SmartPastePlugin implements Plugin {
 	async init(context: PluginContext): Promise<void> {
 		this.context = context;
 
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? SMART_PASTE_LOCALE_EN : await loadSmartPasteLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			SMART_PASTE_LOCALE_EN,
+			loadSmartPasteLocale,
+		);
 
 		// Register built-in detectors
 		this.detectors.push(new JsonDetector());

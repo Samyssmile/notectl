@@ -5,7 +5,6 @@
  */
 
 import { IMAGE_CSS } from '../../editor/styles/image.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isNodeSelection } from '../../model/Selection.js';
@@ -15,6 +14,7 @@ import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	insertImage,
@@ -68,13 +68,12 @@ export class ImagePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? IMAGE_LOCALE_EN : await loadImageLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			IMAGE_LOCALE_EN,
+			loadImageLocale,
+		);
 		context.registerStyleSheet(IMAGE_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);

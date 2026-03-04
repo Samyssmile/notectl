@@ -3,11 +3,11 @@
  * toggle command, keyboard shortcut, input rule, and a toolbar button.
  */
 
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerBlockquoteKeymaps } from './BlockquoteKeyboardHandlers.js';
 import {
@@ -48,13 +48,12 @@ export class BlockquotePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? BLOCKQUOTE_LOCALE_EN : await loadBlockquoteLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			BLOCKQUOTE_LOCALE_EN,
+			loadBlockquoteLocale,
+		);
 		context.registerStyleSheet(BLOCKQUOTE_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);

@@ -11,7 +11,6 @@ import {
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
 import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { markType } from '../../model/TypeBrands.js';
@@ -19,6 +18,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import { FONT_LOCALE_EN, type FontLocale, loadFontLocale } from './FontLocale.js';
 
@@ -98,13 +98,7 @@ export class FontPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? FONT_LOCALE_EN : await loadFontLocale(lang);
-		}
+		this.locale = await resolveLocale(context, this.config.locale, FONT_LOCALE_EN, loadFontLocale);
 
 		context.registerStyleSheet(FONT_SELECT_CSS);
 		this.context = context;

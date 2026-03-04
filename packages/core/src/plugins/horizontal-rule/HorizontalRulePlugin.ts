@@ -3,7 +3,6 @@
  * with NodeSpec, insert command, input rule, keyboard shortcut, and toolbar button.
  */
 
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { createBlockNode } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
@@ -15,6 +14,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	HORIZONTAL_RULE_LOCALE_EN,
@@ -63,14 +63,12 @@ export class HorizontalRulePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale =
-				lang === 'en' ? HORIZONTAL_RULE_LOCALE_EN : await loadHorizontalRuleLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			HORIZONTAL_RULE_LOCALE_EN,
+			loadHorizontalRuleLocale,
+		);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);

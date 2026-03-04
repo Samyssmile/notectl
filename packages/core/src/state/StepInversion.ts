@@ -8,9 +8,9 @@ import type { Step } from './Steps.js';
 import type { Transaction } from './Transaction.js';
 
 /** Returns a path spread object if the step has a path, or empty object otherwise. */
-function optionalPath(
-	step: { readonly path?: readonly BlockId[] },
-): { readonly path: readonly BlockId[] } | Record<string, never> {
+function optionalPath(step: { readonly path?: readonly BlockId[] }):
+	| { readonly path: readonly BlockId[] }
+	| Record<string, never> {
 	return step.path ? { path: step.path } : {};
 }
 

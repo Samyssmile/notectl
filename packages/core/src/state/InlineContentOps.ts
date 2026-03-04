@@ -37,10 +37,8 @@ export function insertSegmentsIntoInlineContent(
 	offset: number,
 	segments: readonly TextSegment[],
 ): (TextNode | InlineNode)[] {
-	return insertIntoInlineContent(
-		nodes,
-		offset,
-		() => segments.map((seg) => createTextNode(seg.text, seg.marks)),
+	return insertIntoInlineContent(nodes, offset, () =>
+		segments.map((seg) => createTextNode(seg.text, seg.marks)),
 	);
 }
 

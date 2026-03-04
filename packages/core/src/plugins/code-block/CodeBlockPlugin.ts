@@ -13,7 +13,6 @@ import {
 } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
@@ -30,6 +29,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
@@ -84,13 +84,12 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? CODE_BLOCK_LOCALE_EN : await loadCodeBlockLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			CODE_BLOCK_LOCALE_EN,
+			loadCodeBlockLocale,
+		);
 		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 

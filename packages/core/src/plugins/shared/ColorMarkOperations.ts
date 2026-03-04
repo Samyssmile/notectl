@@ -19,7 +19,7 @@ import type { PluginContext } from '../Plugin.js';
 import { isValidCSSColor } from './ColorValidation.js';
 
 /** Color mark type names that have `{ color: string }` attrs. */
-type ColorMarkType = {
+export type ColorMarkType = {
 	[K in keyof MarkAttrRegistry]: MarkAttrRegistry[K] extends { color: string } ? K : never;
 }[keyof MarkAttrRegistry];
 

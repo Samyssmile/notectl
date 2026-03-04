@@ -13,8 +13,8 @@ import type { EditorState } from '../state/EditorState.js';
 import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
 import { moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
-import { findBlockAncestor } from './DomUtils.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
+import { findBlockAncestor } from './DomUtils.js';
 export { navigateFromGapCursor } from './GapCursorNavigation.js';
 
 /** Inset in pixels from block edge for vertical goal-column probing. */
@@ -350,4 +350,3 @@ function probeVerticalBoundary(
 		}
 	}
 }
-

@@ -8,7 +8,6 @@
  */
 
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
 import {
@@ -22,6 +21,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { LIST_LOCALE_EN, type ListLocale, loadListLocale } from './ListLocale.js';
 
 // --- Attribute Registry Augmentation ---
@@ -109,13 +109,7 @@ export class ListPlugin implements Plugin {
 
 	async init(context: PluginContext): Promise<void> {
 		this.context = context;
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? LIST_LOCALE_EN : await loadListLocale(lang);
-		}
+		this.locale = await resolveLocale(context, this.config.locale, LIST_LOCALE_EN, loadListLocale);
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
