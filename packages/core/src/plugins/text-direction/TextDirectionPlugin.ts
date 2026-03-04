@@ -16,7 +16,6 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isNodeSelection, isTextSelection } from '../../model/Selection.js';
@@ -25,7 +24,7 @@ import { markType } from '../../model/TypeBrands.js';
 import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { getSelectedBlock } from '../shared/PluginHelpers.js';
+import { getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { getBlockDir } from './DirectionDetection.js';
 import { ShiftDirectionHandler } from './ShiftDirectionHandler.js';
@@ -100,13 +99,12 @@ export class TextDirectionPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? TEXT_DIRECTION_LOCALE_EN : await loadTextDirectionLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			TEXT_DIRECTION_LOCALE_EN,
+			loadTextDirectionLocale,
+		);
 
 		this.directableTypes = new Set(this.config.directableTypes);
 		this.patchNodeSpecs(context);

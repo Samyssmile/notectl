@@ -27,6 +27,8 @@ interface AlignmentConfig {
   readonly alignableTypes: readonly string[];
   /** Per-type default alignment. E.g. { image: 'center' } */
   readonly defaults: Readonly<Record<string, BlockAlignment>>;
+  /** Custom locale strings. */
+  readonly locale?: AlignmentLocale;
 }
 
 type BlockAlignment = 'start' | 'center' | 'end' | 'justify';

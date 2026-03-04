@@ -112,6 +112,26 @@ interface ThemeCodeBlock {
   readonly headerBackground: string;   // fallback: --notectl-surface-raised
   readonly headerForeground: string;   // fallback: --notectl-fg-muted
   readonly headerBorder: string;       // fallback: --notectl-border
+  readonly syntax?: ThemeSyntax;
+}
+```
+
+### ThemeSyntax
+
+Syntax highlighting color tokens for code blocks:
+
+```ts
+interface ThemeSyntax {
+  readonly keyword: string;
+  readonly string: string;
+  readonly comment: string;
+  readonly number: string;
+  readonly function: string;
+  readonly operator: string;
+  readonly punctuation: string;
+  readonly boolean: string;
+  readonly null: string;
+  readonly property: string;
 }
 ```
 
@@ -148,7 +168,7 @@ interface PartialTheme {
   readonly name: string;
   readonly primitives?: Partial<ThemePrimitives>;
   readonly toolbar?: Partial<ThemeToolbar>;
-  readonly codeBlock?: Partial<ThemeCodeBlock>;
+  readonly codeBlock?: Partial<Omit<ThemeCodeBlock, 'syntax'>> & { readonly syntax?: Partial<ThemeSyntax> };
   readonly tooltip?: Partial<ThemeTooltip>;
 }
 ```

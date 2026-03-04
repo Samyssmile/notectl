@@ -75,36 +75,12 @@ export function getBlockSegmentsInRange(
 	from: number,
 	to: number,
 ): readonly TextSegment[] {
-	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
 	const segments: TextSegment[] = [];
-	let pos = 0;
-
-	for (const child of inlineChildren) {
-		const childWidth: number = isInlineNode(child) ? 1 : child.text.length;
-		const childEnd: number = pos + childWidth;
-
-		if (childEnd <= from || pos >= to) {
-			pos = childEnd;
-			continue;
-		}
-
-		if (isInlineNode(child)) {
-			// InlineNodes are skipped for TextSegment extraction
-			pos = childEnd;
-			continue;
-		}
-
-		const sliceFrom: number = Math.max(0, from - pos);
-		const sliceTo: number = Math.min(child.text.length, to - pos);
-		const text: string = child.text.slice(sliceFrom, sliceTo);
-
-		if (text.length > 0) {
-			segments.push({ text, marks: child.marks });
-		}
-
-		pos = childEnd;
-	}
-
+	walkBlockRange(block, from, to, {
+		onText(text: string, marks: readonly Mark[]): void {
+			segments.push({ text, marks });
+		},
+	});
 	return segments;
 }
 
@@ -114,8 +90,31 @@ export function getBlockContentSegmentsInRange(
 	from: number,
 	to: number,
 ): readonly ContentSegment[] {
-	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
 	const segments: ContentSegment[] = [];
+	walkBlockRange(block, from, to, {
+		onText(text: string, marks: readonly Mark[]): void {
+			segments.push({ kind: 'text', text, marks });
+		},
+		onInline(node: InlineNode): void {
+			segments.push({ kind: 'inline', node });
+		},
+	});
+	return segments;
+}
+
+interface BlockRangeVisitor {
+	readonly onText: (text: string, marks: readonly Mark[]) => void;
+	readonly onInline?: (node: InlineNode) => void;
+}
+
+/** Walks inline children within [from, to) and calls visitor callbacks for each relevant child. */
+function walkBlockRange(
+	block: BlockNode,
+	from: number,
+	to: number,
+	visitor: BlockRangeVisitor,
+): void {
+	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
 	let pos = 0;
 
 	for (const child of inlineChildren) {
@@ -128,20 +127,18 @@ export function getBlockContentSegmentsInRange(
 		}
 
 		if (isInlineNode(child)) {
-			segments.push({ kind: 'inline', node: child });
+			visitor.onInline?.(child);
 		} else {
 			const sliceFrom: number = Math.max(0, from - pos);
 			const sliceTo: number = Math.min(child.text.length, to - pos);
 			const text: string = child.text.slice(sliceFrom, sliceTo);
 			if (text.length > 0) {
-				segments.push({ kind: 'text', text, marks: child.marks });
+				visitor.onText(text, child.marks);
 			}
 		}
 
 		pos = childEnd;
 	}
-
-	return segments;
 }
 
 // --- Type Guards ---

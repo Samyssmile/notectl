@@ -26,44 +26,7 @@ export function insertTextIntoInlineContent(
 	text: string,
 	marks: readonly Mark[],
 ): (TextNode | InlineNode)[] {
-	const result: (TextNode | InlineNode)[] = [];
-	let pos = 0;
-	let inserted = false;
-
-	for (const node of nodes) {
-		if (isInlineNode(node)) {
-			if (!inserted && offset === pos) {
-				result.push(createTextNode(text, marks));
-				inserted = true;
-			}
-			result.push(node);
-			pos += 1;
-			continue;
-		}
-
-		const nodeEnd: number = pos + node.text.length;
-
-		if (!inserted && offset >= pos && offset <= nodeEnd) {
-			const localOffset: number = offset - pos;
-			const before: string = node.text.slice(0, localOffset);
-			const after: string = node.text.slice(localOffset);
-
-			if (before) result.push(createTextNode(before, node.marks));
-			result.push(createTextNode(text, marks));
-			if (after) result.push(createTextNode(after, node.marks));
-			inserted = true;
-		} else {
-			result.push(node);
-		}
-
-		pos = nodeEnd;
-	}
-
-	if (!inserted) {
-		result.push(createTextNode(text, marks));
-	}
-
-	return result;
+	return insertIntoInlineContent(nodes, offset, () => [createTextNode(text, marks)]);
 }
 
 /**
@@ -74,6 +37,17 @@ export function insertSegmentsIntoInlineContent(
 	offset: number,
 	segments: readonly TextSegment[],
 ): (TextNode | InlineNode)[] {
+	return insertIntoInlineContent(nodes, offset, () =>
+		segments.map((seg) => createTextNode(seg.text, seg.marks)),
+	);
+}
+
+/** Shared insertion logic for text and segments into mixed inline content. */
+function insertIntoInlineContent(
+	nodes: readonly (TextNode | InlineNode)[],
+	offset: number,
+	createInsertedNodes: () => readonly (TextNode | InlineNode)[],
+): (TextNode | InlineNode)[] {
 	const result: (TextNode | InlineNode)[] = [];
 	let pos = 0;
 	let inserted = false;
@@ -81,9 +55,7 @@ export function insertSegmentsIntoInlineContent(
 	for (const node of nodes) {
 		if (isInlineNode(node)) {
 			if (!inserted && offset === pos) {
-				for (const seg of segments) {
-					result.push(createTextNode(seg.text, seg.marks));
-				}
+				result.push(...createInsertedNodes());
 				inserted = true;
 			}
 			result.push(node);
@@ -99,9 +71,7 @@ export function insertSegmentsIntoInlineContent(
 			const after: string = node.text.slice(localOffset);
 
 			if (before) result.push(createTextNode(before, node.marks));
-			for (const seg of segments) {
-				result.push(createTextNode(seg.text, seg.marks));
-			}
+			result.push(...createInsertedNodes());
 			if (after) result.push(createTextNode(after, node.marks));
 			inserted = true;
 		} else {
@@ -112,9 +82,7 @@ export function insertSegmentsIntoInlineContent(
 	}
 
 	if (!inserted) {
-		for (const seg of segments) {
-			result.push(createTextNode(seg.text, seg.marks));
-		}
+		result.push(...createInsertedNodes());
 	}
 
 	return result;

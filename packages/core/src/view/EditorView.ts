@@ -15,6 +15,7 @@ import {
 	isCollapsed,
 	isGapCursor,
 	isNodeSelection,
+	isTextSelection,
 	selectionsEqual,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -33,6 +34,7 @@ import {
 } from './CaretNavigation.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
+import { buildBlockPath } from './DomUtils.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
@@ -170,21 +172,8 @@ export class EditorView {
 				this.history.push(tr);
 			}
 
-			const oldDecorations = this.decorations;
 			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
-			this.decorations = newDecorations;
-
-			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(oldState.selection),
-				decorations: newDecorations,
-				oldDecorations,
-				compositionBlockId: this.compositionState.isComposing
-					? (this.compositionState.activeBlockId ?? undefined)
-					: undefined,
-			});
-			if (!this.compositionState.isComposing) {
-				syncSelectionToDOM(this.contentElement, newState.selection);
-			}
+			this.reconcileAndSync(oldState, newState, newDecorations);
 
 			for (const cb of this.stateChangeCallbacks) {
 				cb(oldState, newState, tr);
@@ -238,21 +227,8 @@ export class EditorView {
 			this.state = newState;
 			this.history.clear();
 
-			const oldDecorations = this.decorations;
 			const newDecorations = this.getDecorations?.(newState) ?? DecorationSet.empty;
-			this.decorations = newDecorations;
-
-			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(oldState.selection),
-				decorations: newDecorations,
-				oldDecorations,
-				compositionBlockId: this.compositionState.isComposing
-					? (this.compositionState.activeBlockId ?? undefined)
-					: undefined,
-			});
-			if (!this.compositionState.isComposing) {
-				syncSelectionToDOM(this.contentElement, newState.selection);
-			}
+			this.reconcileAndSync(oldState, newState, newDecorations);
 		} finally {
 			this.isUpdating = false;
 		}
@@ -340,7 +316,7 @@ export class EditorView {
 		this.contentElement.focus();
 
 		const bid = toBlockId(nearestBlockEl.getAttribute('data-block-id') ?? '');
-		const path = this.buildBlockPath(nearestBlockEl);
+		const path = buildBlockPath(this.contentElement, nearestBlockEl);
 		const sel = createNodeSelection(bid, path);
 
 		const tr = this.state
@@ -401,19 +377,6 @@ export class EditorView {
 		this.dispatch(tr);
 	}
 
-	/** Builds an array of block IDs from root to leaf. */
-	private buildBlockPath(leafBlockEl: HTMLElement): BlockId[] {
-		const path: BlockId[] = [];
-		let current: HTMLElement | null = leafBlockEl;
-		while (current && current !== this.contentElement) {
-			if (current.hasAttribute('data-block-id')) {
-				path.unshift(toBlockId(current.getAttribute('data-block-id') ?? ''));
-			}
-			current = current.parentElement;
-		}
-		return path;
-	}
-
 	/** Allows file drop by preventing default on dragover when files are present. */
 	private onDragover(e: DragEvent): void {
 		if (!this.fileHandlerRegistry) return;
@@ -471,6 +434,28 @@ export class EditorView {
 		if (!this.contentElement.contains(activeEl) && activeEl !== this.contentElement) return;
 
 		this.syncSelectionFromDOM();
+	}
+
+	/** Reconciles DOM and syncs selection, updating decoration state. */
+	private reconcileAndSync(
+		oldState: EditorState,
+		newState: EditorState,
+		newDecorations: DecorationSet,
+	): void {
+		const oldDecorations = this.decorations;
+		this.decorations = newDecorations;
+
+		reconcile(this.contentElement, oldState, newState, {
+			...this.reconcileOptions(oldState.selection),
+			decorations: newDecorations,
+			oldDecorations,
+			compositionBlockId: this.compositionState.isComposing
+				? (this.compositionState.activeBlockId ?? undefined)
+				: undefined,
+		});
+		if (!this.compositionState.isComposing) {
+			syncSelectionToDOM(this.contentElement, newState.selection);
+		}
 	}
 
 	private reconcileOptions(
@@ -559,7 +544,7 @@ export class EditorView {
 	 */
 	private resolveLogicalHorizontalDirection(visual: 'left' | 'right'): 'left' | 'right' {
 		const sel = this.state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return visual;
+		if (!isTextSelection(sel)) return visual;
 		const blockEl = this.contentElement.querySelector(`[data-block-id="${sel.anchor.blockId}"]`);
 		const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
 		if (!isRtl) return visual;

@@ -15,6 +15,7 @@ import type { ImagePluginConfig } from '../plugins/image/ImageUpload.js';
 import type { LinkConfig } from '../plugins/link/LinkPlugin.js';
 import type { ListConfig } from '../plugins/list/ListPlugin.js';
 import type { PrintPluginConfig } from '../plugins/print/PrintTypes.js';
+import type { SmartPasteConfig } from '../plugins/smart-paste/SmartPasteTypes.js';
 import type { StrikethroughConfig } from '../plugins/strikethrough/StrikethroughPlugin.js';
 import type { SuperSubConfig } from '../plugins/super-sub/SuperSubPlugin.js';
 import type { TextColorConfig } from '../plugins/text-color/TextColorPlugin.js';
@@ -55,4 +56,5 @@ export interface FullPresetOptions {
 	readonly horizontalRule?: Partial<HorizontalRuleConfig>;
 	readonly image?: Partial<ImagePluginConfig>;
 	readonly print?: PrintPluginConfig;
+	readonly smartPaste?: Partial<SmartPasteConfig>;
 }

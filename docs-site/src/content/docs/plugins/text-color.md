@@ -25,6 +25,8 @@ new TextColorPlugin({
 interface TextColorConfig {
   /** Custom color palette (hex values). Default: Google Docs 70-color palette */
   readonly colors?: string[];
+  /** Custom locale strings. */
+  readonly locale?: TextColorLocale;
 }
 ```
 

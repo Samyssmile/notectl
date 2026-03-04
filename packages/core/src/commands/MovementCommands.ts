@@ -15,7 +15,7 @@ import {
 	getContentAtOffset,
 } from '../model/Document.js';
 import { nextGraphemeSize, prevGraphemeSize } from '../model/GraphemeUtils.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
@@ -32,7 +32,7 @@ export { moveToBlockEnd, moveToBlockStart } from '../state/BlockBoundaryMovement
 /** Resolves the effective head position from any text selection. */
 function resolveHead(state: EditorState): { blockId: BlockId; offset: number } | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 	return { blockId: sel.head.blockId, offset: sel.head.offset };
 }
 
@@ -57,7 +57,7 @@ function adjacentBlockId(
 /** Moves the cursor one character forward, skipping InlineNodes atomically. */
 export function moveCharacterForward(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	// If range selection, collapse to head
 	if (!isCollapsed(sel)) {
@@ -97,7 +97,7 @@ export function moveCharacterForward(state: EditorState): Transaction | null {
 /** Moves the cursor one character backward, skipping InlineNodes atomically. */
 export function moveCharacterBackward(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	// If range selection, collapse to head
 	if (!isCollapsed(sel)) {
@@ -142,7 +142,7 @@ export function moveCharacterBackward(state: EditorState): Transaction | null {
 /** Moves the cursor to the beginning of the document. */
 export function moveToDocumentStart(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const firstId: BlockId | undefined = blockOrder[0];
@@ -156,7 +156,7 @@ export function moveToDocumentStart(state: EditorState): Transaction | null {
 /** Moves the cursor to the end of the document. */
 export function moveToDocumentEnd(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const lastId: BlockId | undefined = blockOrder[blockOrder.length - 1];
@@ -179,7 +179,7 @@ export function extendCharacterForward(state: EditorState): Transaction | null {
 	if (!head) return null;
 
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const block = state.getBlock(head.blockId);
 	if (!block) return null;
@@ -209,7 +209,7 @@ export function extendCharacterBackward(state: EditorState): Transaction | null 
 	if (!head) return null;
 
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	if (head.offset > 0) {
 		const block = state.getBlock(head.blockId);
@@ -239,7 +239,7 @@ export function extendToBlockStart(state: EditorState): Transaction | null {
 	if (!head) return null;
 
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	if (head.offset === 0) return null;
 	return extendTx(state, sel.anchor.blockId, sel.anchor.offset, head.blockId, 0);
@@ -251,7 +251,7 @@ export function extendToBlockEnd(state: EditorState): Transaction | null {
 	if (!head) return null;
 
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const block = state.getBlock(head.blockId);
 	if (!block) return null;
@@ -265,7 +265,7 @@ export function extendToBlockEnd(state: EditorState): Transaction | null {
 /** Extends the selection to the start of the document. */
 export function extendToDocumentStart(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const firstId: BlockId | undefined = blockOrder[0];
@@ -280,7 +280,7 @@ export function extendToDocumentStart(state: EditorState): Transaction | null {
 /** Extends the selection to the end of the document. */
 export function extendToDocumentEnd(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const lastId: BlockId | undefined = blockOrder[blockOrder.length - 1];

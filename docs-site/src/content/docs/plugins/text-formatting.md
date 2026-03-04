@@ -33,6 +33,8 @@ interface TextFormattingConfig {
   readonly underline: boolean;
   /** Control toolbar button visibility per mark */
   readonly toolbar?: TextFormattingToolbarConfig;
+  /** Custom locale strings. */
+  readonly locale?: TextFormattingLocale;
 }
 
 interface TextFormattingToolbarConfig {

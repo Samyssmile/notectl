@@ -72,6 +72,8 @@ interface ToolbarItemBase {
   readonly tooltip?: string;
   /** Command to execute on click. */
   readonly command: string;
+  /** Optional dynamic icon callback. When provided, the icon updates on every state change. */
+  getIcon?(state: EditorState): string;
   /** Returns true when the item should appear active/pressed. */
   isActive?(state: EditorState): boolean;
   /** Returns true when the item should be enabled. */

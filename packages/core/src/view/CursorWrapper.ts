@@ -12,7 +12,7 @@
 
 import type { Mark } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { wrapNodeWithMarks } from './MarkRendering.js';
 import { getSelection, readComposedSelection } from './SelectionSync.js';
@@ -47,7 +47,7 @@ export class CursorWrapper {
 		if (!marks || marks.length === 0) return;
 
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return;
+		if (!isTextSelection(sel)) return;
 		if (!isCollapsed(sel)) return;
 
 		// Build the wrapper: <span data-cursor-wrapper>ZWS</span>

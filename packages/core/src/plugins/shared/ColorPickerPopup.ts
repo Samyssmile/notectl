@@ -4,16 +4,11 @@
  * Delegates grid rendering to the shared ColorGrid module.
  */
 
-import type { MarkAttrRegistry } from '../../model/AttrRegistry.js';
 import type { PluginContext } from '../Plugin.js';
 import { renderColorGrid } from './ColorGrid.js';
+import type { ColorMarkType } from './ColorMarkOperations.js';
 import { applyColorMark, getActiveColor } from './ColorMarkOperations.js';
 import type { PopupCloseOptions } from './PopupManager.js';
-
-/** Color mark type names that have `{ color: string }` attrs. */
-type ColorMarkType = {
-	[K in keyof MarkAttrRegistry]: MarkAttrRegistry[K] extends { color: string } ? K : never;
-}[keyof MarkAttrRegistry];
 
 /** Configuration for `renderColorPickerPopup`. */
 export interface ColorPickerConfig {

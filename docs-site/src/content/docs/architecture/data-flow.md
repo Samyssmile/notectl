@@ -20,6 +20,8 @@ EditorState.apply(transaction)
     ↓
 New immutable EditorState
     ↓
+Plugin.decorations?(state, tr) collected
+    ↓
 Reconciler patches DOM (block-level diff)
     ↓
 SelectionSync updates cursor
@@ -78,6 +80,8 @@ Middleware can:
 
 ### 5. State Application
 
+Before applying, a readonly guard checks whether the transaction is allowed. Mutating transactions are blocked in readonly mode unless explicitly marked with `readonlyAllowed`.
+
 `EditorState.apply()` executes each step sequentially:
 
 ```ts
@@ -93,7 +97,7 @@ The resulting state has:
 
 ### 6. History Records the Change
 
-The `HistoryManager` records the transaction for undo:
+The `History` manager records the transaction for undo:
 
 ```ts
 history.push(tr, invertTransaction(tr));
@@ -178,7 +182,7 @@ User presses Ctrl+Z
     ↓
 KeyboardHandler matches 'Mod-Z'
     ↓
-HistoryManager.undo()
+History.undo()
     ↓
 Retrieves inverse transaction from history stack
     ↓

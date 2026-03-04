@@ -28,6 +28,8 @@ interface HighlightConfig {
    * When omitted, the full 50-color default palette is shown.
    */
   readonly colors?: readonly string[];
+  /** Custom locale strings. */
+  readonly locale?: HighlightLocale;
 }
 ```
 

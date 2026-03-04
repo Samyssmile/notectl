@@ -5,13 +5,13 @@
  */
 
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { FONT_SIZE_LOCALE_EN, type FontSizeLocale, loadFontSizeLocale } from './FontSizeLocale.js';
 import {
 	getActiveSizeNumeric,
@@ -76,13 +76,12 @@ export class FontSizePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? FONT_SIZE_LOCALE_EN : await loadFontSizeLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			FONT_SIZE_LOCALE_EN,
+			loadFontSizeLocale,
+		);
 
 		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
 		this.registerMarkSpec(context);

@@ -182,9 +182,17 @@ All delete commands return `null` when there is nothing to delete.
 |---------|-------------|
 | `deleteBackward(state)` | Delete one character backward (Backspace) |
 | `deleteForward(state)` | Delete one character forward (Delete) |
+| `deleteWordBackward(state)` | Deletes the word before the cursor |
+| `deleteWordForward(state)` | Deletes the word after the cursor |
+| `deleteSoftLineBackward(state)` | Deletes to the beginning of the soft line |
+| `deleteSoftLineForward(state)` | Deletes to the end of the soft line |
 ```ts
 function deleteBackward(state: EditorState): Transaction | null
 function deleteForward(state: EditorState): Transaction | null
+function deleteWordBackward(state: EditorState): Transaction | null
+function deleteWordForward(state: EditorState): Transaction | null
+function deleteSoftLineBackward(state: EditorState): Transaction | null
+function deleteSoftLineForward(state: EditorState): Transaction | null
 ```
 
 ---

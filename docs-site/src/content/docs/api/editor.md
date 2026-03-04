@@ -34,7 +34,7 @@ interface NotectlEditorConfig {
   /** Controls which inline marks are enabled (auto-configures TextFormattingPlugin). */
   features?: Partial<TextFormattingConfig>;
   /** Plugins to register (headless mode — no toolbar). */
-  plugins?: Plugin[];
+  plugins?: readonly Plugin[];
   /** Declarative toolbar layout — shorthand array or full ToolbarConfig. */
   toolbar?: ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
   /** Placeholder text shown when editor is empty. */
@@ -199,6 +199,10 @@ can.selectAll();       // boolean
 ### `executeCommand(name: string): boolean`
 
 Executes a named command registered by any plugin. Returns `true` if handled.
+
+### `canExecuteCommand(name: string): boolean`
+
+Returns whether a named command can be executed.
 
 ```ts
 editor.executeCommand('toggleStrikethrough');

@@ -31,6 +31,8 @@ interface PrintPluginConfig {
   readonly keyBinding?: string;
   /** Show toolbar button (default: true). */
   readonly showToolbarItem?: boolean;
+  /** Custom locale strings. */
+  readonly locale?: PrintLocale;
 }
 ```
 
@@ -78,6 +80,10 @@ editor.executeCommand('print');
 | `Ctrl+P` / `Cmd+P` | Print |
 
 The shortcut can be customized via `keyBinding` in the plugin config.
+
+## Toolbar
+
+The print button is registered in the `actions` toolbar group. It is shown by default (controlled by the `showToolbarItem` config option).
 
 ## PrintService API
 

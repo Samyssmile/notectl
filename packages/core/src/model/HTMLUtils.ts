@@ -20,13 +20,7 @@ export function escapeHTML(text: string): string {
 }
 
 /** Escapes a value for safe interpolation into an HTML attribute (double-quoted). */
-export function escapeAttr(value: string): string {
-	return value
-		.replace(/&/g, '&amp;')
-		.replace(/"/g, '&quot;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;');
-}
+export const escapeAttr: (value: string) => string = escapeHTML;
 
 /** Block-level HTML tags that should appear on their own line with indentation. */
 const BLOCK_TAGS: ReadonlySet<string> = new Set([

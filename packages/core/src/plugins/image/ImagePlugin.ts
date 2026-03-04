@@ -5,16 +5,16 @@
  */
 
 import { IMAGE_CSS } from '../../editor/styles/image.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
+import { setStyleProperty } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	insertImage,
@@ -24,6 +24,7 @@ import {
 } from './ImageCommands.js';
 import { IMAGE_LOCALE_EN, type ImageLocale, loadImageLocale } from './ImageLocale.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
+import { renderImagePopup } from './ImagePopup.js';
 import {
 	DEFAULT_IMAGE_CONFIG,
 	DEFAULT_IMAGE_KEYMAP,
@@ -67,13 +68,12 @@ export class ImagePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? IMAGE_LOCALE_EN : await loadImageLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			IMAGE_LOCALE_EN,
+			loadImageLocale,
+		);
 		context.registerStyleSheet(IMAGE_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
@@ -398,123 +398,14 @@ export class ImagePlugin implements Plugin {
 			command: 'insertImage',
 			popupType: 'custom',
 			renderPopup: (container, ctx, onClose) => {
-				this.renderImagePopup(container, ctx, onClose);
+				renderImagePopup(container, ctx, {
+					acceptedTypes: this.config.acceptedTypes,
+					locale: this.locale,
+					onFileInsert: (c, file) => this.handleFileInsert(c, file),
+					onClose,
+				});
 			},
 		});
-	}
-
-	private renderImagePopup(
-		container: HTMLElement,
-		context: PluginContext,
-		onClose: () => void,
-	): void {
-		setStyleProperty(container, 'padding', '8px');
-		setStyleProperty(container, 'minWidth', '240px');
-
-		// --- File upload ---
-		const fileInput: HTMLInputElement = document.createElement('input');
-		fileInput.type = 'file';
-		fileInput.accept = this.config.acceptedTypes.join(',');
-		setStyleText(fileInput, 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;');
-
-		const uploadBtn: HTMLButtonElement = document.createElement('button');
-		uploadBtn.type = 'button';
-		uploadBtn.textContent = this.locale.uploadFromComputer;
-		uploadBtn.setAttribute('aria-label', this.locale.uploadAria);
-		setStyleText(
-			uploadBtn,
-			'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
-				'text-align:center;box-sizing:border-box;' +
-				'border:1px solid var(--notectl-border);border-radius:4px;' +
-				'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
-		);
-
-		uploadBtn.addEventListener('mousedown', (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			fileInput.click();
-		});
-
-		fileInput.addEventListener('change', () => {
-			const file: File | undefined = fileInput.files?.[0];
-			if (file) {
-				this.handleFileInsert(context, file);
-				onClose();
-				context.getContainer().focus();
-			}
-		});
-
-		container.appendChild(fileInput);
-		container.appendChild(uploadBtn);
-
-		// --- Separator ---
-		const separator: HTMLDivElement = document.createElement('div');
-		setStyleText(
-			separator,
-			'display:flex;align-items:center;margin:8px 0;' +
-				'color:var(--notectl-fg-muted);font-size:12px;',
-		);
-		const line1: HTMLSpanElement = document.createElement('span');
-		setStyleText(line1, 'flex:1;height:1px;background:var(--notectl-border);');
-		const orText: HTMLSpanElement = document.createElement('span');
-		orText.textContent = this.locale.separator;
-		setStyleText(orText, 'padding:0 8px;');
-		const line2: HTMLSpanElement = document.createElement('span');
-		setStyleText(line2, 'flex:1;height:1px;background:var(--notectl-border);');
-		separator.appendChild(line1);
-		separator.appendChild(orText);
-		separator.appendChild(line2);
-		container.appendChild(separator);
-
-		// --- URL input ---
-		const urlInput: HTMLInputElement = document.createElement('input');
-		urlInput.type = 'url';
-		urlInput.placeholder = this.locale.urlPlaceholder;
-		urlInput.setAttribute('aria-label', this.locale.urlAria);
-		setStyleText(
-			urlInput,
-			'width:100%;padding:6px 8px;box-sizing:border-box;' +
-				'border:1px solid var(--notectl-border);border-radius:4px;' +
-				'background:var(--notectl-bg);color:var(--notectl-fg);',
-		);
-
-		const insertBtn: HTMLButtonElement = document.createElement('button');
-		insertBtn.type = 'button';
-		insertBtn.textContent = this.locale.insertButton;
-		insertBtn.setAttribute('aria-label', this.locale.insertAria);
-		setStyleText(
-			insertBtn,
-			'width:100%;padding:8px 12px;margin-top:4px;cursor:pointer;' +
-				'border:1px solid var(--notectl-border);border-radius:4px;' +
-				'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
-		);
-
-		const applyUrl = (): void => {
-			const src: string = urlInput.value.trim();
-			if (src) {
-				insertImage(context, { src });
-				onClose();
-				context.getContainer().focus();
-			}
-		};
-
-		insertBtn.addEventListener('mousedown', (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			applyUrl();
-		});
-
-		urlInput.addEventListener('keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				applyUrl();
-			}
-		});
-
-		container.appendChild(urlInput);
-		container.appendChild(insertBtn);
-
-		requestAnimationFrame(() => urlInput.focus());
 	}
 
 	private isAcceptedType(mimeType: string): boolean {

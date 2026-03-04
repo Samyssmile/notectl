@@ -1,6 +1,6 @@
 {
 	"name": "@notectl/core",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
@@ -126,6 +126,10 @@
 			"types": "./dist/plugins/print/index.d.ts",
 			"import": "./dist/plugins/print.mjs"
 		},
+		"./plugins/smart-paste": {
+			"types": "./dist/plugins/smart-paste/index.d.ts",
+			"import": "./dist/plugins/smart-paste.mjs"
+		},
 		"./plugins/text-direction": {
 			"types": "./dist/plugins/text-direction/index.d.ts",
 			"import": "./dist/plugins/text-direction.mjs"
@@ -240,6 +244,12 @@
 			"name": "Plugin: Code Block",
 			"path": "dist/plugins/code-block.mjs",
 			"limit": "15 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Smart Paste",
+			"path": "dist/plugins/smart-paste.mjs",
+			"limit": "5 KB",
 			"gzip": true
 		},
 		{
