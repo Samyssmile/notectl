@@ -54,6 +54,7 @@ import {
 } from './CodeBlockTypes.js';
 import { RegexTokenizer } from './highlighter/RegexTokenizer.js';
 import { JSON_LANGUAGE } from './highlighter/languages/json.js';
+import { XML_LANGUAGE } from './highlighter/languages/xml.js';
 
 export class CodeBlockPlugin implements Plugin {
 	readonly id = 'code-block';
@@ -342,7 +343,7 @@ export class CodeBlockPlugin implements Plugin {
 		if (this.config.highlighter) {
 			this.highlighter = this.config.highlighter;
 		} else {
-			this.highlighter = new RegexTokenizer([JSON_LANGUAGE]);
+			this.highlighter = new RegexTokenizer([JSON_LANGUAGE, XML_LANGUAGE]);
 		}
 	}
 

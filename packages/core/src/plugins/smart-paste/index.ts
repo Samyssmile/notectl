@@ -10,3 +10,4 @@ export {
 export type { SmartPasteLocale } from './SmartPasteLocale.js';
 export { SMART_PASTE_LOCALE_EN, loadSmartPasteLocale } from './SmartPasteLocale.js';
 export { JsonDetector } from './detectors/JsonDetector.js';
+export { XmlDetector } from './detectors/XmlDetector.js';

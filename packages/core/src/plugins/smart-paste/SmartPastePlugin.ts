@@ -32,6 +32,7 @@ import {
 import type { ContentDetector, DetectionResult, SmartPasteConfig } from './SmartPasteTypes.js';
 import { SMART_PASTE_SERVICE_KEY } from './SmartPasteTypes.js';
 import { JsonDetector } from './detectors/JsonDetector.js';
+import { XmlDetector } from './detectors/XmlDetector.js';
 
 export class SmartPastePlugin implements Plugin {
 	readonly id = 'smart-paste';
@@ -58,8 +59,9 @@ export class SmartPastePlugin implements Plugin {
 			this.locale = lang === 'en' ? SMART_PASTE_LOCALE_EN : await loadSmartPasteLocale(lang);
 		}
 
-		// Register built-in JSON detector
+		// Register built-in detectors
 		this.detectors.push(new JsonDetector());
+		this.detectors.push(new XmlDetector());
 
 		// Register config-provided detectors
 		if (this.config.detectors) {
