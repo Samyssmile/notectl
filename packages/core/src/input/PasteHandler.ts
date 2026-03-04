@@ -5,6 +5,17 @@
 
 import DOMPurify from 'dompurify';
 import {
+	type InsertionContext,
+	cloneBlockWithNewIds,
+	createBlockFromRichData,
+	findBlockRecursive,
+	findTableCellAncestor,
+	resolveCellInsertionContext,
+	resolveRootInsertionContext,
+	sanitizeAttrs,
+	validateRichBlockData,
+} from '../commands/BlockInsertion.js';
+import {
 	addDeleteSelectionSteps,
 	findLastLeafBlockId,
 	insertTextCommand,
@@ -20,6 +31,7 @@ import {
 } from '../model/Document.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
+import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -34,17 +46,6 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
-import {
-	type InsertionContext,
-	cloneBlockWithNewIds,
-	createBlockFromRichData,
-	findBlockRecursive,
-	findTableCellAncestor,
-	resolveCellInsertionContext,
-	resolveRootInsertionContext,
-	sanitizeAttrs,
-	validateRichBlockData,
-} from './BlockInsertion.js';
 import { HTMLParser } from './HTMLParser.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
@@ -67,6 +68,7 @@ export interface PasteHandlerOptions {
 	readonly schemaRegistry?: SchemaRegistry;
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
 	readonly isReadOnly?: () => boolean;
+	readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
 }
 
 export class PasteHandler {
@@ -75,6 +77,7 @@ export class PasteHandler {
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly fileHandlerRegistry?: FileHandlerRegistry;
 	private readonly isReadOnly: () => boolean;
+	private readonly getPasteInterceptors: () => readonly PasteInterceptorEntry[];
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 
 	constructor(
@@ -86,6 +89,7 @@ export class PasteHandler {
 		this.schemaRegistry = options.schemaRegistry;
 		this.fileHandlerRegistry = options.fileHandlerRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.getPasteInterceptors = options.getPasteInterceptors ?? (() => []);
 
 		this.handlePaste = this.onPaste.bind(this);
 		element.addEventListener('paste', this.handlePaste);
@@ -112,7 +116,27 @@ export class PasteHandler {
 			if (richBlocks && this.handleRichPaste(richBlocks)) return;
 		}
 
+		// Paste interceptors (plugins can claim the paste before default handling)
+		const html: string = clipboardData.getData('text/html');
+		if (plainText && this.tryPasteInterceptors(plainText, html)) {
+			return;
+		}
+
 		this.handleHTMLOrTextPaste(clipboardData, plainText);
+	}
+
+	/** Runs paste interceptors in priority order. Returns true if one claimed the paste. */
+	private tryPasteInterceptors(plainText: string, html: string): boolean {
+		const interceptors = this.getPasteInterceptors();
+		const state = this.getState();
+		for (const entry of interceptors) {
+			const tr = entry.interceptor(plainText, html, state);
+			if (tr) {
+				this.dispatch(tr);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Handles HTML or plain text paste from system clipboard. */

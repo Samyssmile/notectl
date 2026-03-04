@@ -23,6 +23,8 @@ new HeadingPlugin({ levels: [1, 2, 3] })
 interface HeadingConfig {
   /** Which heading levels to enable. Default: [1, 2, 3, 4, 5, 6] */
   readonly levels: HeadingLevel[];
+  /** Custom locale strings. */
+  readonly locale?: HeadingLocale;
 }
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;

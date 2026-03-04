@@ -5,12 +5,7 @@
 
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import { segmentsLength, segmentsToText } from '../model/ContentSlice.js';
-import {
-	createBlockNode,
-	createTextNode,
-	generateBlockId,
-	isBlockNode,
-} from '../model/Document.js';
+import { createBlockNode, createTextNode, generateBlockId } from '../model/Document.js';
 import type { TextSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { GapCursorSelection } from '../model/Selection.js';
@@ -24,7 +19,12 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
-import { resolveInsertPoint } from './CommandHelpers.js';
+import {
+	extractParentPath,
+	findSiblingIndex,
+	getSiblings,
+	resolveInsertPoint,
+} from './CommandHelpers.js';
 import { addDeleteSelectionSteps } from './Commands.js';
 
 /**
@@ -199,17 +199,10 @@ function gapInsertIndex(
 	const path = findNodePath(state.doc, sel.blockId);
 	if (!path) return null;
 
-	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+	const parentPath: BlockId[] = extractParentPath(path);
+	const siblings = getSiblings(state, parentPath);
 
-	const siblings =
-		parentPath.length === 0
-			? state.doc.children
-			: (() => {
-					const parent = state.getBlock(parentPath[parentPath.length - 1] as BlockId);
-					return parent ? parent.children : [];
-				})();
-
-	const index: number = siblings.findIndex((c) => isBlockNode(c) && c.id === sel.blockId);
+	const index: number = findSiblingIndex(siblings, sel.blockId);
 	if (index < 0) return null;
 
 	const insertIndex: number = sel.side === 'before' ? index : index + 1;

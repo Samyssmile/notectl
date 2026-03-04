@@ -6,13 +6,13 @@
  */
 
 import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
 import { applyRovingTabindex } from '../shared/KeyboardNav.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import {
@@ -86,9 +86,7 @@ export class ToolbarPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		const service = context.getService(LocaleServiceKey);
-		const lang: string = service?.getLocale() ?? 'en';
-		this.locale = lang === 'en' ? TOOLBAR_LOCALE_EN : await loadToolbarLocale(lang);
+		this.locale = await resolveLocale(context, undefined, TOOLBAR_LOCALE_EN, loadToolbarLocale);
 		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
 

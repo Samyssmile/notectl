@@ -86,6 +86,7 @@ export default defineConfig({
 						{ label: 'Horizontal Rule', slug: 'plugins/horizontal-rule' },
 						{ label: 'Hard Break', slug: 'plugins/hard-break' },
 						{ label: 'Print', slug: 'plugins/print' },
+						{ label: 'Smart Paste', slug: 'plugins/smart-paste' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
 						{ label: 'Text Direction', slug: 'plugins/text-direction' },
 						{ label: 'Caret Navigation', slug: 'plugins/caret-navigation' },

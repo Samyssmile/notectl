@@ -27,6 +27,7 @@ export interface SyntaxToken {
 export interface SyntaxHighlighter {
 	tokenize(code: string, language: string): readonly SyntaxToken[];
 	getSupportedLanguages(): readonly string[];
+	registerLanguage?(def: import('./highlighter/TokenizerTypes.js').LanguageDefinition): void;
 }
 
 // --- Configuration ---
@@ -96,6 +97,18 @@ export interface CodeBlockService {
 }
 
 export const CODE_BLOCK_SERVICE_KEY = new ServiceKey<CodeBlockService>('codeBlock');
+
+// --- Syntax Highlighter Service ---
+
+export interface SyntaxHighlighterService {
+	registerLanguage(def: import('./highlighter/TokenizerTypes.js').LanguageDefinition): void;
+	getSupportedLanguages(): readonly string[];
+	tokenize(code: string, language: string): readonly SyntaxToken[];
+}
+
+export const SYNTAX_HIGHLIGHTER_SERVICE_KEY = new ServiceKey<SyntaxHighlighterService>(
+	'syntaxHighlighter',
+);
 
 // --- SVG Icon ---
 

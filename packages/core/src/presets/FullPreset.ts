@@ -15,6 +15,7 @@ import { ImagePlugin } from '../plugins/image/ImagePlugin.js';
 import { LinkPlugin } from '../plugins/link/LinkPlugin.js';
 import { ListPlugin } from '../plugins/list/ListPlugin.js';
 import { PrintPlugin } from '../plugins/print/PrintPlugin.js';
+import { SmartPastePlugin } from '../plugins/smart-paste/SmartPastePlugin.js';
 import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugin.js';
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
@@ -67,6 +68,6 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 			],
 			[new PrintPlugin(options?.print)],
 		],
-		plugins: [new HardBreakPlugin()],
+		plugins: [new HardBreakPlugin(), new SmartPastePlugin(options?.smartPaste)],
 	};
 }

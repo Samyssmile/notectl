@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **22 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **23 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -28,12 +28,13 @@ notectl ships with **22 built-in plugins**. Every editor feature — from bold t
 | [StrikethroughPlugin](/notectl/plugins/strikethrough/) | `strikethrough` | Strikethrough text | `Ctrl+Shift+X` |
 | [SuperSubPlugin](/notectl/plugins/super-sub/) | `super-sub` | Superscript & subscript | `Ctrl+.`, `Ctrl+,` |
 | [HighlightPlugin](/notectl/plugins/highlight/) | `highlight` | Text highlight (background color) | - |
-| [HorizontalRulePlugin](/notectl/plugins/horizontal-rule/) | `horizontal-rule` | Horizontal divider lines | - |
+| [HorizontalRulePlugin](/notectl/plugins/horizontal-rule/) | `horizontal-rule` | Horizontal divider lines | `Ctrl+Shift+H` |
 | [HardBreakPlugin](/notectl/plugins/hard-break/) | `hard-break` | Line breaks within a block | `Shift+Enter` |
 | [PrintPlugin](/notectl/plugins/print/) | `print` | Print with clean output and HTML export | `Ctrl+P` |
 | [ToolbarPlugin](/notectl/plugins/toolbar/) | `toolbar` | Toolbar UI (auto-created) | - |
 | [CaretNavigationPlugin](/notectl/plugins/caret-navigation/) | `caret-navigation` | Platform-aware keyboard navigation keymaps | Arrow keys, word/line/document movement |
 | [TextDirectionPlugin](/notectl/plugins/text-direction/) | `text-direction` | RTL language support with block direction and inline bidi isolation | `Ctrl+Shift+D`, `Ctrl+Shift+B` |
+| [SmartPastePlugin](/notectl/plugins/smart-paste/) | `smart-paste` | Auto-detect and format structured content on paste | - |
 | [GapCursorPlugin](/notectl/plugins/gap-cursor/) | `gap-cursor` | Virtual cursor at void-block boundaries | Arrow keys (when gap cursor active) |
 
 ## How Plugins Work
@@ -85,6 +86,7 @@ Plugins register through the `PluginContext`:
 | `registerNodeView()` | Custom block renderers | Code block header, image upload UI, table controls |
 | `registerMiddleware()` | Transaction interceptors | Preserve alignment on block type change |
 | `registerService()` | Typed services | ToolbarService, TableSelectionService |
+| `registerPasteInterceptor()` | Paste content transformers | Smart paste, markdown conversion |
 | `registerFileHandler()` | File paste/drop handlers | Image upload on drag-and-drop |
 | `registerStyleSheet()` | Inject plugin CSS | Table grid styles, code block theme |
 | `announce()` | Screen reader announcements | "Image resized", "Entered code block" |

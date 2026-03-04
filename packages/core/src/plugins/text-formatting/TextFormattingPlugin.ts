@@ -14,11 +14,11 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale, toCommandName } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	TEXT_FORMATTING_LOCALE_EN,
@@ -158,14 +158,12 @@ export class TextFormattingPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale =
-				lang === 'en' ? TEXT_FORMATTING_LOCALE_EN : await loadTextFormattingLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			TEXT_FORMATTING_LOCALE_EN,
+			loadTextFormattingLocale,
+		);
 
 		const enabledMarks = MARK_DEFINITIONS.filter((def) => this.config[def.configKey]);
 
@@ -265,9 +263,4 @@ export class TextFormattingPlugin implements Plugin {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;
 	}
-}
-
-/** Converts a mark type to its toggle command name (e.g. 'bold' → 'toggleBold'). */
-function toCommandName(markType: string): string {
-	return `toggle${markType.charAt(0).toUpperCase()}${markType.slice(1)}`;
 }

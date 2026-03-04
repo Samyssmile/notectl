@@ -7,14 +7,18 @@
  * commands, keyboard shortcuts, and a toolbar dropdown.
  */
 
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import type { BlockNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { capitalize, getSelectedBlock, getSelectedBlockId } from '../shared/PluginHelpers.js';
+import {
+	capitalize,
+	getSelectedBlock,
+	getSelectedBlockId,
+	resolveLocale,
+} from '../shared/PluginHelpers.js';
 import {
 	ALIGNMENT_LOCALE_EN,
 	type AlignmentLocale,
@@ -71,13 +75,12 @@ export class AlignmentPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? ALIGNMENT_LOCALE_EN : await loadAlignmentLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			ALIGNMENT_LOCALE_EN,
+			loadAlignmentLocale,
+		);
 
 		this.alignableTypes = new Set(this.config.alignableTypes);
 		this.patchNodeSpecs(context);

@@ -20,7 +20,7 @@ import {
 	isTextNode,
 } from '../model/Document.js';
 import type { InlineNode } from '../model/Document.js';
-import { isCollapsed, isGapCursor, isNodeSelection, selectionRange } from '../model/Selection.js';
+import { isCollapsed, isTextSelection, selectionRange } from '../model/Selection.js';
 import { markType } from '../model/TypeBrands.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -39,7 +39,7 @@ import { forEachBlockInRange } from './RangeIterator.js';
  */
 export function applyAttributedMark(state: EditorState, mark: Mark): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const typeName: MarkTypeName = markType(mark.type as string);
 
@@ -91,7 +91,7 @@ export function removeAttributedMark(
 	markTypeName: MarkTypeName,
 ): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	if (isCollapsed(sel)) {
 		const anchorBlock = state.getBlock(sel.anchor.blockId);
@@ -138,7 +138,7 @@ export function getMarkAttrAtSelection<K extends keyof MarkAttrRegistry, V>(
 	extractFn: (mark: Mark & { readonly type: K; readonly attrs: MarkAttrRegistry[K] }) => V | null,
 ): V | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	if (isCollapsed(sel) && state.storedMarks) {
 		const found = state.storedMarks.find((m) => (m.type as string) === markTypeName);

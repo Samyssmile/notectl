@@ -4,7 +4,6 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -13,6 +12,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	TEXT_COLOR_LOCALE_EN,
 	type TextColorLocale,
@@ -139,13 +139,12 @@ export class TextColorPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? TEXT_COLOR_LOCALE_EN : await loadTextColorLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			TEXT_COLOR_LOCALE_EN,
+			loadTextColorLocale,
+		);
 
 		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);

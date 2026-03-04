@@ -53,7 +53,7 @@ editor.executeCommand('removeLink');
 The link button opens a **custom popup** with:
 - A URL input field with placeholder text
 - An Apply button to confirm the link
-- When the cursor is inside an existing link: pre-filled URL and a "Remove" button
+- When the cursor is inside an existing link: a "Remove" button to unlink the selection
 
 ## Mark Spec
 

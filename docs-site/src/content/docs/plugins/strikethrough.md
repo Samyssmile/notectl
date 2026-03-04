@@ -17,7 +17,12 @@ new StrikethroughPlugin()
 
 ## Configuration
 
-This plugin has no configuration options.
+```ts
+interface StrikethroughConfig {
+  /** Custom locale strings. */
+  readonly locale?: StrikethroughLocale;
+}
+```
 
 ## Commands
 

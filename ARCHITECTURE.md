@@ -18,11 +18,11 @@ Goal: New features should be implemented without layer violations, without bundl
 4. **Strict layer boundaries**
    Dependencies flow downward. Higher layers must not deviate from the lower layer design rules (see Layer Matrix).
 
-5. **Plugins only via `PluginContext`**
-   No coupling to internal editor instances or private fields.
+5. **Plugin lifecycle and registration exclusively via `PluginContext`**
+   Direct imports from `model/`, `state/`, `commands/`, `decorations/`, and `platform/` are permitted for types, pure utilities, and command factories. No coupling to internal editor instances or private fields.
 
 6. **CSP-first styling**
-   No inline styles as the primary runtime mechanism. Use `registerStyleSheet`, `StyleRuntime`, `styleAttr()`.
+   Prefer `StyleRuntime` and `registerStyleSheet()` for plugin CSS. For dynamic per-node styles in `toDOM()`, use `ctx.styleAttr()` to ensure CSS-class-mode compatibility.
 
 7. **Security by sanitization**
    Always sanitize HTML import/export (DOMPurify + schema-derived allowlist).
@@ -40,6 +40,8 @@ view/             -> DOM reconciliation, selection sync
 decorations/      -> Transient view annotations (inline, node, widget decorations)
 state/            -> Transactions, undo/redo, immutable state
 serialization/    -> HTML import/export (DocumentSerializer, DocumentParser, CSSClassCollector)
+style/            -> CSP-safe runtime styling (StyleRuntime, styleAttr)
+i18n/             -> Locale service and resolution
 model/            -> Document model, schema, selections
 platform/         -> Browser & platform detection utilities
 ```
@@ -51,6 +53,8 @@ platform/         -> Browser & platform detection utilities
 - **`decorations/`** — Transient view annotations that do not modify the document model. Three types: `InlineDecoration` (text range styling), `NodeDecoration` (whole-block styling), `WidgetDecoration` (injected DOM elements). Managed via `DecorationSet` with position mapping through transactions.
 - **`platform/`** — Pure utility functions for browser and OS detection: `isMac()`, `isFirefox()`, `isWebKit()`, `getTextDirection()`, `isRtlContext()`. No dependencies on other layers. Results are cached after first call.
 - **`serialization/`** — HTML import/export. `DocumentSerializer` produces sanitized HTML (inline-style or CSS-class mode). `DocumentParser` parses sanitized HTML back into `Document` using schema parse rules. `CSSClassCollector` generates deterministic class names (FNV-1a hash) for the CSS-class export mode.
+- **`style/`** — `StyleRuntime` for CSP-safe adopted stylesheets and token-based styling. `styleAttr()` for inline-to-class-mode compatibility in `toDOM()`.
+- **`i18n/`** — `LocaleService` (global service), locale types, browser-locale resolution. Registered before plugin init.
 - **`view/`** — `EditorView` (orchestrates dispatch, reconciliation, input), `Reconciler` (block-level DOM diffing with decoration support), `SelectionSync`, `NodeView` interface.
 - **`input/`** — `InputHandler` (beforeinput -> commands), `KeyboardHandler` (keymap dispatch), `PasteHandler`, `ClipboardHandler`, `CompositionTracker` (IME handling).
 - **`commands/`** — High-level editing commands (`toggleMark`, `insertText`, `splitBlock`, `deleteBackward`, `deleteWordForward`, etc.).
@@ -66,6 +70,8 @@ platform/         -> Browser & platform detection utilities
 | `state/` | Transaction/History/State | `model/*` | `view/`, `input/`, `plugins/`, `editor/` |
 | `decorations/` | View annotations | `model/*`, `state/*` | `view/`, `input/`, `plugins/`, `editor/` |
 | `serialization/` | HTML import/export | `model/*` | `state/`, `view/`, `input/`, `plugins/`, `editor/` |
+| `style/` | CSP-safe styling | `model/*` (types only) | `state/`, `view/`, `plugins/`, `editor/` |
+| `i18n/` | Locale resolution | — (no runtime deps) | `state/`, `view/`, `plugins/`, `editor/` |
 | `commands/` | Editing operations | `model/*`, `state/*` | `editor/*` |
 | `input/` | Browser input -> commands | `commands/*`, `model/*`, `state/*`, `serialization/*` (clipboard) | `editor/*` internals |
 | `view/` | DOM rendering + SelectionSync | `model/*`, `state/*`, `decorations/*` | `editor/*` internals |
@@ -186,6 +192,7 @@ Use only `PluginContext` APIs. The full surface, grouped by category:
 - `registerKeymap(keymap, options?)` — register keyboard shortcuts
 - `registerInputRule(rule)` — register a pattern-based text transform
 - `registerFileHandler(pattern, handler)` — register a file drop/paste handler
+- `registerPasteInterceptor(interceptor, options?)` — register a paste interceptor with priority
 
 **UI**
 - `registerToolbarItem(item)` — register a toolbar button/dropdown
@@ -229,6 +236,10 @@ Use only `PluginContext` APIs. The full surface, grouped by category:
 
 - Toolbar/popups must be keyboard-navigable (roving tabindex, Esc/Arrow patterns).
 - Use ARIA labels and announcements via `context.announce()`.
+
+### 6.7 Registry Patching (Advanced)
+
+Plugins may patch existing NodeSpecs via `getSchemaRegistry()` (e.g., AlignmentPlugin wraps `toDOM()` to inject alignment styles). Use sparingly — prefer composition over mutation. Always re-register the full spec via `removeNodeSpec()` + `registerNodeSpec()`.
 
 ## 7. i18n Best Practices
 
@@ -330,7 +341,7 @@ The bundle system is based on modular entry points + subpath exports.
 ## 11. Common Architecture Violations
 
 1. Direct DOM mutation as data source instead of Transaction.
-2. Plugin accesses internal editor instance instead of `PluginContext`.
+2. Plugin accesses private editor fields or constructs EditorState/EditorView directly instead of using `PluginContext`.
 3. New UI texts without locale fallback.
 4. New plugin code only in `full.ts` but without a subpath export.
 5. `toHTML()` with hard-coded `style="..."` instead of `ctx.styleAttr(...)`.

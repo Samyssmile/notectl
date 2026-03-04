@@ -8,10 +8,10 @@
  */
 
 import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	registerHeadingPickerEntries,
 	registerHeadingToolbarItem,
@@ -71,13 +71,12 @@ export class HeadingPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? HEADING_LOCALE_EN : await loadHeadingLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			HEADING_LOCALE_EN,
+			loadHeadingLocale,
+		);
 		context.registerStyleSheet(HEADING_SELECT_CSS);
 
 		this.registerNodeSpecs(context);

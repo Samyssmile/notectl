@@ -4,13 +4,13 @@
  * the document edge adjacent to a void block).
  */
 
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { isGapCursor } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { navigateFromGapCursor } from '../../view/GapCursorNavigation.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	GAP_CURSOR_LOCALE_EN,
 	type GapCursorLocale,
@@ -72,9 +72,12 @@ export class GapCursorPlugin implements Plugin {
 	private locale: GapCursorLocale = GAP_CURSOR_LOCALE_EN;
 
 	async init(context: PluginContext): Promise<void> {
-		const service = context.getService(LocaleServiceKey);
-		const lang: string = service?.getLocale() ?? 'en';
-		this.locale = lang === 'en' ? GAP_CURSOR_LOCALE_EN : await loadGapCursorLocale(lang);
+		this.locale = await resolveLocale(
+			context,
+			undefined,
+			GAP_CURSOR_LOCALE_EN,
+			loadGapCursorLocale,
+		);
 
 		this.context = context;
 

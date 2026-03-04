@@ -82,6 +82,11 @@ export interface MiddlewareOptions {
 	readonly priority?: number;
 }
 
+// --- Paste Interceptors (re-exported from model for backward compatibility) ---
+
+import type { PasteInterceptor, PasteInterceptorOptions } from '../model/PasteInterceptor.js';
+export type { PasteInterceptor, PasteInterceptorOptions } from '../model/PasteInterceptor.js';
+
 // --- Plugin Context ---
 
 export interface PluginContext {
@@ -107,6 +112,7 @@ export interface PluginContext {
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
+	registerPasteInterceptor(interceptor: PasteInterceptor, options?: PasteInterceptorOptions): void;
 	getSchemaRegistry(): SchemaRegistry;
 	getKeymapRegistry(): KeymapRegistry;
 	getInputRuleRegistry(): InputRuleRegistry;

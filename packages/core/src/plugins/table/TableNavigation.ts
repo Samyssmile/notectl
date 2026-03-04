@@ -10,8 +10,7 @@ import {
 	createCollapsedSelection,
 	createNodeSelection,
 	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
+	isTextSelection,
 } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -55,7 +54,7 @@ function withTableContext(
 	handler: (state: EditorState, sel: Selection, tableCtx: TableContext) => boolean,
 ): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+	if (!isTextSelection(state.selection)) return false;
 	const sel: Selection = state.selection;
 	const tableCtx: TableContext | null = findTableContext(state, sel.anchor.blockId);
 	if (!tableCtx) return false;

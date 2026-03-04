@@ -13,23 +13,18 @@ import {
 } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { CODE_BLOCK_CSS } from '../../editor/styles/code-block.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
@@ -40,8 +35,21 @@ import {
 } from './CodeBlockLocale.js';
 import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
-import type { CodeBlockConfig, CodeBlockKeymap, SyntaxToken } from './CodeBlockTypes.js';
-import { CODE_BLOCK_ICON, DEFAULT_CONFIG, DEFAULT_KEYMAP } from './CodeBlockTypes.js';
+import type {
+	CodeBlockConfig,
+	CodeBlockKeymap,
+	SyntaxHighlighter,
+	SyntaxToken,
+} from './CodeBlockTypes.js';
+import {
+	CODE_BLOCK_ICON,
+	DEFAULT_CONFIG,
+	DEFAULT_KEYMAP,
+	SYNTAX_HIGHLIGHTER_SERVICE_KEY,
+} from './CodeBlockTypes.js';
+import { RegexTokenizer } from './highlighter/RegexTokenizer.js';
+import { JSON_LANGUAGE } from './highlighter/languages/json.js';
+import { XML_LANGUAGE } from './highlighter/languages/xml.js';
 
 export class CodeBlockPlugin implements Plugin {
 	readonly id = 'code-block';
@@ -52,6 +60,15 @@ export class CodeBlockPlugin implements Plugin {
 	private readonly resolvedKeymap: Readonly<Record<keyof CodeBlockKeymap, string | null>>;
 	private context: PluginContext | null = null;
 	private locale!: CodeBlockLocale;
+	private highlighter: SyntaxHighlighter | null = null;
+	private readonly tokenCache = new Map<
+		BlockId,
+		{
+			readonly text: string;
+			readonly language: string;
+			readonly tokens: readonly SyntaxToken[];
+		}
+	>();
 
 	constructor(config?: Partial<CodeBlockConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -62,16 +79,16 @@ export class CodeBlockPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? CODE_BLOCK_LOCALE_EN : await loadCodeBlockLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			CODE_BLOCK_LOCALE_EN,
+			loadCodeBlockLocale,
+		);
 		context.registerStyleSheet(CODE_BLOCK_CSS);
 		this.context = context;
 
+		this.initHighlighter();
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
 		registerCodeBlockCommands(context, this.config);
@@ -80,24 +97,25 @@ export class CodeBlockPlugin implements Plugin {
 		this.registerToolbarItem(context);
 		this.registerMiddleware(context);
 		registerCodeBlockService(context, this.config, () => this.context);
+		this.registerSyntaxHighlighterService(context);
 		this.patchTableCellContent(context);
 	}
 
 	destroy(): void {
 		this.context = null;
+		this.highlighter = null;
+		this.tokenCache.clear();
 	}
 
 	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
 		if (!this.context) return;
 
-		const oldBlockId: BlockId | null =
-			isNodeSelection(oldState.selection) || isGapCursor(oldState.selection)
-				? null
-				: oldState.selection.anchor.blockId;
-		const newBlockId: BlockId | null =
-			isNodeSelection(newState.selection) || isGapCursor(newState.selection)
-				? null
-				: newState.selection.anchor.blockId;
+		const oldBlockId: BlockId | null = !isTextSelection(oldState.selection)
+			? null
+			: oldState.selection.anchor.blockId;
+		const newBlockId: BlockId | null = !isTextSelection(newState.selection)
+			? null
+			: newState.selection.anchor.blockId;
 
 		const oldBlock: BlockNode | undefined = oldBlockId ? oldState.getBlock(oldBlockId) : undefined;
 		const newBlock: BlockNode | undefined = newBlockId ? newState.getBlock(newBlockId) : undefined;
@@ -120,8 +138,8 @@ export class CodeBlockPlugin implements Plugin {
 			decorations.push(nodeDecoration(focusedBlockId, { class: 'notectl-code-block--focused' }));
 		}
 
-		const highlighter = this.config.highlighter;
-		if (highlighter) {
+		if (this.highlighter) {
+			const activeBlockIds = new Set<BlockId>();
 			for (const bid of state.getBlockOrder()) {
 				const block: BlockNode | undefined = state.getBlock(bid);
 				if (!block || block.type !== 'code_block') continue;
@@ -132,13 +150,21 @@ export class CodeBlockPlugin implements Plugin {
 				const text: string = getBlockText(block);
 				if (!text) continue;
 
-				const tokens: readonly SyntaxToken[] = highlighter.tokenize(text, lang);
+				activeBlockIds.add(bid);
+				const tokens: readonly SyntaxToken[] = this.getCachedTokens(bid, text, lang);
 				for (const token of tokens) {
 					decorations.push(
 						inlineDecoration(bid, token.from, token.to, {
 							class: `notectl-token--${token.type}`,
 						}),
 					);
+				}
+			}
+
+			// Purge stale cache entries
+			for (const cachedId of this.tokenCache.keys()) {
+				if (!activeBlockIds.has(cachedId)) {
+					this.tokenCache.delete(cachedId);
 				}
 			}
 		}
@@ -213,7 +239,7 @@ export class CodeBlockPlugin implements Plugin {
 			pattern: /^```(\w*) $/,
 			handler: (state, match, start, _end) => {
 				const sel = state.selection;
-				if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+				if (!isTextSelection(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
@@ -248,7 +274,7 @@ export class CodeBlockPlugin implements Plugin {
 			),
 			command: 'toggleCodeBlock',
 			isActive: (state) => {
-				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+				if (!isTextSelection(state.selection)) return false;
 				const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'code_block';
 			},
@@ -303,10 +329,48 @@ export class CodeBlockPlugin implements Plugin {
 		});
 	}
 
+	// --- Highlighter Setup ---
+
+	private initHighlighter(): void {
+		if (this.config.highlighter) {
+			this.highlighter = this.config.highlighter;
+		} else {
+			this.highlighter = new RegexTokenizer([JSON_LANGUAGE, XML_LANGUAGE]);
+		}
+	}
+
+	private registerSyntaxHighlighterService(context: PluginContext): void {
+		const tokenizer = this.highlighter;
+		if (!tokenizer) return;
+
+		context.registerService(SYNTAX_HIGHLIGHTER_SERVICE_KEY, {
+			registerLanguage: (def) => {
+				tokenizer.registerLanguage?.(def);
+				this.tokenCache.clear();
+			},
+			getSupportedLanguages: () => tokenizer.getSupportedLanguages(),
+			tokenize: (code, language) => tokenizer.tokenize(code, language),
+		});
+	}
+
+	private getCachedTokens(
+		blockId: BlockId,
+		text: string,
+		language: string,
+	): readonly SyntaxToken[] {
+		const cached = this.tokenCache.get(blockId);
+		if (cached && cached.text === text && cached.language === language) {
+			return cached.tokens;
+		}
+		const tokens: readonly SyntaxToken[] = this.highlighter?.tokenize(text, language) ?? [];
+		this.tokenCache.set(blockId, { text, language, tokens });
+		return tokens;
+	}
+
 	// --- Helpers ---
 
 	private getFocusedCodeBlockId(state: EditorState): BlockId | null {
-		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
+		if (!isTextSelection(state.selection)) return null;
 		const blockId: BlockId = state.selection.anchor.blockId;
 		const block: BlockNode | undefined = state.getBlock(blockId);
 		if (block?.type === 'code_block') return blockId;

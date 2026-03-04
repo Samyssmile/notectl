@@ -4,9 +4,9 @@
  */
 
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	STRIKETHROUGH_LOCALE_EN,
@@ -45,13 +45,12 @@ export class StrikethroughPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? STRIKETHROUGH_LOCALE_EN : await loadStrikethroughLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			STRIKETHROUGH_LOCALE_EN,
+			loadStrikethroughLocale,
+		);
 		this.registerMarkSpec(context);
 		this.registerCommand(context);
 		this.registerKeymap(context);

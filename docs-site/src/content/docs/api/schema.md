@@ -346,6 +346,26 @@ import { schemaFromRegistry } from '@notectl/core';
 const schema = schemaFromRegistry(registry);
 ```
 
+The `Schema` interface includes an optional `getNodeSpec` function:
+
+```ts
+interface Schema {
+  readonly nodeTypes: readonly string[];
+  readonly markTypes: readonly string[];
+  readonly getNodeSpec?: (type: string) => NodeSpec | undefined;
+}
+```
+
+### `isNodeTypeAllowed(schema, nodeType)`
+
+Checks if a node type is allowed by the schema:
+
+```ts
+import { isNodeTypeAllowed } from '@notectl/core';
+
+isNodeTypeAllowed(schema, 'heading'); // true
+```
+
 ### `isMarkAllowed(schema, markType)`
 
 Checks whether a mark type is allowed by the schema:

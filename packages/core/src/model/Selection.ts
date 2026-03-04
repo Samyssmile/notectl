@@ -110,7 +110,7 @@ export function createCollapsedSelection(blockId: BlockId, offset: number): Sele
 
 /** Returns true if the selection is collapsed (cursor with no range). NodeSelection and GapCursor are never collapsed. */
 export function isCollapsed(sel: EditorSelection): boolean {
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+	if (!isTextSelection(sel)) return false;
 	return sel.anchor.blockId === sel.head.blockId && sel.anchor.offset === sel.head.offset;
 }
 
@@ -121,7 +121,7 @@ export function isCollapsed(sel: EditorSelection): boolean {
  * For NodeSelection, always returns true.
  */
 export function isForward(sel: EditorSelection, blockOrder?: readonly BlockId[]): boolean {
-	if (isNodeSelection(sel) || isGapCursor(sel)) return true;
+	if (!isTextSelection(sel)) return true;
 	if (sel.anchor.blockId === sel.head.blockId) {
 		return sel.anchor.offset <= sel.head.offset;
 	}

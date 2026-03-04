@@ -29,12 +29,12 @@ This gives you the same setup as manually configuring:
 | 2 | TextFormatting, Strikethrough, SuperSub | Inline marks |
 | 3 | TextColor, Highlight | Colors |
 | 4 | Heading, Blockquote, CodeBlock | Block types |
-| 5 | Alignment, TextDirection | Paragraph layout & direction |
+| 5 | Alignment, TextDirectionCore | Paragraph layout & direction |
 | 6 | List | Bullet, ordered, checklist |
 | 7 | Link, Table, HorizontalRule, Image | Insert objects |
 | 8 | Print | Utility |
 
-`HardBreakPlugin` is included in the non-toolbar `plugins` array (it registers `Shift+Enter` but needs no toolbar button).
+`HardBreakPlugin` and `SmartPastePlugin` are included in the non-toolbar `plugins` array (they need no toolbar button).
 
 ## Minimal Preset
 
@@ -82,13 +82,14 @@ const editor = await createEditor({
 | `blockquote` | BlockquotePlugin | `{}` |
 | `codeBlock` | CodeBlockPlugin | `{ highlighter: myHighlighter }` |
 | `alignment` | AlignmentPlugin | `{ alignments: ['start', 'center', 'end'] }` |
-| `textDirection` | TextDirectionPlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
+| `textDirection` | TextDirectionCorePlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
 | `list` | ListPlugin | `{ interactiveCheckboxes: true }` |
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
 | `table` | TablePlugin | `{ maxPickerRows: 10 }` |
 | `horizontalRule` | HorizontalRulePlugin | `{}` |
 | `image` | ImagePlugin | `{ uploadService: myUploader }` |
 | `print` | PrintPlugin | `{ keyBinding: 'Mod-Shift-P' }` |
+| `smartPaste` | SmartPastePlugin | `{}` |
 
 ## Composability
 

@@ -11,7 +11,12 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
-import { createEmptyParagraph, getSiblings } from './CommandHelpers.js';
+import {
+	createEmptyParagraph,
+	extractParentPath,
+	findSiblingIndex,
+	getSiblings,
+} from './CommandHelpers.js';
 import { deleteNodeSelection } from './NodeSelectionCommands.js';
 
 /**
@@ -102,10 +107,10 @@ export function insertParagraphAtGap(
 	const path = findNodePath(state.doc, sel.blockId);
 	if (!path) return null;
 
-	const parentPath: BlockId[] = path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+	const parentPath: BlockId[] = extractParentPath(path);
 	const siblings = getSiblings(state, parentPath);
 
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
+	const index: number = findSiblingIndex(siblings, sel.blockId);
 	if (index < 0) return null;
 
 	const insertIdx: number = sel.side === 'before' ? index : index + 1;
@@ -124,10 +129,10 @@ export function insertTextAtGap(
 	origin: 'input' | 'paste',
 ): Transaction {
 	const path = findNodePath(state.doc, sel.blockId);
-	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+	const parentPath: BlockId[] = extractParentPath(path);
 	const siblings = getSiblings(state, parentPath);
 
-	const index: number = siblings.findIndex((c) => 'id' in c && c.id === sel.blockId);
+	const index: number = findSiblingIndex(siblings, sel.blockId);
 	const insertIdx: number =
 		sel.side === 'before' ? Math.max(index, 0) : index >= 0 ? index + 1 : siblings.length;
 

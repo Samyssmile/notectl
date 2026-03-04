@@ -8,14 +8,14 @@ import type { Decoration, DecorationSet } from '../../decorations/Decoration.js'
 import { node as nodeDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { TABLE_CSS } from '../../editor/styles/table.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
-import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import { isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidHexColor } from '../shared/ColorValidation.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
 import { isInsideTable } from './TableHelpers.js';
@@ -103,13 +103,12 @@ export class TablePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? TABLE_LOCALE_EN : await loadTableLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			TABLE_LOCALE_EN,
+			loadTableLocale,
+		);
 		context.registerStyleSheet(TABLE_CSS);
 		this.context = context;
 
@@ -147,7 +146,7 @@ export class TablePlugin implements Plugin {
 		// Uses clearSelectionSilent() (no dispatch) to avoid re-entrancy,
 		// since decorations() runs inside the update cycle.
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel) || !isInsideTable(state, sel.anchor.blockId)) {
+		if (!isTextSelection(sel) || !isInsideTable(state, sel.anchor.blockId)) {
 			this.selectionService.clearSelectionSilent();
 			return DecorationSetClass.empty;
 		}
@@ -255,7 +254,7 @@ export class TablePlugin implements Plugin {
 				},
 			},
 			isActive: (state: EditorState) => {
-				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+				if (!isTextSelection(state.selection)) return false;
 				return isInsideTable(state, state.selection.anchor.blockId);
 			},
 		});

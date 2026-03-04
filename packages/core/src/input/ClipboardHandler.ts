@@ -274,7 +274,7 @@ export class ClipboardHandler {
 	/** Returns the text selection if the state has one, undefined otherwise. */
 	private getTextSelection(state: EditorState): Selection | undefined {
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return undefined;
+		if (!isTextSelection(sel)) return undefined;
 		return sel;
 	}
 

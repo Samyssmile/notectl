@@ -9,8 +9,8 @@ import {
 	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
-import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
+import { buildBlockPath, findBlockAncestor } from './DomUtils.js';
 
 interface DOMPosition {
 	node: Node;
@@ -256,7 +256,7 @@ export function domPositionToState(
 	domOffset: number,
 ): Position | null {
 	// Find the innermost block element
-	const blockEl = findBlockElement(container, node);
+	const blockEl = findBlockAncestor(container, node);
 	if (!blockEl) return null;
 
 	const rawBlockId = blockEl.getAttribute('data-block-id');
@@ -326,33 +326,6 @@ export function domPositionToState(
 	}
 
 	return createPosition(bid, 0, path.length > 1 ? path : undefined);
-}
-
-/** Builds an array of block IDs from root to leaf by walking up from a block element. */
-function buildBlockPath(container: HTMLElement, leafBlockEl: HTMLElement): BlockId[] {
-	const path: BlockId[] = [];
-	let current: HTMLElement | null = leafBlockEl;
-
-	while (current && current !== container) {
-		if (current.hasAttribute('data-block-id')) {
-			path.unshift(toBlockId(current.getAttribute('data-block-id') ?? ''));
-		}
-		current = current.parentElement;
-	}
-
-	return path;
-}
-
-/** Finds the closest block element ancestor. */
-function findBlockElement(container: HTMLElement, node: Node): HTMLElement | null {
-	let current: Node | null = node;
-	while (current && current !== container) {
-		if (current instanceof HTMLElement && current.hasAttribute('data-block-id')) {
-			return current;
-		}
-		current = current.parentNode;
-	}
-	return null;
 }
 
 /** Checks if a node is inside a contentEditable="false" inline element. */

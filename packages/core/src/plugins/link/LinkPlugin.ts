@@ -9,13 +9,13 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
 import { hasMark } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
 
@@ -54,13 +54,7 @@ export class LinkPlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? LINK_LOCALE_EN : await loadLinkLocale(lang);
-		}
+		this.locale = await resolveLocale(context, this.config.locale, LINK_LOCALE_EN, loadLinkLocale);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -164,7 +158,7 @@ export class LinkPlugin implements Plugin {
 
 	private addLink(context: PluginContext, state: EditorState, href: string): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+		if (!isTextSelection(sel)) return false;
 		if (isCollapsed(sel)) return false;
 
 		const mark = { type: markType('link'), attrs: { href } };
@@ -177,7 +171,7 @@ export class LinkPlugin implements Plugin {
 
 	private removeLink(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+		if (!isTextSelection(sel)) return false;
 
 		if (isCollapsed(sel)) {
 			// Remove link from entire link span around cursor (plugin-specific extent scan)

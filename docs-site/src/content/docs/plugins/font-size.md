@@ -28,6 +28,8 @@ interface FontSizeConfig {
   readonly sizes?: number[];
   /** Base font size (no mark applied). Default: 16 */
   readonly defaultSize?: number;
+  /** Custom locale strings. */
+  readonly locale?: FontSizeLocale;
 }
 ```
 

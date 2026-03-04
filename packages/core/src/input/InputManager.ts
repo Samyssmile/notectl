@@ -10,6 +10,7 @@
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -37,6 +38,7 @@ export interface InputManagerDeps {
 	readonly inputRuleRegistry?: InputRuleRegistry;
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
 	readonly isReadOnly: () => boolean;
+	readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
 	readonly getTextDirection?: TextDirectionFn;
 	readonly navigateFromGapCursor?: GapCursorNavigateFn;
 }
@@ -78,6 +80,7 @@ export class InputManager {
 			schemaRegistry: deps.schemaRegistry,
 			fileHandlerRegistry: deps.fileHandlerRegistry,
 			isReadOnly: deps.isReadOnly,
+			getPasteInterceptors: deps.getPasteInterceptors,
 		});
 
 		this.clipboardHandler = new ClipboardHandler(contentElement, {

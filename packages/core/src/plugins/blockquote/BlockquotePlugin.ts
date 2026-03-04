@@ -3,11 +3,11 @@
  * toggle command, keyboard shortcut, input rule, and a toolbar button.
  */
 
-import { LocaleServiceKey } from '../../i18n/LocaleService.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerBlockquoteKeymaps } from './BlockquoteKeyboardHandlers.js';
 import {
@@ -48,13 +48,12 @@ export class BlockquotePlugin implements Plugin {
 	}
 
 	async init(context: PluginContext): Promise<void> {
-		if (this.config.locale) {
-			this.locale = this.config.locale;
-		} else {
-			const service = context.getService(LocaleServiceKey);
-			const lang: string = service?.getLocale() ?? 'en';
-			this.locale = lang === 'en' ? BLOCKQUOTE_LOCALE_EN : await loadBlockquoteLocale(lang);
-		}
+		this.locale = await resolveLocale(
+			context,
+			this.config.locale,
+			BLOCKQUOTE_LOCALE_EN,
+			loadBlockquoteLocale,
+		);
 		context.registerStyleSheet(BLOCKQUOTE_CSS);
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
@@ -101,7 +100,7 @@ export class BlockquotePlugin implements Plugin {
 			pattern: /^> $/,
 			handler(state, _match, start, _end) {
 				const sel = state.selection;
-				if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+				if (!isTextSelection(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block = state.getBlock(sel.anchor.blockId);
@@ -129,7 +128,7 @@ export class BlockquotePlugin implements Plugin {
 			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift->')),
 			command: 'toggleBlockquote',
 			isActive: (state) => {
-				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+				if (!isTextSelection(state.selection)) return false;
 				const block = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'blockquote';
 			},
@@ -142,7 +141,7 @@ export class BlockquotePlugin implements Plugin {
 	 */
 	private toggleBlockquote(context: PluginContext): boolean {
 		const state = context.getState();
-		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+		if (!isTextSelection(state.selection)) return false;
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block) return false;
 
@@ -160,7 +159,7 @@ export class BlockquotePlugin implements Plugin {
 	): boolean {
 		const state = context.getState();
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+		if (!isTextSelection(sel)) return false;
 
 		const tr = state
 			.transaction('command')

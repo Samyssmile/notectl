@@ -56,3 +56,4 @@ export {
 	type PositionOptions,
 } from './PopupPositioning.js';
 export { formatShortcut } from './ShortcutFormatting.js';
+export { XML_ATTRS, XML_TAG_NAME } from './XmlPatterns.js';

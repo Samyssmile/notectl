@@ -28,6 +28,7 @@ interface InputManagerDeps {
   readonly inputRuleRegistry?: InputRuleRegistry;
   readonly fileHandlerRegistry?: FileHandlerRegistry;
   readonly isReadOnly: () => boolean;
+  readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
   readonly getTextDirection?: (element: HTMLElement) => 'ltr' | 'rtl';
   readonly navigateFromGapCursor?: (
     state: EditorState,

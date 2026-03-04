@@ -17,7 +17,12 @@ new BlockquotePlugin()
 
 ## Configuration
 
-This plugin has no configuration options.
+```ts
+interface BlockquoteConfig {
+  /** Custom locale strings. */
+  readonly locale?: BlockquoteLocale;
+}
+```
 
 ## Commands
 

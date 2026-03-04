@@ -16,7 +16,9 @@ const editor = await createEditor({
 });
 ```
 
-No configuration is needed. The plugin auto-detects macOS vs Windows/Linux and registers the appropriate keymaps.
+## Configuration
+
+The plugin requires no configuration. It auto-detects macOS vs Windows/Linux and registers the appropriate keymaps.
 
 ## Keyboard Shortcuts
 
