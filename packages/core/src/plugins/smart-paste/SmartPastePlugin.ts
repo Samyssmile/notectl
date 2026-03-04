@@ -3,8 +3,8 @@
  * and inserts it as formatted code blocks with syntax highlighting.
  */
 
+import { insertBlockAfterAnchor, resolveAnchorBlockId } from '../../commands/BlockInsertion.js';
 import { addDeleteSelectionSteps } from '../../commands/Commands.js';
-import { insertBlockAfterAnchor, resolveAnchorBlockId } from '../../input/BlockInsertion.js';
 import {
 	type BlockNode,
 	createBlockNode,

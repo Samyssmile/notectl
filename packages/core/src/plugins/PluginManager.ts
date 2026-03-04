@@ -13,6 +13,7 @@ import type { InputRule } from '../model/InputRule.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -54,12 +55,7 @@ export interface MiddlewareInfo {
 	readonly pluginId: string;
 }
 
-export interface PasteInterceptorEntry {
-	readonly name: string;
-	readonly pluginId: string;
-	readonly interceptor: PasteInterceptor;
-	readonly priority: number;
-}
+export type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 
 interface PluginRegistrations {
 	commands: string[];

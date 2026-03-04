@@ -5,6 +5,17 @@
 
 import DOMPurify from 'dompurify';
 import {
+	type InsertionContext,
+	cloneBlockWithNewIds,
+	createBlockFromRichData,
+	findBlockRecursive,
+	findTableCellAncestor,
+	resolveCellInsertionContext,
+	resolveRootInsertionContext,
+	sanitizeAttrs,
+	validateRichBlockData,
+} from '../commands/BlockInsertion.js';
+import {
 	addDeleteSelectionSteps,
 	findLastLeafBlockId,
 	insertTextCommand,
@@ -20,6 +31,7 @@ import {
 } from '../model/Document.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
+import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -32,20 +44,8 @@ import {
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
-import type { PasteInterceptorEntry } from '../plugins/PluginManager.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
-import {
-	type InsertionContext,
-	cloneBlockWithNewIds,
-	createBlockFromRichData,
-	findBlockRecursive,
-	findTableCellAncestor,
-	resolveCellInsertionContext,
-	resolveRootInsertionContext,
-	sanitizeAttrs,
-	validateRichBlockData,
-} from './BlockInsertion.js';
 import { HTMLParser } from './HTMLParser.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';

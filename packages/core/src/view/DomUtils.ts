@@ -6,7 +6,12 @@
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 
-/** Creates an HTMLElement with the required `data-block-id` attribute. */
+/**
+ * Creates an HTMLElement with the required `data-block-id` attribute.
+ *
+ * Intentionally used by plugins in `NodeSpec.toDOM()` callbacks —
+ * this is an accepted targeted import per ARCHITECTURE.md.
+ */
 export function createBlockElement(tag: string, blockId: BlockId): HTMLElement {
 	const el = document.createElement(tag);
 	el.setAttribute('data-block-id', blockId);

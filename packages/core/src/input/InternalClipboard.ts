@@ -5,20 +5,9 @@
  * a paste event can verify the text matches before using the rich data.
  */
 
-/** A serialized inline segment preserving marks. */
-export interface RichSegment {
-	readonly text: string;
-	readonly marks: readonly { readonly type: string; readonly attrs?: Record<string, unknown> }[];
-}
+import type { RichBlockData } from '../model/RichBlockData.js';
 
-/** A serialized block from a text-selection copy. */
-export interface RichBlockData {
-	readonly type: string;
-	readonly text: string;
-	readonly attrs?: Record<string, unknown>;
-	/** Inline segments with marks. When present, used instead of plain `text`. */
-	readonly segments?: readonly RichSegment[];
-}
+export type { RichSegment, RichBlockData } from '../model/RichBlockData.js';
 
 interface RichClipboardEntry {
 	readonly plainText: string;

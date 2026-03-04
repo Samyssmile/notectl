@@ -10,8 +10,8 @@
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import type { PasteInterceptorEntry } from '../plugins/PluginManager.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
