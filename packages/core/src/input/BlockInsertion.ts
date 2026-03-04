@@ -26,6 +26,7 @@ import type { EditorSelection } from '../model/Selection.js';
 import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
+import { extractParentPath, findSiblingIndex, getSiblings } from '../commands/CommandHelpers.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';
@@ -50,10 +51,10 @@ export function resolveRootInsertionContext(
 	schemaRegistry?: SchemaRegistry,
 ): InsertionContext | undefined {
 	const path: readonly string[] | undefined = findNodePath(state.doc, anchorBlockId);
-	const parentPath: BlockId[] = path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+	const parentPath: BlockId[] = extractParentPath(path);
 
-	const siblings: readonly (BlockNode | ChildNode)[] = resolveSiblings(state, parentPath);
-	const anchorIndex: number = siblings.findIndex((c) => isBlockNode(c) && c.id === anchorBlockId);
+	const siblings: readonly ChildNode[] = getSiblings(state, parentPath);
+	const anchorIndex: number = findSiblingIndex(siblings, anchorBlockId);
 	if (anchorIndex < 0) return undefined;
 
 	const isAnchorEmpty: boolean = isBlockEmpty(state, anchorBlockId, schemaRegistry);
@@ -209,18 +210,6 @@ export function sanitizeAttrs(
 	}
 
 	return hasKeys ? result : undefined;
-}
-
-/** Resolves the sibling list for a given parent path. */
-function resolveSiblings(
-	state: EditorState,
-	parentPath: readonly BlockId[],
-): readonly (BlockNode | ChildNode)[] {
-	if (parentPath.length === 0) return state.doc.children;
-	const parent: BlockNode | undefined = state.getBlock(
-		parentPath[parentPath.length - 1] as BlockId,
-	);
-	return parent ? parent.children : [];
 }
 
 /** Checks whether a block is empty (has no text and is not a void block). */

@@ -7,7 +7,7 @@
  */
 
 import type { BlockNode, ChildNode } from '../model/Document.js';
-import { createBlockNode, createTextNode } from '../model/Document.js';
+import { createBlockNode, createTextNode, isBlockNode } from '../model/Document.js';
 import { isCollapsed, selectionRange } from '../model/Selection.js';
 import type { Selection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -49,4 +49,14 @@ export function resolveInsertPoint(sel: Selection, blockOrder: readonly BlockId[
 	}
 	const range = selectionRange(sel, blockOrder);
 	return { blockId: range.from.blockId, offset: range.from.offset };
+}
+
+/** Extracts the parent path from a full node path (all elements except the last). */
+export function extractParentPath(path: readonly string[] | undefined): BlockId[] {
+	return path && path.length > 1 ? (path.slice(0, -1) as BlockId[]) : [];
+}
+
+/** Finds the index of a block by ID within a sibling list. */
+export function findSiblingIndex(siblings: readonly ChildNode[], targetId: BlockId): number {
+	return siblings.findIndex((c) => isBlockNode(c) && c.id === targetId);
 }
