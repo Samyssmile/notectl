@@ -128,17 +128,8 @@ export class TransactionBuilder {
 	 * from the working document. Requires a document to be provided at construction.
 	 */
 	deleteTextAt(blockId: BlockId, from: number, to: number): this {
-		const doc = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'deleteTextAt requires a document. Use state.transaction() or provide doc to constructor.',
-			);
-		}
-
-		const block = findNode(doc, blockId);
-		if (!block) {
-			throw new Error(`Block "${blockId}" not found in working document.`);
-		}
+		const doc: Document = this.requireDoc('deleteTextAt');
+		const block: BlockNode = this.requireBlock(doc, blockId);
 
 		const text = getBlockText(block);
 		const deletedText = text.slice(from, to);
@@ -174,17 +165,8 @@ export class TransactionBuilder {
 	 * Requires a document to be provided at construction.
 	 */
 	mergeBlocksAt(targetBlockId: BlockId, sourceBlockId: BlockId): this {
-		const doc = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'mergeBlocksAt requires a document. Use state.transaction() or provide doc to constructor.',
-			);
-		}
-
-		const targetBlock = findNode(doc, targetBlockId);
-		if (!targetBlock) {
-			throw new Error(`Target block "${targetBlockId}" not found in working document.`);
-		}
+		const doc: Document = this.requireDoc('mergeBlocksAt');
+		const targetBlock: BlockNode = this.requireBlock(doc, targetBlockId);
 
 		const targetLengthBefore = getBlockLength(targetBlock);
 		return this.mergeBlocks(targetBlockId, sourceBlockId, targetLengthBefore);
@@ -208,16 +190,8 @@ export class TransactionBuilder {
 
 	/** Adds a set-block-type step, changing a block's node type and optionally its attrs. */
 	setBlockType(blockId: BlockId, nodeType: NodeTypeName, attrs?: BlockAttrs): this {
-		const doc = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'setBlockType requires a document. Use state.transaction() or provide doc to constructor.',
-			);
-		}
-		const block = findNode(doc, blockId);
-		if (!block) {
-			throw new Error(`Block "${blockId}" not found in working document.`);
-		}
+		const doc: Document = this.requireDoc('setBlockType');
+		const block: BlockNode = this.requireBlock(doc, blockId);
 		const step: SetBlockTypeStep = {
 			type: 'setBlockType',
 			blockId,
@@ -241,12 +215,7 @@ export class TransactionBuilder {
 
 	/** Removes a node at the given index from the parent at the given path. */
 	removeNode(parentPath: readonly BlockId[], index: number): this {
-		const doc = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'removeNode requires a document. Use state.transaction() or provide doc to constructor.',
-			);
-		}
+		const doc: Document = this.requireDoc('removeNode');
 
 		const removedNode = resolveRemovedNode(doc, parentPath, index);
 		if (!removedNode) {
@@ -263,12 +232,7 @@ export class TransactionBuilder {
 
 	/** Sets attributes on a node at the given path. */
 	setNodeAttr(path: readonly BlockId[], attrs: BlockAttrs): this {
-		const doc = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'setNodeAttr requires a document. Use state.transaction() or provide doc to constructor.',
-			);
-		}
+		const doc: Document = this.requireDoc('setNodeAttr');
 
 		const node = resolveNodeByPath(doc, path);
 		if (!node) {
@@ -301,16 +265,8 @@ export class TransactionBuilder {
 
 	/** Removes an InlineNode at the given offset, deriving removedNode from workingDoc. */
 	removeInlineNode(blockId: BlockId, offset: number): this {
-		const doc: Document | null = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'removeInlineNode requires a document. Use state.transaction() or provide doc.',
-			);
-		}
-		const block: BlockNode | undefined = findNode(doc, blockId);
-		if (!block) {
-			throw new Error(`Block "${blockId}" not found in working document.`);
-		}
+		const doc: Document = this.requireDoc('removeInlineNode');
+		const block: BlockNode = this.requireBlock(doc, blockId);
 		const content = getContentAtOffset(block, offset);
 		if (!content || content.kind !== 'inline') {
 			throw new Error(`No InlineNode at offset ${offset} in block "${blockId}".`);
@@ -332,16 +288,8 @@ export class TransactionBuilder {
 		offset: number,
 		attrs: Readonly<Record<string, string | number | boolean>>,
 	): this {
-		const doc: Document | null = this.workingDoc;
-		if (!doc) {
-			throw new Error(
-				'setInlineNodeAttr requires a document. Use state.transaction() or provide doc.',
-			);
-		}
-		const block: BlockNode | undefined = findNode(doc, blockId);
-		if (!block) {
-			throw new Error(`Block "${blockId}" not found in working document.`);
-		}
+		const doc: Document = this.requireDoc('setInlineNodeAttr');
+		const block: BlockNode = this.requireBlock(doc, blockId);
 		const inlineChildren = getInlineChildren(block);
 		let pos = 0;
 		for (const child of inlineChildren) {
@@ -402,6 +350,25 @@ export class TransactionBuilder {
 		};
 	}
 
+	/** Returns the working document or throws if not available. */
+	private requireDoc(methodName: string): Document {
+		if (!this.workingDoc) {
+			throw new Error(
+				`${methodName} requires a document. Use state.transaction() or provide doc to constructor.`,
+			);
+		}
+		return this.workingDoc;
+	}
+
+	/** Finds a block in the document or throws if not found. */
+	private requireBlock(doc: Document, blockId: BlockId): BlockNode {
+		const block: BlockNode | undefined = findNode(doc, blockId);
+		if (!block) {
+			throw new Error(`Block "${blockId}" not found in working document.`);
+		}
+		return block;
+	}
+
 	/** Advances the working document by applying a step. */
 	private advanceDoc(step: Step): void {
 		if (this.workingDoc) {
@@ -410,21 +377,6 @@ export class TransactionBuilder {
 	}
 }
 
-/** Helper to create a TransactionBuilder with input origin. */
-export function inputTransaction(
-	selection: EditorSelection,
-	storedMarks: readonly Mark[] | null,
-): TransactionBuilder {
-	return new TransactionBuilder(selection, storedMarks, 'input');
-}
-
-/** Helper to create a TransactionBuilder with command origin. */
-export function commandTransaction(
-	selection: EditorSelection,
-	storedMarks: readonly Mark[] | null,
-): TransactionBuilder {
-	return new TransactionBuilder(selection, storedMarks, 'command');
-}
 
 /** Resolves the block node to be removed from a parent path and index. */
 function resolveRemovedNode(

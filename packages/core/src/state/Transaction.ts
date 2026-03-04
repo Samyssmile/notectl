@@ -31,4 +31,4 @@ export interface Transaction {
 
 export * from './Steps.js';
 export { invertStep, invertTransaction } from './StepInversion.js';
-export { TransactionBuilder, inputTransaction, commandTransaction } from './TransactionBuilder.js';
+export { TransactionBuilder } from './TransactionBuilder.js';
