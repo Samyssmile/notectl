@@ -194,7 +194,7 @@ import {
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `generateBlockId` | `() => BlockId` | Generates a unique block identifier |
-| `marksEqual` | `(a: readonly Mark[], b: readonly Mark[]) => boolean` | Checks if two mark arrays are equal |
+| `marksEqual` | `(a: Mark, b: Mark) => boolean` | Checks if two individual marks are equal (type + attrs) |
 | `addMarkToSet` | `(marks: readonly Mark[], mark: Mark) => readonly Mark[]` | Adds a mark to a mark set |
 | `removeMarkFromSet` | `(marks: readonly Mark[], markType: string) => readonly Mark[]` | Removes a mark type from a mark set |
 | `normalizeTextNodes` | `(nodes: readonly TextNode[]) => readonly TextNode[]` | Merges adjacent text nodes with equal marks |

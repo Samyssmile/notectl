@@ -17,8 +17,10 @@ notectl follows a strict layered architecture. Each layer has clear responsibili
 ├──────────┴──────────┴───────────────────┤
 │       state/        │  decorations/     │  State + visual annotations
 ├─────────────────────┴───────────────────┤
-│              model/                     │  Immutable data types
-└─────────────────────────────────────────┘
+│  serialization/  │  style/  │  i18n/   │  Cross-cutting concerns
+├──────────────────┴──────────┴──────────┤
+│       model/        │  platform/       │  Immutable data types + env
+└─────────────────────┴──────────────────┘
 ```
 
 ## Layers
@@ -61,6 +63,7 @@ DOM management and user interaction:
 
 Processes user input:
 
+- **`InputManager`** — Orchestrates all input handler lifecycle and delegation
 - **`InputHandler`** — `beforeinput` event → commands
 - **`KeyboardHandler`** — Key events → keymap dispatch
 - **`PasteHandler`** — Clipboard paste handling
@@ -81,8 +84,36 @@ High-level editing operations, split by category:
 
 Lightweight visual annotations that do not alter the document model:
 
-- **`Decoration`** — Inline or widget decorations rendered by the view layer
+- **`Decoration`** — Inline, node, or widget decorations rendered by the view layer
+- **`DecorationSet`** — Container for managing decoration collections
 - **`PositionMapping`** — Maps decoration positions across state transitions
+
+### Serialization (`serialization/`)
+
+HTML import/export:
+
+- **`DocumentSerializer`** — Converts Document to HTML
+- **`DocumentParser`** — Parses HTML into Document
+- **`CSSClassCollector`** — Collects CSS classes for class-based export
+
+### Style (`style/`)
+
+Runtime style management:
+
+- **`StyleRuntime`** — Dynamic stylesheet injection and management
+
+### I18n (`i18n/`)
+
+Internationalization support:
+
+- **`LocaleService`** — Locale resolution and management
+- **`Locale`** — Supported locale constants (9 languages)
+
+### Platform (`platform/`)
+
+Environment detection:
+
+- Browser and OS detection utilities for platform-specific behavior
 
 ### Plugins (`plugins/`)
 
@@ -107,6 +138,8 @@ Internally decomposed into focused controllers:
 - **`EditorConfigController`** — Runtime config and observed attribute management
 - **`EditorEventEmitter`** — Typed event emitter (`stateChange`, `focus`, `blur`, etc.)
 - **`EditorStyleCoordinator`** — Shadow DOM stylesheet management
+- **`EditorThemeController`** — Theme application and CSS variable generation
+- **`PaperLayoutController`** — Paper size and layout management
 - **`PluginBootstrapper`** — Auto-registration of essential plugins and toolbar processing
 - **`ContentSerializer`** — Module of pure functions for content serialization (JSON, HTML, plain text)
 

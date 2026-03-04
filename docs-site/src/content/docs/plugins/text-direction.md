@@ -3,40 +3,22 @@ title: Text Direction Plugin
 description: RTL language support with block-level text direction, inline bidi isolation, auto-detection, and keyboard shortcuts.
 ---
 
-notectl provides two text direction plugins — a lean **Core** plugin for block-level direction only, and an **Advanced** plugin that adds inline bidi isolation, smart middleware, and automatic direction detection.
+The `TextDirectionPlugin` provides comprehensive text direction support — block-level direction control, inline bidi isolation via `<bdi>` marks, smart middleware for direction inheritance and auto-detection, and keyboard shortcuts for both block and inline operations.
 
-| Feature | Core | Advanced |
-|---------|:----:|:--------:|
-| Block-level direction (`dir` attribute) | Yes | Yes |
-| Block direction commands (4) | Yes | Yes |
-| Block direction toolbar dropdown | Yes | Yes |
-| `Mod-Shift-D` keymap | Yes | Yes |
-| Ctrl+Shift-Left/Right (Windows/Linux) | Yes | Yes |
-| Inline bidi isolation (`<bdi>` mark) | — | Yes |
-| Inline bidi commands (5) | — | Yes |
-| Inline direction toolbar dropdown | — | Yes |
-| `Mod-Shift-B` keymap | — | Yes |
-| Auto-detect, preserve, inherit middleware | — | Yes |
+:::note
+The `TextDirectionAdvancedPlugin` import from `@notectl/core/plugins/text-direction-advanced` is an alias for the same `TextDirectionPlugin` class. Both imports resolve to identical functionality.
+:::
 
 ## Usage
 
 ```ts
-// Core plugin — block-level direction only
 import { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
 
 new TextDirectionPlugin()
 new TextDirectionPlugin({ directableTypes: ['paragraph', 'heading'] })
-
-// Advanced plugin — block + inline bidi + middleware
-import { TextDirectionAdvancedPlugin } from '@notectl/core/plugins/text-direction-advanced';
-
-new TextDirectionAdvancedPlugin()
-new TextDirectionAdvancedPlugin({ directableTypes: ['paragraph', 'heading'] })
 ```
 
 ## Configuration
-
-Both plugins share the same configuration interface:
 
 ```ts
 interface TextDirectionConfig {
@@ -57,7 +39,7 @@ new TextDirectionPlugin({
 
 ## Block-Level Direction
 
-Both plugins patch existing NodeSpecs for directable block types to add a `dir` attribute. This controls the overall text direction of the entire block.
+The plugin patches existing NodeSpecs for directable block types to add a `dir` attribute. This controls the overall text direction of the entire block.
 
 | Attribute | Type | Default | Renders As |
 |-----------|------|---------|-----------|
@@ -94,9 +76,9 @@ editor.executeCommand('toggleDirection');
 
 The plugin renders a **Text Direction** toolbar dropdown (block group) with LTR, RTL, and Auto options. The icon updates to reflect the current block's direction.
 
-## Inline Bidi Isolation (Advanced only)
+## Inline Bidi Isolation
 
-The `TextDirectionAdvancedPlugin` registers a `bdi` mark for mixed-direction content within a single block (e.g., an English phrase inside Arabic text). The mark wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
+The plugin registers a `bdi` mark for mixed-direction content within a single block (e.g., an English phrase inside Arabic text). The mark wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
 
 ### Inline Bidi Commands
 
@@ -121,7 +103,7 @@ editor.executeCommand('removeBidi');
 
 ### Inline Direction Toolbar
 
-The advanced plugin renders a second toolbar dropdown — **Inline Direction** (format group) — with LTR, RTL, Auto, and Remove options for bidi isolation. Only enabled when text is selected.
+The plugin renders a second toolbar dropdown — **Inline Direction** (format group) — with LTR, RTL, Auto, and Remove options for bidi isolation. Only enabled when text is selected.
 
 ### Mark Spec
 
@@ -129,9 +111,9 @@ The advanced plugin renders a second toolbar dropdown — **Inline Direction** (
 |------|----------|------------|-------------|
 | `bdi` | `<bdi>` | `dir` | Inline bidi isolation element |
 
-## Smart Middleware (Advanced only)
+## Smart Middleware
 
-The `TextDirectionAdvancedPlugin` registers three transaction middleware handlers that work automatically:
+The plugin registers three transaction middleware handlers that work automatically:
 
 ### Preserve Direction
 

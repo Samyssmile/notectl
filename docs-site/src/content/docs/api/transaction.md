@@ -129,6 +129,26 @@ type TransactionOrigin = 'input' | 'paste' | 'command' | 'history' | 'api';
 | `history` | Undo/redo operations |
 | `api` | External API calls (setContentHTML, setJSON) — **this is the default** |
 
+## Transaction Metadata
+
+Each transaction carries a `metadata` object:
+
+```ts
+interface TransactionMetadata {
+  readonly origin: TransactionOrigin;
+  readonly timestamp: number;
+  readonly historyDirection?: 'undo' | 'redo';
+  readonly readonlyAllowed?: boolean;
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `origin` | `TransactionOrigin` | Where the transaction came from (see origins above) |
+| `timestamp` | `number` | When the transaction was created (`Date.now()`) |
+| `historyDirection` | `'undo' \| 'redo'` | Set when the transaction comes from undo/redo |
+| `readonlyAllowed` | `boolean` | If `true`, the transaction bypasses the readonly guard |
+
 ## Step Types
 
 Every step is invertible for undo support:

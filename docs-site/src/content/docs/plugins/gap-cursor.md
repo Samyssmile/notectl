@@ -18,14 +18,7 @@ const editor = await createEditor({
 
 ## Configuration
 
-```ts
-interface GapCursorConfig {
-  /** Custom locale for screen reader announcements. */
-  readonly locale?: GapCursorLocale;
-}
-```
-
-The plugin activates automatically when the selection lands on a gap position adjacent to a void block.
+The plugin requires no configuration. It activates automatically when the selection lands on a gap position adjacent to a void block.
 
 ## Keyboard Shortcuts
 

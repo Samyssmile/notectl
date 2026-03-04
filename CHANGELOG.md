@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-03-04
+
+### Added
+
+- **Smart Paste Plugin** — Automatically detects JSON and XML content on paste and applies syntax-highlighted code block formatting.
+
+### Changed
+
+- **Transaction system refactored for SOLID compliance** — Step application, history grouping, and transaction building decomposed into focused, single-responsibility modules.
+- **ImagePlugin decomposed** — Extracted `ImagePopup` into its own module for SRP compliance.
+- **SchemaRegistry and HTMLUtils** — Extracted shared helpers to reduce duplication.
+- **Document model helpers** — Extracted `mapBlockInlineContent`, `optionalPath`, segment extraction, `requireDoc`/`requireBlock`, and removed dead exports.
+- **InlineContentOps** — Unified `insertText` and `insertSegments` into a single code path.
+- **Block merge operations** — Consolidated `mergeBlockBackward` and `mergeBlockForward`.
+- **DomUtils** — Extracted `buildBlockPath` and `findBlockAncestor` helpers.
+- **EditorView** — Extracted `reconcileAndSync` and consolidated `viewMove`/`viewExtend`.
+- **Plugin helpers** — Extracted `toCommandName`, `ColorMarkType`, and `resolveLocale` utilities.
+- **Selection guards** — Replaced `isNodeSelection || isGapCursor` guards with cleaner `isTextSelection` checks.
+- **LocaleService** — Fixed duplication and `getSystemTheme` placement in editor.
+- **Path utilities** — Extracted `extractParentPath`, `findSiblingIndex`, removed `resolveSiblings`.
+
+### Fixed
+
+- Documentation synced with current codebase.
+
 ## [2.0.0] - 2026-03-03
 
 ### Breaking Changes
