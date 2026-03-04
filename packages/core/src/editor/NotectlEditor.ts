@@ -160,8 +160,9 @@ export class NotectlEditor extends HTMLElement {
 		this.styleCoordinator.setup(shadow, cfg.styleNonce, this.themeController);
 		this.themeController.apply(cfg.theme ?? ThemePreset.Light);
 
-		// Resolve editor locale for DOM labels
-		const resolvedLang: string = new LocaleService(cfg.locale ?? 'browser').getLocale();
+		// Create LocaleService once, used for DOM labels and plugin locale resolution
+		const localeService = new LocaleService(cfg.locale ?? 'browser');
+		const resolvedLang: string = localeService.getLocale();
 		const editorLocale: EditorLocale =
 			resolvedLang === 'en' ? EDITOR_LOCALE_EN : await loadEditorLocale(resolvedLang);
 
@@ -188,7 +189,6 @@ export class NotectlEditor extends HTMLElement {
 		this.pluginManager = new PluginManager();
 
 		// Register global LocaleService before plugins so they can resolve locale
-		const localeService = new LocaleService(cfg.locale ?? 'browser');
 		this.pluginManager.registerService(LocaleServiceKey, localeService);
 
 		// 3. Register built-in specs on the registry

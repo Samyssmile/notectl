@@ -9,7 +9,6 @@ import {
 	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
-import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import { buildBlockPath, findBlockAncestor } from './DomUtils.js';
 

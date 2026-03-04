@@ -81,7 +81,8 @@ export class EditorThemeController {
 	}
 
 	private getSystemTheme(): ThemePreset {
-		const prefersDark: boolean = window.matchMedia('(prefers-color-scheme: dark)').matches;
-		return prefersDark ? ThemePreset.Dark : ThemePreset.Light;
+		const query: MediaQueryList =
+			this.systemThemeQuery ?? window.matchMedia('(prefers-color-scheme: dark)');
+		return query.matches ? ThemePreset.Dark : ThemePreset.Light;
 	}
 }
