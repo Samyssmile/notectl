@@ -13,6 +13,7 @@ import type { EditorState } from '../state/EditorState.js';
 import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
 import { moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
+import { findBlockAncestor } from './DomUtils.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
 export { navigateFromGapCursor } from './GapCursorNavigation.js';
 
@@ -350,14 +351,3 @@ function probeVerticalBoundary(
 	}
 }
 
-/** Finds the closest ancestor element with `data-block-id`. */
-function findBlockAncestor(container: HTMLElement, node: Node): HTMLElement | null {
-	let current: Node | null = node;
-	while (current && current !== container) {
-		if (current instanceof HTMLElement && current.hasAttribute('data-block-id')) {
-			return current;
-		}
-		current = current.parentNode;
-	}
-	return null;
-}

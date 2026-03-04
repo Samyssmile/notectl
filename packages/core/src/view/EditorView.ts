@@ -33,6 +33,7 @@ import {
 } from './CaretNavigation.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
+import { buildBlockPath } from './DomUtils.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
@@ -340,7 +341,7 @@ export class EditorView {
 		this.contentElement.focus();
 
 		const bid = toBlockId(nearestBlockEl.getAttribute('data-block-id') ?? '');
-		const path = this.buildBlockPath(nearestBlockEl);
+		const path = buildBlockPath(this.contentElement, nearestBlockEl);
 		const sel = createNodeSelection(bid, path);
 
 		const tr = this.state
@@ -399,19 +400,6 @@ export class EditorView {
 			.build();
 
 		this.dispatch(tr);
-	}
-
-	/** Builds an array of block IDs from root to leaf. */
-	private buildBlockPath(leafBlockEl: HTMLElement): BlockId[] {
-		const path: BlockId[] = [];
-		let current: HTMLElement | null = leafBlockEl;
-		while (current && current !== this.contentElement) {
-			if (current.hasAttribute('data-block-id')) {
-				path.unshift(toBlockId(current.getAttribute('data-block-id') ?? ''));
-			}
-			current = current.parentElement;
-		}
-		return path;
 	}
 
 	/** Allows file drop by preventing default on dragover when files are present. */
