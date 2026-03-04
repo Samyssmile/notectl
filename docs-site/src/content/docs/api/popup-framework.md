@@ -37,6 +37,14 @@ const handle = popups.open({
 });
 ```
 
+### PopupCloseOptions
+
+```ts
+interface PopupCloseOptions {
+  readonly restoreFocusTo?: HTMLElement | null;
+}
+```
+
 ### PopupConfig
 
 ```ts
@@ -44,7 +52,7 @@ interface PopupConfig {
   /** The element or DOMRect to anchor the popup to. */
   readonly anchor: HTMLElement | DOMRect;
   /** Callback that renders content into the popup container. */
-  readonly content: (container: HTMLElement, close: () => void) => void;
+  readonly content: (container: HTMLElement, close: (options?: PopupCloseOptions) => void) => void;
   /** Additional CSS class name(s) for the popup element. */
   readonly className?: string;
   /** ARIA role for the popup. */
@@ -69,7 +77,7 @@ interface PopupConfig {
 ```ts
 interface PopupHandle {
   /** Closes this popup and any child popups. */
-  close(): void;
+  close(options?: PopupCloseOptions): void;
   /** Returns the popup DOM element. */
   getElement(): HTMLElement;
 }
@@ -145,6 +153,8 @@ interface PositionOptions {
   readonly position: PopupPosition;
   /** Gap between anchor and popup in pixels. Default: 2. */
   readonly offset?: number;
+  /** Whether the editor uses right-to-left layout. */
+  readonly isRtl?: boolean;
 }
 ```
 

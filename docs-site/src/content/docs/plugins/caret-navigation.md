@@ -16,7 +16,16 @@ const editor = await createEditor({
 });
 ```
 
-No configuration is needed. The plugin auto-detects macOS vs Windows/Linux and registers the appropriate keymaps.
+## Configuration
+
+```ts
+interface CaretNavigationConfig {
+  /** Custom locale strings. */
+  readonly locale?: CaretNavigationLocale;
+}
+```
+
+The plugin auto-detects macOS vs Windows/Linux and registers the appropriate keymaps. No other configuration is needed.
 
 ## Keyboard Shortcuts
 

@@ -62,6 +62,7 @@ interface PluginContext {
   registerKeymap(keymap: Keymap, options?: KeymapOptions): void;
   registerInputRule(rule: InputRule): void;
   registerFileHandler(pattern: string, handler: FileHandler): void;
+  registerPasteInterceptor(interceptor: PasteInterceptor, options?: PasteInterceptorOptions): void;
 
   // --- Accessibility ---
   announce(text: string): void;
@@ -128,6 +129,27 @@ const MyKey = new ServiceKey<MyService>('my-service');
 
 context.registerService(MyKey, { doWork() { /* ... */ } });
 const svc = context.getService(MyKey); // MyService | undefined
+```
+
+## PasteInterceptor
+
+```ts
+type PasteInterceptor = (
+  plainText: string,
+  html: string,
+  state: EditorState,
+) => Transaction | null;
+```
+
+A paste interceptor receives the clipboard contents and current state. Return a `Transaction` to handle the paste, or `null` to let the next interceptor try.
+
+## PasteInterceptorOptions
+
+```ts
+interface PasteInterceptorOptions {
+  readonly name?: string;
+  readonly priority?: number;  // Lower values run first. Default: 100
+}
 ```
 
 ## CommandHandler

@@ -313,6 +313,23 @@ context.registerNodeView('image', (node, getState, dispatch) => {
 });
 ```
 
+### Paste Interceptors
+
+Register a paste interceptor that can transform pasted content before it is applied to the editor:
+
+```ts
+context.registerPasteInterceptor(
+  {
+    intercept(data, state) {
+      // Transform or replace pasted content
+      // Return a Transaction to override default paste, or undefined to pass through
+      return undefined;
+    },
+  },
+  { priority: 100 }, // Lower = runs first
+);
+```
+
 ### Runtime Config Updates
 
 Update your plugin's configuration at runtime (triggers re-initialization of affected features):

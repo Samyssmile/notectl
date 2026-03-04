@@ -16,11 +16,20 @@ const editor = await createEditor({
 });
 ```
 
-No configuration is needed. The plugin activates automatically when the selection lands on a gap position adjacent to a void block.
+## Configuration
+
+```ts
+interface GapCursorConfig {
+  /** Custom locale for screen reader announcements. */
+  readonly locale?: GapCursorLocale;
+}
+```
+
+The plugin activates automatically when the selection lands on a gap position adjacent to a void block.
 
 ## Keyboard Shortcuts
 
-When the gap cursor is active, arrow keys navigate away from it:
+The plugin registers arrow key keymaps that activate only when a gap cursor is present:
 
 | Key | Action |
 |-----|--------|
@@ -28,12 +37,8 @@ When the gap cursor is active, arrow keys navigate away from it:
 | `ArrowRight` | Move to next position (start of next block, or NodeSelection) |
 | `ArrowUp` | Move up (equivalent to ArrowLeft) |
 | `ArrowDown` | Move down (equivalent to ArrowRight) |
-| `Enter` | Insert a new empty paragraph at the gap position |
-| `Backspace` | Delete the adjacent void block (when gap is after it) or navigate away |
-| `Delete` | Delete the adjacent void block (when gap is before it) or navigate away |
-| Any character | Insert a new paragraph with the typed character |
 
-These keys only activate when a gap cursor is present. In all other selection states, they pass through to other handlers.
+Other keys such as Enter, Backspace, Delete, and character input are handled by the core InputHandler, not by this plugin. In all other selection states, the arrow key keymaps pass through to other handlers.
 
 ## Accessibility
 
@@ -44,12 +49,12 @@ These keys only activate when a gap cursor is present. In all other selection st
 
 ### DOM Rendering
 
-The gap cursor renders as a `<div class="notectl-gap-cursor">` positioned immediately before or after the void block element, depending on `side`:
+The gap cursor does not create a separate DOM element. Instead, it adds a CSS class to the void block element itself, depending on `side`:
 
-- **`before`** — the `<div>` is inserted before the void block (visually above it)
-- **`after`** — the `<div>` is inserted after the void block (visually below it)
+- **`before`** — adds `notectl-gap-cursor--before` to the void block (renders a `::before` pseudo-element visually above it)
+- **`after`** — adds `notectl-gap-cursor--after` to the void block (renders an `::after` pseudo-element visually below it)
 
-The element itself has `height: 0` and uses a `::before` pseudo-element to render a full-width, 1px-tall blinking line.
+The pseudo-element renders a full-width, 1px-tall blinking line.
 
 ### CSS Animation
 
@@ -60,7 +65,8 @@ The blinking animation uses a step function for a sharp on/off effect:
   50% { opacity: 0; }
 }
 
-.notectl-gap-cursor::before {
+.notectl-gap-cursor--before::before,
+.notectl-gap-cursor--after::after {
   animation: notectl-gap-blink 1.1s step-end infinite;
   background: currentColor;
 }

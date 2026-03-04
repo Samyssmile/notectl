@@ -15,8 +15,8 @@ notectl follows a strict layered architecture. Each layer has clear responsibili
 ├──────────┬──────────┬───────────────────┤
 │ commands/│  input/  │      view/        │  High-level ops, input, DOM
 ├──────────┴──────────┴───────────────────┤
-│              state/                     │  EditorState, Transaction, History
-├─────────────────────────────────────────┤
+│       state/        │  decorations/     │  State + visual annotations
+├─────────────────────┴───────────────────┤
 │              model/                     │  Immutable data types
 └─────────────────────────────────────────┘
 ```
@@ -77,6 +77,13 @@ High-level editing operations, split by category:
 - **Movement (view)** — `moveWordForward`, `moveWordBackward`, `moveToLineStart`, `moveToLineEnd`, `moveLineUp`, `moveLineDown`, `extendWordForward`, `extendWordBackward`, `extendToLineStart`, `extendToLineEnd`, `extendLineUp`, `extendLineDown`
 - **Utilities** — `sharesParent`, `isInsideIsolating`, `isVoidBlock`, `canCrossBlockBoundary`
 
+### Decorations (`decorations/`)
+
+Lightweight visual annotations that do not alter the document model:
+
+- **`Decoration`** — Inline or widget decorations rendered by the view layer
+- **`PositionMapping`** — Maps decoration positions across state transitions
+
 ### Plugins (`plugins/`)
 
 Feature modules that compose the editor. Each plugin:
@@ -101,7 +108,7 @@ Internally decomposed into focused controllers:
 - **`EditorEventEmitter`** — Typed event emitter (`stateChange`, `focus`, `blur`, etc.)
 - **`EditorStyleCoordinator`** — Shadow DOM stylesheet management
 - **`PluginBootstrapper`** — Auto-registration of essential plugins and toolbar processing
-- **`ContentSerializer`** — Pure content serialization (JSON, HTML, plain text)
+- **`ContentSerializer`** — Module of pure functions for content serialization (JSON, HTML, plain text)
 
 ## Key Design Principles
 

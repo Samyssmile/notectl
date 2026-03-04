@@ -176,6 +176,32 @@ type ContentSegment =
 
 ## Utility Functions
 
+### General Utilities
+
+```ts
+import {
+  generateBlockId,
+  marksEqual,
+  addMarkToSet,
+  removeMarkFromSet,
+  normalizeTextNodes,
+  normalizeInlineContent,
+  walkInlineContent,
+  blockOffsetToTextOffset,
+} from '@notectl/core';
+```
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `generateBlockId` | `() => BlockId` | Generates a unique block identifier |
+| `marksEqual` | `(a: readonly Mark[], b: readonly Mark[]) => boolean` | Checks if two mark arrays are equal |
+| `addMarkToSet` | `(marks: readonly Mark[], mark: Mark) => readonly Mark[]` | Adds a mark to a mark set |
+| `removeMarkFromSet` | `(marks: readonly Mark[], markType: string) => readonly Mark[]` | Removes a mark type from a mark set |
+| `normalizeTextNodes` | `(nodes: readonly TextNode[]) => readonly TextNode[]` | Merges adjacent text nodes with equal marks |
+| `normalizeInlineContent` | `(nodes: readonly (TextNode \| InlineNode)[]) => readonly (TextNode \| InlineNode)[]` | Normalizes inline content by merging adjacent compatible text nodes |
+| `walkInlineContent` | `(children: readonly (TextNode \| InlineNode)[]) => Generator<...>` | Generator that yields each character/inline node with position info |
+| `blockOffsetToTextOffset` | `(block: BlockNode, blockOffset: number) => number` | Converts a block offset to a text-only offset |
+
 ### Block Inspection
 
 ```ts

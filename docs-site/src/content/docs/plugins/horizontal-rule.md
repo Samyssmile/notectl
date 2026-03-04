@@ -17,7 +17,12 @@ new HorizontalRulePlugin()
 
 ## Configuration
 
-This plugin has no configuration options.
+```ts
+interface HorizontalRuleConfig {
+  /** Custom locale strings. */
+  readonly locale?: HorizontalRuleLocale;
+}
+```
 
 ## Commands
 
@@ -30,6 +35,16 @@ editor.executeCommand('insertHorizontalRule');
 ```
 
 The command inserts the `<hr>` and automatically creates a new paragraph below it, so the cursor has a place to continue typing.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Shift+H` / `Cmd+Shift+H` | Insert horizontal rule |
+
+## Toolbar
+
+The plugin registers a toolbar button in the `block` group with a horizontal line icon. Clicking it executes the `insertHorizontalRule` command.
 
 ## Input Rules
 

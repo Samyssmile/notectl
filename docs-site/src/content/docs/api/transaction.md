@@ -100,6 +100,13 @@ builder.setNodeSelection(nodeId, path)
 builder.setStoredMarks(marks, previousMarks)
 ```
 
+### Readonly
+
+```ts
+// Marks this transaction as allowed in readonly mode. Returns `this` for method chaining.
+builder.readonlyAllowed()
+```
+
 ### Build
 
 ```ts

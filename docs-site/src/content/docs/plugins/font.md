@@ -28,6 +28,8 @@ interface FontConfig {
   readonly fonts: FontDefinition[];
   /** Name of the default font. Selecting it removes the mark. */
   readonly defaultFont?: string;
+  /** Custom locale strings. */
+  readonly locale?: FontLocale;
 }
 
 interface FontDefinition {
