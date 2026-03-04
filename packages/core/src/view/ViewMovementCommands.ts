@@ -36,63 +36,7 @@ export function viewMove(
 	direction: Direction,
 	granularity: Granularity,
 ): Transaction | null {
-	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
-
-	const domSel: globalThis.Selection | null = getSelection();
-	if (!domSel?.modify) {
-		return fallbackMove(state, direction, granularity);
-	}
-
-	// Save original DOM selection (using composed ranges for Shadow DOM)
-	const origEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
-	if (!origEndpoints) return fallbackMove(state, direction, granularity);
-
-	try {
-		domSel.modify('move', direction, granularity);
-
-		const newSel = readSelectionFromDOM(container);
-		if (!newSel) return null;
-
-		const newBlockId: BlockId = newSel.anchor.blockId;
-		const oldBlockId: BlockId = sel.anchor.blockId;
-
-		// Validate isolating boundary crossing
-		if (newBlockId !== oldBlockId && !canCrossBlockBoundary(state, oldBlockId, newBlockId)) {
-			return null;
-		}
-
-		let newOffset: number = newSel.anchor.offset;
-
-		// InlineNode boundary correction
-		const block = state.getBlock(newBlockId);
-		if (block) {
-			const content = getContentAtOffset(block, newOffset);
-			if (content?.kind === 'inline') {
-				// Prefer landing after the InlineNode when moving forward
-				if (direction === 'forward') {
-					newOffset = Math.min(newOffset + 1, getBlockLength(block));
-				}
-			}
-		}
-
-		// Void block → NodeSelection
-		if (isVoidBlock(state, newBlockId)) return nodeSelTx(state, newBlockId);
-
-		return moveTx(state, newBlockId, newOffset);
-	} finally {
-		// Restore original DOM selection (dispatch cycle will set the correct one)
-		try {
-			domSel.setBaseAndExtent(
-				origEndpoints.anchorNode,
-				origEndpoints.anchorOffset,
-				origEndpoints.focusNode,
-				origEndpoints.focusOffset,
-			);
-		} catch {
-			// Restore may fail if DOM changed
-		}
-	}
+	return viewModifySelection(container, state, 'move', direction, granularity);
 }
 
 /**
@@ -105,54 +49,66 @@ export function viewExtend(
 	direction: Direction,
 	granularity: Granularity,
 ): Transaction | null {
+	return viewModifySelection(container, state, 'extend', direction, granularity);
+}
+
+/**
+ * Shared implementation for viewMove and viewExtend.
+ * Uses Selection.modify() with save/restore of DOM selection,
+ * with fallback to model-based movement.
+ */
+function viewModifySelection(
+	container: HTMLElement,
+	state: EditorState,
+	mode: 'move' | 'extend',
+	direction: Direction,
+	granularity: Granularity,
+): Transaction | null {
 	const sel = state.selection;
 	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
 
+	const fallback = mode === 'move' ? fallbackMove : fallbackExtend;
+
 	const domSel: globalThis.Selection | null = getSelection();
 	if (!domSel?.modify) {
-		return fallbackExtend(state, direction, granularity);
+		return fallback(state, direction, granularity);
 	}
 
 	const origEndpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
-	if (!origEndpoints) return fallbackExtend(state, direction, granularity);
+	if (!origEndpoints) return fallback(state, direction, granularity);
 
 	try {
-		domSel.modify('extend', direction, granularity);
+		domSel.modify(mode, direction, granularity);
 
 		const newSel = readSelectionFromDOM(container);
 		if (!newSel) return null;
 
-		// Validate isolating boundary crossing for head
-		const oldHeadBlockId: BlockId = sel.head.blockId;
-		const newHeadBlockId: BlockId = newSel.head.blockId;
+		// For move: check anchor; for extend: check head
+		const oldBlockId: BlockId = mode === 'move' ? sel.anchor.blockId : sel.head.blockId;
+		const newPosition = mode === 'move' ? newSel.anchor : newSel.head;
+		const newBlockId: BlockId = newPosition.blockId;
 
-		if (
-			newHeadBlockId !== oldHeadBlockId &&
-			!canCrossBlockBoundary(state, oldHeadBlockId, newHeadBlockId)
-		) {
+		if (newBlockId !== oldBlockId && !canCrossBlockBoundary(state, oldBlockId, newBlockId)) {
 			return null;
 		}
 
-		let newHeadOffset: number = newSel.head.offset;
+		let newOffset: number = newPosition.offset;
 
-		// InlineNode boundary correction for head position
-		const headBlock = state.getBlock(newSel.head.blockId);
-		if (headBlock) {
-			const content = getContentAtOffset(headBlock, newHeadOffset);
-			if (content?.kind === 'inline') {
-				if (direction === 'forward') {
-					newHeadOffset = Math.min(newHeadOffset + 1, getBlockLength(headBlock));
-				}
+		// InlineNode boundary correction
+		const block = state.getBlock(newBlockId);
+		if (block) {
+			const content = getContentAtOffset(block, newOffset);
+			if (content?.kind === 'inline' && direction === 'forward') {
+				newOffset = Math.min(newOffset + 1, getBlockLength(block));
 			}
 		}
 
-		return extendTx(
-			state,
-			sel.anchor.blockId,
-			sel.anchor.offset,
-			newSel.head.blockId,
-			newHeadOffset,
-		);
+		if (mode === 'move') {
+			if (isVoidBlock(state, newBlockId)) return nodeSelTx(state, newBlockId);
+			return moveTx(state, newBlockId, newOffset);
+		}
+
+		return extendTx(state, sel.anchor.blockId, sel.anchor.offset, newBlockId, newOffset);
 	} finally {
 		try {
 			domSel.setBaseAndExtent(
@@ -162,7 +118,7 @@ export function viewExtend(
 				origEndpoints.focusOffset,
 			);
 		} catch {
-			// Restore may fail
+			// Restore may fail if DOM changed
 		}
 	}
 }

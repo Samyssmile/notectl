@@ -171,21 +171,8 @@ export class EditorView {
 				this.history.push(tr);
 			}
 
-			const oldDecorations = this.decorations;
 			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
-			this.decorations = newDecorations;
-
-			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(oldState.selection),
-				decorations: newDecorations,
-				oldDecorations,
-				compositionBlockId: this.compositionState.isComposing
-					? (this.compositionState.activeBlockId ?? undefined)
-					: undefined,
-			});
-			if (!this.compositionState.isComposing) {
-				syncSelectionToDOM(this.contentElement, newState.selection);
-			}
+			this.reconcileAndSync(oldState, newState, newDecorations);
 
 			for (const cb of this.stateChangeCallbacks) {
 				cb(oldState, newState, tr);
@@ -239,21 +226,8 @@ export class EditorView {
 			this.state = newState;
 			this.history.clear();
 
-			const oldDecorations = this.decorations;
 			const newDecorations = this.getDecorations?.(newState) ?? DecorationSet.empty;
-			this.decorations = newDecorations;
-
-			reconcile(this.contentElement, oldState, newState, {
-				...this.reconcileOptions(oldState.selection),
-				decorations: newDecorations,
-				oldDecorations,
-				compositionBlockId: this.compositionState.isComposing
-					? (this.compositionState.activeBlockId ?? undefined)
-					: undefined,
-			});
-			if (!this.compositionState.isComposing) {
-				syncSelectionToDOM(this.contentElement, newState.selection);
-			}
+			this.reconcileAndSync(oldState, newState, newDecorations);
 		} finally {
 			this.isUpdating = false;
 		}
@@ -459,6 +433,28 @@ export class EditorView {
 		if (!this.contentElement.contains(activeEl) && activeEl !== this.contentElement) return;
 
 		this.syncSelectionFromDOM();
+	}
+
+	/** Reconciles DOM and syncs selection, updating decoration state. */
+	private reconcileAndSync(
+		oldState: EditorState,
+		newState: EditorState,
+		newDecorations: DecorationSet,
+	): void {
+		const oldDecorations = this.decorations;
+		this.decorations = newDecorations;
+
+		reconcile(this.contentElement, oldState, newState, {
+			...this.reconcileOptions(oldState.selection),
+			decorations: newDecorations,
+			oldDecorations,
+			compositionBlockId: this.compositionState.isComposing
+				? (this.compositionState.activeBlockId ?? undefined)
+				: undefined,
+		});
+		if (!this.compositionState.isComposing) {
+			syncSelectionToDOM(this.contentElement, newState.selection);
+		}
 	}
 
 	private reconcileOptions(
