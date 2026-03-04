@@ -10,7 +10,7 @@ import { DecorationSet as DecorationSetClass } from '../../decorations/Decoratio
 import { TABLE_CSS } from '../../editor/styles/table.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
-import { isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import { isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -146,7 +146,7 @@ export class TablePlugin implements Plugin {
 		// Uses clearSelectionSilent() (no dispatch) to avoid re-entrancy,
 		// since decorations() runs inside the update cycle.
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel) || !isInsideTable(state, sel.anchor.blockId)) {
+		if (!isTextSelection(sel) || !isInsideTable(state, sel.anchor.blockId)) {
 			this.selectionService.clearSelectionSilent();
 			return DecorationSetClass.empty;
 		}
@@ -254,7 +254,7 @@ export class TablePlugin implements Plugin {
 				},
 			},
 			isActive: (state: EditorState) => {
-				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+				if (!isTextSelection(state.selection)) return false;
 				return isInsideTable(state, state.selection.anchor.blockId);
 			},
 		});

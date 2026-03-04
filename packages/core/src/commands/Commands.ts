@@ -22,6 +22,7 @@ import {
 	isCollapsed,
 	isGapCursor,
 	isNodeSelection,
+	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
 import { type BlockId, inlineType } from '../model/TypeBrands.js';
@@ -197,7 +198,7 @@ export function splitBlockCommand(state: EditorState): Transaction | null {
 export function insertHardBreakCommand(state: EditorState): Transaction | null {
 	const sel = state.selection;
 
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const builder = state.transaction('input');
 
@@ -252,7 +253,7 @@ function mergeAdjacentBlock(
 	direction: 'backward' | 'forward',
 ): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockOrder = state.getBlockOrder();
 	const blockIdx: number = blockOrder.indexOf(sel.anchor.blockId);
@@ -324,7 +325,7 @@ export function selectAll(state: EditorState): Transaction {
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return [];
+	if (!isTextSelection(state.selection)) return [];
 
 	const block = state.getBlock(state.selection.anchor.blockId);
 	if (!block) return [];
@@ -341,7 +342,7 @@ export function addDeleteSelectionSteps(
 	state: EditorState,
 	builder: TransactionBuilder,
 ): BlockId | undefined {
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return undefined;
+	if (!isTextSelection(state.selection)) return undefined;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(state.selection, blockOrder);
 	const fromIdx = blockOrder.indexOf(range.from.blockId);

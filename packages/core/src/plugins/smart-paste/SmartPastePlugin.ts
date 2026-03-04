@@ -11,13 +11,7 @@ import {
 	createTextNode,
 	generateBlockId,
 } from '../../model/Document.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-	isTextSelection,
-} from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -121,7 +115,7 @@ export class SmartPastePlugin implements Plugin {
 
 	private isCursorInCodeBlock(state: EditorState): boolean {
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+		if (!isTextSelection(sel)) return false;
 
 		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
 		return block?.type === 'code_block';

@@ -15,6 +15,7 @@ import {
 	isCollapsed,
 	isGapCursor,
 	isNodeSelection,
+	isTextSelection,
 	selectionsEqual,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -543,7 +544,7 @@ export class EditorView {
 	 */
 	private resolveLogicalHorizontalDirection(visual: 'left' | 'right'): 'left' | 'right' {
 		const sel = this.state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) return visual;
+		if (!isTextSelection(sel)) return visual;
 		const blockEl = this.contentElement.querySelector(`[data-block-id="${sel.anchor.blockId}"]`);
 		const isRtl: boolean = blockEl instanceof HTMLElement && getTextDirection(blockEl) === 'rtl';
 		if (!isRtl) return visual;

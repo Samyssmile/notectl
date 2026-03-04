@@ -17,12 +17,7 @@ import type { BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -115,14 +110,12 @@ export class CodeBlockPlugin implements Plugin {
 	onStateChange(oldState: EditorState, newState: EditorState, _tr: Transaction): void {
 		if (!this.context) return;
 
-		const oldBlockId: BlockId | null =
-			isNodeSelection(oldState.selection) || isGapCursor(oldState.selection)
-				? null
-				: oldState.selection.anchor.blockId;
-		const newBlockId: BlockId | null =
-			isNodeSelection(newState.selection) || isGapCursor(newState.selection)
-				? null
-				: newState.selection.anchor.blockId;
+		const oldBlockId: BlockId | null = !isTextSelection(oldState.selection)
+			? null
+			: oldState.selection.anchor.blockId;
+		const newBlockId: BlockId | null = !isTextSelection(newState.selection)
+			? null
+			: newState.selection.anchor.blockId;
 
 		const oldBlock: BlockNode | undefined = oldBlockId ? oldState.getBlock(oldBlockId) : undefined;
 		const newBlock: BlockNode | undefined = newBlockId ? newState.getBlock(newBlockId) : undefined;
@@ -246,7 +239,7 @@ export class CodeBlockPlugin implements Plugin {
 			pattern: /^```(\w*) $/,
 			handler: (state, match, start, _end) => {
 				const sel = state.selection;
-				if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+				if (!isTextSelection(sel)) return null;
 				if (!isCollapsed(sel)) return null;
 
 				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
@@ -281,7 +274,7 @@ export class CodeBlockPlugin implements Plugin {
 			),
 			command: 'toggleCodeBlock',
 			isActive: (state) => {
-				if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+				if (!isTextSelection(state.selection)) return false;
 				const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
 				return block?.type === 'code_block';
 			},
@@ -377,7 +370,7 @@ export class CodeBlockPlugin implements Plugin {
 	// --- Helpers ---
 
 	private getFocusedCodeBlockId(state: EditorState): BlockId | null {
-		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
+		if (!isTextSelection(state.selection)) return null;
 		const blockId: BlockId = state.selection.anchor.blockId;
 		const block: BlockNode | undefined = state.getBlock(blockId);
 		if (block?.type === 'code_block') return blockId;

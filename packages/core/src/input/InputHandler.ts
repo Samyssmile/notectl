@@ -15,7 +15,7 @@ import {
 	splitBlockCommand,
 } from '../commands/Commands.js';
 import { getBlockText } from '../model/Document.js';
-import { isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
@@ -163,7 +163,7 @@ export class InputHandler {
 
 	private onCompositionStart(_e: CompositionEvent): void {
 		const state = this.getState();
-		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
+		if (!isTextSelection(state.selection)) return;
 		this.compositionTracker.start(state.selection.anchor.blockId);
 	}
 
@@ -184,7 +184,7 @@ export class InputHandler {
 		if (rules.length === 0) return;
 
 		const state = this.getState();
-		if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return;
+		if (!isTextSelection(state.selection)) return;
 		const { anchor } = state.selection;
 		const block = state.getBlock(anchor.blockId);
 		if (!block) return;

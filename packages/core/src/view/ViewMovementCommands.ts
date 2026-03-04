@@ -7,7 +7,7 @@
  */
 
 import { getBlockLength, getContentAtOffset } from '../model/Document.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { findWordBoundaryBackward, findWordBoundaryForward } from '../model/WordBoundary.js';
 import { moveToBlockEnd, moveToBlockStart } from '../state/BlockBoundaryMovement.js';
@@ -65,7 +65,7 @@ function viewModifySelection(
 	granularity: Granularity,
 ): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const fallback = mode === 'move' ? fallbackMove : fallbackExtend;
 
@@ -149,7 +149,7 @@ function fallbackExtend(
 	granularity: Granularity,
 ): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const head = sel.head;
 	const block = state.getBlock(head.blockId);
@@ -193,7 +193,7 @@ function fallbackExtend(
 
 function fallbackWordMove(state: EditorState, direction: Direction): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockId: BlockId = isCollapsed(sel) ? sel.anchor.blockId : sel.head.blockId;
 	const offset: number = isCollapsed(sel) ? sel.anchor.offset : sel.head.offset;

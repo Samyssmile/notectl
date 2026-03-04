@@ -14,7 +14,7 @@ import {
 	moveToDocumentEnd,
 	moveToDocumentStart,
 } from '../../commands/MovementCommands.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { getTextDirection, isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -157,7 +157,7 @@ export class CaretNavigationPlugin implements Plugin {
 		const newSel = newState.selection;
 
 		// Only announce for collapsed text selections
-		if (!isCollapsed(newSel) || isNodeSelection(newSel) || isGapCursor(newSel)) {
+		if (!isCollapsed(newSel) || !isTextSelection(newSel)) {
 			if (this.announceTimer !== null) {
 				clearTimeout(this.announceTimer);
 				this.announceTimer = null;
@@ -290,7 +290,7 @@ export class CaretNavigationPlugin implements Plugin {
 		visual: 'left' | 'right',
 	): 'forward' | 'backward' {
 		const sel = state.selection;
-		if (isNodeSelection(sel) || isGapCursor(sel)) {
+		if (!isTextSelection(sel)) {
 			return visual === 'left' ? 'backward' : 'forward';
 		}
 		const container: HTMLElement | undefined = this.context?.getContainer();

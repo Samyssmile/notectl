@@ -5,12 +5,7 @@
 
 import type { BlockNode } from '../../model/Document.js';
 import { generateBlockId, getBlockLength, getBlockText } from '../../model/Document.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -37,7 +32,7 @@ function withHeadingContext(
 	handler: (ctx: HeadingContext) => boolean,
 ): boolean {
 	const state: EditorState = context.getState();
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return false;
+	if (!isTextSelection(state.selection)) return false;
 
 	const sel = state.selection;
 	if (!isCollapsed(sel)) return false;

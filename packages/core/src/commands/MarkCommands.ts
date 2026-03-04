@@ -13,7 +13,7 @@ import {
 	isTextNode,
 } from '../model/Document.js';
 import { isMarkAllowed } from '../model/Schema.js';
-import { isCollapsed, isGapCursor, isNodeSelection, selectionRange } from '../model/Selection.js';
+import { isCollapsed, isTextSelection, selectionRange } from '../model/Selection.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
 import { markType as mkType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -41,7 +41,7 @@ export function toggleMark(
 ): Transaction | null {
 	if (isFeatureGated(markType, features)) return null;
 	if (!isMarkAllowed(state.schema, markType)) return null;
-	if (isNodeSelection(state.selection) || isGapCursor(state.selection)) return null;
+	if (!isTextSelection(state.selection)) return null;
 
 	const mark: Mark = { type: markType };
 	const sel = state.selection;
@@ -97,7 +97,7 @@ export function toggleUnderline(state: EditorState, features?: FeatureConfig): T
 /** Checks if a mark is active at the current selection. */
 export function isMarkActive(state: EditorState, markType: MarkTypeName): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+	if (!isTextSelection(sel)) return false;
 
 	if (isCollapsed(sel)) {
 		if (state.storedMarks) {
@@ -115,7 +115,7 @@ export function isMarkActive(state: EditorState, markType: MarkTypeName): boolea
 /** Checks if a mark is active across the entire selection range. */
 function isMarkActiveInRange(state: EditorState, markType: MarkTypeName): boolean {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+	if (!isTextSelection(sel)) return false;
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(sel, blockOrder);
 

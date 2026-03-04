@@ -7,7 +7,7 @@
  */
 
 import { getBlockLength } from '../model/Document.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from './EditorState.js';
 import { moveTx } from './SelectionTransactions.js';
@@ -16,7 +16,7 @@ import type { Transaction } from './Transaction.js';
 /** Moves the cursor to the start of the current block. */
 export function moveToBlockStart(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockId: BlockId = isCollapsed(sel) ? sel.anchor.blockId : sel.head.blockId;
 	const offset: number = isCollapsed(sel) ? sel.anchor.offset : sel.head.offset;
@@ -28,7 +28,7 @@ export function moveToBlockStart(state: EditorState): Transaction | null {
 /** Moves the cursor to the end of the current block. */
 export function moveToBlockEnd(state: EditorState): Transaction | null {
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const blockId: BlockId = isCollapsed(sel) ? sel.anchor.blockId : sel.head.blockId;
 	const block = state.getBlock(blockId);

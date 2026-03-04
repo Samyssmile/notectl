@@ -7,7 +7,7 @@
  */
 
 import { type BlockNode, getBlockLength, getContentAtOffset } from '../model/Document.js';
-import { isCollapsed, isGapCursor, isNodeSelection } from '../model/Selection.js';
+import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
@@ -52,7 +52,7 @@ export function endOfTextblock(
 ): boolean {
 	const sel = state.selection;
 
-	if (isNodeSelection(sel) || isGapCursor(sel)) return false;
+	if (!isTextSelection(sel)) return false;
 	if (!isCollapsed(sel)) return false;
 
 	const block = state.getBlock(sel.anchor.blockId);
@@ -154,7 +154,7 @@ export function skipInlineNode(state: EditorState, direction: CaretDirection): T
 	if (direction === 'up' || direction === 'down') return null;
 
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 	if (!isCollapsed(sel)) return null;
 
 	const blockId: BlockId = sel.anchor.blockId;
@@ -214,7 +214,7 @@ function resolveNavigationTarget(
 ): NavigationTarget | null {
 	const blockOrder: readonly BlockId[] = state.getBlockOrder();
 	const sel = state.selection;
-	if (isNodeSelection(sel) || isGapCursor(sel)) return null;
+	if (!isTextSelection(sel)) return null;
 
 	const currentIdx: number = blockOrder.indexOf(sel.anchor.blockId);
 	if (currentIdx < 0) return null;
