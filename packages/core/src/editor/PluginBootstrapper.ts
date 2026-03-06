@@ -18,7 +18,7 @@ import {
 } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
 import { type ToolbarLayoutConfig, ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
-import type { ToolbarConfig } from './NotectlEditor.js';
+import type { ToolbarConfig } from './EditorConfig.js';
 
 type ToolbarInput = ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
 

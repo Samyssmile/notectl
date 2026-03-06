@@ -7,8 +7,8 @@
 
 import { type PaperSize, isValidPaperSize } from '../model/PaperSize.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
+import type { NotectlEditorConfig } from './EditorConfig.js';
 import type { EditorThemeController } from './EditorThemeController.js';
-import type { NotectlEditorConfig } from './NotectlEditor.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /** External dependencies the config controller needs to apply changes. */
