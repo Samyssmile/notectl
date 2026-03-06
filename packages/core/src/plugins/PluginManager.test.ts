@@ -20,6 +20,17 @@ function makeTr() {
 	return state.transaction('command').build();
 }
 
+function deferred(): {
+	promise: Promise<void>;
+	resolve: () => void;
+} {
+	let resolve = (): void => {};
+	const promise = new Promise<void>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
+}
+
 // --- Tests ---
 
 describe('PluginManager', () => {
@@ -859,6 +870,48 @@ describe('PluginManager', () => {
 	});
 
 	describe('destruction', () => {
+		it('only destroys plugins whose init has started when init is cancelled', async () => {
+			const initStarted = deferred();
+			const releaseInit = deferred();
+			let cancelled = false;
+			const slowDestroy = vi.fn();
+			const skippedDestroy = vi.fn();
+			const pm = new PluginManager();
+
+			pm.register(
+				makePlugin({
+					id: 'slow',
+					priority: 1,
+					init: vi.fn(async () => {
+						initStarted.resolve();
+						await releaseInit.promise;
+					}),
+					destroy: slowDestroy,
+				}),
+			);
+			pm.register(
+				makePlugin({
+					id: 'skipped',
+					priority: 2,
+					destroy: skippedDestroy,
+				}),
+			);
+
+			const initPromise = pm.init({
+				...makePluginOptions(),
+				isCancelled: () => cancelled,
+			});
+
+			await initStarted.promise;
+			cancelled = true;
+			releaseInit.resolve();
+			await initPromise;
+			await pm.destroy();
+
+			expect(slowDestroy).toHaveBeenCalledTimes(1);
+			expect(skippedDestroy).not.toHaveBeenCalled();
+		});
+
 		it('destroys plugins in reverse init order', async () => {
 			const order: string[] = [];
 			const pm = new PluginManager();

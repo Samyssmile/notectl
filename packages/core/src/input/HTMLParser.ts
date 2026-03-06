@@ -56,6 +56,40 @@ const INLINE_ELEMENTS: ReadonlySet<string> = new Set([
 	'CODE',
 ]);
 
+const HEADING_PATTERN: RegExp = /^H([1-6])$/;
+
+// --- Fallback mark resolution (when no SchemaRegistry rules match) ---
+
+interface FallbackMarkDef {
+	readonly markName: string;
+	readonly getAttrs?: (el: HTMLElement) => Record<string, unknown> | false;
+}
+
+function resolveBoldAttrs(el: HTMLElement): Record<string, unknown> | false {
+	const fw: string = el.style.fontWeight;
+	const numeric: number = Number.parseInt(fw, 10);
+	const isExplicitlyNotBold: boolean = fw === 'normal' || (!Number.isNaN(numeric) && numeric < 700);
+	return isExplicitlyNotBold ? false : {};
+}
+
+function resolveLinkAttrs(el: HTMLElement): Record<string, unknown> {
+	return { href: el.getAttribute('href') ?? '' };
+}
+
+const FALLBACK_MARK_MAP: ReadonlyMap<string, FallbackMarkDef> = new Map([
+	['STRONG', { markName: 'bold', getAttrs: resolveBoldAttrs }],
+	['B', { markName: 'bold', getAttrs: resolveBoldAttrs }],
+	['EM', { markName: 'italic' }],
+	['I', { markName: 'italic' }],
+	['U', { markName: 'underline' }],
+	['S', { markName: 'strikethrough' }],
+	['STRIKE', { markName: 'strikethrough' }],
+	['DEL', { markName: 'strikethrough' }],
+	['A', { markName: 'link', getAttrs: resolveLinkAttrs }],
+]);
+
+// --- Parser ---
+
 export class HTMLParser {
 	private readonly schema: Schema;
 	private readonly blockParseRules: readonly {
@@ -66,11 +100,13 @@ export class HTMLParser {
 		readonly rule: ParseRule;
 		readonly type: string;
 	}[];
+	private readonly blockTagHandlers: ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]>;
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
 		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
 		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
+		this.blockTagHandlers = this.buildBlockTagHandlers();
 	}
 
 	/** Parses an HTML fragment and returns a ContentSlice. */
@@ -89,6 +125,43 @@ export class HTMLParser {
 		}
 
 		return { blocks };
+	}
+
+	private buildBlockTagHandlers(): ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]> {
+		const parseParagraph = (el: HTMLElement): SliceBlock[] =>
+			this.parseBlockWithLineBreaks(el, this.resolveBlockType(nodeType('paragraph')));
+		const parseTable = (el: HTMLElement): SliceBlock[] => this.parseTableAsParagraphs(el);
+
+		return new Map<string, (el: HTMLElement) => SliceBlock[]>([
+			['P', parseParagraph],
+			['DIV', parseParagraph],
+			['BLOCKQUOTE', (el: HTMLElement) => this.parseBlockquote(el)],
+			['UL', (el: HTMLElement) => this.parseList(el, 'bullet', 0)],
+			['OL', (el: HTMLElement) => this.parseList(el, 'ordered', 0)],
+			['LI', (el: HTMLElement) => this.parseListItem(el, 'bullet', 0)],
+			[
+				'HR',
+				() => [
+					{
+						type: this.resolveBlockType(nodeType('horizontal_rule')),
+						segments: [],
+					},
+				],
+			],
+			[
+				'PRE',
+				(el: HTMLElement) => [
+					{
+						type: this.resolveBlockType(nodeType('paragraph')),
+						segments: this.ensureSegments(this.parsePreContent(el)),
+					},
+				],
+			],
+			['TABLE', parseTable],
+			['THEAD', parseTable],
+			['TBODY', parseTable],
+			['TR', parseTable],
+		]);
 	}
 
 	private parseContainer(container: DocumentFragment | HTMLElement): SliceBlock[] {
@@ -123,80 +196,45 @@ export class HTMLParser {
 	}
 
 	private parseBlockElement(element: HTMLElement): SliceBlock[] {
-		const tag: string = element.tagName;
-
-		const headingMatch: RegExpExecArray | null = /^H([1-6])$/.exec(tag);
+		const headingMatch: RegExpExecArray | null = HEADING_PATTERN.exec(element.tagName);
 		if (headingMatch) {
-			const level: number = Number(headingMatch[1]);
-			const blockType: NodeTypeName = this.resolveBlockType(nodeType('heading'));
+			return this.parseHeading(element, Number(headingMatch[1]));
+		}
+
+		const handler = this.blockTagHandlers.get(element.tagName);
+		if (handler) return handler(element);
+
+		return this.parseUnknownBlock(element);
+	}
+
+	private parseHeading(element: HTMLElement, level: number): SliceBlock[] {
+		const blockType: NodeTypeName = this.resolveBlockType(nodeType('heading'));
+		return [
+			{
+				type: blockType,
+				...(blockType === nodeType('heading') ? { attrs: { level } } : {}),
+				segments: this.ensureSegments(this.parseInlineChildren(element, [])),
+			},
+		];
+	}
+
+	private parseUnknownBlock(element: HTMLElement): SliceBlock[] {
+		const blockMatch = this.matchBlockRule(element);
+		if (blockMatch) {
 			return [
 				{
-					type: blockType,
-					...(blockType === nodeType('heading') ? { attrs: { level } } : {}),
+					type: blockMatch.type,
+					...(blockMatch.attrs ? { attrs: blockMatch.attrs } : {}),
 					segments: this.ensureSegments(this.parseInlineChildren(element, [])),
 				},
 			];
 		}
-
-		switch (tag) {
-			case 'P':
-			case 'DIV':
-				return this.parseBlockWithLineBreaks(element, this.resolveBlockType(nodeType('paragraph')));
-
-			case 'BLOCKQUOTE':
-				return this.parseBlockquote(element);
-
-			case 'UL':
-				return this.parseList(element, 'bullet', 0);
-
-			case 'OL':
-				return this.parseList(element, 'ordered', 0);
-
-			case 'LI':
-				return this.parseListItem(element, 'bullet', 0);
-
-			case 'HR':
-				return [
-					{
-						type: this.resolveBlockType(nodeType('horizontal_rule')),
-						segments: [],
-					},
-				];
-
-			case 'PRE':
-				return [
-					{
-						type: this.resolveBlockType(nodeType('paragraph')),
-						segments: this.ensureSegments(this.parsePreContent(element)),
-					},
-				];
-
-			case 'TABLE':
-			case 'THEAD':
-			case 'TBODY':
-			case 'TR':
-				return this.parseTableAsParagraphs(element);
-
-			default: {
-				// Try block parse rules before falling back to paragraph
-				const blockMatch = this.matchBlockRule(element);
-				if (blockMatch) {
-					return [
-						{
-							type: blockMatch.type,
-							...(blockMatch.attrs ? { attrs: blockMatch.attrs } : {}),
-							segments: this.ensureSegments(this.parseInlineChildren(element, [])),
-						},
-					];
-				}
-				return [
-					{
-						type: this.resolveBlockType(nodeType('paragraph')),
-						segments: this.ensureSegments(this.parseInlineChildren(element, [])),
-					},
-				];
-			}
-		}
+		return [
+			{
+				type: this.resolveBlockType(nodeType('paragraph')),
+				segments: this.ensureSegments(this.parseInlineChildren(element, [])),
+			},
+		];
 	}
 
 	private parseBlockquote(element: HTMLElement): SliceBlock[] {
@@ -350,59 +388,52 @@ export class HTMLParser {
 	}
 
 	private marksFromElement(element: HTMLElement): readonly Mark[] {
-		const marks: Mark[] = [];
+		const registryMarks: readonly Mark[] | null = this.matchMarkRules(element);
+		if (registryMarks) return registryMarks;
+
+		return this.fallbackMarksFromElement(element);
+	}
+
+	private matchMarkRules(element: HTMLElement): readonly Mark[] | null {
+		if (this.markParseRules.length === 0) return null;
+
 		const tag: string = element.tagName.toLowerCase();
+		const marks: Mark[] = [];
+		const matchedTypes = new Set<string>();
 
-		// Try mark parse rules first
-		if (this.markParseRules.length > 0) {
-			const matchedTypes = new Set<string>();
-			for (const entry of this.markParseRules) {
-				if (entry.rule.tag !== tag) continue;
-				if (matchedTypes.has(entry.type)) continue;
+		for (const entry of this.markParseRules) {
+			if (entry.rule.tag !== tag) continue;
+			if (matchedTypes.has(entry.type)) continue;
 
-				if (entry.rule.getAttrs) {
-					const attrs = entry.rule.getAttrs(element);
-					if (attrs === false) continue;
-					marks.push({
-						type: markType(entry.type),
-						...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-					} as Mark);
-					matchedTypes.add(entry.type);
-				} else {
-					marks.push({ type: markType(entry.type) });
-					matchedTypes.add(entry.type);
-				}
+			if (entry.rule.getAttrs) {
+				const attrs = entry.rule.getAttrs(element);
+				if (attrs === false) continue;
+				marks.push({
+					type: markType(entry.type),
+					...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+				} as Mark);
+			} else {
+				marks.push({ type: markType(entry.type) });
 			}
-
-			if (matchedTypes.size > 0) return marks;
+			matchedTypes.add(entry.type);
 		}
 
-		// Fallback to hardcoded logic when no registry is provided
-		const upperTag: string = element.tagName;
-		if (upperTag === 'STRONG' || upperTag === 'B') {
-			const fw: string = element.style.fontWeight;
-			const numeric: number = Number.parseInt(fw, 10);
-			const isExplicitlyNotBold: boolean =
-				fw === 'normal' || (!Number.isNaN(numeric) && numeric < 700);
-			if (!isExplicitlyNotBold) {
-				marks.push({ type: markType('bold') });
-			}
-		}
-		if (upperTag === 'EM' || upperTag === 'I') {
-			marks.push({ type: markType('italic') });
-		}
-		if (upperTag === 'U') {
-			marks.push({ type: markType('underline') });
-		}
-		if (upperTag === 'S' || upperTag === 'STRIKE' || upperTag === 'DEL') {
-			marks.push({ type: markType('strikethrough') });
-		}
-		if (upperTag === 'A') {
-			const href: string = element.getAttribute('href') ?? '';
-			marks.push({ type: markType('link'), attrs: { href } });
+		return matchedTypes.size > 0 ? marks : null;
+	}
+
+	private fallbackMarksFromElement(element: HTMLElement): readonly Mark[] {
+		const def: FallbackMarkDef | undefined = FALLBACK_MARK_MAP.get(element.tagName);
+		if (!def) return [];
+
+		if (def.getAttrs) {
+			const attrs = def.getAttrs(element);
+			if (attrs === false) return [];
+			return Object.keys(attrs).length > 0
+				? [{ type: markType(def.markName), attrs } as Mark]
+				: [{ type: markType(def.markName) }];
 		}
 
-		return marks;
+		return [{ type: markType(def.markName) }];
 	}
 
 	private mergeMarks(existing: readonly Mark[], additional: readonly Mark[]): readonly Mark[] {
@@ -431,7 +462,10 @@ export class HTMLParser {
 		for (const segment of segments) {
 			const prev: TextSegment | undefined = result[result.length - 1];
 			if (prev && markSetsEqual(prev.marks, segment.marks)) {
-				result[result.length - 1] = { text: prev.text + segment.text, marks: prev.marks };
+				result[result.length - 1] = {
+					text: prev.text + segment.text,
+					marks: prev.marks,
+				};
 			} else if (segment.text.length > 0) {
 				result.push(segment);
 			}
@@ -466,7 +500,6 @@ export class HTMLParser {
 
 	private isBlockElement(el: HTMLElement): boolean {
 		if (BLOCK_ELEMENTS.has(el.tagName)) return true;
-		// Check if any block parse rule matches this tag
 		const tag: string = el.tagName.toLowerCase();
 		return this.blockParseRules.some((entry) => entry.rule.tag === tag);
 	}
@@ -485,12 +518,14 @@ export class HTMLParser {
 	private containsBlockDescendants(el: HTMLElement): boolean {
 		for (const child of Array.from(el.children)) {
 			if (this.isBlockElement(child as HTMLElement)) return true;
-			if (this.containsBlockDescendants(child as HTMLElement)) return true;
+			if (this.containsBlockDescendants(child as HTMLElement)) {
+				return true;
+			}
 		}
 		return false;
 	}
 
-	/** Parses a container element, prepending inherited marks to all resulting blocks. */
+	/** Parses a container element, prepending inherited marks. */
 	private parseContainerWithMarks(
 		container: HTMLElement,
 		inheritedMarks: readonly Mark[],
@@ -520,17 +555,20 @@ export class HTMLParser {
 	}
 
 	/**
-	 * Parses a block element, splitting into multiple blocks at `<br>` boundaries.
-	 * `<br>` may appear at any nesting depth (e.g. inside `<b>` or `<span>`),
-	 * so we parse inline content first, then split the resulting segments at
-	 * the `\n` characters produced by `<br>`.
+	 * Parses a block element, splitting into multiple blocks
+	 * at `<br>` boundaries.
 	 */
 	private parseBlockWithLineBreaks(element: HTMLElement, blockType: NodeTypeName): SliceBlock[] {
 		const segments: readonly TextSegment[] = this.parseInlineChildren(element, []);
 		const hasLineBreak: boolean = segments.some((s: TextSegment) => s.text.includes('\n'));
 
 		if (!hasLineBreak) {
-			return [{ type: blockType, segments: this.ensureSegments(segments) }];
+			return [
+				{
+					type: blockType,
+					segments: this.ensureSegments(segments),
+				},
+			];
 		}
 
 		const blocks: SliceBlock[] = [];

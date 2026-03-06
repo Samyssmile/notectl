@@ -8,10 +8,8 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
-import { type FileHandler, FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
-import type { InputRule } from '../model/InputRule.js';
+import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
-import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -21,32 +19,24 @@ import { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import { EventBus } from './EventBus.js';
 import type {
 	CommandEntry,
-	CommandHandler,
-	CommandOptions,
 	EventKey,
 	MiddlewareNext,
-	MiddlewareOptions,
-	PasteInterceptor,
-	PasteInterceptorOptions,
 	Plugin,
 	PluginConfig,
 	PluginContext,
-	PluginEventBus,
 	PluginEventCallback,
 	ServiceKey,
-	TransactionMiddleware,
 } from './Plugin.js';
+import {
+	type ContextFactoryDeps,
+	type MiddlewareEntry,
+	type PluginRegistrations,
+	createPluginContext,
+} from './PluginContextFactory.js';
 import { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.js';
 import { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 const DEFAULT_PRIORITY = 100;
-
-interface MiddlewareEntry {
-	readonly name: string;
-	readonly pluginId: string;
-	readonly middleware: TransactionMiddleware;
-	readonly priority: number;
-}
 
 /** Describes a registered middleware for introspection. */
 export interface MiddlewareInfo {
@@ -56,24 +46,7 @@ export interface MiddlewareInfo {
 }
 
 export type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
-
-interface PluginRegistrations {
-	commands: string[];
-	services: string[];
-	middlewares: MiddlewareEntry[];
-	pasteInterceptors: PasteInterceptorEntry[];
-	unsubscribers: (() => void)[];
-	nodeSpecs: string[];
-	markSpecs: string[];
-	inlineNodeSpecs: string[];
-	nodeViews: string[];
-	keymaps: Keymap[];
-	inputRules: InputRule[];
-	toolbarItems: string[];
-	fileHandlers: FileHandler[];
-	blockTypePickerEntries: string[];
-	stylesheets: CSSStyleSheet[];
-}
+export type { MiddlewareEntry, PluginRegistrations } from './PluginContextFactory.js';
 
 export interface PluginManagerInitOptions {
 	getState(): EditorState;
@@ -86,6 +59,8 @@ export interface PluginManagerInitOptions {
 	hasAnnouncement?(): boolean;
 	/** Called after all plugin init() calls complete, before onReady(). */
 	onBeforeReady?(): void | Promise<void>;
+	/** Returns whether initialization should stop early. */
+	isCancelled?(): boolean;
 }
 
 export class PluginManager {
@@ -107,6 +82,7 @@ export class PluginManager {
 	private middlewareSorted: MiddlewareEntry[] | null = null;
 	private pasteInterceptorsSorted: PasteInterceptorEntry[] | null = null;
 	private initOrder: string[] = [];
+	private startedInitOrder: string[] = [];
 	private initialized = false;
 	private initializing = false;
 	private readOnly = false;
@@ -138,39 +114,48 @@ export class PluginManager {
 	async init(options: PluginManagerInitOptions): Promise<void> {
 		if (this.initialized || this.initializing) return;
 		this.initializing = true;
+		try {
+			this.initOrder = this.resolveOrder();
 
-		this.initOrder = this.resolveOrder();
-
-		for (const id of this.initOrder) {
-			const plugin = this.plugins.get(id);
-			if (!plugin) continue;
-			const context = this.createContext(id, options);
-			try {
-				await plugin.init(context);
-			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" failed to initialize:`, err);
+			for (const id of this.initOrder) {
+				if (options.isCancelled?.()) return;
+				const plugin = this.plugins.get(id);
+				if (!plugin) continue;
+				this.startedInitOrder.push(id);
+				const context = this.createContext(id, options);
+				try {
+					await plugin.init(context);
+				} catch (err) {
+					console.error(`[PluginManager] Plugin "${id}" failed to initialize:`, err);
+				}
 			}
-		}
 
-		// Hook between init and onReady — lets the host rebuild schema/state
-		// after all plugins have registered their specs but before plugins render.
-		if (options.onBeforeReady) {
-			await options.onBeforeReady();
-		}
+			if (options.isCancelled?.()) return;
 
-		// Call onReady on all plugins after all init() calls have completed
-		for (const id of this.initOrder) {
-			const plugin = this.plugins.get(id);
-			if (!plugin?.onReady) continue;
-			try {
-				await plugin.onReady();
-			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" error in onReady:`, err);
+			// Hook between init and onReady — lets the host rebuild schema/state
+			// after all plugins have registered their specs but before plugins render.
+			if (options.onBeforeReady) {
+				await options.onBeforeReady();
 			}
-		}
 
-		this.initialized = true;
-		this.initializing = false;
+			if (options.isCancelled?.()) return;
+
+			// Call onReady on all plugins after all init() calls have completed
+			for (const id of this.initOrder) {
+				if (options.isCancelled?.()) return;
+				const plugin = this.plugins.get(id);
+				if (!plugin?.onReady) continue;
+				try {
+					await plugin.onReady();
+				} catch (err) {
+					console.error(`[PluginManager] Plugin "${id}" error in onReady:`, err);
+				}
+			}
+
+			this.initialized = true;
+		} finally {
+			this.initializing = false;
+		}
 	}
 
 	/** Notifies all plugins of a state change, in init order. */
@@ -353,7 +338,7 @@ export class PluginManager {
 
 	/** Destroys all plugins in reverse init order. */
 	async destroy(): Promise<void> {
-		const reversed = [...this.initOrder].reverse();
+		const reversed = [...this.startedInitOrder].reverse();
 		for (const id of reversed) {
 			await this.destroyPlugin(id);
 		}
@@ -373,10 +358,12 @@ export class PluginManager {
 		this.fileHandlerRegistry.clear();
 		this.nodeViewRegistry.clear();
 		this.toolbarRegistry.clear();
-		this.blockTypePickerRegistry.clear();
-		this.initOrder = [];
-		this.initialized = false;
-	}
+			this.blockTypePickerRegistry.clear();
+			this.initOrder = [];
+			this.startedInitOrder = [];
+			this.initialized = false;
+			this.initializing = false;
+		}
 
 	// --- Private ---
 
@@ -453,168 +440,41 @@ export class PluginManager {
 	}
 
 	private createContext(pluginId: string, options: PluginManagerInitOptions): PluginContext {
-		const reg: PluginRegistrations = {
-			commands: [],
-			services: [],
-			middlewares: [],
-			pasteInterceptors: [],
-			unsubscribers: [],
-			nodeSpecs: [],
-			markSpecs: [],
-			inlineNodeSpecs: [],
-			nodeViews: [],
-			keymaps: [],
-			inputRules: [],
-			toolbarItems: [],
-			fileHandlers: [],
-			blockTypePickerEntries: [],
-			stylesheets: [],
-		};
-		this.registrations.set(pluginId, reg);
-
-		const pluginEventBus: PluginEventBus = {
-			emit: (key, payload) => this.eventBus.emit(key, payload),
-			on: (key, callback) => {
-				const unsub = this.eventBus.on(key, callback);
-				reg.unsubscribers.push(unsub);
-				return unsub;
-			},
-			off: (key, callback) => this.eventBus.off(key, callback),
-		};
-
-		return {
+		const deps: ContextFactoryDeps = {
+			pluginId,
 			getState: options.getState,
 			dispatch: options.dispatch,
 			getContainer: options.getContainer,
 			getPluginContainer: options.getPluginContainer,
+			announce: options.announce,
+			hasAnnouncement: options.hasAnnouncement,
+			commands: this.commands,
+			services: this.services,
+			middlewares: this.middlewares,
+			pasteInterceptors: this.pasteInterceptors,
+			pluginStyleSheets: this.pluginStyleSheets,
+			plugins: this.plugins,
+			eventBus: this.eventBus,
+			schemaRegistry: this.schemaRegistry,
+			keymapRegistry: this.keymapRegistry,
+			inputRuleRegistry: this.inputRuleRegistry,
+			toolbarRegistry: this.toolbarRegistry,
+			blockTypePickerRegistry: this.blockTypePickerRegistry,
+			fileHandlerRegistry: this.fileHandlerRegistry,
+			nodeViewRegistry: this.nodeViewRegistry,
 			isReadOnly: () => this.readOnly,
-
-			registerCommand: (name: string, handler: CommandHandler, options?: CommandOptions) => {
-				if (this.commands.has(name)) {
-					const existing = this.commands.get(name);
-					throw new Error(
-						`Command "${name}" is already registered by plugin "${existing?.pluginId}".`,
-					);
-				}
-				const readonlyAllowed: boolean = options?.readonlyAllowed ?? false;
-				this.commands.set(name, { name, handler, pluginId, readonlyAllowed });
-				reg.commands.push(name);
-			},
-
-			executeCommand: (name: string) => this.executeCommand(name),
-
-			getEventBus: () => pluginEventBus,
-
-			registerMiddleware: (middleware: TransactionMiddleware, options?: MiddlewareOptions) => {
-				const name: string = options?.name ?? (middleware.name || 'anonymous');
-				const priority: number = options?.priority ?? DEFAULT_PRIORITY;
-				const entry: MiddlewareEntry = { name, pluginId, middleware, priority };
-				this.middlewares.push(entry);
-				reg.middlewares.push(entry);
+			invalidateMiddlewareSort: () => {
 				this.middlewareSorted = null;
 			},
-
-			registerService: <T>(key: ServiceKey<T>, service: T) => {
-				if (this.services.has(key.id)) {
-					throw new Error(`Service "${key.id}" is already registered by another plugin.`);
-				}
-				this.services.set(key.id, service);
-				reg.services.push(key.id);
-			},
-
-			getService: <T>(key: ServiceKey<T>) => this.services.get(key.id) as T | undefined,
-
-			updateConfig: (config: PluginConfig) => {
-				const plugin = this.plugins.get(pluginId);
-				if (plugin?.onConfigure) {
-					try {
-						plugin.onConfigure(config);
-					} catch (err) {
-						console.error(`[PluginManager] Plugin "${pluginId}" error in onConfigure:`, err);
-					}
-				}
-			},
-
-			// --- Schema Extension Methods ---
-
-			registerNodeSpec: (spec) => {
-				this.schemaRegistry.registerNodeSpec(spec);
-				reg.nodeSpecs.push(spec.type);
-			},
-
-			registerMarkSpec: (spec) => {
-				this.schemaRegistry.registerMarkSpec(spec);
-				reg.markSpecs.push(spec.type);
-			},
-
-			registerNodeView: (type, factory) => {
-				this.nodeViewRegistry.registerNodeView(type, factory);
-				reg.nodeViews.push(type);
-			},
-
-			registerKeymap: (keymap: Keymap, options?: KeymapOptions) => {
-				this.keymapRegistry.registerKeymap(keymap, options);
-				reg.keymaps.push(keymap);
-			},
-
-			registerInputRule: (rule) => {
-				this.inputRuleRegistry.registerInputRule(rule);
-				reg.inputRules.push(rule);
-			},
-
-			registerToolbarItem: (item) => {
-				this.toolbarRegistry.registerToolbarItem(item, pluginId);
-				reg.toolbarItems.push(item.id);
-			},
-
-			registerInlineNodeSpec: (spec) => {
-				this.schemaRegistry.registerInlineNodeSpec(spec);
-				reg.inlineNodeSpecs.push(spec.type);
-			},
-
-			registerFileHandler: (pattern, handler) => {
-				this.fileHandlerRegistry.registerFileHandler(pattern, handler);
-				reg.fileHandlers.push(handler);
-			},
-
-			registerBlockTypePickerEntry: (entry) => {
-				this.blockTypePickerRegistry.registerBlockTypePickerEntry(entry);
-				reg.blockTypePickerEntries.push(entry.id);
-			},
-
-			registerPasteInterceptor: (
-				interceptor: PasteInterceptor,
-				options?: PasteInterceptorOptions,
-			) => {
-				const name: string = options?.name ?? 'anonymous';
-				const priority: number = options?.priority ?? DEFAULT_PRIORITY;
-				const entry: PasteInterceptorEntry = { name, pluginId, interceptor, priority };
-				this.pasteInterceptors.push(entry);
-				reg.pasteInterceptors.push(entry);
+			invalidatePasteSort: () => {
 				this.pasteInterceptorsSorted = null;
 			},
-
-			getSchemaRegistry: () => this.schemaRegistry,
-			getKeymapRegistry: () => this.keymapRegistry,
-			getInputRuleRegistry: () => this.inputRuleRegistry,
-			getFileHandlerRegistry: () => this.fileHandlerRegistry,
-			getNodeViewRegistry: () => this.nodeViewRegistry,
-			getToolbarRegistry: () => this.toolbarRegistry,
-			getBlockTypePickerRegistry: () => this.blockTypePickerRegistry,
-
-			registerStyleSheet: (css: string) => {
-				const sheet: CSSStyleSheet = new CSSStyleSheet();
-				sheet.replaceSync(css);
-				this.pluginStyleSheets.push(sheet);
-				reg.stylesheets.push(sheet);
-			},
-
-			announce: (text: string) => {
-				options.announce?.(text);
-			},
-
-			hasAnnouncement: () => options.hasAnnouncement?.() ?? false,
+			executeCommand: (name: string) => this.executeCommand(name),
 		};
+
+		const { context, registrations } = createPluginContext(deps);
+		this.registrations.set(pluginId, registrations);
+		return context;
 	}
 
 	/**
