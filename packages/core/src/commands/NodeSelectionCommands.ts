@@ -3,7 +3,7 @@
  * after void blocks, and navigating arrow keys into/out of void blocks.
  */
 
-import { type BlockNode, generateBlockId, getBlockLength, isBlockNode } from '../model/Document.js';
+import { generateBlockId, getBlockLength, isBlockNode } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { NodeSelection } from '../model/Selection.js';
 import {
@@ -19,15 +19,20 @@ import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import {
+	createSelectionForBlockBoundary,
 	createEmptyParagraph,
 	extractParentPath,
 	findSiblingIndex,
+	findFirstLeafBlockId,
+	findLastLeafBlockId,
 	getSiblings,
 } from './CommandHelpers.js';
 
+export { findFirstLeafBlockId, findLastLeafBlockId } from './CommandHelpers.js';
+
 /**
- * Deletes the void block targeted by a NodeSelection and places cursor
- * on the adjacent block. If it's the only block, replaces with empty paragraph.
+ * Deletes the selected block and places cursor on a valid adjacent position.
+ * If it is the only child in its parent, replaces it with an empty paragraph.
  */
 export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Transaction | null {
 	const path = findNodePath(state.doc, sel.nodeId);
@@ -41,8 +46,8 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 
 	const builder = state.transaction('input');
 
-	// If this is the only block in the document, insert empty paragraph first
-	if (siblings.length === 1 && parentPath.length === 0) {
+	// Keep container invariants intact when removing the only child in any parent.
+	if (siblings.length === 1) {
 		const newId = generateBlockId();
 		builder.insertNode(parentPath, 0, createEmptyParagraph(newId));
 		builder.removeNode(parentPath, 1);
@@ -52,22 +57,22 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 
 	builder.removeNode(parentPath, index);
 
-	// Find where to place cursor: prefer previous sibling leaf, else next sibling leaf.
+	// Prefer the previous sibling, matching Backspace/Delete semantics.
 	const prevSibling = siblings[index - 1];
 	if (prevSibling && isBlockNode(prevSibling)) {
-		const prevLeafId = findLastLeafBlockId(prevSibling);
-		if (prevLeafId) {
-			const prevLeaf = state.getBlock(prevLeafId);
-			const prevLen = prevLeaf ? getBlockLength(prevLeaf) : 0;
-			builder.setSelection(createCollapsedSelection(prevLeafId, prevLen));
+		const selection = createSelectionForBlockBoundary(state, prevSibling.id, 'end');
+		if (selection) {
+			builder.setSelection(selection);
+			return builder.build();
 		}
-	} else {
-		const nextSibling = siblings[index + 1];
-		if (nextSibling && isBlockNode(nextSibling)) {
-			const nextLeafId = findFirstLeafBlockId(nextSibling);
-			if (nextLeafId) {
-				builder.setSelection(createCollapsedSelection(nextLeafId, 0));
-			}
+	}
+
+	const nextSibling = siblings[index + 1];
+	if (nextSibling && isBlockNode(nextSibling)) {
+		const selection = createSelectionForBlockBoundary(state, nextSibling.id, 'start');
+		if (selection) {
+			builder.setSelection(selection);
+			return builder.build();
 		}
 	}
 
@@ -150,35 +155,6 @@ export function navigateArrowIntoVoid(
 	if (!isCollapsed(sel)) return null;
 
 	return navigateIntoVoid(state, sel, effectiveDir, blockOrder);
-}
-
-/** Finds the first leaf (deepest-first-child) block ID in a subtree. */
-export function findFirstLeafBlockId(node: BlockNode): BlockId {
-	let current: BlockNode = node;
-	while (true) {
-		const firstBlockChild = current.children.find((child): child is BlockNode =>
-			isBlockNode(child),
-		);
-		if (!firstBlockChild) return current.id;
-		current = firstBlockChild;
-	}
-}
-
-/** Finds the last leaf (deepest-last-child) block ID in a subtree. */
-export function findLastLeafBlockId(node: BlockNode): BlockId {
-	let current: BlockNode = node;
-	while (true) {
-		let lastBlockChild: BlockNode | undefined;
-		for (let i = current.children.length - 1; i >= 0; i--) {
-			const child = current.children[i];
-			if (child && isBlockNode(child)) {
-				lastBlockChild = child;
-				break;
-			}
-		}
-		if (!lastBlockChild) return current.id;
-		current = lastBlockChild;
-	}
 }
 
 // ---------------------------------------------------------------------------

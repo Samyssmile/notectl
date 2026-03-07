@@ -5,7 +5,7 @@ import {
 	createTextNode,
 	getBlockChildren,
 } from '../../model/Document.js';
-import { createCollapsedSelection, createNodeSelection } from '../../model/Selection.js';
+import { createCollapsedSelection, createNodeSelection, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -304,6 +304,27 @@ describe('createDeleteTableTransaction', () => {
 		expect(nextState.selection.anchor.blockId).toBe('before');
 	});
 
+	it('replaces the only root table with an empty paragraph', () => {
+		const { table } = createTestTableNode(1, 1);
+		const doc = createDocument([table]);
+		const state = EditorState.create({
+			doc,
+			selection: createCollapsedSelection('p0_0' as BlockId, 0),
+			schema: TABLE_SCHEMA,
+		});
+
+		const tr = createDeleteTableTransaction(state, 't1' as BlockId);
+		expect(tr).not.toBeNull();
+		if (!tr) return;
+
+		const nextState = state.apply(tr);
+		expect(nextState.doc.children).toHaveLength(1);
+		expect(nextState.doc.children[0]?.type).toBe('paragraph');
+		expect(nextState.getBlock('t1' as BlockId)).toBeUndefined();
+		expect(nextState.getBlock(nextState.selection.anchor.blockId)).toBeDefined();
+		expect(nextState.selection.anchor.offset).toBe(0);
+	});
+
 	it('returns null for unknown table id', () => {
 		const doc = createDocument([
 			createBlockNode('paragraph' as NodeTypeName, [createTextNode('before')], 'before' as BlockId),
@@ -315,6 +336,85 @@ describe('createDeleteTableTransaction', () => {
 		});
 
 		expect(createDeleteTableTransaction(state, 'missing' as BlockId)).toBeNull();
+	});
+
+	it('moves selection into the next table leaf instead of selecting the table root', () => {
+		const { table: tableToDelete } = createTestTableNode(1, 1);
+		const nextTable = createBlockNode(
+			'table' as NodeTypeName,
+			[
+				createBlockNode(
+					'table_row' as NodeTypeName,
+					[
+						createBlockNode(
+							'table_cell' as NodeTypeName,
+							[
+								createBlockNode(
+									'paragraph' as NodeTypeName,
+									[createTextNode('next')],
+									'next-paragraph' as BlockId,
+								),
+							],
+							'next-cell' as BlockId,
+						),
+					],
+					'next-row' as BlockId,
+				),
+			],
+			'next-table' as BlockId,
+		);
+		const state = EditorState.create({
+			doc: createDocument([tableToDelete, nextTable]),
+			selection: createNodeSelection('t1' as BlockId, ['t1' as BlockId]),
+			schema: TABLE_SCHEMA,
+		});
+
+		const tr = createDeleteTableTransaction(state, 't1' as BlockId);
+		expect(tr).not.toBeNull();
+		if (!tr) return;
+
+		const nextState = state.apply(tr);
+		expect(nextState.doc.children.map((node) => node.id)).toEqual(['next-table']);
+		expect(isNodeSelection(nextState.selection)).toBe(false);
+		if (!isNodeSelection(nextState.selection)) {
+			expect(nextState.selection.anchor.blockId).toBe('next-paragraph');
+			expect(nextState.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('creates a NodeSelection when the next root block is void', () => {
+		const { table } = createTestTableNode(1, 1);
+		const image = createBlockNode('image' as NodeTypeName, [], 'img1' as BlockId);
+		const state = EditorState.create({
+			doc: createDocument([table, image]),
+			selection: createCollapsedSelection('p0_0' as BlockId, 0),
+			schema: {
+				nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell', 'image'],
+				markTypes: [],
+				getNodeSpec(type: string) {
+					return type === 'image'
+						? {
+								type,
+								group: 'block',
+								isVoid: true,
+								toDOM() {
+									return document.createElement('div');
+								},
+							}
+						: undefined;
+				},
+			},
+		});
+
+		const tr = createDeleteTableTransaction(state, 't1' as BlockId);
+		expect(tr).not.toBeNull();
+		if (!tr) return;
+
+		const nextState = state.apply(tr);
+		expect(isNodeSelection(nextState.selection)).toBe(true);
+		if (isNodeSelection(nextState.selection)) {
+			expect(nextState.selection.nodeId).toBe('img1');
+		}
 	});
 });
 

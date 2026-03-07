@@ -4,6 +4,7 @@ import {
 	createBlockNode,
 	createTextNode,
 	getBlockChildren,
+	getBlockText,
 } from '../../model/Document.js';
 import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
@@ -232,7 +233,31 @@ describe('ImageCommands', () => {
 			const cells: readonly BlockNode[] = getBlockChildren(row);
 			const cell: BlockNode = cells[0] as BlockNode;
 			const cellBlockChildren: readonly BlockNode[] = getBlockChildren(cell);
-			expect(cellBlockChildren).toHaveLength(0);
+			expect(cellBlockChildren).toHaveLength(1);
+			expect(cellBlockChildren[0]?.type).toBe('paragraph');
+			expect(getState().selection.anchor.blockId).toBe(cellBlockChildren[0]?.id);
+			expect(getState().selection.anchor.offset).toBe(0);
+		});
+
+		it('replaces a single root image with an empty paragraph', async () => {
+			const state = stateBuilder()
+				.block('image', '', 'img1', { attrs: { src: 'test.png', alt: '', align: 'center' } })
+				.nodeSelection('img1')
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const plugin = new ImagePlugin();
+			const { pm, getState } = await pluginHarness(plugin, state);
+
+			const result = pm.executeCommand('removeImage');
+			expect(result).toBe(true);
+
+			expect(getState().doc.children).toHaveLength(1);
+			expect(getState().doc.children[0]?.type).toBe('paragraph');
+			const firstBlock = getState().doc.children[0];
+			if (!firstBlock) return;
+			expect(getBlockText(firstBlock)).toBe('');
+			expect(getState().selection.anchor.blockId).toBe(firstBlock.id);
+			expect(getState().selection.anchor.offset).toBe(0);
 		});
 	});
 

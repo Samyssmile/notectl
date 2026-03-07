@@ -5,15 +5,11 @@
 
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { createBlockNode, getBlockChildren, isBlockNode } from '../../model/Document.js';
-import {
-	createCollapsedSelection,
-	createNodeSelection,
-	isGapCursor,
-	isNodeSelection,
-} from '../../model/Selection.js';
+import { createNodeSelection, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
 import type { PluginContext } from '../Plugin.js';
 import type { ImageAttrs } from './ImageUpload.js';
 
@@ -137,59 +133,10 @@ export function removeImage(context: PluginContext): boolean {
 	const nodePath: BlockId[] | undefined = state.getNodePath(sel.nodeId);
 	if (!nodePath || nodePath.length === 0) return false;
 
-	// parentPath = all IDs except the last (the image itself)
-	const parentPath: BlockId[] = nodePath.slice(0, -1);
-
-	// Find the index of the image in its parent's children
-	let parent: BlockNode | { readonly children: readonly BlockNode[] } | undefined;
-	if (parentPath.length === 0) {
-		parent = state.doc;
-	} else {
-		const parentId: BlockId | undefined = parentPath[parentPath.length - 1];
-		parent = parentId ? state.getBlock(parentId) : undefined;
-	}
-	if (!parent) return false;
-
-	const imageIndex: number = parent.children.findIndex(
-		(c) => isBlockNode(c) && c.id === sel.nodeId,
-	);
-	if (imageIndex === -1) return false;
-
-	// Determine where to place the cursor after removal
-	const selectionTarget: BlockId | undefined = findSelectionTargetAfterRemoval(
-		state,
-		parentPath,
-		sel.nodeId,
-	);
-	if (!selectionTarget) return false;
-
-	const tr = state
-		.transaction('command')
-		.removeNode(parentPath, imageIndex)
-		.setSelection(createCollapsedSelection(selectionTarget, 0))
-		.build();
-
+	const tr = deleteNodeSelection(state, createNodeSelection(sel.nodeId, nodePath));
+	if (!tr) return false;
 	context.dispatch(tr);
 	return true;
-}
-
-/** Finds a suitable block to select after removing an image. */
-function findSelectionTargetAfterRemoval(
-	state: EditorState,
-	parentPath: readonly BlockId[],
-	removedId: BlockId,
-): BlockId | undefined {
-	if (parentPath.length === 0) {
-		// Root level: select adjacent block
-		const rootChildren: readonly BlockNode[] = state.doc.children;
-		const idx: number = rootChildren.findIndex((b) => b.id === removedId);
-		const adjacent: BlockNode | undefined = rootChildren[idx + 1] ?? rootChildren[idx - 1];
-		return adjacent?.id;
-	}
-
-	// Nested (e.g. inside table cell): select the cell itself
-	const cellId: BlockId | undefined = parentPath[parentPath.length - 1];
-	return cellId;
 }
 
 /** Updates attributes on the currently selected image block. */
