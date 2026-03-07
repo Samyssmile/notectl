@@ -96,164 +96,178 @@ export async function initializeEditor(deps: InitializerDeps): Promise<InitResul
 		domElements = null;
 	};
 
-	themeController = new EditorThemeController(deps.shadow);
-	deps.styleCoordinator.setup(deps.shadow, cfg.styleNonce, themeController);
-	themeController.apply(cfg.theme ?? ThemePreset.Light);
-	if (isCancelled()) {
-		await cleanup();
-		return null;
-	}
-
-	const editorLocale: EditorLocale = await resolveLocale(cfg);
-	if (isCancelled()) {
-		await cleanup();
-		return null;
-	}
-
-	domElements = createEditorDOM({
-		readonly: cfg.readonly,
-		placeholder: cfg.placeholder,
-		dir: cfg.dir ?? deps.hostDir,
-		locale: editorLocale,
-	});
-	deps.shadow.appendChild(domElements.wrapper);
-
-	if (cfg.paperSize) {
-		paperLayout = new PaperLayoutController(domElements.wrapper, domElements.content);
-		paperLayout.apply(cfg.paperSize);
-	}
-
-	pluginManager = new PluginManager();
-	pluginManager.registerService(LocaleServiceKey, new LocaleService(cfg.locale ?? 'browser'));
-	registerBuiltinSpecs(pluginManager.schemaRegistry);
-	processToolbarConfig(pluginManager, cfg.toolbar);
-
-	for (const plugin of cfg.plugins ?? []) {
-		pluginManager.register(plugin);
-	}
-	for (const plugin of deps.preInitPlugins) {
-		pluginManager.register(plugin);
-	}
-	ensureEssentialPlugins(pluginManager, cfg.features);
-	const activeDomElements: EditorDOMElements = domElements;
-	const activePluginManager: PluginManager = pluginManager;
-	const activeThemeController: EditorThemeController = themeController;
-
-	activeDomElements.content.addEventListener('focus', () => deps.events.emit('focus', undefined));
-	activeDomElements.content.addEventListener('blur', () => deps.events.emit('blur', undefined));
-
-	const dispatch = (tr: Transaction): void => {
-		if (!view || !pluginManager) return;
-		if (
-			deps.configController.isReadOnly &&
-			!isAllowedInReadonly(tr) &&
-			!pluginManager.isReadonlyBypassed()
-		) {
-			return;
+	try {
+		themeController = new EditorThemeController(deps.shadow);
+		deps.styleCoordinator.setup(deps.shadow, cfg.styleNonce, themeController);
+		themeController.apply(cfg.theme ?? ThemePreset.Light);
+		if (isCancelled()) {
+			await cleanup();
+			return null;
 		}
-			pluginManager.dispatchWithMiddleware(tr, view.getState(), (finalTr) => view?.dispatch(finalTr));
-	};
 
-	await activePluginManager.init({
-		isCancelled,
-		getState: () => {
-			if (!view) throw new Error('View not initialized');
-			return view.getState();
-		},
-		dispatch,
-		getContainer: () => activeDomElements.content,
-		getPluginContainer: (position) =>
-			position === 'top'
-				? activeDomElements.topPluginContainer
-				: activeDomElements.bottomPluginContainer,
-		announce: (text: string) => {
-			if (activeDomElements.announcer) activeDomElements.announcer.textContent = text;
-		},
-		hasAnnouncement: () => !!activeDomElements.announcer?.textContent,
-		onBeforeReady: () => {
-			if (isCancelled() || !pluginManager || !themeController) return;
-			const schema = schemaFromRegistry(activePluginManager.schemaRegistry);
-			const state: EditorState = EditorState.create({ schema });
+		const editorLocale: EditorLocale = await resolveLocale(cfg);
+		if (isCancelled()) {
+			await cleanup();
+			return null;
+		}
 
-			inputManager = new InputManager(activeDomElements.content, {
-				getState: () => {
-					if (!view) throw new Error('View not initialized');
-					return view.getState();
-				},
-				dispatch,
-				syncSelection: () => view?.syncSelection(),
-				undo: () => view?.undo(),
-				redo: () => view?.redo(),
-				schemaRegistry: activePluginManager.schemaRegistry,
-				keymapRegistry: activePluginManager.keymapRegistry,
-				inputRuleRegistry: activePluginManager.inputRuleRegistry,
-				fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
-				isReadOnly: () => deps.configController.isReadOnly,
-				getPasteInterceptors: () => activePluginManager.getPasteInterceptors(),
-				getTextDirection,
-				navigateFromGapCursor,
-			});
+		domElements = createEditorDOM({
+			readonly: cfg.readonly,
+			placeholder: cfg.placeholder,
+			dir: cfg.dir ?? deps.hostDir,
+			locale: editorLocale,
+		});
+		deps.shadow.appendChild(domElements.wrapper);
 
-			view = new EditorView(activeDomElements.content, {
-				state,
-				schemaRegistry: activePluginManager.schemaRegistry,
-				keymapRegistry: activePluginManager.keymapRegistry,
-				fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
-				nodeViewRegistry: activePluginManager.nodeViewRegistry,
-				maxHistoryDepth: cfg.maxHistoryDepth,
-				getDecorations: (s, tr) =>
-					activePluginManager.collectDecorations(s, tr) ?? DecorationSet.empty,
-				onStateChange: (oldState, newState, tr) => {
-					handleStateChange(
-						oldState,
-						newState,
-						tr,
-						activeDomElements,
-						activePluginManager,
-						deps.events,
-					);
-				},
-				isReadOnly: () => deps.configController.isReadOnly,
-				compositionState: inputManager.compositionTracker,
-			});
+		if (cfg.paperSize) {
+			paperLayout = new PaperLayoutController(domElements.wrapper, domElements.content);
+			paperLayout.apply(cfg.paperSize);
+		}
 
-			updateEmptyState(activeDomElements.content, view.getState().doc);
+		pluginManager = new PluginManager();
+		pluginManager.registerService(LocaleServiceKey, new LocaleService(cfg.locale ?? 'browser'));
+		registerBuiltinSpecs(pluginManager.schemaRegistry);
+		processToolbarConfig(pluginManager, cfg.toolbar);
 
-			const pluginSheets: readonly CSSStyleSheet[] = activePluginManager.getPluginStyleSheets();
-			if (pluginSheets.length > 0) {
-				activeThemeController.setPluginStyleSheets(pluginSheets);
+		for (const plugin of cfg.plugins ?? []) {
+			pluginManager.register(plugin);
+		}
+		for (const plugin of deps.preInitPlugins) {
+			pluginManager.register(plugin);
+		}
+		ensureEssentialPlugins(pluginManager, cfg.features);
+		const activeDomElements: EditorDOMElements = domElements;
+		const activePluginManager: PluginManager = pluginManager;
+		const activeThemeController: EditorThemeController = themeController;
+
+		activeDomElements.content.addEventListener('focus', () => deps.events.emit('focus', undefined));
+		activeDomElements.content.addEventListener('blur', () => deps.events.emit('blur', undefined));
+
+		const dispatch = (tr: Transaction): void => {
+			if (!view || !pluginManager) return;
+			if (
+				deps.configController.isReadOnly &&
+				!isAllowedInReadonly(tr) &&
+				!pluginManager.isReadonlyBypassed()
+			) {
+				return;
 			}
-		},
-	});
+			pluginManager.dispatchWithMiddleware(tr, view.getState(), (finalTr) =>
+				view?.dispatch(finalTr),
+			);
+		};
 
-	if (isCancelled() || !view || !inputManager || !pluginManager || !domElements || !themeController) {
-		await cleanup();
-		return null;
-	}
+		await activePluginManager.init({
+			isCancelled,
+			getState: () => {
+				if (!view) throw new Error('View not initialized');
+				return view.getState();
+			},
+			dispatch,
+			getContainer: () => activeDomElements.content,
+			getPluginContainer: (position) =>
+				position === 'top'
+					? activeDomElements.topPluginContainer
+					: activeDomElements.bottomPluginContainer,
+			announce: (text: string) => {
+				if (activeDomElements.announcer) activeDomElements.announcer.textContent = text;
+			},
+			hasAnnouncement: () => !!activeDomElements.announcer?.textContent,
+			onBeforeReady: () => {
+				if (isCancelled() || !pluginManager || !themeController) return;
+				const schema = schemaFromRegistry(activePluginManager.schemaRegistry);
+				const state: EditorState = EditorState.create({ schema });
 
-	if (cfg.readonly) {
-		activePluginManager.setReadOnly(true);
-	}
+				inputManager = new InputManager(activeDomElements.content, {
+					getState: () => {
+						if (!view) throw new Error('View not initialized');
+						return view.getState();
+					},
+					dispatch,
+					syncSelection: () => view?.syncSelection(),
+					undo: () => view?.undo(),
+					redo: () => view?.redo(),
+					schemaRegistry: activePluginManager.schemaRegistry,
+					keymapRegistry: activePluginManager.keymapRegistry,
+					inputRuleRegistry: activePluginManager.inputRuleRegistry,
+					fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
+					isReadOnly: () => deps.configController.isReadOnly,
+					getPasteInterceptors: () => activePluginManager.getPasteInterceptors(),
+					getTextDirection,
+					navigateFromGapCursor,
+				});
 
-	activePluginManager.onEvent(BEFORE_PRINT, (event) => {
-		if (!event.options.paperSize && deps.configController.getPaperSize()) {
-			event.options = { ...event.options, paperSize: deps.configController.getPaperSize() };
+				view = new EditorView(activeDomElements.content, {
+					state,
+					schemaRegistry: activePluginManager.schemaRegistry,
+					keymapRegistry: activePluginManager.keymapRegistry,
+					fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
+					nodeViewRegistry: activePluginManager.nodeViewRegistry,
+					maxHistoryDepth: cfg.maxHistoryDepth,
+					getDecorations: (s, tr) =>
+						activePluginManager.collectDecorations(s, tr) ?? DecorationSet.empty,
+					onStateChange: (oldState, newState, tr) => {
+						handleStateChange(
+							oldState,
+							newState,
+							tr,
+							activeDomElements,
+							activePluginManager,
+							deps.events,
+						);
+					},
+					isReadOnly: () => deps.configController.isReadOnly,
+					compositionState: inputManager.compositionTracker,
+				});
+
+				updateEmptyState(activeDomElements.content, view.getState().doc);
+
+				const pluginSheets: readonly CSSStyleSheet[] = activePluginManager.getPluginStyleSheets();
+				if (pluginSheets.length > 0) {
+					activeThemeController.setPluginStyleSheets(pluginSheets);
+				}
+			},
+		});
+
+		if (
+			isCancelled() ||
+			!view ||
+			!inputManager ||
+			!pluginManager ||
+			!domElements ||
+			!themeController
+		) {
+			await cleanup();
+			return null;
 		}
-	});
 
-	if (cfg.autofocus) {
-		requestAnimationFrame(() => activeDomElements.content.focus());
+		if (cfg.readonly) {
+			activePluginManager.setReadOnly(true);
+		}
+
+		activePluginManager.onEvent(BEFORE_PRINT, (event) => {
+			if (!event.options.paperSize && deps.configController.getPaperSize()) {
+				event.options = { ...event.options, paperSize: deps.configController.getPaperSize() };
+			}
+		});
+
+		if (cfg.autofocus) {
+			requestAnimationFrame(() => activeDomElements.content.focus());
+		}
+
+		return {
+			view,
+			inputManager,
+			pluginManager: activePluginManager,
+			domElements: activeDomElements,
+			themeController: activeThemeController,
+			paperLayout,
+			release,
+		};
+	} catch (error) {
+		await cleanup();
+		throw error;
 	}
-
-	return {
-		view,
-		inputManager,
-		pluginManager: activePluginManager,
-		domElements: activeDomElements,
-		themeController: activeThemeController,
-		paperLayout,
-		release,
-	};
 }
 
 async function resolveLocale(cfg: NotectlEditorConfig): Promise<EditorLocale> {

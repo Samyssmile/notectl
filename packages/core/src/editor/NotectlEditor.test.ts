@@ -19,6 +19,71 @@ describe('NotectlEditor', () => {
 		document.body.innerHTML = '';
 	});
 
+	it('rejects whenReady and allows retry after a failed init', async () => {
+		const missingDependencyPlugin: Plugin = {
+			id: 'needs-dependency',
+			name: 'Needs Dependency',
+			dependencies: ['dependency'],
+			init: vi.fn(),
+		};
+		const dependencyPlugin: Plugin = {
+			id: 'dependency',
+			name: 'Dependency',
+			init: vi.fn(),
+		};
+		const editor = new NotectlEditor();
+		const readyPromise = editor.whenReady();
+
+		await expect(
+			editor.init({
+				locale: Locale.EN,
+				plugins: [missingDependencyPlugin],
+			}),
+		).rejects.toThrow('not registered');
+		await expect(readyPromise).rejects.toThrow('not registered');
+
+		expect(() => editor.registerPlugin(dependencyPlugin)).not.toThrow();
+		await expect(editor.init()).resolves.toBeUndefined();
+		await expect(editor.whenReady()).resolves.toBeUndefined();
+		expect(dependencyPlugin.init).toHaveBeenCalledTimes(1);
+		expect(missingDependencyPlugin.init).toHaveBeenCalledTimes(1);
+		expect(() => editor.getState()).not.toThrow();
+	});
+
+	it('preserves pre-init plugins across failed init retries', async () => {
+		const preInitPlugin: Plugin = {
+			id: 'pre-init',
+			name: 'Pre Init',
+			init: vi.fn(),
+		};
+		const missingDependencyPlugin: Plugin = {
+			id: 'needs-missing',
+			name: 'Needs Missing',
+			dependencies: ['missing'],
+			init: vi.fn(),
+		};
+		const missingPlugin: Plugin = {
+			id: 'missing',
+			name: 'Missing',
+			init: vi.fn(),
+		};
+		const editor = new NotectlEditor();
+		editor.registerPlugin(preInitPlugin);
+
+		await expect(
+			editor.init({
+				locale: Locale.EN,
+				plugins: [missingDependencyPlugin],
+			}),
+		).rejects.toThrow('not registered');
+
+		editor.registerPlugin(missingPlugin);
+		await expect(editor.init()).resolves.toBeUndefined();
+		expect(preInitPlugin.init).toHaveBeenCalledTimes(1);
+		expect(missingPlugin.init).toHaveBeenCalledTimes(1);
+		expect(missingDependencyPlugin.init).toHaveBeenCalledTimes(1);
+	});
+
 	it('cancels in-flight init when destroyed before plugins finish initializing', async () => {
 		const initStarted = deferred();
 		const releaseInit = deferred();

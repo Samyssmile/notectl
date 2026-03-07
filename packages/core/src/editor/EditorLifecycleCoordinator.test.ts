@@ -21,6 +21,7 @@ describe('EditorLifecycleCoordinator', () => {
 
 	it('resolveReady resolves the whenReady promise', async () => {
 		const lc = new EditorLifecycleCoordinator();
+		lc.markInitialized();
 		const spy = vi.fn();
 		const promise = lc.whenReady().then(spy);
 
@@ -28,6 +29,17 @@ describe('EditorLifecycleCoordinator', () => {
 		await promise;
 
 		expect(spy).toHaveBeenCalledOnce();
+	});
+
+	it('failReady rejects the whenReady promise', async () => {
+		const lc = new EditorLifecycleCoordinator();
+		const error = new Error('boom');
+		lc.markInitialized();
+
+		const promise = lc.whenReady();
+		lc.failReady(error);
+
+		await expect(promise).rejects.toThrow('boom');
 	});
 
 	it('registerPreInitPlugin stores plugins', () => {
@@ -81,8 +93,42 @@ describe('EditorLifecycleCoordinator', () => {
 		expect(lc.consumePreInitPlugins()).toEqual([plugin]);
 	});
 
+	it('allows retry after failReady', async () => {
+		const lc = new EditorLifecycleCoordinator();
+		lc.markInitialized();
+		lc.failReady(new Error('boom'));
+
+		await expect(lc.whenReady()).rejects.toThrow('boom');
+		expect(lc.markInitialized()).toBe(true);
+
+		let resolved = false;
+		lc.whenReady().then(() => {
+			resolved = true;
+		});
+		await Promise.resolve();
+		expect(resolved).toBe(false);
+
+		lc.resolveReady();
+		await lc.whenReady();
+		expect(resolved).toBe(true);
+	});
+
+	it('restorePreInitPlugins requeues consumed plugins for retry', () => {
+		const lc = new EditorLifecycleCoordinator();
+		const p1: Plugin = stubPlugin('a');
+		const p2: Plugin = stubPlugin('b');
+
+		lc.registerPreInitPlugin(p1);
+		const consumed = lc.consumePreInitPlugins();
+		lc.restorePreInitPlugins(consumed);
+		lc.registerPreInitPlugin(p2);
+
+		expect(lc.consumePreInitPlugins()).toEqual([p1, p2]);
+	});
+
 	it('reset creates a fresh unresolved ready promise', async () => {
 		const lc = new EditorLifecycleCoordinator();
+		lc.markInitialized();
 		lc.resolveReady();
 		await lc.whenReady();
 
@@ -96,6 +142,7 @@ describe('EditorLifecycleCoordinator', () => {
 		await Promise.resolve();
 		expect(resolved).toBe(false);
 
+		lc.markInitialized();
 		lc.resolveReady();
 		await lc.whenReady();
 		expect(resolved).toBe(true);
