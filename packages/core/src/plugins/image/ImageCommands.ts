@@ -3,13 +3,13 @@
  * Supports both root-level and nested contexts (e.g. images inside table cells).
  */
 
+import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { createBlockNode, getBlockChildren, isBlockNode } from '../../model/Document.js';
 import { createNodeSelection, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
 import type { PluginContext } from '../Plugin.js';
 import type { ImageAttrs } from './ImageUpload.js';
 

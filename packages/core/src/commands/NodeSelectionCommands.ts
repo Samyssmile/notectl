@@ -19,12 +19,10 @@ import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import {
-	createSelectionForBlockBoundary,
 	createEmptyParagraph,
+	createSelectionForBlockBoundary,
 	extractParentPath,
 	findSiblingIndex,
-	findFirstLeafBlockId,
-	findLastLeafBlockId,
 	getSiblings,
 } from './CommandHelpers.js';
 
