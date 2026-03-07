@@ -7,7 +7,7 @@
  * by both commands (via PluginContext) and controls (via getState/dispatch).
  */
 
-import { createBlockNode, getBlockChildren } from '../../model/Document.js';
+import { createBlockNode, generateBlockId, getBlockChildren } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -15,6 +15,10 @@ import {
 	isNodeSelection,
 	isTextSelection,
 } from '../../model/Selection.js';
+import {
+	createEmptyParagraph,
+	createSelectionForBlockBoundary,
+} from '../../commands/CommandHelpers.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -154,6 +158,7 @@ export function buildDeleteColumnTransaction(
 /**
  * Creates a transaction that removes the given root-level table node.
  * Cursor placement prefers the next root block, then previous.
+ * If the table is the only root block, it is replaced with an empty paragraph.
  */
 export function createDeleteTableTransaction(
 	state: EditorState,
@@ -162,17 +167,33 @@ export function createDeleteTableTransaction(
 	const tableIndex: number = state.doc.children.findIndex((block) => block.id === tableId);
 	if (tableIndex === -1) return null;
 
+	if (state.doc.children.length === 1) {
+		const replacement = createEmptyParagraph(generateBlockId());
+		return state
+			.transaction('command')
+			.insertNode([], 0, replacement)
+			.removeNode([], 1)
+			.setSelection(createCollapsedSelection(replacement.id, 0))
+			.build();
+	}
+
 	const tr = state.transaction('command').removeNode([], tableIndex);
 
 	const nextRoot = state.doc.children[tableIndex + 1];
 	if (nextRoot) {
-		tr.setSelection(createCollapsedSelection(nextRoot.id, 0));
-		return tr.build();
+		const selection = createSelectionForBlockBoundary(state, nextRoot.id, 'start');
+		if (selection) {
+			tr.setSelection(selection);
+			return tr.build();
+		}
 	}
 
 	const prevRoot = state.doc.children[tableIndex - 1];
 	if (prevRoot) {
-		tr.setSelection(createCollapsedSelection(prevRoot.id, 0));
+		const selection = createSelectionForBlockBoundary(state, prevRoot.id, 'end');
+		if (selection) {
+			tr.setSelection(selection);
+		}
 	}
 
 	return tr.build();

@@ -4,6 +4,7 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockChildren,
 	getBlockLength,
 	getBlockText,
 	getInlineChildren,
@@ -806,6 +807,64 @@ describe('Commands', () => {
 				expect(newState.selection.anchor.blockId).toBe('b1');
 				expect(newState.selection.anchor.offset).toBe(5);
 			}
+		});
+
+		it('replaces the only nested selected block with an empty paragraph', () => {
+			const schema: Schema = {
+				nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell', 'image'],
+				markTypes: [],
+				getNodeSpec(type: string) {
+					if (type === 'image') {
+						return {
+							type,
+							group: 'block',
+							isVoid: true,
+							toDOM() {
+								return document.createElement('div');
+							},
+						};
+					}
+					return undefined;
+				},
+			};
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('image', [], 'img1')],
+									'c1',
+								),
+							],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const sel = createNodeSelection('img1', ['t1', 'r1', 'c1', 'img1']);
+			const state = EditorState.create({ doc, selection: sel, schema });
+
+			const tr = deleteNodeSelection(state, sel);
+			if (!tr) return;
+
+			const newState = state.apply(tr);
+			const table = newState.getBlock('t1');
+			if (!table) return;
+			const row = getBlockChildren(table)[0];
+			if (!row) return;
+			const cell = getBlockChildren(row)[0];
+			if (!cell) return;
+			const children = getBlockChildren(cell);
+
+			expect(children).toHaveLength(1);
+			expect(children[0]?.type).toBe('paragraph');
+			expect(newState.selection.anchor.blockId).toBe(children[0]?.id);
+			expect(newState.selection.anchor.offset).toBe(0);
 		});
 	});
 
