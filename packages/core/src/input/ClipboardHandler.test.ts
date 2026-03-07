@@ -368,23 +368,21 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		clearRichClipboard();
 	});
 
-	it('uses document serializer for selection within a single table', () => {
+	it('serializes only the selected range within a single table', () => {
 		const B4: BlockId = blockId('b4');
 		const B5: BlockId = blockId('b5');
 		const B6: BlockId = blockId('b6');
 		const B7: BlockId = blockId('b7');
-		const B8: BlockId = blockId('b8');
-		const B9: BlockId = blockId('b9');
 
 		// Table structure: table > row > cell > paragraph (leaf)
 		const cell1: ReturnType<typeof createBlockNode> = createBlockNode(
 			'table_cell',
-			[createBlockNode('paragraph', [createTextNode('Cell A')], B1)],
+			[createBlockNode('paragraph', [createTextNode('alpha')], B1)],
 			B4,
 		);
 		const cell2: ReturnType<typeof createBlockNode> = createBlockNode(
 			'table_cell',
-			[createBlockNode('paragraph', [createTextNode('Cell B')], B2)],
+			[createBlockNode('paragraph', [createTextNode('omega')], B2)],
 			B5,
 		);
 		const row: ReturnType<typeof createBlockNode> = createBlockNode(
@@ -399,7 +397,7 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		// Select within the table (both endpoints in paragraphs inside the same table root)
 		const state: EditorState = EditorState.create({
 			doc,
-			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B2, offset: 6 }),
+			selection: createSelection({ blockId: B1, offset: 2 }, { blockId: B2, offset: 2 }),
 		});
 		dispatch = vi.fn();
 		element = document.createElement('div');
@@ -435,9 +433,12 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 
 		expect(event.defaultPrevented).toBe(true);
 		const html: string = event.data.get('text/html') ?? '';
-		// Document serializer should produce proper table HTML, not flat paragraphs
-		expect(html).toContain('<table>');
-		expect(html).toContain('<td>');
+		const parsed = new DOMParser().parseFromString(html, 'text/html');
+		const cells = Array.from(parsed.querySelectorAll('td'));
+		expect(parsed.querySelector('table')).not.toBeNull();
+		expect(cells).toHaveLength(2);
+		expect(cells[0]?.textContent).toBe('pha');
+		expect(cells[1]?.textContent).toBe('om');
 	});
 
 	it('derives text/plain correctly for composite selections containing InlineNodes', () => {
