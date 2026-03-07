@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Mark } from '../model/Document.js';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createInlineNode,
+	createTextNode,
+} from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -8,12 +13,13 @@ import {
 	createNodeSelection,
 	createSelection,
 } from '../model/Selection.js';
-import { blockId, markType, nodeType } from '../model/TypeBrands.js';
+import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import { clearRichClipboard, consumeRichClipboard } from './InternalClipboard.js';
 
 // --- Helpers ---
 
@@ -54,7 +60,8 @@ describe('ClipboardHandler copy', () => {
 	let dispatch: DispatchFn;
 
 	afterEach(() => {
-		handler.destroy();
+		handler?.destroy();
+		clearRichClipboard();
 	});
 
 	it('writes block JSON for NodeSelection', () => {
@@ -160,6 +167,40 @@ describe('ClipboardHandler copy', () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
+	it('skips InlineNodes when deriving plain text and rich clipboard payloads', () => {
+		const doc = createDocument([
+			createBlockNode(
+				'paragraph',
+				[
+					createTextNode('A'),
+					createInlineNode(inlineType('mention'), { id: 'u1' }),
+					createTextNode('B'),
+				],
+				B1,
+			),
+		]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 2 }),
+		});
+		dispatch = vi.fn();
+		element = document.createElement('div');
+
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch,
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		expect(event.data.get('text/plain')).toBe('A');
+		const richBlocks = consumeRichClipboard('A');
+		expect(richBlocks).toHaveLength(1);
+		expect(richBlocks?.[0]?.text).toBe('A');
+		expect(richBlocks?.[0]?.segments).toEqual([{ text: 'A', marks: [] }]);
+	});
+
 	it('writes multi-block text selection joined by newlines', () => {
 		const doc = createDocument([
 			createBlockNode('paragraph', [createTextNode('Hello')], B1),
@@ -245,7 +286,8 @@ describe('ClipboardHandler copy with void blocks', () => {
 	let dispatch: DispatchFn;
 
 	afterEach(() => {
-		handler.destroy();
+		handler?.destroy();
+		clearRichClipboard();
 	});
 
 	it('uses document serializer for text selection spanning void blocks', () => {
@@ -322,7 +364,8 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 	let dispatch: DispatchFn;
 
 	afterEach(() => {
-		handler.destroy();
+		handler?.destroy();
+		clearRichClipboard();
 	});
 
 	it('uses document serializer for selection within a single table', () => {
@@ -396,6 +439,77 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		expect(html).toContain('<table>');
 		expect(html).toContain('<td>');
 	});
+
+	it('derives text/plain correctly for composite selections containing InlineNodes', () => {
+		const cell1: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_cell',
+			[
+				createBlockNode(
+					'paragraph',
+					[
+						createTextNode('A'),
+						createInlineNode(inlineType('mention'), { id: 'u1' }),
+						createTextNode('B'),
+					],
+					B1,
+				),
+			],
+			blockId('c1'),
+		);
+		const cell2: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_cell',
+			[createBlockNode('paragraph', [createTextNode('Tail')], B2)],
+			blockId('c2'),
+		);
+		const row: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table_row',
+			[cell1, cell2],
+			blockId('r1'),
+		);
+		const table: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table',
+			[row],
+			blockId('t1'),
+		);
+		const doc = createDocument([table]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 2 }),
+		});
+		dispatch = vi.fn();
+		element = document.createElement('div');
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'table',
+			toDOM: () => document.createElement('table'),
+			toHTML: (_node, content) => `<table><tbody>${content}</tbody></table>`,
+			sanitize: { tags: ['table', 'tbody', 'thead', 'tfoot'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			toDOM: () => document.createElement('tr'),
+			toHTML: (_node, content) => `<tr>${content}</tr>`,
+			sanitize: { tags: ['tr'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			toDOM: () => document.createElement('td'),
+			toHTML: (_node, content) => `<td><p>${content}</p></td>`,
+			sanitize: { tags: ['td', 'th'] },
+		});
+
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		expect(event.data.get('text/plain')).toBe('A');
+	});
 });
 
 describe('ClipboardHandler cut', () => {
@@ -404,7 +518,8 @@ describe('ClipboardHandler cut', () => {
 	let dispatch: DispatchFn;
 
 	afterEach(() => {
-		handler.destroy();
+		handler?.destroy();
+		clearRichClipboard();
 	});
 
 	it('writes to clipboard AND dispatches delete for NodeSelection', () => {

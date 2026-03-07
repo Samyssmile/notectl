@@ -9,7 +9,6 @@ import type { BlockNode, Mark } from '../model/Document.js';
 import {
 	createDocument,
 	getBlockLength,
-	getBlockText,
 	getInlineChildren,
 	isInlineNode,
 	isLeafBlock,
@@ -181,15 +180,13 @@ export class ClipboardHandler {
 			const block = state.getBlock(bid);
 			if (!block) continue;
 
-			const text = getBlockText(block);
 			const blockLen = getBlockLength(block);
 			const start = i === fromIdx ? range.from.offset : 0;
 			const end = i === toIdx ? range.to.offset : blockLen;
-			const sliced: string = text.slice(start, end);
+			const segments: readonly RichSegment[] = this.extractSegmentsForRange(block, start, end);
+			const sliced: string = this.plainTextFromSegments(segments);
 			lines.push(sliced);
 			blockEntries.push({ block, start, end });
-
-			const segments: readonly RichSegment[] = this.extractSegmentsForRange(block, start, end);
 			richBlocks.push({
 				type: block.type,
 				text: sliced,
@@ -278,6 +275,16 @@ export class ClipboardHandler {
 		return sel;
 	}
 
+	/** Extracts plain text for a block range, ignoring InlineNodes in text/plain output. */
+	private extractPlainTextForRange(block: BlockNode, start: number, end: number): string {
+		return this.plainTextFromSegments(this.extractSegmentsForRange(block, start, end));
+	}
+
+	/** Joins rich text segments into the plain-text form stored on the clipboard. */
+	private plainTextFromSegments(segments: readonly RichSegment[]): string {
+		return segments.map((segment) => segment.text).join('');
+	}
+
 	/**
 	 * Serializes a selection that includes composite blocks (tables) to clipboard.
 	 * Uses serializeDocumentToHTML for HTML to preserve table structure.
@@ -301,10 +308,9 @@ export class ClipboardHandler {
 			if (!bid) continue;
 			const block = state.getBlock(bid);
 			if (!block) continue;
-			const text: string = getBlockText(block);
 			const start: number = i === fromIdx ? range.from.offset : 0;
 			const end: number = i === toIdx ? range.to.offset : getBlockLength(block);
-			lines.push(text.slice(start, end));
+			lines.push(this.extractPlainTextForRange(block, start, end));
 		}
 		clipboardData.setData('text/plain', lines.join('\n'));
 

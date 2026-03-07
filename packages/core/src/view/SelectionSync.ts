@@ -313,19 +313,45 @@ export function domPositionToState(
 
 	// If the node is not a text node, try to find the offset from element context
 	if (node.nodeType === Node.ELEMENT_NODE) {
-		let childOffset = 0;
-		let childIdx = 0;
-
-		for (const child of Array.from(node.childNodes)) {
-			if (childIdx >= domOffset) break;
-			childOffset += inlineContentWidth(child);
-			childIdx++;
-		}
-
-		return createPosition(bid, childOffset, path.length > 1 ? path : undefined);
+		const childOffset = inlineOffsetForChildIndex(node, domOffset);
+		const offsetBeforeNode = inlineOffsetBeforeNode(contentEl, node);
+		const totalOffset = offsetBeforeNode === null ? childOffset : offsetBeforeNode + childOffset;
+		return createPosition(bid, totalOffset, path.length > 1 ? path : undefined);
 	}
 
 	return createPosition(bid, 0, path.length > 1 ? path : undefined);
+}
+
+/** Counts inline width for the first `childIndex` children of an element. */
+function inlineOffsetForChildIndex(node: Node, childIndex: number): number {
+	let childOffset = 0;
+	let childIdx = 0;
+	for (const child of Array.from(node.childNodes)) {
+		if (childIdx >= childIndex) break;
+		childOffset += inlineContentWidth(child);
+		childIdx++;
+	}
+	return childOffset;
+}
+
+/** Returns the inline offset from `root` to the start of `node`, or null when unrelated. */
+function inlineOffsetBeforeNode(root: Element, node: Node): number | null {
+	let offset = 0;
+	let current: Node | null = node;
+
+	while (current && current !== root) {
+		const parent: Node | null = current.parentNode;
+		if (!parent) return null;
+
+		for (const sibling of Array.from(parent.childNodes) as Node[]) {
+			if (sibling === current) break;
+			offset += inlineContentWidth(sibling);
+		}
+
+		current = parent;
+	}
+
+	return current === root ? offset : null;
 }
 
 /** Checks if a node is inside a contentEditable="false" inline element. */

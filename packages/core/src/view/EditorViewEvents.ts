@@ -7,6 +7,7 @@
  * for the CursorWrapper.
  */
 
+import { createEmptyParagraph } from '../commands/CommandHelpers.js';
 import type { CompositionState } from '../model/CompositionState.js';
 import { generateBlockId, getBlockLength } from '../model/Document.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
@@ -19,7 +20,7 @@ import {
 	selectionsEqual,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import { nodeType, blockId as toBlockId } from '../model/TypeBrands.js';
+import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CursorWrapper } from './CursorWrapper.js';
@@ -196,9 +197,9 @@ export class EditorViewEvents {
 		if (this.deps.isReadOnly()) return;
 
 		const state: EditorState = this.deps.getState();
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const lastBlockId: BlockId | undefined = blockOrder[blockOrder.length - 1];
-		if (!lastBlockId) return;
+		const lastRoot = state.doc.children[state.doc.children.length - 1];
+		if (!lastRoot) return;
+		const lastBlockId: BlockId = lastRoot.id;
 
 		const lastBlockEl: Element | null = this.deps.contentElement.querySelector(
 			`[data-block-id="${lastBlockId}"]`,
@@ -223,12 +224,9 @@ export class EditorViewEvents {
 		this.deps.contentElement.focus();
 
 		const newId: BlockId = generateBlockId();
-		const lastLen: number = lastBlock ? getBlockLength(lastBlock) : 0;
-
 		const tr: Transaction = state
 			.transaction('input')
-			.splitBlock(lastBlockId, lastLen, newId)
-			.setBlockType(newId, nodeType('paragraph'))
+			.insertNode([], state.doc.children.length, createEmptyParagraph(newId))
 			.setSelection(createCollapsedSelection(newId, 0))
 			.build();
 
