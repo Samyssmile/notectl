@@ -23,6 +23,7 @@ export interface EditorDOMElements {
 /** Creates the editor DOM tree and returns references to all key elements. */
 export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 	const locale: EditorLocale = config.locale ?? EDITOR_LOCALE_EN;
+	const defaultPlaceholder = locale.defaultPlaceholder;
 
 	const wrapper: HTMLElement = document.createElement('div');
 	wrapper.className = 'notectl-editor';
@@ -41,7 +42,8 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 		content.setAttribute('aria-readonly', 'true');
 	}
 	content.setAttribute('aria-description', locale.ariaDescription);
-	content.setAttribute('data-placeholder', config.placeholder ?? locale.defaultPlaceholder);
+	content.setAttribute('data-default-placeholder', defaultPlaceholder);
+	content.setAttribute('data-placeholder', config.placeholder ?? defaultPlaceholder);
 
 	if (config.dir) {
 		wrapper.setAttribute('dir', config.dir);

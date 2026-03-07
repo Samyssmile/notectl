@@ -7,6 +7,7 @@ import { ThemePreset } from './theme/ThemeTokens.js';
 function createMockDeps(overrides?: Partial<ConfigControllerDeps>): ConfigControllerDeps {
 	const contentElement: HTMLElement = document.createElement('div');
 	contentElement.contentEditable = 'true';
+	contentElement.setAttribute('data-default-placeholder', 'Start typing...');
 	return {
 		contentElement,
 		editorWrapper: document.createElement('div'),
@@ -36,13 +37,25 @@ describe('EditorConfigController', () => {
 	});
 
 	describe('applyAttribute', () => {
-		it('applies placeholder attribute', () => {
+		it('applies placeholder attribute and persists to config', () => {
 			const ctrl = new EditorConfigController();
 			const deps: ConfigControllerDeps = createMockDeps();
 
 			ctrl.applyAttribute('placeholder', 'Type here...', deps);
 
 			expect(deps.contentElement?.getAttribute('data-placeholder')).toBe('Type here...');
+			expect(ctrl.getConfig().placeholder).toBe('Type here...');
+		});
+
+		it('resets placeholder config when attribute is removed', () => {
+			const ctrl = new EditorConfigController();
+			const deps: ConfigControllerDeps = createMockDeps();
+			ctrl.applyAttribute('placeholder', 'Type here...', deps);
+
+			ctrl.applyAttribute('placeholder', null, deps);
+
+			expect(ctrl.getConfig().placeholder).toBeUndefined();
+			expect(deps.contentElement?.getAttribute('data-placeholder')).toBe('Start typing...');
 		});
 
 		it('applies readonly attribute', () => {
@@ -69,13 +82,25 @@ describe('EditorConfigController', () => {
 			expect(ctrl.getConfig().readonly).toBe(false);
 		});
 
-		it('applies theme attribute', () => {
+		it('applies theme attribute and persists to config', () => {
 			const ctrl = new EditorConfigController();
 			const deps: ConfigControllerDeps = createMockDeps();
 
 			ctrl.applyAttribute('theme', 'dark', deps);
 
 			expect(deps.themeController?.apply).toHaveBeenCalledWith('dark');
+			expect(ctrl.getConfig().theme).toBe('dark');
+		});
+
+		it('resets theme config when attribute is removed', () => {
+			const ctrl = new EditorConfigController();
+			const deps: ConfigControllerDeps = createMockDeps();
+			ctrl.applyAttribute('theme', 'dark', deps);
+
+			ctrl.applyAttribute('theme', null, deps);
+
+			expect(ctrl.getConfig().theme).toBeUndefined();
+			expect(deps.themeController?.apply).toHaveBeenLastCalledWith(ThemePreset.Light);
 		});
 
 		it('applies dir attribute', () => {
@@ -97,6 +122,20 @@ describe('EditorConfigController', () => {
 
 			expect(deps.contentElement?.getAttribute('dir')).toBeNull();
 			expect(deps.editorWrapper?.getAttribute('dir')).toBeNull();
+		});
+
+		it('persists placeholder and theme even when deps are null (pre-init)', () => {
+			const ctrl = new EditorConfigController();
+			const deps: ConfigControllerDeps = createMockDeps({
+				contentElement: null,
+				themeController: null,
+			});
+
+			ctrl.applyAttribute('placeholder', 'Write something...', deps);
+			ctrl.applyAttribute('theme', 'dark', deps);
+
+			expect(ctrl.getConfig().placeholder).toBe('Write something...');
+			expect(ctrl.getConfig().theme).toBe('dark');
 		});
 
 		it('applies paper-size attribute', () => {

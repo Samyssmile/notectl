@@ -41,7 +41,9 @@ export class EditorConfigController {
 	/** Handles an HTML attribute change on the custom element. */
 	applyAttribute(name: string, newValue: string | null, deps: ConfigControllerDeps): void {
 		if (name === 'placeholder') {
-			this.applyPlaceholder(newValue ?? '', deps.contentElement);
+			const placeholder: string | undefined = newValue ?? undefined;
+			this.config = { ...this.config, placeholder };
+			this.applyPlaceholder(placeholder, deps.contentElement);
 		}
 
 		if (name === 'readonly') {
@@ -51,7 +53,9 @@ export class EditorConfigController {
 		}
 
 		if (name === 'theme') {
-			deps.themeController?.apply((newValue as ThemePreset) ?? ThemePreset.Light);
+			const theme: ThemePreset | undefined = (newValue as ThemePreset | null) ?? undefined;
+			this.config = { ...this.config, theme };
+			deps.themeController?.apply(theme ?? ThemePreset.Light);
 		}
 
 		if (name === 'paper-size') {
@@ -117,8 +121,10 @@ export class EditorConfigController {
 
 	// --- Private helpers ---
 
-	private applyPlaceholder(value: string, contentEl: HTMLElement | null): void {
-		contentEl?.setAttribute('data-placeholder', value);
+	private applyPlaceholder(value: string | undefined, contentEl: HTMLElement | null): void {
+		if (!contentEl) return;
+		const fallback = contentEl.getAttribute('data-default-placeholder') ?? '';
+		contentEl.setAttribute('data-placeholder', value ?? fallback);
 	}
 
 	private applyReadonly(
