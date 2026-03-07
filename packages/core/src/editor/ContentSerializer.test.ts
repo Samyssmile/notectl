@@ -61,6 +61,36 @@ describe('setEditorJSON', () => {
 		expect(captured?.selection.anchor.blockId).toBe('b1');
 		expect(captured?.selection.anchor.offset).toBe(0);
 	});
+
+	it('sets selection to the first leaf block for nested documents', () => {
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table'),
+				[
+					createBlockNode(
+						nodeType('table_row'),
+						[
+							createBlockNode(
+								nodeType('table_cell'),
+								[createBlockNode(nodeType('paragraph'), [createTextNode('cell')], blockId('p1'))],
+								blockId('cell1'),
+							),
+						],
+						blockId('row1'),
+					),
+				],
+				blockId('tbl1'),
+			),
+		]);
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (s) => {
+			captured = s;
+		});
+
+		expect(captured?.selection.anchor.blockId).toBe('p1');
+		expect(captured?.selection.anchor.offset).toBe(0);
+	});
 });
 
 describe('getEditorText', () => {

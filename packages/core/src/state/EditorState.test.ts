@@ -31,6 +31,33 @@ describe('EditorState', () => {
 			const state = EditorState.create({ doc });
 			expect(getBlockText(state.doc.children[0])).toBe('hello');
 		});
+
+		it('defaults selection to the first leaf block in nested documents', () => {
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('cell')], 'p1')],
+									'cell1',
+								),
+							],
+							'row1',
+						),
+					],
+					'tbl1',
+				),
+			]);
+
+			const state = EditorState.create({ doc });
+
+			expect(state.selection.anchor.blockId).toBe('p1');
+			expect(state.selection.anchor.offset).toBe(0);
+		});
 	});
 
 	describe('apply - insertText', () => {

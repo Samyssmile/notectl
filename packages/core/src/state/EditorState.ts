@@ -57,9 +57,9 @@ export class EditorState {
 	}): EditorState {
 		const schema = options?.schema ?? defaultSchema();
 		const doc = options?.doc ?? createDocument();
-		const firstBlock = doc.children[0];
+		const firstLeaf = findFirstLeafBlock(doc.children);
 		const selection =
-			options?.selection ?? createCollapsedSelection(firstBlock ? firstBlock.id : blockId(''), 0);
+			options?.selection ?? createCollapsedSelection(firstLeaf ? firstLeaf.id : blockId(''), 0);
 
 		return new EditorState(doc, selection, null, schema);
 	}
