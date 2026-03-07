@@ -7,7 +7,6 @@
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
 import type { BlockNode, Mark } from '../model/Document.js';
 import {
-	createDocument,
 	getBlockLength,
 	getInlineChildren,
 	isInlineNode,
@@ -33,6 +32,7 @@ import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';
 import { setRichClipboard } from './InternalClipboard.js';
+import { buildSelectionDocument } from './SelectionDocument.js';
 
 export interface ClipboardHandlerOptions {
 	readonly getState: GetStateFn;
@@ -314,18 +314,10 @@ export class ClipboardHandler {
 		}
 		clipboardData.setData('text/plain', lines.join('\n'));
 
-		// Serialize selected root blocks to full HTML (tables included)
+		// Serialize only the selected region while preserving composite ancestors
 		if (this.schemaRegistry) {
-			const fromPath = findNodePath(state.doc, range.from.blockId);
-			const toPath = findNodePath(state.doc, range.to.blockId);
-			if (fromPath && toPath) {
-				const fromRootIdx: number = state.doc.children.findIndex((c) => c.id === fromPath[0]);
-				const toRootIdx: number = state.doc.children.findIndex((c) => c.id === toPath[0]);
-				const selectedRoots: readonly BlockNode[] = state.doc.children.slice(
-					fromRootIdx,
-					toRootIdx + 1,
-				);
-				const doc = createDocument(selectedRoots);
+			const doc = buildSelectionDocument(state, sel);
+			if (doc.children.length > 0) {
 				const html: string = serializeDocumentToHTML(doc, this.schemaRegistry);
 				clipboardData.setData('text/html', html);
 			}
