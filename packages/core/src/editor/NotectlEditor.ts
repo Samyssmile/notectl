@@ -60,7 +60,8 @@ export class NotectlEditor extends HTMLElement {
 	private readonly styleCoordinator = new EditorStyleCoordinator();
 	private themeController: EditorThemeController | null = null;
 	private paperLayout: PaperLayoutController | null = null;
-	private pendingInitPromise: Promise<import('./EditorInitializer.js').InitResult | null> | null = null;
+	private pendingInitPromise: Promise<import('./EditorInitializer.js').InitResult | null> | null =
+		null;
 	private cancelPendingInit: (() => void) | null = null;
 	private initVersion = 0;
 	private releaseInit: (() => void) | null = null;
@@ -102,13 +103,18 @@ export class NotectlEditor extends HTMLElement {
 		if (config) this.configController.setConfig(config);
 
 		const shadow: ShadowRoot | null = this.shadowRoot;
-		if (!shadow) return;
+		if (!shadow) {
+			const error = new Error('Editor shadow root not available.');
+			this.lifecycle.failReady(error);
+			throw error;
+		}
 		const initVersion = ++this.initVersion;
 		let cancelled = false;
 		const cancel = (): void => {
 			cancelled = true;
 		};
 		this.cancelPendingInit = cancel;
+		const preInitPlugins = this.lifecycle.consumePreInitPlugins();
 
 		const initPromise = initializeEditor({
 			shadow,
@@ -117,28 +123,40 @@ export class NotectlEditor extends HTMLElement {
 			configController: this.configController,
 			styleCoordinator: this.styleCoordinator,
 			events: this.events,
-			preInitPlugins: this.lifecycle.consumePreInitPlugins(),
+			preInitPlugins,
 			isCancelled: () => cancelled || initVersion !== this.initVersion,
 		});
 		this.pendingInitPromise = initPromise;
-		const result = await initPromise;
+		try {
+			const result = await initPromise;
+			if (!result) {
+				if (cancelled || initVersion !== this.initVersion) return;
+				throw new Error('Editor initialization completed without a result.');
+			}
+			if (initVersion !== this.initVersion) return;
 
-		if (this.pendingInitPromise === initPromise) {
-			this.pendingInitPromise = null;
-			this.cancelPendingInit = null;
+			this.view = result.view;
+			this.inputManager = result.inputManager;
+			this.pluginManager = result.pluginManager;
+			this.domElements = result.domElements;
+			this.themeController = result.themeController;
+			this.paperLayout = result.paperLayout;
+			this.releaseInit = result.release;
+
+			this.lifecycle.resolveReady();
+			this.events.emit('ready', undefined);
+		} catch (error) {
+			if (initVersion === this.initVersion) {
+				this.lifecycle.restorePreInitPlugins(preInitPlugins);
+				this.lifecycle.failReady(error);
+			}
+			throw error;
+		} finally {
+			if (this.pendingInitPromise === initPromise) {
+				this.pendingInitPromise = null;
+				this.cancelPendingInit = null;
+			}
 		}
-		if (!result || initVersion !== this.initVersion) return;
-
-		this.view = result.view;
-		this.inputManager = result.inputManager;
-		this.pluginManager = result.pluginManager;
-		this.domElements = result.domElements;
-		this.themeController = result.themeController;
-		this.paperLayout = result.paperLayout;
-		this.releaseInit = result.release;
-
-		this.lifecycle.resolveReady();
-		this.events.emit('ready', undefined);
 	}
 
 	/** Returns whether the editor is in read-only mode. */
@@ -336,7 +354,11 @@ export class NotectlEditor extends HTMLElement {
 		this.initVersion++;
 		this.cancelPendingInit?.();
 		this.cancelPendingInit = null;
-		const pendingInit = this.pendingInitPromise?.then(() => undefined) ?? Promise.resolve();
+		const pendingInit =
+			this.pendingInitPromise?.then(
+				() => undefined,
+				() => undefined,
+			) ?? Promise.resolve();
 		this.pendingInitPromise = null;
 		this.releaseInit?.();
 		this.releaseInit = null;
