@@ -77,7 +77,8 @@ export class NotectlEditor extends HTMLElement {
 
 	connectedCallback(): void {
 		if (this.lifecycle.isInitialized()) return;
-		this.init();
+		// Errors are surfaced via whenReady() and the 'failed' lifecycle state.
+		void this.init().catch(() => undefined);
 	}
 
 	disconnectedCallback(): void {
