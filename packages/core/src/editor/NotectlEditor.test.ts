@@ -19,6 +19,35 @@ describe('NotectlEditor', () => {
 		document.body.innerHTML = '';
 	});
 
+	it('applies config from a manual init right after append', async () => {
+		const editor = new NotectlEditor();
+		document.body.appendChild(editor);
+
+		await editor.init({
+			locale: Locale.EN,
+			placeholder: 'Configured placeholder',
+		});
+		await editor.whenReady();
+
+		const content = editor.shadowRoot?.querySelector('.notectl-content');
+		expect(content?.getAttribute('data-placeholder')).toBe('Configured placeholder');
+		expect(() => editor.getState()).not.toThrow();
+	});
+
+	it('cancels scheduled auto-init when destroyed immediately after append', async () => {
+		const editor = new NotectlEditor();
+		const readySpy = vi.fn();
+		editor.on('ready', readySpy);
+
+		document.body.appendChild(editor);
+		await editor.destroy();
+		await Promise.resolve();
+
+		expect(readySpy).not.toHaveBeenCalled();
+		expect(editor.shadowRoot?.querySelector('.notectl-editor')).toBeNull();
+		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
 	it('rejects whenReady and allows retry after a failed init', async () => {
 		const missingDependencyPlugin: Plugin = {
 			id: 'needs-dependency',

@@ -63,6 +63,8 @@ export class NotectlEditor extends HTMLElement {
 	private pendingInitPromise: Promise<import('./EditorInitializer.js').InitResult | null> | null =
 		null;
 	private cancelPendingInit: (() => void) | null = null;
+	private autoInitToken = 0;
+	private autoInitQueued = false;
 	private initVersion = 0;
 	private releaseInit: (() => void) | null = null;
 
@@ -77,8 +79,7 @@ export class NotectlEditor extends HTMLElement {
 
 	connectedCallback(): void {
 		if (this.lifecycle.isInitialized()) return;
-		// Errors are surfaced via whenReady() and the 'failed' lifecycle state.
-		void this.init().catch(() => undefined);
+		this.scheduleAutoInit();
 	}
 
 	disconnectedCallback(): void {
@@ -100,6 +101,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Initializes the editor with the given config. */
 	async init(config?: import('./EditorConfig.js').NotectlEditorConfig): Promise<void> {
+		this.cancelAutoInit();
 		if (!this.lifecycle.markInitialized()) return;
 		if (config) this.configController.setConfig(config);
 
@@ -352,6 +354,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Cleans up the editor. Awaiting ensures async plugin teardown completes. */
 	destroy(): Promise<void> {
+		this.cancelAutoInit();
 		this.initVersion++;
 		this.cancelPendingInit?.();
 		this.cancelPendingInit = null;
@@ -389,6 +392,24 @@ export class NotectlEditor extends HTMLElement {
 			themeController: this.themeController,
 			applyPaperSize: (size) => this.applyPaperSize(size),
 		};
+	}
+
+	private scheduleAutoInit(): void {
+		const token = ++this.autoInitToken;
+		this.autoInitQueued = true;
+		queueMicrotask(() => {
+			if (!this.isConnected) return;
+			if (!this.autoInitQueued || this.autoInitToken !== token) return;
+			this.autoInitQueued = false;
+			if (this.lifecycle.isInitialized()) return;
+			// Errors are surfaced via whenReady() and the 'failed' lifecycle state.
+			void this.init().catch(() => undefined);
+		});
+	}
+
+	private cancelAutoInit(): void {
+		this.autoInitToken++;
+		this.autoInitQueued = false;
 	}
 
 	private applyPaperSize(paperSize: PaperSize | undefined): void {
