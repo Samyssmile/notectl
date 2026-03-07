@@ -358,12 +358,12 @@ export class PluginManager {
 		this.fileHandlerRegistry.clear();
 		this.nodeViewRegistry.clear();
 		this.toolbarRegistry.clear();
-			this.blockTypePickerRegistry.clear();
-			this.initOrder = [];
-			this.startedInitOrder = [];
-			this.initialized = false;
-			this.initializing = false;
-		}
+		this.blockTypePickerRegistry.clear();
+		this.initOrder = [];
+		this.startedInitOrder = [];
+		this.initialized = false;
+		this.initializing = false;
+	}
 
 	// --- Private ---
 
