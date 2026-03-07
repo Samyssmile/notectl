@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { DecorationSet } from '../decorations/Decoration.js';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import { createBlockNode, createDocument, createTextNode, getBlockText } from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { EditorState } from '../state/EditorState.js';
@@ -297,6 +297,32 @@ describe('EditorView.applyUpdate()', () => {
 
 			expect(receivedTransactions).toHaveLength(1);
 			expect(view.getState().selection.anchor.offset).toBe(4);
+
+			readSpy.mockRestore();
+			view.destroy();
+			document.body.removeChild(container);
+		});
+
+		it('breaks undo grouping when the DOM selection moves between edits', () => {
+			const { container, view } = createTestView();
+			document.body.appendChild(container);
+
+			view.dispatch(makeInsertTransaction('b1', 0, 'a'));
+			expect(view.getState().selection.anchor.offset).toBe(1);
+
+			const readSpy = vi.spyOn(SelectionSync, 'readSelectionFromDOM');
+			readSpy.mockReturnValue(createCollapsedSelection('b1', 0));
+
+			container.focus();
+			document.dispatchEvent(new Event('selectionchange'));
+
+			view.dispatch(makeInsertTransaction('b1', 0, 'b'));
+			expect(view.getState().selection.anchor.offset).toBe(1);
+
+			view.undo();
+
+			expect(view.getState().selection.anchor.offset).toBe(0);
+			expect(getBlockText(view.getState().doc.children[0])).toBe('a');
 
 			readSpy.mockRestore();
 			view.destroy();

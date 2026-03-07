@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { insertTextCommand } from '../commands/Commands.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -6,6 +7,7 @@ import {
 	getBlockText,
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
+import { toggleBold } from '../commands/MarkCommands.js';
 import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager } from './History.js';
@@ -327,6 +329,29 @@ describe('HistoryManager', () => {
 			expect(undoResult?.transaction.selectionBefore.head.offset).toBe(5);
 			// selectionAfter should be the restored position (= offset 0)
 			expect(undoResult?.transaction.selectionAfter.head.offset).toBe(0);
+		});
+
+		it('restores stored marks when undoing text input', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			const toggleTr = toggleBold(state);
+			expect(toggleTr).not.toBeNull();
+			if (!toggleTr) return;
+			state = state.apply(toggleTr);
+			expect(state.storedMarks).toEqual([{ type: markType('bold') }]);
+
+			const tr = insertTextCommand(state, 'a');
+			state = state.apply(tr);
+			history.push(tr);
+
+			const undoResult = history.undo(state);
+			expect(undoResult).not.toBeNull();
+			expect(undoResult?.state.storedMarks).toEqual([{ type: markType('bold') }]);
 		});
 	});
 

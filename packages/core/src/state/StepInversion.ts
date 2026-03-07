@@ -3,6 +3,7 @@
  * Each step type has a corresponding inverse that reverses its effect.
  */
 
+import type { Mark } from '../model/Document.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { Step } from './Steps.js';
 import type { Transaction } from './Transaction.js';
@@ -137,13 +138,22 @@ export function invertStep(step: Step): Step {
 	}
 }
 
+function deriveStoredMarksBefore(tr: Transaction): readonly Mark[] | null {
+	for (const step of tr.steps) {
+		if (step.type === 'setStoredMarks') {
+			return step.previousMarks;
+		}
+	}
+	return tr.storedMarksAfter;
+}
+
 /** Inverts an entire transaction (reverses step order and swaps selections). */
 export function invertTransaction(tr: Transaction): Transaction {
 	return {
 		steps: tr.steps.map(invertStep).reverse(),
 		selectionBefore: tr.selectionAfter,
 		selectionAfter: tr.selectionBefore,
-		storedMarksAfter: null,
+		storedMarksAfter: deriveStoredMarksBefore(tr),
 		metadata: {
 			origin: 'history',
 			timestamp: Date.now(),

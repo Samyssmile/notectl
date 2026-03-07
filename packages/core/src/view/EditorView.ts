@@ -11,6 +11,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
+import { isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { EditorViewEvents } from './EditorViewEvents.js';
@@ -133,6 +134,10 @@ export class EditorView {
 			}
 
 			if (options?.pushHistory && tr.metadata.origin !== 'history') {
+				this.history.push(tr);
+			} else if (isSelectionOnlyTransaction(tr)) {
+				// Selection-only updates are not undoable, but they must still
+				// break typing groups so later edits don't merge across cursor moves.
 				this.history.push(tr);
 			}
 

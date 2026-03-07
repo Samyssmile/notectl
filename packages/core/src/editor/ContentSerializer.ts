@@ -17,8 +17,7 @@ import {
 import { formatHTML } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection } from '../model/Selection.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
+import { nodeType } from '../model/TypeBrands.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -42,7 +41,6 @@ export function setEditorJSON(
 	const state: EditorState = EditorState.create({
 		doc: normalized,
 		schema,
-		selection: createCollapsedSelection(normalized.children[0]?.id ?? blockId(''), 0),
 	});
 	replaceState(state);
 }
