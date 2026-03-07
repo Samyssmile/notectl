@@ -249,6 +249,31 @@ describe('SelectionSync InlineNode support', () => {
 
 			document.body.removeChild(container);
 		});
+
+		it('counts content before wrapper elements when the browser returns an element endpoint', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			const block = makeBlockEl('b1');
+			const textBefore = document.createTextNode('ab');
+			const strong = document.createElement('strong');
+			strong.appendChild(document.createTextNode('cd'));
+			const textAfter = document.createTextNode('ef');
+			block.appendChild(textBefore);
+			block.appendChild(strong);
+			block.appendChild(textAfter);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			const sel = window.getSelection();
+			sel?.collapse(strong, 1);
+
+			const result = readSelectionFromDOM(container);
+			expect(result).not.toBeNull();
+			expect(result?.anchor.blockId).toBe('b1');
+			expect(result?.anchor.offset).toBe(4);
+
+			document.body.removeChild(container);
+		});
 	});
 
 	describe('roundtrip: syncSelectionToDOM → readSelectionFromDOM', () => {

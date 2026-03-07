@@ -304,6 +304,84 @@ describe('EditorView.applyUpdate()', () => {
 		});
 	});
 
+	describe('click below content', () => {
+		it('appends a root paragraph after the last root block instead of splitting the last leaf', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			document.body.appendChild(container);
+
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('cell')], 'p1')],
+									'c1',
+								),
+							],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('p1', 4),
+				schema: {
+					nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'],
+					markTypes: ['bold', 'italic', 'underline'],
+				},
+			});
+
+			const registry = new SchemaRegistry();
+			for (const type of ['paragraph', 'table', 'table_row', 'table_cell']) {
+				registry.registerNodeSpec({
+					type,
+					toDOM(node) {
+						const el = document.createElement('div');
+						el.setAttribute('data-block-id', node.id);
+						return el;
+					},
+				});
+			}
+
+			const view = new EditorView(container, { state, schemaRegistry: registry });
+			const tableEl = container.querySelector('[data-block-id="t1"]');
+			if (!(tableEl instanceof HTMLElement)) {
+				throw new Error('Table element not rendered');
+			}
+			Object.defineProperty(tableEl, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => new DOMRect(0, 0, 100, 50),
+			});
+
+			container.dispatchEvent(
+				new MouseEvent('mousedown', {
+					bubbles: true,
+					cancelable: true,
+					clientY: 100,
+				}),
+			);
+
+			const nextState = view.getState();
+			expect(nextState.doc.children).toHaveLength(2);
+			expect(nextState.doc.children[0]?.id).toBe('t1');
+			expect(nextState.doc.children[1]?.type).toBe('paragraph');
+			expect(nextState.getBlock('c1')?.children).toHaveLength(1);
+			expect(nextState.getBlock('p1')).toBeDefined();
+			expect(nextState.selection.anchor.blockId).toBe(nextState.doc.children[1]?.id);
+			expect(nextState.selection.anchor.offset).toBe(0);
+
+			view.destroy();
+			document.body.removeChild(container);
+		});
+	});
+
 	describe('selectable node mousedown behavior', () => {
 		it('creates NodeSelection when mousedown happens on selectable block root', () => {
 			const container = document.createElement('div');
