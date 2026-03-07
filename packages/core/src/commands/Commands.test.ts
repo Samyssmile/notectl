@@ -833,13 +833,7 @@ describe('Commands', () => {
 					[
 						createBlockNode(
 							'table_row',
-							[
-								createBlockNode(
-									'table_cell',
-									[createBlockNode('image', [], 'img1')],
-									'c1',
-								),
-							],
+							[createBlockNode('table_cell', [createBlockNode('image', [], 'img1')], 'c1')],
 							'r1',
 						),
 					],

@@ -7,6 +7,10 @@
  * by both commands (via PluginContext) and controls (via getState/dispatch).
  */
 
+import {
+	createEmptyParagraph,
+	createSelectionForBlockBoundary,
+} from '../../commands/CommandHelpers.js';
 import { createBlockNode, generateBlockId, getBlockChildren } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
@@ -15,10 +19,6 @@ import {
 	isNodeSelection,
 	isTextSelection,
 } from '../../model/Selection.js';
-import {
-	createEmptyParagraph,
-	createSelectionForBlockBoundary,
-} from '../../commands/CommandHelpers.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';

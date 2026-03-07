@@ -5,7 +5,11 @@ import {
 	createTextNode,
 	getBlockChildren,
 } from '../../model/Document.js';
-import { createCollapsedSelection, createNodeSelection, isNodeSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createNodeSelection,
+	isNodeSelection,
+} from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
