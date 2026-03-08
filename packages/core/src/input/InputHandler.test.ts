@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createTextNode, getBlockText } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createTextNode,
+	getBlockText,
+} from '../model/Document.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import { blockId, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
@@ -19,7 +24,10 @@ function createBeforeInputEvent(inputType: string, data?: string): InputEvent {
 	return event;
 }
 
-function createCompositionEvent(type: 'compositionstart' | 'compositionend', data?: string): CompositionEvent {
+function createCompositionEvent(
+	type: 'compositionstart' | 'compositionend',
+	data?: string,
+): CompositionEvent {
 	const event = new CompositionEvent(type, {
 		bubbles: true,
 		cancelable: true,
@@ -35,9 +43,7 @@ function createState(options?: {
 }): EditorState {
 	const text = options?.text ?? 'hello';
 	return EditorState.create({
-		doc: createDocument([
-			createBlockNode(nodeType('paragraph'), [createTextNode(text)], B1),
-		]),
+		doc: createDocument([createBlockNode(nodeType('paragraph'), [createTextNode(text)], B1)]),
 		selection: options?.selection ?? createCollapsedSelection(B1, text.length),
 	});
 }
