@@ -1,6 +1,6 @@
 {
 	"name": "@notectl/angular",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"description": "Angular integration for the notectl rich text editor. Provides a standalone component, reactive forms support, and DI service.",
 	"license": "MIT",
 	"type": "module",
@@ -43,7 +43,7 @@
 	"peerDependencies": {
 		"@angular/core": ">=21.0.0",
 		"@angular/forms": ">=21.0.0",
-		"@notectl/core": "^2.0.1",
+		"@notectl/core": "^2.0.2",
 		"rxjs": ">=7.0.0"
 	},
 	"devDependencies": {

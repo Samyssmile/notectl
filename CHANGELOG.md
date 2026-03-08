@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-03-08
+
+### Changed
+
+- **Angular editor wrapper simplified** — Streamlined the Angular component and stabilized reactive forms integration.
+- **SRP refactoring** — Extracted focused modules from `NotectlEditor`, `PasteHandler`, `PluginManager`, and `EditorView` for better separation of concerns.
+
+### Fixed
+
+- **Plugin initialization** — Fail fast and rollback on plugin init errors to prevent partial editor state.
+- **Editor lifecycle recovery** — Gracefully recover the editor after initialization failures.
+- **Rich clipboard** — Hardened clipboard origin detection and inline-node paste roundtrip; handle InlineNodes in clipboard, click-below, and selection sync.
+- **Editor state replacement** — Hardened state replacement and `beforeinput` handling to prevent stale state dispatches.
+- **Popup and table selection** — Hardened popup lifecycle cleanup and table selection state management.
+- **Selection preservation** — Preserve valid selections after structural block removal and maintain undo semantics.
+- **Composite selection** — Trim composite selection HTML to the actually selected range.
+- **Auto-init** — Defer auto-initialization to preserve manual init configuration.
+- **Placeholder** — Restore default placeholder text when the attribute is removed.
+- **Security** — Added pnpm overrides for svgo and immutable dependency vulnerabilities.
+
 ## [2.0.1] - 2026-03-04
 
 ### Added
