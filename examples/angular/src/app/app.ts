@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, signal, viewChild } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
+  type Document,
   NotectlEditorComponent,
   type Plugin,
   type FontDefinition,
@@ -47,7 +49,7 @@ const INTER: FontDefinition = {
 
 @Component({
   selector: 'app-root',
-  imports: [NotectlEditorComponent],
+  imports: [ReactiveFormsModule, NotectlEditorComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -57,6 +59,7 @@ export class App {
 
   protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
   protected readonly readonlyMode = signal(false);
+  protected readonly editorControl = new FormControl<Document | string | null>(null);
   protected readonly output = signal('Click a button above to inspect editor state.');
   protected readonly stateChangeCount = signal(0);
   protected readonly lastEvent = signal('');

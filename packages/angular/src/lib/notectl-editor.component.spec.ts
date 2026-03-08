@@ -1,28 +1,17 @@
 import { describe, expect, it } from 'vitest';
+
 import { NotectlEditorComponent } from './notectl-editor.component.js';
 
-/**
- * Unit tests for NotectlEditorComponent.
- *
- * These tests verify the component class metadata and exported API surface.
- * Full integration tests with DOM rendering require Angular TestBed
- * in an Angular CLI project (see examples/angular).
- */
 describe('NotectlEditorComponent', () => {
-	it('should be defined as a class', () => {
+	it('is exported as a concrete Angular component class', () => {
 		expect(NotectlEditorComponent).toBeDefined();
 		expect(typeof NotectlEditorComponent).toBe('function');
-	});
-
-	it('should have expected static properties from Angular decorator', () => {
-		// Angular AOT compiler attaches __annotations__ or uses Reflect metadata.
-		// We verify the class itself is a valid constructor.
-		expect(NotectlEditorComponent.prototype).toBeDefined();
 		expect(NotectlEditorComponent.name).toBe('NotectlEditorComponent');
 	});
 
-	it('should define public API methods on the prototype', () => {
+	it('exposes the expected imperative editor API', () => {
 		const proto = NotectlEditorComponent.prototype;
+
 		expect(typeof proto.getJSON).toBe('function');
 		expect(typeof proto.setJSON).toBe('function');
 		expect(typeof proto.getContentHTML).toBe('function');
@@ -35,7 +24,16 @@ describe('NotectlEditorComponent', () => {
 		expect(typeof proto.getState).toBe('function');
 		expect(typeof proto.setTheme).toBe('function');
 		expect(typeof proto.getTheme).toBe('function');
-		expect(typeof proto.setReadonly).toBe('function');
 		expect(typeof proto.whenReady).toBe('function');
+		expect(typeof proto.focus).toBe('function');
+	});
+
+	it('implements the classic forms control contract directly on the component', () => {
+		const proto = NotectlEditorComponent.prototype;
+
+		expect(typeof proto.writeValue).toBe('function');
+		expect(typeof proto.registerOnChange).toBe('function');
+		expect(typeof proto.registerOnTouched).toBe('function');
+		expect(typeof proto.setDisabledState).toBe('function');
 	});
 });
