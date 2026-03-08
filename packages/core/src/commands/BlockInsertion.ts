@@ -11,9 +11,11 @@ import {
 	type BlockAttrs,
 	type BlockNode,
 	type ChildNode,
+	type InlineNode,
 	type Mark,
 	type TextNode,
 	createBlockNode,
+	createInlineNode,
 	createTextNode,
 	generateBlockId,
 	getBlockText,
@@ -26,7 +28,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
-import { nodeType } from '../model/TypeBrands.js';
+import { inlineType, nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import { extractParentPath, findSiblingIndex, getSiblings } from './CommandHelpers.js';
@@ -246,7 +248,14 @@ export function validateRichBlockData(
 		raw.attrs,
 		spec.attrs,
 	);
-	return { ...raw, attrs };
+	const segments: RichSegment[] | undefined = raw.segments
+		? sanitizeRichSegments(raw.segments, schemaRegistry)
+		: undefined;
+	return {
+		...raw,
+		...(attrs ? { attrs } : {}),
+		...(segments ? { segments } : raw.segments ? { segments: [] } : {}),
+	};
 }
 
 /**
@@ -256,7 +265,10 @@ export function validateRichBlockData(
 export function createBlockFromRichData(blockData: RichBlockData): BlockNode {
 	const newId: BlockId = generateBlockId();
 	const text: string = blockData.text ?? '';
-	const children: TextNode[] | undefined = createChildrenFromRichBlock(blockData, text);
+	const children: readonly (TextNode | InlineNode)[] | undefined = createChildrenFromRichBlock(
+		blockData,
+		text,
+	);
 	const attrs: BlockAttrs | undefined = blockData.attrs
 		? (blockData.attrs as BlockAttrs)
 		: undefined;
@@ -271,7 +283,7 @@ export function createBlockFromRichData(blockData: RichBlockData): BlockNode {
 function createChildrenFromRichBlock(
 	blockData: RichBlockData,
 	text: string,
-): TextNode[] | undefined {
+): readonly (TextNode | InlineNode)[] | undefined {
 	if (blockData.segments && blockData.segments.length > 0) {
 		return createChildrenFromSegments(blockData.segments);
 	}
@@ -279,9 +291,20 @@ function createChildrenFromRichBlock(
 }
 
 /** Converts rich segments into TextNode children with marks. */
-function createChildrenFromSegments(segments: readonly RichSegment[]): TextNode[] {
-	const children: TextNode[] = [];
+function createChildrenFromSegments(
+	segments: readonly RichSegment[],
+): readonly (TextNode | InlineNode)[] {
+	const children: (TextNode | InlineNode)[] = [];
 	for (const seg of segments) {
+		if (seg.kind === 'inline') {
+			children.push(
+				createInlineNode(
+					inlineType(seg.inlineType),
+					seg.attrs as Readonly<Record<string, string | number | boolean>> | undefined,
+				),
+			);
+			continue;
+		}
 		if (seg.text.length === 0) continue;
 		const marks: readonly Mark[] = seg.marks.map((m) => ({
 			type: m.type as Mark['type'],
@@ -290,4 +313,26 @@ function createChildrenFromSegments(segments: readonly RichSegment[]): TextNode[
 		children.push(createTextNode(seg.text, marks));
 	}
 	return children;
+}
+
+function sanitizeRichSegments(
+	segments: readonly RichSegment[],
+	schemaRegistry: SchemaRegistry,
+): RichSegment[] {
+	const sanitized: RichSegment[] = [];
+	for (const segment of segments) {
+		if (segment.kind === 'inline') {
+			const spec = schemaRegistry.getInlineNodeSpec(segment.inlineType);
+			if (!spec) continue;
+			const attrs = sanitizeAttrs(segment.attrs, spec.attrs);
+			sanitized.push({
+				kind: 'inline',
+				inlineType: segment.inlineType,
+				...(attrs ? { attrs } : {}),
+			});
+			continue;
+		}
+		sanitized.push(segment);
+	}
+	return sanitized;
 }
