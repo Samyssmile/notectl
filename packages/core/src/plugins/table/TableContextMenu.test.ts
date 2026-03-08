@@ -334,6 +334,21 @@ describe('TableContextMenu', () => {
 			expect(container.querySelector('[role="menu"]')).toBeNull();
 			expect(handle.isOpen()).toBe(false);
 		});
+
+		it('does not attach outside-click listener after an immediate close', () => {
+			vi.useFakeTimers();
+			const addSpy = vi.spyOn(document, 'addEventListener');
+			const { handle } = openMenu(document.createElement('div'));
+
+			handle.close();
+			vi.runAllTimers();
+
+			const mousedownAdds = addSpy.mock.calls.filter((call) => call[0] === 'mousedown');
+			expect(mousedownAdds).toHaveLength(0);
+
+			addSpy.mockRestore();
+			vi.useRealTimers();
+		});
 	});
 
 	describe('i18n / locale', () => {

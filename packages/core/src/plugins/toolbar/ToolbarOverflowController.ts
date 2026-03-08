@@ -66,6 +66,8 @@ export class ToolbarOverflowController {
 	private overflowEntries: OverflowEntry[] = [];
 	private resizeObserver: ResizeObserver | null = null;
 	private closeHandler: ((e: MouseEvent) => void) | null = null;
+	private closeHandlerTimer: ReturnType<typeof setTimeout> | null = null;
+	private closeHandlerAttached = false;
 
 	constructor(config: OverflowControllerConfig) {
 		this.toolbar = config.toolbar;
@@ -399,10 +401,11 @@ export class ToolbarOverflowController {
 				this.closeDropdown();
 			}
 		};
-		setTimeout(() => {
-			if (this.closeHandler) {
-				document.addEventListener('mousedown', this.closeHandler);
-			}
+		this.closeHandlerTimer = setTimeout(() => {
+			this.closeHandlerTimer = null;
+			if (!this.closeHandler || !this.overflowDropdown) return;
+			document.addEventListener('mousedown', this.closeHandler);
+			this.closeHandlerAttached = true;
 		}, 0);
 	}
 
@@ -426,7 +429,14 @@ export class ToolbarOverflowController {
 			this.overflowButton.setAttribute('aria-expanded', 'false');
 		}
 		if (this.closeHandler) {
-			document.removeEventListener('mousedown', this.closeHandler);
+			if (this.closeHandlerTimer !== null) {
+				clearTimeout(this.closeHandlerTimer);
+				this.closeHandlerTimer = null;
+			}
+			if (this.closeHandlerAttached) {
+				document.removeEventListener('mousedown', this.closeHandler);
+				this.closeHandlerAttached = false;
+			}
 			this.closeHandler = null;
 		}
 	}

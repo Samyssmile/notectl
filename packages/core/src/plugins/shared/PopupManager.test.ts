@@ -134,6 +134,45 @@ describe('PopupManager', () => {
 			expect(manager.isOpen()).toBe(false);
 			manager.destroy();
 		});
+
+		it('allows content to close synchronously during construction', () => {
+			const manager = createManager();
+			const onClose = vi.fn();
+
+			expect(() => {
+				manager.open({
+					anchor: new DOMRect(0, 0, 80, 30),
+					onClose,
+					content: (_popup, close) => close(),
+				});
+			}).not.toThrow();
+
+			expect(onClose).toHaveBeenCalledOnce();
+			expect(manager.isOpen()).toBe(false);
+			expect(document.querySelector('.notectl-popup')).toBeNull();
+			manager.destroy();
+		});
+
+		it('does not attach deferred outside listener after an immediate close', () => {
+			vi.useFakeTimers();
+			const manager = createManager();
+			const addSpy = vi.spyOn(document, 'addEventListener');
+
+			const handle = manager.open({
+				anchor: new DOMRect(0, 0, 80, 30),
+				content: () => {},
+			});
+
+			handle.close();
+			vi.runAllTimers();
+
+			const mousedownAdds = addSpy.mock.calls.filter((call) => call[0] === 'mousedown');
+			expect(mousedownAdds).toHaveLength(0);
+
+			addSpy.mockRestore();
+			vi.useRealTimers();
+			manager.destroy();
+		});
 	});
 
 	describe('closeAll', () => {

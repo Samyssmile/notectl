@@ -55,6 +55,8 @@ interface PopupEntry {
 	readonly config: PopupConfig;
 	readonly clickOutsideHandler: (e: MouseEvent) => void;
 	readonly parent: PopupEntry | null;
+	listenerRegistrationTimer: ReturnType<typeof setTimeout> | null;
+	documentListenerAttached: boolean;
 }
 
 // --- Manager ---
@@ -79,26 +81,15 @@ export class PopupManager implements PopupServiceAPI {
 			popup.setAttribute('aria-label', config.ariaLabel);
 		}
 
+		const parentEntry: PopupEntry | null = config.parent
+			? this.findEntryByHandle(config.parent)
+			: null;
+
+		let entry!: PopupEntry;
 		const handle: PopupHandle = {
 			close: (options?: PopupCloseOptions) => this.closeEntry(entry, options),
 			getElement: () => popup,
 		};
-
-		config.content(popup, (options?: PopupCloseOptions) => this.closeEntry(entry, options));
-
-		const refNode: Node = config.referenceNode ?? this.referenceNode;
-		appendToRoot(popup, refNode);
-
-		const anchorRect: DOMRect =
-			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
-		positionPopup(popup, anchorRect, {
-			position: config.position ?? 'below-start',
-			isRtl: this.isRtlContext(),
-		});
-
-		const parentEntry: PopupEntry | null = config.parent
-			? this.findEntryByHandle(config.parent)
-			: null;
 
 		const clickOutsideHandler = (e: MouseEvent): void => {
 			const path: EventTarget[] = e.composedPath();
@@ -115,17 +106,43 @@ export class PopupManager implements PopupServiceAPI {
 			this.closeEntry(entry);
 		};
 
-		const entry: PopupEntry = {
+		entry = {
 			element: popup,
 			config,
 			clickOutsideHandler,
 			parent: parentEntry,
+			listenerRegistrationTimer: null,
+			documentListenerAttached: false,
 		};
 
 		this.stack.push(entry);
 
-		setTimeout(() => {
+		try {
+			config.content(popup, (options?: PopupCloseOptions) => this.closeEntry(entry, options));
+		} catch (error) {
+			this.removeEntry(entry);
+			throw error;
+		}
+
+		if (!this.stack.includes(entry)) {
+			return handle;
+		}
+
+		const refNode: Node = config.referenceNode ?? this.referenceNode;
+		appendToRoot(popup, refNode);
+
+		const anchorRect: DOMRect =
+			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
+		positionPopup(popup, anchorRect, {
+			position: config.position ?? 'below-start',
+			isRtl: this.isRtlContext(),
+		});
+
+		entry.listenerRegistrationTimer = setTimeout(() => {
+			entry.listenerRegistrationTimer = null;
+			if (!this.stack.includes(entry)) return;
 			document.addEventListener('mousedown', clickOutsideHandler);
+			entry.documentListenerAttached = true;
 		}, 0);
 
 		this.focusFirstItem(popup);
@@ -190,8 +207,15 @@ export class PopupManager implements PopupServiceAPI {
 		if (index === -1) return;
 
 		this.stack.splice(index, 1);
+		if (entry.listenerRegistrationTimer !== null) {
+			clearTimeout(entry.listenerRegistrationTimer);
+			entry.listenerRegistrationTimer = null;
+		}
 		entry.element.remove();
-		document.removeEventListener('mousedown', entry.clickOutsideHandler);
+		if (entry.documentListenerAttached) {
+			document.removeEventListener('mousedown', entry.clickOutsideHandler);
+			entry.documentListenerAttached = false;
+		}
 	}
 
 	private findEntryByHandle(handle: PopupHandle): PopupEntry | null {
