@@ -22,7 +22,7 @@ export {
 } from './lib/tokens';
 
 // --- Angular-specific Types ---
-export type { SelectionChangeEvent } from './lib/types';
+export type { NotectlValue, SelectionChangeEvent } from './lib/types';
 
 // --- Re-exports from @notectl/core (convenience) ---
 
