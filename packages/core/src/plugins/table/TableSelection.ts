@@ -108,6 +108,8 @@ export function installMouseSelection(
 		const target = e.target as HTMLElement;
 		const cellEl: HTMLElement | null = target.closest('td[data-block-id]');
 		if (!cellEl) {
+			anchorCell = null;
+			isDragging = false;
 			service.setSelectedRange(null);
 			return;
 		}
@@ -119,7 +121,11 @@ export function installMouseSelection(
 			const state: EditorState = context.getState();
 			const cellId = cellEl.getAttribute('data-block-id') as BlockId;
 			const tableCtx = findTableContext(state, cellId);
-			if (!tableCtx) return;
+			if (!tableCtx) {
+				anchorCell = null;
+				isDragging = false;
+				return;
+			}
 
 			anchorCell = {
 				tableId: tableCtx.tableId,
@@ -133,7 +139,11 @@ export function installMouseSelection(
 			const state: EditorState = context.getState();
 			const cellId = cellEl.getAttribute('data-block-id') as BlockId;
 			const tableCtx = findTableContext(state, cellId);
-			if (!tableCtx || tableCtx.tableId !== anchorCell.tableId) return;
+			if (!tableCtx || tableCtx.tableId !== anchorCell.tableId) {
+				anchorCell = null;
+				service.setSelectedRange(null);
+				return;
+			}
 
 			e.preventDefault();
 			service.setSelectedRange({

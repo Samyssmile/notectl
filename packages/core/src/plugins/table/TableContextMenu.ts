@@ -350,8 +350,12 @@ export function createTableContextMenu(
 		}
 		close();
 	};
-	setTimeout(() => {
+	let outsideClickTimer: ReturnType<typeof setTimeout> | null = null;
+	let outsideListenerAttached = false;
+	outsideClickTimer = setTimeout(() => {
+		outsideClickTimer = null;
 		document.addEventListener('mousedown', onClickOutside, true);
+		outsideListenerAttached = true;
 	}, 0);
 
 	// --- Close function ---
@@ -360,7 +364,14 @@ export function createTableContextMenu(
 		open = false;
 		closeSubmenu();
 		menu.remove();
-		document.removeEventListener('mousedown', onClickOutside, true);
+		if (outsideClickTimer !== null) {
+			clearTimeout(outsideClickTimer);
+			outsideClickTimer = null;
+		}
+		if (outsideListenerAttached) {
+			document.removeEventListener('mousedown', onClickOutside, true);
+			outsideListenerAttached = false;
+		}
 		onClosed?.();
 	}
 

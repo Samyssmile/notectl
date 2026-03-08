@@ -416,6 +416,40 @@ describe('ToolbarOverflowController', () => {
 		controller.destroy();
 	});
 
+	it('does not attach manual close listener after destroy before the deferred registration fires', () => {
+		vi.useFakeTimers();
+		const toolbar: HTMLElement = createToolbar();
+		Object.defineProperty(toolbar, 'clientWidth', { value: 50, configurable: true });
+
+		const addSpy = vi.spyOn(document, 'addEventListener');
+		const { controller } = createController({
+			toolbar,
+			getActiveElement: () => document.activeElement,
+		});
+
+		const items: ToolbarItem[] = [makeItem('a'), makeItem('b')];
+		const buttons = items.map((item) => {
+			const b = makeButton(item);
+			toolbar.appendChild(b.element);
+			return b;
+		});
+
+		controller.update(buttons);
+
+		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
+			'.notectl-toolbar-overflow-btn',
+		);
+		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		controller.destroy();
+		vi.runAllTimers();
+
+		const mousedownAdds = addSpy.mock.calls.filter((call) => call[0] === 'mousedown');
+		expect(mousedownAdds).toHaveLength(0);
+
+		addSpy.mockRestore();
+		vi.useRealTimers();
+	});
+
 	it('sets aria-label on overflow button from config', () => {
 		const toolbar: HTMLElement = createToolbar();
 		Object.defineProperty(toolbar, 'clientWidth', { value: 50, configurable: true });
