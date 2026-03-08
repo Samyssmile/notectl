@@ -177,6 +177,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Sets the document from JSON. */
 	setJSON(doc: Document): void {
+		this.assertInitialized();
 		setEditorJSON(doc, this.pluginManager?.schemaRegistry, (s) => this.replaceState(s));
 	}
 
@@ -193,6 +194,7 @@ export class NotectlEditor extends HTMLElement {
 
 	/** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
 	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
+		this.assertInitialized();
 		return setEditorContentHTML(
 			html,
 			this.pluginManager?.schemaRegistry,
@@ -432,10 +434,12 @@ export class NotectlEditor extends HTMLElement {
 	private replaceState(newState: EditorState): void {
 		if (!this.view) return;
 		this.view.replaceState(newState);
-		this.domElements?.content.classList.toggle(
-			'notectl-content--empty',
-			isEditorEmpty(newState.doc),
-		);
+	}
+
+	private assertInitialized(): void {
+		if (!this.view) {
+			throw new Error('Editor not initialized');
+		}
 	}
 }
 

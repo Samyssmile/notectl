@@ -193,8 +193,27 @@ export class EditorView {
 			this.state = newState;
 			this.history.clear();
 
-			const newDecorations = this.getDecorations?.(newState) ?? DecorationSet.empty;
+			if (this.cursorWrapper.isActive && !newState.storedMarks?.length) {
+				this.cursorWrapper.cleanup();
+			}
+
+			const tr: Transaction = {
+				steps: [],
+				selectionBefore: oldState.selection,
+				selectionAfter: newState.selection,
+				storedMarksAfter: newState.storedMarks,
+				metadata: {
+					origin: 'api',
+					timestamp: Date.now(),
+				},
+			};
+			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
 			this.reconcileAndSync(oldState, newState, newDecorations);
+
+			for (const cb of this.stateChangeCallbacks) {
+				cb(oldState, newState, tr);
+			}
+			this.navigation.resetAfterUpdate();
 		} finally {
 			this.isUpdating = false;
 		}

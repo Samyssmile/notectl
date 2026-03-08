@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Locale } from '../i18n/Locale.js';
+import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import { blockId, nodeType } from '../model/TypeBrands.js';
 import type { Plugin } from '../plugins/Plugin.js';
 import { NotectlEditor } from './NotectlEditor.js';
 
@@ -46,6 +48,21 @@ describe('NotectlEditor', () => {
 		expect(readySpy).not.toHaveBeenCalled();
 		expect(editor.shadowRoot?.querySelector('.notectl-editor')).toBeNull();
 		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
+	it('throws when setJSON is called before initialization', () => {
+		const editor = new NotectlEditor();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('b1')),
+		]);
+
+		expect(() => editor.setJSON(doc)).toThrow('Editor not initialized');
+	});
+
+	it('rejects setContentHTML before initialization', async () => {
+		const editor = new NotectlEditor();
+
+		await expect(editor.setContentHTML('<p>hello</p>')).rejects.toThrow('Editor not initialized');
 	});
 
 	it('rejects whenReady and allows retry after a failed init', async () => {
@@ -151,5 +168,35 @@ describe('NotectlEditor', () => {
 		expect(readySpy).not.toHaveBeenCalled();
 		expect(editor.shadowRoot?.querySelector('.notectl-editor')).toBeNull();
 		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
+	it('emits stateChange and notifies plugins when setJSON replaces content', async () => {
+		const pluginStateChange = vi.fn();
+		const plugin: Plugin = {
+			id: 'state-spy',
+			name: 'State Spy',
+			init: vi.fn(),
+			onStateChange: pluginStateChange,
+		};
+		const editor = new NotectlEditor();
+		const stateChange = vi.fn();
+		editor.on('stateChange', stateChange);
+
+		document.body.appendChild(editor);
+		await editor.init({
+			locale: Locale.EN,
+			plugins: [plugin],
+		});
+		await editor.whenReady();
+
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('updated')], blockId('b1')),
+		]);
+		editor.setJSON(doc);
+
+		expect(editor.getText()).toBe('updated');
+		expect(pluginStateChange).toHaveBeenCalledTimes(1);
+		expect(stateChange).toHaveBeenCalledTimes(1);
+		expect(stateChange.mock.calls[0]?.[0]?.transaction.metadata.origin).toBe('api');
 	});
 });

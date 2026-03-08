@@ -45,6 +45,7 @@ export class InputHandler {
 	private readonly inputRuleRegistry?: InputRuleRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
+	private compositionCommitHandled = false;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
 	private readonly handleCompositionStart: (e: CompositionEvent) => void;
@@ -78,15 +79,21 @@ export class InputHandler {
 			return;
 		}
 
-		e.preventDefault();
+		if (!shouldHandleBeforeInput(e.inputType)) {
+			return;
+		}
 
 		// Sync selection from DOM before processing non-insert operations
 		// (handles arrow key / mouse navigation that doesn't go through our state)
 		const needsSelectionSync =
-			e.inputType !== 'insertText' && e.inputType !== 'insertCompositionText';
+			e.inputType !== 'insertText' &&
+			e.inputType !== 'insertCompositionText' &&
+			e.inputType !== 'insertFromComposition';
 		if (needsSelectionSync) {
 			this.syncSelection();
 		}
+
+		e.preventDefault();
 
 		const state = this.getState();
 		let tr: Transaction | null = null;
@@ -94,6 +101,19 @@ export class InputHandler {
 		switch (e.inputType) {
 			case 'insertText':
 				if (e.data) {
+					tr = insertTextCommand(state, e.data, 'input');
+				}
+				break;
+
+			case 'insertReplacementText':
+				if (e.data) {
+					tr = insertTextCommand(state, e.data, 'input');
+				}
+				break;
+
+			case 'insertFromComposition':
+				if (e.data) {
+					this.compositionCommitHandled = true;
 					tr = insertTextCommand(state, e.data, 'input');
 				}
 				break;
@@ -131,7 +151,7 @@ export class InputHandler {
 				break;
 
 			case 'deleteByCut':
-				tr = deleteBackward(state);
+				// ClipboardHandler owns cut semantics to avoid duplicate deletions.
 				break;
 
 			case 'insertFromPaste':
@@ -155,7 +175,7 @@ export class InputHandler {
 			this.dispatch(tr);
 
 			// Check input rules after text insertion
-			if (e.inputType === 'insertText') {
+			if (e.inputType === 'insertText' || e.inputType === 'insertReplacementText') {
 				this.checkInputRules();
 			}
 		}
@@ -164,12 +184,17 @@ export class InputHandler {
 	private onCompositionStart(_e: CompositionEvent): void {
 		const state = this.getState();
 		if (!isTextSelection(state.selection)) return;
+		this.compositionCommitHandled = false;
 		this.compositionTracker.start(state.selection.anchor.blockId);
 	}
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		this.compositionTracker.end();
 		if (this.isReadOnly()) return;
+		if (this.compositionCommitHandled) {
+			this.compositionCommitHandled = false;
+			return;
+		}
 		const composedText = e.data;
 		if (!composedText) return;
 
@@ -210,5 +235,32 @@ export class InputHandler {
 		this.element.removeEventListener('beforeinput', this.handleBeforeInput);
 		this.element.removeEventListener('compositionstart', this.handleCompositionStart);
 		this.element.removeEventListener('compositionend', this.handleCompositionEnd);
+	}
+}
+
+function shouldHandleBeforeInput(inputType: string): boolean {
+	switch (inputType) {
+		case 'insertText':
+		case 'insertReplacementText':
+		case 'insertFromComposition':
+		case 'insertParagraph':
+		case 'insertLineBreak':
+		case 'deleteContentBackward':
+		case 'deleteContentForward':
+		case 'deleteWordBackward':
+		case 'deleteWordForward':
+		case 'deleteSoftLineBackward':
+		case 'deleteSoftLineForward':
+		case 'deleteByCut':
+		case 'insertFromPaste':
+		case 'insertFromDrop':
+		case 'formatBold':
+		case 'formatItalic':
+		case 'formatUnderline':
+		case 'historyUndo':
+		case 'historyRedo':
+			return true;
+		default:
+			return false;
 	}
 }
