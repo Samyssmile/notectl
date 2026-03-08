@@ -89,10 +89,7 @@ export class EditorValueController {
 		return this.enqueue(task, false);
 	}
 
-	private enqueue(
-		task: (editor: NotectlEditor) => Promise<void>,
-		silent: boolean,
-	): Promise<void> {
+	private enqueue(task: (editor: NotectlEditor) => Promise<void>, silent: boolean): Promise<void> {
 		const next = this.writeQueue.then(async () => {
 			await this.options.whenReady();
 			const editor: NotectlEditor | null = this.options.getEditor();

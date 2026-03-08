@@ -33,7 +33,7 @@ import type { Locale } from '@notectl/core';
 import type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting';
 
 import { EditorValueController } from './EditorValueController';
-import { NOTECTL_CONTENT_FORMAT, NOTECTL_DEFAULT_CONFIG, type ContentFormat } from './tokens';
+import { type ContentFormat, NOTECTL_CONTENT_FORMAT, NOTECTL_DEFAULT_CONFIG } from './tokens';
 import type { NotectlValue, SelectionChangeEvent } from './types';
 
 interface InitConfigSnapshot {
