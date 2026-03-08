@@ -128,14 +128,6 @@ test.describe('Lists inside table cells — input rules', () => {
 // ══════════════════════════════════════════════════════════════════════════
 
 test.describe('Lists copy-paste with table cells', () => {
-	test.beforeEach(async ({ context }) => {
-		try {
-			await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-		} catch {
-			// Best-effort: some browsers do not expose clipboard permissions via Playwright.
-		}
-	});
-
 	test('paste bullet list into table cell preserves list_item structure', async ({
 		editor,
 		page,
@@ -146,10 +138,10 @@ test.describe('Lists copy-paste with table cells', () => {
 		await page.keyboard.type('- ', { delay: 10 });
 		await page.keyboard.type('Bullet from outside', { delay: 10 });
 
-		// Select all text and copy
+		// Select the list item and copy it through an isolated in-page clipboard.
 		await page.keyboard.press('Home');
 		await page.keyboard.press('Shift+End');
-		await page.keyboard.press('Control+c');
+		const clipboard = await editor.copySelection();
 
 		// Exit list, insert table
 		await page.keyboard.press('End');
@@ -158,8 +150,7 @@ test.describe('Lists copy-paste with table cells', () => {
 		await insertTable(page);
 
 		// Paste into the first cell
-		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(300);
+		await editor.pasteClipboardData(clipboard);
 
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');
@@ -189,10 +180,10 @@ test.describe('Lists copy-paste with table cells', () => {
 		await page.keyboard.type('- ', { delay: 10 });
 		await page.keyboard.type('Only item', { delay: 10 });
 
-		// Select and copy
+		// Select and copy through an isolated in-page clipboard.
 		await page.keyboard.press('Home');
 		await page.keyboard.press('Shift+End');
-		await page.keyboard.press('Control+c');
+		const clipboard = await editor.copySelection();
 
 		// Exit list, insert table
 		await page.keyboard.press('End');
@@ -201,8 +192,7 @@ test.describe('Lists copy-paste with table cells', () => {
 		await insertTable(page);
 
 		// Paste into the first cell (which has an empty paragraph)
-		await page.keyboard.press('Control+v');
-		await page.waitForTimeout(300);
+		await editor.pasteClipboardData(clipboard);
 
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const table: JsonChild | undefined = json.children.find((c) => c.type === 'table');

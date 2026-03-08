@@ -800,25 +800,74 @@ describe('PluginManager', () => {
 	});
 
 	describe('error isolation', () => {
-		it('init error does not prevent other plugins', async () => {
-			const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		it('init error aborts initialization and rolls back started plugins', async () => {
 			const pm = new PluginManager();
-			const goodInit = vi.fn();
+			const goodServiceKey = new ServiceKey<{ value: number }>('good-service');
+			const badServiceKey = new ServiceKey<{ value: number }>('bad-service');
+			const goodDestroy = vi.fn();
+			const badDestroy = vi.fn();
+			const laterInit = vi.fn();
 
 			pm.register(
 				makePlugin({
-					id: 'bad',
+					id: 'good',
 					priority: 1,
-					init: vi.fn(() => {
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('good-command', () => true);
+						ctx.registerService(goodServiceKey, { value: 1 });
+						ctx.registerStyleSheet('.good { color: red; }');
+					}),
+					destroy: goodDestroy,
+				}),
+			);
+			pm.register(
+				makePlugin({
+					id: 'bad',
+					priority: 2,
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('bad-command', () => true);
+						ctx.registerService(badServiceKey, { value: 2 });
+						ctx.registerStyleSheet('.bad { color: blue; }');
 						throw new Error('init fail');
+					}),
+					destroy: badDestroy,
+				}),
+			);
+			pm.register(makePlugin({ id: 'later', priority: 3, init: laterInit }));
+			await expect(pm.init(makePluginOptions())).rejects.toThrow('init fail');
+
+			expect(laterInit).not.toHaveBeenCalled();
+			expect(badDestroy).toHaveBeenCalledTimes(1);
+			expect(goodDestroy).toHaveBeenCalledTimes(1);
+			expect(pm.executeCommand('good-command')).toBe(false);
+			expect(pm.executeCommand('bad-command')).toBe(false);
+			expect(pm.getService(goodServiceKey)).toBeUndefined();
+			expect(pm.getService(badServiceKey)).toBeUndefined();
+			expect(pm.getPluginStyleSheets()).toHaveLength(0);
+		});
+
+		it('allows retry after rolling back a failed init', async () => {
+			const pm = new PluginManager();
+			let shouldFail = true;
+
+			pm.register(
+				makePlugin({
+					id: 'flaky',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('retry-command', () => true);
+						if (shouldFail) {
+							shouldFail = false;
+							throw new Error('init fail');
+						}
 					}),
 				}),
 			);
-			pm.register(makePlugin({ id: 'good', priority: 2, init: goodInit }));
-			await pm.init(makePluginOptions());
 
-			expect(goodInit).toHaveBeenCalled();
-			errSpy.mockRestore();
+			await expect(pm.init(makePluginOptions())).rejects.toThrow('init fail');
+			expect(pm.executeCommand('retry-command')).toBe(false);
+
+			await expect(pm.init(makePluginOptions())).resolves.toBeUndefined();
+			expect(pm.executeCommand('retry-command')).toBe(true);
 		});
 
 		it('onStateChange error does not prevent other plugins', async () => {

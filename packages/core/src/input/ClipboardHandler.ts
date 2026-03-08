@@ -202,7 +202,10 @@ export class ClipboardHandler {
 			const markOrder: Map<string, number> = buildMarkOrder(this.schemaRegistry);
 			const multiBlock: boolean = fromIdx !== toIdx;
 
-			if (multiBlock || this.containsInlineSegments(richBlocks)) {
+			const hasStructuredBlock: boolean = richBlocks.some(
+				(b) => b.type !== undefined && b.type !== 'paragraph',
+			);
+			if (multiBlock || this.containsInlineSegments(richBlocks) || hasStructuredBlock) {
 				const html: string = this.serializeBlocksToClipboardHTML(
 					blockEntries,
 					markOrder,
@@ -223,7 +226,6 @@ export class ClipboardHandler {
 				}
 			}
 		}
-
 	}
 
 	/**
@@ -277,9 +279,7 @@ export class ClipboardHandler {
 
 	/** Joins rich text segments into the plain-text form stored on the clipboard. */
 	private plainTextFromSegments(segments: readonly RichSegment[]): string {
-		return segments
-			.map((segment) => (segment.kind === 'inline' ? '' : segment.text))
-			.join('');
+		return segments.map((segment) => (segment.kind === 'inline' ? '' : segment.text)).join('');
 	}
 
 	/**
@@ -406,9 +406,7 @@ export class ClipboardHandler {
 	}
 
 	private containsInlineSegments(blocks: readonly RichBlockData[]): boolean {
-		return blocks.some((block) =>
-			block.segments?.some((segment) => segment.kind === 'inline'),
-		);
+		return blocks.some((block) => block.segments?.some((segment) => segment.kind === 'inline'));
 	}
 
 	/**

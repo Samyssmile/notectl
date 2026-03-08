@@ -96,6 +96,42 @@ describe('NotectlEditor', () => {
 		expect(() => editor.getState()).not.toThrow();
 	});
 
+	it('rejects whenReady on plugin init failure and allows retry', async () => {
+		let shouldFail = true;
+		const destroySpy = vi.fn();
+		const readySpy = vi.fn();
+		const flakyPlugin: Plugin = {
+			id: 'flaky',
+			name: 'Flaky',
+			init: vi.fn(() => {
+				if (shouldFail) {
+					shouldFail = false;
+					throw new Error('init fail');
+				}
+			}),
+			destroy: destroySpy,
+		};
+		const editor = new NotectlEditor();
+		editor.on('ready', readySpy);
+		const readyPromise = editor.whenReady();
+
+		await expect(
+			editor.init({
+				locale: Locale.EN,
+				plugins: [flakyPlugin],
+			}),
+		).rejects.toThrow('init fail');
+		await expect(readyPromise).rejects.toThrow('init fail');
+
+		expect(destroySpy).toHaveBeenCalledTimes(1);
+		expect(readySpy).not.toHaveBeenCalled();
+
+		await expect(editor.init()).resolves.toBeUndefined();
+		await expect(editor.whenReady()).resolves.toBeUndefined();
+		expect(flakyPlugin.init).toHaveBeenCalledTimes(2);
+		expect(readySpy).toHaveBeenCalledTimes(1);
+	});
+
 	it('preserves pre-init plugins across failed init retries', async () => {
 		const preInitPlugin: Plugin = {
 			id: 'pre-init',

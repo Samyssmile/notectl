@@ -126,7 +126,8 @@ export class PluginManager {
 				try {
 					await plugin.init(context);
 				} catch (err) {
-					console.error(`[PluginManager] Plugin "${id}" failed to initialize:`, err);
+					await this.rollbackStartedPlugins();
+					throw err;
 				}
 			}
 
@@ -377,6 +378,16 @@ export class PluginManager {
 			}
 		}
 		this.cleanupRegistrations(id);
+	}
+
+	private async rollbackStartedPlugins(): Promise<void> {
+		const reversed = [...this.startedInitOrder].reverse();
+		for (const id of reversed) {
+			await this.destroyPlugin(id);
+		}
+		this.startedInitOrder = [];
+		this.initOrder = [];
+		this.initialized = false;
 	}
 
 	private cleanupRegistrations(id: string): void {
