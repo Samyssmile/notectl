@@ -6,7 +6,12 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { DecorationSet } from '../decorations/Decoration.js';
-import { createBlockNode, createDocument, createTextNode, getBlockText } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createTextNode,
+	getBlockText,
+} from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { EditorState } from '../state/EditorState.js';

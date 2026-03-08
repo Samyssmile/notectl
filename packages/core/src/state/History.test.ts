@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { insertTextCommand } from '../commands/Commands.js';
+import { toggleBold } from '../commands/MarkCommands.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -7,7 +8,6 @@ import {
 	getBlockText,
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
-import { toggleBold } from '../commands/MarkCommands.js';
 import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager } from './History.js';
