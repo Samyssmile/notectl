@@ -2,18 +2,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockText,
+	isInlineNode,
 	isBlockNode,
 } from '../model/Document.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
-import { blockId } from '../model/TypeBrands.js';
+import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import { clearRichClipboard, setRichClipboard } from './InternalClipboard.js';
 import { PasteHandler } from './PasteHandler.js';
 
 // --- Helpers ---
@@ -66,6 +69,7 @@ describe('PasteHandler file paste', () => {
 	let getState: GetStateFn;
 
 	afterEach(() => {
+		clearRichClipboard();
 		handler.destroy();
 	});
 
@@ -171,6 +175,24 @@ describe('PasteHandler text paste', () => {
 		expect(dispatch).toHaveBeenCalledTimes(1);
 		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(tr.metadata.origin).toBe('paste');
+	});
+
+	it('does not treat stale internal clipboard data as proof of paste origin', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+		setRichClipboard('hello', [{ type: 'heading', text: 'stale', attrs: { level: 2 } }]);
+
+		handler = new PasteHandler(element, { getState, dispatch });
+
+		const event: ClipboardEvent = createPasteEvent({ text: 'hello' });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(tr.metadata.origin).toBe('paste');
+		expect(tr.steps.some((step) => step.type === 'setBlockType')).toBe(false);
 	});
 
 	it('HTML paste extracts text and dispatches transaction', () => {
@@ -866,6 +888,67 @@ describe('PasteHandler rich paste with mark segments', () => {
 			}
 		}
 		expect(foundBold).toBe(true);
+	});
+
+	it('restores inline nodes from embedded rich HTML payloads', () => {
+		element = document.createElement('div');
+		const doc = createDocument([
+			createBlockNode('paragraph', [createTextNode('')], B1),
+		]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(B1, 0),
+		});
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: () => document.createElement('p'),
+		});
+		registry.registerInlineNodeSpec({
+			type: 'mention',
+			attrs: { id: { default: '' } },
+			toDOM: () => document.createElement('span'),
+			parseHTML: [{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) }],
+			sanitize: { tags: ['span'], attrs: ['data-mention'] },
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const richBlocks = [
+			{
+				type: 'paragraph',
+				text: 'A',
+				segments: [
+					{ text: 'A', marks: [] },
+					{ kind: 'inline', inlineType: 'mention', attrs: { id: 'u1' } },
+				],
+			},
+		];
+		const json: string = JSON.stringify(richBlocks);
+		const html: string = `<div data-notectl-rich='${json}'></div>`;
+		const event: ClipboardEvent = createPasteEvent({ html });
+		element.dispatchEvent(event);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const paragraph = currentState.doc.children[0];
+		expect(paragraph).toBeDefined();
+		if (paragraph && isBlockNode(paragraph)) {
+			expect(
+				paragraph.children.some(
+					(child) => isInlineNode(child) && child.inlineType === inlineType('mention'),
+				),
+			).toBe(true);
+		}
 	});
 });
 

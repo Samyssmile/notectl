@@ -19,7 +19,7 @@ import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import { clearRichClipboard, consumeRichClipboard } from './InternalClipboard.js';
+import { clearRichClipboard } from './InternalClipboard.js';
 
 // --- Helpers ---
 
@@ -167,7 +167,18 @@ describe('ClipboardHandler copy', () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
-	it('skips InlineNodes when deriving plain text and rich clipboard payloads', () => {
+	it('preserves InlineNodes in embedded rich HTML while skipping them in text/plain', () => {
+		const registry = new SchemaRegistry();
+		registry.registerInlineNodeSpec({
+			type: 'mention',
+			attrs: { id: { default: '' } },
+			toDOM: () => document.createElement('span'),
+			toHTMLString: (node) =>
+				`<span data-mention="${String(node.attrs.id ?? '')}">@mention</span>`,
+			parseHTML: [{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) }],
+			sanitize: { tags: ['span'], attrs: ['data-mention'] },
+		});
+
 		const doc = createDocument([
 			createBlockNode(
 				'paragraph',
@@ -189,16 +200,27 @@ describe('ClipboardHandler copy', () => {
 		handler = new ClipboardHandler(element, {
 			getState: () => state,
 			dispatch,
+			schemaRegistry: registry,
 		});
 
 		const event = createClipboardEvent('copy');
 		element.dispatchEvent(event);
 
 		expect(event.data.get('text/plain')).toBe('A');
-		const richBlocks = consumeRichClipboard('A');
-		expect(richBlocks).toHaveLength(1);
-		expect(richBlocks?.[0]?.text).toBe('A');
-		expect(richBlocks?.[0]?.segments).toEqual([{ text: 'A', marks: [] }]);
+		const html: string = event.data.get('text/html') ?? '';
+		expect(html).toContain('data-notectl-rich=');
+
+		const template: HTMLTemplateElement = document.createElement('template');
+		template.innerHTML = html;
+		const richEl: Element | null = template.content.querySelector('[data-notectl-rich]');
+		expect(richEl).not.toBeNull();
+		const richData = JSON.parse(richEl?.getAttribute('data-notectl-rich') ?? '[]');
+		expect(richData).toHaveLength(1);
+		expect(richData[0].text).toBe('A');
+		expect(richData[0].segments).toEqual([
+			{ text: 'A', marks: [] },
+			{ kind: 'inline', inlineType: 'mention', attrs: { id: 'u1' } },
+		]);
 	});
 
 	it('writes multi-block text selection joined by newlines', () => {

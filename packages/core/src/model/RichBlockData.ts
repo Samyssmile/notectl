@@ -6,11 +6,23 @@
  * (block insertion). Placed in `model/` to avoid cross-layer dependencies.
  */
 
-/** A serialized inline segment preserving marks. */
-export interface RichSegment {
+/** A serialized text segment preserving marks. */
+export interface RichTextSegment {
 	readonly text: string;
 	readonly marks: readonly { readonly type: string; readonly attrs?: Record<string, unknown> }[];
+	/** Omitted for backwards compatibility with existing clipboard payloads. */
+	readonly kind?: 'text';
 }
+
+/** A serialized inline node preserved in rich clipboard payloads. */
+export interface RichInlineSegment {
+	readonly kind: 'inline';
+	readonly inlineType: string;
+	readonly attrs?: Record<string, unknown>;
+}
+
+/** A serialized inline segment: either marked text or an inline node. */
+export type RichSegment = RichTextSegment | RichInlineSegment;
 
 /** A serialized block from a text-selection copy. */
 export interface RichBlockData {

@@ -7,7 +7,6 @@ import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import { type RichBlockData, consumeRichClipboard } from './InternalClipboard.js';
 import { PasteHTMLHandler } from './PasteHTMLHandler.js';
 import { PasteRichBlockHandler } from './PasteRichBlockHandler.js';
 
@@ -72,10 +71,6 @@ export class PasteHandler {
 		if (this.handleFilePaste(clipboardData)) return;
 
 		const plainText: string = clipboardData.getData('text/plain');
-		if (plainText) {
-			const richBlocks: readonly RichBlockData[] | undefined = consumeRichClipboard(plainText);
-			if (richBlocks && this.richBlockHandler.handleRichPaste(richBlocks)) return;
-		}
 
 		// Paste interceptors (plugins can claim the paste before default handling)
 		const html: string = clipboardData.getData('text/html');

@@ -31,7 +31,6 @@ import {
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import type { RichBlockData, RichSegment } from './InternalClipboard.js';
-import { setRichClipboard } from './InternalClipboard.js';
 import { buildSelectionDocument } from './SelectionDocument.js';
 
 export interface ClipboardHandlerOptions {
@@ -203,7 +202,7 @@ export class ClipboardHandler {
 			const markOrder: Map<string, number> = buildMarkOrder(this.schemaRegistry);
 			const multiBlock: boolean = fromIdx !== toIdx;
 
-			if (multiBlock) {
+			if (multiBlock || this.containsInlineSegments(richBlocks)) {
 				const html: string = this.serializeBlocksToClipboardHTML(
 					blockEntries,
 					markOrder,
@@ -225,10 +224,6 @@ export class ClipboardHandler {
 			}
 		}
 
-		// Store rich block data in memory — system clipboard strips custom MIME
-		// types and rewrites text/html, so we use an in-memory store keyed by
-		// the plain-text fingerprint to verify origin on paste.
-		setRichClipboard(plainText, richBlocks);
 	}
 
 	/**
@@ -282,7 +277,9 @@ export class ClipboardHandler {
 
 	/** Joins rich text segments into the plain-text form stored on the clipboard. */
 	private plainTextFromSegments(segments: readonly RichSegment[]): string {
-		return segments.map((segment) => segment.text).join('');
+		return segments
+			.map((segment) => (segment.kind === 'inline' ? '' : segment.text))
+			.join('');
 	}
 
 	/**
@@ -388,18 +385,30 @@ export class ClipboardHandler {
 				const sliceTo: number = Math.min(child.text.length, end - pos);
 				const text: string = child.text.slice(sliceFrom, sliceTo);
 				if (text.length > 0) {
-					const marks: RichSegment['marks'] = child.marks.map((m: Mark) => ({
+					const marks = child.marks.map((m: Mark) => ({
 						type: m.type,
 						...(m.attrs ? { attrs: { ...m.attrs } } : {}),
 					}));
 					segments.push({ text, marks });
 				}
+			} else if (isInlineNode(child)) {
+				segments.push({
+					kind: 'inline',
+					inlineType: child.inlineType,
+					...(Object.keys(child.attrs).length > 0 ? { attrs: { ...child.attrs } } : {}),
+				});
 			}
 
 			pos = childEnd;
 		}
 
 		return segments;
+	}
+
+	private containsInlineSegments(blocks: readonly RichBlockData[]): boolean {
+		return blocks.some((block) =>
+			block.segments?.some((segment) => segment.kind === 'inline'),
+		);
 	}
 
 	/**

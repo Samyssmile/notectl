@@ -123,7 +123,9 @@ export class PasteRichBlockHandler {
 		if (blocks.length === 0) return false;
 
 		const hasStructured: boolean = blocks.some(
-			(b) => b.type !== undefined && b.type !== 'paragraph',
+			(b) =>
+				(b.type !== undefined && b.type !== 'paragraph') ||
+				b.segments?.some((segment) => segment.kind === 'inline'),
 		);
 		if (!hasStructured && blocks.length <= 1) return false;
 
