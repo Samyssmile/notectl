@@ -38,10 +38,12 @@ npm install @notectl/core
 ### Preset — full editor in 5 lines
 
 ```ts
-import { createEditor, createFullPreset, ThemePreset } from '@notectl/core';
+import { createEditor, ThemePreset } from '@notectl/core';
+import { STARTER_FONTS } from '@notectl/core/fonts';
+import { createFullPreset } from '@notectl/core/presets';
 
 const editor = await createEditor({
-  ...createFullPreset(),
+  ...createFullPreset({ font: { fonts: STARTER_FONTS } }),
   theme: ThemePreset.Light,
   placeholder: 'Start typing...',
 });
@@ -49,7 +51,7 @@ const editor = await createEditor({
 document.body.appendChild(editor);
 ```
 
-All 19 plugins, toolbar groups, and keyboard shortcuts — ready to go.
+All standard plugins, toolbar groups, and keyboard shortcuts — ready to go.
 
 ### Custom — pick exactly what you need
 
@@ -57,12 +59,12 @@ All 19 plugins, toolbar groups, and keyboard shortcuts — ready to go.
 import {
   createEditor,
   ThemePreset,
-  TextFormattingPlugin,
-  HeadingPlugin,
-  ListPlugin,
-  LinkPlugin,
-  TablePlugin,
 } from '@notectl/core';
+import { HeadingPlugin } from '@notectl/core/plugins/heading';
+import { LinkPlugin } from '@notectl/core/plugins/link';
+import { ListPlugin } from '@notectl/core/plugins/list';
+import { TablePlugin } from '@notectl/core/plugins/table';
+import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
 
 const editor = await createEditor({
   theme: ThemePreset.Light,
@@ -151,7 +153,7 @@ See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/over
 ## Built-in Features
 
 - **Themes** — Dark and Light presets, or create fully custom themes
-- **i18n** — 8 languages: English, German, Spanish, French, Chinese, Russian, Arabic, Hindi + auto-detect via `Locale.BROWSER`
+- **i18n** — 9 languages: English, German, Spanish, French, Chinese, Russian, Arabic, Hindi, Portuguese + auto-detect via `Locale.BROWSER`
 - **Paper sizes** — DIN A4, DIN A5, US Letter, US Legal for WYSIWYG page layout
 - **CSP-compliant** — Style delivery via `adoptedStyleSheets`, no inline styles required
 - **Markdown shortcuts** — `#` → H1, `##` → H2, `-` → bullet list, `1.` → ordered list, `>` → blockquote
@@ -165,7 +167,7 @@ Read and write content in any format:
 
 ```ts
 await editor.getContentHTML();                               // export as HTML
-editor.setContentHTML('<p>Hello <strong>world</strong></p>'); // import HTML
+await editor.setContentHTML('<p>Hello <strong>world</strong></p>'); // import HTML
 editor.getJSON();                                            // structured JSON
 editor.setJSON(doc);                                         // import JSON
 editor.getText();                                            // plain text
