@@ -28,6 +28,8 @@ import {
   ThemePreset,
 } from '@notectl/angular';
 import { STARTER_FONTS } from '@notectl/core/fonts';
+import {PrintPlugin} from '@notectl/core/plugins/print';
+import {ToolbarOverflowBehavior} from '@notectl/core/plugins/toolbar';
 
 const INTER: FontDefinition = {
   name: 'Inter',
@@ -69,31 +71,35 @@ export class App {
     this.isDark() ? 'Toggle Light Mode' : 'Toggle Dark Mode',
   );
 
-  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
-    [
-      new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
-      new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 12 }),
+  protected readonly toolbar = {
+    groups: [
+      [
+        new FontPlugin({ fonts: [...STARTER_FONTS, INTER] }),
+        new FontSizePlugin({ sizes: [12, 16, 24, 32, 48], defaultSize: 12 }),
+      ],
+      [
+        new TextFormattingPlugin({ bold: true, italic: true, underline: true }),
+        new StrikethroughPlugin(),
+        new SuperSubPlugin(),
+      ],
+      [new TextColorPlugin(), new HighlightPlugin()],
+      [
+        new HeadingPlugin(),
+        new BlockquotePlugin(),
+        new CodeBlockPlugin({
+          keymap: {
+            insertAfter: 'Mod-Shift-Enter',
+            toggle: 'Mod-Shift-C',
+          },
+        }),
+      ],
+      [new AlignmentPlugin(), new TextDirectionPlugin()],
+      [new ListPlugin()],
+      [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
+      [new PrintPlugin()],
     ],
-    [
-      new TextFormattingPlugin({ bold: true, italic: true, underline: true }),
-      new StrikethroughPlugin(),
-      new SuperSubPlugin(),
-    ],
-    [new TextColorPlugin(), new HighlightPlugin()],
-    [
-      new HeadingPlugin(),
-      new BlockquotePlugin(),
-      new CodeBlockPlugin({
-        keymap: {
-          insertAfter: 'Mod-Shift-Enter',
-          toggle: 'Mod-Shift-C',
-        },
-      }),
-    ],
-    [new AlignmentPlugin(), new TextDirectionPlugin()],
-    [new ListPlugin()],
-    [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
-  ];
+    overflow: ToolbarOverflowBehavior.Flow,
+  };
 
   protected readonly plugins: Plugin[] = [new HardBreakPlugin()];
 
