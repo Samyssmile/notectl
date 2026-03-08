@@ -5,8 +5,8 @@ import {
 	createInlineNode,
 	createTextNode,
 	getBlockText,
-	isInlineNode,
 	isBlockNode,
+	isInlineNode,
 } from '../model/Document.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
@@ -892,9 +892,7 @@ describe('PasteHandler rich paste with mark segments', () => {
 
 	it('restores inline nodes from embedded rich HTML payloads', () => {
 		element = document.createElement('div');
-		const doc = createDocument([
-			createBlockNode('paragraph', [createTextNode('')], B1),
-		]);
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], B1)]);
 		const state: EditorState = EditorState.create({
 			doc,
 			selection: createCollapsedSelection(B1, 0),
@@ -909,7 +907,9 @@ describe('PasteHandler rich paste with mark segments', () => {
 			type: 'mention',
 			attrs: { id: { default: '' } },
 			toDOM: () => document.createElement('span'),
-			parseHTML: [{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) }],
+			parseHTML: [
+				{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) },
+			],
 			sanitize: { tags: ['span'], attrs: ['data-mention'] },
 		});
 

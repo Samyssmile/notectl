@@ -173,9 +173,10 @@ describe('ClipboardHandler copy', () => {
 			type: 'mention',
 			attrs: { id: { default: '' } },
 			toDOM: () => document.createElement('span'),
-			toHTMLString: (node) =>
-				`<span data-mention="${String(node.attrs.id ?? '')}">@mention</span>`,
-			parseHTML: [{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) }],
+			toHTMLString: (node) => `<span data-mention="${String(node.attrs.id ?? '')}">@mention</span>`,
+			parseHTML: [
+				{ tag: 'span', getAttrs: (el) => ({ id: el.getAttribute('data-mention') ?? '' }) },
+			],
 			sanitize: { tags: ['span'], attrs: ['data-mention'] },
 		});
 

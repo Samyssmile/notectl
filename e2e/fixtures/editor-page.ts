@@ -29,6 +29,8 @@ interface NotectlEditorElement extends HTMLElement {
 	on(event: string, cb: () => void): void;
 }
 
+type ClipboardPayload = Record<string, string>;
+
 type El = NotectlEditorElement;
 const SEL = 'notectl-editor';
 
@@ -221,6 +223,42 @@ export class EditorPage {
 			Object.defineProperty(event, 'clipboardData', { value: dt, writable: false });
 			content.dispatchEvent(event);
 		}, html);
+	}
+
+	async copySelection(): Promise<ClipboardPayload> {
+		return this.page.evaluate(() => {
+			const editor = document.querySelector('notectl-editor');
+			const content = editor?.shadowRoot?.querySelector('.notectl-content');
+			if (!content) return {};
+
+			const dt = new DataTransfer();
+			const event = new ClipboardEvent('copy', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'clipboardData', { value: dt, writable: false });
+			content.dispatchEvent(event);
+
+			const payload: ClipboardPayload = {};
+			for (const type of Array.from(dt.types)) {
+				payload[type] = dt.getData(type);
+			}
+			return payload;
+		});
+	}
+
+	async pasteClipboardData(payload: ClipboardPayload): Promise<void> {
+		await this.page.evaluate((data) => {
+			const editor = document.querySelector('notectl-editor');
+			const content = editor?.shadowRoot?.querySelector('.notectl-content');
+			if (!content) return;
+
+			const dt = new DataTransfer();
+			for (const [type, value] of Object.entries(data)) {
+				dt.setData(type, value);
+			}
+
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'clipboardData', { value: dt, writable: false });
+			content.dispatchEvent(event);
+		}, payload);
 	}
 
 	// ── Touch ──────────────────────────────────────────────────
