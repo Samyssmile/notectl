@@ -35,6 +35,10 @@ import { ThemePreset, createEditor } from '@notectl/core';
 	import { TextColorPlugin } from '@notectl/core/plugins/text-color';
 	import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
 	import { PrintPlugin } from '@notectl/core/plugins/print';
+	import { GapCursorPlugin } from '@notectl/core/plugins/gap-cursor';
+	import { CaretNavigationPlugin } from '@notectl/core/plugins/caret-navigation';
+	import { SmartPastePlugin } from '@notectl/core/plugins/smart-paste';
+	import { TextDirectionAdvancedPlugin } from '@notectl/core/plugins/text-direction-advanced';
 	import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 	import { STARTER_FONTS } from '@notectl/core/fonts';
 
@@ -79,10 +83,16 @@ import { ThemePreset, createEditor } from '@notectl/core';
 						new ImagePlugin(),
 						new PrintPlugin(),
 					],
+					[new TextDirectionAdvancedPlugin()],
 				],
 				overflow: ToolbarOverflowBehavior.Flow,
 			},
-			plugins: [new HardBreakPlugin()],
+			plugins: [
+				new HardBreakPlugin(),
+				new GapCursorPlugin(),
+				new CaretNavigationPlugin(),
+				new SmartPastePlugin(),
+			],
 			placeholder: 'Start typing to try notectl...',
 			autofocus: false,
 		});

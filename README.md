@@ -4,12 +4,9 @@
 
 # notectl
 
-### Drop one tag. Get a full editor.
+### Rich text editing as a Web Component
 
-`<notectl-editor>` — the rich text editor that works everywhere.<br />
-React, Vue, Angular, Svelte, or plain HTML. Zero config, full power.
-
-<br />
+Build a real editor in plain HTML, React, Vue, Svelte, or Angular without locking yourself into a framework-specific editor runtime.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Web Component](https://img.shields.io/badge/Web_Component-%3Cnotectl--editor%3E-purple)](https://developer.mozilla.org/en-US/docs/Web/API/Web_components)
@@ -23,43 +20,229 @@ React, Vue, Angular, Svelte, or plain HTML. Zero config, full power.
 
 <br />
 
-[**Try the Playground**](https://samyssmile.github.io/notectl/playground/) &nbsp;&middot;&nbsp; [Documentation](https://samyssmile.github.io/notectl/) &nbsp;&middot;&nbsp; [npm](https://www.npmjs.com/package/@notectl/core)
+[Documentation](https://samyssmile.github.io/notectl/) &nbsp;&middot;&nbsp;
+[Playground](https://samyssmile.github.io/notectl/playground/) &nbsp;&middot;&nbsp;
+[npm: @notectl/core](https://www.npmjs.com/package/@notectl/core) &nbsp;&middot;&nbsp;
+[npm: @notectl/angular](https://www.npmjs.com/package/@notectl/angular)
 
 </div>
 
-<br />
+## What you get
 
-## Quick Start
+- A framework-agnostic editor shipped as the `notectl-editor` custom element
+- Immutable editor state and transaction-based updates
+- A plugin system for headings, lists, links, tables, code blocks, images, fonts, and more
+- CSP-safe styling with `adoptedStyleSheets`
+- A fast path for "just give me a full editor" and a granular path for "I only want these plugins"
+
+## Install
 
 ```bash
 npm install @notectl/core
 ```
 
-### Preset — full editor in 5 lines
+Requirements:
 
-```ts
-import { createEditor, ThemePreset } from '@notectl/core';
-import { STARTER_FONTS } from '@notectl/core/fonts';
-import { createFullPreset } from '@notectl/core/presets';
+- Modern browser with Custom Elements support
+- Node.js 18+ for build tooling
+- Angular 21+ if you use `@notectl/angular`
 
-const editor = await createEditor({
-  ...createFullPreset({ font: { fonts: STARTER_FONTS } }),
-  theme: ThemePreset.Light,
-  placeholder: 'Start typing...',
-});
+## Quick start
 
-document.body.appendChild(editor);
+The normal way to embed notectl is to create the Web Component with `createEditor(...)` and mount it into your app.
+
+### 1. Add a host element
+
+```html
+<div id="app"></div>
 ```
 
-All standard plugins, toolbar groups, and keyboard shortcuts — ready to go.
+### 2. Create the editor
 
-### Custom — pick exactly what you need
+Start with one of the shipped presets:
+
+Minimal preset:
 
 ```ts
+import { createEditor } from '@notectl/core';
+import { createMinimalPreset } from '@notectl/core/presets/minimal';
+
+const editor = await createEditor({
+  ...createMinimalPreset(),
+  placeholder: 'Start typing...',
+  autofocus: true,
+});
+
+document.getElementById('app')!.appendChild(editor);
+```
+
+Full preset (toolbar, headings, lists, links, tables, code blocks, images, fonts, and more):
+
+```ts
+import { ThemePreset, createEditor } from '@notectl/core';
+import { STARTER_FONTS } from '@notectl/core/fonts';
+import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
+import { createFullPreset } from '@notectl/core/presets/full';
+
+const preset = createFullPreset({
+  font: { fonts: STARTER_FONTS },
+});
+
+const editor = await createEditor({
+  ...preset,
+  toolbar: {
+    groups: preset.toolbar,
+    overflow: ToolbarOverflowBehavior.Flow,
+  },
+  theme: ThemePreset.Light,
+  placeholder: 'Start typing...',
+  autofocus: true,
+});
+
+document.getElementById('app')!.appendChild(editor);
+```
+
+Use `createMinimalPreset()` when you want a lean starting point. Use `createFullPreset()` when you want the standard toolbar and plugin set immediately, including responsive toolbar overflow.
+
+## Add notectl to your app
+
+### Plain HTML / Vite / Vanilla JS
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My editor</title>
+    <style>
+      #app {
+        max-width: 800px;
+        margin: 2rem auto;
+      }
+
+      notectl-editor {
+        --notectl-content-min-height: 320px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import { createEditor } from '@notectl/core';
+      import { createMinimalPreset } from '@notectl/core/presets/minimal';
+
+      const editor = await createEditor({
+        ...createMinimalPreset(),
+        placeholder: 'Write something...',
+        autofocus: true,
+      });
+
+      document.getElementById('app').appendChild(editor);
+    </script>
+  </body>
+</html>
+```
+
+### React
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { createEditor, type NotectlEditor } from '@notectl/core';
+
+export function Editor() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<NotectlEditor | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    createEditor({
+      placeholder: 'Start typing...',
+      autofocus: true,
+    }).then((editor) => {
+      if (!mounted || !containerRef.current) return;
+      containerRef.current.appendChild(editor);
+      editorRef.current = editor;
+    });
+
+    return () => {
+      mounted = false;
+      void editorRef.current?.destroy();
+    };
+  }, []);
+
+  return <div ref={containerRef} />;
+}
+```
+
+Vue and Svelte use the same pattern: create the editor on mount, append it to a host element, and call `destroy()` on unmount.
+
+### Angular
+
+Use the Angular wrapper if you want template bindings, forms integration, and DI-based defaults.
+
+```bash
+npm install @notectl/core @notectl/angular
+```
+
+```ts
+// app.config.ts
+import { type ApplicationConfig } from '@angular/core';
+import { provideNotectl } from '@notectl/angular';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideNotectl()],
+};
+```
+
+```ts
+// editor.component.ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import {
-  createEditor,
+  NotectlEditorComponent,
+  type Plugin,
+  HeadingPlugin,
+  LinkPlugin,
+  ListPlugin,
+  TextFormattingPlugin,
   ThemePreset,
-} from '@notectl/core';
+} from '@notectl/angular';
+
+@Component({
+  selector: 'app-editor',
+  standalone: true,
+  imports: [NotectlEditorComponent],
+  template: `
+    <ntl-editor
+      [toolbar]="toolbar"
+      [theme]="theme()"
+      [autofocus]="true"
+    />
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class EditorComponent {
+  protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
+
+  protected readonly toolbar: ReadonlyArray<ReadonlyArray<Plugin>> = [
+    [new TextFormattingPlugin({ bold: true, italic: true, underline: true })],
+    [new HeadingPlugin()],
+    [new ListPlugin()],
+    [new LinkPlugin()],
+  ];
+}
+```
+
+Full Angular guide: https://samyssmile.github.io/notectl/guides/angular/
+
+## Build your own toolbar
+
+If you only want a small editor, import the plugins you need and group them in the toolbar:
+
+```ts
+import { ThemePreset, createEditor } from '@notectl/core';
 import { HeadingPlugin } from '@notectl/core/plugins/heading';
 import { LinkPlugin } from '@notectl/core/plugins/link';
 import { ListPlugin } from '@notectl/core/plugins/list';
@@ -77,133 +260,85 @@ const editor = await createEditor({
   placeholder: 'Start typing...',
   autofocus: true,
 });
-
-document.body.appendChild(editor);
 ```
 
-<br />
+Each inner array is one visible toolbar group.
 
-## Why notectl
-
-<table>
-<tr>
-<td width="50%">
-
-**CSP-compliant — zero inline styles**
-
-The only editor with a built-in CSP-safe rendering pipeline. All styles go through `adoptedStyleSheets` with reference-counted token management. Works with `style-src 'self'` — no `unsafe-inline` needed. ProseMirror, TipTap, Slate, Lexical, Quill all write inline styles.
-
-</td>
-<td width="50%">
-
-**One dependency**
-
-The entire editor — state engine, reconciler, plugin system, toolbar, undo/redo, selection sync — is built from scratch with a single production dependency (DOMPurify for HTML sanitization). Tree-shakeable plugin architecture: bundle only what you use.
-
-</td>
-</tr>
-<tr>
-<td>
-
-**True Web Component**
-
-Shadow DOM encapsulation, reactive attributes, framework-agnostic by design. One `<notectl-editor>` tag works in React, Vue, Angular, Svelte, or plain HTML. No wrappers, no adapters, no version lock-in.
-
-</td>
-<td>
-
-**Plugin system with full lifecycle**
-
-Dependency-resolved initialization (topological sort), per-plugin teardown tracking, type-safe inter-plugin services via `ServiceKey<T>`, priority-ordered middleware, error isolation. Plugins can't crash the editor or leak memory.
-
-</td>
-</tr>
-</table>
-
-<br />
-
-## Plugin Ecosystem
-
-Every capability is a plugin. Compose exactly the editor you need.
-
-| Plugin | What you get |
-|---|---|
-| **TextFormattingPlugin** | Bold, italic, underline |
-| **StrikethroughPlugin** | ~~Strikethrough~~ text |
-| **SuperSubPlugin** | Superscript and subscript |
-| **HeadingPlugin** | H1 – H6 headings with block type picker |
-| **BlockquotePlugin** | Block quotes |
-| **ListPlugin** | Bullet, ordered, and checklists |
-| **LinkPlugin** | Hyperlink insertion and editing |
-| **TablePlugin** | Full table support with row/column controls |
-| **CodeBlockPlugin** | Code blocks with syntax highlighting |
-| **ImagePlugin** | Image upload, resize, and drag-and-drop |
-| **TextColorPlugin** | Text color picker |
-| **HighlightPlugin** | Text highlighting / background color |
-| **AlignmentPlugin** | Left, center, right, justify |
-| **FontPlugin** | Font family selection with custom web fonts |
-| **FontSizePlugin** | Configurable font sizes |
-| **HorizontalRulePlugin** | Horizontal dividers |
-| **PrintPlugin** | Print editor content with configurable paper sizes |
-
-See the [plugin documentation](https://samyssmile.github.io/notectl/plugins/overview/) for configuration and examples.
-
-<br />
-
-## Built-in Features
-
-- **Themes** — Dark and Light presets, or create fully custom themes
-- **i18n** — 9 languages: English, German, Spanish, French, Chinese, Russian, Arabic, Hindi, Portuguese + auto-detect via `Locale.BROWSER`
-- **Paper sizes** — DIN A4, DIN A5, US Letter, US Legal for WYSIWYG page layout
-- **CSP-compliant** — Style delivery via `adoptedStyleSheets`, no inline styles required
-- **Markdown shortcuts** — `#` → H1, `##` → H2, `-` → bullet list, `1.` → ordered list, `>` → blockquote
-- **Syntax highlighting** — Pluggable highlighter for code blocks
-
-<br />
-
-## Content API
-
-Read and write content in any format:
+## Read and write content
 
 ```ts
-await editor.getContentHTML();                               // export as HTML
-await editor.setContentHTML('<p>Hello <strong>world</strong></p>'); // import HTML
-editor.getJSON();                                            // structured JSON
-editor.setJSON(doc);                                         // import JSON
-editor.getText();                                            // plain text
-editor.isEmpty();                                            // check if empty
+await editor.setContentHTML('<p>Hello <strong>world</strong></p>');
+
+const html = await editor.getContentHTML();
+const json = editor.getJSON();
+const text = editor.getText();
+const empty = editor.isEmpty();
 ```
 
-<br />
+You can also react to lifecycle and state events:
 
-## Works with your stack
+```ts
+editor.on('ready', () => {
+  console.log('Editor is ready');
+});
 
-| | Framework | How |
-|---|---|---|
-| **Any** | Vanilla JS, React, Vue, Svelte | `<notectl-editor>` Web Component |
-| **Angular** | Angular 21+ | [`@notectl/angular`](https://www.npmjs.com/package/@notectl/angular) native integration |
+editor.on('stateChange', ({ newState }) => {
+  console.log('Document changed:', newState.doc);
+});
+```
 
-See [`examples/vanillajs`](examples/vanillajs) and [`examples/angular`](examples/angular) for full working demos.
+## Built-in plugins
 
-<br />
+notectl ships plugins for:
 
-## Contributing
+- Text formatting
+- Headings
+- Blockquotes
+- Bullet, ordered, and checklist lists
+- Links
+- Tables
+- Code blocks
+- Images
+- Text color and highlight
+- Alignment and text direction
+- Fonts and font sizes
+- Horizontal rules
+- Print layouts
+
+Full plugin reference: https://samyssmile.github.io/notectl/plugins/overview/
+
+## Why teams pick notectl
+
+- Works across frameworks because the editor is a Web Component at the core
+- Strong default path for quick setup, without giving up fine-grained plugin control later
+- CSP-friendly by design, without relying on inline styles
+- Single production dependency: `dompurify`
+- Immutable state and transaction-based updates make behavior predictable and testable
+
+## Examples
+
+- Vanilla example: https://github.com/Samyssmile/notectl/tree/main/examples/vanillajs
+- Angular example: https://github.com/Samyssmile/notectl/tree/main/examples/angular
+
+## Documentation
+
+- Getting started: https://samyssmile.github.io/notectl/getting-started/installation/
+- Quick start: https://samyssmile.github.io/notectl/getting-started/quick-start/
+- Angular guide: https://samyssmile.github.io/notectl/guides/angular/
+- Plugin docs: https://samyssmile.github.io/notectl/plugins/overview/
+- Architecture overview: https://samyssmile.github.io/notectl/architecture/overview/
+
+## Development
 
 ```bash
-git clone https://github.com/Samyssmile/notectl.git
-cd notectl && pnpm install
-pnpm build            # build all packages
-pnpm test             # run unit tests
-pnpm test:e2e         # run e2e tests
-pnpm lint             # lint
+pnpm install
+pnpm build
+pnpm test
+pnpm test:e2e
+pnpm lint
+pnpm typecheck
 ```
 
-<br />
+## License
 
-<div align="center">
-
-**[Get started](https://samyssmile.github.io/notectl/)** &nbsp;&middot;&nbsp; **[Open the playground](https://samyssmile.github.io/notectl/playground/)** &nbsp;&middot;&nbsp; **[View on npm](https://www.npmjs.com/package/@notectl/core)**
-
-MIT License
-
-</div>
+MIT
