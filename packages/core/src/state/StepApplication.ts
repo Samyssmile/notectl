@@ -232,11 +232,14 @@ function mapBlockInlineContent(
 }
 
 function applySetBlockType(doc: Document, step: SetBlockTypeStep): Document {
-	return mapBlock(doc, step.blockId, (block) => ({
-		...block,
-		type: step.nodeType,
-		...(step.attrs ? { attrs: step.attrs } : { attrs: undefined }),
-	}));
+	return mapBlock(doc, step.blockId, (block) => {
+		const { attrs: _previousAttrs, ...rest } = block;
+		return {
+			...rest,
+			type: step.nodeType,
+			...(step.attrs ? { attrs: step.attrs } : {}),
+		};
+	});
 }
 
 // --- Structural Step Application ---
