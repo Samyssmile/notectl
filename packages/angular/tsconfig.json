@@ -5,7 +5,9 @@
 		"rootDir": "./src",
 		"declaration": true,
 		"declarationDir": "./dist",
-		"importHelpers": true
+		"importHelpers": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true
 	},
 	"angularCompilerOptions": {
 		"compilationMode": "partial"

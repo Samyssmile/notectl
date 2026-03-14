@@ -63,7 +63,7 @@ export default defineConfig({
 			},
 			formats: ['es'],
 		},
-		rollupOptions: {
+		rolldownOptions: {
 			external: ['dompurify'],
 			output: {
 				globals: {
