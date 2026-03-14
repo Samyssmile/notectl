@@ -4,6 +4,7 @@
  * and inserts header/footer elements.
  */
 
+import DOMPurify from 'dompurify';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PrintOptions } from './PrintTypes.js';
 
@@ -56,9 +57,59 @@ export function applyBlockFilters(clone: HTMLElement, options: PrintOptions): vo
 	}
 }
 
-/** Resolves a header/footer value to an HTML string. */
+/** Tags allowed in print header/footer content. */
+const HEADER_FOOTER_ALLOWED_TAGS: readonly string[] = [
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'p',
+	'div',
+	'span',
+	'br',
+	'hr',
+	'strong',
+	'b',
+	'em',
+	'i',
+	'u',
+	's',
+	'sub',
+	'sup',
+	'small',
+	'ul',
+	'ol',
+	'li',
+	'table',
+	'thead',
+	'tbody',
+	'tr',
+	'th',
+	'td',
+	'img',
+];
+
+/** Attributes allowed in print header/footer content. */
+const HEADER_FOOTER_ALLOWED_ATTRS: readonly string[] = [
+	'style',
+	'class',
+	'src',
+	'alt',
+	'width',
+	'height',
+	'colspan',
+	'rowspan',
+];
+
+/** Resolves a header/footer value to a sanitized HTML string. */
 function resolveContent(value: string | (() => string)): string {
-	return typeof value === 'function' ? value() : value;
+	const raw: string = typeof value === 'function' ? value() : value;
+	return DOMPurify.sanitize(raw, {
+		ALLOWED_TAGS: [...HEADER_FOOTER_ALLOWED_TAGS],
+		ALLOWED_ATTR: [...HEADER_FOOTER_ALLOWED_ATTRS],
+	});
 }
 
 /** Inserts header and footer elements into the cloned content. */

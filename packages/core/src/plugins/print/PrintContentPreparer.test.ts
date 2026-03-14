@@ -161,6 +161,69 @@ describe('PrintContentPreparer', () => {
 			insertHeaderFooter(clone, {});
 			expect(clone.children.length).toBe(1);
 		});
+
+		it('sanitizes script tags from header content', () => {
+			const clone: HTMLElement = document.createElement('div');
+
+			insertHeaderFooter(clone, { header: '<script>alert("xss")</script><h1>Safe</h1>' });
+
+			const headerEl: Element | null = clone.querySelector('.notectl-print-header');
+			expect(headerEl?.innerHTML).toBe('<h1>Safe</h1>');
+		});
+
+		it('strips event handlers from header content', () => {
+			const clone: HTMLElement = document.createElement('div');
+
+			insertHeaderFooter(clone, {
+				header: '<img src="x" onerror="alert(document.cookie)">',
+			});
+
+			const headerEl: Element | null = clone.querySelector('.notectl-print-header');
+			const img: Element | null | undefined = headerEl?.querySelector('img');
+			expect(img).not.toBeNull();
+			expect(img?.getAttribute('onerror')).toBeNull();
+		});
+
+		it('sanitizes footer content with inline script injection', () => {
+			const clone: HTMLElement = document.createElement('div');
+
+			insertHeaderFooter(clone, {
+				footer: '<div onmouseover="alert(1)">Footer</div>',
+			});
+
+			const footerEl: Element | null = clone.querySelector('.notectl-print-footer');
+			const div: Element | null | undefined = footerEl?.querySelector('div');
+			expect(div?.textContent).toBe('Footer');
+			expect(div?.getAttribute('onmouseover')).toBeNull();
+		});
+
+		it('sanitizes function-returned content', () => {
+			const clone: HTMLElement = document.createElement('div');
+
+			insertHeaderFooter(clone, {
+				header: () => '<iframe src="evil.com"></iframe><p>Clean</p>',
+			});
+
+			const headerEl: Element | null = clone.querySelector('.notectl-print-header');
+			expect(headerEl?.querySelector('iframe')).toBeNull();
+			expect(headerEl?.querySelector('p')?.textContent).toBe('Clean');
+		});
+
+		it('preserves safe formatting in header/footer', () => {
+			const clone: HTMLElement = document.createElement('div');
+
+			insertHeaderFooter(clone, {
+				header: '<h2 style="color:blue"><strong>Title</strong></h2>',
+				footer: '<p class="page-num"><em>Page 1</em></p>',
+			});
+
+			const headerEl: Element | null = clone.querySelector('.notectl-print-header');
+			expect(headerEl?.querySelector('h2')).not.toBeNull();
+			expect(headerEl?.querySelector('strong')?.textContent).toBe('Title');
+
+			const footerEl: Element | null = clone.querySelector('.notectl-print-footer');
+			expect(footerEl?.querySelector('em')?.textContent).toBe('Page 1');
+		});
 	});
 
 	describe('prepare', () => {
