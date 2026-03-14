@@ -13,7 +13,7 @@ export default defineConfig({
 			formats: ['umd'],
 			fileName: () => 'notectl-core.umd.js',
 		},
-		rollupOptions: {
+		rolldownOptions: {
 			external: ['dompurify'],
 			output: {
 				globals: {

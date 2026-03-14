@@ -56,7 +56,7 @@
 		"@notectl/core": "workspace:*",
 		"ng-packagr": "^21.2.0",
 		"rxjs": "~7.8.2",
-		"vite": "^6.0.0",
-		"vitest": "^4.0.18"
+		"vite": "^8.0.0",
+		"vitest": "^4.1.0"
 	}
 }
