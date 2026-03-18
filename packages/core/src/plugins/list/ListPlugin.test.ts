@@ -456,6 +456,575 @@ describe('ListPlugin', () => {
 		});
 	});
 
+	describe('batch list operations', () => {
+		function makeRangeState(
+			blocks: {
+				type: string;
+				text: string;
+				id: string;
+				attrs?: Record<string, string | number | boolean>;
+			}[],
+			anchorId: string,
+			anchorOffset: number,
+			headId: string,
+			headOffset: number,
+		) {
+			const builder = stateBuilder();
+			for (const b of blocks) {
+				builder.block(b.type, b.text, b.id, { attrs: b.attrs });
+			}
+			builder.selection(
+				{ blockId: anchorId, offset: anchorOffset },
+				{ blockId: headId, offset: headOffset },
+			);
+			builder.schema(['paragraph', 'list_item'], ['bold', 'italic', 'underline']);
+			return builder.build();
+		}
+
+		describe('toggle (range)', () => {
+			it('converts multiple paragraphs to bullet list', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'first', id: 'b1' },
+						{ type: 'paragraph', text: 'second', id: 'b2' },
+						{ type: 'paragraph', text: 'third', id: 'b3' },
+					],
+					'b1',
+					0,
+					'b3',
+					5,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('list_item');
+					expect(block.attrs?.listType).toBe('bullet');
+				}
+			});
+
+			it('converts multiple paragraphs to ordered list', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'first', id: 'b1' },
+						{ type: 'paragraph', text: 'second', id: 'b2' },
+					],
+					'b1',
+					0,
+					'b2',
+					6,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:ordered');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('list_item');
+					expect(block.attrs?.listType).toBe('ordered');
+				}
+			});
+
+			it('converts multiple paragraphs to checklist with checked: false', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'task1', id: 'b1' },
+						{ type: 'paragraph', text: 'task2', id: 'b2' },
+					],
+					'b1',
+					0,
+					'b2',
+					5,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:checklist');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('list_item');
+					expect(block.attrs?.listType).toBe('checklist');
+					expect(block.attrs?.checked).toBe(false);
+				}
+			});
+
+			it('toggles off when all blocks match the target list type', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'c',
+							id: 'b3',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b3',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('paragraph');
+				}
+			});
+
+			it('does not toggle off when blocks are mixed (paragraph + bullet)', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'plain', id: 'b1' },
+						{
+							type: 'list_item',
+							text: 'item',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					4,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('list_item');
+					expect(block.attrs?.listType).toBe('bullet');
+				}
+			});
+
+			it('converts mixed list types to target type', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'ordered', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:ordered');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.attrs?.listType).toBe('ordered');
+				}
+			});
+
+			it('preserves indent when changing list type', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 2, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 1, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:ordered');
+
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(2);
+				expect(h.getState().doc.children[1]?.attrs?.indent).toBe(1);
+			});
+
+			it('preserves checked state when switching to checklist', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'checklist', indent: 0, checked: true },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:checklist');
+
+				expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+				expect(h.getState().doc.children[1]?.attrs?.checked).toBe(false);
+			});
+
+			it('converts empty blocks in range', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'first', id: 'b1' },
+						{ type: 'paragraph', text: '', id: 'b2' },
+						{ type: 'paragraph', text: 'third', id: 'b3' },
+					],
+					'b1',
+					0,
+					'b3',
+					5,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				for (const block of h.getState().doc.children) {
+					expect(block.type).toBe('list_item');
+				}
+			});
+
+			it('preserves text content after batch toggle', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'Hello', id: 'b1' },
+						{ type: 'paragraph', text: 'World', id: 'b2' },
+					],
+					'b1',
+					0,
+					'b2',
+					5,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				expect(getBlockText(h.getState().doc.children[0])).toBe('Hello');
+				expect(getBlockText(h.getState().doc.children[1])).toBe('World');
+			});
+		});
+
+		describe('indent/outdent (range)', () => {
+			it('indents all list items in range', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'c',
+							id: 'b3',
+							attrs: { listType: 'bullet', indent: 1, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b3',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('indentListItem');
+
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(1);
+				expect(h.getState().doc.children[1]?.attrs?.indent).toBe(1);
+				expect(h.getState().doc.children[2]?.attrs?.indent).toBe(2);
+			});
+
+			it('outdents all list items in range', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 2, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 1, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('outdentListItem');
+
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(1);
+				expect(h.getState().doc.children[1]?.attrs?.indent).toBe(0);
+			});
+
+			it('skips non-list-item blocks in range', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{ type: 'paragraph', text: 'plain', id: 'b2' },
+						{
+							type: 'list_item',
+							text: 'c',
+							id: 'b3',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b3',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('indentListItem');
+
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(1);
+				expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+				expect(h.getState().doc.children[2]?.attrs?.indent).toBe(1);
+			});
+
+			it('respects maxIndent per block', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 4, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 2, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('indentListItem');
+
+				// b1 stays at 4 (maxIndent), b2 goes to 3
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(4);
+				expect(h.getState().doc.children[1]?.attrs?.indent).toBe(3);
+			});
+
+			it('prevents indent below 0 per block', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 2, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('outdentListItem');
+
+				// b1 stays at 0, b2 goes to 1
+				expect(h.getState().doc.children[0]?.attrs?.indent).toBe(0);
+				expect(h.getState().doc.children[1]?.attrs?.indent).toBe(1);
+			});
+
+			it('returns false when no list items in range', async () => {
+				const state = makeRangeState(
+					[
+						{ type: 'paragraph', text: 'a', id: 'b1' },
+						{ type: 'paragraph', text: 'b', id: 'b2' },
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				expect(h.executeCommand('indentListItem')).toBe(false);
+				expect(h.executeCommand('outdentListItem')).toBe(false);
+			});
+		});
+
+		describe('isListActive (range)', () => {
+			it('returns true when all blocks in range have the same list type', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				expectToolbarActive(h, 'list-bullet', true);
+			});
+
+			it('returns false when blocks have mixed types', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{
+							type: 'list_item',
+							text: 'b',
+							id: 'b2',
+							attrs: { listType: 'ordered', indent: 0, checked: false },
+						},
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				expectToolbarActive(h, 'list-bullet', false);
+				expectToolbarActive(h, 'list-ordered', false);
+			});
+
+			it('returns false when range contains paragraphs', async () => {
+				const state = makeRangeState(
+					[
+						{
+							type: 'list_item',
+							text: 'a',
+							id: 'b1',
+							attrs: { listType: 'bullet', indent: 0, checked: false },
+						},
+						{ type: 'paragraph', text: 'b', id: 'b2' },
+					],
+					'b1',
+					0,
+					'b2',
+					1,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				expectToolbarActive(h, 'list-bullet', false);
+			});
+		});
+
+		describe('regression: collapsed/single-block selection', () => {
+			it('collapsed selection toggles single block only', async () => {
+				const state = makeState(
+					[
+						{ type: 'paragraph', text: 'first', id: 'b1' },
+						{ type: 'paragraph', text: 'second', id: 'b2' },
+					],
+					'b1',
+					0,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				expect(h.getState().doc.children[0]?.type).toBe('list_item');
+				expect(h.getState().doc.children[1]?.type).toBe('paragraph');
+			});
+
+			it('single-block range selection uses single-block path', async () => {
+				const state = makeRangeState(
+					[{ type: 'paragraph', text: 'Hello', id: 'b1' }],
+					'b1',
+					0,
+					'b1',
+					5,
+				);
+				const h = await pluginHarness(new ListPlugin(), state);
+
+				h.executeCommand('toggleList:bullet');
+
+				expect(h.getState().doc.children[0]?.type).toBe('list_item');
+				expect(h.getState().doc.children[0]?.attrs?.listType).toBe('bullet');
+			});
+		});
+	});
+
 	describe('config', () => {
 		it('restricts commands to configured types', async () => {
 			const h = await pluginHarness(new ListPlugin({ types: ['bullet'] }));

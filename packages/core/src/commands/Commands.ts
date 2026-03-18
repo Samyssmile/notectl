@@ -101,7 +101,7 @@ export {
 	removeAttributedMark,
 } from './AttributedMarkCommands.js';
 
-export { forEachBlockInRange } from './RangeIterator.js';
+export { forEachBlockIdInRange, forEachBlockInRange } from './RangeIterator.js';
 
 // --- Text Commands ---
 

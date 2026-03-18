@@ -7,10 +7,16 @@
  * allowing simple nesting representation without deep tree structures.
  */
 
+import { forEachBlockIdInRange } from '../../commands/RangeIterator.js';
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { generateBlockId, getBlockText } from '../../model/Document.js';
-import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
+import {
+	createCollapsedSelection,
+	isCollapsed,
+	isTextSelection,
+	selectionRange,
+} from '../../model/Selection.js';
 import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
@@ -288,10 +294,23 @@ export class ListPlugin implements Plugin {
 		const state = context.getState();
 		const sel = state.selection;
 		if (!isTextSelection(sel)) return false;
+
+		if (sel.anchor.blockId !== sel.head.blockId) {
+			return this.toggleListRange(context, state, listType);
+		}
+		return this.toggleListSingleBlock(context, state, listType);
+	}
+
+	private toggleListSingleBlock(
+		context: PluginContext,
+		state: EditorState,
+		listType: ListType,
+	): boolean {
+		const sel = state.selection;
+		if (!isTextSelection(sel)) return false;
 		const block = state.getBlock(sel.anchor.blockId);
 		if (!block) return false;
 
-		// If already this list type, convert back to paragraph
 		if (block.type === 'list_item' && block.attrs?.listType === listType) {
 			const tr = state
 				.transaction('command')
@@ -302,7 +321,6 @@ export class ListPlugin implements Plugin {
 			return true;
 		}
 
-		// Convert to list item
 		const attrs: Record<string, string | number | boolean> = {
 			listType,
 			indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
@@ -320,12 +338,65 @@ export class ListPlugin implements Plugin {
 		return true;
 	}
 
+	private toggleListRange(context: PluginContext, state: EditorState, listType: ListType): boolean {
+		const sel = state.selection;
+		if (!isTextSelection(sel)) return false;
+
+		const range = selectionRange(sel, state.getBlockOrder());
+		const toggleOff: boolean = this.allBlocksMatchListType(state, range, listType);
+		const builder = state.transaction('command');
+
+		forEachBlockIdInRange(state, range, (bid: BlockId) => {
+			const block = state.getBlock(bid);
+			if (!block) return;
+
+			if (toggleOff) {
+				builder.setBlockType(bid, nodeType('paragraph'));
+			} else {
+				const attrs: Record<string, string | number | boolean> = {
+					listType,
+					indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
+				};
+				if (listType === 'checklist') {
+					attrs.checked =
+						isNodeOfType(block, 'list_item') &&
+						block.attrs.listType === 'checklist' &&
+						block.attrs.checked;
+				}
+				builder.setBlockType(bid, nodeType('list_item'), attrs);
+			}
+		});
+
+		builder.setSelection(sel);
+		context.dispatch(builder.build());
+		return true;
+	}
+
+	private allBlocksMatchListType(
+		state: EditorState,
+		range: ReturnType<typeof selectionRange>,
+		listType: ListType,
+	): boolean {
+		let allMatch = true;
+		forEachBlockIdInRange(state, range, (bid: BlockId) => {
+			const block = state.getBlock(bid);
+			if (!block || block.type !== 'list_item' || block.attrs?.listType !== listType) {
+				allMatch = false;
+			}
+		});
+		return allMatch;
+	}
+
 	private indent(context: PluginContext): boolean {
 		const state = context.getState();
 		if (!isTextSelection(state.selection)) return false;
+
+		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
+			return this.indentRange(context, state, 1);
+		}
+
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block || !isNodeOfType(block, 'list_item')) return false;
-
 		if (block.attrs.indent >= this.config.maxIndent) return false;
 
 		return this.setIndent(context, state, block.attrs.indent + 1);
@@ -334,12 +405,46 @@ export class ListPlugin implements Plugin {
 	private outdent(context: PluginContext): boolean {
 		const state = context.getState();
 		if (!isTextSelection(state.selection)) return false;
+
+		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
+			return this.indentRange(context, state, -1);
+		}
+
 		const block = state.getBlock(state.selection.anchor.blockId);
 		if (!block || !isNodeOfType(block, 'list_item')) return false;
-
 		if (block.attrs.indent <= 0) return false;
 
 		return this.setIndent(context, state, block.attrs.indent - 1);
+	}
+
+	private indentRange(context: PluginContext, state: EditorState, delta: 1 | -1): boolean {
+		const sel = state.selection;
+		if (!isTextSelection(sel)) return false;
+
+		const range = selectionRange(sel, state.getBlockOrder());
+		const builder = state.transaction('command');
+		let changed = false;
+
+		forEachBlockIdInRange(state, range, (bid: BlockId) => {
+			const block = state.getBlock(bid);
+			if (!block || !isNodeOfType(block, 'list_item')) return;
+
+			const newIndent: number = block.attrs.indent + delta;
+			if (newIndent < 0 || newIndent > this.config.maxIndent) return;
+
+			const attrs = { ...block.attrs, indent: newIndent } as Record<
+				string,
+				string | number | boolean
+			>;
+			builder.setBlockType(bid, nodeType('list_item'), attrs);
+			changed = true;
+		});
+
+		if (!changed) return false;
+
+		builder.setSelection(sel);
+		context.dispatch(builder.build());
+		return true;
 	}
 
 	private setIndent(context: PluginContext, state: EditorState, indent: number): boolean {
@@ -489,6 +594,12 @@ export class ListPlugin implements Plugin {
 
 	private isListActive(state: EditorState, listType: ListType): boolean {
 		if (!isTextSelection(state.selection)) return false;
+
+		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
+			const range = selectionRange(state.selection, state.getBlockOrder());
+			return this.allBlocksMatchListType(state, range, listType);
+		}
+
 		const block = state.getBlock(state.selection.anchor.blockId);
 		return block?.type === 'list_item' && block.attrs?.listType === listType;
 	}
