@@ -117,7 +117,7 @@ function appendUrlSection(
 		urlInput,
 		'width:100%;padding:6px 8px;box-sizing:border-box;' +
 			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-bg);color:var(--notectl-fg);',
+			'background:var(--notectl-surface-overlay);color:var(--notectl-fg);',
 	);
 
 	const insertBtn: HTMLButtonElement = document.createElement('button');

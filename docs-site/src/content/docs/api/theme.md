@@ -65,7 +65,7 @@ interface ThemePrimitives {
 
 | Token | CSS Variable | Description |
 |-------|-------------|-------------|
-| `background` | `--notectl-bg` | Editor background |
+| `background` | `--notectl-bg` | Editor canvas background |
 | `foreground` | `--notectl-fg` | Primary text color |
 | `mutedForeground` | `--notectl-fg-muted` | Secondary/muted text |
 | `border` | `--notectl-border` | Default border color |

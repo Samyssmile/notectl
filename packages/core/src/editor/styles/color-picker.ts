@@ -13,7 +13,7 @@ export const COLOR_PICKER_CSS = `
 	margin-bottom: 8px;
 	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-overlay);
 	cursor: pointer;
 	font-size: 13px;
 	color: var(--notectl-fg);

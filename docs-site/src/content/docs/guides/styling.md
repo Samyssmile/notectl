@@ -137,7 +137,7 @@ These are the core tokens that all components derive their colors from.
 
 | CSS Property | Token | Description |
 |---|---|---|
-| `--notectl-bg` | `background` | Editor and input background |
+| `--notectl-bg` | `background` | Editor canvas background |
 | `--notectl-fg` | `foreground` | Main text color |
 | `--notectl-fg-muted` | `mutedForeground` | Secondary text (placeholders, labels, arrows) |
 | `--notectl-border` | `border` | Default borders (editor, toolbar, inputs, separators) |

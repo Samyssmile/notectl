@@ -256,7 +256,7 @@ export const TABLE_CSS = `
 	width: 20px;
 	height: 20px;
 	border-radius: 50%;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-raised);
 	border: 2px solid var(--notectl-primary);
 	color: var(--notectl-primary);
 	cursor: pointer;
@@ -285,7 +285,7 @@ export const TABLE_CSS = `
 .ntbl-insert-btn:hover,
 .ntbl-insert-btn:focus-visible {
 	background: var(--notectl-primary);
-	color: var(--notectl-bg);
+	color: var(--notectl-primary-fg);
 	box-shadow: 0 2px 12px var(--notectl-focus-ring);
 }
 
@@ -332,7 +332,7 @@ export const TABLE_CSS = `
 	height: 20px;
 	border: 1px solid var(--notectl-danger);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-raised);
 	color: var(--notectl-danger);
 	display: inline-flex;
 	align-items: center;
@@ -390,7 +390,7 @@ export const TABLE_CSS = `
 	height: 20px;
 	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-raised);
 	color: var(--notectl-fg-muted);
 	display: inline-flex;
 	align-items: center;
@@ -428,7 +428,7 @@ export const TABLE_CSS = `
 	height: 20px;
 	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-raised);
 	color: var(--notectl-fg-muted);
 	display: inline-flex;
 	align-items: center;
