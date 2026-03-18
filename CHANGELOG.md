@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.3] - 2026-03-14
 
-### Added
-
 ### Changed
 
+- **Vite 8.0** — Upgraded to Vite 8.0 (Rolldown-powered) for faster builds.
+- **Angular dependency** — Bumped `@angular/core` to latest.
+
 ### Fixed
+
+- **SetBlockType attrs** — Omit `attrs` property in `SetBlockType` when no attrs are provided, preventing empty attribute objects from leaking into transactions.
+- **Print XSS** — Sanitize header/footer HTML in `PrintContentPreparer` to prevent XSS injection.
 
 ## [2.0.2] - 2026-03-08
 
