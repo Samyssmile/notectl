@@ -3,27 +3,25 @@
  * with NodeSpecs, toggle commands, indent/outdent (Tab/Shift-Tab),
  * input rules, and toolbar buttons.
  *
+ * This file is a thin orchestrator — command logic, input rules, keyboard
+ * handlers, and toolbar rendering are delegated to dedicated modules.
+ *
  * List items are modeled as flat blocks with a `listType` and `indent` attribute,
  * allowing simple nesting representation without deep tree structures.
  */
 
-import { forEachBlockIdInRange } from '../../commands/RangeIterator.js';
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
-import { isNodeOfType } from '../../model/AttrRegistry.js';
-import { generateBlockId, getBlockText } from '../../model/Document.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isTextSelection,
-	selectionRange,
-} from '../../model/Selection.js';
-import { type BlockId, blockId, nodeType } from '../../model/TypeBrands.js';
-import type { EditorState } from '../../state/EditorState.js';
+import { blockId } from '../../model/TypeBrands.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
+import { registerListCommands, toggleChecked } from './ListCommands.js';
+import { LIST_TYPE_DEFINITIONS, type ListTypeDefinition } from './ListDefinitions.js';
+import { registerListInputRules } from './ListInputRules.js';
+import { registerListKeymaps } from './ListKeyboardHandlers.js';
 import { LIST_LOCALE_EN, type ListLocale, loadListLocale } from './ListLocale.js';
+import { registerListToolbarItems } from './ListToolbarItems.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -55,43 +53,6 @@ const DEFAULT_CONFIG: ListConfig = {
 	maxIndent: 4,
 };
 
-// --- List Type Metadata ---
-
-interface ListTypeDefinition {
-	readonly type: ListType;
-	readonly icon: string;
-	readonly inputPattern: RegExp;
-	readonly inputPrefix: string;
-}
-
-const BULLET_LIST_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>';
-const NUMBERED_LIST_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>';
-const CHECKLIST_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 7h-9v2h9V7zm0 8h-9v2h9v-2zM5.54 11L2 7.46l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41L5.54 11zm0 8L2 15.46l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41L5.54 19z"/></svg>';
-
-const LIST_TYPE_DEFINITIONS: readonly ListTypeDefinition[] = [
-	{
-		type: 'bullet',
-		icon: BULLET_LIST_ICON,
-		inputPattern: /^[-*] $/,
-		inputPrefix: '- ',
-	},
-	{
-		type: 'ordered',
-		icon: NUMBERED_LIST_ICON,
-		inputPattern: /^\d+\. $/,
-		inputPrefix: '1. ',
-	},
-	{
-		type: 'checklist',
-		icon: CHECKLIST_ICON,
-		inputPattern: /^\[[ x]] $/,
-		inputPrefix: '[ ] ',
-	},
-];
-
 // --- Plugin ---
 
 export class ListPlugin implements Plugin {
@@ -111,12 +72,14 @@ export class ListPlugin implements Plugin {
 	async init(context: PluginContext): Promise<void> {
 		this.context = context;
 		this.locale = await resolveLocale(context, this.config.locale, LIST_LOCALE_EN, loadListLocale);
+		const enabledTypes = this.getEnabledTypes();
+
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
-		this.registerCommands(context);
-		this.registerKeymaps(context);
-		this.registerInputRules(context);
-		this.registerToolbarItems(context);
+		registerListCommands(context, this.config, enabledTypes);
+		registerListKeymaps(context);
+		registerListInputRules(context, enabledTypes);
+		registerListToolbarItems(context, enabledTypes, this.locale);
 		this.registerCheckboxClickHandler(context);
 	}
 
@@ -196,371 +159,6 @@ export class ListPlugin implements Plugin {
 		});
 	}
 
-	private registerCommands(context: PluginContext): void {
-		const enabledTypes = this.getEnabledTypes();
-
-		for (const def of enabledTypes) {
-			context.registerCommand(`toggleList:${def.type}`, () => {
-				return this.toggleList(context, def.type);
-			});
-		}
-
-		context.registerCommand('indentListItem', () => {
-			return this.indent(context);
-		});
-
-		context.registerCommand('outdentListItem', () => {
-			return this.outdent(context);
-		});
-
-		if (this.config.types.includes('checklist')) {
-			context.registerCommand('toggleChecklistItem', () => this.toggleChecked(context), {
-				readonlyAllowed: true,
-			});
-		}
-	}
-
-	private registerKeymaps(context: PluginContext): void {
-		context.registerKeymap({
-			Enter: () => this.handleEnter(context),
-			Backspace: () => this.handleBackspace(context),
-			Tab: () => this.indent(context),
-			'Shift-Tab': () => this.outdent(context),
-		});
-	}
-
-	private registerInputRules(context: PluginContext): void {
-		const enabledTypes = this.getEnabledTypes();
-
-		for (const def of enabledTypes) {
-			context.registerInputRule({
-				pattern: def.inputPattern,
-				handler: (state, match, start, _end) => {
-					const sel = state.selection;
-					if (!isTextSelection(sel)) return null;
-					if (!isCollapsed(sel)) return null;
-
-					const block = state.getBlock(sel.anchor.blockId);
-					if (!block || block.type !== 'paragraph') return null;
-
-					const matchStr = match[0] ?? '';
-					const matchLen = matchStr.length;
-					const attrs: Record<string, string | number | boolean> = {
-						listType: def.type,
-						indent: 0,
-					};
-					if (def.type === 'checklist') {
-						attrs.checked = matchStr.includes('[x]');
-					}
-
-					return state
-						.transaction('input')
-						.deleteTextAt(sel.anchor.blockId, start, start + matchLen)
-						.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
-						.setSelection(createCollapsedSelection(sel.anchor.blockId, 0))
-						.build();
-				},
-			});
-		}
-	}
-
-	private getListLabel(type: ListType): string {
-		const labels: Record<ListType, string> = {
-			bullet: this.locale.bulletList,
-			ordered: this.locale.numberedList,
-			checklist: this.locale.checklist,
-		};
-		return labels[type];
-	}
-
-	private registerToolbarItems(context: PluginContext): void {
-		const enabledTypes = this.getEnabledTypes();
-
-		for (const def of enabledTypes) {
-			context.registerToolbarItem({
-				id: `list-${def.type}`,
-				group: 'block',
-				icon: def.icon,
-				label: this.getListLabel(def.type),
-				command: `toggleList:${def.type}`,
-				isActive: (state) => this.isListActive(state, def.type),
-			});
-		}
-	}
-
-	// --- Command Implementations ---
-
-	private toggleList(context: PluginContext, listType: ListType): boolean {
-		const state = context.getState();
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-
-		if (sel.anchor.blockId !== sel.head.blockId) {
-			return this.toggleListRange(context, state, listType);
-		}
-		return this.toggleListSingleBlock(context, state, listType);
-	}
-
-	private toggleListSingleBlock(
-		context: PluginContext,
-		state: EditorState,
-		listType: ListType,
-	): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-
-		if (block.type === 'list_item' && block.attrs?.listType === listType) {
-			const tr = state
-				.transaction('command')
-				.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		const attrs: Record<string, string | number | boolean> = {
-			listType,
-			indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
-		};
-		if (listType === 'checklist') {
-			attrs.checked = false;
-		}
-
-		const tr = state
-			.transaction('command')
-			.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	private toggleListRange(context: PluginContext, state: EditorState, listType: ListType): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const toggleOff: boolean = this.allBlocksMatchListType(state, range, listType);
-		const builder = state.transaction('command');
-
-		forEachBlockIdInRange(state, range, (bid: BlockId) => {
-			const block = state.getBlock(bid);
-			if (!block) return;
-
-			if (toggleOff) {
-				builder.setBlockType(bid, nodeType('paragraph'));
-			} else {
-				const attrs: Record<string, string | number | boolean> = {
-					listType,
-					indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
-				};
-				if (listType === 'checklist') {
-					attrs.checked =
-						isNodeOfType(block, 'list_item') &&
-						block.attrs.listType === 'checklist' &&
-						block.attrs.checked;
-				}
-				builder.setBlockType(bid, nodeType('list_item'), attrs);
-			}
-		});
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	private allBlocksMatchListType(
-		state: EditorState,
-		range: ReturnType<typeof selectionRange>,
-		listType: ListType,
-	): boolean {
-		let allMatch = true;
-		forEachBlockIdInRange(state, range, (bid: BlockId) => {
-			const block = state.getBlock(bid);
-			if (!block || block.type !== 'list_item' || block.attrs?.listType !== listType) {
-				allMatch = false;
-			}
-		});
-		return allMatch;
-	}
-
-	private indent(context: PluginContext): boolean {
-		const state = context.getState();
-		if (!isTextSelection(state.selection)) return false;
-
-		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
-			return this.indentRange(context, state, 1);
-		}
-
-		const block = state.getBlock(state.selection.anchor.blockId);
-		if (!block || !isNodeOfType(block, 'list_item')) return false;
-		if (block.attrs.indent >= this.config.maxIndent) return false;
-
-		return this.setIndent(context, state, block.attrs.indent + 1);
-	}
-
-	private outdent(context: PluginContext): boolean {
-		const state = context.getState();
-		if (!isTextSelection(state.selection)) return false;
-
-		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
-			return this.indentRange(context, state, -1);
-		}
-
-		const block = state.getBlock(state.selection.anchor.blockId);
-		if (!block || !isNodeOfType(block, 'list_item')) return false;
-		if (block.attrs.indent <= 0) return false;
-
-		return this.setIndent(context, state, block.attrs.indent - 1);
-	}
-
-	private indentRange(context: PluginContext, state: EditorState, delta: 1 | -1): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-
-		const range = selectionRange(sel, state.getBlockOrder());
-		const builder = state.transaction('command');
-		let changed = false;
-
-		forEachBlockIdInRange(state, range, (bid: BlockId) => {
-			const block = state.getBlock(bid);
-			if (!block || !isNodeOfType(block, 'list_item')) return;
-
-			const newIndent: number = block.attrs.indent + delta;
-			if (newIndent < 0 || newIndent > this.config.maxIndent) return;
-
-			const attrs = { ...block.attrs, indent: newIndent } as Record<
-				string,
-				string | number | boolean
-			>;
-			builder.setBlockType(bid, nodeType('list_item'), attrs);
-			changed = true;
-		});
-
-		if (!changed) return false;
-
-		builder.setSelection(sel);
-		context.dispatch(builder.build());
-		return true;
-	}
-
-	private setIndent(context: PluginContext, state: EditorState, indent: number): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-
-		const attrs = { ...block.attrs, indent } as Record<string, string | number | boolean>;
-
-		const tr = state
-			.transaction('command')
-			.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	private toggleChecked(context: PluginContext, targetId?: BlockId): boolean {
-		if (context.isReadOnly() && !this.config.interactiveCheckboxes) return false;
-
-		const state = context.getState();
-		const bid: BlockId | null =
-			targetId ?? (!isTextSelection(state.selection) ? null : state.selection.anchor.blockId);
-		if (!bid) return false;
-
-		const block = state.getBlock(bid);
-		if (!block || block.type !== 'list_item' || block.attrs?.listType !== 'checklist') {
-			return false;
-		}
-
-		const checked: boolean = !block.attrs?.checked;
-		const attrs = { ...block.attrs, checked } as Record<string, string | number | boolean>;
-
-		const tr = state
-			.transaction('command')
-			.setBlockType(bid, nodeType('list_item'), attrs)
-			.setSelection(state.selection)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	/**
-	 * Handles Backspace at the start of a list item.
-	 * Converts the list item back to a paragraph, preserving text.
-	 */
-	private handleBackspace(context: PluginContext): boolean {
-		const state = context.getState();
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-		if (!isCollapsed(sel)) return false;
-
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block || block.type !== 'list_item') return false;
-		if (sel.anchor.offset !== 0) return false;
-
-		const tr = state
-			.transaction('input')
-			.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	/**
-	 * Handles Enter inside a list item.
-	 * Empty item → exit list (convert to paragraph).
-	 * Non-empty item → split and create a new list item with the same type.
-	 */
-	private handleEnter(context: PluginContext): boolean {
-		const state = context.getState();
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-		if (!isCollapsed(sel)) return false;
-
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block || block.type !== 'list_item') return false;
-
-		const text = getBlockText(block);
-
-		if (text === '') {
-			// Empty list item → convert to paragraph (exit list)
-			const tr = state
-				.transaction('input')
-				.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
-				.setSelection(sel)
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		// Non-empty → split block and set new block to same list type
-		const newBlockId = generateBlockId();
-		const attrs: Record<string, string | number | boolean> = {
-			listType: isNodeOfType(block, 'list_item') ? block.attrs.listType : 'bullet',
-			indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
-		};
-		if (attrs.listType === 'checklist') {
-			attrs.checked = false;
-		}
-
-		const tr = state
-			.transaction('input')
-			.splitBlock(sel.anchor.blockId, sel.anchor.offset, newBlockId)
-			.setBlockType(newBlockId, nodeType('list_item'), attrs)
-			.setSelection(createCollapsedSelection(newBlockId, 0))
-			.build();
-		context.dispatch(tr);
-		return true;
-	}
-
-	// --- Checkbox Click Handling ---
-
 	private registerCheckboxClickHandler(context: PluginContext): void {
 		if (!this.config.types.includes('checklist')) return;
 
@@ -583,25 +181,11 @@ export class ListPlugin implements Plugin {
 			const bid: string | null = li.getAttribute('data-block-id');
 			if (!bid) return;
 
-			this.toggleChecked(context, blockId(bid));
+			toggleChecked(context, this.config.interactiveCheckboxes, blockId(bid));
 		};
 
 		const container: HTMLElement = context.getContainer();
 		container.addEventListener('mousedown', this.checkboxClickHandler);
-	}
-
-	// --- Helpers ---
-
-	private isListActive(state: EditorState, listType: ListType): boolean {
-		if (!isTextSelection(state.selection)) return false;
-
-		if (state.selection.anchor.blockId !== state.selection.head.blockId) {
-			const range = selectionRange(state.selection, state.getBlockOrder());
-			return this.allBlocksMatchListType(state, range, listType);
-		}
-
-		const block = state.getBlock(state.selection.anchor.blockId);
-		return block?.type === 'list_item' && block.attrs?.listType === listType;
 	}
 
 	private getEnabledTypes(): readonly ListTypeDefinition[] {
