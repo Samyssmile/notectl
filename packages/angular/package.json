@@ -9,11 +9,7 @@
 	"types": "./dist/types/notectl-angular.d.ts",
 	"typings": "./dist/types/notectl-angular.d.ts",
 	"sideEffects": false,
-	"files": [
-		"dist",
-		"README.md",
-		"LICENSE"
-	],
+	"files": ["dist", "README.md", "LICENSE"],
 	"keywords": [
 		"angular",
 		"rich-text-editor",
