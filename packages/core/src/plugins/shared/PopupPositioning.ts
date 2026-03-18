@@ -16,6 +16,12 @@ export interface PositionOptions {
 	readonly isRtl?: boolean;
 }
 
+export interface ContainingBlockOffset {
+	readonly x: number;
+	readonly y: number;
+	readonly rightX: number;
+}
+
 // --- Constants ---
 
 const DEFAULT_OFFSET = 2;
@@ -36,22 +42,32 @@ const POPUP_MIN_MARGIN = 4;
  * ancestor exists the rect origin is `(0, 0)`; otherwise it equals the
  * ancestor's offset.
  */
-export function measureContainingBlockOffset(popup: HTMLElement): { x: number; y: number } {
+export function measureContainingBlockOffset(popup: HTMLElement): ContainingBlockOffset {
 	const prevTop: string = popup.style.top;
 	const prevLeft: string = popup.style.left;
 	const prevRight: string = popup.style.right;
 
+	// Probe 1: left-edge offset
 	popup.style.top = '0px';
 	popup.style.left = '0px';
 	popup.style.right = 'auto';
 
-	const rect: DOMRect = popup.getBoundingClientRect();
+	const leftRect: DOMRect = popup.getBoundingClientRect();
+	const x: number = leftRect.left;
+	const y: number = leftRect.top;
+
+	// Probe 2: right-edge offset
+	popup.style.left = 'auto';
+	popup.style.right = '0px';
+
+	const rightRect: DOMRect = popup.getBoundingClientRect();
+	const rightX: number = window.innerWidth - rightRect.right;
 
 	popup.style.top = prevTop;
 	popup.style.left = prevLeft;
 	popup.style.right = prevRight;
 
-	return { x: rect.left, y: rect.top };
+	return { x, y, rightX };
 }
 
 // --- Positioning ---
@@ -72,7 +88,7 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 	setStyleProperties(popup, { position: 'fixed', zIndex: Z_INDEX });
 
 	// Detect containing-block offset caused by ancestor transforms etc.
-	const cbOffset: { x: number; y: number } = measureContainingBlockOffset(popup);
+	const cbOffset: ContainingBlockOffset = measureContainingBlockOffset(popup);
 
 	const popupWidth: number = popup.offsetWidth;
 	const popupHeight: number = popup.offsetHeight;
@@ -95,7 +111,7 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 				styles.top = `${top - cbOffset.y}px`;
-				styles.right = `${right - cbOffset.x}px`;
+				styles.right = `${right - cbOffset.rightX}px`;
 				styles.left = 'auto';
 			} else {
 				let left: number = anchor.left;
@@ -142,7 +158,7 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
 				styles.top = `${top - cbOffset.y}px`;
-				styles.right = `${right - cbOffset.x}px`;
+				styles.right = `${right - cbOffset.rightX}px`;
 				styles.left = 'auto';
 			}
 			break;

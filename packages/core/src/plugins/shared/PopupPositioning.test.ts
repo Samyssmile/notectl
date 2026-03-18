@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ContainingBlockOffset } from './PopupPositioning.js';
 import { appendToRoot, measureContainingBlockOffset, positionPopup } from './PopupPositioning.js';
 
 describe('PopupPositioning', () => {
@@ -99,10 +100,23 @@ describe('PopupPositioning', () => {
 			popup.style.position = 'fixed';
 			document.body.appendChild(popup);
 
-			const offset: { x: number; y: number } = measureContainingBlockOffset(popup);
+			// happy-dom has no layout engine, so we mock getBoundingClientRect
+			// to simulate a real browser with no containing-block ancestor:
+			// - Left probe (left:0): rect at (0, 0)
+			// - Right probe (right:0): rect flush against right viewport edge
+			const vpWidth: number = window.innerWidth;
+			let probeCall = 0;
+			popup.getBoundingClientRect = (): DOMRect => {
+				probeCall++;
+				if (probeCall === 1) return new DOMRect(0, 0, 0, 0);
+				return new DOMRect(vpWidth, 0, 0, vpWidth);
+			};
+
+			const offset: ContainingBlockOffset = measureContainingBlockOffset(popup);
 
 			expect(offset.x).toBe(0);
 			expect(offset.y).toBe(0);
+			expect(offset.rightX).toBe(0);
 
 			popup.remove();
 		});
@@ -120,6 +134,90 @@ describe('PopupPositioning', () => {
 			expect(popup.style.top).toBe('50px');
 			expect(popup.style.left).toBe('100px');
 			expect(popup.style.right).toBe('20px');
+
+			popup.remove();
+		});
+	});
+
+	describe('asymmetric containing block compensation', () => {
+		/**
+		 * Creates a popup whose getBoundingClientRect returns different values
+		 * for the left-probe and right-probe, simulating an asymmetric
+		 * containing block (e.g. `transform` ancestor with `margin-left: 200px`).
+		 *
+		 * happy-dom doesn't actually shift fixed elements inside transforms,
+		 * so we mock getBoundingClientRect to simulate the two-probe behavior.
+		 */
+		function createAsymmetricPopup(
+			cbLeftOffset: number,
+			cbRightOffset: number,
+			cbTopOffset: number,
+			popupWidth: number,
+			popupHeight: number,
+		): HTMLDivElement {
+			const popup: HTMLDivElement = document.createElement('div');
+			Object.defineProperty(popup, 'offsetWidth', { value: popupWidth });
+			Object.defineProperty(popup, 'offsetHeight', { value: popupHeight });
+
+			let callCount = 0;
+			popup.getBoundingClientRect = (): DOMRect => {
+				callCount++;
+				if (callCount === 1) {
+					// Left probe: left=0, right=auto → rect.left = cbLeftOffset
+					return new DOMRect(cbLeftOffset, cbTopOffset, popupWidth, popupHeight);
+				}
+				// Right probe: left=auto, right=0 → rect.right = vpWidth - cbRightOffset
+				const vpWidth: number = window.innerWidth;
+				const rectRight: number = vpWidth - cbRightOffset;
+				return new DOMRect(rectRight - popupWidth, cbTopOffset, popupWidth, rectRight);
+			};
+
+			return popup;
+		}
+
+		it('measureContainingBlockOffset returns distinct rightX for asymmetric CB', () => {
+			const popup: HTMLDivElement = createAsymmetricPopup(200, 340, 0, 100, 40);
+			document.body.appendChild(popup);
+
+			const offset: ContainingBlockOffset = measureContainingBlockOffset(popup);
+
+			expect(offset.x).toBe(200);
+			expect(offset.rightX).toBe(340);
+			expect(offset.y).toBe(0);
+
+			popup.remove();
+		});
+
+		it('below-start RTL compensates with rightX in asymmetric CB', () => {
+			const popup: HTMLDivElement = createAsymmetricPopup(200, 340, 0, 100, 40);
+			document.body.appendChild(popup);
+
+			const anchor = new DOMRect(400, 50, 80, 30);
+			positionPopup(popup, anchor, { position: 'below-start', isRtl: true });
+
+			// right = vpWidth - anchor.right = 1024 - 480 = 544
+			// compensated right = 544 - rightX(340) = 204
+			const vpWidth: number = window.innerWidth;
+			const expectedRight: number = vpWidth - anchor.right - 340;
+			expect(popup.style.right).toBe(`${expectedRight}px`);
+			expect(popup.style.left).toBe('auto');
+
+			popup.remove();
+		});
+
+		it('below-end LTR compensates with rightX in asymmetric CB', () => {
+			const popup: HTMLDivElement = createAsymmetricPopup(200, 340, 0, 100, 40);
+			document.body.appendChild(popup);
+
+			const anchor = new DOMRect(400, 50, 80, 30);
+			positionPopup(popup, anchor, { position: 'below-end', isRtl: false });
+
+			// right = vpWidth - anchor.right = 1024 - 480 = 544
+			// compensated right = 544 - rightX(340) = 204
+			const vpWidth: number = window.innerWidth;
+			const expectedRight: number = vpWidth - anchor.right - 340;
+			expect(popup.style.right).toBe(`${expectedRight}px`);
+			expect(popup.style.left).toBe('auto');
 
 			popup.remove();
 		});

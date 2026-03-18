@@ -190,12 +190,21 @@ test.describe('Popup right-property compensation in asymmetric containers', () =
 			const prevTop = probe.style.top;
 			const prevLeft = probe.style.left;
 			const prevRight = probe.style.right;
+
+			// Probe 1: left-edge offset
 			probe.style.top = '0px';
 			probe.style.left = '0px';
 			probe.style.right = 'auto';
-			const cbRect = probe.getBoundingClientRect();
-			const cbOffsetX = cbRect.left;
-			const cbOffsetY = cbRect.top;
+			const leftRect = probe.getBoundingClientRect();
+			const cbOffsetX = leftRect.left;
+			const cbOffsetY = leftRect.top;
+
+			// Probe 2: right-edge offset
+			probe.style.left = 'auto';
+			probe.style.right = '0px';
+			const rightRect = probe.getBoundingClientRect();
+			const cbRightX = window.innerWidth - rightRect.right;
+
 			probe.style.top = prevTop;
 			probe.style.left = prevLeft;
 			probe.style.right = prevRight;
@@ -206,9 +215,9 @@ test.describe('Popup right-property compensation in asymmetric containers', () =
 			const right = vpWidth - anchor.right; // viewport-relative right
 			const top = anchor.bottom + offset;
 
-			// Apply positioning (reproduces the buggy code path)
+			// Apply positioning (uses correct right-edge compensation)
 			probe.style.top = `${top - cbOffsetY}px`;
-			probe.style.right = `${right - cbOffsetX}px`; // BUG: should compensate with cbRightOffset
+			probe.style.right = `${right - cbRightX}px`;
 			probe.style.left = 'auto';
 
 			const probeRect = probe.getBoundingClientRect();
