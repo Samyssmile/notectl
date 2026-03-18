@@ -11,22 +11,19 @@ export class KeymapRegistry {
 	private readonly _defaultKeymaps: Keymap[] = [];
 
 	registerKeymap(keymap: Keymap, options?: KeymapOptions): void {
-		const allKeymaps: Keymap[] = [
-			...this._contextKeymaps,
-			...this._navigationKeymaps,
-			...this._defaultKeymaps,
-		];
+		const priority: KeymapPriority = options?.priority ?? 'default';
+		const samePriorityKeymaps: Keymap[] = this.keymapArrayForPriority(priority);
 		for (const key of Object.keys(keymap)) {
-			for (const existing of allKeymaps) {
+			for (const existing of samePriorityKeymaps) {
 				if (key in existing) {
 					console.debug(
-						`[notectl] Keymap shortcut "${key}" is already registered and will be overridden.`,
+						`[notectl] Keymap shortcut "${key}" is already registered at "${priority}" priority and will be overridden.`,
 					);
 					break;
 				}
 			}
 		}
-		this.keymapArrayForPriority(options?.priority ?? 'default').push(keymap);
+		samePriorityKeymaps.push(keymap);
 	}
 
 	/** Returns all keymaps in priority order: context > navigation > default. */
