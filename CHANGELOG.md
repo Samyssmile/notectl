@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-03-18
+
+### Added
+
+- **Batch list operations** — Support batch list operations (toggle, indent, outdent) on multi-block selections (#68).
+
+### Changed
+
+- **Dependencies** — Patched transitive security vulnerabilities and aligned all Angular packages to 21.2.4.
+
+### Fixed
+
+- **Dropdown popup positioning** — Correct dropdown popup mispositioning in `transform`/`will-change` containers (#72).
+- **List item navigation** — Preserve goal column when navigating between list items with arrow keys (#69).
+- **Theme variables** — Use correct surface variables instead of `--notectl-bg` for UI elements (#71).
+- **Keymap warnings** — Suppress keymap override warnings for cross-priority registrations (#70).
+
 ## [2.0.3] - 2026-03-14
 
 ### Changed
