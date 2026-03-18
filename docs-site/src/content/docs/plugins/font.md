@@ -65,7 +65,7 @@ import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core/fonts';
 
 | Constant | Font | Category | Weights |
 |----------|------|----------|---------|
-| `FIRA_SANS` | Fira Sans | sans-serif | 400, 700 |
+| `FIRA_SANS` | Fira Sans | sans-serif | 400 |
 | `FIRA_CODE` | Fira Code | monospace | 400 |
 | `STARTER_FONTS` | Both of the above | - | - |
 
@@ -95,7 +95,7 @@ When the user selects the `defaultFont`, the font mark is **removed** rather tha
 ```ts
 import { FontPlugin } from '@notectl/core/plugins/font';
 import { STARTER_FONTS } from '@notectl/core/fonts';
-import type { FontDefinition } from '@notectl/core';
+import type { FontDefinition } from '@notectl/core/plugins/font';
 
 const INTER: FontDefinition = {
   name: 'Inter',

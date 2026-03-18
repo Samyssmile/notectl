@@ -106,13 +106,16 @@ const fallback = await loadTableLocale('unknown'); // → English
 | Print | `loadPrintLocale()` | `PRINT_LOCALE_EN` |
 | Text Direction | `loadTextDirectionLocale()` | `TEXT_DIRECTION_LOCALE_EN` |
 | Toolbar | `loadToolbarLocale()` | `TOOLBAR_LOCALE_EN` |
+| Smart Paste | `loadSmartPasteLocale()` | `SMART_PASTE_LOCALE_EN` |
+| Gap Cursor | `loadGapCursorLocale()` | `GAP_CURSOR_LOCALE_EN` |
+| Caret Navigation | `loadCaretNavigationLocale()` | `CARET_NAVIGATION_LOCALE_EN` |
 
 ## Custom Locales
 
 You can provide a fully custom locale by implementing the plugin's locale interface:
 
 ```ts
-import type { TableLocale } from '@notectl/core';
+import type { TableLocale } from '@notectl/core/plugins/table';
 
 const myTableLocale: TableLocale = {
   insertRowAbove: 'Add row above',

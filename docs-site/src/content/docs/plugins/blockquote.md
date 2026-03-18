@@ -47,6 +47,15 @@ editor.executeCommand('toggleBlockquote');
 |---------|--------|
 | `> ` (at the start of a line) | Convert to blockquote |
 
+## Keyboard Behavior
+
+| Key | Action |
+|-----|--------|
+| `Enter` (empty blockquote) | Convert blockquote to paragraph |
+| `Backspace` (at position 0) | Convert blockquote to paragraph |
+| `ArrowDown` (at end of text) | Move cursor to next block, or insert a paragraph if last block |
+| `ArrowUp` (at position 0) | Move cursor to previous block |
+
 ## Node Spec
 
 | Type | HTML Tag | Description |

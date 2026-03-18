@@ -87,7 +87,7 @@ const editor = await createEditor({
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
 | `table` | TablePlugin | `{ maxPickerRows: 10 }` |
 | `horizontalRule` | HorizontalRulePlugin | `{}` |
-| `image` | ImagePlugin | `{ uploadService: myUploader }` |
+| `image` | ImagePlugin | `{ maxWidth: 600, resizable: true }` |
 | `print` | PrintPlugin | `{ keyBinding: 'Mod-Shift-P' }` |
 | `smartPaste` | SmartPastePlugin | `{}` |
 

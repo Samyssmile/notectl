@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Theme variables** — Use correct surface variables instead of `--notectl-bg` for UI elements (#71).
 - **Keymap warnings** — Suppress keymap override warnings for cross-priority registrations (#70).
 
+### Documentation
+
+- Comprehensive documentation audit across 24 files (plugins, API reference, guides, getting started).
+- Fixed incorrect keyboard shortcuts in plugin overview (TablePlugin, FontSizePlugin).
+- Added missing PluginManager methods to API reference (`registerService`, `isReadonlyBypassed`, `getPasteInterceptors`).
+- Fixed CSS variable count in theme docs (26 → 36), added syntax token documentation.
+- Corrected TextDirectionPlugin vs TextDirectionAdvancedPlugin distinction.
+- Fixed import paths for `FontDefinition` and `TableLocale` types.
+- Added missing locale loaders (`loadSmartPasteLocale`, `loadGapCursorLocale`, `loadCaretNavigationLocale`).
+- Added code block syntax token CSS properties to styling guide.
+- Updated plugin styling examples to use CSP-compliant `registerStyleSheet()` approach.
+- Added blockquote keyboard behavior, list multi-block selection, and code block built-in languages documentation.
+
 ## [2.0.3] - 2026-03-14
 
 ### Changed

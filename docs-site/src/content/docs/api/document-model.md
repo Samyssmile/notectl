@@ -158,6 +158,7 @@ interface Mark {
 | `highlight` | `color: string` | Background highlight |
 | `font` | `family: string` | Font family |
 | `fontSize` | `size: string` | Font size |
+| `bdi` | `dir: string` | Bidirectional text isolation (registered by TextDirectionPlugin) |
 
 ## Content Segments
 
@@ -196,7 +197,7 @@ import {
 | `generateBlockId` | `() => BlockId` | Generates a unique block identifier |
 | `marksEqual` | `(a: Mark, b: Mark) => boolean` | Checks if two individual marks are equal (type + attrs) |
 | `addMarkToSet` | `(marks: readonly Mark[], mark: Mark) => readonly Mark[]` | Adds a mark to a mark set |
-| `removeMarkFromSet` | `(marks: readonly Mark[], markType: string) => readonly Mark[]` | Removes a mark type from a mark set |
+| `removeMarkFromSet` | `(marks: readonly Mark[], markType: MarkTypeName) => readonly Mark[]` | Removes a mark type from a mark set |
 | `normalizeTextNodes` | `(nodes: readonly TextNode[]) => readonly TextNode[]` | Merges adjacent text nodes with equal marks |
 | `normalizeInlineContent` | `(nodes: readonly (TextNode \| InlineNode)[]) => readonly (TextNode \| InlineNode)[]` | Normalizes inline content by merging adjacent compatible text nodes |
 | `walkInlineContent` | `(children: readonly (TextNode \| InlineNode)[]) => Generator<...>` | Generator that yields each character/inline node with position info |

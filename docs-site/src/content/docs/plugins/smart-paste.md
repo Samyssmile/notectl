@@ -37,7 +37,7 @@ If the cursor is already inside a code block, smart paste is skipped.
 ```ts
 interface SmartPasteConfig {
   /** Additional content detectors to register. */
-  readonly detectors?: ContentDetector[];
+  readonly detectors?: readonly ContentDetector[];
   /** Custom locale strings. */
   readonly locale?: SmartPasteLocale;
 }
@@ -45,7 +45,7 @@ interface SmartPasteConfig {
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `detectors` | `ContentDetector[]` | Additional content detectors to register |
+| `detectors` | `readonly ContentDetector[]` | Additional content detectors to register |
 | `locale` | `SmartPasteLocale` | Custom locale strings |
 
 ## Custom Detectors
@@ -56,9 +56,10 @@ You can add custom detectors via configuration or at runtime via the service.
 
 ```ts
 const myDetector: ContentDetector = {
+  id: 'yaml',
   detect(text: string): DetectionResult | null {
     if (looksLikeYaml(text)) {
-      return { language: 'yaml', confidence: 0.8 };
+      return { language: 'yaml', formattedText: text, confidence: 0.8 };
     }
     return null;
   }

@@ -172,6 +172,25 @@ These are the core tokens that all components derive their colors from.
 | `--notectl-code-block-header-color` | `codeBlock.headerForeground` | `var(--notectl-fg-muted)` |
 | `--notectl-code-block-header-border` | `codeBlock.headerBorder` | `var(--notectl-border)` |
 
+### Component: Code Block Syntax Tokens
+
+When a `ThemeSyntax` object is provided in `codeBlock.syntax`, token colors are emitted as CSS custom properties. Each falls back to `var(--notectl-code-block-color)` when not set.
+
+| CSS Property | Token | Fallback |
+|---|---|---|
+| `--notectl-code-token-keyword` | `codeBlock.syntax.keyword` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-string` | `codeBlock.syntax.string` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-comment` | `codeBlock.syntax.comment` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-number` | `codeBlock.syntax.number` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-function` | `codeBlock.syntax.function` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-operator` | `codeBlock.syntax.operator` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-punctuation` | `codeBlock.syntax.punctuation` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-boolean` | `codeBlock.syntax.boolean` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-null` | `codeBlock.syntax.null` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-property` | `codeBlock.syntax.property` | `var(--notectl-code-block-color)` |
+
+The built-in light and dark themes both include full syntax token definitions, so code blocks are styled automatically.
+
 ### Component: Tooltip
 
 | CSS Property | Token | Fallback |
@@ -187,22 +206,28 @@ These are the core tokens that all components derive their colors from.
 
 ## Syntax Highlighting Tokens
 
-When a syntax highlighter is configured on the `CodeBlockPlugin`, token classes are applied to code content. Style them to match your theme:
+When a syntax highlighter is configured on the `CodeBlockPlugin`, token classes are applied to code content. The built-in light and dark themes include full syntax color definitions via CSS custom properties (see the [Code Block Syntax Tokens](#component-code-block-syntax-tokens) reference above), so code blocks are styled automatically.
 
-```css
-/* Light theme tokens */
-notectl-editor .notectl-token--keyword { color: #d73a49; }
-notectl-editor .notectl-token--string  { color: #032f62; }
-notectl-editor .notectl-token--number  { color: #005cc5; }
-notectl-editor .notectl-token--comment { color: #6a737d; font-style: italic; }
+To customize syntax colors, override the `codeBlock.syntax` section in your custom theme:
 
-/* Dark theme tokens */
-@media (prefers-color-scheme: dark) {
-  notectl-editor .notectl-token--keyword { color: #c678dd; }
-  notectl-editor .notectl-token--string  { color: #98c379; }
-  notectl-editor .notectl-token--number  { color: #d19a66; }
-  notectl-editor .notectl-token--comment { color: #5c6370; font-style: italic; }
-}
+```ts
+const myTheme: Theme = createTheme(LIGHT_THEME, {
+  name: 'custom-syntax',
+  codeBlock: {
+    syntax: {
+      keyword: '#d73a49',
+      string: '#032f62',
+      number: '#005cc5',
+      comment: '#6a737d',
+      function: '#6f42c1',
+      operator: '#d73a49',
+      punctuation: '#24292e',
+      boolean: '#005cc5',
+      null: '#005cc5',
+      property: '#005cc5',
+    },
+  },
+});
 ```
 
 ## Theme API Types
@@ -226,6 +251,28 @@ interface ThemePrimitives {
   readonly success: string;
   readonly shadow: string;
   readonly focusRing: string;
+}
+
+interface ThemeSyntax {
+  readonly keyword: string;
+  readonly string: string;
+  readonly comment: string;
+  readonly number: string;
+  readonly function: string;
+  readonly operator: string;
+  readonly punctuation: string;
+  readonly boolean: string;
+  readonly null: string;
+  readonly property: string;
+}
+
+interface ThemeCodeBlock {
+  readonly background: string;
+  readonly foreground: string;
+  readonly headerBackground: string;
+  readonly headerForeground: string;
+  readonly headerBorder: string;
+  readonly syntax?: ThemeSyntax;
 }
 
 interface Theme {
@@ -253,20 +300,24 @@ All theme-related exports from `@notectl/core`:
 | `Theme` | Type | Full theme definition |
 | `PartialTheme` | Type | Partial overrides for `createTheme()` |
 | `ThemePrimitives` | Type | Primitive color palette |
+| `ThemeToolbar` | Type | Toolbar color overrides |
+| `ThemeCodeBlock` | Type | Code block color overrides (includes `syntax`) |
+| `ThemeTooltip` | Type | Tooltip color overrides |
 
 ## For Plugin Authors
 
-Plugins that create UI elements (popups, dialogs, overlays) should reference theme variables instead of hardcoding colors:
+Plugins that create UI elements (popups, dialogs, overlays) should reference theme variables instead of hardcoding colors. Use `context.registerStyleSheet()` to inject CSS that references the theme custom properties:
 
 ```ts
-// In your plugin's DOM creation
-const popup = document.createElement('div');
-popup.style.cssText = `
-  background: var(--notectl-surface-overlay);
-  border: 1px solid var(--notectl-border);
-  color: var(--notectl-fg);
-  box-shadow: 0 4px 12px var(--notectl-shadow);
-`;
+// Register a stylesheet during plugin init()
+context.registerStyleSheet(`
+  .my-popup {
+    background: var(--notectl-surface-overlay);
+    border: 1px solid var(--notectl-border);
+    color: var(--notectl-fg);
+    box-shadow: 0 4px 12px var(--notectl-shadow);
+  }
+`);
 ```
 
-This ensures your plugin adapts automatically when the user switches themes.
+This ensures your plugin adapts automatically when the user switches themes, and remains CSP-compliant since all styles are injected via adopted stylesheets rather than inline `style` attributes.

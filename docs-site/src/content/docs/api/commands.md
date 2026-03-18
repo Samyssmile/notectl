@@ -393,13 +393,25 @@ All take `(container: HTMLElement, state: EditorState) => Transaction | null`:
 
 ### `forEachBlockInRange(state, range, callback)`
 
-Iterates over every block that overlaps with a selection range, providing the block ID and the from/to offsets within each block.
+Iterates over every block that overlaps with a selection range, providing the block ID and the from/to offsets within each block. Blocks where `from === to` are skipped automatically.
 
 ```ts
 function forEachBlockInRange(
   state: EditorState,
   range: SelectionRange,
   callback: (blockId: BlockId, from: number, to: number) => void,
+): void
+```
+
+### `forEachBlockIdInRange(state, range, callback)`
+
+Iterates over every block ID in the given selection range, including empty blocks and boundary blocks regardless of offset span. Designed for block-level operations (e.g. `setBlockType`) where offsets are irrelevant.
+
+```ts
+function forEachBlockIdInRange(
+  state: EditorState,
+  range: SelectionRange,
+  callback: (blockId: BlockId) => void,
 ): void
 ```
 
