@@ -22,11 +22,45 @@ const DEFAULT_OFFSET = 2;
 const Z_INDEX = '10000';
 const POPUP_MIN_MARGIN = 4;
 
+// --- Containing Block Offset ---
+
+/**
+ * Measures the offset between the popup's CSS containing block and the
+ * viewport. When an ancestor has `transform`, `will-change: transform`,
+ * `filter`, or `perspective`, `position: fixed` resolves relative to that
+ * ancestor — not the viewport. This probe detects the shift so callers
+ * can compensate.
+ *
+ * Technique: temporarily set `top: 0; left: 0` on the fixed-position
+ * element and read `getBoundingClientRect()`. If no containing-block
+ * ancestor exists the rect origin is `(0, 0)`; otherwise it equals the
+ * ancestor's offset.
+ */
+export function measureContainingBlockOffset(popup: HTMLElement): { x: number; y: number } {
+	const prevTop: string = popup.style.top;
+	const prevLeft: string = popup.style.left;
+	const prevRight: string = popup.style.right;
+
+	popup.style.top = '0px';
+	popup.style.left = '0px';
+	popup.style.right = 'auto';
+
+	const rect: DOMRect = popup.getBoundingClientRect();
+
+	popup.style.top = prevTop;
+	popup.style.left = prevLeft;
+	popup.style.right = prevRight;
+
+	return { x: rect.left, y: rect.top };
+}
+
 // --- Positioning ---
 
 /**
  * Positions a popup element relative to the given anchor rectangle.
  * Uses fixed positioning and clamps to the viewport edges.
+ * Automatically compensates for ancestors that create a new containing
+ * block (e.g. `transform`, `will-change: transform`).
  */
 export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: PositionOptions): void {
 	const offset: number = options.offset ?? DEFAULT_OFFSET;
@@ -36,6 +70,9 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 	// Apply fixed positioning first so offsetWidth/offsetHeight reflect
 	// shrink-to-fit sizing rather than normal-flow block width.
 	setStyleProperties(popup, { position: 'fixed', zIndex: Z_INDEX });
+
+	// Detect containing-block offset caused by ancestor transforms etc.
+	const cbOffset: { x: number; y: number } = measureContainingBlockOffset(popup);
 
 	const popupWidth: number = popup.offsetWidth;
 	const popupHeight: number = popup.offsetHeight;
@@ -57,8 +94,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.right = `${right}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.right = `${right - cbOffset.x}px`;
 				styles.left = 'auto';
 			} else {
 				let left: number = anchor.left;
@@ -70,8 +107,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.left = `${left}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.left = `${left - cbOffset.x}px`;
 				styles.right = 'auto';
 			}
 			break;
@@ -90,8 +127,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.left = `${left}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.left = `${left - cbOffset.x}px`;
 				styles.right = 'auto';
 			} else {
 				// LTR: "end" = physical right edge
@@ -104,8 +141,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (right < POPUP_MIN_MARGIN) right = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.right = `${right}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.right = `${right - cbOffset.x}px`;
 				styles.left = 'auto';
 			}
 			break;
@@ -124,8 +161,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.left = `${left}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.left = `${left - cbOffset.x}px`;
 				styles.right = 'auto';
 			} else {
 				let left: number = anchor.right + offset;
@@ -137,8 +174,8 @@ export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: Posi
 				}
 				if (left < POPUP_MIN_MARGIN) left = POPUP_MIN_MARGIN;
 				if (top < POPUP_MIN_MARGIN) top = POPUP_MIN_MARGIN;
-				styles.top = `${top}px`;
-				styles.left = `${left}px`;
+				styles.top = `${top - cbOffset.y}px`;
+				styles.left = `${left - cbOffset.x}px`;
 				styles.right = 'auto';
 			}
 			break;

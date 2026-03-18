@@ -42,7 +42,6 @@ export const TABLE_CSS = `
 
 /* Table Context Menu */
 .notectl-table-context-menu {
-	position: fixed;
 	background: var(--notectl-surface-overlay);
 	border: 1px solid var(--notectl-border);
 	border-radius: 6px;

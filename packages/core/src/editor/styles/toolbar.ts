@@ -89,7 +89,6 @@ export const TOOLBAR_CSS = `
 
 /* Tooltip (rendered as fixed-position element in shadow root) */
 .notectl-toolbar-tooltip {
-	position: fixed;
 	padding: 4px 8px;
 	border-radius: 4px;
 	background: var(--notectl-tooltip-bg);

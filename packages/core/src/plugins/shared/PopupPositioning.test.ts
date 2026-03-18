@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendToRoot, positionPopup } from './PopupPositioning.js';
+import { appendToRoot, measureContainingBlockOffset, positionPopup } from './PopupPositioning.js';
 
 describe('PopupPositioning', () => {
 	describe('positionPopup', () => {
@@ -90,6 +90,38 @@ describe('PopupPositioning', () => {
 			expect(popup.style.position).toBe('fixed');
 			expect(popup.style.right).not.toBe('auto');
 			expect(popup.style.left).toBe('auto');
+		});
+	});
+
+	describe('measureContainingBlockOffset', () => {
+		it('returns zero offset when no containing-block ancestor exists', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			popup.style.position = 'fixed';
+			document.body.appendChild(popup);
+
+			const offset: { x: number; y: number } = measureContainingBlockOffset(popup);
+
+			expect(offset.x).toBe(0);
+			expect(offset.y).toBe(0);
+
+			popup.remove();
+		});
+
+		it('preserves previous inline styles after probing', () => {
+			const popup: HTMLDivElement = document.createElement('div');
+			popup.style.position = 'fixed';
+			popup.style.top = '50px';
+			popup.style.left = '100px';
+			popup.style.right = '20px';
+			document.body.appendChild(popup);
+
+			measureContainingBlockOffset(popup);
+
+			expect(popup.style.top).toBe('50px');
+			expect(popup.style.left).toBe('100px');
+			expect(popup.style.right).toBe('20px');
+
+			popup.remove();
 		});
 	});
 
