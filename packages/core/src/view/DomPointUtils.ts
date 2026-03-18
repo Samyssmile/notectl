@@ -45,9 +45,18 @@ export function domPositionFromPoint(
 		}
 	}
 
-	// Also try on the document when the root is a ShadowRoot and returned nothing
+	// Also try on the document when the root is a ShadowRoot and returned nothing.
+	// Try caretPositionFromPoint first (standard API, better Shadow DOM support
+	// in newer Chrome), then caretRangeFromPoint as fallback.
 	if (!domNode && ownerDoc && root !== ownerDoc) {
-		if ('caretRangeFromPoint' in ownerDoc) {
+		if ('caretPositionFromPoint' in ownerDoc) {
+			const cp = (ownerDoc as Document).caretPositionFromPoint(x, y);
+			if (cp) {
+				domNode = cp.offsetNode;
+				domOffset = cp.offset;
+			}
+		}
+		if (!domNode && 'caretRangeFromPoint' in ownerDoc) {
 			const range = ownerDoc.caretRangeFromPoint(x, y);
 			if (range) {
 				domNode = range.startContainer;
