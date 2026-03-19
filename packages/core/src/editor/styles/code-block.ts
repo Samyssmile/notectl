@@ -40,7 +40,14 @@ export const CODE_BLOCK_CSS = `
 	letter-spacing: 0.02em;
 }
 
-.notectl-code-block__copy {
+.notectl-code-block__actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.notectl-code-block__copy,
+.notectl-code-block__delete {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -55,12 +62,14 @@ export const CODE_BLOCK_CSS = `
 	transition: background 0.15s, color 0.15s;
 }
 
-.notectl-code-block__copy:hover {
+.notectl-code-block__copy:hover,
+.notectl-code-block__delete:hover {
 	background: rgba(128, 128, 128, 0.15);
 	color: var(--notectl-code-block-color);
 }
 
-.notectl-code-block__copy svg {
+.notectl-code-block__copy svg,
+.notectl-code-block__delete svg {
 	fill: currentColor;
 }
 
