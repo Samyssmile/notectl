@@ -13,16 +13,6 @@ export class KeymapRegistry {
 	registerKeymap(keymap: Keymap, options?: KeymapOptions): void {
 		const priority: KeymapPriority = options?.priority ?? 'default';
 		const samePriorityKeymaps: Keymap[] = this.keymapArrayForPriority(priority);
-		for (const key of Object.keys(keymap)) {
-			for (const existing of samePriorityKeymaps) {
-				if (key in existing) {
-					console.debug(
-						`[notectl] Keymap shortcut "${key}" is already registered at "${priority}" priority and will be overridden.`,
-					);
-					break;
-				}
-			}
-		}
 		samePriorityKeymaps.push(keymap);
 	}
 
