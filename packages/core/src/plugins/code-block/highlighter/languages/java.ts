@@ -7,7 +7,7 @@
  * Token type mapping:
  * - `comment` - line `//`, block, and Javadoc comments
  * - `string` - double-quoted strings, text blocks, char literals
- * - `property` - annotations `@Name`, `@java.lang.Override`
+ * - `annotation` - annotations `@Name`, `@java.lang.Override`
  * - `keyword` - Java 21 keywords (including contextual: sealed, record, var, yield, when)
  * - `boolean` - `true`, `false`
  * - `null` - `null`
@@ -98,7 +98,7 @@ export const JAVA_LANGUAGE: LanguageDefinition = {
 		// 5. Char literals — escape-aware
 		{ type: 'string', pattern: /^'(?:[^'\\]|\\.)*'/ },
 		// 6. Annotations — before operators (captures `@`)
-		{ type: 'property', pattern: /^@[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*/ },
+		{ type: 'annotation', pattern: /^@[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*/ },
 		// 7. Keywords — before functions (`if(` = keyword, not function)
 		{ type: 'keyword', pattern: KEYWORD_PATTERN },
 		// 8. Booleans

@@ -44,7 +44,7 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<div>');
 
 			// Assert
-			expect(tokens[0]?.type).toBe('keyword');
+			expect(tokens[0]?.type).toBe('tag');
 			expect(tokens[0]?.from).toBe(0);
 			expect(tokens[0]?.to).toBe(4);
 		});
@@ -54,7 +54,7 @@ describe('XML language definition', () => {
 			const tokens = tokenize('</div>');
 
 			// Assert
-			expect(tokens[0]?.type).toBe('keyword');
+			expect(tokens[0]?.type).toBe('tag');
 			expect(tokens[0]?.from).toBe(0);
 			expect(tokens[0]?.to).toBe(5);
 		});
@@ -64,7 +64,7 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<xs:element>');
 
 			// Assert
-			expect(tokens[0]?.type).toBe('keyword');
+			expect(tokens[0]?.type).toBe('tag');
 			expect(tokens[0]?.from).toBe(0);
 			expect(tokens[0]?.to).toBe(11);
 		});
@@ -74,7 +74,7 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<my-component>');
 
 			// Assert
-			expect(tokens[0]?.type).toBe('keyword');
+			expect(tokens[0]?.type).toBe('tag');
 			expect(tokens[0]?.from).toBe(0);
 			expect(tokens[0]?.to).toBe(13);
 		});
@@ -84,7 +84,7 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<v1.0>');
 
 			// Assert
-			expect(tokens[0]?.type).toBe('keyword');
+			expect(tokens[0]?.type).toBe('tag');
 			expect(tokens[0]?.to).toBe(5);
 		});
 	});
@@ -95,9 +95,9 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<div class="foo">');
 
 			// Assert
-			const propTokens = tokens.filter((t) => t.type === 'property');
-			expect(propTokens.length).toBe(1);
-			expect(propTokens[0]?.from).toBe(5);
+			const attrTokens = tokens.filter((t) => t.type === 'attribute');
+			expect(attrTokens.length).toBe(1);
+			expect(attrTokens[0]?.from).toBe(5);
 		});
 
 		it('matches attribute name with namespace prefix', () => {
@@ -105,8 +105,8 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<root xmlns:xs="http://example.com">');
 
 			// Assert
-			const propTokens = tokens.filter((t) => t.type === 'property');
-			expect(propTokens.length).toBe(1);
+			const attrTokens = tokens.filter((t) => t.type === 'attribute');
+			expect(attrTokens.length).toBe(1);
 		});
 
 		it('matches multiple attributes', () => {
@@ -114,8 +114,8 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<input type="text" name="field">');
 
 			// Assert
-			const propTokens = tokens.filter((t) => t.type === 'property');
-			expect(propTokens.length).toBe(2);
+			const attrTokens = tokens.filter((t) => t.type === 'attribute');
+			expect(attrTokens.length).toBe(2);
 		});
 
 		it('matches attribute name with spaces before =', () => {
@@ -123,8 +123,8 @@ describe('XML language definition', () => {
 			const tokens = tokenize('<div class = "foo">');
 
 			// Assert
-			const propTokens = tokens.filter((t) => t.type === 'property');
-			expect(propTokens.length).toBe(1);
+			const attrTokens = tokens.filter((t) => t.type === 'attribute');
+			expect(attrTokens.length).toBe(1);
 		});
 	});
 
@@ -231,7 +231,7 @@ describe('XML language definition', () => {
 
 	describe('punctuation', () => {
 		it('matches closing angle bracket', () => {
-			// Arrange & Act — <div> → keyword(<div) + punctuation(>)
+			// Arrange & Act — <div> → tag(<div) + punctuation(>)
 			const tokens = tokenize('<div>');
 
 			// Assert
@@ -284,7 +284,7 @@ describe('XML language definition', () => {
 
 			// Assert
 			expect(types).toContain('keyword');
-			expect(types).toContain('property');
+			expect(types).toContain('attribute');
 			expect(types).toContain('string');
 			expect(types).toContain('comment');
 			expect(types).toContain('punctuation');
@@ -298,13 +298,13 @@ describe('XML language definition', () => {
 			const tokens = tokenize(xml);
 
 			// Assert
-			const keywordTokens = tokens.filter((t) => t.type === 'keyword');
+			const tagTokens = tokens.filter((t) => t.type === 'tag');
 			// <parent, <child, </child, </parent
-			expect(keywordTokens.length).toBe(4);
+			expect(tagTokens.length).toBe(4);
 
-			const propTokens = tokens.filter((t) => t.type === 'property');
+			const attrTokens = tokens.filter((t) => t.type === 'attribute');
 			// id, name
-			expect(propTokens.length).toBe(2);
+			expect(attrTokens.length).toBe(2);
 		});
 
 		it('tokenizes self-closing tags correctly', () => {

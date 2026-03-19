@@ -147,26 +147,26 @@ describe('Java language definition', () => {
 		it('matches simple annotation', () => {
 			const tokens = tokenize('@Override');
 
-			expect(tokens).toEqual([{ from: 0, to: 9, type: 'property' }]);
+			expect(tokens).toEqual([{ from: 0, to: 9, type: 'annotation' }]);
 		});
 
 		it('matches qualified annotation', () => {
 			const tokens = tokenize('@java.lang.Override');
 
-			expect(tokens).toEqual([{ from: 0, to: 19, type: 'property' }]);
+			expect(tokens).toEqual([{ from: 0, to: 19, type: 'annotation' }]);
 		});
 
 		it('matches annotation before method', () => {
 			const tokens = tokenize('@Override public');
 
-			expect(tokens[0]?.type).toBe('property');
+			expect(tokens[0]?.type).toBe('annotation');
 			expect(tokens[0]?.to).toBe(9);
 		});
 
 		it('matches annotation with underscore', () => {
 			const tokens = tokenize('@SuppressWarnings');
 
-			expect(tokens).toEqual([{ from: 0, to: 17, type: 'property' }]);
+			expect(tokens).toEqual([{ from: 0, to: 17, type: 'annotation' }]);
 		});
 	});
 
@@ -564,7 +564,7 @@ describe('Java language definition', () => {
 			const code = '@Override public void run()';
 			const tokens = tokenize(code);
 
-			expect(tokens[0]?.type).toBe('property'); // @Override
+			expect(tokens[0]?.type).toBe('annotation'); // @Override
 			expect(tokens[1]?.type).toBe('keyword'); // public
 			expect(tokens[2]?.type).toBe('keyword'); // void
 			expect(tokens[3]?.type).toBe('function'); // run
@@ -601,7 +601,7 @@ describe('Java language definition', () => {
 
 			expect(types).toContain('comment');
 			expect(types).toContain('keyword');
-			expect(types).toContain('property');
+			expect(types).toContain('annotation');
 			expect(types).toContain('function');
 			expect(types).toContain('string');
 			expect(types).toContain('punctuation');

@@ -18,10 +18,12 @@ declare module '../../model/AttrRegistry.js' {
 
 // --- Syntax Highlighting Types ---
 
+import type { SyntaxTokenType } from '../../editor/theme/SyntaxTokenTypes.js';
+
 export interface SyntaxToken {
 	readonly from: number;
 	readonly to: number;
-	readonly type: string;
+	readonly type: SyntaxTokenType | (string & {});
 }
 
 export interface SyntaxHighlighter {

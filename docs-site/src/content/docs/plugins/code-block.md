@@ -226,7 +226,17 @@ By default, the plugin ships with a built-in `RegexTokenizer` that supports **JS
 
 ### Built-in Languages
 
-JSON and XML are highlighted automatically when the code block language is set to `json` or `xml`.
+JSON, XML, and Java are highlighted automatically when the code block language is set to `json`, `xml`, or `java`.
+
+Each language maps source tokens to the canonical `SyntaxTokenType` set:
+
+| Language | Notable token mappings |
+|----------|----------------------|
+| JSON | `keyword`, `string`, `number`, `boolean`, `null`, `punctuation` |
+| XML | Tag names → `tag`, attribute names → `attribute`, string values → `string` |
+| Java | Annotations (`@Override`, `@Component`) → `annotation`, types → `type`, keywords → `keyword` |
+
+The semantic distinction matters for theming: XML tag names use `--notectl-code-token-tag` (not `keyword`), and Java annotations use `--notectl-code-token-annotation` (not `property`), so each construct can be styled independently in your theme.
 
 ### Adding Languages at Runtime
 
@@ -245,6 +255,8 @@ highlighterService.getSupportedLanguages(); // ['json', 'xml', ...]
 Provide a full `SyntaxHighlighter` implementation to replace the built-in tokenizer:
 
 ```ts
+import type { SyntaxTokenType } from '@notectl/core';
+
 interface SyntaxHighlighter {
   tokenize(code: string, language: string): readonly SyntaxToken[];
   getSupportedLanguages(): readonly string[];
@@ -253,20 +265,68 @@ interface SyntaxHighlighter {
 interface SyntaxToken {
   readonly from: number;
   readonly to: number;
-  readonly type: string; // e.g. 'keyword', 'string', 'number', 'comment'
+  /**
+   * Must be one of the 16 canonical SyntaxTokenType values.
+   * The open string union `string & {}` is accepted for forward compatibility,
+   * but unrecognized types will not receive theme-driven styling.
+   */
+  readonly type: SyntaxTokenType | (string & {});
 }
 ```
 
+The 16 valid `type` values are: `keyword`, `string`, `comment`, `number`, `function`, `operator`, `punctuation`, `boolean`, `null`, `property`, `type`, `annotation`, `tag`, `attribute`, `constant`, `regex`. These are exported as the `SYNTAX_TOKEN_TYPES` tuple from `@notectl/core`.
+
 ### Token Styling
 
-The plugin generates decoration classes like `notectl-token--keyword`, `notectl-token--string`, etc. Style them in your CSS:
+The plugin generates a CSS class per token type — one class for each of the 16 canonical `SyntaxTokenType` values. Class names follow the pattern `notectl-token--<type>`. Token colors and typography are driven by CSS custom properties emitted by the theme engine, so in most cases you should customize tokens through the `ThemeSyntax` object in your theme rather than writing raw CSS.
+
+Each token class reads from three CSS variables:
 
 ```css
-notectl-editor .notectl-token--keyword { color: #c678dd; }
-notectl-editor .notectl-token--string  { color: #98c379; }
-notectl-editor .notectl-token--number  { color: #d19a66; }
-notectl-editor .notectl-token--comment { color: #5c6370; font-style: italic; }
+.notectl-token--comment {
+  color:       var(--notectl-code-token-comment);
+  font-style:  var(--notectl-code-token-comment-font-style, normal);
+  font-weight: var(--notectl-code-token-comment-font-weight, normal);
+}
 ```
+
+The `font-style` and `font-weight` variables are only emitted by the theme engine when the token's `TokenStyle` object includes those fields — they default to `normal` in the CSS fallback.
+
+To override token styles directly in CSS without touching the theme:
+
+```css
+notectl-editor .notectl-token--keyword    { color: #c678dd; }
+notectl-editor .notectl-token--string     { color: #98c379; }
+notectl-editor .notectl-token--number     { color: #d19a66; }
+notectl-editor .notectl-token--comment    { color: #5c6370; font-style: italic; }
+notectl-editor .notectl-token--type       { color: #e5c07b; }
+notectl-editor .notectl-token--annotation { color: #c678dd; }
+notectl-editor .notectl-token--tag        { color: #e06c75; }
+notectl-editor .notectl-token--attribute  { color: #d19a66; }
+notectl-editor .notectl-token--constant   { color: #d19a66; }
+notectl-editor .notectl-token--regex      { color: #98c379; }
+```
+
+The 16 token classes are:
+
+| CSS Class | Token Type | Typical Use |
+|-----------|-----------|-------------|
+| `notectl-token--keyword` | `keyword` | Language keywords (`if`, `class`, `return`) |
+| `notectl-token--string` | `string` | String literals |
+| `notectl-token--comment` | `comment` | Line and block comments |
+| `notectl-token--number` | `number` | Numeric literals |
+| `notectl-token--function` | `function` | Function and method names |
+| `notectl-token--operator` | `operator` | Operators (`+`, `===`, `=>`) |
+| `notectl-token--punctuation` | `punctuation` | Brackets, semicolons, commas |
+| `notectl-token--boolean` | `boolean` | `true`, `false` |
+| `notectl-token--null` | `null` | `null`, `undefined`, `nil` |
+| `notectl-token--property` | `property` | Object properties |
+| `notectl-token--type` | `type` | Type names and annotations (TypeScript, Java) |
+| `notectl-token--annotation` | `annotation` | Decorator/annotation syntax (`@Override`, `@Component`) |
+| `notectl-token--tag` | `tag` | XML/HTML tag names |
+| `notectl-token--attribute` | `attribute` | XML/HTML attribute names |
+| `notectl-token--constant` | `constant` | Named constants (enum members, `MAX_SIZE`) |
+| `notectl-token--regex` | `regex` | Regular expression literals |
 
 ## Mark Prevention
 

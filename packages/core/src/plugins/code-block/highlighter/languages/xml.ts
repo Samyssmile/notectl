@@ -3,12 +3,13 @@
  *
  * Token type mapping:
  * - `comment` — XML comments `<!-- ... -->`
- * - `keyword` — tag names (consumed with `<`/`</` prefix), processing instructions, CDATA
- * - `property` — attribute names (identifier followed by `=`)
+ * - `keyword` — processing instructions, CDATA sections
+ * - `tag` — tag names (consumed with `<`/`</` prefix)
+ * - `attribute` — attribute names (identifier followed by `=`)
  * - `string` — attribute values (double or single quoted)
  * - `punctuation` — delimiters `/>`, `>`, `=`
  *
- * Tag names are combined with their `<` or `</` prefix into a single `keyword` token
+ * Tag names are combined with their `<` or `</` prefix into a single `tag` token
  * to prevent text content between tags from being incorrectly highlighted.
  */
 
@@ -22,10 +23,10 @@ export const XML_LANGUAGE: LanguageDefinition = {
 		{ type: 'comment', pattern: /^<!--[\s\S]*?-->/ },
 		{ type: 'keyword', pattern: /^<!\[CDATA\[[\s\S]*?\]\]>/ },
 		{ type: 'keyword', pattern: /^<\?[\s\S]*?\?>/ },
-		{ type: 'keyword', pattern: new RegExp(`^<\\/${XML_TAG_NAME}`) },
-		{ type: 'keyword', pattern: new RegExp(`^<${XML_TAG_NAME}`) },
+		{ type: 'tag', pattern: new RegExp(`^<\\/${XML_TAG_NAME}`) },
+		{ type: 'tag', pattern: new RegExp(`^<${XML_TAG_NAME}`) },
 		{ type: 'punctuation', pattern: /^\/>|^>|^=/ },
-		{ type: 'property', pattern: new RegExp(`^${XML_TAG_NAME}(?=\\s*=)`) },
+		{ type: 'attribute', pattern: new RegExp(`^${XML_TAG_NAME}(?=\\s*=)`) },
 		{ type: 'string', pattern: /^"[^"]*"/ },
 		{ type: 'string', pattern: /^'[^']*'/ },
 	],

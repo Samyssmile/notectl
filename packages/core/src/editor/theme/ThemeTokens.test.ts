@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SYNTAX_TOKEN_TYPES } from './SyntaxTokenTypes.js';
 import { DARK_THEME, LIGHT_THEME, ThemePreset, createTheme, resolveTheme } from './ThemeTokens.js';
 import type { PartialTheme, Theme } from './ThemeTokens.js';
 
@@ -70,5 +71,52 @@ describe('createTheme', () => {
 
 		expect(result.tooltip?.background).toBe('#abc');
 		expect(result.tooltip?.foreground).toBe(DARK_THEME.tooltip?.foreground);
+	});
+
+	it('overrides syntax with TokenStyle objects', () => {
+		const overrides: PartialTheme = {
+			name: 'bold-keywords',
+			codeBlock: {
+				syntax: {
+					keyword: { color: '#ff0000', fontWeight: 'bold' },
+				},
+			},
+		};
+		const result: Theme = createTheme(LIGHT_THEME, overrides);
+
+		expect(result.codeBlock?.syntax?.keyword).toEqual({
+			color: '#ff0000',
+			fontWeight: 'bold',
+		});
+		// Other syntax tokens from base are preserved
+		expect(result.codeBlock?.syntax?.string).toBe(LIGHT_THEME.codeBlock?.syntax?.string);
+	});
+
+	it('preserves base syntax when no syntax override is given', () => {
+		const overrides: PartialTheme = {
+			name: 'custom-bg',
+			codeBlock: { background: '#000' },
+		};
+		const result: Theme = createTheme(LIGHT_THEME, overrides);
+
+		expect(result.codeBlock?.syntax).toBe(LIGHT_THEME.codeBlock?.syntax);
+	});
+});
+
+describe('built-in themes have all token types', () => {
+	it('LIGHT_THEME has all canonical syntax token types', () => {
+		const syntax = LIGHT_THEME.codeBlock?.syntax;
+		expect(syntax).toBeDefined();
+		for (const type of SYNTAX_TOKEN_TYPES) {
+			expect(syntax?.[type]).toBeDefined();
+		}
+	});
+
+	it('DARK_THEME has all canonical syntax token types', () => {
+		const syntax = DARK_THEME.codeBlock?.syntax;
+		expect(syntax).toBeDefined();
+		for (const type of SYNTAX_TOKEN_TYPES) {
+			expect(syntax?.[type]).toBeDefined();
+		}
 	});
 });

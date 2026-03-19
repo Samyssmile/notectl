@@ -2,10 +2,18 @@
  * Theme engine — converts a Theme object into CSS custom properties.
  */
 
-import type { Theme } from './ThemeTokens.js';
+import {
+	SYNTAX_TOKEN_TYPES,
+	resolveTokenColor,
+	resolveTokenFontStyle,
+	resolveTokenFontWeight,
+} from './SyntaxTokenTypes.js';
+import type { TokenStyleValue } from './SyntaxTokenTypes.js';
+import type { Theme, ThemeSyntax } from './ThemeTokens.js';
 
-/** Maps Theme fields to CSS custom property names. */
-const VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = [
+// --- Static entries (non-syntax) ---
+
+const STATIC_ENTRIES: ReadonlyArray<readonly [string, string]> = [
 	// Primitives
 	['primitives.background', '--notectl-bg'],
 	['primitives.foreground', '--notectl-fg'],
@@ -27,30 +35,32 @@ const VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = [
 	// Component: toolbar
 	['toolbar.background', '--notectl-toolbar-bg'],
 	['toolbar.borderColor', '--notectl-toolbar-border'],
-	// Component: codeBlock
+	// Component: codeBlock (non-syntax)
 	['codeBlock.background', '--notectl-code-block-bg'],
 	['codeBlock.foreground', '--notectl-code-block-color'],
 	['codeBlock.headerBackground', '--notectl-code-block-header-bg'],
 	['codeBlock.headerForeground', '--notectl-code-block-header-color'],
 	['codeBlock.headerBorder', '--notectl-code-block-header-border'],
-	// Component: codeBlock syntax tokens
-	['codeBlock.syntax.keyword', '--notectl-code-token-keyword'],
-	['codeBlock.syntax.string', '--notectl-code-token-string'],
-	['codeBlock.syntax.comment', '--notectl-code-token-comment'],
-	['codeBlock.syntax.number', '--notectl-code-token-number'],
-	['codeBlock.syntax.function', '--notectl-code-token-function'],
-	['codeBlock.syntax.operator', '--notectl-code-token-operator'],
-	['codeBlock.syntax.punctuation', '--notectl-code-token-punctuation'],
-	['codeBlock.syntax.boolean', '--notectl-code-token-boolean'],
-	['codeBlock.syntax.null', '--notectl-code-token-null'],
-	['codeBlock.syntax.property', '--notectl-code-token-property'],
 	// Component: tooltip
 	['tooltip.background', '--notectl-tooltip-bg'],
 	['tooltip.foreground', '--notectl-tooltip-fg'],
 ];
 
-/** Fallbacks for component tokens when not explicitly set. */
-const COMPONENT_FALLBACKS: ReadonlyMap<string, string> = new Map([
+// --- Generated syntax variable map (derived from SYNTAX_TOKEN_TYPES) ---
+
+const SYNTAX_VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = SYNTAX_TOKEN_TYPES.map(
+	(type) => [`codeBlock.syntax.${type}`, `--notectl-code-token-${type}`] as const,
+);
+
+/** Full variable map: static entries + syntax entries. */
+const VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = [
+	...STATIC_ENTRIES,
+	...SYNTAX_VARIABLE_MAP,
+];
+
+// --- Static fallbacks (non-syntax) ---
+
+const STATIC_FALLBACKS: ReadonlyArray<readonly [string, string]> = [
 	['--notectl-toolbar-bg', 'var(--notectl-surface-raised)'],
 	['--notectl-toolbar-border', 'var(--notectl-border)'],
 	['--notectl-code-block-bg', 'var(--notectl-surface-raised)'],
@@ -58,18 +68,20 @@ const COMPONENT_FALLBACKS: ReadonlyMap<string, string> = new Map([
 	['--notectl-code-block-header-bg', 'var(--notectl-surface-raised)'],
 	['--notectl-code-block-header-color', 'var(--notectl-fg-muted)'],
 	['--notectl-code-block-header-border', 'var(--notectl-border)'],
-	['--notectl-code-token-keyword', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-string', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-comment', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-number', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-function', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-operator', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-punctuation', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-boolean', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-null', 'var(--notectl-code-block-color)'],
-	['--notectl-code-token-property', 'var(--notectl-code-block-color)'],
 	['--notectl-tooltip-bg', 'var(--notectl-fg)'],
 	['--notectl-tooltip-fg', 'var(--notectl-bg)'],
+];
+
+// --- Generated syntax fallbacks (derived from SYNTAX_TOKEN_TYPES) ---
+
+const SYNTAX_FALLBACKS: ReadonlyArray<readonly [string, string]> = SYNTAX_TOKEN_TYPES.map(
+	(type) => [`--notectl-code-token-${type}`, 'var(--notectl-code-block-color)'] as const,
+);
+
+/** Fallbacks for component tokens when not explicitly set. */
+const COMPONENT_FALLBACKS: ReadonlyMap<string, string> = new Map([
+	...STATIC_FALLBACKS,
+	...SYNTAX_FALLBACKS,
 ]);
 
 /** Resolves a dotted path like 'primitives.background' from a Theme. */
@@ -81,7 +93,28 @@ function resolvePath(theme: Theme, path: string): string | undefined {
 		if (typeof current !== 'object') return undefined;
 		current = (current as Record<string, unknown>)[part];
 	}
-	return typeof current === 'string' ? current : undefined;
+	if (typeof current === 'string') return current;
+	if (typeof current === 'object' && current !== null && 'color' in current) {
+		return resolveTokenColor(current as TokenStyleValue);
+	}
+	return undefined;
+}
+
+/** Emits font-style/font-weight CSS vars for syntax tokens that use TokenStyle objects. */
+function emitTokenStyleVars(syntax: ThemeSyntax, lines: string[]): void {
+	for (const type of SYNTAX_TOKEN_TYPES) {
+		const value: TokenStyleValue = syntax[type];
+		if (typeof value !== 'object') continue;
+
+		const fontStyle: string | undefined = resolveTokenFontStyle(value);
+		if (fontStyle) {
+			lines.push(`\t--notectl-code-token-${type}-font-style: ${fontStyle};`);
+		}
+		const fontWeight: string | undefined = resolveTokenFontWeight(value);
+		if (fontWeight) {
+			lines.push(`\t--notectl-code-token-${type}-font-weight: ${fontWeight};`);
+		}
+	}
 }
 
 /** Generates CSS text with all theme custom properties on :host. */
@@ -98,6 +131,11 @@ export function generateThemeCSS(theme: Theme): string {
 				lines.push(`\t${cssVar}: ${fallback};`);
 			}
 		}
+	}
+
+	// Emit font-style / font-weight vars for TokenStyle entries
+	if (theme.codeBlock?.syntax) {
+		emitTokenStyleVars(theme.codeBlock.syntax, lines);
 	}
 
 	lines.push('}');

@@ -174,7 +174,7 @@ These are the core tokens that all components derive their colors from.
 
 ### Component: Code Block Syntax Tokens
 
-When a `ThemeSyntax` object is provided in `codeBlock.syntax`, token colors are emitted as CSS custom properties. Each falls back to `var(--notectl-code-block-color)` when not set.
+When a `ThemeSyntax` object is provided in `codeBlock.syntax`, token colors are emitted as CSS custom properties. Each falls back to `var(--notectl-code-block-color)` when not set. There are 16 canonical token types; the theme engine derives all variables automatically from the `SYNTAX_TOKEN_TYPES` list.
 
 | CSS Property | Token | Fallback |
 |---|---|---|
@@ -188,8 +188,21 @@ When a `ThemeSyntax` object is provided in `codeBlock.syntax`, token colors are 
 | `--notectl-code-token-boolean` | `codeBlock.syntax.boolean` | `var(--notectl-code-block-color)` |
 | `--notectl-code-token-null` | `codeBlock.syntax.null` | `var(--notectl-code-block-color)` |
 | `--notectl-code-token-property` | `codeBlock.syntax.property` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-type` | `codeBlock.syntax.type` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-annotation` | `codeBlock.syntax.annotation` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-tag` | `codeBlock.syntax.tag` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-attribute` | `codeBlock.syntax.attribute` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-constant` | `codeBlock.syntax.constant` | `var(--notectl-code-block-color)` |
+| `--notectl-code-token-regex` | `codeBlock.syntax.regex` | `var(--notectl-code-block-color)` |
 
-The built-in light and dark themes both include full syntax token definitions, so code blocks are styled automatically.
+Tokens whose value is a `TokenStyle` object (rather than a plain color string) additionally emit font-style and font-weight variables when those fields are set:
+
+| CSS Property pattern | Emitted when |
+|---|---|
+| `--notectl-code-token-<type>-font-style` | `TokenStyle.fontStyle` is set |
+| `--notectl-code-token-<type>-font-weight` | `TokenStyle.fontWeight` is set |
+
+The built-in light and dark themes both include full syntax token definitions for all 16 types, so code blocks are styled automatically.
 
 ### Component: Tooltip
 
@@ -208,27 +221,39 @@ The built-in light and dark themes both include full syntax token definitions, s
 
 When a syntax highlighter is configured on the `CodeBlockPlugin`, token classes are applied to code content. The built-in light and dark themes include full syntax color definitions via CSS custom properties (see the [Code Block Syntax Tokens](#component-code-block-syntax-tokens) reference above), so code blocks are styled automatically.
 
-To customize syntax colors, override the `codeBlock.syntax` section in your custom theme:
+To customize syntax colors, override the `codeBlock.syntax` section in your custom theme. Each token accepts either a plain color string or a `TokenStyle` object for full font-weight and font-style control:
 
 ```ts
+import { createTheme, LIGHT_THEME } from '@notectl/core';
+import type { Theme } from '@notectl/core';
+
 const myTheme: Theme = createTheme(LIGHT_THEME, {
   name: 'custom-syntax',
   codeBlock: {
     syntax: {
-      keyword: '#d73a49',
-      string: '#032f62',
-      number: '#005cc5',
-      comment: '#6a737d',
-      function: '#6f42c1',
-      operator: '#d73a49',
+      keyword:     '#d73a49',
+      string:      '#032f62',
+      number:      '#005cc5',
+      comment:     { color: '#6a737d', fontStyle: 'italic' },
+      function:    '#6f42c1',
+      operator:    '#d73a49',
       punctuation: '#24292e',
-      boolean: '#005cc5',
-      null: '#005cc5',
-      property: '#005cc5',
+      boolean:     '#005cc5',
+      null:        '#005cc5',
+      property:    '#005cc5',
+      // New in 16-token system:
+      type:        '#e36209',
+      annotation:  '#6f42c1',
+      tag:         '#22863a',
+      attribute:   '#6f42c1',
+      constant:    '#005cc5',
+      regex:       '#032f62',
     },
   },
 });
 ```
+
+You only need to specify tokens you want to override — unspecified tokens inherit from the base theme.
 
 ## Theme API Types
 
@@ -253,18 +278,27 @@ interface ThemePrimitives {
   readonly focusRing: string;
 }
 
-interface ThemeSyntax {
-  readonly keyword: string;
-  readonly string: string;
-  readonly comment: string;
-  readonly number: string;
-  readonly function: string;
-  readonly operator: string;
-  readonly punctuation: string;
-  readonly boolean: string;
-  readonly null: string;
-  readonly property: string;
+/** Per-token style: color plus optional font weight and style. */
+interface TokenStyle {
+  readonly color: string;
+  readonly fontWeight?: 'normal' | 'bold';
+  readonly fontStyle?: 'normal' | 'italic';
 }
+
+/** A token style value is either a plain color string or a full TokenStyle object. */
+type TokenStyleValue = string | TokenStyle;
+
+/**
+ * Syntax highlighting styles for all 16 canonical token types.
+ * Derived automatically from SYNTAX_TOKEN_TYPES — adding a new token type
+ * here propagates to CSS variables and theme validation.
+ */
+type ThemeSyntax = { readonly [K in SyntaxTokenType]: TokenStyleValue };
+
+// The 16 canonical token types:
+// 'keyword' | 'string' | 'comment' | 'number' | 'function' | 'operator'
+// | 'punctuation' | 'boolean' | 'null' | 'property'
+// | 'type' | 'annotation' | 'tag' | 'attribute' | 'constant' | 'regex'
 
 interface ThemeCodeBlock {
   readonly background: string;
@@ -293,6 +327,7 @@ All theme-related exports from `@notectl/core`:
 | `ThemePreset` | Enum object | `Light`, `Dark`, `System` |
 | `LIGHT_THEME` | Constant | Built-in light theme |
 | `DARK_THEME` | Constant | Built-in dark theme |
+| `SYNTAX_TOKEN_TYPES` | Constant | Tuple of all 16 canonical token type names |
 | `createTheme(base, overrides)` | Function | Create custom theme from a base |
 | `resolveTheme(preset \| theme)` | Function | Resolve a preset to a full Theme |
 | `generateThemeCSS(theme)` | Function | Generate CSS string from a Theme |
@@ -302,7 +337,11 @@ All theme-related exports from `@notectl/core`:
 | `ThemePrimitives` | Type | Primitive color palette |
 | `ThemeToolbar` | Type | Toolbar color overrides |
 | `ThemeCodeBlock` | Type | Code block color overrides (includes `syntax`) |
+| `ThemeSyntax` | Type | Syntax token styles — mapped type over all 16 token types |
 | `ThemeTooltip` | Type | Tooltip color overrides |
+| `SyntaxTokenType` | Type | Union of all 16 token type name strings |
+| `TokenStyle` | Type | Per-token style with color, optional fontWeight and fontStyle |
+| `TokenStyleValue` | Type | `string \| TokenStyle` — accepted by every syntax token slot |
 
 ## For Plugin Authors
 
