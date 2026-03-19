@@ -2,6 +2,7 @@ export { SmartPastePlugin } from './SmartPastePlugin.js';
 export {
 	SMART_PASTE_SERVICE_KEY,
 	type ContentDetector,
+	type PasteSegment,
 	type DetectionResult,
 	type SmartPasteConfig,
 	type SmartPasteService,

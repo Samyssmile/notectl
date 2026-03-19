@@ -453,6 +453,178 @@ describe('SmartPastePlugin', () => {
 		});
 	});
 
+	describe('mixed content paste', () => {
+		it('creates paragraph and code block for text + JSON', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = `Lorem Ipsum\n\n${SAMPLE_JSON}`;
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			const newState: EditorState = h.getState().apply(tr);
+
+			// Assert
+			const paragraphs = newState.doc.children.filter((b) => b.type === 'paragraph');
+			const codeBlocks = newState.doc.children.filter((b) => b.type === 'code_block');
+			expect(paragraphs.length).toBeGreaterThanOrEqual(1);
+			expect(codeBlocks).toHaveLength(1);
+
+			const insertedParagraph = paragraphs.find((b) => getBlockText(b) === 'Lorem Ipsum');
+			expect(insertedParagraph).toBeDefined();
+			const firstCodeBlock = codeBlocks[0];
+			if (!firstCodeBlock) return;
+			expect(getBlockText(firstCodeBlock)).toBe(FORMATTED_JSON);
+		});
+
+		it('creates code block and paragraph for JSON + text', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = `${SAMPLE_JSON}\n\nSome explanation`;
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			const newState: EditorState = h.getState().apply(tr);
+
+			// Assert
+			const codeBlocks = newState.doc.children.filter((b) => b.type === 'code_block');
+			expect(codeBlocks).toHaveLength(1);
+			const firstCodeBlock = codeBlocks[0];
+			if (!firstCodeBlock) return;
+			expect(getBlockText(firstCodeBlock)).toBe(FORMATTED_JSON);
+
+			const hasExplanation = newState.doc.children.some(
+				(b) => b.type === 'paragraph' && getBlockText(b) === 'Some explanation',
+			);
+			expect(hasExplanation).toBe(true);
+		});
+
+		it('returns null for all-text mixed content', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+			// Act & Assert
+			expect(entry.interceptor('Hello\n\nWorld\n\nFoo', '', h.getState())).toBeNull();
+		});
+
+		it('preserves block order: paragraph before code block', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = `Description\n\n${SAMPLE_JSON}`;
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			const newState: EditorState = h.getState().apply(tr);
+
+			// Assert — paragraph should appear before code block
+			const children = newState.doc.children;
+			const descIdx = children.findIndex(
+				(b) => b.type === 'paragraph' && getBlockText(b) === 'Description',
+			);
+			const codeIdx = children.findIndex((b) => b.type === 'code_block');
+			expect(descIdx).toBeGreaterThanOrEqual(0);
+			expect(codeIdx).toBeGreaterThan(descIdx);
+		});
+
+		it('places cursor at end of last block in mixed paste', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = `Description\n\n${SAMPLE_JSON}`;
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			h.dispatch(tr);
+
+			// Assert — cursor at end of last block (the code block)
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.offset).toBe(FORMATTED_JSON.length);
+			}
+		});
+
+		it('removes empty anchor block on mixed paste', async () => {
+			// Arrange
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = `Text\n\n${SAMPLE_JSON}`;
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			const newState: EditorState = h.getState().apply(tr);
+
+			// Assert — the original empty paragraph should be removed
+			const emptyParagraphs = newState.doc.children.filter(
+				(b) => b.type === 'paragraph' && getBlockText(b) === '',
+			);
+			expect(emptyParagraphs).toHaveLength(0);
+		});
+
+		it('uses custom detector for mixed content splitting', async () => {
+			// Arrange
+			const yamlDetector: ContentDetector = {
+				id: 'yaml',
+				detect: (text: string): DetectionResult | null => {
+					if (text.startsWith('---')) {
+						return { language: 'yaml', formattedText: text, confidence: 0.85 };
+					}
+					return null;
+				},
+			};
+
+			const state = makeState([{ type: 'paragraph', text: '', id: 'b1' }]);
+			const h = await pluginHarness(
+				[new CodeBlockPlugin(), new SmartPastePlugin({ detectors: [yamlDetector] })],
+				state,
+				{ builtinSpecs: true },
+			);
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+			const mixedInput = 'Config below\n\n---\nkey: value';
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(mixedInput, '', h.getState());
+			expect(tr).not.toBeNull();
+			if (!tr) return;
+			const newState: EditorState = h.getState().apply(tr);
+
+			// Assert
+			const codeBlocks = newState.doc.children.filter((b) => b.type === 'code_block');
+			expect(codeBlocks).toHaveLength(1);
+			expect(codeBlocks[0]?.attrs?.language).toBe('yaml');
+		});
+	});
+
 	describe('destroy', () => {
 		it('cleans up plugin state on destroy', async () => {
 			// Arrange
