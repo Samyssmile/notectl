@@ -27,6 +27,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/caret-navigation': resolve(__dirname, 'src/plugins/caret-navigation/index.ts'),
 	'plugins/print': resolve(__dirname, 'src/plugins/print/index.ts'),
 	'plugins/smart-paste': resolve(__dirname, 'src/plugins/smart-paste/index.ts'),
+	'plugins/language': resolve(__dirname, 'src/plugins/language/index.ts'),
 	'plugins/text-direction': resolve(__dirname, 'src/plugins/text-direction/index.ts'),
 	'plugins/text-direction-advanced': resolve(
 		__dirname,

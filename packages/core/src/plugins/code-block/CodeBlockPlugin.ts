@@ -6,6 +6,7 @@
  * Middleware, Decorations, and lifecycle hooks (focus tracking).
  */
 
+import { addDeleteSelectionSteps } from '../../commands/Commands.js';
 import type { Decoration, DecorationSet } from '../../decorations/Decoration.js';
 import {
 	inline as inlineDecoration,
@@ -23,7 +24,10 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { createBlockElement } from '../../view/DomUtils.js';
-import type { Plugin, PluginContext } from '../Plugin.js';
+import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
+import { LanguageRegistry } from '../language/LanguageRegistry.js';
+import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
+import { JAVA_SUPPORT, JSON_SUPPORT, XML_SUPPORT } from '../language/bundles/index.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
@@ -48,8 +52,6 @@ import {
 	SYNTAX_HIGHLIGHTER_SERVICE_KEY,
 } from './CodeBlockTypes.js';
 import { RegexTokenizer } from './highlighter/RegexTokenizer.js';
-import { JSON_LANGUAGE } from './highlighter/languages/json.js';
-import { XML_LANGUAGE } from './highlighter/languages/xml.js';
 
 export class CodeBlockPlugin implements Plugin {
 	readonly id = 'code-block';
@@ -61,6 +63,7 @@ export class CodeBlockPlugin implements Plugin {
 	private context: PluginContext | null = null;
 	private locale!: CodeBlockLocale;
 	private highlighter: SyntaxHighlighter | null = null;
+	private readonly languageRegistry = new LanguageRegistry();
 	private readonly tokenCache = new Map<
 		BlockId,
 		{
@@ -89,6 +92,7 @@ export class CodeBlockPlugin implements Plugin {
 		this.context = context;
 
 		this.initHighlighter();
+		this.registerLanguageRegistry(context);
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
 		registerCodeBlockCommands(context, this.config);
@@ -98,6 +102,7 @@ export class CodeBlockPlugin implements Plugin {
 		this.registerMiddleware(context);
 		registerCodeBlockService(context, this.config, () => this.context);
 		this.registerSyntaxHighlighterService(context);
+		this.registerPasteInterceptor(context);
 		this.patchTableCellContent(context);
 	}
 
@@ -309,6 +314,45 @@ export class CodeBlockPlugin implements Plugin {
 		);
 	}
 
+	// --- Paste Interceptor ---
+
+	private registerPasteInterceptor(context: PluginContext): void {
+		context.registerPasteInterceptor(this.handleCodeBlockPaste, {
+			name: 'code-block:paste',
+			priority: 10,
+		});
+	}
+
+	private readonly handleCodeBlockPaste: PasteInterceptor = (
+		plainText: string,
+		_html: string,
+		state: EditorState,
+	): Transaction | null => {
+		if (!plainText) return null;
+		if (!isTextSelection(state.selection)) return null;
+
+		const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
+		if (!block || block.type !== 'code_block') return null;
+
+		const builder = state.transaction('paste');
+
+		let insertBlockId: BlockId = state.selection.anchor.blockId;
+		let insertOffset: number = state.selection.anchor.offset;
+
+		if (!isCollapsed(state.selection)) {
+			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
+			if (landingId) {
+				insertBlockId = landingId;
+				insertOffset = 0;
+			}
+		}
+
+		builder.insertText(insertBlockId, insertOffset, plainText, []);
+		builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + plainText.length));
+
+		return builder.build();
+	};
+
 	// --- Table Cell Patching ---
 
 	private patchTableCellContent(context: PluginContext): void {
@@ -335,8 +379,29 @@ export class CodeBlockPlugin implements Plugin {
 		if (this.config.highlighter) {
 			this.highlighter = this.config.highlighter;
 		} else {
-			this.highlighter = new RegexTokenizer([JSON_LANGUAGE, XML_LANGUAGE]);
+			this.highlighter = new RegexTokenizer();
 		}
+	}
+
+	private registerLanguageRegistry(context: PluginContext): void {
+		const highlighter: SyntaxHighlighter | null = this.highlighter;
+		const cache: Map<
+			BlockId,
+			{ readonly text: string; readonly language: string; readonly tokens: readonly SyntaxToken[] }
+		> = this.tokenCache;
+
+		this.languageRegistry.onRegister((support) => {
+			if (support.highlighting && highlighter?.registerLanguage) {
+				highlighter.registerLanguage(support.highlighting);
+				cache.clear();
+			}
+		});
+
+		context.registerService(LANGUAGE_REGISTRY_SERVICE_KEY, this.languageRegistry);
+
+		this.languageRegistry.register(JAVA_SUPPORT);
+		this.languageRegistry.register(JSON_SUPPORT);
+		this.languageRegistry.register(XML_SUPPORT);
 	}
 
 	private registerSyntaxHighlighterService(context: PluginContext): void {
