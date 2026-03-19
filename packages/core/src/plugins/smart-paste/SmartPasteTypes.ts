@@ -12,6 +12,12 @@ export interface DetectionResult {
 	readonly confidence: number;
 }
 
+/** A classified segment of pasted text — either plain text or detected code. */
+export interface PasteSegment {
+	readonly text: string;
+	readonly detection: DetectionResult | null;
+}
+
 /** Interface for content detectors that identify and format pasted text. */
 export interface ContentDetector {
 	readonly id: string;
