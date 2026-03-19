@@ -1,3 +1,13 @@
+import { SYNTAX_TOKEN_TYPES } from '../theme/SyntaxTokenTypes.js';
+
+/** Generates per-token CSS rules from the canonical token type list. */
+function generateTokenCSS(): string {
+	return SYNTAX_TOKEN_TYPES.map(
+		(type) =>
+			`.notectl-token--${type} {\n\tcolor: var(--notectl-code-token-${type});\n\tfont-style: var(--notectl-code-token-${type}-font-style, inherit);\n\tfont-weight: var(--notectl-code-token-${type}-font-weight, inherit);\n}`,
+	).join('\n');
+}
+
 /** Code block styles — syntax highlighting container, header, copy button. */
 export const CODE_BLOCK_CSS = `
 /* Code Block — uses theme custom properties */
@@ -87,15 +97,6 @@ export const CODE_BLOCK_CSS = `
 	display: block;
 }
 
-/* Syntax highlighting token classes */
-.notectl-token--keyword    { color: var(--notectl-code-token-keyword); }
-.notectl-token--string     { color: var(--notectl-code-token-string); }
-.notectl-token--comment    { color: var(--notectl-code-token-comment); font-style: italic; }
-.notectl-token--number     { color: var(--notectl-code-token-number); }
-.notectl-token--function   { color: var(--notectl-code-token-function); }
-.notectl-token--operator   { color: var(--notectl-code-token-operator); }
-.notectl-token--punctuation { color: var(--notectl-code-token-punctuation); }
-.notectl-token--boolean    { color: var(--notectl-code-token-boolean); }
-.notectl-token--null       { color: var(--notectl-code-token-null); }
-.notectl-token--property   { color: var(--notectl-code-token-property); }
+/* Syntax highlighting token classes — generated from canonical token type list */
+${generateTokenCSS()}
 `;

@@ -342,8 +342,15 @@ export type {
 	ThemeToolbar,
 	ThemeCodeBlock,
 	ThemeTooltip,
+	ThemeSyntax,
 } from './editor/theme/ThemeTokens.js';
 export { generateThemeCSS, createThemeStyleSheet } from './editor/theme/ThemeEngine.js';
+export type {
+	SyntaxTokenType,
+	TokenStyle,
+	TokenStyleValue,
+} from './editor/theme/SyntaxTokenTypes.js';
+export { SYNTAX_TOKEN_TYPES } from './editor/theme/SyntaxTokenTypes.js';
 
 // --- Paper Size ---
 export {

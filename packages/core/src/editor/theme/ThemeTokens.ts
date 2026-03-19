@@ -2,6 +2,9 @@
  * Theme token types, built-in themes, and theme creation helpers.
  */
 
+import type { SyntaxTokenType, TokenStyleValue } from './SyntaxTokenTypes.js';
+import { resolveTokenColor } from './SyntaxTokenTypes.js';
+
 /** Primitive color palette a theme defines. */
 export interface ThemePrimitives {
 	readonly background: string;
@@ -29,19 +32,8 @@ export interface ThemeToolbar {
 	readonly borderColor: string;
 }
 
-/** Syntax highlighting token colors. */
-export interface ThemeSyntax {
-	readonly keyword: string;
-	readonly string: string;
-	readonly comment: string;
-	readonly number: string;
-	readonly function: string;
-	readonly operator: string;
-	readonly punctuation: string;
-	readonly boolean: string;
-	readonly null: string;
-	readonly property: string;
-}
+/** Syntax highlighting token styles — one entry per canonical token type. */
+export type ThemeSyntax = { readonly [K in SyntaxTokenType]: TokenStyleValue };
 
 /** Component-level code block overrides. */
 export interface ThemeCodeBlock {
@@ -118,7 +110,7 @@ export const LIGHT_THEME: Theme = {
 		syntax: {
 			keyword: '#d73a49',
 			string: '#032f62',
-			comment: '#6a737d',
+			comment: { color: '#6a737d', fontStyle: 'italic' },
 			number: '#005cc5',
 			function: '#6f42c1',
 			operator: '#d73a49',
@@ -126,6 +118,12 @@ export const LIGHT_THEME: Theme = {
 			boolean: '#005cc5',
 			null: '#005cc5',
 			property: '#005cc5',
+			type: '#e36209',
+			annotation: '#6f42c1',
+			tag: '#22863a',
+			attribute: '#6f42c1',
+			constant: '#005cc5',
+			regex: '#032f62',
 		},
 	},
 	tooltip: {
@@ -165,7 +163,7 @@ export const DARK_THEME: Theme = {
 		syntax: {
 			keyword: '#cba6f7',
 			string: '#a6e3a1',
-			comment: '#6c7086',
+			comment: { color: '#6c7086', fontStyle: 'italic' },
 			number: '#fab387',
 			function: '#89b4fa',
 			operator: '#89dceb',
@@ -173,6 +171,12 @@ export const DARK_THEME: Theme = {
 			boolean: '#fab387',
 			null: '#f38ba8',
 			property: '#89b4fa',
+			type: '#fab387',
+			annotation: '#cba6f7',
+			tag: '#a6e3a1',
+			attribute: '#89b4fa',
+			constant: '#f9e2af',
+			regex: '#a6e3a1',
 		},
 	},
 	tooltip: {
@@ -183,6 +187,12 @@ export const DARK_THEME: Theme = {
 
 /** Creates a custom theme by extending a base theme with partial overrides. */
 export function createTheme(base: Theme, overrides: PartialTheme): Theme {
+	const mergeSyntax = (): ThemeSyntax | undefined => {
+		if (!overrides.codeBlock?.syntax) return base.codeBlock?.syntax;
+		if (!base.codeBlock?.syntax) return undefined;
+		return { ...base.codeBlock.syntax, ...overrides.codeBlock.syntax } as ThemeSyntax;
+	};
+
 	return {
 		name: overrides.name,
 		primitives: { ...base.primitives, ...overrides.primitives },
@@ -191,14 +201,15 @@ export function createTheme(base: Theme, overrides: PartialTheme): Theme {
 			? {
 					...base.codeBlock,
 					...overrides.codeBlock,
-					syntax: overrides.codeBlock.syntax
-						? ({ ...base.codeBlock?.syntax, ...overrides.codeBlock.syntax } as ThemeSyntax)
-						: base.codeBlock?.syntax,
+					syntax: mergeSyntax(),
 				}
 			: base.codeBlock,
 		tooltip: overrides.tooltip ? { ...base.tooltip, ...overrides.tooltip } : base.tooltip,
 	};
 }
+
+// Re-export for convenience — avoids extra imports in consumer code.
+export { resolveTokenColor };
 
 /** Resolves a ThemePreset string or Theme object to a full Theme. */
 export function resolveTheme(theme: ThemePreset | Theme): Theme {

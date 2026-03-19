@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SYNTAX_TOKEN_TYPES } from './SyntaxTokenTypes.js';
 import { createThemeStyleSheet, generateThemeCSS } from './ThemeEngine.js';
 import { DARK_THEME, LIGHT_THEME, createTheme } from './ThemeTokens.js';
 import type { PartialTheme, Theme } from './ThemeTokens.js';
@@ -80,5 +81,58 @@ describe('generateThemeCSS', () => {
 		expect(css).toContain('--notectl-primary: #purple');
 		// Other values from base are still present
 		expect(css).toContain('--notectl-bg: #ffffff');
+	});
+
+	it('includes CSS variables for all canonical syntax token types', () => {
+		const css: string = generateThemeCSS(LIGHT_THEME);
+		for (const type of SYNTAX_TOKEN_TYPES) {
+			expect(css).toContain(`--notectl-code-token-${type}:`);
+		}
+	});
+
+	it('emits font-style CSS variable for TokenStyle entries', () => {
+		const css: string = generateThemeCSS(LIGHT_THEME);
+		// comment is defined as TokenStyle with fontStyle: 'italic'
+		expect(css).toContain('--notectl-code-token-comment-font-style: italic');
+	});
+
+	it('does not emit font-style variable for plain string tokens', () => {
+		const css: string = generateThemeCSS(LIGHT_THEME);
+		// keyword is a plain string — no font-style var should be emitted
+		expect(css).not.toContain('--notectl-code-token-keyword-font-style');
+	});
+
+	it('resolves TokenStyle color for CSS variable value', () => {
+		const css: string = generateThemeCSS(LIGHT_THEME);
+		// comment uses TokenStyle { color: '#6a737d', fontStyle: 'italic' }
+		expect(css).toContain('--notectl-code-token-comment: #6a737d');
+	});
+
+	it('emits font-weight CSS variable when set in TokenStyle', () => {
+		const overrides: PartialTheme = {
+			name: 'bold-keywords',
+			codeBlock: {
+				syntax: {
+					keyword: { color: '#d73a49', fontWeight: 'bold' },
+				},
+			},
+		};
+		const custom: Theme = createTheme(LIGHT_THEME, overrides);
+		const css: string = generateThemeCSS(custom);
+
+		expect(css).toContain('--notectl-code-token-keyword: #d73a49');
+		expect(css).toContain('--notectl-code-token-keyword-font-weight: bold');
+	});
+
+	it('uses fallback for syntax tokens when no codeBlock is defined', () => {
+		const minimal: Theme = {
+			name: 'minimal',
+			primitives: LIGHT_THEME.primitives,
+		};
+		const css: string = generateThemeCSS(minimal);
+
+		for (const type of SYNTAX_TOKEN_TYPES) {
+			expect(css).toContain(`--notectl-code-token-${type}: var(--notectl-code-block-color)`);
+		}
 	});
 });
