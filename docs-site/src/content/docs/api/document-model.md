@@ -20,7 +20,8 @@ interface Document {
 ```ts
 import {
   createDocument, createBlockNode, createTextNode,
-  createInlineNode, nodeType, inlineType,
+  createInlineNode, createEmptyParagraph,
+  nodeType, inlineType,
 } from '@notectl/core';
 
 // Empty document (single empty paragraph)
@@ -35,6 +36,10 @@ const doc = createDocument([
     createTextNode('Some text'),
   ]),
 ]);
+
+// Convenience: empty paragraph with optional ID
+const para = createEmptyParagraph();
+const paraWithId = createEmptyParagraph(blockId('my-id'));
 
 // InlineNode (atomic, width-1 element)
 const br = createInlineNode(inlineType('hard_break'));
@@ -214,6 +219,8 @@ import {
   getBlockChildren,
   getBlockMarksAtOffset,
   getContentAtOffset,
+  getBlockSegmentsInRange,
+  getBlockContentSegmentsInRange,
   isTextNode,
   isInlineNode,
   isBlockNode,
@@ -227,6 +234,10 @@ const inlines = getInlineChildren(block);      // (TextNode | InlineNode)[]
 const blocks = getBlockChildren(block);        // BlockNode[] (nested children)
 const marks = getBlockMarksAtOffset(block, 5); // Mark[] at offset
 const content = getContentAtOffset(block, 0);  // { kind: 'text', char, marks } | { kind: 'inline', node } | null
+
+// Extract segments for a specific offset range
+const segments = getBlockSegmentsInRange(block, 0, 5);         // TextSegment[]
+const mixed = getBlockContentSegmentsInRange(block, 0, 5);     // ContentSegment[] (text + inline)
 ```
 
 ### Mark Operations

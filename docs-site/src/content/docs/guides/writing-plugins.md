@@ -159,7 +159,7 @@ context.registerToolbarItem({
   tooltip: 'Do something',
   command: 'myCommand',        // Command to execute on click
   isActive: (state) => false,  // Highlight when active
-  isDisabled: (state) => false,
+  isEnabled: (state) => true,  // Disable when returns false
 });
 ```
 
