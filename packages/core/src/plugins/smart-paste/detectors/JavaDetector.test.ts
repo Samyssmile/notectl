@@ -265,4 +265,52 @@ describe('JavaDetector', () => {
 			expect(result).not.toBeNull();
 		});
 	});
+
+	describe('detect - ReDoS resistance', () => {
+		it('handles adversarial input for class declaration pattern', () => {
+			const detector = new JavaDetector();
+			const input: string = `public${' '.repeat(50_000)}notclass\n\n`;
+
+			const start: number = performance.now();
+			const result: DetectionResult | null = detector.detect(input);
+			const elapsed: number = performance.now() - start;
+
+			expect(result).toBeNull();
+			expect(elapsed).toBeLessThan(100);
+		});
+
+		it('handles adversarial input for method signature pattern', () => {
+			const detector = new JavaDetector();
+			const input: string = `public ${' '.repeat(50_000)}(\n\n`;
+
+			const start: number = performance.now();
+			const result: DetectionResult | null = detector.detect(input);
+			const elapsed: number = performance.now() - start;
+
+			expect(result).toBeNull();
+			expect(elapsed).toBeLessThan(100);
+		});
+
+		it('handles adversarial input for brace pattern', () => {
+			const detector = new JavaDetector();
+			const input: string = `${'{'.repeat(50_000)}\n\n`;
+
+			const start: number = performance.now();
+			const result: DetectionResult | null = detector.detect(input);
+			const elapsed: number = performance.now() - start;
+
+			expect(result).toBeNull();
+			expect(elapsed).toBeLessThan(100);
+		});
+
+		it('returns null for input exceeding maximum length', () => {
+			const detector = new JavaDetector();
+			const input: string = 'public class Foo {\n'.repeat(10_000);
+			expect(input.length).toBeGreaterThan(100_000);
+
+			const result: DetectionResult | null = detector.detect(input);
+
+			expect(result).toBeNull();
+		});
+	});
 });

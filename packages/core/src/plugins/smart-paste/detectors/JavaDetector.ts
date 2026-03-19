@@ -12,6 +12,9 @@
 
 import type { ContentDetector, DetectionResult } from '../SmartPasteTypes.js';
 
+/** Maximum text length to analyze for Java detection. */
+const MAX_DETECT_LENGTH = 100_000;
+
 /** Minimum number of non-empty lines to consider as code. */
 const MIN_LINES = 2;
 
@@ -23,7 +26,7 @@ const JAVA_CONFIDENCE = 0.8;
 
 /** Matches class, interface, enum, record declarations. */
 const CLASS_DECLARATION =
-	/(?:public|private|protected|abstract|final|sealed|non-sealed)?\s*(?:class|interface|enum|record)\s+\w+/;
+	/(?:(?:public|private|protected|abstract|final|sealed|non-sealed)\s+)?(?:class|interface|enum|record)\s+\w+/;
 
 /** Matches package statements. */
 const PACKAGE_STATEMENT = /^package\s+[\w.]+\s*;/m;
@@ -33,7 +36,7 @@ const IMPORT_STATEMENT = /^import\s+(?:static\s+)?[\w.*]+\s*;/m;
 
 /** Matches method signatures with return type. */
 const METHOD_SIGNATURE =
-	/(?:public|private|protected|static|final|abstract|synchronized|native)\s+(?:[\w<>\[\]?,\s]+)\s+\w+\s*\(/;
+	/(?:public|private|protected|static|final|abstract|synchronized|native)\s+[\w<>\[\]?,][\w<>\[\]?,\s]*\s+\w+\s*\(/;
 
 /** Matches annotation usage. */
 const ANNOTATION = /^[ \t]*@\w+/m;
@@ -42,7 +45,7 @@ const ANNOTATION = /^[ \t]*@\w+/m;
 const SEMICOLON_LINES = /;\s*$/gm;
 
 /** Matches Java-style braces on their own line or after code. */
-const BRACE_PATTERN = /[{}\s]*[{}]\s*$/gm;
+const BRACE_PATTERN = /\s*[{}]\s*$/gm;
 
 /** Matches Java main method. */
 const MAIN_METHOD = /public\s+static\s+void\s+main\s*\(\s*String\s*\[\s*\]\s+\w+\s*\)/;
@@ -64,6 +67,7 @@ export class JavaDetector implements ContentDetector {
 	readonly id = 'java';
 
 	detect(text: string): DetectionResult | null {
+		if (text.length > MAX_DETECT_LENGTH) return null;
 		const trimmed: string = text.trim();
 		const lines: string[] = trimmed.split('\n').filter((l: string) => l.trim().length > 0);
 		if (lines.length < MIN_LINES) return null;
