@@ -130,6 +130,10 @@
 			"types": "./dist/plugins/smart-paste/index.d.ts",
 			"import": "./dist/plugins/smart-paste.mjs"
 		},
+		"./plugins/language": {
+			"types": "./dist/plugins/language/index.d.ts",
+			"import": "./dist/plugins/language.mjs"
+		},
 		"./plugins/text-direction": {
 			"types": "./dist/plugins/text-direction/index.d.ts",
 			"import": "./dist/plugins/text-direction.mjs"

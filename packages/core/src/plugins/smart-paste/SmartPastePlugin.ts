@@ -17,6 +17,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
+import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	SMART_PASTE_LOCALE_EN,
@@ -25,8 +26,6 @@ import {
 } from './SmartPasteLocale.js';
 import type { ContentDetector, DetectionResult, SmartPasteConfig } from './SmartPasteTypes.js';
 import { SMART_PASTE_SERVICE_KEY } from './SmartPasteTypes.js';
-import { JsonDetector } from './detectors/JsonDetector.js';
-import { XmlDetector } from './detectors/XmlDetector.js';
 
 export class SmartPastePlugin implements Plugin {
 	readonly id = 'smart-paste';
@@ -52,9 +51,15 @@ export class SmartPastePlugin implements Plugin {
 			loadSmartPasteLocale,
 		);
 
-		// Register built-in detectors
-		this.detectors.push(new JsonDetector());
-		this.detectors.push(new XmlDetector());
+		// Subscribe to language registry for detectors (replay provides built-ins)
+		const registry = context.getService(LANGUAGE_REGISTRY_SERVICE_KEY);
+		if (registry) {
+			registry.onRegister((support) => {
+				if (support.detection) {
+					this.detectors.push(support.detection);
+				}
+			});
+		}
 
 		// Register config-provided detectors
 		if (this.config.detectors) {
