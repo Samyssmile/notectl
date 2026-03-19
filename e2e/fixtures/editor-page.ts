@@ -413,6 +413,26 @@ export class EditorPage {
 		);
 	}
 
+	// ── Cursor Helpers ──────────────────────────────────────────
+
+	/** Move cursor to a specific character offset within the current line. */
+	async moveCursorToOffset(offset: number): Promise<void> {
+		await this.page.keyboard.press('Home');
+		await this.page.waitForTimeout(50);
+		for (let i = 0; i < offset; i++) {
+			await this.page.keyboard.press('ArrowRight');
+		}
+		await this.page.waitForTimeout(50);
+	}
+
+	/** Extract the concatenated text content of a block by index from editor JSON. */
+	getBlockText(
+		json: { children: { children?: { text: string }[] }[] },
+		blockIndex: number,
+	): string {
+		return json.children[blockIndex]?.children?.map((c) => c.text).join('') ?? '';
+	}
+
 	// ── History ─────────────────────────────────────────────────
 
 	/**

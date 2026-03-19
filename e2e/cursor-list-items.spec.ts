@@ -164,8 +164,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			// Type to verify cursor is at the end of "Second"
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const secondText: string =
-				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const secondText: string = editor.getBlockText(json, 1);
 			expect(secondText).toBe('SecondX');
 		});
 	});
@@ -186,12 +185,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			await page.waitForTimeout(100);
 
 			// Position cursor at offset 4 in second item ("1234|5678")
-			await page.keyboard.press('Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 4; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(4);
 
 			// ArrowUp should move to first item, preserving ~column 4
 			await page.keyboard.press('ArrowUp');
@@ -200,8 +194,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			// Type marker to verify position
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const firstText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const firstText: string = editor.getBlockText(json, 0);
 
 			// X should be near offset 4 in the first item, not at start or end
 			// Expected: "ABCDXEFGH" (ideal) — cursor preserved at column ~4
@@ -227,11 +220,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			// Move to first item, position at offset 3
 			await page.keyboard.press('Control+Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 3; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(3);
 
 			// ArrowDown should move to second item preserving ~column 3
 			await page.keyboard.press('ArrowDown');
@@ -239,8 +228,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const secondText: string =
-				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const secondText: string = editor.getBlockText(json, 1);
 
 			// X should be near offset 3, not at start (0) or end (8)
 			// Expected: "123X45678"
@@ -261,12 +249,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			await page.waitForTimeout(100);
 
 			// Position cursor at offset 5 in second item
-			await page.keyboard.press('Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 5; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(5);
 
 			// ArrowUp to first item
 			await page.keyboard.press('ArrowUp');
@@ -274,8 +257,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const firstText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const firstText: string = editor.getBlockText(json, 0);
 
 			// X should be near column 5 in the first item
 			const xPos: number = firstText.indexOf('X');
@@ -294,20 +276,14 @@ test.describe('Cursor in List Items (#68)', () => {
 			await page.waitForTimeout(100);
 
 			// Position cursor at offset 7 in second item
-			await page.keyboard.press('Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 7; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(7);
 
 			await page.keyboard.press('ArrowUp');
 			await page.waitForTimeout(100);
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const firstText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const firstText: string = editor.getBlockText(json, 0);
 
 			const xPos: number = firstText.indexOf('X');
 			expect(xPos).toBeGreaterThan(0);
@@ -329,11 +305,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			// Go to first item, offset 5
 			await page.keyboard.press('Control+Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 5; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(5);
 
 			// ArrowDown → second item
 			await page.keyboard.press('ArrowDown');
@@ -345,8 +317,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const firstText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const firstText: string = editor.getBlockText(json, 0);
 
 			// Should be near the original position (offset 5)
 			// "ABCDEXFGHIJ" is ideal
@@ -377,8 +348,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const secondText: string =
-				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const secondText: string = editor.getBlockText(json, 1);
 			// Cursor should land in second item, at or near end
 			expect(secondText).toContain('X');
 			expect(secondText).toContain('Short');
@@ -407,12 +377,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			}).toPass({ timeout: 5_000 });
 
 			// Position cursor at offset 5 in the list item
-			await page.keyboard.press('Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 5; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(5);
 
 			// ArrowUp to the paragraph
 			await page.keyboard.press('ArrowUp');
@@ -420,8 +385,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const paraText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const paraText: string = editor.getBlockText(json, 0);
 
 			// X should be near column 5, not at end
 			const xPos: number = paraText.indexOf('X');
@@ -440,11 +404,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			// Go to paragraph, position at offset 5
 			await page.keyboard.press('Control+Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 5; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(5);
 
 			// ArrowDown to the list item
 			await page.keyboard.press('ArrowDown');
@@ -452,8 +412,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const listText: string =
-				json.children[1]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const listText: string = editor.getBlockText(json, 1);
 
 			const xPos: number = listText.indexOf('X');
 			expect(xPos).toBeGreaterThan(0);
@@ -476,11 +435,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			// Go to first item, offset 6
 			await page.keyboard.press('Control+Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 6; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(6);
 
 			// ArrowDown to second item
 			await page.keyboard.press('ArrowDown');
@@ -492,8 +447,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const thirdText: string =
-				json.children[2]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const thirdText: string = editor.getBlockText(json, 2);
 
 			// X should be near column 6 in the third item
 			const xPos: number = thirdText.indexOf('X');
@@ -514,12 +468,7 @@ test.describe('Cursor in List Items (#68)', () => {
 			await page.waitForTimeout(100);
 
 			// Position at offset 4 in the third item
-			await page.keyboard.press('Home');
-			await page.waitForTimeout(50);
-			for (let i = 0; i < 4; i++) {
-				await page.keyboard.press('ArrowRight');
-			}
-			await page.waitForTimeout(50);
+			await editor.moveCursorToOffset(4);
 
 			// ArrowUp to second item
 			await page.keyboard.press('ArrowUp');
@@ -531,8 +480,7 @@ test.describe('Cursor in List Items (#68)', () => {
 
 			await page.keyboard.type('X', { delay: 10 });
 			const json = await editor.getJSON();
-			const firstText: string =
-				json.children[0]?.children?.map((c: { text: string }) => c.text).join('') ?? '';
+			const firstText: string = editor.getBlockText(json, 0);
 
 			// X should be near column 4 in the first item
 			const xPos: number = firstText.indexOf('X');
