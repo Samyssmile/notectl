@@ -106,6 +106,10 @@ The `<ntl-editor>` component uses Angular signals for all inputs and outputs:
 | `autofocus` | `boolean` | `false` | Auto-focus on mount |
 | `maxHistoryDepth` | `number` | — | Undo/redo history limit |
 | `theme` | `ThemePreset \| Theme` | `ThemePreset.Light` | Editor theme |
+| `paperSize` | `PaperSize` | — | Paper layout size (e.g., `DINA4`, `USLetter`) |
+| `dir` | `'ltr' \| 'rtl'` | — | Text direction override |
+| `locale` | `Locale` | — | Locale for plugin i18n |
+| `styleNonce` | `string` | — | CSP nonce for injected styles |
 
 ### Outputs
 
@@ -131,7 +135,7 @@ protected readonly myDocument = signal<Document | undefined>(undefined);
 
 ## Reactive Forms
 
-The `NotectlValueAccessorDirective` integrates with Angular's reactive and template-driven forms automatically.
+`NotectlEditorComponent` implements `ControlValueAccessor` directly — no additional directive needed for Angular forms.
 
 ### With FormControl
 
@@ -140,14 +144,13 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
   NotectlEditorComponent,
-  NotectlValueAccessorDirective,
   TextFormattingPlugin,
 } from '@notectl/angular';
 import type { Document, Plugin } from '@notectl/angular';
 
 @Component({
   selector: 'app-editor-form',
-  imports: [ReactiveFormsModule, NotectlEditorComponent, NotectlValueAccessorDirective],
+  imports: [ReactiveFormsModule, NotectlEditorComponent],
   template: `
     <ntl-editor [formControl]="editorControl" [toolbar]="toolbar" />
     <button (click)="save()">Save</button>
@@ -173,7 +176,7 @@ export class EditorFormComponent {
 ```ts
 @Component({
   selector: 'app-editor-ngmodel',
-  imports: [FormsModule, NotectlEditorComponent, NotectlValueAccessorDirective],
+  imports: [FormsModule, NotectlEditorComponent],
   template: `<ntl-editor [(ngModel)]="content" [toolbar]="toolbar" />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

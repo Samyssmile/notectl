@@ -162,6 +162,7 @@ When both methods are used, plugin config wins because it sets inline CSS custom
 | `toggleCodeBlock` | Toggle between paragraph and code block | `boolean` |
 | `insertCodeBlock` | Convert the current block to a code block | `boolean` |
 | `exitCodeBlock` | Exit the code block (same as Escape) | `boolean` |
+| `deleteCodeBlock` | Delete the code block and move cursor to nearest block | `boolean` |
 | `setCodeBlockLanguage` | Reserved — use the [Service API](#service-api) instead | `false` |
 | `setCodeBlockBackground` | Reserved — use the [Service API](#service-api) instead | `false` |
 
