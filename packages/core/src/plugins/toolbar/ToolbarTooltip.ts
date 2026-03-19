@@ -5,6 +5,7 @@
  */
 
 import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
+import type { ContainingBlockOffset } from '../shared/PopupPositioning.js';
 import { measureContainingBlockOffset } from '../shared/PopupPositioning.js';
 
 const TOOLTIP_DELAY_MS = 500;
@@ -53,7 +54,7 @@ export class ToolbarTooltip {
 
 			const rect: DOMRect = button.getBoundingClientRect();
 			setStyleProperty(this.element, 'position', 'fixed');
-			const cbOffset: { x: number; y: number } = measureContainingBlockOffset(this.element);
+			const cbOffset: ContainingBlockOffset = measureContainingBlockOffset(this.element);
 			setStyleProperties(this.element, {
 				top: `${rect.bottom + 6 - cbOffset.y}px`,
 				left: `${rect.left + rect.width / 2 - cbOffset.x}px`,
