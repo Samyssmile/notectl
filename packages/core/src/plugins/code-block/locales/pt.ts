@@ -9,6 +9,8 @@ const locale: CodeBlockLocale = {
 	escToExit: 'Esc para sair',
 	codeBlockAriaLabel: (lang: string) => `Bloco de código ${lang}. Pressione Escape para sair.`,
 	copiedToClipboard: 'Copiado para a área de transferência',
+	deleteCodeBlockAria: 'Excluir bloco de código',
+	deletedCodeBlock: 'Bloco de código excluído',
 };
 
 export default locale;

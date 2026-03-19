@@ -141,6 +141,12 @@ describe('CodeBlockPlugin', () => {
 			expectCommandRegistered(h, 'exitCodeBlock');
 		});
 
+		it('registers deleteCodeBlock command', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+			expectCommandRegistered(h, 'deleteCodeBlock');
+		});
+
 		it('toggleCodeBlock converts paragraph to code_block', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
 			const h = await pluginHarness(new CodeBlockPlugin(), state);
@@ -184,6 +190,72 @@ describe('CodeBlockPlugin', () => {
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('code_block');
 			expect(block?.attrs?.language).toBe('typescript');
+		});
+	});
+
+	describe('deleteCodeBlock command', () => {
+		it('deletes code block and moves cursor to previous sibling', async () => {
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'before', id: 'b1' },
+					{ type: 'code_block', text: 'code', id: 'b2' },
+				],
+				'b2',
+				0,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			h.executeCommand('deleteCodeBlock');
+
+			expect(h.getState().doc.children.length).toBe(1);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b1');
+				expect(sel.anchor.offset).toBe(6);
+			}
+		});
+
+		it('deletes code block and moves cursor to next sibling when no previous', async () => {
+			const state = makeState(
+				[
+					{ type: 'code_block', text: 'code', id: 'b1' },
+					{ type: 'paragraph', text: 'after', id: 'b2' },
+				],
+				'b1',
+				0,
+			);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			h.executeCommand('deleteCodeBlock');
+
+			expect(h.getState().doc.children.length).toBe(1);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.blockId).toBe('b2');
+				expect(sel.anchor.offset).toBe(0);
+			}
+		});
+
+		it('replaces with empty paragraph when code block is the only block', async () => {
+			const state = makeState([{ type: 'code_block', text: 'code', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			h.executeCommand('deleteCodeBlock');
+
+			expect(h.getState().doc.children.length).toBe(1);
+			expect(h.getState().doc.children[0]?.type).toBe('paragraph');
+			expect(getBlockText(h.getState().doc.children[0])).toBe('');
+		});
+
+		it('returns false when cursor is not in a code block', async () => {
+			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }], 'b1', 0);
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			h.dispatch.mockClear();
+			h.executeCommand('deleteCodeBlock');
+			expect(h.dispatch).not.toHaveBeenCalled();
 		});
 	});
 

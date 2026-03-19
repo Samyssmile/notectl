@@ -237,6 +237,88 @@ describe('CodeBlockNodeView', () => {
 		});
 	});
 
+	describe('delete button', () => {
+		it('renders delete button with aria-label', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const deleteBtn = view.dom.querySelector('.notectl-code-block__delete');
+			expect(deleteBtn).not.toBeNull();
+			expect(deleteBtn?.getAttribute('aria-label')).toBe('Delete code block');
+		});
+
+		it('delete button has title attribute for tooltip', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const deleteBtn = view.dom.querySelector('.notectl-code-block__delete');
+			expect(deleteBtn?.getAttribute('title')).toBe('Delete code block');
+		});
+
+		it('delete button has type="button"', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const deleteBtn = view.dom.querySelector(
+				'.notectl-code-block__delete',
+			) as HTMLButtonElement | null;
+			expect(deleteBtn?.type).toBe('button');
+		});
+
+		it('delete button has data-notectl-no-print', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const deleteBtn = view.dom.querySelector('.notectl-code-block__delete');
+			expect(deleteBtn?.hasAttribute('data-notectl-no-print')).toBe(true);
+		});
+
+		it('delete button dispatches transaction on click', () => {
+			const state = stateBuilder()
+				.paragraph('before', 'p1')
+				.block('code_block', 'code', 'cb1', { attrs: { language: '', backgroundColor: '' } })
+				.cursor('cb1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const dispatch = vi.fn();
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({}, 'cb1');
+			const view = factory(node, () => state, dispatch);
+
+			const deleteBtn = view.dom.querySelector('.notectl-code-block__delete') as HTMLButtonElement;
+			deleteBtn.click();
+
+			expect(dispatch).toHaveBeenCalledOnce();
+		});
+	});
+
+	describe('actions wrapper', () => {
+		it('groups copy and delete buttons in actions div', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const actions = view.dom.querySelector('.notectl-code-block__actions');
+			expect(actions).not.toBeNull();
+			expect(actions?.querySelector('.notectl-code-block__copy')).not.toBeNull();
+			expect(actions?.querySelector('.notectl-code-block__delete')).not.toBeNull();
+		});
+
+		it('delete button is present even when copy button is hidden', () => {
+			const factory = createCodeBlockNodeViewFactory({ showCopyButton: false });
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const actions = view.dom.querySelector('.notectl-code-block__actions');
+			expect(actions?.querySelector('.notectl-code-block__copy')).toBeNull();
+			expect(actions?.querySelector('.notectl-code-block__delete')).not.toBeNull();
+		});
+	});
+
 	describe('selectNode / deselectNode', () => {
 		it('selectNode adds selected class', () => {
 			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);

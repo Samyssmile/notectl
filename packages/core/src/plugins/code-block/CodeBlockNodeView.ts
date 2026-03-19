@@ -1,6 +1,6 @@
 /**
  * NodeView factory for code blocks.
- * Renders <pre> with a non-editable header (language label + copy button)
+ * Renders <pre> with a non-editable header (language label + action buttons)
  * and a <code> content area where the Reconciler renders text.
  */
 
@@ -11,11 +11,15 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
+import { createDeleteCodeBlockTransaction } from './CodeBlockCommands.js';
 import { CODE_BLOCK_LOCALE_EN, type CodeBlockLocale } from './CodeBlockLocale.js';
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
 
 const COPY_ICON =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+
+const DELETE_ICON =
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 
 /** Creates a NodeViewFactory for code_block nodes. */
 export function createCodeBlockNodeViewFactory(
@@ -25,7 +29,7 @@ export function createCodeBlockNodeViewFactory(
 	return (
 		node: BlockNode,
 		getState: () => EditorState,
-		_dispatch: (tr: Transaction) => void,
+		dispatch: (tr: Transaction) => void,
 	): NodeView => {
 		// --- DOM Construction ---
 		const pre: HTMLElement = document.createElement('pre');
@@ -55,17 +59,32 @@ export function createCodeBlockNodeViewFactory(
 			copyBtn.innerHTML = COPY_ICON;
 		}
 
-		// Screen reader live region for copy feedback
-		const copyAnnouncer: HTMLSpanElement = document.createElement('span');
-		copyAnnouncer.className = 'notectl-sr-only';
-		copyAnnouncer.setAttribute('aria-live', 'assertive');
-		copyAnnouncer.setAttribute('aria-atomic', 'true');
+		// Delete button
+		const deleteBtn: HTMLButtonElement = document.createElement('button');
+		deleteBtn.className = 'notectl-code-block__delete';
+		deleteBtn.setAttribute('aria-label', locale.deleteCodeBlockAria);
+		deleteBtn.title = locale.deleteCodeBlockAria;
+		deleteBtn.setAttribute('data-notectl-no-print', '');
+		deleteBtn.type = 'button';
+		deleteBtn.innerHTML = DELETE_ICON;
+
+		// Screen reader live region for action feedback
+		const announcer: HTMLSpanElement = document.createElement('span');
+		announcer.className = 'notectl-sr-only';
+		announcer.setAttribute('aria-live', 'assertive');
+		announcer.setAttribute('aria-atomic', 'true');
+
+		// Actions wrapper groups buttons on the right side
+		const actions: HTMLDivElement = document.createElement('div');
+		actions.className = 'notectl-code-block__actions';
+		if (copyBtn) {
+			actions.appendChild(copyBtn);
+		}
+		actions.appendChild(deleteBtn);
 
 		header.appendChild(langLabel);
-		if (copyBtn) {
-			header.appendChild(copyBtn);
-		}
-		header.appendChild(copyAnnouncer);
+		header.appendChild(actions);
+		header.appendChild(announcer);
 
 		// Content area (Reconciler target)
 		const code: HTMLElement = document.createElement('code');
@@ -133,13 +152,26 @@ export function createCodeBlockNodeViewFactory(
 				const text: string = getBlockText(block);
 				navigator.clipboard.writeText(text);
 
-				// Announce to screen readers
-				copyAnnouncer.textContent = locale.copiedToClipboard;
+				announcer.textContent = locale.copiedToClipboard;
 				setTimeout(() => {
-					copyAnnouncer.textContent = '';
+					announcer.textContent = '';
 				}, 1000);
 			});
 		}
+
+		// --- Delete Button Handler ---
+
+		deleteBtn.addEventListener('click', (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const state: EditorState = getState();
+			const tr: Transaction | null = createDeleteCodeBlockTransaction(state, currentNodeId);
+			if (!tr) return;
+
+			announcer.textContent = locale.deletedCodeBlock;
+			dispatch(tr);
+		});
 
 		// --- NodeView Interface ---
 
