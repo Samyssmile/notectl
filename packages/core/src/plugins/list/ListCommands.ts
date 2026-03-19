@@ -10,6 +10,7 @@ import { isTextSelection, selectionRange } from '../../model/Selection.js';
 import { type BlockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { buildListItemAttrs } from './ListAttrsFactory.js';
 import type { ListTypeDefinition } from './ListDefinitions.js';
 import type { ListConfig, ListType } from './ListPlugin.js';
 
@@ -76,13 +77,8 @@ function toggleListSingleBlock(
 		return true;
 	}
 
-	const attrs: Record<string, string | number | boolean> = {
-		listType,
-		indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
-	};
-	if (listType === 'checklist') {
-		attrs.checked = false;
-	}
+	const existingIndent: number = isNodeOfType(block, 'list_item') ? block.attrs.indent : 0;
+	const attrs = buildListItemAttrs(listType, existingIndent);
 
 	const tr = state
 		.transaction('command')
@@ -108,17 +104,16 @@ function toggleListRange(context: PluginContext, state: EditorState, listType: L
 		if (toggleOff) {
 			builder.setBlockType(bid, nodeType('paragraph'));
 		} else {
-			const attrs: Record<string, string | number | boolean> = {
-				listType,
-				indent: isNodeOfType(block, 'list_item') ? block.attrs.indent : 0,
-			};
-			if (listType === 'checklist') {
-				attrs.checked =
-					isNodeOfType(block, 'list_item') &&
-					block.attrs.listType === 'checklist' &&
-					block.attrs.checked;
-			}
-			builder.setBlockType(bid, nodeType('list_item'), attrs);
+			const existingIndent: number = isNodeOfType(block, 'list_item') ? block.attrs.indent : 0;
+			const existingChecked: boolean =
+				isNodeOfType(block, 'list_item') &&
+				block.attrs.listType === 'checklist' &&
+				block.attrs.checked;
+			builder.setBlockType(
+				bid,
+				nodeType('list_item'),
+				buildListItemAttrs(listType, existingIndent, existingChecked),
+			);
 		}
 	});
 
@@ -144,7 +139,7 @@ function changeIndent(context: PluginContext, delta: 1 | -1, maxIndent: number):
 	const newIndent: number = block.attrs.indent + delta;
 	if (newIndent < 0 || newIndent > maxIndent) return false;
 
-	const attrs = { ...block.attrs, indent: newIndent } as Record<string, string | number | boolean>;
+	const attrs = buildListItemAttrs(block.attrs.listType, newIndent, block.attrs.checked);
 	const tr = state
 		.transaction('command')
 		.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
@@ -174,11 +169,11 @@ function changeIndentRange(
 		const newIndent: number = block.attrs.indent + delta;
 		if (newIndent < 0 || newIndent > maxIndent) return;
 
-		const attrs = { ...block.attrs, indent: newIndent } as Record<
-			string,
-			string | number | boolean
-		>;
-		builder.setBlockType(bid, nodeType('list_item'), attrs);
+		builder.setBlockType(
+			bid,
+			nodeType('list_item'),
+			buildListItemAttrs(block.attrs.listType, newIndent, block.attrs.checked),
+		);
 		changed = true;
 	});
 
@@ -205,12 +200,11 @@ export function toggleChecked(
 	if (!bid) return false;
 
 	const block = state.getBlock(bid);
-	if (!block || block.type !== 'list_item' || block.attrs?.listType !== 'checklist') {
+	if (!block || !isNodeOfType(block, 'list_item') || block.attrs.listType !== 'checklist') {
 		return false;
 	}
 
-	const checked: boolean = !block.attrs?.checked;
-	const attrs = { ...block.attrs, checked } as Record<string, string | number | boolean>;
+	const attrs = buildListItemAttrs(block.attrs.listType, block.attrs.indent, !block.attrs.checked);
 
 	const tr = state
 		.transaction('command')

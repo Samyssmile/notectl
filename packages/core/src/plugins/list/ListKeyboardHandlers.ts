@@ -11,6 +11,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { buildListItemAttrs } from './ListAttrsFactory.js';
 
 // --- Context Guard ---
 
@@ -73,13 +74,9 @@ function handleEnter(context: PluginContext): boolean {
 		}
 
 		const newBlockId = generateBlockId();
-		const attrs: Record<string, string | number | boolean> = {
-			listType: isNodeOfType(ctx.block, 'list_item') ? ctx.block.attrs.listType : 'bullet',
-			indent: isNodeOfType(ctx.block, 'list_item') ? ctx.block.attrs.indent : 0,
-		};
-		if (attrs.listType === 'checklist') {
-			attrs.checked = false;
-		}
+		const listType = isNodeOfType(ctx.block, 'list_item') ? ctx.block.attrs.listType : 'bullet';
+		const indent: number = isNodeOfType(ctx.block, 'list_item') ? ctx.block.attrs.indent : 0;
+		const attrs = buildListItemAttrs(listType, indent);
 
 		const tr = ctx.state
 			.transaction('input')

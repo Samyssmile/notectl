@@ -6,6 +6,7 @@
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
+import { buildListItemAttrs } from './ListAttrsFactory.js';
 import type { ListTypeDefinition } from './ListDefinitions.js';
 
 /** Registers markdown-style input rules for configured list types. */
@@ -26,13 +27,7 @@ export function registerListInputRules(
 
 				const matchStr = match[0] ?? '';
 				const matchLen = matchStr.length;
-				const attrs: Record<string, string | number | boolean> = {
-					listType: def.type,
-					indent: 0,
-				};
-				if (def.type === 'checklist') {
-					attrs.checked = matchStr.includes('[x]');
-				}
+				const attrs = buildListItemAttrs(def.type, 0, matchStr.includes('[x]'));
 
 				return state
 					.transaction('input')
