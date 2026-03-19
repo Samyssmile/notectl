@@ -8,6 +8,7 @@
 
 import {
 	type Mark,
+	createEmptyParagraph,
 	createInlineNode,
 	generateBlockId,
 	getBlockLength,
@@ -35,7 +36,7 @@ import {
 } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
-import { createEmptyParagraph, resolveInsertPoint } from './CommandHelpers.js';
+import { resolveInsertPoint } from './CommandHelpers.js';
 import { insertParagraphAtGap, insertTextAtGap } from './GapCursorCommands.js';
 import {
 	deleteNodeSelection,
@@ -101,7 +102,7 @@ export {
 	removeAttributedMark,
 } from './AttributedMarkCommands.js';
 
-export { forEachBlockInRange } from './RangeIterator.js';
+export { forEachBlockIdInRange, forEachBlockInRange } from './RangeIterator.js';
 
 // --- Text Commands ---
 

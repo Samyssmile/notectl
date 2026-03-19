@@ -115,7 +115,7 @@ export const IMAGE_CSS = `
 	position: absolute;
 	width: 10px;
 	height: 10px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-raised);
 	border: 2px solid var(--notectl-primary);
 	border-radius: 50%;
 	pointer-events: all;

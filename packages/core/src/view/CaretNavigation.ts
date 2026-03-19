@@ -138,7 +138,17 @@ export function navigateVerticalWithGoalColumn(
 		if (position) return moveTx(state, position.blockId, position.offset);
 	}
 
-	// Fallback: start (down) or end (up)
+	// Offset-clamp fallback: preserve the absolute character offset, clamped to
+	// the target block length. This handles cases where DOM-based goal column
+	// resolution fails (e.g. Shadow DOM <li> elements) by keeping the cursor
+	// at the same character column when possible.
+	if (isTextSelection(state.selection) && isCollapsed(state.selection)) {
+		const sourceOffset: number = state.selection.anchor.offset;
+		const clampedOffset: number = Math.min(sourceOffset, blockLen);
+		return moveTx(state, target.targetId, clampedOffset);
+	}
+
+	// Final fallback: start (down) or end (up)
 	const fallbackOffset: number = direction === 'down' ? 0 : blockLen;
 	return moveTx(state, target.targetId, fallbackOffset);
 }
@@ -191,13 +201,46 @@ function skipInlineNodeLeft(
 	return moveTx(state, blockId, offset - 1);
 }
 
-/** Returns the bounding rect of the current caret position, or null. */
-export function getCaretRectFromSelection(domSel: globalThis.Selection): DOMRect | null {
-	if (domSel.rangeCount === 0) return null;
-	const range: Range = domSel.getRangeAt(0);
-	const rects: DOMRectList = range.getClientRects();
-	if (rects.length > 0) return rects[0] ?? null;
-	return range.getBoundingClientRect();
+/**
+ * Returns the bounding rect of the current caret position, or null.
+ *
+ * Tries the standard `getRangeAt(0)` path first. When `container` is
+ * provided and the standard path yields no useful rect (height = 0),
+ * falls back to `readDOMSelectionEndpoints()` to handle Shadow DOM cases
+ * where `getRangeAt(0)` returns cross-boundary results (e.g. `<li>` elements).
+ */
+export function getCaretRectFromSelection(
+	domSel: globalThis.Selection,
+	container?: HTMLElement,
+): DOMRect | null {
+	// Standard path: use getRangeAt(0) directly
+	if (domSel.rangeCount > 0) {
+		const range: Range = domSel.getRangeAt(0);
+		const rects: DOMRectList = range.getClientRects();
+		if (rects.length > 0) return rects[0] ?? null;
+		const rect: DOMRect = range.getBoundingClientRect();
+		if (rect.height > 0) return rect;
+	}
+
+	// Shadow DOM fallback: when the standard path gave no useful rect,
+	// try composed selection endpoints (fixes <li> in Shadow DOM)
+	if (container) {
+		const endpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
+		if (endpoints) {
+			try {
+				const range: Range = document.createRange();
+				range.setStart(endpoints.anchorNode, endpoints.anchorOffset);
+				range.setEnd(endpoints.focusNode, endpoints.focusOffset);
+				const rects: DOMRectList = range.getClientRects();
+				if (rects.length > 0) return rects[0] ?? null;
+				return range.getBoundingClientRect();
+			} catch {
+				// Unable to create range from endpoints
+			}
+		}
+	}
+
+	return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +342,7 @@ function probeVerticalBoundary(
 	// Cannot determine position → safe default: not at boundary (let browser handle)
 	if (!origEndpoints) return false;
 
-	const origRect: DOMRect | null = preReadRect ?? getCaretRectFromSelection(domSel);
+	const origRect: DOMRect | null = preReadRect ?? getCaretRectFromSelection(domSel, container);
 	const dirStr: string = direction === 'up' ? 'backward' : 'forward';
 
 	try {
@@ -327,7 +370,7 @@ function probeVerticalBoundary(
 		// Cross-check with getBoundingClientRect: if vertical position unchanged,
 		// the probe was a no-op visually (edge case with inline elements)
 		if (origRect) {
-			const newRect: DOMRect | null = getCaretRectFromSelection(domSel);
+			const newRect: DOMRect | null = getCaretRectFromSelection(domSel, container);
 			if (newRect) {
 				const verticalDelta: number = Math.abs(newRect.top - origRect.top);
 				if (verticalDelta < VERTICAL_MOVEMENT_THRESHOLD_PX) return true;

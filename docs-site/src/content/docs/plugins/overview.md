@@ -17,12 +17,12 @@ notectl ships with **23 built-in plugins**. Every editor feature — from bold t
 | [HeadingPlugin](/notectl/plugins/heading/) | `heading` | Heading levels 1-6, Title, Subtitle | `Ctrl+Shift+1`-`6` |
 | [ListPlugin](/notectl/plugins/list/) | `list` | Bullet, ordered, and checklist | `Tab`, `Shift+Tab` |
 | [LinkPlugin](/notectl/plugins/link/) | `link` | Hyperlinks | `Ctrl+K` |
-| [TablePlugin](/notectl/plugins/table/) | `table` | Tables with cell selection | `Tab`, `Enter` |
+| [TablePlugin](/notectl/plugins/table/) | `table` | Tables with cell selection | `Tab`, `Shift+F10` |
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
 | [ImagePlugin](/notectl/plugins/image/) | `image` | Image blocks with upload support | - |
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
-| [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`-` |
+| [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`_` |
 | [TextColorPlugin](/notectl/plugins/text-color/) | `textColor` | Text color picker | - |
 | [AlignmentPlugin](/notectl/plugins/alignment/) | `alignment` | Start, center, end, justify (logical values for RTL support) | `Ctrl+Shift+L`/`E`/`R`/`J` |
 | [StrikethroughPlugin](/notectl/plugins/strikethrough/) | `strikethrough` | Strikethrough text | `Ctrl+Shift+X` |

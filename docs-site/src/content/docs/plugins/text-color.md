@@ -58,9 +58,10 @@ The text color button shows a **color swatch preview** reflecting the current te
 
 When no custom `colors` are provided, the plugin uses a 70-color palette matching Google Docs, organized in a 10x7 grid from light to dark shades. The palette includes:
 
-- **Row 1:** Pure colors (black, dark grey, dark red, etc.)
-- **Rows 2-3:** Medium tones
-- **Rows 4-7:** Light to pastel shades
+- **Row 1:** Grayscale ramp (black to white)
+- **Row 2:** Vivid pure colors (red, orange, yellow, green, cyan, blue, purple, magenta)
+- **Rows 3-5:** Light to medium pastels
+- **Rows 6-7:** Darker shades
 
 ## Custom Palette Example
 

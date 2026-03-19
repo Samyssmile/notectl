@@ -5,6 +5,8 @@
  */
 
 import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
+import type { ContainingBlockOffset } from '../shared/PopupPositioning.js';
+import { measureContainingBlockOffset } from '../shared/PopupPositioning.js';
 
 const TOOLTIP_DELAY_MS = 500;
 
@@ -51,10 +53,11 @@ export class ToolbarTooltip {
 			button.setAttribute('aria-describedby', ToolbarTooltip.TOOLTIP_ID);
 
 			const rect: DOMRect = button.getBoundingClientRect();
+			setStyleProperty(this.element, 'position', 'fixed');
+			const cbOffset: ContainingBlockOffset = measureContainingBlockOffset(this.element);
 			setStyleProperties(this.element, {
-				position: 'fixed',
-				top: `${rect.bottom + 6}px`,
-				left: `${rect.left + rect.width / 2}px`,
+				top: `${rect.bottom + 6 - cbOffset.y}px`,
+				left: `${rect.left + rect.width / 2 - cbOffset.x}px`,
 				transform: 'translateX(-50%)',
 			});
 		}, TOOLTIP_DELAY_MS);

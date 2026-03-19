@@ -89,7 +89,6 @@ export const TOOLBAR_CSS = `
 
 /* Tooltip (rendered as fixed-position element in shadow root) */
 .notectl-toolbar-tooltip {
-	position: fixed;
 	padding: 4px 8px;
 	border-radius: 4px;
 	background: var(--notectl-tooltip-bg);
@@ -270,7 +269,7 @@ export const TOOLBAR_CSS = `
 	gap: 4px;
 	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-toolbar-bg, var(--notectl-surface-raised));
 }
 
 @media (hover: hover) {
@@ -281,7 +280,7 @@ export const TOOLBAR_CSS = `
 }
 
 .notectl-toolbar-btn[role="combobox"].notectl-toolbar-btn--active {
-	background: var(--notectl-bg);
+	background: var(--notectl-toolbar-bg, var(--notectl-surface-raised));
 	border-color: var(--notectl-primary-muted);
 }
 
@@ -318,7 +317,7 @@ export const TOOLBAR_CSS = `
 	border-radius: 4px;
 	font-size: 13px;
 	color: var(--notectl-fg);
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-overlay);
 }
 
 .notectl-link-popup__input:focus-visible {
@@ -332,7 +331,7 @@ export const TOOLBAR_CSS = `
 	cursor: pointer;
 	border: 1px solid var(--notectl-border);
 	border-radius: 4px;
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-overlay);
 	color: var(--notectl-fg);
 	font-size: 13px;
 }

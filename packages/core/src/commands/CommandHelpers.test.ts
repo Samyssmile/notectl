@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createBlockNode, createTextNode } from '../model/Document.js';
+import { createBlockNode, createEmptyParagraph, createTextNode } from '../model/Document.js';
 import { createSelection } from '../model/Selection.js';
 import { type BlockId, nodeType } from '../model/TypeBrands.js';
 import { stateBuilder } from '../test/TestUtils.js';
-import { createEmptyParagraph, getSiblings, resolveInsertPoint } from './CommandHelpers.js';
+import { getSiblings, resolveInsertPoint } from './CommandHelpers.js';
 
 // ---------------------------------------------------------------------------
 // getSiblings

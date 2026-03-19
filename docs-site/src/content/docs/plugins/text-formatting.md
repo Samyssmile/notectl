@@ -98,11 +98,7 @@ new TextFormattingPlugin({
 | `toggleUnderline` | Toggle underline mark on selection | `boolean` — `true` if applied |
 
 ```ts
-// Via executeCommand
 editor.executeCommand('toggleBold');
-
-// Via convenience shortcut
-editor.commands.toggleBold();
 ```
 
 ## Keyboard Shortcuts

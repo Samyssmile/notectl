@@ -36,7 +36,7 @@ Other keys such as Enter, Backspace, Delete, and character input are handled by 
 ## Accessibility
 
 - When the gap cursor activates, the plugin announces **"Gap cursor active. Type to insert new paragraph."** to screen readers via a live region.
-- The gap cursor DOM element uses `role="presentation"` and `aria-hidden="true"` — it is purely visual and not exposed to the accessibility tree.
+- The gap cursor is rendered as a CSS pseudo-element (`::before` or `::after`) on the void block — no separate DOM element is created, so it is purely visual and not exposed to the accessibility tree.
 
 ## How It Works
 

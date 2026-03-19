@@ -222,7 +222,27 @@ service.getSupportedLanguages();     // ['typescript', 'python', ...]
 
 ## Syntax Highlighting
 
-Provide a `SyntaxHighlighter` implementation to enable token-based highlighting:
+By default, the plugin ships with a built-in `RegexTokenizer` that supports **JSON** and **XML** syntax highlighting out of the box. You can extend it with additional languages or replace it entirely.
+
+### Built-in Languages
+
+JSON and XML are highlighted automatically when the code block language is set to `json` or `xml`.
+
+### Adding Languages at Runtime
+
+Use the `SYNTAX_HIGHLIGHTER_SERVICE_KEY` service to register additional language definitions without replacing the whole highlighter:
+
+```ts
+import { SYNTAX_HIGHLIGHTER_SERVICE_KEY } from '@notectl/core/plugins/code-block';
+
+const highlighterService = editor.getService(SYNTAX_HIGHLIGHTER_SERVICE_KEY);
+highlighterService.registerLanguage(myLanguageDefinition);
+highlighterService.getSupportedLanguages(); // ['json', 'xml', ...]
+```
+
+### Custom Highlighter
+
+Provide a full `SyntaxHighlighter` implementation to replace the built-in tokenizer:
 
 ```ts
 interface SyntaxHighlighter {
@@ -236,6 +256,8 @@ interface SyntaxToken {
   readonly type: string; // e.g. 'keyword', 'string', 'number', 'comment'
 }
 ```
+
+### Token Styling
 
 The plugin generates decoration classes like `notectl-token--keyword`, `notectl-token--string`, etc. Style them in your CSS:
 

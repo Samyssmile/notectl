@@ -76,12 +76,14 @@ See the [Internationalization guide](/notectl/guides/internationalization/) for 
 
 | Command | Description | Returns |
 |---------|-------------|---------|
-| `toggleList:bullet` | Toggle bullet list on current block | `boolean` |
-| `toggleList:ordered` | Toggle ordered list on current block | `boolean` |
-| `toggleList:checklist` | Toggle checklist on current block | `boolean` |
+| `toggleList:bullet` | Toggle bullet list on current block(s) | `boolean` |
+| `toggleList:ordered` | Toggle ordered list on current block(s) | `boolean` |
+| `toggleList:checklist` | Toggle checklist on current block(s) | `boolean` |
 | `indentListItem` | Increase indent level (up to `maxIndent`) | `boolean` |
 | `outdentListItem` | Decrease indent level | `boolean` |
 | `toggleChecklistItem` | Toggle checked state on checklist item (no-op in read-only mode unless `interactiveCheckboxes` is enabled) | `boolean` |
+
+All toggle and indent/outdent commands support **multi-block selections**. When multiple blocks are selected, the command applies to every block in the range.
 
 ```ts
 // Create a bullet list
@@ -140,3 +142,11 @@ interface ListItemAttributes {
 ```
 
 notectl uses a flat list model: each `list_item` carries its own `listType` and `indent` level. This avoids the complexity of nested `<ul>/<ol>` structures and simplifies indent/outdent operations.
+
+## Multi-Block Selections
+
+When you select text spanning multiple blocks:
+
+- **Toggle commands** (`toggleList:bullet`, `toggleList:ordered`, `toggleList:checklist`) convert all blocks in the selection to the chosen list type. If all selected blocks are already that list type, they are all reverted to paragraphs.
+- **Indent/Outdent** (`indentListItem`, `outdentListItem`) adjusts the indent of every list item in the selection. Non-list blocks are skipped.
+- **Toolbar active state** reflects the selection: a list button shows as active only when every block in the range matches that list type.

@@ -12,11 +12,32 @@ export interface DomPoint {
 }
 
 /**
+ * Tries `caretPositionFromPoint` (standard) then `caretRangeFromPoint`
+ * (WebKit fallback) on a single target to resolve a DOM position.
+ */
+function tryCaretFromPoint(target: Document | ShadowRoot, x: number, y: number): DomPoint | null {
+	if ('caretPositionFromPoint' in target) {
+		const cp = (target as Document).caretPositionFromPoint(x, y);
+		if (cp) {
+			return { node: cp.offsetNode, offset: cp.offset };
+		}
+	}
+
+	if ('caretRangeFromPoint' in target) {
+		const range = (target as Document).caretRangeFromPoint(x, y);
+		if (range) {
+			return { node: range.startContainer, offset: range.startOffset };
+		}
+	}
+
+	return null;
+}
+
+/**
  * Resolves a DOM position from screen coordinates using the best available API.
  *
- * Tries `caretPositionFromPoint` first (standard), then `caretRangeFromPoint`
- * (WebKit fallback), and finally tries the ownerDocument when the root is
- * a ShadowRoot and the first two returned nothing.
+ * Tries the given root first, then falls back to the ownerDocument when the
+ * root is a ShadowRoot and the first attempt returned nothing.
  */
 export function domPositionFromPoint(
 	root: Document | ShadowRoot,
@@ -24,38 +45,8 @@ export function domPositionFromPoint(
 	y: number,
 	ownerDoc?: Document,
 ): DomPoint | null {
-	let domNode: Node | null = null;
-	let domOffset = 0;
-
-	// Standard API
-	if ('caretPositionFromPoint' in root) {
-		const cp = (root as Document).caretPositionFromPoint(x, y);
-		if (cp) {
-			domNode = cp.offsetNode;
-			domOffset = cp.offset;
-		}
-	}
-
-	// Fallback
-	if (!domNode && 'caretRangeFromPoint' in root) {
-		const range = (root as Document).caretRangeFromPoint(x, y);
-		if (range) {
-			domNode = range.startContainer;
-			domOffset = range.startOffset;
-		}
-	}
-
-	// Also try on the document when the root is a ShadowRoot and returned nothing
-	if (!domNode && ownerDoc && root !== ownerDoc) {
-		if ('caretRangeFromPoint' in ownerDoc) {
-			const range = ownerDoc.caretRangeFromPoint(x, y);
-			if (range) {
-				domNode = range.startContainer;
-				domOffset = range.startOffset;
-			}
-		}
-	}
-
-	if (!domNode) return null;
-	return { node: domNode, offset: domOffset };
+	return (
+		tryCaretFromPoint(root, x, y) ??
+		(ownerDoc && root !== ownerDoc ? tryCaretFromPoint(ownerDoc, x, y) : null)
+	);
 }

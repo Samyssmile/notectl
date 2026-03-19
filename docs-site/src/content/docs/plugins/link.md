@@ -34,6 +34,7 @@ interface LinkConfig {
 |---------|-------------|---------|
 | `toggleLink` | Add or remove a link on the selection | `boolean` |
 | `removeLink` | Remove link mark from selection | `boolean` |
+| `setLink` | Reserved — link is applied via the toolbar popup | `false` |
 
 The toolbar button is only enabled when there is a text range selection (not a collapsed cursor).
 

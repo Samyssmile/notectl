@@ -254,6 +254,7 @@ interface PluginManagerInitOptions {
   announce?(text: string): void;
   hasAnnouncement?(): boolean;
   onBeforeReady?(): void | Promise<void>;
+  isCancelled?(): boolean;
 }
 ```
 
@@ -262,6 +263,7 @@ interface PluginManagerInitOptions {
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `register` | `(plugin: Plugin) => void` | Register a plugin (must be called before `init`) |
+| `registerService` | `<T>(key: ServiceKey<T>, service: T) => void` | Register a system-level service before init (used by the editor for global services like LocaleService) |
 | `init` | `(options: PluginManagerInitOptions) => Promise<void>` | Initialize all plugins in dependency/priority order |
 | `destroy` | `() => Promise<void>` | Destroy all plugins in reverse init order |
 | `notifyStateChange` | `(oldState, newState, tr) => void` | Notify all plugins of a state change |
@@ -271,12 +273,14 @@ interface PluginManagerInitOptions {
 | `executeCommand` | `(name: string) => boolean` | Execute a named command |
 | `configurePlugin` | `(pluginId, config) => void` | Configure a plugin at runtime |
 | `isReadOnly` | `() => boolean` | Get current readonly state |
+| `isReadonlyBypassed` | `() => boolean` | Returns `true` if readonly is temporarily bypassed |
 | `setReadOnly` | `(readonly: boolean) => void` | Update readonly state and notify plugins |
 | `getPluginIds` | `() => string[]` | List all registered plugin IDs |
 | `get` | `(id: string) => Plugin \| undefined` | Get a plugin by ID |
 | `getService` | `<T>(key: ServiceKey<T>) => T \| undefined` | Get a registered service |
 | `onEvent` | `<T>(key: EventKey<T>, cb) => () => void` | Subscribe to an event (returns unsubscribe) |
 | `getMiddlewareChain` | `() => readonly MiddlewareInfo[]` | Get middleware in execution order |
+| `getPasteInterceptors` | `() => readonly PasteInterceptorEntry[]` | Get all paste interceptors in priority order |
 | `getPluginStyleSheets` | `() => readonly CSSStyleSheet[]` | Get all plugin-registered stylesheets |
 
 ### Public Registries
