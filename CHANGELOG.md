@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dependencies** — Patched transitive security vulnerabilities and aligned all Angular packages to 21.2.4.
 - **EditorInitializer refactored** — Split the 208-line `initializeEditor()` god function into an `EditorInitSession` class with focused single-responsibility phase methods (`setupTheme`, `setupDOM`, `setupPlugins`, `initPluginsAndView`, `createInputAndView`, `finalizeSetup`).
+- **List attrs DRY refactor** — Extracted `buildListItemAttrs()` factory to replace 7 duplicated inline attribute constructions and eliminate `as Record<...>` casts (#73).
+- **E2E cursor helpers** — Extracted `moveCursorToOffset()` and `getBlockText()` into `EditorPage`, removing ~20 duplicated patterns from `cursor-list-items.spec.ts` (#75).
 
 ### Fixed
 
