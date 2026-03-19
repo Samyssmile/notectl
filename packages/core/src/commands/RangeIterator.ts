@@ -12,6 +12,27 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 
 /**
+ * Iterates over every block ID in the given selection range, including
+ * empty blocks and boundary blocks regardless of offset span.
+ * Designed for block-level operations (e.g. setBlockType) where offsets are irrelevant.
+ */
+export function forEachBlockIdInRange(
+	state: EditorState,
+	range: SelectionRange,
+	callback: (blockId: BlockId) => void,
+): void {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const fromIdx: number = blockOrder.indexOf(range.from.blockId);
+	const toIdx: number = blockOrder.indexOf(range.to.blockId);
+
+	for (let i: number = fromIdx; i <= toIdx; i++) {
+		const blockId: BlockId | undefined = blockOrder[i];
+		if (!blockId) continue;
+		callback(blockId);
+	}
+}
+
+/**
  * Iterates over each block in the given selection range, invoking the callback
  * with the block ID, per-block start offset, and per-block end offset.
  * Blocks where `from === to` are skipped automatically.

@@ -2,18 +2,11 @@
  * Shared helpers used across multiple command modules.
  *
  * - {@link getSiblings} — resolves a parent path to its child list
- * - {@link createEmptyParagraph} — builds an empty paragraph BlockNode
  * - {@link resolveInsertPoint} — normalizes a text selection to a single insert position
  */
 
 import type { BlockNode, ChildNode, Document } from '../model/Document.js';
-import {
-	createBlockNode,
-	createTextNode,
-	getBlockLength,
-	isBlockNode,
-	isLeafBlock,
-} from '../model/Document.js';
+import { getBlockLength, isBlockNode, isLeafBlock } from '../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -22,7 +15,6 @@ import {
 } from '../model/Selection.js';
 import type { EditorSelection, Selection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 
@@ -42,11 +34,6 @@ export function getSiblings(
 		parentPath[parentPath.length - 1] as BlockId,
 	);
 	return parent ? parent.children : [];
-}
-
-/** Creates an empty paragraph block node with the given ID. */
-export function createEmptyParagraph(id: BlockId): BlockNode {
-	return createBlockNode(nodeType('paragraph'), [createTextNode('')], id);
 }
 
 /**

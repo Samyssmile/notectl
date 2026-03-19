@@ -248,6 +248,11 @@ export function createInlineNode(
 	};
 }
 
+/** Creates an empty paragraph block node with the given ID. */
+export function createEmptyParagraph(id?: BlockId): BlockNode {
+	return createBlockNode('paragraph' as NodeTypeName, [createTextNode('')], id);
+}
+
 // --- Utility Functions ---
 
 /** Extracts plain text from a block (InlineNodes are skipped). */

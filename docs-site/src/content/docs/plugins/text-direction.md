@@ -3,19 +3,27 @@ title: Text Direction Plugin
 description: RTL language support with block-level text direction, inline bidi isolation, auto-detection, and keyboard shortcuts.
 ---
 
-The `TextDirectionPlugin` provides comprehensive text direction support — block-level direction control, inline bidi isolation via `<bdi>` marks, smart middleware for direction inheritance and auto-detection, and keyboard shortcuts for both block and inline operations.
+The `TextDirectionPlugin` provides block-level text direction control with a toolbar dropdown, keyboard shortcuts, and platform-aware direction shortcuts on Windows/Linux.
+
+For inline bidi isolation (`<bdi>` marks), smart middleware for direction inheritance and auto-detection, and additional inline commands, use the `TextDirectionAdvancedPlugin` from `@notectl/core/plugins/text-direction-advanced`.
 
 :::note
-The `TextDirectionAdvancedPlugin` import from `@notectl/core/plugins/text-direction-advanced` is an alias for the same `TextDirectionPlugin` class. Both imports resolve to identical functionality.
+The base `TextDirectionPlugin` (from `@notectl/core/plugins/text-direction`) includes only block-level direction commands, toolbar, and keymaps. The `TextDirectionAdvancedPlugin` (from `@notectl/core/plugins/text-direction-advanced`) adds inline bidi isolation, direction auto-detection middleware, direction inheritance middleware, and the `Mod-Shift-B` keymap.
 :::
 
 ## Usage
 
 ```ts
+// Base plugin — block-level direction only
 import { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
 
 new TextDirectionPlugin()
 new TextDirectionPlugin({ directableTypes: ['paragraph', 'heading'] })
+
+// Advanced plugin — block + inline bidi + auto-detect + direction inheritance
+import { TextDirectionAdvancedPlugin } from '@notectl/core/plugins/text-direction-advanced';
+
+new TextDirectionAdvancedPlugin()
 ```
 
 ## Configuration
@@ -76,9 +84,13 @@ editor.executeCommand('toggleDirection');
 
 The plugin renders a **Text Direction** toolbar dropdown (block group) with LTR, RTL, and Auto options. The icon updates to reflect the current block's direction.
 
-## Inline Bidi Isolation
+## Inline Bidi Isolation (Advanced Only)
 
-The plugin registers a `bdi` mark for mixed-direction content within a single block (e.g., an English phrase inside Arabic text). The mark wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
+:::caution
+The inline bidi features below are only available in `TextDirectionAdvancedPlugin`. The base `TextDirectionPlugin` does not include them.
+:::
+
+The advanced plugin registers a `bdi` mark for mixed-direction content within a single block (e.g., an English phrase inside Arabic text). The mark wraps selected text in a `<bdi>` element with an explicit `dir` attribute.
 
 ### Inline Bidi Commands
 
@@ -111,9 +123,13 @@ The plugin renders a second toolbar dropdown — **Inline Direction** (format gr
 |------|----------|------------|-------------|
 | `bdi` | `<bdi>` | `dir` | Inline bidi isolation element |
 
-## Smart Middleware
+## Smart Middleware (Advanced Only)
 
-The plugin registers three transaction middleware handlers that work automatically:
+:::caution
+The middleware features below are only available in `TextDirectionAdvancedPlugin`. The base `TextDirectionPlugin` does not include them.
+:::
+
+The advanced plugin registers three transaction middleware handlers that work automatically:
 
 ### Preserve Direction
 

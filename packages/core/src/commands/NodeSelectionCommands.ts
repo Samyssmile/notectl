@@ -3,7 +3,12 @@
  * after void blocks, and navigating arrow keys into/out of void blocks.
  */
 
-import { generateBlockId, getBlockLength, isBlockNode } from '../model/Document.js';
+import {
+	createEmptyParagraph,
+	generateBlockId,
+	getBlockLength,
+	isBlockNode,
+} from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { NodeSelection } from '../model/Selection.js';
 import {
@@ -19,7 +24,6 @@ import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
 import {
-	createEmptyParagraph,
 	createSelectionForBlockBoundary,
 	extractParentPath,
 	findSiblingIndex,

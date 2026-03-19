@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-03-18
+
+### Added
+
+- **Batch list operations** — Support batch list operations (toggle, indent, outdent) on multi-block selections (#68).
+
+### Changed
+
+- **Dependencies** — Patched transitive security vulnerabilities and aligned all Angular packages to 21.2.4.
+- **EditorInitializer refactored** — Split the 208-line `initializeEditor()` god function into an `EditorInitSession` class with focused single-responsibility phase methods (`setupTheme`, `setupDOM`, `setupPlugins`, `initPluginsAndView`, `createInputAndView`, `finalizeSetup`).
+- **List attrs DRY refactor** — Extracted `buildListItemAttrs()` factory to replace 7 duplicated inline attribute constructions and eliminate `as Record<...>` casts (#73).
+- **E2E cursor helpers** — Extracted `moveCursorToOffset()` and `getBlockText()` into `EditorPage`, removing ~20 duplicated patterns from `cursor-list-items.spec.ts` (#75).
+- **DomPointUtils DRY refactor** — Extracted `tryCaretFromPoint()` helper to deduplicate the `caretPositionFromPoint`/`caretRangeFromPoint` fallback chain (#74).
+
+### Fixed
+
+- **Dropdown popup positioning** — Correct dropdown popup mispositioning in `transform`/`will-change` containers (#72).
+- **List item navigation** — Preserve goal column when navigating between list items with arrow keys (#69).
+- **Theme variables** — Use correct surface variables instead of `--notectl-bg` for UI elements (#71).
+- **Keymap warnings** — Suppress keymap override warnings for cross-priority registrations (#70).
+
+### Documentation
+
+- Comprehensive documentation audit across 24 files (plugins, API reference, guides, getting started).
+- Fixed incorrect keyboard shortcuts in plugin overview (TablePlugin, FontSizePlugin).
+- Added missing PluginManager methods to API reference (`registerService`, `isReadonlyBypassed`, `getPasteInterceptors`).
+- Fixed CSS variable count in theme docs (26 → 36), added syntax token documentation.
+- Corrected TextDirectionPlugin vs TextDirectionAdvancedPlugin distinction.
+- Fixed import paths for `FontDefinition` and `TableLocale` types.
+- Added missing locale loaders (`loadSmartPasteLocale`, `loadGapCursorLocale`, `loadCaretNavigationLocale`).
+- Added code block syntax token CSS properties to styling guide.
+- Updated plugin styling examples to use CSP-compliant `registerStyleSheet()` approach.
+- Added blockquote keyboard behavior, list multi-block selection, and code block built-in languages documentation.
+
 ## [2.0.3] - 2026-03-14
 
 ### Changed

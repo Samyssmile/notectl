@@ -148,7 +148,9 @@ export class EditorViewNavigation {
 		const state: EditorState = this.deps.getState();
 		const domSel: globalThis.Selection | null =
 			this.deps.contentElement.ownerDocument.getSelection?.() ?? null;
-		const caretRect: DOMRect | null = domSel ? getCaretRectFromSelection(domSel) : null;
+		const caretRect: DOMRect | null = domSel
+			? getCaretRectFromSelection(domSel, this.deps.contentElement)
+			: null;
 
 		if (!endOfTextblock(this.deps.contentElement, state, direction, caretRect)) {
 			return false;

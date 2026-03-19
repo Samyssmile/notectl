@@ -68,7 +68,7 @@ import { navigateFromGapCursor } from '@notectl/core';
 const tr = navigateFromGapCursor(state, 'down', container);
 ```
 
-### `getCaretRectFromSelection(domSel)`
+### `getCaretRectFromSelection(domSel, container?)`
 
 Returns the bounding rect of the current DOM selection's caret, or `null` if unavailable:
 
@@ -76,6 +76,8 @@ Returns the bounding rect of the current DOM selection's caret, or `null` if una
 import { getCaretRectFromSelection } from '@notectl/core';
 
 const rect: DOMRect | null = getCaretRectFromSelection(window.getSelection()!);
+// With optional container for scoped lookups:
+const rect2: DOMRect | null = getCaretRectFromSelection(window.getSelection()!, container);
 ```
 
 ### CaretDirection

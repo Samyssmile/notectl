@@ -187,6 +187,7 @@ export { moveToBlockEnd, moveToBlockStart } from './state/BlockBoundaryMovement.
 // --- Commands ---
 export type { FeatureConfig } from './commands/Commands.js';
 export {
+	forEachBlockIdInRange,
 	forEachBlockInRange,
 	toggleMark,
 	toggleBold,

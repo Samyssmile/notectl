@@ -3,7 +3,7 @@ import type { Keymap } from './Keymap.js';
 import { KeymapRegistry } from './KeymapRegistry.js';
 
 describe('KeymapRegistry', () => {
-	it('logs debug message when a keymap shortcut collides with an existing one', () => {
+	it('logs debug message when a keymap shortcut collides at the same priority', () => {
 		const registry = new KeymapRegistry();
 		const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
@@ -12,8 +12,20 @@ describe('KeymapRegistry', () => {
 
 		expect(spy).toHaveBeenCalledOnce();
 		expect(spy).toHaveBeenCalledWith(
-			'[notectl] Keymap shortcut "Mod-B" is already registered and will be overridden.',
+			'[notectl] Keymap shortcut "Mod-B" is already registered at "default" priority and will be overridden.',
 		);
+
+		spy.mockRestore();
+	});
+
+	it('does not log when keymaps override across different priorities', () => {
+		const registry = new KeymapRegistry();
+		const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+		registry.registerKeymap({ Enter: () => true });
+		registry.registerKeymap({ Enter: () => false }, { priority: 'context' });
+
+		expect(spy).not.toHaveBeenCalled();
 
 		spy.mockRestore();
 	});
@@ -30,15 +42,19 @@ describe('KeymapRegistry', () => {
 		spy.mockRestore();
 	});
 
-	it('debug message includes the colliding key descriptor', () => {
+	it('debug message includes the colliding key descriptor and priority', () => {
 		const registry = new KeymapRegistry();
 		const spy: MockInstance = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
-		registry.registerKeymap({ 'Mod-Shift-1': () => true });
-		registry.registerKeymap({ 'Mod-Shift-1': () => false, 'Mod-Shift-2': () => true });
+		registry.registerKeymap({ 'Mod-Shift-1': () => true }, { priority: 'navigation' });
+		registry.registerKeymap(
+			{ 'Mod-Shift-1': () => false, 'Mod-Shift-2': () => true },
+			{ priority: 'navigation' },
+		);
 
 		expect(spy).toHaveBeenCalledOnce();
 		expect(String(spy.mock.calls[0]?.[0])).toContain('Mod-Shift-1');
+		expect(String(spy.mock.calls[0]?.[0])).toContain('navigation');
 
 		spy.mockRestore();
 	});

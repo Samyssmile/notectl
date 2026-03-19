@@ -131,6 +131,34 @@ const output = document.getElementById('output') as HTMLElement;
 		output.textContent = 'Redo executed';
 	});
 
+	// Transform container toggle (for testing bug #72)
+	let transformActive = false;
+	let transformWrapper: HTMLDivElement | null = null;
+	document.getElementById('btn-toggle-transform')?.addEventListener('click', () => {
+		const btn = document.getElementById('btn-toggle-transform') as HTMLButtonElement;
+		if (!transformActive) {
+			transformWrapper = document.createElement('div');
+			transformWrapper.style.cssText =
+				'transform: translateY(0); padding: 20px; margin-top: 40px; border: 2px dashed red; border-radius: 8px; position: relative;';
+			const label = document.createElement('div');
+			label.textContent = 'transform: translateY(0) — dropdowns should still align correctly';
+			label.style.cssText = 'color: red; font-size: 12px; margin-bottom: 8px; font-weight: 600;';
+			transformWrapper.appendChild(label);
+			container.parentElement?.insertBefore(transformWrapper, container);
+			transformWrapper.appendChild(container);
+			transformActive = true;
+			btn.textContent = 'Remove Transform Container';
+			btn.style.background = '#e0ffe0';
+		} else if (transformWrapper) {
+			transformWrapper.parentElement?.insertBefore(container, transformWrapper);
+			transformWrapper.remove();
+			transformWrapper = null;
+			transformActive = false;
+			btn.textContent = 'Toggle Transform Container (Bug #72 test)';
+			btn.style.background = '#ffe0e0';
+		}
+	});
+
 	// Theme toggle
 	const themeBtn: HTMLButtonElement = document.createElement('button');
 	themeBtn.textContent = 'Toggle Dark Mode';

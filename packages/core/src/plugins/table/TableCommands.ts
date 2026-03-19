@@ -7,11 +7,13 @@
  * by both commands (via PluginContext) and controls (via getState/dispatch).
  */
 
+import { createSelectionForBlockBoundary } from '../../commands/CommandHelpers.js';
 import {
+	createBlockNode,
 	createEmptyParagraph,
-	createSelectionForBlockBoundary,
-} from '../../commands/CommandHelpers.js';
-import { createBlockNode, generateBlockId, getBlockChildren } from '../../model/Document.js';
+	generateBlockId,
+	getBlockChildren,
+} from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,

@@ -61,214 +61,281 @@ export interface InitResult {
 
 /** Performs the full editor initialization sequence. Returns null if setup fails. */
 export async function initializeEditor(deps: InitializerDeps): Promise<InitResult | null> {
-	const cfg: NotectlEditorConfig = deps.config;
-	const isCancelled = (): boolean => deps.isCancelled?.() ?? false;
-	let themeController: EditorThemeController | null = null;
-	let domElements: EditorDOMElements | null = null;
-	let paperLayout: PaperLayoutController | null = null;
-	let pluginManager: PluginManager | null = null;
-	let inputManager: InputManager | null = null;
-	let view: EditorView | null = null;
-	let cleanedUp = false;
+	const session: EditorInitSession = new EditorInitSession(deps);
+	return session.run();
+}
 
-	const release = (): void => {
-		view = null;
-	};
+// --- Internal init session -----------------------------------------------
 
-	const cleanup = async (): Promise<void> => {
-		if (cleanedUp) return;
-		cleanedUp = true;
+/**
+ * Encapsulates the mutable state and phases of editor initialization.
+ *
+ * Each phase method is independently readable and focused on a single concern.
+ * The class exists to share mutable view/pluginManager references between
+ * dispatch, cleanup, and the plugin onBeforeReady callback.
+ */
+class EditorInitSession {
+	private readonly cfg: NotectlEditorConfig;
+	private themeController: EditorThemeController | null = null;
+	private domElements: EditorDOMElements | null = null;
+	private paperLayout: PaperLayoutController | null = null;
+	private pluginManager: PluginManager | null = null;
+	private inputManager: InputManager | null = null;
+	private view: EditorView | null = null;
+	private cleanedUp = false;
 
-		const liveView: EditorView | null = view;
-		view = null;
-		paperLayout?.destroy();
-		paperLayout = null;
-		deps.styleCoordinator.teardown(deps.shadow, themeController);
-		themeController?.destroy();
-		themeController = null;
-		inputManager?.destroy();
-		inputManager = null;
-		liveView?.destroy();
-		const livePluginManager: PluginManager | null = pluginManager;
-		pluginManager = null;
-		await livePluginManager?.destroy();
-		domElements?.wrapper.remove();
-		domElements = null;
-	};
+	constructor(private readonly deps: InitializerDeps) {
+		this.cfg = deps.config;
+	}
 
-	try {
-		themeController = new EditorThemeController(deps.shadow);
-		deps.styleCoordinator.setup(deps.shadow, cfg.styleNonce, themeController);
-		themeController.apply(cfg.theme ?? ThemePreset.Light);
-		if (isCancelled()) {
-			await cleanup();
-			return null;
-		}
+	/** Orchestrates the full initialization sequence. */
+	async run(): Promise<InitResult | null> {
+		try {
+			this.setupTheme();
+			if (this.isCancelled()) return this.abort();
 
-		const editorLocale: EditorLocale = await resolveLocale(cfg);
-		if (isCancelled()) {
-			await cleanup();
-			return null;
-		}
+			const locale: EditorLocale = await resolveLocale(this.cfg);
+			if (this.isCancelled()) return this.abort();
 
-		domElements = createEditorDOM({
-			readonly: cfg.readonly,
-			placeholder: cfg.placeholder,
-			dir: cfg.dir ?? deps.hostDir,
-			locale: editorLocale,
-		});
-		deps.shadow.appendChild(domElements.wrapper);
+			this.setupDOM(locale);
+			this.setupPlugins();
+			await this.initPluginsAndView();
 
-		if (cfg.paperSize) {
-			paperLayout = new PaperLayoutController(domElements.wrapper, domElements.content);
-			paperLayout.apply(cfg.paperSize);
-		}
-
-		pluginManager = new PluginManager();
-		pluginManager.registerService(LocaleServiceKey, new LocaleService(cfg.locale ?? 'browser'));
-		registerBuiltinSpecs(pluginManager.schemaRegistry);
-		processToolbarConfig(pluginManager, cfg.toolbar);
-
-		for (const plugin of cfg.plugins ?? []) {
-			pluginManager.register(plugin);
-		}
-		for (const plugin of deps.preInitPlugins) {
-			pluginManager.register(plugin);
-		}
-		ensureEssentialPlugins(pluginManager, cfg.features);
-		const activeDomElements: EditorDOMElements = domElements;
-		const activePluginManager: PluginManager = pluginManager;
-		const activeThemeController: EditorThemeController = themeController;
-
-		activeDomElements.content.addEventListener('focus', () => deps.events.emit('focus', undefined));
-		activeDomElements.content.addEventListener('blur', () => deps.events.emit('blur', undefined));
-
-		const dispatch = (tr: Transaction): void => {
-			if (!view || !pluginManager) return;
 			if (
-				deps.configController.isReadOnly &&
-				!isAllowedInReadonly(tr) &&
-				!pluginManager.isReadonlyBypassed()
+				this.isCancelled() ||
+				!this.view ||
+				!this.inputManager ||
+				!this.pluginManager ||
+				!this.domElements ||
+				!this.themeController
 			) {
-				return;
+				return this.abort();
 			}
-			pluginManager.dispatchWithMiddleware(tr, view.getState(), (finalTr) =>
-				view?.dispatch(finalTr),
+
+			const view: EditorView = this.view;
+			const inputManager: InputManager = this.inputManager;
+			const pluginManager: PluginManager = this.pluginManager;
+			const domElements: EditorDOMElements = this.domElements;
+			const themeController: EditorThemeController = this.themeController;
+
+			this.finalizeSetup(pluginManager, domElements);
+
+			return {
+				view,
+				inputManager,
+				pluginManager,
+				domElements,
+				themeController,
+				paperLayout: this.paperLayout,
+				release: (): void => {
+					this.view = null;
+				},
+			};
+		} catch (error) {
+			await this.cleanup();
+			throw error;
+		}
+	}
+
+	private setupTheme(): void {
+		this.themeController = new EditorThemeController(this.deps.shadow);
+		this.deps.styleCoordinator.setup(this.deps.shadow, this.cfg.styleNonce, this.themeController);
+		this.themeController.apply(this.cfg.theme ?? ThemePreset.Light);
+	}
+
+	private setupDOM(locale: EditorLocale): void {
+		this.domElements = createEditorDOM({
+			readonly: this.cfg.readonly,
+			placeholder: this.cfg.placeholder,
+			dir: this.cfg.dir ?? this.deps.hostDir,
+			locale,
+		});
+		this.deps.shadow.appendChild(this.domElements.wrapper);
+
+		if (this.cfg.paperSize) {
+			this.paperLayout = new PaperLayoutController(
+				this.domElements.wrapper,
+				this.domElements.content,
 			);
-		};
+			this.paperLayout.apply(this.cfg.paperSize);
+		}
+	}
 
-		await activePluginManager.init({
-			isCancelled,
+	private setupPlugins(): void {
+		if (!this.domElements) return;
+
+		this.pluginManager = new PluginManager();
+		this.pluginManager.registerService(
+			LocaleServiceKey,
+			new LocaleService(this.cfg.locale ?? 'browser'),
+		);
+		registerBuiltinSpecs(this.pluginManager.schemaRegistry);
+		processToolbarConfig(this.pluginManager, this.cfg.toolbar);
+
+		for (const plugin of this.cfg.plugins ?? []) {
+			this.pluginManager.register(plugin);
+		}
+		for (const plugin of this.deps.preInitPlugins) {
+			this.pluginManager.register(plugin);
+		}
+		ensureEssentialPlugins(this.pluginManager, this.cfg.features);
+
+		this.domElements.content.addEventListener('focus', () =>
+			this.deps.events.emit('focus', undefined),
+		);
+		this.domElements.content.addEventListener('blur', () =>
+			this.deps.events.emit('blur', undefined),
+		);
+	}
+
+	private async initPluginsAndView(): Promise<void> {
+		if (!this.pluginManager || !this.domElements || !this.themeController) {
+			return;
+		}
+
+		const dom: EditorDOMElements = this.domElements;
+		const pm: PluginManager = this.pluginManager;
+		const tc: EditorThemeController = this.themeController;
+
+		await pm.init({
+			isCancelled: () => this.isCancelled(),
 			getState: () => {
-				if (!view) throw new Error('View not initialized');
-				return view.getState();
+				if (!this.view) throw new Error('View not initialized');
+				return this.view.getState();
 			},
-			dispatch,
-			getContainer: () => activeDomElements.content,
+			dispatch: (tr: Transaction) => this.dispatch(tr),
+			getContainer: () => dom.content,
 			getPluginContainer: (position) =>
-				position === 'top'
-					? activeDomElements.topPluginContainer
-					: activeDomElements.bottomPluginContainer,
+				position === 'top' ? dom.topPluginContainer : dom.bottomPluginContainer,
 			announce: (text: string) => {
-				if (activeDomElements.announcer) activeDomElements.announcer.textContent = text;
+				if (dom.announcer) dom.announcer.textContent = text;
 			},
-			hasAnnouncement: () => !!activeDomElements.announcer?.textContent,
-			onBeforeReady: () => {
-				if (isCancelled() || !pluginManager || !themeController) return;
-				const schema = schemaFromRegistry(activePluginManager.schemaRegistry);
-				const state: EditorState = EditorState.create({ schema });
+			hasAnnouncement: () => !!dom.announcer?.textContent,
+			onBeforeReady: () => this.createInputAndView(dom, pm, tc),
+		});
+	}
 
-				inputManager = new InputManager(activeDomElements.content, {
-					getState: () => {
-						if (!view) throw new Error('View not initialized');
-						return view.getState();
-					},
-					dispatch,
-					syncSelection: () => view?.syncSelection(),
-					undo: () => view?.undo(),
-					redo: () => view?.redo(),
-					schemaRegistry: activePluginManager.schemaRegistry,
-					keymapRegistry: activePluginManager.keymapRegistry,
-					inputRuleRegistry: activePluginManager.inputRuleRegistry,
-					fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
-					isReadOnly: () => deps.configController.isReadOnly,
-					getPasteInterceptors: () => activePluginManager.getPasteInterceptors(),
-					getTextDirection,
-					navigateFromGapCursor,
-				});
+	/** Creates InputManager and EditorView. Called synchronously by PluginManager. */
+	private createInputAndView(
+		dom: EditorDOMElements,
+		pm: PluginManager,
+		tc: EditorThemeController,
+	): void {
+		if (this.isCancelled() || !this.pluginManager || !this.themeController) {
+			return;
+		}
 
-				view = new EditorView(activeDomElements.content, {
-					state,
-					schemaRegistry: activePluginManager.schemaRegistry,
-					keymapRegistry: activePluginManager.keymapRegistry,
-					fileHandlerRegistry: activePluginManager.fileHandlerRegistry,
-					nodeViewRegistry: activePluginManager.nodeViewRegistry,
-					maxHistoryDepth: cfg.maxHistoryDepth,
-					getDecorations: (s, tr) =>
-						activePluginManager.collectDecorations(s, tr) ?? DecorationSet.empty,
-					onStateChange: (oldState, newState, tr) => {
-						handleStateChange(
-							oldState,
-							newState,
-							tr,
-							activeDomElements,
-							activePluginManager,
-							deps.events,
-						);
-					},
-					isReadOnly: () => deps.configController.isReadOnly,
-					compositionState: inputManager.compositionTracker,
-				});
+		const schema = schemaFromRegistry(pm.schemaRegistry);
+		const state: EditorState = EditorState.create({ schema });
 
-				updateEmptyState(activeDomElements.content, view.getState().doc);
-
-				const pluginSheets: readonly CSSStyleSheet[] = activePluginManager.getPluginStyleSheets();
-				if (pluginSheets.length > 0) {
-					activeThemeController.setPluginStyleSheets(pluginSheets);
-				}
+		this.inputManager = new InputManager(dom.content, {
+			getState: () => {
+				if (!this.view) throw new Error('View not initialized');
+				return this.view.getState();
 			},
+			dispatch: (tr: Transaction) => this.dispatch(tr),
+			syncSelection: () => this.view?.syncSelection(),
+			undo: () => this.view?.undo(),
+			redo: () => this.view?.redo(),
+			schemaRegistry: pm.schemaRegistry,
+			keymapRegistry: pm.keymapRegistry,
+			inputRuleRegistry: pm.inputRuleRegistry,
+			fileHandlerRegistry: pm.fileHandlerRegistry,
+			isReadOnly: () => this.deps.configController.isReadOnly,
+			getPasteInterceptors: () => pm.getPasteInterceptors(),
+			getTextDirection,
+			navigateFromGapCursor,
 		});
 
-		if (
-			isCancelled() ||
-			!view ||
-			!inputManager ||
-			!pluginManager ||
-			!domElements ||
-			!themeController
-		) {
-			await cleanup();
-			return null;
+		this.view = new EditorView(dom.content, {
+			state,
+			schemaRegistry: pm.schemaRegistry,
+			keymapRegistry: pm.keymapRegistry,
+			fileHandlerRegistry: pm.fileHandlerRegistry,
+			nodeViewRegistry: pm.nodeViewRegistry,
+			maxHistoryDepth: this.cfg.maxHistoryDepth,
+			getDecorations: (s, tr) => pm.collectDecorations(s, tr) ?? DecorationSet.empty,
+			onStateChange: (oldState, newState, tr) => {
+				handleStateChange(oldState, newState, tr, dom, pm, this.deps.events);
+			},
+			isReadOnly: () => this.deps.configController.isReadOnly,
+			compositionState: this.inputManager.compositionTracker,
+		});
+
+		updateEmptyState(dom.content, this.view.getState().doc);
+
+		const pluginSheets: readonly CSSStyleSheet[] = pm.getPluginStyleSheets();
+		if (pluginSheets.length > 0) {
+			tc.setPluginStyleSheets(pluginSheets);
+		}
+	}
+
+	private finalizeSetup(pm: PluginManager, dom: EditorDOMElements): void {
+		if (this.cfg.readonly) {
+			pm.setReadOnly(true);
 		}
 
-		if (cfg.readonly) {
-			activePluginManager.setReadOnly(true);
-		}
-
-		activePluginManager.onEvent(BEFORE_PRINT, (event) => {
-			if (!event.options.paperSize && deps.configController.getPaperSize()) {
-				event.options = { ...event.options, paperSize: deps.configController.getPaperSize() };
+		pm.onEvent(BEFORE_PRINT, (event) => {
+			if (!event.options.paperSize && this.deps.configController.getPaperSize()) {
+				event.options = {
+					...event.options,
+					paperSize: this.deps.configController.getPaperSize(),
+				};
 			}
 		});
 
-		if (cfg.autofocus) {
-			requestAnimationFrame(() => activeDomElements.content.focus());
+		if (this.cfg.autofocus) {
+			const content: HTMLElement = dom.content;
+			requestAnimationFrame(() => content.focus());
 		}
+	}
 
-		return {
-			view,
-			inputManager,
-			pluginManager: activePluginManager,
-			domElements: activeDomElements,
-			themeController: activeThemeController,
-			paperLayout,
-			release,
-		};
-	} catch (error) {
-		await cleanup();
-		throw error;
+	private dispatch(tr: Transaction): void {
+		if (!this.view || !this.pluginManager) return;
+		if (
+			this.deps.configController.isReadOnly &&
+			!isAllowedInReadonly(tr) &&
+			!this.pluginManager.isReadonlyBypassed()
+		) {
+			return;
+		}
+		this.pluginManager.dispatchWithMiddleware(tr, this.view.getState(), (finalTr) =>
+			this.view?.dispatch(finalTr),
+		);
+	}
+
+	private isCancelled(): boolean {
+		return this.deps.isCancelled?.() ?? false;
+	}
+
+	private async abort(): Promise<null> {
+		await this.cleanup();
+		return null;
+	}
+
+	private async cleanup(): Promise<void> {
+		if (this.cleanedUp) return;
+		this.cleanedUp = true;
+
+		const liveView: EditorView | null = this.view;
+		this.view = null;
+		this.paperLayout?.destroy();
+		this.paperLayout = null;
+		this.deps.styleCoordinator.teardown(this.deps.shadow, this.themeController);
+		this.themeController?.destroy();
+		this.themeController = null;
+		this.inputManager?.destroy();
+		this.inputManager = null;
+		liveView?.destroy();
+		const livePluginManager: PluginManager | null = this.pluginManager;
+		this.pluginManager = null;
+		await livePluginManager?.destroy();
+		this.domElements?.wrapper.remove();
+		this.domElements = null;
 	}
 }
+
+// --- Standalone helpers --------------------------------------------------
 
 async function resolveLocale(cfg: NotectlEditorConfig): Promise<EditorLocale> {
 	const localeService = new LocaleService(cfg.locale ?? 'browser');

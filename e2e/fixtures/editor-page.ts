@@ -126,7 +126,7 @@ export class EditorPage {
 
 			const W = window as unknown as Record<string, new (cfg?: unknown) => unknown>;
 			const toolbarGroups: unknown[][] = (opts.toolbar ?? []).map(
-				(group: { name: string; config?: unknown }[]) =>
+				(group: readonly { name: string; config?: unknown }[]) =>
 					group.map((desc) => {
 						const Ctor = W[desc.name];
 						if (!Ctor) throw new Error(`Plugin "${desc.name}" not found on window`);
@@ -148,6 +148,7 @@ export class EditorPage {
 	async recreate(config: Record<string, unknown>): Promise<void> {
 		await this.page.evaluate(async (cfg) => {
 			const container = document.getElementById('editor-container');
+			if (!container) return;
 			const existing = container.querySelector('notectl-editor');
 			if (existing) {
 				(existing as unknown as El).destroy();
@@ -401,16 +402,39 @@ export class EditorPage {
 	async registerStateChangeCounter(): Promise<void> {
 		await this.page.evaluate(() => {
 			(window as unknown as Record<string, number>).__stateChangeCount = 0;
-			(document.querySelector('notectl-editor') as unknown as El).on('stateChange', () => {
-				(window as unknown as Record<string, number>).__stateChangeCount++;
+			const el = document.querySelector('notectl-editor');
+			if (!el) return;
+			const w = window as unknown as Record<string, number>;
+			(el as unknown as El).on('stateChange', () => {
+				w.__stateChangeCount = (w.__stateChangeCount ?? 0) + 1;
 			});
 		});
 	}
 
 	async getStateChangeCount(): Promise<number> {
 		return this.page.evaluate(
-			() => (window as unknown as Record<string, number>).__stateChangeCount,
+			() => (window as unknown as Record<string, number>).__stateChangeCount ?? 0,
 		);
+	}
+
+	// ── Cursor Helpers ──────────────────────────────────────────
+
+	/** Move cursor to a specific character offset within the current line. */
+	async moveCursorToOffset(offset: number): Promise<void> {
+		await this.page.keyboard.press('Home');
+		await this.page.waitForTimeout(50);
+		for (let i = 0; i < offset; i++) {
+			await this.page.keyboard.press('ArrowRight');
+		}
+		await this.page.waitForTimeout(50);
+	}
+
+	/** Extract the concatenated text content of a block by index from editor JSON. */
+	getBlockText(
+		json: { children: { children?: { text: string }[] }[] },
+		blockIndex: number,
+	): string {
+		return json.children[blockIndex]?.children?.map((c) => c.text).join('') ?? '';
 	}
 
 	// ── History ─────────────────────────────────────────────────

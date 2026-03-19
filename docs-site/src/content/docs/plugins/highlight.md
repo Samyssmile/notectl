@@ -87,4 +87,4 @@ new HighlightPlugin({
 
 ## Programmatic Highlight
 
-The highlight color is applied via the internal `applyHighlight()` method. For collapsed selections, it sets stored marks so the next typed text gets the highlight. For range selections, it applies the mark across all blocks in the range, first removing any existing highlight before applying the new color.
+The highlight color is applied via the shared `applyColorMark()` function internally. For collapsed selections, it sets stored marks so the next typed text gets the highlight. For range selections, it applies the mark across all blocks in the range, first removing any existing highlight before applying the new color.

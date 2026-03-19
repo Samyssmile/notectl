@@ -25,7 +25,7 @@ export const FONT_SIZE_SELECT_CSS = `
 	font-size: 13px;
 	font-family: inherit;
 	color: var(--notectl-fg);
-	background: var(--notectl-bg);
+	background: var(--notectl-surface-overlay);
 	outline: none;
 	box-sizing: border-box;
 	-moz-appearance: textfield;

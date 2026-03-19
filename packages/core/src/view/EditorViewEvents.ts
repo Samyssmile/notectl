@@ -7,9 +7,8 @@
  * for the CursorWrapper.
  */
 
-import { createEmptyParagraph } from '../commands/CommandHelpers.js';
 import type { CompositionState } from '../model/CompositionState.js';
-import { generateBlockId, getBlockLength } from '../model/Document.js';
+import { createEmptyParagraph, generateBlockId, getBlockLength } from '../model/Document.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { Position } from '../model/Selection.js';
 import {

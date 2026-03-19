@@ -7,11 +7,10 @@
 
 import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import { findNextDropdownItem } from '../shared/KeyboardNav.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
-import { appendToRoot } from '../shared/PopupPositioning.js';
+import { appendToRoot, positionPopup } from '../shared/PopupPositioning.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 
 // --- Types ---
@@ -369,24 +368,7 @@ export class ToolbarOverflowController {
 		const rect: DOMRect = this.overflowButton.getBoundingClientRect();
 		const rtl: boolean = isRtlContext(this.toolbar);
 
-		if (rtl) {
-			setStyleProperties(dropdown, {
-				position: 'fixed',
-				top: `${rect.bottom + 2}px`,
-				left: `${rect.left}px`,
-				right: 'auto',
-				zIndex: '10000',
-			});
-		} else {
-			const rightEdge: number = window.innerWidth - rect.right;
-			setStyleProperties(dropdown, {
-				position: 'fixed',
-				top: `${rect.bottom + 2}px`,
-				right: `${rightEdge}px`,
-				left: 'auto',
-				zIndex: '10000',
-			});
-		}
+		positionPopup(dropdown, rect, { position: rtl ? 'below-start' : 'below-end', isRtl: rtl });
 	}
 
 	private registerCloseHandler(): void {

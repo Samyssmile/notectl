@@ -7,7 +7,6 @@
  */
 
 import type { BlockId } from '../../model/TypeBrands.js';
-import { setStyleProperties, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import { applyRovingTabindex } from '../shared/KeyboardNav.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
@@ -260,7 +259,6 @@ export function createTableContextMenu(
 		} else {
 			subPopup = document.createElement('div');
 			subPopup.className = 'notectl-table-context-menu';
-			setStyleProperty(subPopup, 'position', 'fixed');
 			subPopup.setAttribute('contenteditable', 'false');
 
 			subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -278,30 +276,9 @@ export function createTableContextMenu(
 
 			container.appendChild(subPopup);
 
-			const triggerRect: DOMRect = trigger.getBoundingClientRect();
 			const menuRect: DOMRect = menu.getBoundingClientRect();
-			let top: number = triggerRect.top;
-
-			const vpWidth: number = window.innerWidth;
-			const vpHeight: number = window.innerHeight;
 			const isRtl: boolean = getComputedStyle(menu).direction === 'rtl';
-
-			let left: number;
-			if (isRtl) {
-				left = menuRect.left - 200 - 2;
-				if (left < 0) left = menuRect.right + 2;
-			} else {
-				left = menuRect.right + 2;
-				if (left + 200 > vpWidth) left = menuRect.left - 200 - 2;
-			}
-			if (top + 200 > vpHeight) {
-				top = vpHeight - 200;
-			}
-
-			setStyleProperties(subPopup, {
-				left: `${left}px`,
-				top: `${top}px`,
-			});
+			positionPopup(subPopup, menuRect, { position: 'right', isRtl });
 
 			requestAnimationFrame(() => {
 				const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;

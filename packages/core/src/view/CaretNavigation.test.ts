@@ -821,7 +821,8 @@ describe('navigateFromGapCursor', () => {
 // --- navigateVerticalWithGoalColumn ---
 
 describe('navigateVerticalWithGoalColumn', () => {
-	it('falls back to offset 0 when navigating down with goalColumn=null', () => {
+	it('preserves absolute offset when navigating down with goalColumn=null', () => {
+		// cursor at end of "Hello" (offset 5) → clamped to min(5, 5) = 5
 		const state = stateBuilder()
 			.paragraph('Hello', 'b1')
 			.paragraph('World', 'b2')
@@ -832,10 +833,11 @@ describe('navigateVerticalWithGoalColumn', () => {
 		const newState = applyCommand(state, (s) =>
 			navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', null),
 		);
-		expectCursorAt(newState, 'b2', 0);
+		expectCursorAt(newState, 'b2', 5);
 	});
 
-	it('falls back to block end when navigating up with goalColumn=null', () => {
+	it('preserves absolute offset when navigating up with goalColumn=null', () => {
+		// cursor at start of "World" (offset 0) → clamped to min(0, 5) = 0
 		const state = stateBuilder()
 			.paragraph('Hello', 'b1')
 			.paragraph('World', 'b2')
@@ -846,7 +848,7 @@ describe('navigateVerticalWithGoalColumn', () => {
 		const newState = applyCommand(state, (s) =>
 			navigateVerticalWithGoalColumn(dummyContainer(), s, 'up', null),
 		);
-		expectCursorAt(newState, 'b1', 5);
+		expectCursorAt(newState, 'b1', 0);
 	});
 
 	it('creates NodeSelection for void block target', () => {
@@ -898,5 +900,81 @@ describe('navigateVerticalWithGoalColumn', () => {
 
 		const tr = navigateVerticalWithGoalColumn(dummyContainer(), state, 'down', 50);
 		expect(tr).toBeNull();
+	});
+
+	describe('offset-clamp fallback', () => {
+		it('preserves offset when DOM goal column resolution fails (down)', () => {
+			// Source cursor at offset 4 → target min(4, 8) = 4
+			const state = stateBuilder()
+				.paragraph('ABCDEFGH', 'b1')
+				.paragraph('12345678', 'b2')
+				.cursor('b1', 4)
+				.schema(['paragraph'], [])
+				.build();
+
+			const newState = applyCommand(state, (s) =>
+				navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', 100),
+			);
+			expectCursorAt(newState, 'b2', 4);
+		});
+
+		it('preserves offset when DOM goal column resolution fails (up)', () => {
+			// Source cursor at offset 6 → target min(6, 8) = 6
+			const state = stateBuilder()
+				.paragraph('ABCDEFGH', 'b1')
+				.paragraph('12345678', 'b2')
+				.cursor('b2', 6)
+				.schema(['paragraph'], [])
+				.build();
+
+			const newState = applyCommand(state, (s) =>
+				navigateVerticalWithGoalColumn(dummyContainer(), s, 'up', 100),
+			);
+			expectCursorAt(newState, 'b1', 6);
+		});
+
+		it('clamps offset to shorter target block length', () => {
+			// Source cursor at offset 8 → target min(8, 5) = 5
+			const state = stateBuilder()
+				.paragraph('ABCDEFGHIJ', 'b1')
+				.paragraph('Short', 'b2')
+				.cursor('b1', 8)
+				.schema(['paragraph'], [])
+				.build();
+
+			const newState = applyCommand(state, (s) =>
+				navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', 100),
+			);
+			expectCursorAt(newState, 'b2', 5);
+		});
+
+		it('produces offset 0 when source cursor is at start', () => {
+			const state = stateBuilder()
+				.paragraph('ABCDEFGH', 'b1')
+				.paragraph('12345678', 'b2')
+				.cursor('b1', 0)
+				.schema(['paragraph'], [])
+				.build();
+
+			const newState = applyCommand(state, (s) =>
+				navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', 100),
+			);
+			expectCursorAt(newState, 'b2', 0);
+		});
+
+		it('preserves offset into longer target block', () => {
+			// Source cursor at offset 3 → target min(3, 28) = 3
+			const state = stateBuilder()
+				.paragraph('Short', 'b1')
+				.paragraph('A much longer paragraph here!', 'b2')
+				.cursor('b1', 3)
+				.schema(['paragraph'], [])
+				.build();
+
+			const newState = applyCommand(state, (s) =>
+				navigateVerticalWithGoalColumn(dummyContainer(), s, 'down', 100),
+			);
+			expectCursorAt(newState, 'b2', 3);
+		});
 	});
 });

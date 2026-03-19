@@ -92,7 +92,7 @@ interface ToolbarItemDropdown extends ToolbarItemBase {
 interface ToolbarItemCustomPopup extends ToolbarItemBase {
   readonly popupType: 'custom';
   /** Called to render arbitrary popup content. Use onClose() to dismiss. */
-  renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+  renderPopup(container: HTMLElement, context: PluginContext, onClose: (options?: PopupCloseOptions) => void): void;
 }
 interface ToolbarItemNoPopup extends ToolbarItemBase {
   readonly popupType?: undefined;
@@ -105,7 +105,7 @@ interface ToolbarItemCombobox extends Omit<ToolbarItemBase, 'icon'> {
   /** Pure function returning the current label text. Called on every state change. */
   getLabel(state: EditorState): string;
   /** Renders the popup content when the combobox is opened. */
-  renderPopup(container: HTMLElement, context: PluginContext, onClose: () => void): void;
+  renderPopup(container: HTMLElement, context: PluginContext, onClose: (options?: PopupCloseOptions) => void): void;
 }
 
 type ToolbarItem =
