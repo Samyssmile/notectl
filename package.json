@@ -7,6 +7,7 @@
 		"test:e2e": "playwright test",
 		"test:showcase": "playwright test showcase-cut-paste --project=chromium",
 		"test:showcase:angular": "CI=true playwright test angular/showcase-cut-paste --project=angular",
+		"preview:starlight": "pnpm --filter @notectl/core build && pnpm --filter docs-site build && pnpm --filter docs-site preview",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
