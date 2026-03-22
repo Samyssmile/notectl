@@ -30,6 +30,9 @@ export const LIST_CSS = `
 	display: inline-block;
 	width: ${LIST_MARKER_WIDTH}px;
 	text-align: center;
+	-webkit-user-select: none;
+	user-select: none;
+	pointer-events: none;
 }
 
 /* Bullet List */
@@ -55,6 +58,7 @@ export const LIST_CSS = `
 	font-size: 16px;
 	color: var(--notectl-fg-muted);
 	cursor: pointer;
+	pointer-events: auto;
 }
 
 .notectl-list-item--checklist[data-checked="true"]::before {

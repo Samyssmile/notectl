@@ -90,7 +90,8 @@ export class EditorView {
 			contentElement,
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
-			applyUpdate: (newState: EditorState, tr: Transaction) => this.applyUpdate(newState, tr),
+			applyUpdate: (newState: EditorState, tr: Transaction, skipSelectionSync?: boolean) =>
+				this.applyUpdate(newState, tr, { skipSelectionSync }),
 			isUpdating: () => this.isUpdating,
 			compositionState: this.compositionState,
 			cursorWrapper: this.cursorWrapper,
@@ -121,7 +122,7 @@ export class EditorView {
 	private applyUpdate(
 		newState: EditorState,
 		tr: Transaction,
-		options?: { readonly pushHistory?: boolean },
+		options?: { readonly pushHistory?: boolean; readonly skipSelectionSync?: boolean },
 	): void {
 		if (this.isUpdating) return;
 		this.isUpdating = true;
@@ -142,7 +143,7 @@ export class EditorView {
 			}
 
 			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
-			this.reconcileAndSync(oldState, newState, newDecorations);
+			this.reconcileAndSync(oldState, newState, newDecorations, options?.skipSelectionSync);
 
 			for (const cb of this.stateChangeCallbacks) {
 				cb(oldState, newState, tr);
@@ -224,11 +225,20 @@ export class EditorView {
 		this.events.syncSelectionFromDOM();
 	}
 
-	/** Reconciles DOM and syncs selection, updating decoration state. */
+	/**
+	 * Reconciles DOM and syncs selection, updating decoration state.
+	 *
+	 * When `skipSelectionSync` is true, the DOM selection is not written
+	 * back. This is used when the update was triggered by reading the
+	 * DOM selection (e.g. mouse click, drag) — the DOM is already correct,
+	 * and re-writing via `setBaseAndExtent` would disrupt native browser
+	 * behaviors like drag-selection and double-click word selection.
+	 */
 	private reconcileAndSync(
 		oldState: EditorState,
 		newState: EditorState,
 		newDecorations: DecorationSet,
+		skipSelectionSync?: boolean,
 	): void {
 		const oldDecorations = this.decorations;
 		this.decorations = newDecorations;
@@ -241,7 +251,7 @@ export class EditorView {
 				? (this.compositionState.activeBlockId ?? undefined)
 				: undefined,
 		});
-		if (!this.compositionState.isComposing) {
+		if (!this.compositionState.isComposing && !skipSelectionSync) {
 			syncSelectionToDOM(this.contentElement, newState.selection);
 		}
 	}

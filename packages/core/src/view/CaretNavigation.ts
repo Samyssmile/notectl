@@ -204,26 +204,32 @@ function skipInlineNodeLeft(
 /**
  * Returns the bounding rect of the current caret position, or null.
  *
- * Tries the standard `getRangeAt(0)` path first. When `container` is
- * provided and the standard path yields no useful rect (height = 0),
- * falls back to `readDOMSelectionEndpoints()` to handle Shadow DOM cases
- * where `getRangeAt(0)` returns cross-boundary results (e.g. `<li>` elements).
+ * When `container` is provided, validates that `getRangeAt(0)` is inside
+ * the container before using its rects. In Shadow DOM, `getRangeAt(0)` may
+ * return a cross-boundary range whose rects reflect the shadow host position
+ * rather than the actual caret position (e.g. inside `<li>` elements).
+ * Falls back to composed selection endpoints via `readDOMSelectionEndpoints()`.
  */
 export function getCaretRectFromSelection(
 	domSel: globalThis.Selection,
 	container?: HTMLElement,
 ): DOMRect | null {
-	// Standard path: use getRangeAt(0) directly
+	// Standard path: use getRangeAt(0) directly, but only if the range
+	// is inside the container (avoids cross-boundary rects in Shadow DOM)
 	if (domSel.rangeCount > 0) {
 		const range: Range = domSel.getRangeAt(0);
-		const rects: DOMRectList = range.getClientRects();
-		if (rects.length > 0) return rects[0] ?? null;
-		const rect: DOMRect = range.getBoundingClientRect();
-		if (rect.height > 0) return rect;
+		const rangeInContainer: boolean = !container || container.contains(range.startContainer);
+
+		if (rangeInContainer) {
+			const rects: DOMRectList = range.getClientRects();
+			if (rects.length > 0) return rects[0] ?? null;
+			const rect: DOMRect = range.getBoundingClientRect();
+			if (rect.height > 0) return rect;
+		}
 	}
 
-	// Shadow DOM fallback: when the standard path gave no useful rect,
-	// try composed selection endpoints (fixes <li> in Shadow DOM)
+	// Composed endpoint path: handles Shadow DOM cases where getRangeAt(0)
+	// crosses the shadow boundary (e.g. <li> elements in wrapper <ul>/<ol>)
 	if (container) {
 		const endpoints: SelectionEndpoints | null = readDOMSelectionEndpoints(container, domSel);
 		if (endpoints) {

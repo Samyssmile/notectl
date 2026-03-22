@@ -488,4 +488,349 @@ test.describe('Cursor in List Items (#68)', () => {
 			expect(xPos).toBeLessThan(firstText.length - 1);
 		});
 	});
+
+	test.describe('Mouse drag-selection in list items (#68 follow-up)', () => {
+		test('mouse drag selects text inside a bullet list item', async ({ editor, page }) => {
+			await editor.typeText('Hello World');
+
+			const bulletBtn = editor.markButton('list-bullet');
+			await bulletBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--bullet');
+			await expect(listItem).toBeVisible();
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Drag from the start of "Hello" into "World" using absolute pixel offsets
+			// (list marker is 24px, text starts at ~28px from the <li> left edge)
+			const startX: number = box.x + 30;
+			const endX: number = box.x + 100;
+			const y: number = box.y + box.height / 2;
+
+			await page.mouse.move(startX, y);
+			await page.mouse.down();
+			await page.mouse.move(endX, y, { steps: 5 });
+			await page.mouse.up();
+			await page.waitForTimeout(200);
+
+			// If text was selected, typing replaces the selection.
+			// Original: "Hello World" (11 chars). After replacing a selection, result is shorter.
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			// If drag-select worked: some chars replaced → text shorter than original
+			// If drag-select broken: no selection → X just inserted → text is 12 chars
+			expect(text.trim().length).toBeLessThan('Hello World'.length);
+			expect(text.trim()).toContain('X');
+		});
+
+		test('mouse drag selects text inside an ordered list item', async ({ editor, page }) => {
+			await editor.typeText('Numbered content here');
+
+			const orderedBtn = editor.markButton('list-ordered');
+			await orderedBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--ordered');
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Use absolute pixel offsets to target the text area (past 24px marker)
+			const startX: number = box.x + 30;
+			const endX: number = box.x + 140;
+			const y: number = box.y + box.height / 2;
+
+			await page.mouse.move(startX, y);
+			await page.mouse.down();
+			await page.mouse.move(endX, y, { steps: 5 });
+			await page.mouse.up();
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text.trim().length).toBeLessThan('Numbered content here'.length);
+			expect(text.trim()).toContain('X');
+		});
+
+		test('mouse drag selects text inside a checklist item', async ({ editor, page }) => {
+			await editor.typeText('Checklist text data');
+
+			const checklistBtn = editor.markButton('list-checklist');
+			await checklistBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--checklist');
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Start drag past the checkbox (24px marker), in the text area
+			const startX: number = box.x + 30;
+			const endX: number = box.x + 130;
+			const y: number = box.y + box.height / 2;
+
+			await page.mouse.move(startX, y);
+			await page.mouse.down();
+			await page.mouse.move(endX, y, { steps: 5 });
+			await page.mouse.up();
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text.trim().length).toBeLessThan('Checklist text data'.length);
+			expect(text.trim()).toContain('X');
+		});
+
+		test('mouse click repositions cursor between list items', async ({ editor, page }) => {
+			// Create two bullet items, click on the first to move cursor there
+			await editor.typeText('First item');
+
+			const bulletBtn = editor.markButton('list-bullet');
+			await bulletBtn.click();
+
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Second item', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Cursor is at end of second item. Click in the middle of first item.
+			const items = editor.content.locator('.notectl-list-item--bullet');
+			await expect(items).toHaveCount(2);
+
+			const firstBox = await items.nth(0).boundingBox();
+			if (!firstBox) throw new Error('bounding box not available');
+
+			await page.mouse.click(firstBox.x + firstBox.width * 0.4, firstBox.y + firstBox.height / 2);
+			await page.waitForTimeout(200);
+
+			// Type to verify cursor moved to first item
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const firstText: string = editor.getBlockText(json, 0);
+			const secondText: string = editor.getBlockText(json, 1);
+
+			// X must be in first item, not second
+			expect(firstText).toContain('X');
+			expect(secondText).toBe('Second item');
+		});
+	});
+
+	test.describe('Double-click and triple-click selection in list items (#68 follow-up)', () => {
+		test('double-click selects a word inside a bullet list item', async ({ editor, page }) => {
+			await editor.typeText('Hello World');
+
+			const bulletBtn = editor.markButton('list-bullet');
+			await bulletBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--bullet');
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Double-click on "World" using absolute offset into the text area
+			// (24px marker + ~50px into text targets "World")
+			await page.mouse.dblclick(box.x + 75, box.y + box.height / 2);
+			await page.waitForTimeout(200);
+
+			// Type to replace the selected word
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+
+			// One word should have been replaced by "X", so text is shorter
+			// Original "Hello World" (11 chars) → e.g. "Hello X" or "X World" (shorter)
+			expect(text.trim().length).toBeLessThan('Hello World'.length);
+			expect(text.trim()).toContain('X');
+		});
+
+		test('double-click selects a word inside an ordered list item', async ({ editor, page }) => {
+			await editor.typeText('Ordered item text');
+
+			const orderedBtn = editor.markButton('list-ordered');
+			await orderedBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--ordered');
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Double-click on "item" using absolute offset (past 24px marker)
+			await page.mouse.dblclick(box.x + 75, box.y + box.height / 2);
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text.trim().length).toBeLessThan('Ordered item text'.length);
+			expect(text.trim()).toContain('X');
+		});
+
+		test('double-click selects a word inside a checklist item', async ({ editor, page }) => {
+			await editor.typeText('Check item text');
+
+			const checklistBtn = editor.markButton('list-checklist');
+			await checklistBtn.click();
+
+			await expect(async () => {
+				const json = await editor.getJSON();
+				expect(json.children[0]?.type).toBe('list_item');
+			}).toPass({ timeout: 5_000 });
+
+			const listItem = editor.content.locator('.notectl-list-item--checklist');
+			const box = await listItem.boundingBox();
+			if (!box) throw new Error('bounding box not available');
+
+			// Double-click on "item" using absolute offset (past 24px marker)
+			await page.mouse.dblclick(box.x + 60, box.y + box.height / 2);
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const text: string = await editor.getText();
+			expect(text.trim().length).toBeLessThan('Check item text'.length);
+			expect(text.trim()).toContain('X');
+		});
+	});
+
+	test.describe('ArrowUp after mouse-click positioning (#68 video scenario)', () => {
+		test('mouse-click in Gamma, ArrowUp preserves column into Alpha (bullet)', async ({
+			editor,
+			page,
+		}) => {
+			// Exact scenario from the reporter's video:
+			// Three bullet list items: Alpha, Gamma, Delta
+			// Click between "p" and "h" in "Alpha" (offset ~3), ArrowDown works.
+			// Click between "m" and "m" in "Gamma" (offset ~3), ArrowUp should go to ~offset 3
+			// in "Alpha" — NOT to the end.
+			await editor.typeText('Alpha');
+
+			const bulletBtn = editor.markButton('list-bullet');
+			await bulletBtn.click();
+
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Gamma', { delay: 10 });
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Delta', { delay: 10 });
+			await page.waitForTimeout(200);
+
+			// Get bounding boxes for the list items
+			const items = editor.content.locator('.notectl-list-item--bullet');
+			await expect(items).toHaveCount(3);
+
+			const gammaBox = await items.nth(1).boundingBox();
+			if (!gammaBox) throw new Error('Gamma bounding box not available');
+
+			// Click in "Gamma" roughly at character position 3 (between "m" and "m")
+			// Use ~40% of the width to land around the middle of the text
+			await page.mouse.click(gammaBox.x + 50, gammaBox.y + gammaBox.height / 2);
+			await page.waitForTimeout(200);
+
+			// Now press ArrowUp — should move to "Alpha" preserving horizontal position
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(200);
+
+			// Type X to reveal where cursor landed
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const alphaText: string = editor.getBlockText(json, 0);
+			const gammaText: string = editor.getBlockText(json, 1);
+
+			// X must be in Alpha (cursor moved up)
+			expect(alphaText).toContain('X');
+			// Gamma must be untouched
+			expect(gammaText).toBe('Gamma');
+			// Bug: cursor jumps to end → "AlphaX"
+			// Fixed: cursor near middle → "AlpXha" or "AlXpha" etc.
+			expect(alphaText).not.toBe('AlphaX');
+		});
+
+		test('mouse-click in second item, ArrowUp preserves column (ordered list)', async ({
+			editor,
+			page,
+		}) => {
+			await editor.typeText('Alpha');
+
+			const orderedBtn = editor.markButton('list-ordered');
+			await orderedBtn.click();
+
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Gamma', { delay: 10 });
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Delta', { delay: 10 });
+			await page.waitForTimeout(200);
+
+			const items = editor.content.locator('.notectl-list-item--ordered');
+			await expect(items).toHaveCount(3);
+
+			const gammaBox = await items.nth(1).boundingBox();
+			if (!gammaBox) throw new Error('Gamma bounding box not available');
+
+			await page.mouse.click(gammaBox.x + 50, gammaBox.y + gammaBox.height / 2);
+			await page.waitForTimeout(200);
+
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const alphaText: string = editor.getBlockText(json, 0);
+			const gammaText: string = editor.getBlockText(json, 1);
+
+			expect(alphaText).toContain('X');
+			expect(gammaText).toBe('Gamma');
+			expect(alphaText).not.toBe('AlphaX');
+		});
+
+		test('mouse-click in second item, ArrowUp preserves column (checklist)', async ({
+			editor,
+			page,
+		}) => {
+			await editor.typeText('Alpha');
+
+			const checklistBtn = editor.markButton('list-checklist');
+			await checklistBtn.click();
+
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Gamma', { delay: 10 });
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('Delta', { delay: 10 });
+			await page.waitForTimeout(200);
+
+			const items = editor.content.locator('.notectl-list-item--checklist');
+			await expect(items).toHaveCount(3);
+
+			const gammaBox = await items.nth(1).boundingBox();
+			if (!gammaBox) throw new Error('Gamma bounding box not available');
+
+			await page.mouse.click(gammaBox.x + 50, gammaBox.y + gammaBox.height / 2);
+			await page.waitForTimeout(200);
+
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(200);
+
+			await page.keyboard.type('X', { delay: 10 });
+			const json = await editor.getJSON();
+			const alphaText: string = editor.getBlockText(json, 0);
+			const gammaText: string = editor.getBlockText(json, 1);
+
+			expect(alphaText).toContain('X');
+			expect(gammaText).toBe('Gamma');
+			expect(alphaText).not.toBe('AlphaX');
+		});
+	});
 });
