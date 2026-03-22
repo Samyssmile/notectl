@@ -31,7 +31,11 @@ export interface EventCoordinatorDeps {
 	readonly contentElement: HTMLElement;
 	readonly getState: () => EditorState;
 	readonly dispatch: (tr: Transaction) => void;
-	readonly applyUpdate: (newState: EditorState, tr: Transaction) => void;
+	readonly applyUpdate: (
+		newState: EditorState,
+		tr: Transaction,
+		skipSelectionSync?: boolean,
+	) => void;
 	readonly isUpdating: () => boolean;
 	readonly compositionState: CompositionState;
 	readonly cursorWrapper: CursorWrapper;
@@ -107,7 +111,10 @@ export class EditorViewEvents {
 			.build();
 
 		const newState: EditorState = state.apply(tr);
-		this.deps.applyUpdate(newState, tr);
+		// Skip syncSelectionToDOM — the DOM is the source of truth here.
+		// Re-writing the selection via setBaseAndExtent() would disrupt
+		// the browser's native drag-selection and double-click tracking.
+		this.deps.applyUpdate(newState, tr, true);
 	}
 
 	/** Removes all event listeners. */

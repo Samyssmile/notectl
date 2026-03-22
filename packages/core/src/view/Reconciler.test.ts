@@ -496,6 +496,39 @@ describe('Block wrapper reconciliation', () => {
 		expect(wrapper?.children.length).toBe(2);
 	});
 
+	it('preserves wrapper DOM identity on selection-only reconcile', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec(makeListSpec());
+
+		const blocks = [
+			createBlockNode('list_item', [createTextNode('Alpha')], 'b1', { listType: 'bullet' }),
+			createBlockNode('list_item', [createTextNode('Gamma')], 'b2', { listType: 'bullet' }),
+		];
+
+		const state1 = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const state2 = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection('b2', 3),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state1, { registry });
+
+		const wrapperBefore = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapperBefore).not.toBeNull();
+		expect(wrapperBefore?.children.length).toBe(2);
+
+		// Selection-only change — wrapper element must be the same DOM object
+		reconcile(container, state1, state2, { registry });
+
+		const wrapperAfter = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapperAfter).toBe(wrapperBefore);
+		expect(wrapperAfter?.children.length).toBe(2);
+	});
+
 	it('reconciles wrapped blocks during composition without duplicating DOM nodes', () => {
 		const registry = new SchemaRegistry();
 		registry.registerNodeSpec(makeListSpec());

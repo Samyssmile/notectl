@@ -19,10 +19,9 @@ import { renderBlock, renderBlockContent } from './BlockRendering.js';
 import {
 	getRenderedBlockElements,
 	insertAfterPreviousSibling,
+	reconcileWrappers,
 	removeBlockElement,
 	replaceBlockElement,
-	unwrapBlocks,
-	wrapBlocks,
 } from './BlockWrapperManagement.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
@@ -56,15 +55,11 @@ export function reconcile(
 	const registry = options?.registry;
 	const nodeViews = options?.nodeViews;
 
-	// Unwrap blocks from existing wrapper elements (e.g. <ul>/<ol>)
-	// so the main reconciliation loop sees all blocks as direct children.
-	// Skip during active IME composition — moving DOM nodes breaks the browser's
-	// composition session. Wrappers are structural (based on block types) and
-	// don't change during text composition; the next non-composing reconcile will fix them.
+	// Skip wrapper reconciliation during active IME composition — moving DOM
+	// nodes breaks the browser's composition session. Wrappers are structural
+	// (based on block types) and don't change during text composition; the next
+	// non-composing reconcile will fix them.
 	const isComposing = options?.compositionBlockId != null;
-	if (!isComposing) {
-		unwrapBlocks(container);
-	}
 
 	const oldBlockMap = new Map<BlockId, HTMLElement>();
 	for (const el of getRenderedBlockElements(container)) {
@@ -186,9 +181,10 @@ export function reconcile(
 		}
 	}
 
-	// Group consecutive blocks into wrapper elements (e.g. <ul>/<ol> for list items)
-	if (!isComposing) {
-		wrapBlocks(container, newBlocks, registry);
+	// Reconcile wrapper elements (e.g. <ul>/<ol> for list items) with minimal
+	// DOM mutations. When wrapper structure is unchanged, this is a no-op.
+	if (!isComposing && registry) {
+		reconcileWrappers(container, newBlocks, registry);
 	}
 }
 
