@@ -4,10 +4,7 @@
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
-	"sideEffects": [
-		"./dist/full.mjs",
-		"./dist/notectl-core.umd.js"
-	],
+	"sideEffects": ["./dist/full.mjs", "./dist/notectl-core.umd.js"],
 	"main": "./dist/notectl-core.umd.js",
 	"module": "./dist/notectl-core.mjs",
 	"types": "./dist/index.d.ts",
@@ -147,12 +144,7 @@
 		}
 	},
 	"customElements": "custom-elements.json",
-	"files": [
-		"dist",
-		"README.md",
-		"LICENSE",
-		"custom-elements.json"
-	],
+	"files": ["dist", "README.md", "LICENSE", "custom-elements.json"],
 	"keywords": [
 		"rich-text-editor",
 		"web-component",
