@@ -4,7 +4,10 @@
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
-	"sideEffects": ["./dist/full.mjs", "./dist/notectl-core.umd.js"],
+	"sideEffects": [
+		"./dist/full.mjs",
+		"./dist/notectl-core.umd.js"
+	],
 	"main": "./dist/notectl-core.umd.js",
 	"module": "./dist/notectl-core.mjs",
 	"types": "./dist/index.d.ts",
@@ -144,7 +147,12 @@
 		}
 	},
 	"customElements": "custom-elements.json",
-	"files": ["dist", "README.md", "LICENSE", "custom-elements.json"],
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"custom-elements.json"
+	],
 	"keywords": [
 		"rich-text-editor",
 		"web-component",
@@ -366,16 +374,16 @@
 		}
 	],
 	"dependencies": {
-		"dompurify": "^3.3.2"
+		"dompurify": "^3.3.3"
 	},
 	"devDependencies": {
-		"@size-limit/preset-small-lib": "^12.0.0",
-		"happy-dom": "^20.8.8",
+		"@size-limit/preset-small-lib": "^12.0.1",
+		"happy-dom": "^20.8.9",
 		"rollup-plugin-visualizer": "^7.0.1",
-		"size-limit": "^12.0.0",
-		"terser": "^5.46.0",
-		"vite": "^8.0.0",
+		"size-limit": "^12.0.1",
+		"terser": "^5.46.1",
+		"vite": "^8.0.3",
 		"vite-plugin-dts": "^4.5.4",
-		"vitest": "^4.1.0"
+		"vitest": "^4.1.2"
 	}
 }
