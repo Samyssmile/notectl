@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	expectComboboxLabel,
+	expectCommandRegistered,
 	expectMarkSpec,
 	expectToolbarActive,
 	expectToolbarItem,
@@ -460,6 +461,32 @@ describe('FontPlugin', () => {
 
 			const plugin = new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] });
 			expect(plugin.getActiveFont(state)).toBe('Arial');
+		});
+	});
+
+	describe('empty fonts configuration', () => {
+		it('initializes without error', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [] }));
+			expect(h.getMarkSpec('font')).toBeDefined();
+		});
+
+		it('does not register toolbar item', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [] }));
+			expect(h.getToolbarItem('font')).toBeUndefined();
+		});
+
+		it('still registers commands', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [] }));
+			const result: boolean = h.executeCommand('removeFont');
+			// removeFont returns false (no active mark), but the command itself is registered
+			// — an unregistered command would throw, not return false.
+			expect(result).toBe(false);
+		});
+
+		it('getActiveFont returns null', () => {
+			const state = defaultState();
+			const plugin = new FontPlugin({ fonts: [] });
+			expect(plugin.getActiveFont(state)).toBeNull();
 		});
 	});
 
