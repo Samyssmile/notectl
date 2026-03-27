@@ -9,7 +9,11 @@
 	"types": "./dist/types/notectl-angular.d.ts",
 	"typings": "./dist/types/notectl-angular.d.ts",
 	"sideEffects": false,
-	"files": ["dist", "README.md", "LICENSE"],
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
 	"keywords": [
 		"angular",
 		"rich-text-editor",
@@ -38,7 +42,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"tslib": "^2.3.0"
+		"tslib": "^2.8.1"
 	},
 	"peerDependencies": {
 		"@angular/core": ">=21.0.0",
@@ -47,16 +51,16 @@
 		"rxjs": ">=7.0.0"
 	},
 	"devDependencies": {
-		"@angular/compiler": "^21.2.4",
-		"@angular/compiler-cli": "^21.2.4",
-		"@angular/core": "^21.2.4",
-		"@angular/forms": "^21.2.4",
-		"@angular/platform-browser": "^21.2.4",
-		"@angular/platform-browser-dynamic": "^21.2.4",
+		"@angular/compiler": "^21.2.6",
+		"@angular/compiler-cli": "^21.2.6",
+		"@angular/core": "^21.2.6",
+		"@angular/forms": "^21.2.6",
+		"@angular/platform-browser": "^21.2.6",
+		"@angular/platform-browser-dynamic": "^21.2.6",
 		"@notectl/core": "workspace:*",
-		"ng-packagr": "^21.2.0",
+		"ng-packagr": "^21.2.1",
 		"rxjs": "~7.8.2",
-		"vite": "^8.0.0",
-		"vitest": "^4.1.0"
+		"vite": "^8.0.3",
+		"vitest": "^4.1.2"
 	}
 }
