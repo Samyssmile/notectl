@@ -104,7 +104,9 @@ export class FontPlugin implements Plugin {
 		this.context = context;
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
-		this.registerToolbarItem(context);
+		if (this.config.fonts.length > 0) {
+			this.registerToolbarItem(context);
+		}
 		this.injectFontFaces();
 	}
 
@@ -175,16 +177,14 @@ export class FontPlugin implements Plugin {
 
 	// --- Toolbar ---
 
-	private get defaultFont(): FontDefinition {
+	private get defaultFont(): FontDefinition | undefined {
 		if (this.config.defaultFont) {
 			const found: FontDefinition | undefined = this.config.fonts.find(
 				(f) => f.name === this.config.defaultFont,
 			);
 			if (found) return found;
 		}
-		const first: FontDefinition | undefined = this.config.fonts[0];
-		if (!first) throw new Error('FontPlugin: fonts list is empty');
-		return first;
+		return this.config.fonts[0];
 	}
 
 	private registerToolbarItem(context: PluginContext): void {
@@ -204,7 +204,7 @@ export class FontPlugin implements Plugin {
 	}
 
 	private resolveFontName(family: string | null): string {
-		if (!family) return this.defaultFont.name;
+		if (!family) return this.defaultFont?.name ?? this.locale.label;
 		const match: FontDefinition | undefined = this.config.fonts.find((f) => f.family === family);
 		return match?.name ?? (family.split(',')[0] ?? '').trim().replace(/['"]/g, '');
 	}
@@ -285,7 +285,7 @@ export class FontPlugin implements Plugin {
 
 		const state: EditorState = context.getState();
 		const activeFont: string | null = this.getActiveFont(state);
-		const defaultFamily: string = this.defaultFont.family;
+		const defaultFamily: string | undefined = this.defaultFont?.family;
 		const contentElement: HTMLElement = context.getContainer();
 
 		const list: HTMLDivElement = document.createElement('div');
@@ -294,7 +294,7 @@ export class FontPlugin implements Plugin {
 		list.setAttribute('aria-label', this.locale.label);
 
 		for (const font of this.config.fonts) {
-			const isDefault: boolean = font.family === defaultFamily;
+			const isDefault: boolean = defaultFamily !== undefined && font.family === defaultFamily;
 			const isActive: boolean = isDefault
 				? !activeFont || activeFont === font.family
 				: activeFont === font.family;

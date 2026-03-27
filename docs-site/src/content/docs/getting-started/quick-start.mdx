@@ -35,9 +35,12 @@ The fastest way to get a production editor with all plugins is using `createFull
 ```ts
 import { createEditor, ThemePreset } from '@notectl/core';
 import { createFullPreset } from '@notectl/core/presets';
+import { STARTER_FONTS } from '@notectl/core/fonts';
 
 const editor = await createEditor({
-  ...createFullPreset(),
+  ...createFullPreset({
+    font: { fonts: STARTER_FONTS },
+  }),
   theme: ThemePreset.Light,
   placeholder: 'Start typing...',
   autofocus: true,
@@ -48,11 +51,16 @@ document.getElementById('app').appendChild(editor);
 
 This gives you 8 toolbar groups with all standard plugins (font, text formatting, headings, lists, tables, code blocks, images, and more) plus `HardBreakPlugin` for `Shift+Enter` line breaks and `SmartPastePlugin` for intelligent paste handling.
 
+<Aside type="note">
+  `STARTER_FONTS` ships a curated set of web fonts (Fira Sans, Fira Code). Without it the font picker still renders but shows an empty list. See [Custom Fonts](/notectl/guides/custom-fonts/) for adding your own fonts.
+</Aside>
+
 You can override individual plugin configs:
 
 ```ts
 const editor = await createEditor({
   ...createFullPreset({
+    font: { fonts: STARTER_FONTS },
     list: { interactiveCheckboxes: true },
     heading: { levels: [1, 2, 3] },
   }),
