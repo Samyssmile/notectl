@@ -3,7 +3,6 @@ import type { StateChangeEvent } from '@notectl/core';
 import { STARTER_FONTS } from '@notectl/core/fonts';
 import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
-import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
 import { FontPlugin } from '@notectl/core/plugins/font';
 import { FontSizePlugin } from '@notectl/core/plugins/font-size';
 import { HeadingPlugin } from '@notectl/core/plugins/heading';
