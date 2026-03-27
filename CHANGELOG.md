@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2026-03-27
+
+### Changed
+
+- **Reconciler tests** — Migrate all test calls to use branded types (`nodeType()`, `blockId()`, `markType()`) for type-safe block/node creation
+- **VanillaJS example** — Clean up unused `CodeBlockPlugin` import
+
 ## [2.0.5] - 2026-03-19
 
 ### Fixed

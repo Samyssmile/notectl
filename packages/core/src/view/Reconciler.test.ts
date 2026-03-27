@@ -11,7 +11,7 @@ import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
-import { blockId, inlineType } from '../model/TypeBrands.js';
+import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import { createBlockElement } from './DomUtils.js';
 import { NodeViewRegistry } from './NodeViewRegistry.js';
@@ -20,21 +20,21 @@ import { reconcile, renderBlock, renderBlockContent } from './Reconciler.js';
 describe('Reconciler InlineNode support', () => {
 	describe('renderBlockContent', () => {
 		it('renders text-only content as before', () => {
-			const block = createBlockNode('paragraph', [createTextNode('hello')]);
+			const block = createBlockNode(nodeType('paragraph'), [createTextNode('hello')]);
 			const container = document.createElement('div');
 			renderBlockContent(container, block);
 			expect(container.textContent).toBe('hello');
 		});
 
 		it('renders empty block as <br>', () => {
-			const block = createBlockNode('paragraph', [createTextNode('')]);
+			const block = createBlockNode(nodeType('paragraph'), [createTextNode('')]);
 			const container = document.createElement('div');
 			renderBlockContent(container, block);
 			expect(container.innerHTML).toBe('<br>');
 		});
 
 		it('renders InlineNode as contentEditable=false element', () => {
-			const block = createBlockNode('paragraph', [
+			const block = createBlockNode(nodeType('paragraph'), [
 				createTextNode('before'),
 				createInlineNode(inlineType('image'), { src: 'test.png' }),
 				createTextNode('after'),
@@ -71,7 +71,7 @@ describe('Reconciler InlineNode support', () => {
 			};
 			registry.registerInlineNodeSpec(spec);
 
-			const block = createBlockNode('paragraph', [
+			const block = createBlockNode(nodeType('paragraph'), [
 				createTextNode('hi '),
 				createInlineNode(inlineType('emoji'), { name: 'smile' }),
 			]);
@@ -88,7 +88,7 @@ describe('Reconciler InlineNode support', () => {
 		});
 
 		it('renders multiple consecutive InlineNodes', () => {
-			const block = createBlockNode('paragraph', [
+			const block = createBlockNode(nodeType('paragraph'), [
 				createTextNode(''),
 				createInlineNode(inlineType('img')),
 				createInlineNode(inlineType('img')),
@@ -104,10 +104,10 @@ describe('Reconciler InlineNode support', () => {
 		});
 
 		it('renders text with marks alongside InlineNodes', () => {
-			const block = createBlockNode('paragraph', [
-				createTextNode('bold', [{ type: 'bold' }]),
+			const block = createBlockNode(nodeType('paragraph'), [
+				createTextNode('bold', [{ type: markType('bold') }]),
 				createInlineNode(inlineType('hr')),
-				createTextNode('italic', [{ type: 'italic' }]),
+				createTextNode('italic', [{ type: markType('italic') }]),
 			]);
 			const container = document.createElement('div');
 			renderBlockContent(container, block);
@@ -130,7 +130,7 @@ describe('Reconciler InlineNode support', () => {
 		it('does not wrap InlineNodes with decorations', () => {
 			const bid = blockId('b1');
 			const block = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createTextNode('ab'), createInlineNode(inlineType('img')), createTextNode('cd')],
 				bid,
 			);
@@ -153,7 +153,7 @@ describe('Reconciler InlineNode support', () => {
 		it('applies decorations to text segments around InlineNodes', () => {
 			const bid = blockId('b1');
 			const block = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createTextNode('ab'), createInlineNode(inlineType('img')), createTextNode('cd')],
 				bid,
 			);
@@ -173,23 +173,23 @@ describe('Reconciler InlineNode support', () => {
 		it('detects InlineNode type change via reconcile', () => {
 			const container = document.createElement('div');
 			const block1 = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createTextNode('a'), createInlineNode(inlineType('image'))],
-				'b1',
+				blockId('b1'),
 			);
 			const block2 = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createTextNode('a'), createInlineNode(inlineType('emoji'))],
-				'b1',
+				blockId('b1'),
 			);
 
 			const state1 = EditorState.create({
 				doc: createDocument([block1]),
-				selection: createCollapsedSelection('b1', 0),
+				selection: createCollapsedSelection(blockId('b1'), 0),
 			});
 			const state2 = EditorState.create({
 				doc: createDocument([block2]),
-				selection: createCollapsedSelection('b1', 0),
+				selection: createCollapsedSelection(blockId('b1'), 0),
 			});
 
 			reconcile(container, null, state1);
@@ -207,23 +207,23 @@ describe('Reconciler InlineNode support', () => {
 		it('detects InlineNode attrs change via reconcile', () => {
 			const container = document.createElement('div');
 			const block1 = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createInlineNode(inlineType('image'), { src: 'a.png' })],
-				'b1',
+				blockId('b1'),
 			);
 			const block2 = createBlockNode(
-				'paragraph',
+				nodeType('paragraph'),
 				[createInlineNode(inlineType('image'), { src: 'b.png' })],
-				'b1',
+				blockId('b1'),
 			);
 
 			const state1 = EditorState.create({
 				doc: createDocument([block1]),
-				selection: createCollapsedSelection('b1', 0),
+				selection: createCollapsedSelection(blockId('b1'), 0),
 			});
 			const state2 = EditorState.create({
 				doc: createDocument([block2]),
-				selection: createCollapsedSelection('b1', 0),
+				selection: createCollapsedSelection(blockId('b1'), 0),
 			});
 
 			reconcile(container, null, state1);
@@ -239,11 +239,11 @@ describe('Reconciler InlineNode support', () => {
 		it('does not re-render when InlineNode is unchanged', () => {
 			const container = document.createElement('div');
 			const inline = createInlineNode(inlineType('img'), { src: 'x.png' });
-			const block = createBlockNode('paragraph', [inline], 'b1');
+			const block = createBlockNode(nodeType('paragraph'), [inline], blockId('b1'));
 
 			const state = EditorState.create({
 				doc: createDocument([block]),
-				selection: createCollapsedSelection('b1', 0),
+				selection: createCollapsedSelection(blockId('b1'), 0),
 			});
 
 			reconcile(container, null, state);
@@ -257,7 +257,7 @@ describe('Reconciler InlineNode support', () => {
 
 	describe('renderBlock with InlineNodes', () => {
 		it('renders a block with mixed content using fallback', () => {
-			const block = createBlockNode('paragraph', [
+			const block = createBlockNode(nodeType('paragraph'), [
 				createTextNode('text'),
 				createInlineNode(inlineType('widget')),
 			]);
@@ -278,13 +278,16 @@ describe('Void block rendering', () => {
 			type: 'horizontal_rule',
 			isVoid: true,
 			toDOM(node) {
-				const el = createBlockElement('hr', node.id);
-				return el;
+				return createBlockElement('hr', node.id);
 			},
 		};
 		registry.registerNodeSpec(hrSpec);
 
-		const block = createBlockNode('horizontal_rule', [createTextNode('')], blockId('hr1'));
+		const block = createBlockNode(
+			nodeType('horizontal_rule'),
+			[createTextNode('')],
+			blockId('hr1'),
+		);
 		const el = renderBlock(block, registry);
 
 		expect(el.getAttribute('data-void')).toBe('true');
@@ -295,13 +298,12 @@ describe('Void block rendering', () => {
 		const pSpec: NodeSpec = {
 			type: 'paragraph',
 			toDOM(node) {
-				const el = createBlockElement('p', node.id);
-				return el;
+				return createBlockElement('p', node.id);
 			},
 		};
 		registry.registerNodeSpec(pSpec);
 
-		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('p1'));
 		const el = renderBlock(block, registry);
 
 		expect(el.getAttribute('data-void')).toBeNull();
@@ -313,16 +315,19 @@ describe('Void block rendering', () => {
 			type: 'horizontal_rule',
 			isVoid: true,
 			toDOM(node) {
-				const el = createBlockElement('hr', node.id);
-				return el;
+				return createBlockElement('hr', node.id);
 			},
 		};
 		registry.registerNodeSpec(hrSpec);
 
-		const block = createBlockNode('horizontal_rule', [createTextNode('')], blockId('hr1'));
+		const block = createBlockNode(
+			nodeType('horizontal_rule'),
+			[createTextNode('')],
+			blockId('hr1'),
+		);
 		const state = EditorState.create({
 			doc: createDocument([block]),
-			selection: createCollapsedSelection('hr1', 0),
+			selection: createCollapsedSelection(blockId('hr1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -360,12 +365,16 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(makeListSpec());
 
 		const blocks = [
-			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('b')], 'b2', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('a')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('b')], blockId('b2'), {
+				listType: 'bullet',
+			}),
 		];
 		const state = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -384,12 +393,16 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(makeListSpec());
 
 		const blocks = [
-			createBlockNode('list_item', [createTextNode('1')], 'b1', { listType: 'ordered' }),
-			createBlockNode('list_item', [createTextNode('2')], 'b2', { listType: 'ordered' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('1')], blockId('b1'), {
+				listType: 'ordered',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('2')], blockId('b2'), {
+				listType: 'ordered',
+			}),
 		];
 		const state = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -413,12 +426,16 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(pSpec);
 
 		const blocks = [
-			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('1')], 'b2', { listType: 'ordered' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('a')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('1')], blockId('b2'), {
+				listType: 'ordered',
+			}),
 		];
 		const state = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -441,13 +458,17 @@ describe('Block wrapper reconciliation', () => {
 		});
 
 		const blocks = [
-			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
-			createBlockNode('paragraph', [createTextNode('p')], 'b2'),
-			createBlockNode('list_item', [createTextNode('b')], 'b3', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('a')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('paragraph'), [createTextNode('p')], blockId('b2')),
+			createBlockNode(nodeType('list_item'), [createTextNode('b')], blockId('b3'), {
+				listType: 'bullet',
+			}),
 		];
 		const state = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -468,20 +489,26 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(makeListSpec());
 
 		const blocks1 = [
-			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('a')], blockId('b1'), {
+				listType: 'bullet',
+			}),
 		];
 		const blocks2 = [
-			createBlockNode('list_item', [createTextNode('a')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('b')], 'b2', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('a')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('b')], blockId('b2'), {
+				listType: 'bullet',
+			}),
 		];
 
 		const state1 = EditorState.create({
 			doc: createDocument(blocks1),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 		const state2 = EditorState.create({
 			doc: createDocument(blocks2),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -501,17 +528,21 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(makeListSpec());
 
 		const blocks = [
-			createBlockNode('list_item', [createTextNode('Alpha')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('Gamma')], 'b2', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('Alpha')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('Gamma')], blockId('b2'), {
+				listType: 'bullet',
+			}),
 		];
 
 		const state1 = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 		const state2 = EditorState.create({
 			doc: createDocument(blocks),
-			selection: createCollapsedSelection('b2', 3),
+			selection: createCollapsedSelection(blockId('b2'), 3),
 		});
 
 		const container = document.createElement('div');
@@ -534,21 +565,29 @@ describe('Block wrapper reconciliation', () => {
 		registry.registerNodeSpec(makeListSpec());
 
 		const blocks1 = [
-			createBlockNode('list_item', [createTextNode('first')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('second')], 'b2', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('first')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('second')], blockId('b2'), {
+				listType: 'bullet',
+			}),
 		];
 		const blocks2 = [
-			createBlockNode('list_item', [createTextNode('first')], 'b1', { listType: 'bullet' }),
-			createBlockNode('list_item', [createTextNode('second!')], 'b2', { listType: 'bullet' }),
+			createBlockNode(nodeType('list_item'), [createTextNode('first')], blockId('b1'), {
+				listType: 'bullet',
+			}),
+			createBlockNode(nodeType('list_item'), [createTextNode('second!')], blockId('b2'), {
+				listType: 'bullet',
+			}),
 		];
 
 		const state1 = EditorState.create({
 			doc: createDocument(blocks1),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 		const state2 = EditorState.create({
 			doc: createDocument(blocks2),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -573,7 +612,7 @@ describe('Block wrapper reconciliation', () => {
 
 describe('data-block-type attribute', () => {
 	it('sets data-block-type on fallback-rendered blocks', () => {
-		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('p1'));
 		const el = renderBlock(block);
 
 		expect(el.getAttribute('data-block-type')).toBe('paragraph');
@@ -589,7 +628,7 @@ describe('data-block-type attribute', () => {
 		};
 		registry.registerNodeSpec(pSpec);
 
-		const block = createBlockNode('paragraph', [createTextNode('hello')], blockId('p1'));
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('p1'));
 		const el = renderBlock(block, registry);
 
 		expect(el.getAttribute('data-block-type')).toBe('paragraph');
@@ -599,8 +638,10 @@ describe('data-block-type attribute', () => {
 		const nodeViewRegistry = new NodeViewRegistry();
 		const nodeViews = new Map();
 		const state = EditorState.create({
-			doc: createDocument([createBlockNode('custom', [createTextNode('hi')], blockId('c1'))]),
-			selection: createCollapsedSelection('c1', 0),
+			doc: createDocument([
+				createBlockNode(nodeType('custom'), [createTextNode('hi')], blockId('c1')),
+			]),
+			selection: createCollapsedSelection(blockId('c1'), 0),
 		});
 		nodeViewRegistry.registerNodeView('custom', (node) => {
 			const dom = document.createElement('div');
@@ -610,7 +651,7 @@ describe('data-block-type attribute', () => {
 			return { dom, contentDOM };
 		});
 
-		const block = createBlockNode('custom', [createTextNode('hi')], blockId('c1'));
+		const block = createBlockNode(nodeType('custom'), [createTextNode('hi')], blockId('c1'));
 		const el = renderBlock(block, undefined, nodeViews, {
 			nodeViewRegistry,
 			getState: () => state,
@@ -621,10 +662,10 @@ describe('data-block-type attribute', () => {
 	});
 
 	it('sets data-block-type during full reconcile', () => {
-		const block = createBlockNode('paragraph', [createTextNode('text')], blockId('b1'));
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('text')], blockId('b1'));
 		const state = EditorState.create({
 			doc: createDocument([block]),
-			selection: createCollapsedSelection('b1', 0),
+			selection: createCollapsedSelection(blockId('b1'), 0),
 		});
 
 		const container = document.createElement('div');
@@ -647,7 +688,7 @@ describe('Selectable block rendering', () => {
 		};
 		registry.registerNodeSpec(tableSpec);
 
-		const block = createBlockNode('table', [], blockId('t1'));
+		const block = createBlockNode(nodeType('table'), [], blockId('t1'));
 		const el = renderBlock(block, registry);
 
 		expect(el.getAttribute('data-selectable')).toBe('true');
@@ -656,7 +697,7 @@ describe('Selectable block rendering', () => {
 
 describe('CursorWrapper stale removal', () => {
 	it('renderBlockContent removes stale data-cursor-wrapper elements', () => {
-		const block = createBlockNode('paragraph', [createTextNode('Hello')]);
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('Hello')]);
 		const container = document.createElement('div');
 
 		// Simulate a stale CursorWrapper left in the DOM
