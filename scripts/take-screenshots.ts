@@ -193,6 +193,59 @@ async function main(): Promise<void> {
 	// Also take a full page screenshot
 	await page.screenshot({ path: join(OUTPUT_DIR, 'full-page.png') });
 
+	// --- Screenshot: Inline code plugin ---
+	await editorContent.focus();
+	await page.keyboard.press('Control+a');
+	await page.keyboard.press('Backspace');
+
+	await page.keyboard.type('Using Inline Code');
+	await page.keyboard.press('Home');
+	await page.keyboard.press('Shift+End');
+	if ((await headingBtn.count()) > 0) {
+		await headingBtn.click();
+		await page.waitForTimeout(300);
+		const h2Option = page.locator('button:has-text("Heading 2")').first();
+		if ((await h2Option.count()) > 0) {
+			await h2Option.click();
+		}
+	}
+	await page.keyboard.press('End');
+	await page.keyboard.press('Enter');
+
+	// Line with inline code via keyboard shortcut
+	await page.keyboard.type('Call the ');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type('toggleMark()');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type(' function to apply formatting.');
+	await page.keyboard.press('Enter');
+
+	// Another line with inline code via backtick input rule
+	await page.keyboard.type('Use the ');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type('EditorState');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type(' class for immutable state management.');
+	await page.keyboard.press('Enter');
+
+	// Mixed formatting to show exclusivity
+	await page.keyboard.type('Inline code like ');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type('const x = 42');
+	await page.keyboard.press('Control+e');
+	await page.keyboard.type(' stands out from ');
+	await page.keyboard.press('Control+b');
+	await page.keyboard.type('bold');
+	await page.keyboard.press('Control+b');
+	await page.keyboard.type(' and ');
+	await page.keyboard.press('Control+i');
+	await page.keyboard.type('italic');
+	await page.keyboard.press('Control+i');
+	await page.keyboard.type(' text.');
+
+	await page.waitForTimeout(500);
+	await editor.screenshot({ path: join(OUTPUT_DIR, 'plugin-inline-code.png') });
+
 	await browser.close();
 	console.log(`Screenshots saved to ${OUTPUT_DIR}`);
 }
