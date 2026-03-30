@@ -14,6 +14,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'arrow-navigation',
 		'movement-commands',
 		'goal-column',
+		'arrow-up-column',
 		'hard-break',
 		'input-rules',
 		'special-characters',
