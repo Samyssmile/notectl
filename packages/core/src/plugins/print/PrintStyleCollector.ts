@@ -3,6 +3,8 @@
  * Extracts adopted stylesheets, snapshots theme tokens, and generates print-specific CSS.
  */
 
+import { generateThemeCSS } from '../../editor/theme/ThemeEngine.js';
+import { LIGHT_THEME } from '../../editor/theme/ThemeTokens.js';
 import {
 	PAPER_MARGIN_HORIZONTAL_PX,
 	PAPER_MARGIN_TOP_PX,
@@ -19,6 +21,15 @@ export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
 		}
 	}
 	return parts.join('\n');
+}
+
+/**
+ * Generates light theme CSS custom properties for print output.
+ * Uses the static LIGHT_THEME definition rather than reading computed styles,
+ * ensuring print output is always readable on paper regardless of the active editor theme.
+ */
+export function generateLightThemeTokens(): string {
+	return generateThemeCSS(LIGHT_THEME).replace(':host {', ':root {');
 }
 
 /** Snapshots --notectl-* CSS custom properties from the host element into a :root block. */
@@ -46,7 +57,7 @@ export function snapshotThemeTokens(host: HTMLElement): string {
  * The print iframe is a regular document where `:host` doesn't match,
  * so we must apply the same font/line-height explicitly.
  */
-export function snapshotTypography(host: HTMLElement): string {
+export function snapshotTypography(host: HTMLElement, colorOverride?: string): string {
 	const computed: CSSStyleDeclaration = getComputedStyle(host);
 	const props: string[] = [
 		'font-family',
@@ -59,6 +70,10 @@ export function snapshotTypography(host: HTMLElement): string {
 	];
 	const rules: string[] = ['  margin: 0;'];
 	for (const prop of props) {
+		if (prop === 'color' && colorOverride) {
+			rules.push(`  color: ${colorOverride};`);
+			continue;
+		}
 		const value: string = computed.getPropertyValue(prop).trim();
 		if (value) {
 			rules.push(`  ${prop}: ${value};`);
@@ -142,13 +157,22 @@ export function collectAll(
 	const adopted: string = extractAdoptedStyles(shadowRoot);
 	if (adopted) parts.push(adopted);
 
-	const theme: string = snapshotThemeTokens(host);
-	if (theme) parts.push(theme);
+	const forceLightTheme: boolean = options.forceLightTheme !== false;
+
+	if (forceLightTheme) {
+		parts.push(generateLightThemeTokens());
+	} else {
+		const theme: string = snapshotThemeTokens(host);
+		if (theme) parts.push(theme);
+	}
 
 	// WYSIWYG: snapshot host typography so the print iframe matches the editor.
 	// In the editor, .notectl-content inherits font from :host (shadow DOM).
 	// The print iframe is a regular document where :host doesn't apply.
-	parts.push(snapshotTypography(host));
+	const colorOverride: string | undefined = forceLightTheme
+		? LIGHT_THEME.primitives.foreground
+		: undefined;
+	parts.push(snapshotTypography(host, colorOverride));
 
 	const printCSS: string = generatePrintCSS(options);
 	if (printCSS) parts.push(printCSS);

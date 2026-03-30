@@ -125,12 +125,18 @@ export class InlineCodePlugin implements Plugin {
 			},
 			toHTMLString: (_mark, content) => `<code>${content}</code>`,
 			parseHTML: [
-				{ tag: 'code' },
+				{
+					tag: 'code',
+					getAttrs: (el: HTMLElement) => {
+						if (el.parentElement?.tagName === 'PRE') return false;
+						return {};
+					},
+				},
 				{
 					tag: 'span',
 					getAttrs: (el: HTMLElement) => {
-						const fontFamily: string = el.style.fontFamily;
-						if (/monospace/i.test(fontFamily)) return {};
+						const fontFamily: string = el.style.fontFamily.replace(/['"]/g, '').trim();
+						if (/^monospace$/i.test(fontFamily)) return {};
 						return false;
 					},
 				},
