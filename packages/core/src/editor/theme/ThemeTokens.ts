@@ -45,6 +45,12 @@ export interface ThemeCodeBlock {
 	readonly syntax?: ThemeSyntax;
 }
 
+/** Component-level inline code overrides. */
+export interface ThemeInlineCode {
+	readonly background: string;
+	readonly foreground: string;
+}
+
 /** Component-level tooltip overrides. */
 export interface ThemeTooltip {
 	readonly background: string;
@@ -56,6 +62,7 @@ export interface Theme {
 	readonly name: string;
 	readonly primitives: ThemePrimitives;
 	readonly toolbar?: Partial<ThemeToolbar>;
+	readonly inlineCode?: Partial<ThemeInlineCode>;
 	readonly codeBlock?: Partial<ThemeCodeBlock>;
 	readonly tooltip?: Partial<ThemeTooltip>;
 }
@@ -65,6 +72,7 @@ export interface PartialTheme {
 	readonly name: string;
 	readonly primitives?: Partial<ThemePrimitives>;
 	readonly toolbar?: Partial<ThemeToolbar>;
+	readonly inlineCode?: Partial<ThemeInlineCode>;
 	readonly codeBlock?: Partial<Omit<ThemeCodeBlock, 'syntax'>> & {
 		readonly syntax?: Partial<ThemeSyntax>;
 	};
@@ -100,6 +108,10 @@ export const LIGHT_THEME: Theme = {
 		success: '#1a8c1a',
 		shadow: 'rgba(0, 0, 0, 0.15)',
 		focusRing: 'rgba(74, 144, 217, 0.2)',
+	},
+	inlineCode: {
+		background: '#edf0f5',
+		foreground: '#334155',
 	},
 	codeBlock: {
 		background: '#f8fafc',
@@ -154,16 +166,20 @@ export const DARK_THEME: Theme = {
 		shadow: 'rgba(0, 0, 0, 0.4)',
 		focusRing: 'rgba(137, 180, 250, 0.25)',
 	},
-	codeBlock: {
-		background: '#11111b',
+	inlineCode: {
+		background: '#313244',
 		foreground: '#cdd6f4',
-		headerBackground: '#181825',
-		headerForeground: '#7f849c',
-		headerBorder: 'rgba(205, 214, 244, 0.08)',
+	},
+	codeBlock: {
+		background: '#313244',
+		foreground: '#cdd6f4',
+		headerBackground: '#45475a',
+		headerForeground: '#bac2de',
+		headerBorder: '#585b70',
 		syntax: {
 			keyword: '#cba6f7',
 			string: '#a6e3a1',
-			comment: { color: '#6c7086', fontStyle: 'italic' },
+			comment: { color: '#9399b2', fontStyle: 'italic' },
 			number: '#fab387',
 			function: '#89b4fa',
 			operator: '#89dceb',
@@ -197,6 +213,9 @@ export function createTheme(base: Theme, overrides: PartialTheme): Theme {
 		name: overrides.name,
 		primitives: { ...base.primitives, ...overrides.primitives },
 		toolbar: overrides.toolbar ? { ...base.toolbar, ...overrides.toolbar } : base.toolbar,
+		inlineCode: overrides.inlineCode
+			? { ...base.inlineCode, ...overrides.inlineCode }
+			: base.inlineCode,
 		codeBlock: overrides.codeBlock
 			? {
 					...base.codeBlock,

@@ -34,6 +34,8 @@ describe('generateThemeCSS', () => {
 
 	it('includes component variables when defined', () => {
 		const css: string = generateThemeCSS(LIGHT_THEME);
+		expect(css).toContain('--notectl-code-bg:');
+		expect(css).toContain('--notectl-code-color:');
 		expect(css).toContain('--notectl-code-block-bg:');
 		expect(css).toContain('--notectl-code-block-color:');
 		expect(css).toContain('--notectl-tooltip-bg:');
@@ -50,6 +52,9 @@ describe('generateThemeCSS', () => {
 		// Toolbar tokens should fall back
 		expect(css).toContain('--notectl-toolbar-bg: var(--notectl-surface-raised)');
 		expect(css).toContain('--notectl-toolbar-border: var(--notectl-border)');
+		// Inline code tokens should fall back
+		expect(css).toContain('--notectl-code-bg: var(--notectl-surface-raised)');
+		expect(css).toContain('--notectl-code-color: var(--notectl-fg)');
 	});
 
 	it('maps correct values for light theme', () => {

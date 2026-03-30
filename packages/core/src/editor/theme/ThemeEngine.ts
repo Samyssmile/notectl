@@ -35,6 +35,9 @@ const STATIC_ENTRIES: ReadonlyArray<readonly [string, string]> = [
 	// Component: toolbar
 	['toolbar.background', '--notectl-toolbar-bg'],
 	['toolbar.borderColor', '--notectl-toolbar-border'],
+	// Component: inlineCode
+	['inlineCode.background', '--notectl-code-bg'],
+	['inlineCode.foreground', '--notectl-code-color'],
 	// Component: codeBlock (non-syntax)
 	['codeBlock.background', '--notectl-code-block-bg'],
 	['codeBlock.foreground', '--notectl-code-block-color'],
@@ -63,6 +66,8 @@ const VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = [
 const STATIC_FALLBACKS: ReadonlyArray<readonly [string, string]> = [
 	['--notectl-toolbar-bg', 'var(--notectl-surface-raised)'],
 	['--notectl-toolbar-border', 'var(--notectl-border)'],
+	['--notectl-code-bg', 'var(--notectl-surface-raised)'],
+	['--notectl-code-color', 'var(--notectl-fg)'],
 	['--notectl-code-block-bg', 'var(--notectl-surface-raised)'],
 	['--notectl-code-block-color', 'var(--notectl-fg)'],
 	['--notectl-code-block-header-bg', 'var(--notectl-surface-raised)'],

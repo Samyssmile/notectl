@@ -58,8 +58,20 @@ describe('createTheme', () => {
 		};
 		const result: Theme = createTheme(LIGHT_THEME, overrides);
 
+		expect(result.inlineCode).toBe(LIGHT_THEME.inlineCode);
 		expect(result.codeBlock).toBe(LIGHT_THEME.codeBlock);
 		expect(result.tooltip).toBe(LIGHT_THEME.tooltip);
+	});
+
+	it('overrides inlineCode tokens', () => {
+		const overrides: PartialTheme = {
+			name: 'custom-ic',
+			inlineCode: { background: '#222' },
+		};
+		const result: Theme = createTheme(LIGHT_THEME, overrides);
+
+		expect(result.inlineCode?.background).toBe('#222');
+		expect(result.inlineCode?.foreground).toBe(LIGHT_THEME.inlineCode?.foreground);
 	});
 
 	it('overrides tooltip tokens', () => {
