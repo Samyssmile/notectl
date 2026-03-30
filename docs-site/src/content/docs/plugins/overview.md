@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **23 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **24 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -18,6 +18,7 @@ notectl ships with **23 built-in plugins**. Every editor feature — from bold t
 | [ListPlugin](/notectl/plugins/list/) | `list` | Bullet, ordered, and checklist | `Tab`, `Shift+Tab` |
 | [LinkPlugin](/notectl/plugins/link/) | `link` | Hyperlinks | `Ctrl+K` |
 | [TablePlugin](/notectl/plugins/table/) | `table` | Tables with cell selection | `Tab`, `Shift+F10` |
+| [InlineCodePlugin](/notectl/plugins/inline-code/) | `inline-code` | Inline code mark with backtick input rule | `Ctrl+E` |
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
 | [ImagePlugin](/notectl/plugins/image/) | `image` | Image blocks with upload support | - |

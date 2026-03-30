@@ -73,6 +73,7 @@ export default defineConfig({
 						{ label: 'List', slug: 'plugins/list' },
 						{ label: 'Link', slug: 'plugins/link' },
 						{ label: 'Table', slug: 'plugins/table' },
+						{ label: 'Inline Code', slug: 'plugins/inline-code' },
 						{ label: 'Code Block', slug: 'plugins/code-block' },
 						{ label: 'Blockquote', slug: 'plugins/blockquote' },
 						{ label: 'Image', slug: 'plugins/image' },

@@ -152,6 +152,27 @@ describe('InlineCodePlugin', () => {
 			const match = '``'.match(rule.pattern);
 			expect(match).toBeNull();
 		});
+
+		it('returns null inside a code_block', async () => {
+			const state = stateBuilder()
+				.block('code_block', '`hello`', 'cb1')
+				.cursor('cb1', 7)
+				.schema(['paragraph', 'code_block'], ['code'])
+				.build();
+
+			const h = await pluginHarness(new InlineCodePlugin(), state);
+			const rules = h.getInputRules();
+			const rule = rules[0];
+			if (!rule) throw new Error('No input rule registered');
+
+			const match = '`hello`'.match(rule.pattern);
+			expect(match).not.toBeNull();
+			if (!match) return;
+
+			const start: number = match.index ?? 0;
+			const tr = rule.handler(h.getState(), match, start, start + match[0].length);
+			expect(tr).toBeNull();
+		});
 	});
 
 	describe('exclusivity middleware', () => {
@@ -218,6 +239,36 @@ describe('InlineCodePlugin', () => {
 			);
 			expect(hasRemoveBold).toBe(true);
 			expect(hasRemoveItalic).toBe(true);
+		});
+
+		it('strips excluded stored marks when code is present in storedMarksAfter', async () => {
+			const state = stateBuilder()
+				.paragraph('hello', 'b1')
+				.cursor('b1', 3)
+				.schema(['paragraph'], ['code', 'bold', 'italic'])
+				.build();
+
+			const plugin = new InlineCodePlugin();
+			const pm = new PluginManager();
+			pm.register(plugin);
+			await pm.init(makePluginOptions({ getState: () => state }));
+
+			const tr = state
+				.transaction('command')
+				.setStoredMarks([{ type: 'code' }, { type: 'bold' }, { type: 'italic' }], state.storedMarks)
+				.setSelection(state.selection)
+				.build();
+
+			const finalDispatch = vi.fn();
+			pm.dispatchWithMiddleware(tr, state, finalDispatch);
+
+			expect(finalDispatch).toHaveBeenCalled();
+			const dispatched = finalDispatch.mock.calls[0]?.[0];
+			const stored: readonly { type: string }[] = dispatched.storedMarksAfter ?? [];
+			const types: string[] = stored.map((m: { type: string }) => m.type);
+			expect(types).toContain('code');
+			expect(types).not.toContain('bold');
+			expect(types).not.toContain('italic');
 		});
 
 		it('allows link mark to coexist with code mark', async () => {
