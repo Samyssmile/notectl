@@ -12,6 +12,7 @@ import { ImagePlugin } from '../plugins/image/ImagePlugin.js';
 import { LinkPlugin } from '../plugins/link/LinkPlugin.js';
 import { ListPlugin } from '../plugins/list/ListPlugin.js';
 import { PrintPlugin } from '../plugins/print/PrintPlugin.js';
+import { InlineCodePlugin } from '../plugins/inline-code/InlineCodePlugin.js';
 import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugin.js';
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
@@ -36,14 +37,15 @@ describe('createFullPreset', () => {
 		expect(group?.[1]).toBeInstanceOf(FontSizePlugin);
 	});
 
-	it('group 2 contains TextFormatting, Strikethrough, SuperSub', () => {
+	it('group 2 contains TextFormatting, Strikethrough, InlineCode, SuperSub', () => {
 		const preset = createFullPreset();
 		const group = preset.toolbar[1];
 
-		expect(group).toHaveLength(3);
+		expect(group).toHaveLength(4);
 		expect(group?.[0]).toBeInstanceOf(TextFormattingPlugin);
 		expect(group?.[1]).toBeInstanceOf(StrikethroughPlugin);
-		expect(group?.[2]).toBeInstanceOf(SuperSubPlugin);
+		expect(group?.[2]).toBeInstanceOf(InlineCodePlugin);
+		expect(group?.[3]).toBeInstanceOf(SuperSubPlugin);
 	});
 
 	it('group 3 contains TextColor and Highlight', () => {

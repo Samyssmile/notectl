@@ -12,6 +12,7 @@ import type { HeadingConfig } from '../plugins/heading/HeadingPlugin.js';
 import type { HighlightConfig } from '../plugins/highlight/HighlightPlugin.js';
 import type { HorizontalRuleConfig } from '../plugins/horizontal-rule/HorizontalRulePlugin.js';
 import type { ImagePluginConfig } from '../plugins/image/ImageUpload.js';
+import type { InlineCodeConfig } from '../plugins/inline-code/InlineCodePlugin.js';
 import type { LinkConfig } from '../plugins/link/LinkPlugin.js';
 import type { ListConfig } from '../plugins/list/ListPlugin.js';
 import type { PrintPluginConfig } from '../plugins/print/PrintTypes.js';
@@ -42,6 +43,7 @@ export interface FullPresetOptions {
 	readonly fontSize?: Partial<FontSizeConfig>;
 	readonly textFormatting?: Partial<TextFormattingConfig>;
 	readonly strikethrough?: Partial<StrikethroughConfig>;
+	readonly inlineCode?: Partial<InlineCodeConfig>;
 	readonly superSub?: Partial<SuperSubConfig>;
 	readonly textColor?: Partial<TextColorConfig>;
 	readonly highlight?: Partial<HighlightConfig>;

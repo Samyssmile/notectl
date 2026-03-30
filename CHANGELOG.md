@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-03-30
+
+### Added
+
+- **Inline Code Mark Plugin** — New `InlineCodePlugin` for formatting text as `<code>` inline marks (#88). Includes toggle command (`toggleInlineCode`), keyboard shortcut (`Mod-E`), backtick InputRule (`` `text` `` auto-formats), toolbar button, mark exclusivity middleware (prevents bold/italic/underline inside code, allows link), CSS with custom properties and high-contrast mode support, and i18n for 8 languages.
+
 ## [2.0.6] - 2026-03-27
 
 ### Changed

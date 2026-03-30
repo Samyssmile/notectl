@@ -82,6 +82,10 @@
 			"types": "./dist/plugins/strikethrough/index.d.ts",
 			"import": "./dist/plugins/strikethrough.mjs"
 		},
+		"./plugins/inline-code": {
+			"types": "./dist/plugins/inline-code/index.d.ts",
+			"import": "./dist/plugins/inline-code.mjs"
+		},
 		"./plugins/text-color": {
 			"types": "./dist/plugins/text-color/index.d.ts",
 			"import": "./dist/plugins/text-color.mjs"
@@ -277,6 +281,12 @@
 		{
 			"name": "Plugin: Strikethrough",
 			"path": "dist/plugins/strikethrough.mjs",
+			"limit": "5 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Inline Code",
+			"path": "dist/plugins/inline-code.mjs",
 			"limit": "5 KB",
 			"gzip": true
 		},

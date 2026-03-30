@@ -115,4 +115,4 @@ export const SYNTAX_HIGHLIGHTER_SERVICE_KEY = new ServiceKey<SyntaxHighlighterSe
 // --- SVG Icon ---
 
 export const CODE_BLOCK_ICON =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>';
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M11 14.17L8.83 12 11 9.83 9.59 8.41 6 12l3.59 3.59L11 14.17zm3.41 1.42L18 12l-3.59-3.59L13 9.83 15.17 12 13 14.17l1.41 1.42z"/></svg>';
