@@ -3,6 +3,7 @@ import { PaperSize } from '../../model/PaperSize.js';
 import {
 	collectAll,
 	extractAdoptedStyles,
+	generateLightThemeTokens,
 	generatePrintCSS,
 	snapshotThemeTokens,
 	snapshotTypography,
@@ -55,6 +56,27 @@ describe('PrintStyleCollector', () => {
 			expect(typeof result).toBe('string');
 
 			document.body.removeChild(el);
+		});
+	});
+
+	describe('generateLightThemeTokens', () => {
+		it('uses :root selector instead of :host', () => {
+			const css: string = generateLightThemeTokens();
+			expect(css).toContain(':root {');
+			expect(css).not.toContain(':host');
+		});
+
+		it('contains light theme background and foreground values', () => {
+			const css: string = generateLightThemeTokens();
+			expect(css).toContain('--notectl-bg: #ffffff');
+			expect(css).toContain('--notectl-fg: #1a1a1a');
+		});
+
+		it('contains all theme custom properties', () => {
+			const css: string = generateLightThemeTokens();
+			expect(css).toContain('--notectl-primary:');
+			expect(css).toContain('--notectl-border:');
+			expect(css).toContain('--notectl-surface-raised:');
 		});
 	});
 
@@ -166,6 +188,27 @@ describe('PrintStyleCollector', () => {
 			document.body.removeChild(el);
 		});
 
+		it('uses colorOverride for the color property when provided', () => {
+			const el: HTMLElement = document.createElement('div');
+			document.body.appendChild(el);
+
+			const result: string = snapshotTypography(el, '#1a1a1a');
+			expect(result).toContain('color: #1a1a1a');
+
+			document.body.removeChild(el);
+		});
+
+		it('uses computed color when no override is provided', () => {
+			const el: HTMLElement = document.createElement('div');
+			document.body.appendChild(el);
+
+			const result: string = snapshotTypography(el);
+			expect(result).toContain('body {');
+			expect(result).toContain('margin: 0');
+
+			document.body.removeChild(el);
+		});
+
 		it('includes font-family and line-height from computed styles', () => {
 			const el: HTMLElement = document.createElement('div');
 			el.style.fontFamily = 'Arial, sans-serif';
@@ -231,6 +274,54 @@ describe('PrintStyleCollector', () => {
 			const result: string = collectAll(shadow, host, {});
 			expect(result).toContain('body {');
 			expect(result).toContain('margin: 0');
+
+			document.body.removeChild(host);
+		});
+
+		it('uses light theme tokens by default', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
+
+			const result: string = collectAll(shadow, host, {});
+			expect(result).toContain('--notectl-bg: #ffffff');
+			expect(result).toContain('--notectl-fg: #1a1a1a');
+			expect(result).toContain(':root {');
+
+			document.body.removeChild(host);
+		});
+
+		it('uses light theme tokens when forceLightTheme is true', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
+
+			const result: string = collectAll(shadow, host, { forceLightTheme: true });
+			expect(result).toContain('--notectl-bg: #ffffff');
+			expect(result).toContain('--notectl-fg: #1a1a1a');
+
+			document.body.removeChild(host);
+		});
+
+		it('snapshots current theme when forceLightTheme is false', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
+
+			const result: string = collectAll(shadow, host, { forceLightTheme: false });
+			// In happy-dom, snapshotThemeTokens returns empty (no --notectl-* computed props)
+			expect(result).not.toContain('--notectl-bg: #ffffff');
+
+			document.body.removeChild(host);
+		});
+
+		it('overrides body color with light foreground by default', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
+
+			const result: string = collectAll(shadow, host, {});
+			expect(result).toContain('color: #1a1a1a');
 
 			document.body.removeChild(host);
 		});

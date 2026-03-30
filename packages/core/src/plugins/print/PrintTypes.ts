@@ -43,6 +43,12 @@ export interface PrintOptions {
 	 */
 	readonly printBackground?: boolean;
 
+	/**
+	 * Force light theme tokens in print output for readability on paper.
+	 * Defaults to `true`. Set to `false` to print with the current editor theme.
+	 */
+	readonly forceLightTheme?: boolean;
+
 	/** Page orientation. */
 	readonly orientation?: 'portrait' | 'landscape';
 
