@@ -54,8 +54,8 @@ const INLINE_CODE_CSS = `
 	font-size: 0.9em;
 	padding: 0.15em 0.35em;
 	border-radius: 4px;
-	background-color: var(--notectl-code-bg, rgba(127, 127, 127, 0.15));
-	color: var(--notectl-code-color, inherit);
+	background-color: var(--notectl-code-bg);
+	color: var(--notectl-code-color);
 	word-break: break-word;
 }
 @media (forced-colors: active) {
