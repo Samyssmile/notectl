@@ -282,6 +282,31 @@ function resolveNavigationTarget(
 }
 
 /**
+ * Computes the Y coordinate for vertical goal-column probing.
+ *
+ * Uses the block element's computed padding to ensure the probe point
+ * lands inside the text content area, not in the padding zone.
+ * Firefox's `caretPositionFromPoint` returns the end-of-text position
+ * when probing in the padding area below the content, which breaks
+ * ArrowUp column preservation.
+ */
+function computeProbeY(blockEl: Element, rect: DOMRect, direction: 'up' | 'down'): number {
+	if (!(blockEl instanceof HTMLElement)) {
+		return direction === 'down'
+			? rect.top + BLOCK_EDGE_INSET_PX
+			: rect.bottom - BLOCK_EDGE_INSET_PX;
+	}
+
+	const style: CSSStyleDeclaration = getComputedStyle(blockEl);
+	const paddingTop: number = Number.parseFloat(style.paddingTop) || 0;
+	const paddingBottom: number = Number.parseFloat(style.paddingBottom) || 0;
+
+	return direction === 'down'
+		? rect.top + paddingTop + BLOCK_EDGE_INSET_PX
+		: rect.bottom - paddingBottom - BLOCK_EDGE_INSET_PX;
+}
+
+/**
  * Resolves an editor position in the target block by using the goalColumn
  * X coordinate and `caretPositionFromPoint` / `caretRangeFromPoint`.
  *
@@ -300,9 +325,7 @@ function resolveGoalColumnPosition(
 	if (!blockEl) return null;
 
 	const rect: DOMRect = blockEl.getBoundingClientRect();
-	// Small inset to ensure we hit inside the line, not on the border
-	const y: number =
-		direction === 'down' ? rect.top + BLOCK_EDGE_INSET_PX : rect.bottom - BLOCK_EDGE_INSET_PX;
+	const y: number = computeProbeY(blockEl, rect, direction);
 	// Clamp goalColumn within the block's horizontal bounds to avoid
 	// caretPositionFromPoint returning unexpected results for out-of-bounds X.
 	const clampedX: number = Math.min(Math.max(goalColumn, rect.left), rect.right - 1);
