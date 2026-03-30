@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Inline Code Mark Plugin** — New `InlineCodePlugin` for formatting text as `<code>` inline marks (#88). Includes toggle command (`toggleInlineCode`), keyboard shortcut (`Mod-E`), backtick InputRule (`` `text` `` auto-formats), toolbar button, mark exclusivity middleware (prevents bold/italic/underline inside code, allows link), CSS with custom properties and high-contrast mode support, and i18n for 8 languages.
+- **Inline Code Plugin documentation** — Full Starlight docs page with screenshot, sidebar entry, and plugin overview update.
+
+### Fixed
+
+- **Dark mode contrast** — Improved contrast for inline code and code block backgrounds in dark mode.
+- **ArrowUp column preservation** — ArrowUp navigation now preserves the cursor column position in Firefox.
 
 ## [2.0.6] - 2026-03-27
 
