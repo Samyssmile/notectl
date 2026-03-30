@@ -39,6 +39,7 @@ export * from './plugins/link/index.js';
 export * from './plugins/list/index.js';
 export * from './plugins/blockquote/index.js';
 export * from './plugins/strikethrough/index.js';
+export * from './plugins/inline-code/index.js';
 export * from './plugins/text-color/index.js';
 export * from './plugins/horizontal-rule/index.js';
 export * from './plugins/alignment/index.js';

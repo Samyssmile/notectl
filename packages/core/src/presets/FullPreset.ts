@@ -12,6 +12,7 @@ import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { HighlightPlugin } from '../plugins/highlight/HighlightPlugin.js';
 import { HorizontalRulePlugin } from '../plugins/horizontal-rule/HorizontalRulePlugin.js';
 import { ImagePlugin } from '../plugins/image/ImagePlugin.js';
+import { InlineCodePlugin } from '../plugins/inline-code/InlineCodePlugin.js';
 import { LinkPlugin } from '../plugins/link/LinkPlugin.js';
 import { ListPlugin } from '../plugins/list/ListPlugin.js';
 import { PrintPlugin } from '../plugins/print/PrintPlugin.js';
@@ -32,7 +33,7 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
  *
  * Toolbar groups:
  * 1. Typography: Font, FontSize
- * 2. Inline marks: TextFormatting, Strikethrough, SuperSub
+ * 2. Inline marks: TextFormatting, Strikethrough, InlineCode, SuperSub
  * 3. Colors: TextColor, Highlight
  * 4. Block types: Heading, Blockquote, CodeBlock
  * 5. Paragraph layout: Alignment, TextDirection
@@ -47,6 +48,7 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 			[
 				new TextFormattingPlugin(options?.textFormatting),
 				new StrikethroughPlugin(options?.strikethrough),
+				new InlineCodePlugin(options?.inlineCode),
 				new SuperSubPlugin(options?.superSub),
 			],
 			[new TextColorPlugin(options?.textColor), new HighlightPlugin(options?.highlight)],

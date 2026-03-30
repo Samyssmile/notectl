@@ -15,6 +15,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/list': resolve(__dirname, 'src/plugins/list/index.ts'),
 	'plugins/blockquote': resolve(__dirname, 'src/plugins/blockquote/index.ts'),
 	'plugins/strikethrough': resolve(__dirname, 'src/plugins/strikethrough/index.ts'),
+	'plugins/inline-code': resolve(__dirname, 'src/plugins/inline-code/index.ts'),
 	'plugins/text-color': resolve(__dirname, 'src/plugins/text-color/index.ts'),
 	'plugins/horizontal-rule': resolve(__dirname, 'src/plugins/horizontal-rule/index.ts'),
 	'plugins/alignment': resolve(__dirname, 'src/plugins/alignment/index.ts'),
