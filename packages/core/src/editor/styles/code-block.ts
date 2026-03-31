@@ -35,9 +35,39 @@ export const CODE_BLOCK_CSS = `
 	user-select: none;
 }
 
+.notectl-code-block__language-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--notectl-code-block-header-color);
+	cursor: pointer;
+	padding: 2px 6px;
+	font-size: inherit;
+	font-family: inherit;
+	transition: background 0.15s;
+}
+
+.notectl-code-block__language-btn:hover {
+	background: rgba(128, 128, 128, 0.15);
+}
+
+.notectl-code-block__language-btn:focus-visible {
+	outline: 2px solid var(--notectl-primary);
+	outline-offset: 1px;
+}
+
 .notectl-code-block__language {
 	font-weight: 500;
 	letter-spacing: 0.02em;
+}
+
+.notectl-code-block__chevron {
+	display: inline-flex;
+	align-items: center;
+	opacity: 0.6;
 }
 
 .notectl-code-block__actions {
@@ -104,6 +134,41 @@ export const CODE_BLOCK_CSS = `
 
 .notectl-code-block--focused .notectl-code-block__esc-hint {
 	display: block;
+}
+
+/* Language picker popup */
+.notectl-language-picker {
+	min-width: 120px;
+	max-height: 200px;
+	overflow-y: auto;
+	padding: 4px;
+	background: var(--notectl-surface-raised, #fff);
+	border: 1px solid var(--notectl-border, #e0e0e0);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.notectl-language-picker__option {
+	padding: 6px 10px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--notectl-fg, #333);
+	white-space: nowrap;
+}
+
+.notectl-language-picker__option:hover {
+	background: rgba(128, 128, 128, 0.1);
+}
+
+.notectl-language-picker__option:focus {
+	outline: none;
+	background: rgba(128, 128, 128, 0.15);
+}
+
+.notectl-language-picker__option[aria-selected="true"] {
+	font-weight: 600;
+	color: var(--notectl-primary, #2563eb);
 }
 
 /* Syntax highlighting token classes — generated from canonical token type list */

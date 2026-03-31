@@ -13,6 +13,9 @@ export interface CodeBlockLocale {
 	readonly copiedToClipboard: string;
 	readonly deleteCodeBlockAria: string;
 	readonly deletedCodeBlock: string;
+	readonly selectLanguageAria: string;
+	readonly languageChanged: (lang: string) => string;
+	readonly plainText: string;
 }
 
 // --- Default English Locale ---
@@ -28,6 +31,9 @@ export const CODE_BLOCK_LOCALE_EN: CodeBlockLocale = {
 	copiedToClipboard: 'Copied to clipboard',
 	deleteCodeBlockAria: 'Delete code block',
 	deletedCodeBlock: 'Code block deleted',
+	selectLanguageAria: 'Select language',
+	languageChanged: (lang: string) => `Language changed to ${lang}`,
+	plainText: 'plain',
 };
 
 // --- Lazy Locale Loader ---

@@ -29,6 +29,7 @@ import { LanguageRegistry } from '../language/LanguageRegistry.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
 import { JAVA_SUPPORT, JSON_SUPPORT, XML_SUPPORT } from '../language/bundles/index.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
+import { PopupManager } from '../shared/PopupManager.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerCodeBlockCommands } from './CodeBlockCommands.js';
 import { registerCodeBlockKeymaps } from './CodeBlockKeyboardHandlers.js';
@@ -37,7 +38,7 @@ import {
 	type CodeBlockLocale,
 	loadCodeBlockLocale,
 } from './CodeBlockLocale.js';
-import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
+import { type LanguagePickerDeps, createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
 import type {
 	CodeBlockConfig,
@@ -231,9 +232,16 @@ export class CodeBlockPlugin implements Plugin {
 	// --- NodeView ---
 
 	private registerNodeView(context: PluginContext): void {
+		const popupManager: PopupManager = new PopupManager(context.getContainer());
+		const highlighter = this.highlighter;
+		const pickerDeps: LanguagePickerDeps = {
+			popupManager,
+			getSupportedLanguages: () => highlighter?.getSupportedLanguages() ?? [],
+		};
+
 		context.registerNodeView(
 			'code_block',
-			createCodeBlockNodeViewFactory(this.config, this.locale),
+			createCodeBlockNodeViewFactory(this.config, this.locale, pickerDeps),
 		);
 	}
 

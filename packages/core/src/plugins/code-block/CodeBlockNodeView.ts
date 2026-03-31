@@ -4,16 +4,24 @@
  * and a <code> content area where the Reconciler renders text.
  */
 
-import type { BlockNode } from '../../model/Document.js';
+import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { getBlockText } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { NodeView, NodeViewFactory } from '../../view/NodeView.js';
+import type { PopupServiceAPI } from '../shared/PopupManager.js';
 import { createDeleteCodeBlockTransaction } from './CodeBlockCommands.js';
 import { CODE_BLOCK_LOCALE_EN, type CodeBlockLocale } from './CodeBlockLocale.js';
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
+import { openLanguagePicker } from './LanguagePicker.js';
+
+/** Dependencies for the language picker in the code block header. */
+export interface LanguagePickerDeps {
+	readonly popupManager: PopupServiceAPI;
+	readonly getSupportedLanguages: () => readonly string[];
+}
 
 const COPY_ICON =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
@@ -21,10 +29,14 @@ const COPY_ICON =
 const DELETE_ICON =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 
+const CHEVRON_ICON =
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="10" height="10"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 /** Creates a NodeViewFactory for code_block nodes. */
 export function createCodeBlockNodeViewFactory(
 	config: CodeBlockConfig,
 	locale: CodeBlockLocale = CODE_BLOCK_LOCALE_EN,
+	pickerDeps?: LanguagePickerDeps,
 ): NodeViewFactory {
 	return (
 		node: BlockNode,
@@ -44,8 +56,12 @@ export function createCodeBlockNodeViewFactory(
 		header.className = 'notectl-code-block__header';
 		header.setAttribute('contenteditable', 'false');
 
-		const langLabel: HTMLSpanElement = document.createElement('span');
-		langLabel.className = 'notectl-code-block__language';
+		const langBtn: HTMLButtonElement = document.createElement('button');
+		langBtn.className = 'notectl-code-block__language-btn';
+		langBtn.type = 'button';
+		langBtn.setAttribute('aria-haspopup', 'listbox');
+		langBtn.setAttribute('aria-expanded', 'false');
+		langBtn.setAttribute('aria-label', locale.selectLanguageAria);
 
 		const showCopy: boolean = config.showCopyButton !== false;
 		let copyBtn: HTMLButtonElement | null = null;
@@ -82,7 +98,7 @@ export function createCodeBlockNodeViewFactory(
 		}
 		actions.appendChild(deleteBtn);
 
-		header.appendChild(langLabel);
+		header.appendChild(langBtn);
 		header.appendChild(actions);
 		header.appendChild(announcer);
 
@@ -122,8 +138,18 @@ export function createCodeBlockNodeViewFactory(
 
 		function applyAttrs(n: BlockNode): void {
 			const lang: string = (n.attrs?.language as string) ?? '';
-			const langName: string = lang || 'plain';
-			langLabel.textContent = langName;
+			const langName: string = lang || locale.plainText;
+			langBtn.innerHTML = '';
+			const labelSpan: HTMLSpanElement = document.createElement('span');
+			labelSpan.className = 'notectl-code-block__language';
+			labelSpan.textContent = langName;
+			langBtn.appendChild(labelSpan);
+			if (pickerDeps) {
+				const chevron: HTMLSpanElement = document.createElement('span');
+				chevron.className = 'notectl-code-block__chevron';
+				chevron.innerHTML = CHEVRON_ICON;
+				langBtn.appendChild(chevron);
+			}
 			pre.setAttribute('aria-label', locale.codeBlockAriaLabel(langName));
 
 			if (lang) {
@@ -172,6 +198,52 @@ export function createCodeBlockNodeViewFactory(
 			announcer.textContent = locale.deletedCodeBlock;
 			dispatch(tr);
 		});
+
+		// --- Language Picker Handler ---
+
+		if (pickerDeps) {
+			langBtn.addEventListener('click', (e: MouseEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+
+				const state: EditorState = getState();
+				const block: BlockNode | undefined = state.getBlock(currentNodeId);
+				if (!block) return;
+
+				const currentLang: string = (block.attrs?.language as string) ?? '';
+				openLanguagePicker({
+					anchor: langBtn,
+					languages: pickerDeps.getSupportedLanguages(),
+					currentLanguage: currentLang,
+					locale,
+					popupManager: pickerDeps.popupManager,
+					onSelect(language: string) {
+						langBtn.setAttribute('aria-expanded', 'false');
+						if (language === currentLang) return;
+
+						const latest: EditorState = getState();
+						const latestBlock: BlockNode | undefined = latest.getBlock(currentNodeId);
+						if (!latestBlock) return;
+
+						const path: BlockId[] | undefined = latest.getNodePath(currentNodeId);
+						if (!path) return;
+
+						const newAttrs: BlockAttrs = { ...latestBlock.attrs, language };
+						const tr: Transaction = latest
+							.transaction('command')
+							.setNodeAttr(path, newAttrs)
+							.build();
+						dispatch(tr);
+
+						const langName: string = language || locale.plainText;
+						announcer.textContent = locale.languageChanged(langName);
+						setTimeout(() => {
+							announcer.textContent = '';
+						}, 1000);
+					},
+				});
+			});
+		}
 
 		// --- NodeView Interface ---
 
