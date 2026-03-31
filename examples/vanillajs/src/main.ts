@@ -1,5 +1,5 @@
 import { ThemePreset, createEditor } from '@notectl/core';
-import type { StateChangeEvent } from '@notectl/core';
+import type { NotectlEditor, StateChangeEvent, Theme } from '@notectl/core';
 import { STARTER_FONTS } from '@notectl/core/fonts';
 import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
@@ -59,7 +59,114 @@ window.HorizontalRulePlugin = HorizontalRulePlugin;
 window.ImagePlugin = ImagePlugin;
 
 const container = document.getElementById('editor-container') as HTMLElement;
-const output = document.getElementById('output') as HTMLElement;
+
+// ─── Inspector helpers ───
+
+function selectElement<T extends HTMLElement>(id: string): T {
+	return document.getElementById(id) as T;
+}
+
+const tabs: Map<string, HTMLElement> = new Map();
+const tabButtons: NodeListOf<HTMLElement> = document.querySelectorAll('.inspect-tab');
+const statBlocks: HTMLElement = selectElement('stat-blocks');
+const statChars: HTMLElement = selectElement('stat-chars');
+const statEmpty: HTMLElement = selectElement('stat-empty');
+
+for (const id of ['json', 'html', 'css-html', 'text', 'info']) {
+	tabs.set(id, selectElement(`tab-${id}`));
+}
+
+let activeTab = 'json';
+
+function switchTab(tabId: string): void {
+	activeTab = tabId;
+	for (const [id, el] of tabs) {
+		el.classList.toggle('active', id === tabId);
+	}
+	for (const btn of tabButtons) {
+		btn.classList.toggle('active', btn.dataset.tab === tabId);
+	}
+}
+
+for (const btn of tabButtons) {
+	btn.addEventListener('click', () => {
+		const tabId: string = btn.dataset.tab ?? 'json';
+		switchTab(tabId);
+		refreshActiveTab(currentEditor);
+	});
+}
+
+function setTabContent(tabId: string, text: string): void {
+	const el: HTMLElement | undefined = tabs.get(tabId);
+	if (!el) return;
+	const pre: HTMLElement | null = el.querySelector('pre');
+	if (pre) pre.textContent = text;
+}
+
+// ─── Real-time refresh ───
+
+let currentEditor: NotectlEditor | null = null;
+let refreshScheduled = false;
+
+function scheduleRefresh(editor: NotectlEditor): void {
+	if (refreshScheduled) return;
+	refreshScheduled = true;
+	requestAnimationFrame(() => {
+		refreshScheduled = false;
+		refreshActiveTab(editor);
+		refreshStats(editor);
+	});
+}
+
+async function refreshActiveTab(editor: NotectlEditor | null): Promise<void> {
+	if (!editor) return;
+
+	switch (activeTab) {
+		case 'json':
+			setTabContent('json', JSON.stringify(editor.getJSON(), null, 2));
+			break;
+		case 'html': {
+			const html: string = await editor.getContentHTML({ pretty: true });
+			setTabContent('html', html);
+			break;
+		}
+		case 'css-html': {
+			const result = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
+			setTabContent(
+				'css-html',
+				`/* === CSS === */\n${result.css}\n\n/* === HTML === */\n${result.html}`,
+			);
+			break;
+		}
+		case 'text':
+			setTabContent('text', editor.getText() || '(empty)');
+			break;
+		case 'info':
+			setTabContent(
+				'info',
+				[
+					`isEmpty: ${editor.isEmpty()}`,
+					`theme:   ${editor.getTheme()}`,
+					`blocks:  ${editor.getJSON().children.length}`,
+				].join('\n'),
+			);
+			break;
+	}
+}
+
+function refreshStats(editor: NotectlEditor): void {
+	const json = editor.getJSON();
+	const blockCount: number = json.children.length;
+	const text: string = editor.getText() ?? '';
+	const charCount: number = text.length;
+	const empty: boolean = editor.isEmpty();
+
+	statBlocks.textContent = `${blockCount} block${blockCount !== 1 ? 's' : ''}`;
+	statChars.textContent = `${charCount} char${charCount !== 1 ? 's' : ''}`;
+	statEmpty.textContent = empty ? 'empty' : 'has content';
+}
+
+// ─── Editor init ───
 
 (async () => {
 	const preset = createFullPreset({
@@ -70,7 +177,7 @@ const output = document.getElementById('output') as HTMLElement;
 		},
 	});
 
-	const editor = await createEditor({
+	const editor: NotectlEditor = await createEditor({
 		...preset,
 		toolbar: {
 			groups: preset.toolbar,
@@ -82,92 +189,67 @@ const output = document.getElementById('output') as HTMLElement;
 	});
 
 	container.appendChild(editor);
+	currentEditor = editor;
 
-	// Event listeners
-	editor.on('stateChange', ({ newState }: StateChangeEvent) => {
-		// Optionally update output in real-time
-		console.debug('stateChange', newState);
+	// Real-time state updates
+	editor.on('stateChange', (_event: StateChangeEvent) => {
+		scheduleRefresh(editor);
 	});
 
 	editor.on('ready', () => {
-		output.textContent = 'Editor ready!';
+		refreshActiveTab(editor);
+		refreshStats(editor);
 	});
 
-	// Control buttons
-	document.getElementById('btn-get-json')?.addEventListener('click', () => {
-		output.textContent = JSON.stringify(editor.getJSON(), null, 2);
-	});
+	// Initial render
+	scheduleRefresh(editor);
 
-	document.getElementById('btn-get-html')?.addEventListener('click', async () => {
-		output.textContent = await editor.getContentHTML({ pretty: true });
-	});
+	// ─── API action buttons ───
 
-	document.getElementById('btn-get-css-html')?.addEventListener('click', async () => {
-		const result = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
-		output.textContent = `/* === CSS === */\n${result.css}\n\n/* === HTML === */\n${result.html}`;
-	});
-
-	document.getElementById('btn-get-text')?.addEventListener('click', () => {
-		output.textContent = editor.getText() || '(empty)';
-	});
-
-	document.getElementById('btn-is-empty')?.addEventListener('click', () => {
-		output.textContent = `isEmpty: ${editor.isEmpty()}`;
-	});
-
-	document.getElementById('btn-toggle-bold')?.addEventListener('click', () => {
-		editor.commands.toggleBold();
-		output.textContent = 'Bold toggled via API';
-	});
-
-	document.getElementById('btn-undo')?.addEventListener('click', () => {
+	selectElement('btn-undo').addEventListener('click', () => {
 		editor.commands.undo();
-		output.textContent = 'Undo executed';
 	});
 
-	document.getElementById('btn-redo')?.addEventListener('click', () => {
+	selectElement('btn-redo').addEventListener('click', () => {
 		editor.commands.redo();
-		output.textContent = 'Redo executed';
 	});
 
-	// Transform container toggle (for testing bug #72)
+	// ─── Theme toggle ───
+
+	const themeTrack: HTMLElement = selectElement('theme-track');
+	selectElement('theme-toggle').addEventListener('click', () => {
+		const current: ThemePreset | Theme = editor.getTheme();
+		const next: ThemePreset = current === ThemePreset.Dark ? ThemePreset.Light : ThemePreset.Dark;
+		editor.setTheme(next);
+		themeTrack.classList.toggle('active', next === ThemePreset.Dark);
+	});
+
+	// ─── Transform container toggle ───
+
 	let transformActive = false;
 	let transformWrapper: HTMLDivElement | null = null;
-	document.getElementById('btn-toggle-transform')?.addEventListener('click', () => {
-		const btn = document.getElementById('btn-toggle-transform') as HTMLButtonElement;
+
+	selectElement('btn-toggle-transform').addEventListener('click', () => {
+		const btn: HTMLElement = selectElement('btn-toggle-transform');
 		if (!transformActive) {
 			transformWrapper = document.createElement('div');
 			transformWrapper.style.cssText =
-				'transform: translateY(0); padding: 20px; margin-top: 40px; border: 2px dashed red; border-radius: 8px; position: relative;';
-			const label = document.createElement('div');
+				'transform: translateY(0); padding: 20px; margin-top: 16px; border: 2px dashed var(--accent); border-radius: 8px; position: relative;';
+			const label: HTMLDivElement = document.createElement('div');
 			label.textContent = 'transform: translateY(0) — dropdowns should still align correctly';
-			label.style.cssText = 'color: red; font-size: 12px; margin-bottom: 8px; font-weight: 600;';
+			label.style.cssText =
+				'color: var(--accent); font-size: 12px; margin-bottom: 8px; font-weight: 600;';
 			transformWrapper.appendChild(label);
 			container.parentElement?.insertBefore(transformWrapper, container);
 			transformWrapper.appendChild(container);
 			transformActive = true;
-			btn.textContent = 'Remove Transform Container';
-			btn.style.background = '#e0ffe0';
+			btn.textContent = 'Remove transform';
 		} else if (transformWrapper) {
 			transformWrapper.parentElement?.insertBefore(container, transformWrapper);
 			transformWrapper.remove();
 			transformWrapper = null;
 			transformActive = false;
-			btn.textContent = 'Toggle Transform Container (Bug #72 test)';
-			btn.style.background = '#ffe0e0';
+			btn.textContent = 'Transform test';
 		}
 	});
-
-	// Theme toggle
-	const themeBtn: HTMLButtonElement = document.createElement('button');
-	themeBtn.textContent = 'Toggle Dark Mode';
-	themeBtn.style.cssText = 'margin-top:8px;padding:6px 12px;cursor:pointer;';
-	themeBtn.addEventListener('click', () => {
-		const current = editor.getTheme();
-		const next = current === ThemePreset.Dark ? ThemePreset.Light : ThemePreset.Dark;
-		editor.setTheme(next);
-		themeBtn.textContent = next === ThemePreset.Dark ? 'Toggle Light Mode' : 'Toggle Dark Mode';
-		output.textContent = `Theme: ${next}`;
-	});
-	container.parentElement?.insertBefore(themeBtn, container.nextSibling);
 })();

@@ -3,8 +3,29 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>Notectl — Vanilla JS Example</title>
+	<title>Notectl — Playground</title>
 	<style>
+		:root {
+			--bg: #f8f9fb;
+			--surface: #ffffff;
+			--surface-alt: #f3f4f6;
+			--border: #e5e7eb;
+			--border-focus: #6366f1;
+			--text: #111827;
+			--text-secondary: #6b7280;
+			--text-tertiary: #9ca3af;
+			--accent: #6366f1;
+			--accent-hover: #4f46e5;
+			--accent-subtle: #eef2ff;
+			--radius: 10px;
+			--radius-lg: 14px;
+			--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+			--shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+			--shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+			--transition: 150ms ease;
+			--font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+		}
+
 		* {
 			box-sizing: border-box;
 			margin: 0;
@@ -12,36 +33,127 @@
 		}
 
 		body {
-			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-			background: #f5f5f5;
-			padding: 40px 20px;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			min-height: 100vh;
+			-webkit-font-smoothing: antialiased;
 		}
 
-		.app {
-			max-width: 1000px;
+		/* ─── Header ─── */
+		.header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 16px 32px;
+			border-bottom: 1px solid var(--border);
+			background: var(--surface);
+		}
+
+		.header-left {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.logo {
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: -0.02em;
+			color: var(--text);
+		}
+
+		.badge {
+			font-size: 11px;
+			font-weight: 600;
+			padding: 2px 8px;
+			border-radius: 100px;
+			background: var(--accent-subtle);
+			color: var(--accent);
+			letter-spacing: 0.02em;
+		}
+
+		.header-right {
+			display: flex;
+			align-items: center;
+			gap: 16px;
+		}
+
+		/* Theme toggle */
+		.theme-toggle {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			cursor: pointer;
+			user-select: none;
+			font-size: 13px;
+			color: var(--text-secondary);
+		}
+
+		.theme-toggle-track {
+			width: 40px;
+			height: 22px;
+			background: var(--border);
+			border-radius: 11px;
+			position: relative;
+			transition: background var(--transition);
+		}
+
+		.theme-toggle-track::after {
+			content: '';
+			position: absolute;
+			top: 3px;
+			left: 3px;
+			width: 16px;
+			height: 16px;
+			background: var(--surface);
+			border-radius: 50%;
+			box-shadow: var(--shadow-sm);
+			transition: transform var(--transition);
+		}
+
+		.theme-toggle-track.active {
+			background: var(--accent);
+		}
+
+		.theme-toggle-track.active::after {
+			transform: translateX(18px);
+		}
+
+		/* ─── Main layout ─── */
+		.main {
+			max-width: 1280px;
 			margin: 0 auto;
+			padding: 24px 32px 48px;
+			display: grid;
+			grid-template-columns: 1fr 420px;
+			grid-template-rows: 1fr auto;
+			gap: 16px 24px;
 		}
 
-		h1 {
-			font-size: 24px;
-			margin-bottom: 8px;
-			color: #1a1a1a;
+		@media (max-width: 960px) {
+			.main {
+				grid-template-columns: 1fr;
+				padding: 16px;
+			}
 		}
 
-		.subtitle {
-			color: #666;
-			margin-bottom: 24px;
-			font-size: 14px;
-		}
-
+		/* ─── Editor area ─── */
 		#editor-container {
-			margin-bottom: 24px;
+			grid-column: 1;
+			grid-row: 1;
+		}
+
+		.actions-bar {
+			grid-column: 1;
+			grid-row: 2;
 		}
 
 		notectl-editor {
- 			--notectl-content-min-height: 400px;
+			--notectl-content-min-height: 460px;
+			--notectl-border-radius: var(--radius-lg);
+			box-shadow: var(--shadow-lg);
 		}
-
 
 		notectl-editor th,
 		notectl-editor td {
@@ -65,74 +177,342 @@
 			margin: 0;
 		}
 
-		.controls {
+		/* ─── API Actions ─── */
+		.actions-bar {
 			display: flex;
-			gap: 8px;
+			align-items: center;
+			gap: 6px;
 			flex-wrap: wrap;
-			margin-bottom: 16px;
 		}
 
-		.controls button {
-			padding: 6px 14px;
-			border: 1px solid #ccc;
-			border-radius: 4px;
-			background: #fff;
+		.action-group {
+			display: flex;
+			align-items: center;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			overflow: hidden;
+			box-shadow: var(--shadow-sm);
+		}
+
+		.action-group .action-btn {
+			border: none;
+			border-radius: 0;
+			box-shadow: none;
+			border-right: 1px solid var(--border);
+		}
+
+		.action-group .action-btn:last-child {
+			border-right: none;
+		}
+
+		.action-btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			padding: 7px 13px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			background: var(--surface);
+			color: var(--text-secondary);
+			font-size: 12.5px;
+			font-weight: 500;
 			cursor: pointer;
+			transition: all var(--transition);
+			white-space: nowrap;
+			box-shadow: var(--shadow-sm);
+		}
+
+		.action-btn:hover {
+			background: var(--surface-alt);
+			color: var(--text);
+			border-color: var(--text-tertiary);
+		}
+
+		.action-btn:active {
+			transform: scale(0.97);
+		}
+
+		.action-btn svg {
+			width: 14px;
+			height: 14px;
+			flex-shrink: 0;
+		}
+
+		.action-separator {
+			width: 1px;
+			height: 20px;
+			background: var(--border);
+			margin: 0 4px;
+		}
+
+		/* ─── Inspect panel ─── */
+		.inspect-panel {
+			grid-column: 2;
+			grid-row: 1;
+			display: flex;
+			flex-direction: column;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-lg);
+			box-shadow: var(--shadow-lg);
+			overflow: hidden;
+			transition: border-color var(--transition), box-shadow var(--transition);
+		}
+
+		.inspect-panel:focus-within {
+			border-color: var(--border-focus);
+			box-shadow: var(--shadow-lg), 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+		}
+
+		.inspect-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 12px 16px;
+			border-bottom: 1px solid var(--border);
+			background: var(--surface-alt);
+			flex-shrink: 0;
+		}
+
+		.inspect-title {
+			font-size: 12px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			color: var(--text-secondary);
+		}
+
+		.inspect-indicator {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 11px;
+			color: var(--text-tertiary);
+		}
+
+		.inspect-dot {
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: #22c55e;
+			animation: pulse 2s ease-in-out infinite;
+		}
+
+		@keyframes pulse {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.4; }
+		}
+
+		/* Tabs */
+		.inspect-tabs {
+			display: flex;
+			border-bottom: 1px solid var(--border);
+			background: var(--surface);
+			overflow-x: auto;
+			flex-shrink: 0;
+		}
+
+		.inspect-tab {
+			padding: 9px 16px;
+			font-size: 12.5px;
+			font-weight: 500;
+			color: var(--text-tertiary);
+			background: none;
+			border: none;
+			border-bottom: 2px solid transparent;
+			cursor: pointer;
+			transition: all var(--transition);
+			white-space: nowrap;
+		}
+
+		.inspect-tab:hover {
+			color: var(--text-secondary);
+		}
+
+		.inspect-tab.active {
+			color: var(--accent);
+			border-bottom-color: var(--accent);
+		}
+
+		/* Output */
+		.inspect-body {
+			flex: 1;
+			overflow: auto;
+			min-height: 0;
+		}
+
+		.inspect-content {
+			display: none;
+			padding: 0;
+		}
+
+		.inspect-content.active {
+			display: block;
+		}
+
+		.inspect-content pre {
+			font-family: var(--font-mono);
+			font-size: 12px;
+			line-height: 1.6;
+			color: var(--text);
+			padding: 16px;
+			margin: 0;
+			white-space: pre-wrap;
+			word-break: break-word;
+			-moz-tab-size: 2;
+			tab-size: 2;
+		}
+
+		.inspect-content .empty-state {
+			padding: 40px 16px;
+			text-align: center;
+			color: var(--text-tertiary);
 			font-size: 13px;
 		}
 
-		.controls button:hover {
-			background: #f0f0f0;
+		/* Status bar inside inspect */
+		.inspect-footer {
+			padding: 8px 16px;
+			border-top: 1px solid var(--border);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 11px;
+			color: var(--text-tertiary);
+			background: var(--surface-alt);
+			flex-shrink: 0;
 		}
 
-		.output {
-			background: #fff;
-			border: 1px solid #ddd;
-			border-radius: 6px;
-			padding: 16px;
+		.inspect-stat {
+			display: flex;
+			align-items: center;
+			gap: 12px;
 		}
 
-		.output h3 {
-			font-size: 14px;
-			color: #666;
-			margin-bottom: 8px;
-		}
-
-		.output pre {
+		/* ─── Dev tools toggle ─── */
+		.dev-tools-toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			padding: 7px 13px;
+			border: 1px dashed var(--border);
+			border-radius: var(--radius);
+			background: transparent;
+			color: var(--text-tertiary);
 			font-size: 12px;
-			background: #f8f8f8;
-			padding: 12px;
-			border-radius: 4px;
-			overflow-x: auto;
-			white-space: pre-wrap;
-			word-break: break-all;
+			cursor: pointer;
+			transition: all var(--transition);
+		}
+
+		.dev-tools-toggle:hover {
+			border-color: var(--text-tertiary);
+			color: var(--text-secondary);
+		}
+
+		/* ─── Scrollbar styling ─── */
+		.inspect-body::-webkit-scrollbar {
+			width: 6px;
+		}
+
+		.inspect-body::-webkit-scrollbar-track {
+			background: transparent;
+		}
+
+		.inspect-body::-webkit-scrollbar-thumb {
+			background: var(--border);
+			border-radius: 3px;
+		}
+
+		.inspect-body::-webkit-scrollbar-thumb:hover {
+			background: var(--text-tertiary);
 		}
 	</style>
 </head>
 <body>
-	<div class="app">
-		<h1>Notectl</h1>
-		<p class="subtitle">State-driven rich text editing — Vanilla JS Playground </p>
+	<!-- Header -->
+	<header class="header">
+		<div class="header-left">
+			<span class="logo">notectl</span>
+			<span class="badge">Playground</span>
+		</div>
+		<div class="header-right">
+			<label class="theme-toggle" id="theme-toggle">
+				<span>Dark mode</span>
+				<div class="theme-toggle-track" id="theme-track"></div>
+			</label>
+		</div>
+	</header>
 
+	<!-- Main -->
+	<main class="main">
 		<div id="editor-container"></div>
 
-		<div class="controls">
-			<button id="btn-get-json">Get JSON</button>
-			<button id="btn-get-html">Get HTML</button>
-			<button id="btn-get-css-html">Get CSS HTML</button>
-			<button id="btn-get-text">Get Text</button>
-			<button id="btn-is-empty">Is Empty?</button>
-			<button id="btn-toggle-bold">API: Toggle Bold</button>
-			<button id="btn-undo">API: Undo</button>
-			<button id="btn-redo">API: Redo</button>
-			<button id="btn-toggle-transform" style="background:#ffe0e0;font-weight:600">Toggle Transform Container (Bug #72 test)</button>
+		<div class="actions-bar">
+			<div class="action-group">
+<button class="action-btn" id="btn-undo">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+					Undo
+				</button>
+				<button class="action-btn" id="btn-redo">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>
+					Redo
+				</button>
+			</div>
+
+			<div class="action-separator"></div>
+
+			<button class="dev-tools-toggle" id="btn-toggle-transform">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+				Transform test
+			</button>
 		</div>
 
-		<div class="output">
-			<h3>Output</h3>
-			<pre id="output">Click a button above to inspect editor state.</pre>
-		</div>
-	</div>
+		<!-- Inspect panel -->
+		<aside class="inspect-panel">
+			<div class="inspect-header">
+				<span class="inspect-title">Inspector</span>
+				<span class="inspect-indicator">
+					<span class="inspect-dot"></span>
+					Live
+				</span>
+			</div>
+
+			<nav class="inspect-tabs">
+				<button class="inspect-tab active" data-tab="json">JSON</button>
+				<button class="inspect-tab" data-tab="html">HTML</button>
+				<button class="inspect-tab" data-tab="css-html">CSS + HTML</button>
+				<button class="inspect-tab" data-tab="text">Text</button>
+				<button class="inspect-tab" data-tab="info">Info</button>
+			</nav>
+
+			<div class="inspect-body">
+				<div class="inspect-content active" id="tab-json">
+					<pre></pre>
+				</div>
+				<div class="inspect-content" id="tab-html">
+					<pre></pre>
+				</div>
+				<div class="inspect-content" id="tab-css-html">
+					<pre></pre>
+				</div>
+				<div class="inspect-content" id="tab-text">
+					<pre></pre>
+				</div>
+				<div class="inspect-content" id="tab-info">
+					<pre></pre>
+				</div>
+			</div>
+
+			<div class="inspect-footer">
+				<span class="inspect-stat">
+					<span id="stat-blocks">0 blocks</span>
+					<span id="stat-chars">0 chars</span>
+				</span>
+				<span id="stat-empty">empty</span>
+			</div>
+		</aside>
+	</main>
 
 	<script type="module" src="/src/main.ts"></script>
 </body>
