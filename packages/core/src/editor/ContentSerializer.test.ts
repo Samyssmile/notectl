@@ -140,11 +140,11 @@ describe('isEditorEmpty', () => {
 });
 
 describe('getEditorContentHTML', () => {
-	it('returns HTML string for a simple document', async () => {
+	it('returns HTML string for a simple document', () => {
 		const doc = singleParagraphDoc('hello');
 		const state: EditorState = EditorState.create({ doc });
 
-		const html = await getEditorContentHTML(state, undefined);
+		const html = getEditorContentHTML(state, undefined);
 
 		expect(typeof html).toBe('string');
 		expect(html).toContain('hello');
