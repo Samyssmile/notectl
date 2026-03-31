@@ -12,7 +12,7 @@ export const BASE_CSS = `
 	display: flex;
 	flex-direction: column;
 	border: 1px solid var(--notectl-border);
-	border-radius: 6px;
+	border-radius: var(--notectl-border-radius, 6px);
 	overflow: hidden;
 	background: var(--notectl-bg);
 }
