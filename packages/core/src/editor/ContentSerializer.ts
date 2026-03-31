@@ -18,6 +18,11 @@ import { formatHTML } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { nodeType } from '../model/TypeBrands.js';
+import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
+import {
+	serializeDocumentToCSS,
+	serializeDocumentToHTML,
+} from '../serialization/DocumentSerializer.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -86,16 +91,12 @@ function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 }
 
 /** Returns sanitized HTML representation of the document. */
-export async function getEditorContentHTML(
+export function getEditorContentHTML(
 	state: EditorState,
 	registry: SchemaRegistry | undefined,
 	options?: ContentHTMLOptions,
-): Promise<string | ContentCSSResult> {
+): string | ContentCSSResult {
 	const doc: Document = state.doc;
-
-	const { serializeDocumentToHTML, serializeDocumentToCSS } = await import(
-		'../serialization/DocumentSerializer.js'
-	);
 
 	if (options?.cssMode === 'classes') {
 		const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
@@ -109,13 +110,12 @@ export async function getEditorContentHTML(
 }
 
 /** Sets content from HTML (sanitized). Accepts optional `styleMap` for class-based round-trip. */
-export async function setEditorContentHTML(
+export function setEditorContentHTML(
 	html: string,
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 	options?: SetContentHTMLOptions,
-): Promise<void> {
-	const { parseHTMLToDocument } = await import('../serialization/DocumentParser.js');
+): void {
 	const doc: Document = parseHTMLToDocument(html, registry, options);
 	setEditorJSON(doc, registry, replaceState);
 }
