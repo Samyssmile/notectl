@@ -10,6 +10,7 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	isInlineNode,
 } from '../model/Document.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
@@ -335,6 +336,13 @@ function parseElementToInlineContent(
 	const markRules = registry?.getMarkParseRules() ?? [];
 	const inlineRules = registry?.getInlineParseRules() ?? [];
 	walkElement(el, [], result, markRules, inlineRules, skipNestedLists);
+
+	// A lone <br> as the only content of a block is a placeholder for an empty
+	// paragraph (e.g. `<p><br></p>`), not a real hard break. Normalize to empty text.
+	if (result.length === 1 && isInlineNode(result[0]) && result[0].inlineType === 'hard_break') {
+		return [createTextNode('')];
+	}
+
 	return result.length > 0 ? result : [createTextNode('')];
 }
 

@@ -644,6 +644,40 @@ describe('parseHTMLToDocument', () => {
 			}
 			expect(children[2]?.text).toBe('World');
 		});
+
+		it('treats lone <br> in empty paragraph as placeholder, not hard_break', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<p>Text</p><p><br></p><p>More</p><p><br></p>', registry);
+
+			expect(doc.children).toHaveLength(4);
+			const emptyBlock1 = doc.children[1];
+			const emptyBlock2 = doc.children[3];
+			if (!emptyBlock1 || !emptyBlock2) return;
+
+			const children1 = getInlineChildren(emptyBlock1);
+			expect(children1).toHaveLength(1);
+			expect(isInlineNode(children1[0])).toBe(false);
+			expect(children1[0]?.text).toBe('');
+
+			const children2 = getInlineChildren(emptyBlock2);
+			expect(children2).toHaveLength(1);
+			expect(isInlineNode(children2[0])).toBe(false);
+			expect(children2[0]?.text).toBe('');
+		});
+
+		it('preserves consecutive <br> elements as hard_breaks', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<p><br><br></p>', registry);
+
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+
+			const children = getInlineChildren(block);
+			expect(children).toHaveLength(2);
+			expect(isInlineNode(children[0])).toBe(true);
+			expect(isInlineNode(children[1])).toBe(true);
+		});
 	});
 
 	describe('styleMap round-trip', () => {
