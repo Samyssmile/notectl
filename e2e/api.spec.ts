@@ -53,28 +53,35 @@ test.describe('API', () => {
 		expect(html).toContain('<em>');
 	});
 
-	test('getText returns plain text', async ({ editor, page }) => {
+	test('getText returns plain text', async ({ editor }) => {
 		await editor.typeText('Hello');
-		await page.click('#btn-get-text');
-		const output = await page.locator('#output').innerText();
-		expect(output.trim()).toBe('Hello');
+		const text = await editor.getText();
+		expect(text.trim()).toBe('Hello');
 	});
 
 	test('isEmpty returns correct value', async ({ editor, page }) => {
-		await page.click('#btn-is-empty');
-		let output = await page.locator('#output').innerText();
-		expect(output).toContain('true');
+		const emptyBefore = await page.evaluate(() =>
+			(document.querySelector('notectl-editor') as unknown as { isEmpty(): boolean }).isEmpty(),
+		);
+		expect(emptyBefore).toBe(true);
 
 		await editor.typeText('Hi');
-		await page.click('#btn-is-empty');
-		output = await page.locator('#output').innerText();
-		expect(output).toContain('false');
+		const emptyAfter = await page.evaluate(() =>
+			(document.querySelector('notectl-editor') as unknown as { isEmpty(): boolean }).isEmpty(),
+		);
+		expect(emptyAfter).toBe(false);
 	});
 
 	test('API toggle bold', async ({ editor, page }) => {
 		await editor.typeText('Hello');
 		await page.keyboard.press('Control+a');
-		await page.click('#btn-toggle-bold');
+		await page.evaluate(() =>
+			(
+				document.querySelector('notectl-editor') as unknown as {
+					executeCommand(cmd: string): boolean;
+				}
+			).executeCommand('toggleBold'),
+		);
 
 		const html = await editor.getContentHTML();
 		expect(html).toContain('<strong>');
