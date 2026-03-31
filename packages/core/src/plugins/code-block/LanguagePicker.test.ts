@@ -5,11 +5,15 @@ import { type LanguagePickerConfig, openLanguagePicker } from './LanguagePicker.
 function createMockPopupManager() {
 	let contentContainer: HTMLElement | null = null;
 	let closeFn: (() => void) | null = null;
+	let onCloseCb: (() => void) | null = null;
 
 	return {
 		open: vi.fn((config) => {
 			contentContainer = document.createElement('div');
-			closeFn = vi.fn();
+			onCloseCb = config.onClose ?? null;
+			closeFn = vi.fn(() => {
+				onCloseCb?.();
+			});
 			config.content(contentContainer, closeFn);
 			return {
 				close: closeFn,
@@ -21,6 +25,7 @@ function createMockPopupManager() {
 		isOpen: vi.fn(() => true),
 		getContainer: () => contentContainer,
 		getCloseFn: () => closeFn,
+		simulateExternalClose: () => onCloseCb?.(),
 	};
 }
 
@@ -74,6 +79,17 @@ describe('LanguagePicker', () => {
 
 			const popupConfig = config.mockPopup.open.mock.calls[0]?.[0];
 			expect(popupConfig.restoreFocusTo).toBe(config.anchor);
+		});
+
+		it('resets aria-expanded to false when popup closes externally', () => {
+			const config = createConfig();
+			openLanguagePicker(config);
+
+			expect(config.anchor.getAttribute('aria-expanded')).toBe('true');
+
+			config.mockPopup.simulateExternalClose();
+
+			expect(config.anchor.getAttribute('aria-expanded')).toBe('false');
 		});
 	});
 

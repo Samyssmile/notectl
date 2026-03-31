@@ -218,7 +218,6 @@ export function createCodeBlockNodeViewFactory(
 					locale,
 					popupManager: pickerDeps.popupManager,
 					onSelect(language: string) {
-						langBtn.setAttribute('aria-expanded', 'false');
 						if (language === currentLang) return;
 
 						const latest: EditorState = getState();
