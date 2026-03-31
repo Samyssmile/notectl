@@ -64,6 +64,9 @@ export function openLanguagePicker(config: LanguagePickerConfig): void {
 				close();
 			});
 		},
+		onClose() {
+			anchor.setAttribute('aria-expanded', 'false');
+		},
 	});
 
 	anchor.setAttribute('aria-expanded', 'true');
