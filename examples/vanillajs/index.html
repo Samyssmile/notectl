@@ -126,14 +126,14 @@
 			margin: 0 auto;
 			padding: 24px 32px 48px;
 			display: grid;
-			grid-template-columns: 1fr 420px;
+			grid-template-columns: minmax(0, 1fr) 420px;
 			grid-template-rows: 1fr auto;
 			gap: 16px 24px;
 		}
 
 		@media (max-width: 960px) {
 			.main {
-				grid-template-columns: 1fr;
+				grid-template-columns: minmax(0, 1fr);
 				padding: 16px;
 			}
 		}

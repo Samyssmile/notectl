@@ -110,14 +110,17 @@ function link(href: string): MarkDef {
 
 async function cleanPage(page: Page): Promise<void> {
 	await page.evaluate(() => {
-		for (const sel of ['h1', '.subtitle', '.controls', '.output']) {
+		for (const sel of ['.header', '.inspect-panel', '.actions-bar']) {
 			const el: HTMLElement | null = document.querySelector(sel);
 			if (el) el.style.display = 'none';
 		}
 		document.body.style.background = '#ffffff';
 		document.body.style.padding = '32px 20px';
-		const app: HTMLElement | null = document.querySelector('.app');
-		if (app) app.style.maxWidth = '960px';
+		const main: HTMLElement | null = document.querySelector('.main');
+		if (main) {
+			main.style.display = 'block';
+			main.style.maxWidth = '960px';
+		}
 	});
 }
 
@@ -156,12 +159,20 @@ async function setPaperSize(page: Page, size: string | null): Promise<void> {
 }
 
 async function setBurgerMenuOverflow(page: Page): Promise<void> {
-	await page.evaluate(() => {
-		const editor = document.querySelector('notectl-editor') as unknown as {
-			pluginManager: { get(id: string): { setOverflowBehavior(b: string): void } };
-		};
-		editor.pluginManager.get('toolbar').setOverflowBehavior('burger-menu');
-	});
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				const editor = document.querySelector('notectl-editor') as unknown as {
+					pluginManager: {
+						get(id: string): { setOverflowBehavior(b: string): void };
+					};
+				};
+				editor.pluginManager.get('toolbar').setOverflowBehavior('burger-menu');
+				// Wait two frames so the browser lays out new toolbar buttons
+				// and ResizeObserver fires with correct widths
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			}),
+	);
 }
 
 async function setMinHeight(page: Page, px: string): Promise<void> {
