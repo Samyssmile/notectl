@@ -11,6 +11,9 @@ const locale: CodeBlockLocale = {
 	copiedToClipboard: 'Copiado para a área de transferência',
 	deleteCodeBlockAria: 'Excluir bloco de código',
 	deletedCodeBlock: 'Bloco de código excluído',
+	selectLanguageAria: 'Selecionar idioma',
+	languageChanged: (lang: string) => `Idioma alterado para ${lang}`,
+	plainText: 'texto simples',
 };
 
 export default locale;

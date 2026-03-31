@@ -19,6 +19,10 @@ const locale: CodeBlockLocale = {
 	deleteCodeBlockAria: '\u062d\u0630\u0641 \u0643\u062a\u0644\u0629 \u0627\u0644\u0643\u0648\u062f',
 	deletedCodeBlock:
 		'\u062a\u0645 \u062d\u0630\u0641 \u0643\u062a\u0644\u0629 \u0627\u0644\u0643\u0648\u062f',
+	selectLanguageAria: '\u0627\u062e\u062a\u064a\u0627\u0631 \u0627\u0644\u0644\u063a\u0629',
+	languageChanged: (lang: string) =>
+		`\u062a\u0645 \u062a\u063a\u064a\u064a\u0631 \u0627\u0644\u0644\u063a\u0629 \u0625\u0644\u0649 ${lang}`,
+	plainText: '\u0646\u0635 \u0639\u0627\u062f\u064a',
 };
 
 export default locale;

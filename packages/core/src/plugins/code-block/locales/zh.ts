@@ -13,6 +13,9 @@ const locale: CodeBlockLocale = {
 	copiedToClipboard: '\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
 	deleteCodeBlockAria: '\u5220\u9664\u4ee3\u7801\u5757',
 	deletedCodeBlock: '\u4ee3\u7801\u5757\u5df2\u5220\u9664',
+	selectLanguageAria: '\u9009\u62e9\u8bed\u8a00',
+	languageChanged: (lang: string) => `\u8bed\u8a00\u5df2\u66f4\u6539\u4e3a ${lang}`,
+	plainText: '\u7eaf\u6587\u672c',
 };
 
 export default locale;

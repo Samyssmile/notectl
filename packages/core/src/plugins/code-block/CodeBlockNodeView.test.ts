@@ -69,13 +69,15 @@ describe('CodeBlockNodeView', () => {
 			expect(header?.getAttribute('contenteditable')).toBe('false');
 		});
 
-		it('contains language label', () => {
+		it('contains language button with label', () => {
 			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
 			const node = makeCodeBlock({ language: 'typescript' });
 			const view = factory(node, () => makeState(), vi.fn());
 
-			const langLabel = view.dom.querySelector('.notectl-code-block__language');
-			expect(langLabel).not.toBeNull();
+			const langBtn = view.dom.querySelector('.notectl-code-block__language-btn');
+			expect(langBtn).not.toBeNull();
+			expect(langBtn?.tagName).toBe('BUTTON');
+			const langLabel = langBtn?.querySelector('.notectl-code-block__language');
 			expect(langLabel?.textContent).toBe('typescript');
 		});
 
@@ -86,6 +88,24 @@ describe('CodeBlockNodeView', () => {
 
 			const langLabel = view.dom.querySelector('.notectl-code-block__language');
 			expect(langLabel?.textContent).toBe('plain');
+		});
+
+		it('language button has aria-haspopup="listbox"', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const langBtn = view.dom.querySelector('.notectl-code-block__language-btn');
+			expect(langBtn?.getAttribute('aria-haspopup')).toBe('listbox');
+		});
+
+		it('language button has aria-expanded="false" initially', () => {
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock();
+			const view = factory(node, () => makeState(), vi.fn());
+
+			const langBtn = view.dom.querySelector('.notectl-code-block__language-btn');
+			expect(langBtn?.getAttribute('aria-expanded')).toBe('false');
 		});
 
 		it('contains copy button with aria-label', () => {
@@ -165,7 +185,9 @@ describe('CodeBlockNodeView', () => {
 			const updated = makeCodeBlock({ language: 'python' });
 			view.update?.(updated);
 
-			const langLabel = view.dom.querySelector('.notectl-code-block__language');
+			const langLabel = view.dom.querySelector(
+				'.notectl-code-block__language-btn .notectl-code-block__language',
+			);
 			expect(langLabel?.textContent).toBe('python');
 		});
 
