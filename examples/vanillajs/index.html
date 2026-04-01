@@ -427,6 +427,18 @@
 		.inspect-body::-webkit-scrollbar-thumb:hover {
 			background: var(--text-tertiary);
 		}
+
+		/* ─── Mobile overrides (must come after grid-column declarations) ─── */
+		@media (max-width: 960px) {
+			.inspect-panel {
+				grid-column: 1;
+				grid-row: 2;
+			}
+
+			.actions-bar {
+				grid-row: 3;
+			}
+		}
 	</style>
 </head>
 <body>
