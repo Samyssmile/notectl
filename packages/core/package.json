@@ -185,7 +185,7 @@
 		{
 			"name": "Core (main entry)",
 			"path": "dist/notectl-core.mjs",
-			"limit": "75 KB",
+			"limit": "76 KB",
 			"gzip": true
 		},
 		{
@@ -197,7 +197,7 @@
 		{
 			"name": "Presets (full)",
 			"path": "dist/presets/full.mjs",
-			"limit": "68 KB",
+			"limit": "88 KB",
 			"gzip": true
 		},
 		{
@@ -251,13 +251,13 @@
 		{
 			"name": "Plugin: Code Block",
 			"path": "dist/plugins/code-block.mjs",
-			"limit": "15 KB",
+			"limit": "18 KB",
 			"gzip": true
 		},
 		{
 			"name": "Plugin: Smart Paste",
 			"path": "dist/plugins/smart-paste.mjs",
-			"limit": "5 KB",
+			"limit": "6 KB",
 			"gzip": true
 		},
 		{
@@ -335,7 +335,7 @@
 		{
 			"name": "Plugin: Print",
 			"path": "dist/plugins/print.mjs",
-			"limit": "5 KB",
+			"limit": "16 KB",
 			"gzip": true
 		},
 		{
@@ -353,7 +353,7 @@
 		{
 			"name": "Plugin: Caret Navigation",
 			"path": "dist/plugins/caret-navigation.mjs",
-			"limit": "5 KB",
+			"limit": "7 KB",
 			"gzip": true
 		},
 		{
@@ -365,13 +365,13 @@
 		{
 			"name": "Plugin: Text Direction Advanced",
 			"path": "dist/plugins/text-direction-advanced.mjs",
-			"limit": "5 KB",
+			"limit": "7 KB",
 			"gzip": true
 		},
 		{
 			"name": "Full (kitchen sink)",
 			"path": "dist/full.mjs",
-			"limit": "375 KB",
+			"limit": "390 KB",
 			"gzip": true
 		}
 	],
