@@ -12,7 +12,7 @@ Build a real editor in plain HTML, React, Vue, Svelte, or Angular without lockin
 [![Web Component](https://img.shields.io/badge/Web_Component-%3Cnotectl--editor%3E-purple)](https://developer.mozilla.org/en-US/docs/Web/API/Web_components)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/@notectl/core)](https://www.npmjs.com/package/@notectl/core)
-[![Bundle Size](https://img.shields.io/badge/gzip-~40kb-orange)](https://www.npmjs.com/package/@notectl/core)
+[![Bundle Size](https://img.shields.io/badge/gzip-~76kb_core-orange)](https://www.npmjs.com/package/@notectl/core)
 
 <br />
 
