@@ -2,7 +2,14 @@
  * Delete commands: character, word, and soft-line deletion in both directions.
  */
 
-import { type BlockNode, getBlockLength } from '../model/Document.js';
+import {
+	type BlockNode,
+	blockOffsetToTextOffset,
+	getBlockLength,
+	getBlockText,
+	getContentAtOffset,
+} from '../model/Document.js';
+import { nextGraphemeSize, prevGraphemeSize } from '../model/GraphemeUtils.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -45,7 +52,15 @@ function deleteInDirection(state: EditorState, config: DeleteConfig): Transactio
 export function deleteBackward(state: EditorState): Transaction | null {
 	return deleteInDirection(state, {
 		merge: mergeBlockBackward,
-		range: (_block, offset) => (offset > 0 ? [offset - 1, offset] : null),
+		range: (block, offset) => {
+			if (offset <= 0) return null;
+			const content = getContentAtOffset(block, offset - 1);
+			if (content?.kind === 'inline') return [offset - 1, offset];
+			const text: string = getBlockText(block);
+			const textOffset: number = blockOffsetToTextOffset(block, offset);
+			const step: number = prevGraphemeSize(text, textOffset) || 1;
+			return [offset - step, offset];
+		},
 	});
 }
 
@@ -54,8 +69,14 @@ export function deleteForward(state: EditorState): Transaction | null {
 	return deleteInDirection(state, {
 		merge: mergeBlockForward,
 		range: (block, offset) => {
-			const len = getBlockLength(block);
-			return offset < len ? [offset, offset + 1] : null;
+			const len: number = getBlockLength(block);
+			if (offset >= len) return null;
+			const content = getContentAtOffset(block, offset);
+			if (content?.kind === 'inline') return [offset, offset + 1];
+			const text: string = getBlockText(block);
+			const textOffset: number = blockOffsetToTextOffset(block, offset);
+			const step: number = nextGraphemeSize(text, textOffset) || 1;
+			return [offset, offset + step];
 		},
 	});
 }
