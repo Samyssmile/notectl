@@ -363,4 +363,120 @@ describe('PasteCommand', () => {
 			expect(getBlockText(newState.doc.children[3])).toBe('second');
 		});
 	});
+
+	describe('paste with cross-root selection', () => {
+		/**
+		 * Creates a state with: [paragraph("Hello", b1), table(cell("A1", p0_0)), paragraph("World", b2)]
+		 * Selection spans from inside the table cell (p0_0) to the trailing paragraph (b2).
+		 * This triggers deleteCrossRootRange which returns a landingId.
+		 */
+		function createCrossRootState(fromOffset: number, toOffset: number): EditorState {
+			const table = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('A1')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph' as never, [createTextNode('Hello')], 'b1' as never),
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('World')], 'b2' as never),
+			]);
+			return EditorState.create({
+				doc,
+				selection: createSelection(
+					{ blockId: 'p0_0' as never, offset: fromOffset },
+					{ blockId: 'b2' as never, offset: toOffset },
+				),
+				schema: {
+					nodeTypes: ['paragraph', 'heading', 'table', 'table_row', 'table_cell'],
+					markTypes: ['bold', 'italic'],
+				},
+			});
+		}
+
+		it('pasteInline replaces cross-root selection with text', () => {
+			const state = createCrossRootState(0, 3);
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'pasted', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			// Table removed, landing paragraph created with pasted text, b2 tail preserved
+			const texts: string[] = newState.doc.children.map((c) => getBlockText(c));
+			expect(texts).toContain('pasted');
+			expect(newState.doc.children.length).toBeGreaterThanOrEqual(2);
+			// "Hello" paragraph (b1) should survive
+			expect(getBlockText(newState.doc.children[0])).toBe('Hello');
+		});
+
+		it('pasteSingleBlock replaces cross-root selection with typed block', () => {
+			const state = createCrossRootState(0, 3);
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('heading'),
+						attrs: { level: 2 },
+						segments: [{ text: 'Title', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			// Table removed, landing paragraph replaced with heading containing "Title"
+			const headings = newState.doc.children.filter((c) => c.type === 'heading');
+			expect(headings.length).toBe(1);
+			expect(getBlockText(headings[0])).toBe('Title');
+		});
+
+		it('pasteMultiBlock replaces cross-root selection with multiple blocks', () => {
+			const state = createCrossRootState(0, 3);
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'first', marks: [] }],
+					},
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'middle', marks: [] }],
+					},
+					{
+						type: nt('paragraph'),
+						segments: [{ text: 'last', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+
+			// b1("Hello") + landing with first slice + middle block + tail with last slice + remaining b2 text
+			expect(getBlockText(newState.doc.children[0])).toBe('Hello');
+			const allText: string = newState.doc.children.map((c) => getBlockText(c)).join('|');
+			expect(allText).toContain('first');
+			expect(allText).toContain('middle');
+			expect(allText).toContain('last');
+		});
+	});
 });
