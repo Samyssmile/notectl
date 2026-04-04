@@ -142,10 +142,11 @@ export function createDeleteCodeBlockTransaction(
 		const selection = createSelectionForBlockBoundary(state, nextSibling.id, 'start');
 		if (selection) {
 			builder.setSelection(selection);
+			return builder.build();
 		}
 	}
 
-	return builder.build();
+	return null;
 }
 
 /**
