@@ -1,6 +1,7 @@
 /**
  * Regex-based syntax tokenizer.
- * Implements the SyntaxHighlighter interface using linear regex scanning.
+ * Implements the SyntaxHighlighter interface using linear regex scanning
+ * with sticky (`y`-flagged) regexes to avoid O(n) substring allocations per position.
  */
 
 import type { SyntaxHighlighter, SyntaxToken } from '../CodeBlockTypes.js';
@@ -34,8 +35,9 @@ export class RegexTokenizer implements SyntaxHighlighter {
 			let matched = false;
 
 			for (const pattern of lang.patterns) {
-				const match: RegExpExecArray | null = pattern.pattern.exec(code.slice(pos));
-				if (match && match[0].length > 0) {
+				pattern.pattern.lastIndex = pos;
+				const match: RegExpExecArray | null = pattern.pattern.exec(code);
+				if (match && match.index === pos && match[0].length > 0) {
 					tokens.push({
 						from: pos,
 						to: pos + match[0].length,

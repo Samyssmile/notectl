@@ -4,7 +4,7 @@
 
 import type { SyntaxTokenType } from '../../../editor/theme/SyntaxTokenTypes.js';
 
-/** A single token pattern for a language. Pattern must be ^-anchored. */
+/** A single token pattern for a language. Pattern must use the sticky (`y`) flag. */
 export interface TokenPattern {
 	readonly type: SyntaxTokenType | (string & {});
 	readonly pattern: RegExp;

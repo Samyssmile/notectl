@@ -10,9 +10,9 @@ function makeSimpleLang(): LanguageDefinition {
 		name: 'simple',
 		aliases: ['simp'],
 		patterns: [
-			{ type: 'keyword', pattern: /^(?:if|else|return)\b/ },
-			{ type: 'number', pattern: /^\d+/ },
-			{ type: 'string', pattern: /^"[^"]*"/ },
+			{ type: 'keyword', pattern: /(?:if|else|return)\b/y },
+			{ type: 'number', pattern: /\d+/y },
+			{ type: 'string', pattern: /"[^"]*"/y },
 		],
 	};
 }
@@ -301,7 +301,7 @@ describe('RegexTokenizer', () => {
 			const lang: LanguageDefinition = {
 				name: 'custom',
 				aliases: ['cst'],
-				patterns: [{ type: 'number', pattern: /^\d+/ }],
+				patterns: [{ type: 'number', pattern: /\d+/y }],
 			};
 
 			// Act
@@ -318,7 +318,7 @@ describe('RegexTokenizer', () => {
 			const lang: LanguageDefinition = {
 				name: 'custom',
 				aliases: ['cst'],
-				patterns: [{ type: 'number', pattern: /^\d+/ }],
+				patterns: [{ type: 'number', pattern: /\d+/y }],
 			};
 
 			// Act
@@ -354,7 +354,7 @@ describe('RegexTokenizer', () => {
 			const updated: LanguageDefinition = {
 				name: 'simple',
 				aliases: ['simp'],
-				patterns: [{ type: 'identifier', pattern: /^[a-z]+/ }],
+				patterns: [{ type: 'identifier', pattern: /[a-z]+/y }],
 			};
 
 			// Act
