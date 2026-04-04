@@ -61,14 +61,14 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
+	let landingId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		landingId = addDeleteSelectionSteps(state, builder);
 	}
 
-	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
-		sel,
-		state.getBlockOrder(),
-	);
+	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
+	const insertBlockId: BlockId = landingId ?? resolved.blockId;
+	const insertOffset: number = landingId ? 0 : resolved.offset;
 	const totalLength: number = segmentsLength(segments);
 	const text: string = segmentsToText(segments);
 
@@ -89,14 +89,14 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
+	let landingId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		landingId = addDeleteSelectionSteps(state, builder);
 	}
 
-	const { blockId: insertBlockId, offset: insertOffset } = resolveInsertPoint(
-		sel,
-		state.getBlockOrder(),
-	);
+	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
+	const insertBlockId: BlockId = landingId ?? resolved.blockId;
+	const insertOffset: number = landingId ? 0 : resolved.offset;
 	const totalLength: number = segmentsLength(block.segments);
 	const text: string = segmentsToText(block.segments);
 
@@ -118,13 +118,25 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	}
 	const builder: TransactionBuilder = state.transaction('paste');
 
+	let landingId: BlockId | undefined;
 	if (!isCollapsed(sel)) {
-		addDeleteSelectionSteps(state, builder);
+		landingId = addDeleteSelectionSteps(state, builder);
 	}
 
 	const blockOrder = state.getBlockOrder();
-	const { blockId, offset } = resolveInsertPoint(sel, blockOrder);
-	const blockIdx: number = blockOrder.indexOf(blockId);
+	const resolved = resolveInsertPoint(sel, blockOrder);
+	const blockId: BlockId = landingId ?? resolved.blockId;
+	const offset: number = landingId ? 0 : resolved.offset;
+
+	let blockIdx: number;
+	if (landingId) {
+		// Landing block was inserted at the from-block's root-level position
+		const fromPath = findNodePath(state.doc, resolved.blockId);
+		const rootId: string | undefined = fromPath?.[0];
+		blockIdx = rootId ? state.doc.children.findIndex((c) => c.id === rootId) : 0;
+	} else {
+		blockIdx = blockOrder.indexOf(blockId);
+	}
 
 	const firstSlice: SliceBlock | undefined = slice.blocks[0];
 	const lastSlice: SliceBlock | undefined = slice.blocks[slice.blocks.length - 1];
