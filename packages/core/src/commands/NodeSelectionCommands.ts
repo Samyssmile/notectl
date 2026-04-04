@@ -78,7 +78,7 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 		}
 	}
 
-	return builder.build();
+	return null;
 }
 
 /** Inserts a new paragraph after a NodeSelection-targeted void block. */

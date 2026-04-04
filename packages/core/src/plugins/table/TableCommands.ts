@@ -195,10 +195,11 @@ export function createDeleteTableTransaction(
 		const selection = createSelectionForBlockBoundary(state, prevRoot.id, 'end');
 		if (selection) {
 			tr.setSelection(selection);
+			return tr.build();
 		}
 	}
 
-	return tr.build();
+	return null;
 }
 
 // --- Commands ---
