@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createBlockNode, createEmptyParagraph, createTextNode } from '../model/Document.js';
-import { createSelection } from '../model/Selection.js';
+import type { Schema } from '../model/Schema.js';
+import { createSelection, isNodeSelection, isTextSelection } from '../model/Selection.js';
 import { type BlockId, nodeType } from '../model/TypeBrands.js';
 import { stateBuilder } from '../test/TestUtils.js';
-import { getSiblings, resolveInsertPoint } from './CommandHelpers.js';
+import {
+	createSelectionForDocumentBoundary,
+	getSiblings,
+	resolveInsertPoint,
+} from './CommandHelpers.js';
 
 // ---------------------------------------------------------------------------
 // getSiblings
@@ -128,5 +133,114 @@ describe('resolveInsertPoint', () => {
 		);
 		expect(point.blockId).toBe('b1');
 		expect(point.offset).toBe(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// createSelectionForDocumentBoundary
+// ---------------------------------------------------------------------------
+
+describe('createSelectionForDocumentBoundary', () => {
+	const voidSchema: Schema['getNodeSpec'] = (type: string) => {
+		if (type === 'horizontal_rule') {
+			return {
+				type: 'horizontal_rule',
+				isVoid: true,
+				toDOM: () => document.createElement('hr'),
+			} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+		}
+		return undefined;
+	};
+
+	it('returns a collapsed caret at the start of the first block', () => {
+		const state = stateBuilder()
+			.paragraph('first', 'b1')
+			.paragraph('second', 'b2')
+			.cursor('b2', 3)
+			.build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'start');
+
+		expect(sel).not.toBeNull();
+		if (sel && isTextSelection(sel)) {
+			expect(sel.anchor.blockId).toBe('b1');
+			expect(sel.anchor.offset).toBe(0);
+		}
+	});
+
+	it('returns a collapsed caret at the end of the last block', () => {
+		const state = stateBuilder()
+			.paragraph('first', 'b1')
+			.paragraph('second', 'b2')
+			.cursor('b1', 0)
+			.build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'end');
+
+		expect(sel).not.toBeNull();
+		if (sel && isTextSelection(sel)) {
+			expect(sel.anchor.blockId).toBe('b2');
+			expect(sel.anchor.offset).toBe('second'.length);
+		}
+	});
+
+	it('skips the excluded block and returns the next candidate', () => {
+		const state = stateBuilder()
+			.paragraph('first', 'b1')
+			.paragraph('second', 'b2')
+			.cursor('b1', 0)
+			.build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'start', 'b1' as BlockId);
+
+		expect(sel).not.toBeNull();
+		if (sel && isTextSelection(sel)) {
+			expect(sel.anchor.blockId).toBe('b2');
+			expect(sel.anchor.offset).toBe(0);
+		}
+	});
+
+	it('returns null when the only block is excluded', () => {
+		const state = stateBuilder().paragraph('only', 'b1').cursor('b1', 0).build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'start', 'b1' as BlockId);
+
+		expect(sel).toBeNull();
+	});
+
+	it('returns a NodeSelection for a void block at the requested boundary', () => {
+		const state = stateBuilder()
+			.voidBlock('horizontal_rule', 'hr1')
+			.paragraph('after', 'b2')
+			.cursor('b2', 0)
+			.schema(['paragraph', 'horizontal_rule'], ['bold'], voidSchema)
+			.build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'start');
+
+		expect(sel).not.toBeNull();
+		if (sel) {
+			expect(isNodeSelection(sel)).toBe(true);
+			if (isNodeSelection(sel)) {
+				expect(sel.nodeId).toBe('hr1');
+			}
+		}
+	});
+
+	it('walks in reverse for boundary "end"', () => {
+		const state = stateBuilder()
+			.paragraph('alpha', 'b1')
+			.paragraph('beta', 'b2')
+			.paragraph('gamma', 'b3')
+			.cursor('b1', 0)
+			.build();
+
+		const sel = createSelectionForDocumentBoundary(state, 'end', 'b3' as BlockId);
+
+		expect(sel).not.toBeNull();
+		if (sel && isTextSelection(sel)) {
+			expect(sel.anchor.blockId).toBe('b2');
+			expect(sel.anchor.offset).toBe('beta'.length);
+		}
 	});
 });

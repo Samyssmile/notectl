@@ -257,6 +257,66 @@ describe('CodeBlockPlugin', () => {
 			h.executeCommand('deleteCodeBlock');
 			expect(h.dispatch).not.toHaveBeenCalled();
 		});
+
+		it('places a NodeSelection on previous void sibling when deleting between void blocks', async () => {
+			const voidSpec: import('../../model/Schema.js').Schema['getNodeSpec'] = (type) =>
+				type === 'horizontal_rule'
+					? ({
+							type: 'horizontal_rule',
+							isVoid: true,
+							toDOM: () => document.createElement('hr'),
+						} as ReturnType<NonNullable<import('../../model/Schema.js').Schema['getNodeSpec']>>)
+					: undefined;
+
+			const state = stateBuilder()
+				.voidBlock('horizontal_rule', 'hr1')
+				.block('code_block', 'code', 'cb1')
+				.voidBlock('horizontal_rule', 'hr2')
+				.cursor('cb1', 0)
+				.schema(['paragraph', 'code_block', 'horizontal_rule'], ['bold'], voidSpec)
+				.build();
+
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+
+			h.executeCommand('deleteCodeBlock');
+
+			expect(h.getState().doc.children.length).toBe(2);
+			expect(h.getState().doc.children.map((c) => c.id)).toEqual(['hr1', 'hr2']);
+
+			const sel = h.getState().selection;
+			expect('type' in sel && sel.type === 'node').toBe(true);
+			if ('type' in sel && sel.type === 'node') {
+				expect(sel.nodeId).toBe('hr1');
+			}
+		});
+
+		it('produces a transaction whose selection never references the deleted block', async () => {
+			// Regression guard for issue #97: the built transaction must carry a
+			// selection that points to a block other than the one being removed.
+			const state = makeState(
+				[
+					{ type: 'paragraph', text: 'before', id: 'b1' },
+					{ type: 'code_block', text: 'code', id: 'b2' },
+					{ type: 'paragraph', text: 'after', id: 'b3' },
+				],
+				'b2',
+				0,
+			);
+			const { createDeleteCodeBlockTransaction } = await import('./CodeBlockCommands.js');
+			const tr = createDeleteCodeBlockTransaction(
+				state,
+				'b2' as import('../../model/TypeBrands.js').BlockId,
+			);
+
+			expect(tr).not.toBeNull();
+			const after = tr?.selectionAfter;
+			expect(after).toBeDefined();
+			if (after && 'anchor' in after) {
+				expect(after.anchor.blockId).not.toBe('b2');
+			} else if (after && 'type' in after && after.type === 'node') {
+				expect(after.nodeId).not.toBe('b2');
+			}
+		});
 	});
 
 	describe('keymap registration', () => {
