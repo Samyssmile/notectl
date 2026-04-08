@@ -920,11 +920,14 @@ describe('CodeBlockPlugin', () => {
 			);
 		});
 
-		it('getSupportedLanguages returns empty when no highlighter', async () => {
+		it('getSupportedLanguages returns default bundled languages with default highlighter', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const service = h.pm.getService(CODE_BLOCK_SERVICE_KEY);
 			assertDefined(service);
-			expect(service.getSupportedLanguages()).toEqual([]);
+			const languages: readonly string[] = service.getSupportedLanguages();
+			expect(languages).toContain('java');
+			expect(languages).toContain('json');
+			expect(languages).toContain('xml');
 		});
 
 		it('getSupportedLanguages delegates to highlighter', async () => {

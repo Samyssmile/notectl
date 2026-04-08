@@ -7,13 +7,13 @@ import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
-import type { CodeBlockConfig } from './CodeBlockTypes.js';
+import type { SyntaxHighlighter } from './CodeBlockTypes.js';
 import { CODE_BLOCK_SERVICE_KEY } from './CodeBlockTypes.js';
 
 /** Registers the CodeBlockService on the given context. */
 export function registerCodeBlockService(
 	context: PluginContext,
-	config: CodeBlockConfig,
+	getHighlighter: () => SyntaxHighlighter | null,
 	getContext: () => PluginContext | null,
 ): void {
 	context.registerService(CODE_BLOCK_SERVICE_KEY, {
@@ -49,10 +49,9 @@ export function registerCodeBlockService(
 		},
 
 		getSupportedLanguages(): readonly string[] {
-			if (config.highlighter) {
-				return config.highlighter.getSupportedLanguages();
-			}
-			return [];
+			const highlighter: SyntaxHighlighter | null = getHighlighter();
+			if (!highlighter) return [];
+			return highlighter.getSupportedLanguages();
 		},
 	});
 }
