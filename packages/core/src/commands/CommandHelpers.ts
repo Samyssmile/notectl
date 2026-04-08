@@ -112,6 +112,41 @@ export function createSelectionForBlockBoundary(
 	return createCollapsedSelection(leafId, offset);
 }
 
+/**
+ * Resolves a valid editor selection anywhere in the document, starting from
+ * the first (or last) top-level block and deferring per-block resolution to
+ * {@link createSelectionForBlockBoundary}. Useful as a last-resort fallback
+ * after deletions when neighbouring siblings cannot provide a selection.
+ *
+ * @param state The editor state to query.
+ * @param boundary `'start'` walks document order; `'end'` walks reverse.
+ * @param excludeBlockId Optional block id to skip (e.g. the block about to
+ *     be removed by the caller's transaction).
+ * @returns A valid selection, or `null` if no selectable block exists.
+ */
+export function createSelectionForDocumentBoundary(
+	state: EditorState,
+	boundary: 'start' | 'end',
+	excludeBlockId?: BlockId,
+): EditorSelection | null {
+	const children: readonly ChildNode[] = state.doc.children;
+	const indices: readonly number[] =
+		boundary === 'start'
+			? children.map((_, i) => i)
+			: children.map((_, i) => children.length - 1 - i);
+
+	for (const i of indices) {
+		const child = children[i];
+		if (!child || !isBlockNode(child)) continue;
+		if (excludeBlockId !== undefined && child.id === excludeBlockId) continue;
+
+		const sel = createSelectionForBlockBoundary(state, child.id, boundary);
+		if (sel) return sel;
+	}
+
+	return null;
+}
+
 /** Returns the root-level block IDs in document order. */
 export function getRootBlockIds(doc: Document): readonly BlockId[] {
 	return doc.children.map((child) => child.id);

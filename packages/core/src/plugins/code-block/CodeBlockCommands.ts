@@ -5,11 +5,12 @@
 
 import {
 	createSelectionForBlockBoundary,
+	createSelectionForDocumentBoundary,
 	extractParentPath,
 	findSiblingIndex,
 	getSiblings,
 } from '../../commands/CommandHelpers.js';
-import type { BlockNode } from '../../model/Document.js';
+import type { BlockNode, ChildNode } from '../../model/Document.js';
 import {
 	createEmptyParagraph,
 	generateBlockId,
@@ -19,6 +20,7 @@ import {
 	isTextNode,
 } from '../../model/Document.js';
 import { findNodePath } from '../../model/NodeResolver.js';
+import type { EditorSelection } from '../../model/Selection.js';
 import { createCollapsedSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
@@ -128,25 +130,47 @@ export function createDeleteCodeBlockTransaction(
 
 	builder.removeNode(parentPath, index);
 
-	const prevSibling = siblings[index - 1];
+	const selection: EditorSelection = resolvePostDeleteSelection(state, builder, siblings, index);
+	builder.setSelection(selection);
+	return builder.build();
+}
+
+/**
+ * Determines the cursor position after a code block has been removed.
+ *
+ * Fallback chain — the first successful step wins, guaranteeing the caller
+ * always receives a valid selection:
+ *   1. End of the previous block sibling.
+ *   2. Start of the next block sibling.
+ *   3. Start of any other selectable block in the document.
+ *   4. A freshly inserted empty paragraph at the document root.
+ */
+function resolvePostDeleteSelection(
+	state: EditorState,
+	builder: TransactionBuilder,
+	siblings: readonly ChildNode[],
+	removedIndex: number,
+): EditorSelection {
+	const prevSibling = siblings[removedIndex - 1];
 	if (prevSibling && isBlockNode(prevSibling)) {
-		const selection = createSelectionForBlockBoundary(state, prevSibling.id, 'end');
-		if (selection) {
-			builder.setSelection(selection);
-			return builder.build();
-		}
+		const sel = createSelectionForBlockBoundary(state, prevSibling.id, 'end');
+		if (sel) return sel;
 	}
 
-	const nextSibling = siblings[index + 1];
+	const nextSibling = siblings[removedIndex + 1];
 	if (nextSibling && isBlockNode(nextSibling)) {
-		const selection = createSelectionForBlockBoundary(state, nextSibling.id, 'start');
-		if (selection) {
-			builder.setSelection(selection);
-			return builder.build();
-		}
+		const sel = createSelectionForBlockBoundary(state, nextSibling.id, 'start');
+		if (sel) return sel;
 	}
 
-	return null;
+	const removed = siblings[removedIndex];
+	const excludeId: BlockId | undefined = removed && isBlockNode(removed) ? removed.id : undefined;
+	const docSel = createSelectionForDocumentBoundary(state, 'start', excludeId);
+	if (docSel) return docSel;
+
+	const newId: BlockId = generateBlockId();
+	builder.insertNode([], 0, createEmptyParagraph(newId));
+	return createCollapsedSelection(newId, 0);
 }
 
 /**
