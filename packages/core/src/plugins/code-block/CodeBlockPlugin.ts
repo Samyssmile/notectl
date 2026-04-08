@@ -101,7 +101,11 @@ export class CodeBlockPlugin implements Plugin {
 		this.registerInputRule(context);
 		this.registerToolbarItem(context);
 		this.registerMiddleware(context);
-		registerCodeBlockService(context, this.config, () => this.context);
+		registerCodeBlockService(
+			context,
+			() => this.highlighter,
+			() => this.context,
+		);
 		this.registerSyntaxHighlighterService(context);
 		this.registerPasteInterceptor(context);
 		this.patchTableCellContent(context);
