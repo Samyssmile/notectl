@@ -32,6 +32,19 @@ const DELETE_ICON =
 const CHEVRON_ICON =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="10" height="10"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+/**
+ * Copies text to the clipboard, rejecting when the Clipboard API is unavailable
+ * (e.g. insecure context, missing permissions) or when the write itself fails.
+ * Callers must handle rejection to give the user accurate feedback.
+ */
+export function copyTextToClipboard(text: string): Promise<void> {
+	const clipboard: Clipboard | undefined = globalThis.navigator?.clipboard;
+	if (!clipboard || typeof clipboard.writeText !== 'function') {
+		return Promise.reject(new Error('Clipboard API unavailable'));
+	}
+	return clipboard.writeText(text);
+}
+
 /** Creates a NodeViewFactory for code_block nodes. */
 export function createCodeBlockNodeViewFactory(
 	config: CodeBlockConfig,
@@ -166,6 +179,13 @@ export function createCodeBlockNodeViewFactory(
 
 		// --- Copy Button Handler ---
 
+		function announce(message: string): void {
+			announcer.textContent = message;
+			setTimeout(() => {
+				announcer.textContent = '';
+			}, 1000);
+		}
+
 		if (copyBtn) {
 			copyBtn.addEventListener('click', (e: MouseEvent) => {
 				e.preventDefault();
@@ -176,12 +196,10 @@ export function createCodeBlockNodeViewFactory(
 				if (!block) return;
 
 				const text: string = getBlockText(block);
-				navigator.clipboard.writeText(text);
-
-				announcer.textContent = locale.copiedToClipboard;
-				setTimeout(() => {
-					announcer.textContent = '';
-				}, 1000);
+				copyTextToClipboard(text).then(
+					() => announce(locale.copiedToClipboard),
+					() => announce(locale.copyFailed),
+				);
 			});
 		}
 

@@ -11,6 +11,7 @@ const locale: CodeBlockLocale = {
 	codeBlockAriaLabel: (lang: string) =>
 		`${lang} \u4ee3\u7801\u5757\u3002\u6309 Escape \u9000\u51fa\u3002`,
 	copiedToClipboard: '\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
+	copyFailed: '\u590d\u5236\u4ee3\u7801\u5931\u8d25',
 	deleteCodeBlockAria: '\u5220\u9664\u4ee3\u7801\u5757',
 	deletedCodeBlock: '\u4ee3\u7801\u5757\u5df2\u5220\u9664',
 	selectLanguageAria: '\u9009\u62e9\u8bed\u8a00',

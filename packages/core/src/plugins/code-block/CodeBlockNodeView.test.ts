@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createTextNode } from '../../model/Document.js';
 import { blockId, nodeType } from '../../model/TypeBrands.js';
 import { stateBuilder } from '../../test/TestUtils.js';
-import { createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
+import { copyTextToClipboard, createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
 
 const DEFAULT_CONFIG: CodeBlockConfig = {
@@ -406,6 +406,132 @@ describe('CodeBlockNodeView', () => {
 			view.update?.(updated);
 
 			expect(view.dom.getAttribute('aria-label')).toBe('python code block. Press Escape to exit.');
+		});
+	});
+
+	describe('copyTextToClipboard helper', () => {
+		const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(
+			globalThis.navigator,
+			'clipboard',
+		);
+
+		afterEach(() => {
+			if (originalClipboardDescriptor) {
+				Object.defineProperty(globalThis.navigator, 'clipboard', originalClipboardDescriptor);
+			} else {
+				// biome-ignore lint/performance/noDelete: restoring original navigator state
+				delete (globalThis.navigator as { clipboard?: unknown }).clipboard;
+			}
+		});
+
+		function setClipboard(clipboard: unknown): void {
+			Object.defineProperty(globalThis.navigator, 'clipboard', {
+				configurable: true,
+				value: clipboard,
+			});
+		}
+
+		it('resolves when navigator.clipboard.writeText resolves', async () => {
+			const writeText = vi.fn().mockResolvedValue(undefined);
+			setClipboard({ writeText });
+
+			await expect(copyTextToClipboard('hello')).resolves.toBeUndefined();
+			expect(writeText).toHaveBeenCalledWith('hello');
+		});
+
+		it('rejects when navigator.clipboard.writeText rejects', async () => {
+			const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+			setClipboard({ writeText });
+
+			await expect(copyTextToClipboard('hello')).rejects.toThrow('denied');
+		});
+
+		it('rejects when navigator.clipboard is undefined (insecure context)', async () => {
+			setClipboard(undefined);
+
+			await expect(copyTextToClipboard('hello')).rejects.toThrow('Clipboard API unavailable');
+		});
+
+		it('rejects when navigator.clipboard lacks writeText', async () => {
+			setClipboard({});
+
+			await expect(copyTextToClipboard('hello')).rejects.toThrow('Clipboard API unavailable');
+		});
+	});
+
+	describe('copy button click handler', () => {
+		const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(
+			globalThis.navigator,
+			'clipboard',
+		);
+
+		afterEach(() => {
+			if (originalClipboardDescriptor) {
+				Object.defineProperty(globalThis.navigator, 'clipboard', originalClipboardDescriptor);
+			} else {
+				// biome-ignore lint/performance/noDelete: restoring original navigator state
+				delete (globalThis.navigator as { clipboard?: unknown }).clipboard;
+			}
+		});
+
+		function setClipboard(clipboard: unknown): void {
+			Object.defineProperty(globalThis.navigator, 'clipboard', {
+				configurable: true,
+				value: clipboard,
+			});
+		}
+
+		it('announces success when clipboard write resolves', async () => {
+			const writeText = vi.fn().mockResolvedValue(undefined);
+			setClipboard({ writeText });
+
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({}, 'cb1', 'console.log(1)');
+			const view = factory(node, () => makeState('console.log(1)'), vi.fn());
+
+			const copyBtn = view.dom.querySelector('.notectl-code-block__copy') as HTMLButtonElement;
+			copyBtn.click();
+
+			expect(writeText).toHaveBeenCalledWith('console.log(1)');
+			await vi.waitFor(() => {
+				const announcer = view.dom.querySelector('.notectl-sr-only');
+				expect(announcer?.textContent).toBe('Copied to clipboard');
+			});
+		});
+
+		it('announces failure when clipboard write rejects', async () => {
+			const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+			setClipboard({ writeText });
+
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({}, 'cb1', 'secret');
+			const view = factory(node, () => makeState('secret'), vi.fn());
+
+			const copyBtn = view.dom.querySelector('.notectl-code-block__copy') as HTMLButtonElement;
+			copyBtn.click();
+
+			await vi.waitFor(() => {
+				const announcer = view.dom.querySelector('.notectl-sr-only');
+				expect(announcer?.textContent).toBe('Failed to copy code');
+			});
+		});
+
+		it('announces failure when navigator.clipboard is unavailable', async () => {
+			setClipboard(undefined);
+
+			const factory = createCodeBlockNodeViewFactory(DEFAULT_CONFIG);
+			const node = makeCodeBlock({}, 'cb1', 'insecure');
+			const view = factory(node, () => makeState('insecure'), vi.fn());
+
+			const copyBtn = view.dom.querySelector('.notectl-code-block__copy') as HTMLButtonElement;
+
+			// The click must not throw synchronously even though clipboard is undefined.
+			expect(() => copyBtn.click()).not.toThrow();
+
+			await vi.waitFor(() => {
+				const announcer = view.dom.querySelector('.notectl-sr-only');
+				expect(announcer?.textContent).toBe('Failed to copy code');
+			});
 		});
 	});
 

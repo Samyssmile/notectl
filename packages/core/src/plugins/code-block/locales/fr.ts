@@ -10,6 +10,7 @@ const locale: CodeBlockLocale = {
 	codeBlockAriaLabel: (lang: string) =>
 		`Bloc de code ${lang}. Appuyez sur \u00c9chap pour quitter.`,
 	copiedToClipboard: 'Copi\u00e9 dans le presse-papiers',
+	copyFailed: '\u00c9chec de la copie du code',
 	deleteCodeBlockAria: 'Supprimer le bloc de code',
 	deletedCodeBlock: 'Bloc de code supprimé',
 	selectLanguageAria: 'Sélectionner le langage',
