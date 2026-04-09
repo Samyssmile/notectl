@@ -12,6 +12,6 @@
 		"@notectl/core": "workspace:*"
 	},
 	"devDependencies": {
-		"vite": "^8.0.5"
+		"vite": "^8.0.8"
 	}
 }
