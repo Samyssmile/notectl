@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the PrintPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface PrintLocale {
@@ -18,18 +20,10 @@ export const PRINT_LOCALE_EN: PrintLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: PrintLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<PrintLocale> = import.meta.glob<{
 	default: PrintLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadPrintLocale(lang: string): Promise<PrintLocale> {
-	if (lang === 'en') return PRINT_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return PRINT_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return PRINT_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, PRINT_LOCALE_EN);
 }

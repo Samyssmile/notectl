@@ -7,6 +7,7 @@
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { type Logger, consoleLogger, scopedLogger } from './Logger.js';
 import type { MiddlewareNext } from './Plugin.js';
 import type { MiddlewareEntry } from './PluginContextFactory.js';
 
@@ -22,6 +23,11 @@ export class MiddlewareChain {
 	private middlewareSorted: MiddlewareEntry[] | null = null;
 	private readonly pasteInterceptors: PasteInterceptorEntry[] = [];
 	private pasteInterceptorsSorted: PasteInterceptorEntry[] | null = null;
+	private readonly log: Logger;
+
+	constructor(logger: Logger = consoleLogger) {
+		this.log = scopedLogger(logger, 'MiddlewareChain');
+	}
 
 	// --- Middleware ---
 
@@ -68,7 +74,7 @@ export class MiddlewareChain {
 				try {
 					entry.middleware(currentTr, state, guardedNext);
 				} catch (err) {
-					console.error(`[PluginManager] Middleware "${entry.name}" error:`, err);
+					this.log.error(`Middleware "${entry.name}" error`, err);
 					guardedNext(currentTr);
 				}
 			} else if (!dispatched) {

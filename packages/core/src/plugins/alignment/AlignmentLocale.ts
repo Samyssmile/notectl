@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the AlignmentPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 export interface AlignmentLocale {
 	readonly alignStart: string;
 	readonly alignCenter: string;
@@ -22,17 +24,10 @@ export const ALIGNMENT_LOCALE_EN: AlignmentLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: AlignmentLocale }>> =
-	import.meta.glob<{ default: AlignmentLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<AlignmentLocale> = import.meta.glob<{
+	default: AlignmentLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadAlignmentLocale(lang: string): Promise<AlignmentLocale> {
-	if (lang === 'en') return ALIGNMENT_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return ALIGNMENT_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return ALIGNMENT_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, ALIGNMENT_LOCALE_EN);
 }

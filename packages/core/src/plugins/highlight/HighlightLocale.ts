@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the HighlightPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface HighlightLocale {
@@ -20,17 +22,10 @@ export const HIGHLIGHT_LOCALE_EN: HighlightLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: HighlightLocale }>> =
-	import.meta.glob<{ default: HighlightLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<HighlightLocale> = import.meta.glob<{
+	default: HighlightLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadHighlightLocale(lang: string): Promise<HighlightLocale> {
-	if (lang === 'en') return HIGHLIGHT_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return HIGHLIGHT_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return HIGHLIGHT_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, HIGHLIGHT_LOCALE_EN);
 }

@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the HorizontalRulePlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface HorizontalRuleLocale {
@@ -16,17 +18,10 @@ export const HORIZONTAL_RULE_LOCALE_EN: HorizontalRuleLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: HorizontalRuleLocale }>> =
-	import.meta.glob<{ default: HorizontalRuleLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<HorizontalRuleLocale> = import.meta.glob<{
+	default: HorizontalRuleLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadHorizontalRuleLocale(lang: string): Promise<HorizontalRuleLocale> {
-	if (lang === 'en') return HORIZONTAL_RULE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return HORIZONTAL_RULE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return HORIZONTAL_RULE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, HORIZONTAL_RULE_LOCALE_EN);
 }

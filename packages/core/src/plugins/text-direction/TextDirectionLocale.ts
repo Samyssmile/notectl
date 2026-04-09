@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the TextDirectionPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 export interface TextDirectionLocale {
 	readonly ltr: string;
 	readonly rtl: string;
@@ -38,17 +40,10 @@ export const TEXT_DIRECTION_LOCALE_EN: TextDirectionLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: TextDirectionLocale }>> =
-	import.meta.glob<{ default: TextDirectionLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<TextDirectionLocale> = import.meta.glob<{
+	default: TextDirectionLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadTextDirectionLocale(lang: string): Promise<TextDirectionLocale> {
-	if (lang === 'en') return TEXT_DIRECTION_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return TEXT_DIRECTION_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return TEXT_DIRECTION_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, TEXT_DIRECTION_LOCALE_EN);
 }

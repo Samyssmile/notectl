@@ -164,7 +164,7 @@ class EditorInitSession {
 	private setupPlugins(): void {
 		if (!this.domElements) return;
 
-		this.pluginManager = new PluginManager();
+		this.pluginManager = new PluginManager({ logger: this.cfg.logger });
 		this.pluginManager.registerService(
 			LocaleServiceKey,
 			new LocaleService(this.cfg.locale ?? 'browser'),

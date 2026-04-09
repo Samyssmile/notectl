@@ -16,6 +16,7 @@ import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import type { EventBus } from './EventBus.js';
+import type { Logger } from './Logger.js';
 import type {
 	CommandEntry,
 	CommandHandler,
@@ -63,6 +64,7 @@ export interface PluginRegistrations {
 /** Dependencies needed by the context factory from the PluginManager. */
 export interface ContextFactoryDeps {
 	readonly pluginId: string;
+	readonly logger: Logger;
 	getState(): EditorState;
 	dispatch(transaction: Transaction): void;
 	getContainer(): HTMLElement;
@@ -338,7 +340,8 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 				try {
 					plugin.onConfigure(config);
 				} catch (err) {
-					console.error(`[PluginManager] Plugin "${deps.pluginId}" error in onConfigure:`, err);
+					const scope = `[PluginContext] Plugin "${deps.pluginId}" error in onConfigure`;
+					deps.logger.error(scope, err);
 				}
 			}
 		},

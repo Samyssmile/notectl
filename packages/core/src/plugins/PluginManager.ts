@@ -17,6 +17,7 @@ import type { Transaction } from '../state/Transaction.js';
 import { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import { CommandRegistry } from './CommandRegistry.js';
 import { EventBus } from './EventBus.js';
+import { type Logger, consoleLogger } from './Logger.js';
 import { MiddlewareChain } from './MiddlewareChain.js';
 import type {
 	EventKey,
@@ -37,6 +38,18 @@ import { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 export type { MiddlewareInfo } from './MiddlewareChain.js';
 export type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 export type { MiddlewareEntry, PluginRegistrations } from './PluginContextFactory.js';
+
+/** Optional dependencies for PluginManager. */
+export interface PluginManagerOptions {
+	/**
+	 * Sink for editor runtime errors (plugin lifecycle failures, middleware
+	 * exceptions, event listener errors, command handler crashes).
+	 * Defaults to `consoleLogger`, which forwards to the global `console`.
+	 * Pass `silentLogger` to suppress output, or supply a custom adapter
+	 * to route into your own telemetry / logging pipeline.
+	 */
+	readonly logger?: Logger;
+}
 
 export interface PluginManagerInitOptions {
 	getState(): EditorState;
@@ -60,14 +73,19 @@ export class PluginManager {
 	readonly blockTypePickerRegistry = new BlockTypePickerRegistry();
 
 	// Extracted sub-modules
-	private readonly commandRegistry = new CommandRegistry();
+	private readonly logger: Logger;
+	private readonly commandRegistry: CommandRegistry;
 	private readonly serviceRegistry = new ServiceRegistry();
-	private readonly middlewareChain = new MiddlewareChain();
-	private readonly eventBus = new EventBus();
+	private readonly middlewareChain: MiddlewareChain;
+	private readonly eventBus: EventBus;
 	private readonly registrationTracker: RegistrationTracker;
 	private readonly lifecycle: PluginLifecycle;
 
-	constructor() {
+	constructor(options: PluginManagerOptions = {}) {
+		this.logger = options.logger ?? consoleLogger;
+		this.commandRegistry = new CommandRegistry(this.logger);
+		this.middlewareChain = new MiddlewareChain(this.logger);
+		this.eventBus = new EventBus(this.logger);
 		this.registrationTracker = new RegistrationTracker({
 			commandRegistry: this.commandRegistry,
 			serviceRegistry: this.serviceRegistry,
@@ -80,7 +98,7 @@ export class PluginManager {
 			fileHandlerRegistry: this.fileHandlerRegistry,
 			blockTypePickerRegistry: this.blockTypePickerRegistry,
 		});
-		this.lifecycle = new PluginLifecycle(this.registrationTracker);
+		this.lifecycle = new PluginLifecycle(this.registrationTracker, this.logger);
 	}
 
 	// --- Service (system-level, before init) ---
@@ -204,6 +222,7 @@ export class PluginManager {
 	private createContext(pluginId: string, options: PluginManagerInitOptions): PluginContext {
 		const deps: ContextFactoryDeps = {
 			pluginId,
+			logger: this.logger,
 			getState: options.getState,
 			dispatch: options.dispatch,
 			getContainer: options.getContainer,

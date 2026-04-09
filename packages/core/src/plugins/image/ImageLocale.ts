@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the ImagePlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface ImageLocale {
@@ -58,18 +60,10 @@ export const IMAGE_LOCALE_EN: ImageLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: ImageLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<ImageLocale> = import.meta.glob<{
 	default: ImageLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadImageLocale(lang: string): Promise<ImageLocale> {
-	if (lang === 'en') return IMAGE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return IMAGE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return IMAGE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, IMAGE_LOCALE_EN);
 }

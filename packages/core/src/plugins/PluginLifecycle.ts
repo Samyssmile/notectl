@@ -6,6 +6,7 @@
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { type Logger, consoleLogger, scopedLogger } from './Logger.js';
 import type { Plugin, PluginConfig, PluginContext } from './Plugin.js';
 import type { RegistrationTracker } from './RegistrationTracker.js';
 
@@ -35,8 +36,14 @@ export class PluginLifecycle {
 	private initialized = false;
 	private initializing = false;
 	private readOnly = false;
+	private readonly log: Logger;
 
-	constructor(private readonly tracker: RegistrationTracker) {}
+	constructor(
+		private readonly tracker: RegistrationTracker,
+		logger: Logger = consoleLogger,
+	) {
+		this.log = scopedLogger(logger, 'PluginLifecycle');
+	}
 
 	// --- Registration ---
 
@@ -99,7 +106,7 @@ export class PluginLifecycle {
 				try {
 					await plugin.onReady();
 				} catch (err) {
-					console.error(`[PluginManager] Plugin "${id}" error in onReady:`, err);
+					this.log.error(`Plugin "${id}" error in onReady`, err);
 				}
 			}
 
@@ -134,7 +141,7 @@ export class PluginLifecycle {
 			try {
 				plugin.onStateChange(oldState, newState, tr);
 			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" error in onStateChange:`, err);
+				this.log.error(`Plugin "${id}" error in onStateChange`, err);
 			}
 		}
 	}
@@ -151,7 +158,7 @@ export class PluginLifecycle {
 					result = result.merge(decos);
 				}
 			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" error in decorations():`, err);
+				this.log.error(`Plugin "${id}" error in decorations()`, err);
 			}
 		}
 		return result;
@@ -167,7 +174,7 @@ export class PluginLifecycle {
 		try {
 			plugin.onConfigure(config);
 		} catch (err) {
-			console.error(`[PluginManager] Plugin "${pluginId}" error in onConfigure:`, err);
+			this.log.error(`Plugin "${pluginId}" error in onConfigure`, err);
 		}
 	}
 
@@ -187,7 +194,7 @@ export class PluginLifecycle {
 			try {
 				plugin.onReadOnlyChange(readonly);
 			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" error in onReadOnlyChange:`, err);
+				this.log.error(`Plugin "${id}" error in onReadOnlyChange`, err);
 			}
 		}
 	}
@@ -210,7 +217,7 @@ export class PluginLifecycle {
 			try {
 				await plugin.destroy();
 			} catch (err) {
-				console.error(`[PluginManager] Plugin "${id}" error in destroy:`, err);
+				this.log.error(`Plugin "${id}" error in destroy`, err);
 			}
 		}
 		this.tracker.cleanup(id);

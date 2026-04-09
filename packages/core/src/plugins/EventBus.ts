@@ -3,10 +3,16 @@
  * Each listener is wrapped in try/catch — a failing listener never affects others.
  */
 
+import { type Logger, consoleLogger, scopedLogger } from './Logger.js';
 import type { EventKey, PluginEventCallback } from './Plugin.js';
 
 export class EventBus {
 	private readonly listeners = new Map<string, Set<PluginEventCallback>>();
+	private readonly log: Logger;
+
+	constructor(logger: Logger = consoleLogger) {
+		this.log = scopedLogger(logger, 'EventBus');
+	}
 
 	/** Emits an event to all registered listeners. Errors are caught per listener. */
 	emit<T>(key: EventKey<T>, payload: T): void {
@@ -17,7 +23,7 @@ export class EventBus {
 			try {
 				listener(payload);
 			} catch (err) {
-				console.error(`[EventBus] Listener error on "${key.id}":`, err);
+				this.log.error(`Listener error on "${key.id}"`, err);
 			}
 		}
 	}

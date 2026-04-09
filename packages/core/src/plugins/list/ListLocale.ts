@@ -2,6 +2,8 @@
  * Locale interface and default English locale for the ListPlugin.
  */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface ListLocale {
@@ -20,18 +22,10 @@ export const LIST_LOCALE_EN: ListLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: ListLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<ListLocale> = import.meta.glob<{
 	default: ListLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadListLocale(lang: string): Promise<ListLocale> {
-	if (lang === 'en') return LIST_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return LIST_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return LIST_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, LIST_LOCALE_EN);
 }
