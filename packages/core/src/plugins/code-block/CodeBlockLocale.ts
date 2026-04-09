@@ -11,6 +11,7 @@ export interface CodeBlockLocale {
 	readonly escToExit: string;
 	readonly codeBlockAriaLabel: (lang: string) => string;
 	readonly copiedToClipboard: string;
+	readonly copyFailed: string;
 	readonly deleteCodeBlockAria: string;
 	readonly deletedCodeBlock: string;
 	readonly selectLanguageAria: string;
@@ -29,6 +30,7 @@ export const CODE_BLOCK_LOCALE_EN: CodeBlockLocale = {
 	escToExit: 'Esc to exit',
 	codeBlockAriaLabel: (lang: string) => `${lang} code block. Press Escape to exit.`,
 	copiedToClipboard: 'Copied to clipboard',
+	copyFailed: 'Failed to copy code',
 	deleteCodeBlockAria: 'Delete code block',
 	deletedCodeBlock: 'Code block deleted',
 	selectLanguageAria: 'Select language',

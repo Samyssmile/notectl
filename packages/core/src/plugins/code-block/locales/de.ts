@@ -9,6 +9,7 @@ const locale: CodeBlockLocale = {
 	escToExit: 'Esc zum Verlassen',
 	codeBlockAriaLabel: (lang: string) => `${lang}-Codeblock. Escape zum Verlassen dr\u00fccken.`,
 	copiedToClipboard: 'In die Zwischenablage kopiert',
+	copyFailed: 'Code konnte nicht kopiert werden',
 	deleteCodeBlockAria: 'Codeblock löschen',
 	deletedCodeBlock: 'Codeblock gelöscht',
 	selectLanguageAria: 'Sprache auswählen',
