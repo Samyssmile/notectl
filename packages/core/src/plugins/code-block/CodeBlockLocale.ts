@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the CodeBlockPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface CodeBlockLocale {
@@ -40,17 +42,10 @@ export const CODE_BLOCK_LOCALE_EN: CodeBlockLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: CodeBlockLocale }>> =
-	import.meta.glob<{ default: CodeBlockLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<CodeBlockLocale> = import.meta.glob<{
+	default: CodeBlockLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadCodeBlockLocale(lang: string): Promise<CodeBlockLocale> {
-	if (lang === 'en') return CODE_BLOCK_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return CODE_BLOCK_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return CODE_BLOCK_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, CODE_BLOCK_LOCALE_EN);
 }

@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the FontPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface FontLocale {
@@ -16,18 +18,10 @@ export const FONT_LOCALE_EN: FontLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: FontLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<FontLocale> = import.meta.glob<{
 	default: FontLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadFontLocale(lang: string): Promise<FontLocale> {
-	if (lang === 'en') return FONT_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return FONT_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return FONT_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, FONT_LOCALE_EN);
 }

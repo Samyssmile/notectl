@@ -2,6 +2,8 @@
  * Locale interface and default English locale for the HeadingPlugin.
  */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface HeadingLocale {
@@ -36,18 +38,10 @@ export const HEADING_LOCALE_EN: HeadingLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: HeadingLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<HeadingLocale> = import.meta.glob<{
 	default: HeadingLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadHeadingLocale(lang: string): Promise<HeadingLocale> {
-	if (lang === 'en') return HEADING_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return HEADING_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return HEADING_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, HEADING_LOCALE_EN);
 }

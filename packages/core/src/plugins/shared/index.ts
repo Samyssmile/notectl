@@ -56,4 +56,9 @@ export {
 	type PositionOptions,
 } from './PopupPositioning.js';
 export { formatShortcut } from './ShortcutFormatting.js';
+export {
+	loadLocaleModule,
+	type LocaleModuleLoader,
+	type LocaleModuleMap,
+} from './LocaleLoader.js';
 export { XML_ATTRS, XML_TAG_NAME } from './XmlPatterns.js';

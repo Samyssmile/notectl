@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the SmartPastePlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 export interface SmartPasteLocale {
 	readonly detectedAsCodeBlock: (language: string) => string;
 	readonly detectedMixedContent: (
@@ -25,17 +27,10 @@ export const SMART_PASTE_LOCALE_EN: SmartPasteLocale = {
 	},
 };
 
-const localeModules: Record<string, () => Promise<{ default: SmartPasteLocale }>> =
-	import.meta.glob<{ default: SmartPasteLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<SmartPasteLocale> = import.meta.glob<{
+	default: SmartPasteLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadSmartPasteLocale(lang: string): Promise<SmartPasteLocale> {
-	if (lang === 'en') return SMART_PASTE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return SMART_PASTE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return SMART_PASTE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, SMART_PASTE_LOCALE_EN);
 }

@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the CaretNavigationPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface CaretNavigationLocale {
@@ -64,17 +66,10 @@ export function resolveBlockLabel(
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: CaretNavigationLocale }>> =
-	import.meta.glob<{ default: CaretNavigationLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<CaretNavigationLocale> = import.meta.glob<{
+	default: CaretNavigationLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadCaretNavigationLocale(lang: string): Promise<CaretNavigationLocale> {
-	if (lang === 'en') return CARET_NAVIGATION_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return CARET_NAVIGATION_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return CARET_NAVIGATION_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, CARET_NAVIGATION_LOCALE_EN);
 }

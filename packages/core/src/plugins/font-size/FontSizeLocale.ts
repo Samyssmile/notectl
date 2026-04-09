@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the FontSizePlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface FontSizeLocale {
@@ -20,18 +22,10 @@ export const FONT_SIZE_LOCALE_EN: FontSizeLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: FontSizeLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<FontSizeLocale> = import.meta.glob<{
 	default: FontSizeLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadFontSizeLocale(lang: string): Promise<FontSizeLocale> {
-	if (lang === 'en') return FONT_SIZE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return FONT_SIZE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return FONT_SIZE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, FONT_SIZE_LOCALE_EN);
 }

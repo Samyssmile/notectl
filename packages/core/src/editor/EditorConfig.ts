@@ -7,6 +7,7 @@
 
 import type { Locale } from '../i18n/Locale.js';
 import type { PaperSize } from '../model/PaperSize.js';
+import type { Logger } from '../plugins/Logger.js';
 import type { Plugin } from '../plugins/Plugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
@@ -55,4 +56,10 @@ export interface NotectlEditorConfig {
 	dir?: 'ltr' | 'rtl';
 	/** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
 	locale?: Locale;
+	/**
+	 * Sink for editor runtime errors. Defaults to a console-backed logger.
+	 * Supply `silentLogger` or a custom adapter to route errors into your
+	 * own telemetry pipeline instead of the browser console.
+	 */
+	logger?: Logger;
 }

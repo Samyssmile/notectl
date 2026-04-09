@@ -3,11 +3,17 @@
  * Extracted from PluginManager for single-responsibility.
  */
 
+import { type Logger, consoleLogger, scopedLogger } from './Logger.js';
 import type { CommandEntry, CommandHandler, CommandOptions } from './Plugin.js';
 
 export class CommandRegistry {
 	private readonly commands = new Map<string, CommandEntry>();
 	private readonlyBypassActive = false;
+	private readonly log: Logger;
+
+	constructor(logger: Logger = consoleLogger) {
+		this.log = scopedLogger(logger, 'CommandRegistry');
+	}
 
 	/** Registers a named command. Throws if already registered. */
 	register(
@@ -43,7 +49,7 @@ export class CommandRegistry {
 		try {
 			return entry.handler();
 		} catch (err) {
-			console.error(`[PluginManager] Command "${name}" error:`, err);
+			this.log.error(`Command "${name}" error`, err);
 			return false;
 		} finally {
 			if (enableBypass) this.readonlyBypassActive = false;

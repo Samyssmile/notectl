@@ -309,8 +309,10 @@ export { EventBus } from './plugins/EventBus.js';
 export {
 	PluginManager,
 	type PluginManagerInitOptions,
+	type PluginManagerOptions,
 	type MiddlewareInfo,
 } from './plugins/PluginManager.js';
+export { type Logger, consoleLogger, silentLogger, scopedLogger } from './plugins/Logger.js';
 
 // --- Decorations ---
 export type {

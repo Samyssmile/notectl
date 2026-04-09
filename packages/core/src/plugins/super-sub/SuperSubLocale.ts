@@ -2,6 +2,8 @@
  * Locale interface and default English locale for the SuperSubPlugin.
  */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface SuperSubLocale {
@@ -22,18 +24,10 @@ export const SUPER_SUB_LOCALE_EN: SuperSubLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: SuperSubLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<SuperSubLocale> = import.meta.glob<{
 	default: SuperSubLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadSuperSubLocale(lang: string): Promise<SuperSubLocale> {
-	if (lang === 'en') return SUPER_SUB_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return SUPER_SUB_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return SUPER_SUB_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, SUPER_SUB_LOCALE_EN);
 }

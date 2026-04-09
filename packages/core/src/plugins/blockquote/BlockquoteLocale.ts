@@ -2,6 +2,8 @@
  * Locale interface and default English locale for the BlockquotePlugin.
  */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface BlockquoteLocale {
@@ -18,17 +20,10 @@ export const BLOCKQUOTE_LOCALE_EN: BlockquoteLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: BlockquoteLocale }>> =
-	import.meta.glob<{ default: BlockquoteLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<BlockquoteLocale> = import.meta.glob<{
+	default: BlockquoteLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadBlockquoteLocale(lang: string): Promise<BlockquoteLocale> {
-	if (lang === 'en') return BLOCKQUOTE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return BLOCKQUOTE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return BLOCKQUOTE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, BLOCKQUOTE_LOCALE_EN);
 }

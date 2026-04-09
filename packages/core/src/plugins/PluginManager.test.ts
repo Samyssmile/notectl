@@ -527,7 +527,7 @@ describe('PluginManager', () => {
 
 			pm.dispatchWithMiddleware(makeTr(), EditorState.create(), vi.fn());
 			expect(errSpy).toHaveBeenCalledWith(
-				'[PluginManager] Middleware "failing-guard" error:',
+				'[MiddlewareChain] Middleware "failing-guard" error',
 				expect.any(Error),
 			);
 

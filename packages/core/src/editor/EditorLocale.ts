@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the editor shell. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../plugins/shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface EditorLocale {
@@ -18,18 +20,10 @@ export const EDITOR_LOCALE_EN: EditorLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: EditorLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<EditorLocale> = import.meta.glob<{
 	default: EditorLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadEditorLocale(lang: string): Promise<EditorLocale> {
-	if (lang === 'en') return EDITOR_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return EDITOR_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return EDITOR_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, EDITOR_LOCALE_EN);
 }

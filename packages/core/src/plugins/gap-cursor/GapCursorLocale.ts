@@ -1,5 +1,7 @@
 /** Locale interface and default English locale for the GapCursorPlugin. */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface GapCursorLocale {
@@ -14,17 +16,10 @@ export const GAP_CURSOR_LOCALE_EN: GapCursorLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: GapCursorLocale }>> =
-	import.meta.glob<{ default: GapCursorLocale }>('./locales/*.ts', { eager: false });
+const localeModules: LocaleModuleMap<GapCursorLocale> = import.meta.glob<{
+	default: GapCursorLocale;
+}>('./locales/*.ts', { eager: false });
 
 export async function loadGapCursorLocale(lang: string): Promise<GapCursorLocale> {
-	if (lang === 'en') return GAP_CURSOR_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return GAP_CURSOR_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return GAP_CURSOR_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, GAP_CURSOR_LOCALE_EN);
 }

@@ -3,6 +3,8 @@
  * Allows full i18n of all user-facing strings in the table feature.
  */
 
+import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.js';
+
 // --- Locale Interface ---
 
 export interface TableLocale {
@@ -105,18 +107,10 @@ export const TABLE_LOCALE_EN: TableLocale = {
 
 // --- Lazy Locale Loader ---
 
-const localeModules: Record<string, () => Promise<{ default: TableLocale }>> = import.meta.glob<{
+const localeModules: LocaleModuleMap<TableLocale> = import.meta.glob<{
 	default: TableLocale;
 }>('./locales/*.ts', { eager: false });
 
 export async function loadTableLocale(lang: string): Promise<TableLocale> {
-	if (lang === 'en') return TABLE_LOCALE_EN;
-	const loader = localeModules[`./locales/${lang}.ts`];
-	if (!loader) return TABLE_LOCALE_EN;
-	try {
-		const mod = await loader();
-		return mod.default;
-	} catch {
-		return TABLE_LOCALE_EN;
-	}
+	return loadLocaleModule(localeModules, lang, TABLE_LOCALE_EN);
 }
