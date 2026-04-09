@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+- **Dependabot alerts cleared (17/17, no `pnpm.overrides`)** — Closed all open security advisories via direct dependency bumps and lockfile refreshes within existing ranges.
+  - Direct bumps: `@angular/build` / `@angular/cli` 21.2.4 → 21.2.7, `@astrojs/starlight` 0.37.7 → 0.38.3 with `astro` 5.18.1 → 6.1.5, `vite` 8.0.5 → 8.0.8.
+  - Transitive refreshes: `hono` 4.12.9 → 4.12.12, `@hono/node-server` 1.19.11 → 1.19.13, `lodash` 4.17.23 → 4.18.1, `brace-expansion` 2.0.2 → 2.0.3, `defu` 6.1.4 → 6.1.7, `picomatch` 4.0.3 → 4.0.4.
+  - Closes advisories for vite path traversal / `server.fs.deny` bypass / arbitrary file read via dev server WebSocket, picomatch ReDoS and method injection, defu prototype pollution, hono cookie / `serveStatic` / `ipRestriction` / `toSSG` issues, lodash `_.template` code injection and `_.unset`/`_.omit` prototype pollution, and brace-expansion ReDoS.
+
 ## [2.0.7] - 2026-03-30
 
 ### Added
