@@ -185,34 +185,45 @@ export class EditorView {
 		};
 	}
 
-	/** Replaces the editor state without destroying handlers or history. */
+	/**
+	 * Replaces the editor state without destroying handlers.
+	 *
+	 * The current selection is preserved (validated and clamped against the
+	 * new document); any selection carried on `newState` is ignored. This
+	 * prevents content round-trips such as `setJSON(getJSON())` from resetting
+	 * the caret (see issue #103).
+	 *
+	 * Undo/redo history is cleared because the document identity changes and
+	 * persisted steps would no longer resolve against it.
+	 */
 	replaceState(newState: EditorState): void {
 		if (this.isUpdating) return;
 		this.isUpdating = true;
 		try {
 			const oldState = this.state;
-			this.state = newState;
+			const preserved: EditorState = newState.withSelection(oldState.selection);
+			this.state = preserved;
 			this.history.clear();
 
-			if (this.cursorWrapper.isActive && !newState.storedMarks?.length) {
+			if (this.cursorWrapper.isActive && !preserved.storedMarks?.length) {
 				this.cursorWrapper.cleanup();
 			}
 
 			const tr: Transaction = {
 				steps: [],
 				selectionBefore: oldState.selection,
-				selectionAfter: newState.selection,
-				storedMarksAfter: newState.storedMarks,
+				selectionAfter: preserved.selection,
+				storedMarksAfter: preserved.storedMarks,
 				metadata: {
 					origin: 'api',
 					timestamp: Date.now(),
 				},
 			};
-			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
-			this.reconcileAndSync(oldState, newState, newDecorations);
+			const newDecorations = this.getDecorations?.(preserved, tr) ?? DecorationSet.empty;
+			this.reconcileAndSync(oldState, preserved, newDecorations);
 
 			for (const cb of this.stateChangeCallbacks) {
-				cb(oldState, newState, tr);
+				cb(oldState, preserved, tr);
 			}
 			this.navigation.resetAfterUpdate();
 		} finally {

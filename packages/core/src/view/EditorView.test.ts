@@ -237,8 +237,54 @@ describe('EditorView.applyUpdate()', () => {
 
 			view.replaceState(freshState);
 
-			expect(view.getState()).toBe(freshState);
+			// replaceState preserves the prior selection, so a new EditorState
+			// instance is returned — compare the adopted document by reference.
+			expect(view.getState().doc).toBe(freshState.doc);
 			expect(getDecorations).toHaveBeenCalledTimes(1);
+
+			view.destroy();
+		});
+
+		it('replaceState preserves the prior caret across a round-trip with the same block ids', () => {
+			const { view } = createTestView();
+
+			// Place the caret after "hello" (offset 5 on b1).
+			view.dispatch(makeInsertTransaction('b1', 0, 'hello'));
+			expect(view.getState().selection.anchor.offset).toBe(5);
+
+			// Round-trip: new doc, same block id, selection at offset 0.
+			const freshDoc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+			]);
+			const freshState = EditorState.create({
+				doc: freshDoc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+
+			view.replaceState(freshState);
+
+			// The caller's selection is ignored; the prior caret position survives.
+			expect(view.getState().doc).toBe(freshState.doc);
+			expect(view.getState().selection.anchor.blockId).toBe('b1');
+			expect(view.getState().selection.anchor.offset).toBe(5);
+
+			view.destroy();
+		});
+
+		it('replaceState clamps the preserved caret to the new block length', () => {
+			const { view } = createTestView();
+
+			// Caret at offset 5 on b1 ("hello").
+			view.dispatch(makeInsertTransaction('b1', 0, 'hello'));
+
+			// Replace with shorter content on the same block id.
+			const freshDoc = createDocument([createBlockNode('paragraph', [createTextNode('hi')], 'b1')]);
+			const freshState = EditorState.create({ doc: freshDoc });
+
+			view.replaceState(freshState);
+
+			expect(view.getState().selection.anchor.blockId).toBe('b1');
+			expect(view.getState().selection.anchor.offset).toBe(2);
 
 			view.destroy();
 		});
