@@ -109,6 +109,12 @@ export class EditorState {
 		return findNode(this.doc, parentId);
 	}
 
+	/** Returns a new state with the given selection validated against this document. */
+	withSelection(selection: EditorSelection): EditorState {
+		const validated: EditorSelection = validateSelection(this.doc, selection);
+		return new EditorState(this.doc, validated, this.storedMarks, this.schema);
+	}
+
 	/** Serializes the state to JSON. */
 	toJSON(): { readonly doc: Document; readonly selection: EditorSelection } {
 		return {

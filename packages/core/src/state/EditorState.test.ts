@@ -311,6 +311,105 @@ describe('EditorState', () => {
 		});
 	});
 
+	describe('withSelection', () => {
+		it('preserves a valid selection unchanged', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({ doc, selection: createCollapsedSelection('b1', 0) });
+			const sel = createCollapsedSelection('b1', 3);
+
+			const result = state.withSelection(sel);
+
+			expect(result.selection).toBe(sel);
+			expect(result.doc).toBe(state.doc);
+			expect(result.schema).toBe(state.schema);
+		});
+
+		it('clamps offset when text is shorter than selection offset', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hi')], 'b1')]);
+			const state = EditorState.create({ doc });
+
+			const result = state.withSelection(createCollapsedSelection('b1', 10));
+
+			expect(result.selection.anchor.blockId).toBe('b1');
+			expect(result.selection.anchor.offset).toBe(2);
+		});
+
+		it('falls back to first leaf block when block no longer exists', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('only')], 'b1')]);
+			const state = EditorState.create({ doc });
+
+			const result = state.withSelection(createCollapsedSelection('gone' as BlockId, 5));
+
+			expect(result.selection.anchor.blockId).toBe('b1');
+			expect(result.selection.anchor.offset).toBe(0);
+		});
+
+		it('preserves NodeSelection on a surviving block', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const state = EditorState.create({ doc });
+			const nodeSel = createNodeSelection('b1' as BlockId, []);
+
+			const result = state.withSelection(nodeSel);
+
+			expect(result.selection).toBe(nodeSel);
+		});
+
+		it('falls back from NodeSelection on a removed block', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const state = EditorState.create({ doc });
+			const nodeSel = createNodeSelection('gone' as BlockId, []);
+
+			const result = state.withSelection(nodeSel);
+
+			expect(isTextSelection(result.selection)).toBe(true);
+			if (isTextSelection(result.selection)) {
+				expect(result.selection.anchor.blockId).toBe('b1');
+			}
+		});
+
+		it('preserves GapCursor on a surviving block', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const state = EditorState.create({ doc });
+			const gapSel = createGapCursor('b1' as BlockId, 'before', []);
+
+			const result = state.withSelection(gapSel);
+
+			expect(result.selection).toBe(gapSel);
+		});
+
+		it('falls back from GapCursor on a removed block', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const state = EditorState.create({ doc });
+			const gapSel = createGapCursor('gone' as BlockId, 'before', []);
+
+			const result = state.withSelection(gapSel);
+
+			expect(isTextSelection(result.selection)).toBe(true);
+			if (isTextSelection(result.selection)) {
+				expect(result.selection.anchor.blockId).toBe('b1');
+			}
+		});
+
+		it('preserves range selection across two surviving blocks', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('first')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('second')], 'b2'),
+			]);
+			const state = EditorState.create({ doc });
+			const rangeSel = createSelection(
+				{ blockId: 'b1' as BlockId, offset: 2 },
+				{ blockId: 'b2' as BlockId, offset: 4 },
+			);
+
+			const result = state.withSelection(rangeSel);
+
+			expect(result.selection.anchor.blockId).toBe('b1');
+			expect(result.selection.anchor.offset).toBe(2);
+			expect(result.selection.head.blockId).toBe('b2');
+			expect(result.selection.head.offset).toBe(4);
+		});
+	});
+
 	describe('validateSelection fallback', () => {
 		it('GapCursor on deleted block falls back to first leaf block', () => {
 			const doc = createDocument([
