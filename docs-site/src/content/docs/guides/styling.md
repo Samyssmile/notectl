@@ -216,6 +216,36 @@ The built-in light and dark themes both include full syntax token definitions fo
 | CSS Property | Description |
 |---|---|
 | `--notectl-content-min-height` | Minimum height of the content area (default: `400px`) |
+| `--notectl-content-max-height` | Maximum height of the content area before it scrolls internally (default: `none`) |
+
+## Fixed-size editor with internal scrolling
+
+By default the editor grows with its content. To embed it in a fixed-size frame
+where the toolbar stays pinned at the top, the bottom plugin container stays
+pinned at the bottom, and the content area scrolls internally, you have two
+options.
+
+### Option 1 — set a height on the host
+
+Give the `<notectl-editor>` element a height; the toolbar/content/footer
+distribute themselves automatically.
+
+```html
+<notectl-editor style="display: block; height: 500px;"></notectl-editor>
+```
+
+### Option 2 — cap the content area only
+
+Use `--notectl-content-max-height` if the editor itself should grow with
+toolbar/footer but the editable area should scroll once it exceeds a given
+size.
+
+```html
+<notectl-editor style="--notectl-content-max-height: 320px;"></notectl-editor>
+```
+
+Both approaches preserve full keyboard accessibility — caret navigation
+automatically scrolls the focused position into view.
 
 ## Syntax Highlighting Tokens
 

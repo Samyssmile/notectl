@@ -252,4 +252,34 @@ function refreshStats(editor: NotectlEditor): void {
 			btn.textContent = 'Transform test';
 		}
 	});
+
+	// ─── Fixed-size demo toggle (issue #107) ───
+
+	const FIXED_DEMO_HEIGHT = '320px';
+	let fixedSizeActive = false;
+	const editorEl: HTMLElement = editor as unknown as HTMLElement;
+	const originalEditorHeight: string = editorEl.style.height;
+	const originalEditorMinHeight: string = editorEl.style.getPropertyValue(
+		'--notectl-content-min-height',
+	);
+
+	selectElement('btn-toggle-fixed-size').addEventListener('click', () => {
+		const btn: HTMLElement = selectElement('btn-toggle-fixed-size');
+		if (!fixedSizeActive) {
+			editorEl.style.height = FIXED_DEMO_HEIGHT;
+			editorEl.style.display = 'block';
+			editorEl.style.setProperty('--notectl-content-min-height', '0px');
+			fixedSizeActive = true;
+			btn.textContent = 'Remove fixed size';
+		} else {
+			editorEl.style.height = originalEditorHeight;
+			if (originalEditorMinHeight) {
+				editorEl.style.setProperty('--notectl-content-min-height', originalEditorMinHeight);
+			} else {
+				editorEl.style.removeProperty('--notectl-content-min-height');
+			}
+			fixedSizeActive = false;
+			btn.textContent = 'Fixed size demo';
+		}
+	});
 })();
