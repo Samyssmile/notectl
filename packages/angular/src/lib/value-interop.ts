@@ -9,19 +9,10 @@ interface EditorContentApi {
 	getText(): string;
 	setContentHTML(html: string): Promise<void>;
 	setJSON(doc: Document): void;
+	setText(value: string): void;
 }
 
 const EMPTY_HTML = '<p></p>';
-
-/** Escapes HTML special characters before inserting plain text. */
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-}
 
 function isDocumentValue(value: NotectlValue): value is Document {
 	return typeof value === 'object' && value !== null;
@@ -57,7 +48,10 @@ export async function writeEditorValue(
 	}
 
 	if (format === 'text' && typeof value === 'string') {
-		await editor.setContentHTML(`<p>${escapeHtml(value)}</p>`);
+		// Routing through `setText` (rather than `setContentHTML('<p>${escaped}</p>')`)
+		// preserves block identity and multi-paragraph structure across signal-form
+		// round-trips, fixing the cursor reset reported in #103 for `contentFormat: 'text'`.
+		editor.setText(value);
 		return;
 	}
 

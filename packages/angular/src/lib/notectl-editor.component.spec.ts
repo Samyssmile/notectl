@@ -17,6 +17,7 @@ describe('NotectlEditorComponent', () => {
 		expect(typeof proto.getContentHTML).toBe('function');
 		expect(typeof proto.setContentHTML).toBe('function');
 		expect(typeof proto.getText).toBe('function');
+		expect(typeof proto.setText).toBe('function');
 		expect(typeof proto.can).toBe('function');
 		expect(typeof proto.executeCommand).toBe('function');
 		expect(typeof proto.configurePlugin).toBe('function');

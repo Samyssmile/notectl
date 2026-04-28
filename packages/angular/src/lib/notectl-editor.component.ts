@@ -236,6 +236,10 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		return this.requireEditor().getText();
 	}
 
+	setText(value: string): void {
+		this.requireEditor().setText(value);
+	}
+
 	get commands(): NotectlEditor['commands'] {
 		return this.requireEditor().commands;
 	}

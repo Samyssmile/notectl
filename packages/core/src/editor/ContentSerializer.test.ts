@@ -11,6 +11,7 @@ import {
 	isEditorEmpty,
 	normalizeCompositeBlocks,
 	setEditorJSON,
+	setEditorText,
 } from './ContentSerializer.js';
 
 function singleParagraphDoc(text: string): ReturnType<typeof createDocument> {
@@ -109,6 +110,79 @@ describe('getEditorText', () => {
 		const state: EditorState = EditorState.create({ doc });
 
 		expect(getEditorText(state)).toBe('');
+	});
+});
+
+describe('setEditorText', () => {
+	it('replaces document content with one paragraph per line', () => {
+		const initial = EditorState.create({ doc: singleParagraphDoc('old') });
+		let captured: EditorState | null = null;
+
+		setEditorText('first\nsecond', initial, undefined, (s) => {
+			captured = s;
+		});
+
+		expect(captured?.doc.children).toHaveLength(2);
+		expect(captured?.doc.children[0]?.children[0]).toMatchObject({
+			type: 'text',
+			text: 'first',
+		});
+		expect(captured?.doc.children[1]?.children[0]).toMatchObject({
+			type: 'text',
+			text: 'second',
+		});
+	});
+
+	it('reuses existing top-level block IDs in document order', () => {
+		const initial = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')], blockId('keep-1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('b')], blockId('keep-2')),
+			]),
+		});
+		let captured: EditorState | null = null;
+
+		setEditorText('x\ny', initial, undefined, (s) => {
+			captured = s;
+		});
+
+		expect(captured?.doc.children.map((b) => b.id)).toEqual(['keep-1', 'keep-2']);
+	});
+
+	it('generates fresh IDs only for additional lines beyond the existing block count', () => {
+		const initial = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')], blockId('keep-1')),
+			]),
+		});
+		let captured: EditorState | null = null;
+
+		setEditorText('x\ny\nz', initial, undefined, (s) => {
+			captured = s;
+		});
+
+		const ids: string[] = (captured?.doc.children ?? []).map((b) => b.id as string);
+		expect(ids[0]).toBe('keep-1');
+		expect(ids[1]).not.toBe('keep-1');
+		expect(ids[2]).not.toBe('keep-1');
+		expect(ids[1]).toMatch(/^block-/);
+		expect(ids[2]).toMatch(/^block-/);
+	});
+
+	it('is a no-op when the new text matches the current text', () => {
+		const initial = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')], blockId('p1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('b')], blockId('p2')),
+			]),
+		});
+		let calls = 0;
+
+		setEditorText('a\nb', initial, undefined, () => {
+			calls++;
+		});
+
+		expect(calls).toBe(0);
 	});
 });
 

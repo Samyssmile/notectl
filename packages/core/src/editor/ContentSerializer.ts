@@ -9,6 +9,7 @@ import type { BlockNode, ChildNode } from '../model/Document.js';
 import {
 	type Document,
 	createBlockNode,
+	createTextNode,
 	getBlockText,
 	isInlineNode,
 	isLeafBlock,
@@ -17,7 +18,7 @@ import {
 import { formatHTML } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { nodeType } from '../model/TypeBrands.js';
+import { type BlockId, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
 import {
 	serializeDocumentToCSS,
@@ -123,6 +124,36 @@ export function setEditorContentHTML(
 /** Returns plain text content. */
 export function getEditorText(state: EditorState): string {
 	return state.doc.children.map((b) => getBlockText(b)).join('\n');
+}
+
+/**
+ * Replaces editor content from plain text. Each `\n` becomes a paragraph.
+ *
+ * Existing top-level block IDs are reused in document order so that the
+ * caret-preserving `replaceState()` keeps the cursor on the same block
+ * across `setText(getText())` round-trips. Excess paragraphs receive
+ * fresh IDs. When the new text is identical to the current text, the
+ * call is a no-op — selection and history remain untouched.
+ */
+export function setEditorText(
+	value: string,
+	currentState: EditorState,
+	registry: SchemaRegistry | undefined,
+	replaceState: (state: EditorState) => void,
+): void {
+	if (value === getEditorText(currentState)) return;
+
+	const lines: readonly string[] = value.split('\n');
+	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
+	const blocks: readonly BlockNode[] = lines.map((line, idx) =>
+		createBlockNode(nodeType('paragraph'), [createTextNode(line)], existingIds[idx]),
+	);
+	const schema = registry ? schemaFromRegistry(registry) : undefined;
+	const next: EditorState = EditorState.create({
+		doc: { children: blocks },
+		schema,
+	});
+	replaceState(next);
 }
 
 /** Returns true if the document is empty (zero blocks, or a single empty paragraph). */
