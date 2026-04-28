@@ -159,9 +159,21 @@ See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-ex
 
 Parses HTML and sets it as the editor content.
 
+Each serialized block carries a `data-block-id` attribute (part of the wire format). When `setContentHTML` parses HTML produced by `getContentHTML`, those IDs are adopted so block identity round-trips — this is what keeps the caret stable when an external owner (Angular signal form, RxJS pipe, …) writes back the same content on every keystroke. Externally pasted HTML without `data-block-id` works as before; fresh IDs are generated. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
+
 ### `getText(): string`
 
 Returns plain text content (blocks joined by `\n`).
+
+### `setText(value: string): void`
+
+Replaces editor content from plain text. Each `\n` becomes a paragraph.
+
+```ts
+editor.setText('First paragraph\nSecond paragraph');
+```
+
+Existing top-level block IDs are reused in document order, so the caret survives `setText(getText())` round-trips. When `value` equals the current text, the call is a no-op — selection and history remain untouched. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
 
 ### `isEmpty(): boolean`
 
