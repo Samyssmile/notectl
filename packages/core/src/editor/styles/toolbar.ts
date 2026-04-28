@@ -8,6 +8,7 @@ export const TOOLBAR_CSS = `
 	border-bottom: 1px solid var(--notectl-border);
 	background: var(--notectl-toolbar-bg, var(--notectl-surface-raised));
 	min-height: 40px;
+	flex-shrink: 0;
 }
 
 .notectl-toolbar {

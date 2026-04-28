@@ -15,6 +15,14 @@ export const BASE_CSS = `
 	border-radius: var(--notectl-border-radius, 6px);
 	overflow: hidden;
 	background: var(--notectl-bg);
+	/* Fill any explicit host height so embedders can size <notectl-editor>
+	   (e.g. height: 500px) and have the toolbar/content/footer fit inside.
+	   border-box keeps the 1px border within the host's height; min-height: 0
+	   lets the flex content shrink below its intrinsic size so internal
+	   scrolling can engage. */
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
 }
 
 .notectl-editor:focus-within {
@@ -28,6 +36,8 @@ export const BASE_CSS = `
 	padding: 12px 16px;
 	outline: none;
 	min-height: var(--notectl-content-min-height, 400px);
+	max-height: var(--notectl-content-max-height, none);
+	overflow-y: auto;
 	cursor: text;
 	position: relative;
 	white-space: pre-wrap;
@@ -71,6 +81,7 @@ export const BASE_CSS = `
 /* Plugin container bottom */
 .notectl-plugin-container--bottom {
 	border-top: 1px solid var(--notectl-border);
+	flex-shrink: 0;
 }
 
 /* Screen reader announcements */
