@@ -124,16 +124,17 @@
 		.main {
 			max-width: 1280px;
 			margin: 0 auto;
-			padding: 24px 32px 48px;
+			padding: 24px 32px;
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) 420px;
-			grid-template-rows: 1fr auto;
+			grid-template-rows: 700px auto;
 			gap: 16px 24px;
 		}
 
 		@media (max-width: 960px) {
 			.main {
 				grid-template-columns: minmax(0, 1fr);
+				grid-template-rows: auto auto auto;
 				padding: 16px;
 			}
 		}
@@ -150,9 +151,18 @@
 		}
 
 		notectl-editor {
-			--notectl-content-min-height: 460px;
+			--notectl-content-min-height: 0;
 			--notectl-border-radius: var(--radius-lg);
 			box-shadow: var(--shadow-lg);
+			min-height: 0;
+			height: 100%;
+		}
+
+		@media (max-width: 960px) {
+			notectl-editor {
+				--notectl-content-min-height: 460px;
+				height: auto;
+			}
 		}
 
 		notectl-editor th,
@@ -257,6 +267,7 @@
 			border-radius: var(--radius-lg);
 			box-shadow: var(--shadow-lg);
 			overflow: hidden;
+			min-height: 0;
 			transition: border-color var(--transition), box-shadow var(--transition);
 		}
 
@@ -482,6 +493,11 @@
 			<button class="dev-tools-toggle" id="btn-toggle-fixed-size">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
 				Fixed size demo
+			</button>
+
+			<button class="dev-tools-toggle" id="btn-toggle-readonly">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+				Test readonly mode
 			</button>
 		</div>
 
