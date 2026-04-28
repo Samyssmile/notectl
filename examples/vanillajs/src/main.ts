@@ -166,6 +166,47 @@ function refreshStats(editor: NotectlEditor): void {
 	statEmpty.textContent = empty ? 'empty' : 'has content';
 }
 
+// ─── Read-only demo content (HTML; round-trips through setContentHTML) ───
+
+const READONLY_DEMO_HTML: string = `
+<h1 data-block-id="h1">Read-only mode demo</h1>
+<p data-block-id="p-intro">
+	This editor is rendered in <strong>read-only</strong> mode — try clicking,
+	typing, or using the toolbar; <em>no input is accepted</em>.
+</p>
+<h2 data-block-id="h2-table">Quarterly results</h2>
+<table data-block-id="tbl">
+	<tbody>
+		<tr data-block-id="tr-head">
+			<td data-block-id="th-quarter"><strong>Quarter</strong></td>
+			<td data-block-id="th-revenue"><strong>Revenue</strong></td>
+			<td data-block-id="th-status"><strong>Status</strong></td>
+		</tr>
+		<tr data-block-id="tr-q1">
+			<td data-block-id="td-q1-name">Q1</td>
+			<td data-block-id="td-q1-rev"><span style="background-color: #fff59d">€ 120k</span></td>
+			<td data-block-id="td-q1-status"><span style="color: #16a34a">on track</span></td>
+		</tr>
+		<tr data-block-id="tr-q2">
+			<td data-block-id="td-q2-name">Q2</td>
+			<td data-block-id="td-q2-rev"><span style="background-color: #a7f3d0">€ 165k</span></td>
+			<td data-block-id="td-q2-status"><strong><span style="color: #15803d">ahead</span></strong></td>
+		</tr>
+		<tr data-block-id="tr-q3">
+			<td data-block-id="td-q3-name">Q3</td>
+			<td data-block-id="td-q3-rev"><span style="background-color: #fecaca">€ 98k</span></td>
+			<td data-block-id="td-q3-status"><em><span style="color: #dc2626">at risk</span></em></td>
+		</tr>
+	</tbody>
+</table>
+<p data-block-id="p-outro">
+	Mixed inline styles:
+	<span style="color: #dc2626">red</span>,
+	<strong><span style="color: #2563eb">blue bold</span></strong>,
+	and <em><span style="background-color: #fde68a">highlighted italic</span></em>.
+</p>
+`;
+
 // ─── Editor init ───
 
 (async () => {
@@ -280,6 +321,32 @@ function refreshStats(editor: NotectlEditor): void {
 			}
 			fixedSizeActive = false;
 			btn.textContent = 'Fixed size demo';
+		}
+	});
+
+	// ─── Read-only mode toggle ───
+
+	const READONLY_BTN_LABEL = 'Test readonly mode';
+	const READONLY_BTN_LABEL_ACTIVE = 'Exit readonly mode';
+	let readonlyDemoActive = false;
+	let savedHTMLBeforeReadonly: string | null = null;
+
+	selectElement('btn-toggle-readonly').addEventListener('click', async () => {
+		const btn: HTMLElement = selectElement('btn-toggle-readonly');
+		if (!readonlyDemoActive) {
+			savedHTMLBeforeReadonly = await editor.getContentHTML();
+			await editor.setContentHTML(READONLY_DEMO_HTML);
+			editor.configure({ readonly: true });
+			readonlyDemoActive = true;
+			btn.textContent = READONLY_BTN_LABEL_ACTIVE;
+		} else {
+			editor.configure({ readonly: false });
+			if (savedHTMLBeforeReadonly !== null) {
+				await editor.setContentHTML(savedHTMLBeforeReadonly);
+				savedHTMLBeforeReadonly = null;
+			}
+			readonlyDemoActive = false;
+			btn.textContent = READONLY_BTN_LABEL;
 		}
 	});
 })();
