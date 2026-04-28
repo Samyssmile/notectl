@@ -17,6 +17,7 @@ import {
 import { SAFE_URI_REGEXP, escapeAttr, escapeHTML } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult } from './ContentHTMLTypes.js';
 import {
@@ -40,13 +41,6 @@ const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', 
 
 /** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
 export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
-
-/**
- * Validates a `BlockId` string for use as a `data-block-id` attribute value.
- * Conservative pattern: alphanumeric, underscore, hyphen, max 64 chars.
- * Mirrors `DocumentParser.isValidBlockId` — must stay in sync.
- */
-const SAFE_BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Creates an HTMLExportContext for inline style mode. */
 function createInlineExportContext(): HTMLExportContext {
@@ -316,7 +310,9 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	// block type, including ones added by future plugins. The serializer's
 	// allowlist passes `data-block-id` through DOMPurify. Skip if the spec
 	// already emits one (mirrors the existing `dir` defense-in-depth pattern).
-	if (SAFE_BLOCK_ID.test(block.id)) {
+	// `escapeAttr` is defense-in-depth — `isSafeBlockId` already excludes any
+	// character that would need escaping.
+	if (isSafeBlockId(block.id)) {
 		const firstTagEnd: number = html.indexOf('>');
 		const firstTag: string = html.slice(0, firstTagEnd + 1);
 		if (!firstTag.includes(' data-block-id=')) {
