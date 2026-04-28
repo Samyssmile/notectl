@@ -50,6 +50,11 @@ Or use the HTML attribute for fully read-only (no interactive checkboxes):
 | **Text editing** | Disabled | Disabled |
 | **Text selection** | Allowed | Allowed |
 | **Checklist checkboxes** | Disabled | Interactive |
+| **Table controls** (delete table/row/col, add row/col, context menu) | Disabled | Disabled |
+| **Code-block controls** (delete, language picker) | Disabled | Disabled |
+| **Copy buttons** | Allowed | Allowed |
+
+The read-only guard runs centrally inside `EditorView.dispatch`, so any plugin that builds a transaction — including click handlers on `NodeView` controls — is automatically inert in read-only mode. Plugins can opt into bypassing the guard for specific commands by registering them with `readonlyAllowed: true` (the same mechanism `interactiveCheckboxes` uses).
 
 ## Use Cases
 

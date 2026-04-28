@@ -11,7 +11,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
-import { isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
+import { isAllowedInReadonly, isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { EditorViewEvents } from './EditorViewEvents.js';
@@ -37,6 +37,12 @@ export interface EditorViewOptions {
 	onStateChange?: StateChangeCallback;
 	getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	isReadOnly?: () => boolean;
+	/**
+	 * Returns true while a `readonlyAllowed` command is mid-execution.
+	 * Allows command-driven mutations to bypass the readonly dispatch guard
+	 * even when the resulting transaction does not carry `metadata.readonlyAllowed`.
+	 */
+	isReadonlyBypassed?: () => boolean;
 	compositionState?: CompositionState;
 }
 
@@ -52,6 +58,7 @@ export class EditorView {
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
+	private readonly isReadonlyBypassed: () => boolean;
 	private readonly compositionState: CompositionState;
 	private readonly cursorWrapper: CursorWrapper;
 	private readonly navigation: EditorViewNavigation;
@@ -64,6 +71,7 @@ export class EditorView {
 		this.nodeViewRegistry = options.nodeViewRegistry;
 		this.getDecorations = options.getDecorations;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.isReadonlyBypassed = options.isReadonlyBypassed ?? (() => false);
 		this.compositionState = options.compositionState ?? {
 			isComposing: false,
 			activeBlockId: null,
@@ -156,6 +164,9 @@ export class EditorView {
 
 	/** Dispatches a transaction, updates state, reconciles DOM. */
 	dispatch(tr: Transaction): void {
+		if (this.isReadOnly() && !isAllowedInReadonly(tr) && !this.isReadonlyBypassed()) {
+			return;
+		}
 		const newState = this.state.apply(tr);
 		this.applyUpdate(newState, tr, { pushHistory: true });
 	}

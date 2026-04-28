@@ -24,7 +24,6 @@ import type {
 	SetContentHTMLOptions,
 } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
-import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { EditorView } from '../view/EditorView.js';
 import {
@@ -34,6 +33,7 @@ import {
 	isEditorEmpty,
 	setEditorContentHTML,
 	setEditorJSON,
+	setEditorText,
 } from './ContentSerializer.js';
 import { EditorConfigController } from './EditorConfigController.js';
 import type { EditorDOMElements } from './EditorDOM.js';
@@ -209,6 +209,20 @@ export class NotectlEditor extends HTMLElement {
 		return getEditorText(this.view.getState());
 	}
 
+	/**
+	 * Replaces the document content from plain text. Lines (`\n`) become
+	 * paragraphs. Existing top-level block IDs are reused in document order
+	 * so the caret survives `setText(getText())` round-trips. When the input
+	 * matches the current text exactly, this is a no-op.
+	 */
+	setText(value: string): void {
+		this.assertInitialized();
+		if (!this.view) return;
+		setEditorText(value, this.view.getState(), this.pluginManager?.schemaRegistry, (s) =>
+			this.replaceState(s),
+		);
+	}
+
 	/** Returns true if the editor is empty (single empty paragraph). */
 	isEmpty(): boolean {
 		if (!this.view) return true;
@@ -293,13 +307,6 @@ export class NotectlEditor extends HTMLElement {
 	/** Dispatches a transaction (routed through middleware if any). */
 	dispatch(tr: Transaction): void {
 		if (!this.view || !this.pluginManager) return;
-		if (
-			this.configController.isReadOnly &&
-			!isAllowedInReadonly(tr) &&
-			!this.pluginManager.isReadonlyBypassed()
-		) {
-			return;
-		}
 		this.pluginManager.dispatchWithMiddleware(tr, this.view.getState(), (finalTr) =>
 			this.view?.dispatch(finalTr),
 		);

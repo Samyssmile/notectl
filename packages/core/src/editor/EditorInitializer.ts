@@ -16,7 +16,6 @@ import type { Plugin } from '../plugins/Plugin.js';
 import { PluginManager } from '../plugins/PluginManager.js';
 import { BEFORE_PRINT } from '../plugins/print/PrintTypes.js';
 import { EditorState } from '../state/EditorState.js';
-import { isAllowedInReadonly } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { EditorView } from '../view/EditorView.js';
@@ -259,6 +258,7 @@ class EditorInitSession {
 				handleStateChange(oldState, newState, tr, dom, pm, this.deps.events);
 			},
 			isReadOnly: () => this.deps.configController.isReadOnly,
+			isReadonlyBypassed: () => pm.isReadonlyBypassed(),
 			compositionState: this.inputManager.compositionTracker,
 		});
 
@@ -292,13 +292,6 @@ class EditorInitSession {
 
 	private dispatch(tr: Transaction): void {
 		if (!this.view || !this.pluginManager) return;
-		if (
-			this.deps.configController.isReadOnly &&
-			!isAllowedInReadonly(tr) &&
-			!this.pluginManager.isReadonlyBypassed()
-		) {
-			return;
-		}
 		this.pluginManager.dispatchWithMiddleware(tr, this.view.getState(), (finalTr) =>
 			this.view?.dispatch(finalTr),
 		);

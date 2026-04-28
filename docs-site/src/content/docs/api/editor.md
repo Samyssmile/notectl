@@ -233,6 +233,10 @@ if (editor.isReadOnly) {
 
 Dispatches a transaction through the middleware chain.
 
+In read-only mode, mutating transactions are silently dropped at the view layer. Selection-only transactions and transactions flagged via `TransactionBuilder.readonlyAllowed()` (used by opt-in features like checklist toggling) still apply. This guard is centralized in the view, so plugin-side `NodeView` controls (e.g. table delete/add-row buttons, code-block delete) are inert in read-only mode without per-plugin code.
+
+Note: low-level state replacement APIs (`setJSON`, `setHTML`, `replaceState`) bypass `dispatch` and the read-only guard — they always succeed.
+
 ## Event API
 
 ### `on<K>(event: K, callback): void`

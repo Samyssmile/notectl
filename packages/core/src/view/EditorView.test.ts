@@ -586,4 +586,87 @@ describe('EditorView.applyUpdate()', () => {
 			document.body.removeChild(container);
 		});
 	});
+
+	describe('dispatch in readonly mode', () => {
+		function createReadonlyView(opts?: {
+			isReadOnly?: () => boolean;
+			isReadonlyBypassed?: () => boolean;
+		}) {
+			const container = document.createElement('div');
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hi')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const view = new EditorView(container, {
+				state,
+				isReadOnly: opts?.isReadOnly ?? (() => true),
+				isReadonlyBypassed: opts?.isReadonlyBypassed,
+			});
+			return { container, view };
+		}
+
+		function firstBlockText(view: EditorView): string {
+			const block = view.getState().doc.children[0];
+			if (!block) throw new Error('expected first block');
+			return getBlockText(block);
+		}
+
+		it('blocks mutating transactions when readonly', () => {
+			const { view } = createReadonlyView();
+			const before = view.getState();
+
+			const tr = makeInsertTransaction('b1', 2, 'X');
+			view.dispatch(tr);
+
+			expect(view.getState()).toBe(before);
+			expect(firstBlockText(view)).toBe('hi');
+			view.destroy();
+		});
+
+		it('allows selection-only transactions in readonly', () => {
+			const { view } = createReadonlyView();
+
+			const tr = new TransactionBuilder(view.getState().selection, null, 'command')
+				.setSelection(createCollapsedSelection('b1', 2))
+				.build();
+			view.dispatch(tr);
+
+			expect(view.getState().selection.anchor.offset).toBe(2);
+			view.destroy();
+		});
+
+		it('allows transactions flagged with readonlyAllowed metadata', () => {
+			const { view } = createReadonlyView();
+
+			const tr = new TransactionBuilder(view.getState().selection, null, 'command')
+				.insertText('b1', 2, 'X', [])
+				.setSelection(createCollapsedSelection('b1', 3))
+				.readonlyAllowed()
+				.build();
+			view.dispatch(tr);
+
+			expect(firstBlockText(view)).toBe('hiX');
+			view.destroy();
+		});
+
+		it('allows mutating transactions while isReadonlyBypassed returns true', () => {
+			let bypass = false;
+			const { view } = createReadonlyView({ isReadonlyBypassed: () => bypass });
+
+			bypass = true;
+			view.dispatch(makeInsertTransaction('b1', 2, 'Y'));
+
+			expect(firstBlockText(view)).toBe('hiY');
+			view.destroy();
+		});
+
+		it('does not affect non-readonly editors', () => {
+			const { view } = createReadonlyView({ isReadOnly: () => false });
+			view.dispatch(makeInsertTransaction('b1', 2, 'Z'));
+
+			expect(firstBlockText(view)).toBe('hiZ');
+			view.destroy();
+		});
+	});
 });
