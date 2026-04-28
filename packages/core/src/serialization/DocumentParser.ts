@@ -15,41 +15,9 @@ import {
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import {
-	type BlockId,
-	type InlineTypeName,
-	blockId,
-	inlineType,
-	markType,
-	nodeType,
-} from '../model/TypeBrands.js';
+import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
-
-/**
- * Conservative pattern for adopting block IDs from HTML. Mirrors
- * `DocumentSerializer.SAFE_BLOCK_ID` — must stay in sync. Values that don't
- * match are ignored, and a fresh ID is generated instead.
- */
-const SAFE_BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
-
-/**
- * Adopts the `data-block-id` attribute from a parsed element so that block
- * identity round-trips through `getContentHTML` → `setContentHTML`. Returns
- * `undefined` (caller generates a fresh ID) when:
- *   - the attribute is missing (e.g. user-pasted external HTML),
- *   - the value is malformed (defense-in-depth — IDs only flow in-memory but
- *     we keep them well-formed),
- *   - or the value collides with an already-adopted ID in this parse pass
- *     (e.g. concatenated HTML from two documents).
- */
-function adoptBlockId(el: Element, used: Set<string>): BlockId | undefined {
-	const raw: string | null = el.getAttribute('data-block-id');
-	if (!raw) return undefined;
-	if (!SAFE_BLOCK_ID.test(raw)) return undefined;
-	if (used.has(raw)) return undefined;
-	used.add(raw);
-	return blockId(raw);
-}
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
