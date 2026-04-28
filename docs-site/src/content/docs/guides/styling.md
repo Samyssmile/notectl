@@ -225,6 +225,8 @@ where the toolbar stays pinned at the top, the bottom plugin container stays
 pinned at the bottom, and the content area scrolls internally, you have two
 options.
 
+![Editor with a fixed external height — toolbar pinned at the top while the content scrolls internally](../../../assets/screenshots/editor-fixed-size.png)
+
 ### Option 1 — set a height on the host
 
 Give the `<notectl-editor>` element a height; the toolbar/content/footer

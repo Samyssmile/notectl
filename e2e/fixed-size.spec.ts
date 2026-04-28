@@ -110,8 +110,8 @@ test.describe('Fixed-size editor with internal scrolling', () => {
 				clientHeight: content.clientHeight,
 				scrollHeight: content.scrollHeight,
 				maxHeight: padding.maxHeight,
-				paddingTop: parseFloat(padding.paddingTop),
-				paddingBottom: parseFloat(padding.paddingBottom),
+				paddingTop: Number.parseFloat(padding.paddingTop),
+				paddingBottom: Number.parseFloat(padding.paddingBottom),
 			};
 		});
 

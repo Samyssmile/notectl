@@ -182,6 +182,24 @@ async function setMinHeight(page: Page, px: string): Promise<void> {
 	}, px);
 }
 
+async function setFixedHostHeight(page: Page, px: string): Promise<void> {
+	await page.evaluate((h) => {
+		const el: HTMLElement | null = document.querySelector('notectl-editor');
+		if (!el) return;
+		el.style.height = h;
+		el.style.display = 'block';
+		el.style.setProperty('--notectl-content-min-height', '0px');
+	}, px);
+}
+
+async function scrollContent(page: Page, px: number): Promise<void> {
+	await page.evaluate((y) => {
+		const el = document.querySelector('notectl-editor') as HTMLElement | null;
+		const content = el?.shadowRoot?.querySelector('.notectl-content') as HTMLElement | null;
+		if (content) content.scrollTop = y;
+	}, px);
+}
+
 async function shot(page: Page, name: string): Promise<void> {
 	const editor = page.locator('notectl-editor');
 	await editor.screenshot({ path: `${DIR}/${name}` });
@@ -742,6 +760,17 @@ test.describe('Documentation screenshots', () => {
 		await setPaperSize(page, null);
 		await setEditorJSON(page, RICH_CONTENT);
 		await shot(page, 'editor-fluid.png');
+	});
+
+	test('editor-fixed-size', async ({ page }) => {
+		await setPaperSize(page, null);
+		await setEditorJSON(page, RICH_CONTENT);
+		await setFixedHostHeight(page, '360px');
+		// Scroll a bit so the scrollbar thumb is mid-track and the
+		// pinned toolbar is unambiguously above the scrolled content.
+		await scrollContent(page, 140);
+		await page.waitForTimeout(200);
+		await shot(page, 'editor-fixed-size.png');
 	});
 
 	// ── Toolbar ──────────────────────────────────────
