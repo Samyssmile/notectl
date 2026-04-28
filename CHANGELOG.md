@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.10] - 2026-04-28
+
+### Added
+
+- **`NotectlEditor.setText(value)`** — Replaces editor content from plain text, splitting on `\n` into paragraphs. Existing top-level block IDs are reused in document order so the caret survives `setText(getText())` round-trips. No-op when `value` equals the current text — selection and history stay untouched.
+- **Fixed-size editor with internal scrolling (#107)** — `<notectl-editor>` can now be pinned to a fixed external size while the content area scrolls internally and the toolbar/footer stay pinned. Two opt-in patterns: a `height` on the host (`notectl-editor { height: 500px }`) or the new `--notectl-content-max-height` CSS custom property.
+- **`data-block-id` in the HTML wire format** — `getContentHTML` now emits a `data-block-id` attribute on every block; `setContentHTML` adopts it (with safe-pattern + per-document uniqueness checks). External HTML without the attribute still receives fresh IDs, so paste behaviour is unchanged. See [Round-Trip Identity](https://samyssmile.github.io/notectl/guides/content/#round-trip-identity).
+
+### Changed
+
+### Fixed
+
+- **Signal-form cursor reset on `html` and `text` content formats (#103)** — Extends the 2.0.9 fix to `contentFormat: 'html'` and `'text'`. The caret no longer jumps to the start of the document when an Angular signal form (or any external owner) writes the same content back on every keystroke.
+- **Readonly mode now applies to all NodeView interactions (#105)** — Tables, code blocks, and the language picker are no longer mutable via their nested click handlers when `readonlyMode` is true. The guard is enforced centrally in `EditorView.dispatch` instead of relying on individual handlers.
+
 ## [2.0.9] - 2026-04-17
 
 ### Added
