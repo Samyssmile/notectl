@@ -1,5 +1,10 @@
 import { expect, test } from './fixtures/editor-page';
-import { hasTableBlock } from './fixtures/table-utils';
+import {
+	getTableColCount,
+	getTableRowCount,
+	hasTableBlock,
+	insertTable,
+} from './fixtures/table-utils';
 
 test.describe('Readonly Mode', () => {
 	test.beforeEach(async ({ editor }) => {
@@ -211,6 +216,73 @@ test.describe('Readonly Mode', () => {
 
 		const textAfter: string = await editor.getText();
 		expect(textAfter.trim()).toBe(textBefore.trim());
+	});
+
+	test('table delete button does not remove table in readonly mode', async ({ editor, page }) => {
+		await insertTable(page);
+		expect(await hasTableBlock(page)).toBe(true);
+
+		await editor.configure({ readonly: true });
+
+		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
+		await tableContainer.hover();
+		const deleteBtn = page.locator('notectl-editor .ntbl-delete-table-btn').first();
+		await deleteBtn.click({ force: true });
+
+		expect(await hasTableBlock(page)).toBe(true);
+	});
+
+	test('table add-row button does not add a row in readonly mode', async ({ editor, page }) => {
+		await insertTable(page);
+		const rowsBefore: number = await getTableRowCount(page);
+
+		await editor.configure({ readonly: true });
+
+		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
+		await tableContainer.hover();
+		const addRowBtn = page.locator('notectl-editor .ntbl-add-row').first();
+		await addRowBtn.click({ force: true });
+
+		expect(await getTableRowCount(page)).toBe(rowsBefore);
+	});
+
+	test('table add-column button does not add a column in readonly mode', async ({
+		editor,
+		page,
+	}) => {
+		await insertTable(page);
+		const colsBefore: number = await getTableColCount(page);
+
+		await editor.configure({ readonly: true });
+
+		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
+		await tableContainer.hover();
+		const addColBtn = page.locator('notectl-editor .ntbl-add-col').first();
+		await addColBtn.click({ force: true });
+
+		expect(await getTableColCount(page)).toBe(colsBefore);
+	});
+
+	test('code block delete button does not remove block in readonly mode', async ({
+		editor,
+		page,
+	}) => {
+		await editor.typeText('console.log');
+		await page.evaluate(() => {
+			type EditorEl = HTMLElement & { executeCommand(name: string): boolean };
+			const el = document.querySelector('notectl-editor') as EditorEl | null;
+			el?.executeCommand('toggleCodeBlock');
+		});
+
+		const codeBlockBefore = page.locator('notectl-editor .notectl-code-block');
+		await expect(codeBlockBefore).toHaveCount(1);
+
+		await editor.configure({ readonly: true });
+
+		const deleteBtn = page.locator('notectl-editor .notectl-code-block__delete').first();
+		await deleteBtn.click({ force: true });
+
+		await expect(page.locator('notectl-editor .notectl-code-block')).toHaveCount(1);
 	});
 
 	test('editing resumes after disabling readonly', async ({ editor, page }) => {
