@@ -165,6 +165,30 @@ const doc = createDocument([
 editor.setJSON(doc);
 ```
 
+### From Plain Text
+
+Use `setText()` for a fast, lossless plain-text replacement. Each `\n` becomes a paragraph:
+
+```ts
+editor.setText('First paragraph\nSecond paragraph');
+```
+
+`setText` is preferable to `setContentHTML('<p>...</p>')` for plain-text input — it avoids HTML parsing and preserves block identity (see below).
+
+## Round-Trip Identity
+
+When an external owner (e.g. a form binding) reads the editor content and writes it back unchanged on every keystroke, the caret must not move. notectl guarantees this by ensuring **block identity** survives every `(getX, setX)` pair:
+
+| Pair | Identity carrier |
+|---|---|
+| `getJSON` / `setJSON` | block IDs are part of the JSON shape |
+| `getContentHTML` / `setContentHTML` | `data-block-id` attribute on every block element |
+| `getText` / `setText` | `setText` reuses existing top-level block IDs in document order |
+
+Externally pasted HTML without `data-block-id` continues to receive fresh IDs, so external content imports behave as before. For `setText`, IDs are reused **by position**, not by content match — this is by design (the cursor stays on the same line index when text is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` calls.
+
+This contract enables Angular signal forms, RxJS-driven sync pipelines, and any external state owner to round-trip content on every input event without disturbing the user's cursor. See `ARCHITECTURE.md` §9.1 for the full contract.
+
 ## Checking Empty State
 
 ```ts

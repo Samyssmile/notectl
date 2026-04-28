@@ -204,6 +204,8 @@ provideNotectl({
 | `'html'` | `string` | Sanitized HTML |
 | `'text'` | `string` | Plain text |
 
+All three formats are **cursor-stable** with reactive forms (including signal forms): when Angular writes the same value back to the editor on every keystroke — as `[(ngModel)]`, `formControl`, and signal forms all do — the caret stays in place. This is enforced by the [round-trip identity contract](/notectl/guides/content/#round-trip-identity) of the underlying core API.
+
 ## Theming
 
 Switch themes at runtime using a signal:
