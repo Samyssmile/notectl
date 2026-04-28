@@ -331,6 +331,28 @@ The bundle system is based on modular entry points + subpath exports.
 - For `toHTML()` on style-based nodes, use `ctx.styleAttr(...)` so `cssMode: 'classes'` works correctly.
 - Every new HTML structure must extend `sanitize.tags` and optionally `sanitize.attrs`, otherwise round-trip fidelity is lost.
 
+### 9.1 Content Round-Trip Identity Contract
+
+For every public format pair `(getX, setX)` in `NotectlEditor`, the round-trip
+`setX(getX(state))` must preserve **block identity** — i.e. the `BlockId`s in
+the resulting document match those of `state` for blocks whose textual content
+is unchanged. This is what allows the caret-preserving `EditorView.replaceState()`
+to keep the cursor on the right block when an external owner (Angular signal
+form, RxJS pipe, …) round-trips the content on every keystroke (#103).
+
+| Pair | Identity carrier |
+|---|---|
+| `getJSON` / `setJSON` | block IDs are part of the JSON shape |
+| `getContentHTML` / `setContentHTML` | `data-block-id` attribute, emitted centrally by the serializer and adopted by the parser with format validation + uniqueness |
+| `getText` / `setText` | `setText` reuses existing top-level block IDs in document order; new lines beyond the existing block count get fresh IDs |
+
+Identity is best-effort, not guaranteed: when block content changes the block
+may legitimately end up with a different `BlockId`. Identity matters only for
+the no-op or content-equivalent case, which is the common case for form sync.
+
+When adding a new (`getX`, `setX`) pair, document and uphold the same contract,
+otherwise the caret will reset on round-trip.
+
 ## 10. Angular Integration Rules (`packages/angular`)
 
 - The Angular package is an adapter layer, not a second editor engine.

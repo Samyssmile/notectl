@@ -375,7 +375,7 @@ describe('ClipboardHandler copy with void blocks', () => {
 		expect(event.defaultPrevented).toBe(true);
 		const html: string = event.data.get('text/html') ?? '';
 		// HTML should contain the image figure, not just empty <p> tags
-		expect(html).toContain('<figure>');
+		expect(html).toContain('<figure');
 		expect(html).toContain('<img');
 		expect(html).toContain('https://example.com/photo.png');
 	});

@@ -21,6 +21,7 @@ function createEditorApi() {
 		getText: vi.fn(() => 'Hello'),
 		setContentHTML: vi.fn(async () => undefined),
 		setJSON: vi.fn(() => undefined),
+		setText: vi.fn(() => undefined),
 	};
 }
 
@@ -65,13 +66,20 @@ describe('value-interop', () => {
 		expect(editor.setContentHTML).not.toHaveBeenCalled();
 	});
 
-	it('escapes plain-text values before inserting HTML', async () => {
+	it('writes plain-text values via setText to preserve block identity across round-trips', async () => {
 		const editor = createEditorApi();
 
 		await writeEditorValue(editor, 'text', '<script>alert(1)</script>');
 
-		expect(editor.setContentHTML).toHaveBeenCalledWith(
-			'<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>',
-		);
+		expect(editor.setText).toHaveBeenCalledWith('<script>alert(1)</script>');
+		expect(editor.setContentHTML).not.toHaveBeenCalled();
+	});
+
+	it('preserves multiline text without collapsing into a single paragraph', async () => {
+		const editor = createEditorApi();
+
+		await writeEditorValue(editor, 'text', 'first\nsecond');
+
+		expect(editor.setText).toHaveBeenCalledWith('first\nsecond');
 	});
 });

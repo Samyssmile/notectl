@@ -15,8 +15,41 @@ import {
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import {
+	type BlockId,
+	type InlineTypeName,
+	blockId,
+	inlineType,
+	markType,
+	nodeType,
+} from '../model/TypeBrands.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
+
+/**
+ * Conservative pattern for adopting block IDs from HTML. Mirrors
+ * `DocumentSerializer.SAFE_BLOCK_ID` — must stay in sync. Values that don't
+ * match are ignored, and a fresh ID is generated instead.
+ */
+const SAFE_BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Adopts the `data-block-id` attribute from a parsed element so that block
+ * identity round-trips through `getContentHTML` → `setContentHTML`. Returns
+ * `undefined` (caller generates a fresh ID) when:
+ *   - the attribute is missing (e.g. user-pasted external HTML),
+ *   - the value is malformed (defense-in-depth — IDs only flow in-memory but
+ *     we keep them well-formed),
+ *   - or the value collides with an already-adopted ID in this parse pass
+ *     (e.g. concatenated HTML from two documents).
+ */
+function adoptBlockId(el: Element, used: Set<string>): BlockId | undefined {
+	const raw: string | null = el.getAttribute('data-block-id');
+	if (!raw) return undefined;
+	if (!SAFE_BLOCK_ID.test(raw)) return undefined;
+	if (used.has(raw)) return undefined;
+	used.add(raw);
+	return blockId(raw);
+}
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
@@ -35,6 +68,12 @@ export function parseHTMLToDocument(
 ): Document {
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
+
+	// `data-block-id` carries block identity across `setContentHTML(getContentHTML())`.
+	// Whitelist it through DOMPurify so the adoption logic below sees it.
+	if (!allowedAttrs.includes('data-block-id')) {
+		allowedAttrs.push('data-block-id');
+	}
 
 	// When a styleMap is provided, also allow `class` through DOMPurify
 	// so we can read class names and rehydrate styles before parsing.
@@ -57,9 +96,10 @@ export function parseHTMLToDocument(
 
 	const blockRules = registry?.getBlockParseRules() ?? [];
 	const blocks: BlockNode[] = [];
+	const adoptedIds = new Set<string>();
 
 	for (const child of Array.from(root.childNodes)) {
-		parseChildNode(child, blocks, blockRules, registry);
+		parseChildNode(child, blocks, blockRules, adoptedIds, registry);
 	}
 
 	if (blocks.length === 0) return createDocument();
@@ -75,6 +115,7 @@ function parseChildNode(
 	child: ChildNode,
 	blocks: BlockNode[],
 	blockRules: readonly { readonly rule: ParseRule; readonly type: string }[],
+	adoptedIds: Set<string>,
 	registry?: SchemaRegistry,
 ): void {
 	if (child.nodeType === Node.ELEMENT_NODE) {
@@ -87,13 +128,13 @@ function parseChildNode(
 			const listDir: string | null = el.getAttribute('dir');
 			const parentDir: string | undefined =
 				listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
-			parseListElement(el, listType, 0, blocks, registry, parentDir);
+			parseListElement(el, listType, 0, blocks, adoptedIds, registry, parentDir);
 			return;
 		}
 
 		// Tables produce nested block structure: table > table_row > table_cell > paragraph
 		if (tag === 'table') {
-			parseTableElement(el, blocks, registry);
+			parseTableElement(el, blocks, adoptedIds, registry);
 			return;
 		}
 
@@ -117,7 +158,7 @@ function parseChildNode(
 				createBlockNode(
 					nodeType(match.type),
 					children,
-					undefined,
+					adoptBlockId(el, adoptedIds),
 					Object.keys(attrs).length > 0 ? attrs : undefined,
 				),
 			);
@@ -133,7 +174,7 @@ function parseChildNode(
 			createBlockNode(
 				nodeType('paragraph'),
 				inlineContent,
-				undefined,
+				adoptBlockId(el, adoptedIds),
 				Object.keys(attrs).length > 0 ? attrs : undefined,
 			),
 		);
@@ -151,6 +192,7 @@ function parseListElement(
 	listType: string,
 	depth: number,
 	blocks: BlockNode[],
+	adoptedIds: Set<string>,
 	registry?: SchemaRegistry,
 	parentDir?: string,
 ): void {
@@ -182,7 +224,9 @@ function parseListElement(
 				attrs.dir = effectiveDir;
 			}
 
-			blocks.push(createBlockNode(nodeType('list_item'), inlineContent, undefined, attrs));
+			blocks.push(
+				createBlockNode(nodeType('list_item'), inlineContent, adoptBlockId(li, adoptedIds), attrs),
+			);
 
 			// Check for nested lists inside this <li>
 			for (const liChild of Array.from(li.children)) {
@@ -192,7 +236,15 @@ function parseListElement(
 					const nestedDir: string | null = liChild.getAttribute('dir');
 					const nestedEffectiveDir: string | undefined =
 						nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : effectiveDir;
-					parseListElement(liChild, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
+					parseListElement(
+						liChild,
+						nestedType,
+						depth + 1,
+						blocks,
+						adoptedIds,
+						registry,
+						nestedEffectiveDir,
+					);
 				}
 			}
 		} else if (tag === 'ul' || tag === 'ol') {
@@ -201,7 +253,15 @@ function parseListElement(
 			const nestedDir: string | null = child.getAttribute('dir');
 			const nestedEffectiveDir: string | undefined =
 				nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : parentDir;
-			parseListElement(child, nestedType, depth + 1, blocks, registry, nestedEffectiveDir);
+			parseListElement(
+				child,
+				nestedType,
+				depth + 1,
+				blocks,
+				adoptedIds,
+				registry,
+				nestedEffectiveDir,
+			);
 		}
 	}
 }
@@ -211,7 +271,12 @@ function parseListElement(
  * table > table_row > table_cell > paragraph.
  * Handles `<thead>`, `<tbody>`, `<tfoot>` transparently.
  */
-function parseTableElement(tableEl: Element, blocks: BlockNode[], registry?: SchemaRegistry): void {
+function parseTableElement(
+	tableEl: Element,
+	blocks: BlockNode[],
+	adoptedIds: Set<string>,
+	registry?: SchemaRegistry,
+): void {
 	const rows: BlockNode[] = [];
 
 	// Collect <tr> elements, handling <thead>/<tbody>/<tfoot> wrappers
@@ -225,20 +290,20 @@ function parseTableElement(tableEl: Element, blocks: BlockNode[], registry?: Sch
 			if (cellTag !== 'td' && cellTag !== 'th') continue;
 
 			const cellEl: HTMLElement = cellChild as HTMLElement;
-			const cellContent: BlockNode[] = parseTableCellContent(cellEl, registry);
+			const cellContent: BlockNode[] = parseTableCellContent(cellEl, adoptedIds, registry);
 			const cellAttrs: Record<string, string | number | boolean> = {};
 			extractCellSpanAttrs(cellEl, cellAttrs);
 			const cellBlock: BlockNode = createBlockNode(
 				nodeType('table_cell'),
 				cellContent,
-				undefined,
+				adoptBlockId(cellEl, adoptedIds),
 				Object.keys(cellAttrs).length > 0 ? cellAttrs : undefined,
 			);
 			cells.push(cellBlock);
 		}
 
 		if (cells.length > 0) {
-			rows.push(createBlockNode(nodeType('table_row'), cells));
+			rows.push(createBlockNode(nodeType('table_row'), cells, adoptBlockId(trEl, adoptedIds)));
 		}
 	}
 
@@ -249,7 +314,7 @@ function parseTableElement(tableEl: Element, blocks: BlockNode[], registry?: Sch
 			createBlockNode(
 				nodeType('table'),
 				rows,
-				undefined,
+				adoptBlockId(tableEl, adoptedIds),
 				Object.keys(tableAttrs).length > 0 ? tableAttrs : undefined,
 			),
 		);
@@ -306,12 +371,16 @@ function extractCellSpanAttrs(
 }
 
 /** Parses a table cell's content into blocks, supporting all block types (lists, quotes, etc.). */
-function parseTableCellContent(cellEl: HTMLElement, registry?: SchemaRegistry): BlockNode[] {
+function parseTableCellContent(
+	cellEl: HTMLElement,
+	adoptedIds: Set<string>,
+	registry?: SchemaRegistry,
+): BlockNode[] {
 	const blockRules = registry?.getBlockParseRules() ?? [];
 	const cellBlocks: BlockNode[] = [];
 
 	for (const child of Array.from(cellEl.childNodes)) {
-		parseChildNode(child, cellBlocks, blockRules, registry);
+		parseChildNode(child, cellBlocks, blockRules, adoptedIds, registry);
 	}
 
 	// No blocks produced: treat entire cell content as one paragraph

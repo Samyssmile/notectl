@@ -14,6 +14,16 @@ import { isValidCSSColor } from '../plugins/shared/ColorValidation.js';
 import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 
 /**
+ * Removes `data-block-id` attributes so structural assertions can compare HTML
+ * without coupling to auto-generated UUIDs. Use this for tests that focus on
+ * tags/attributes/content rather than block identity. Identity-specific tests
+ * assert on the unmodified output.
+ */
+function stripBlockIds(html: string): string {
+	return html.replace(/ data-block-id="[^"]*"/g, '');
+}
+
+/**
  * Creates a minimal SchemaRegistry stub that provides toHTML + sanitize
  * for table, table_row, and table_cell node specs.
  */
@@ -43,26 +53,26 @@ describe('serializeDocumentToHTML', () => {
 		]);
 
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toContain('<p>hello</p>');
-		expect(html).toContain('<p>world</p>');
+		expect(stripBlockIds(html)).toContain('<p>hello</p>');
+		expect(stripBlockIds(html)).toContain('<p>world</p>');
 	});
 
 	it('returns empty paragraph for default document', () => {
 		const doc = createDocument();
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p><br></p>');
+		expect(stripBlockIds(html)).toBe('<p><br></p>');
 	});
 
 	// Coverage for serializeBlock (via public API)
 
 	it('wraps in <p> by default', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('hello')])]);
-		expect(serializeDocumentToHTML(doc)).toBe('<p>hello</p>');
+		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p>hello</p>');
 	});
 
 	it('uses <br> for empty content', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('')])]);
-		expect(serializeDocumentToHTML(doc)).toBe('<p><br></p>');
+		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p><br></p>');
 	});
 
 	// Coverage for serializeInlineContent (via public API)
@@ -71,14 +81,14 @@ describe('serializeDocumentToHTML', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('hello '), createTextNode('world')]),
 		]);
-		expect(serializeDocumentToHTML(doc)).toBe('<p>hello world</p>');
+		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p>hello world</p>');
 	});
 
 	// Coverage for serializeTextNode (via public API)
 
 	it('returns empty string for empty text', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('')])]);
-		expect(serializeDocumentToHTML(doc)).toBe('<p><br></p>');
+		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p><br></p>');
 	});
 
 	it('escapes HTML entities', () => {
@@ -86,12 +96,12 @@ describe('serializeDocumentToHTML', () => {
 			createBlockNode(nodeType('paragraph'), [createTextNode('<b>bold</b>')]),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toContain('&lt;b&gt;bold&lt;/b&gt;');
+		expect(stripBlockIds(html)).toContain('&lt;b&gt;bold&lt;/b&gt;');
 	});
 
 	it('returns plain text when no marks', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('hello')])]);
-		expect(serializeDocumentToHTML(doc)).toBe('<p>hello</p>');
+		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p>hello</p>');
 	});
 
 	// Coverage for alignment validation in serializeBlock
@@ -103,7 +113,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p style="text-align: center">hello</p>');
+		expect(stripBlockIds(html)).toBe('<p style="text-align: center">hello</p>');
 	});
 
 	it('injects text-align style for end alignment', () => {
@@ -113,7 +123,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p style="text-align: end">hello</p>');
+		expect(stripBlockIds(html)).toBe('<p style="text-align: end">hello</p>');
 	});
 
 	it('injects text-align style for justify alignment', () => {
@@ -123,7 +133,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p style="text-align: justify">hello</p>');
+		expect(stripBlockIds(html)).toBe('<p style="text-align: justify">hello</p>');
 	});
 
 	it('does not inject style for start alignment (default)', () => {
@@ -133,7 +143,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p>hello</p>');
+		expect(stripBlockIds(html)).toBe('<p>hello</p>');
 	});
 
 	it('normalizes legacy align: right to end', () => {
@@ -143,7 +153,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p style="text-align: end">hello</p>');
+		expect(stripBlockIds(html)).toBe('<p style="text-align: end">hello</p>');
 	});
 
 	it('normalizes legacy align: left to start (no style injected)', () => {
@@ -153,7 +163,7 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).toBe('<p>hello</p>');
+		expect(stripBlockIds(html)).toBe('<p>hello</p>');
 	});
 
 	it('ignores invalid alignment values', () => {
@@ -163,9 +173,9 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).not.toContain('script');
-		expect(html).not.toContain('text-align');
-		expect(html).toBe('<p>hello</p>');
+		expect(stripBlockIds(html)).not.toContain('script');
+		expect(stripBlockIds(html)).not.toContain('text-align');
+		expect(stripBlockIds(html)).toBe('<p>hello</p>');
 	});
 
 	it('ignores unknown alignment values', () => {
@@ -175,8 +185,8 @@ describe('serializeDocumentToHTML', () => {
 			}),
 		]);
 		const html: string = serializeDocumentToHTML(doc);
-		expect(html).not.toContain('text-align');
-		expect(html).toBe('<p>hello</p>');
+		expect(stripBlockIds(html)).not.toContain('text-align');
+		expect(stripBlockIds(html)).toBe('<p>hello</p>');
 	});
 
 	it('produces well-formed attributes for all valid alignment values', () => {
@@ -185,8 +195,8 @@ describe('serializeDocumentToHTML', () => {
 				createBlockNode(nodeType('paragraph'), [createTextNode('x')], undefined, { align }),
 			]);
 			const html: string = serializeDocumentToHTML(doc);
-			expect(html).toMatch(new RegExp(`style="text-align: ${align}"`));
-			expect(html).not.toContain('><');
+			expect(stripBlockIds(html)).toMatch(new RegExp(`style="text-align: ${align}"`));
+			expect(stripBlockIds(html)).not.toContain('><');
 		}
 	});
 
@@ -268,7 +278,7 @@ describe('serializeDocumentToHTML', () => {
 
 		const html: string = serializeDocumentToHTML(doc, registry);
 		// DOMPurify auto-inserts <tbody> per the HTML spec
-		expect(html).toBe(
+		expect(stripBlockIds(html)).toBe(
 			'<table><tbody><tr><td><p>AB</p></td><td><p>CD</p></td></tr></tbody></table>',
 		);
 	});
@@ -287,7 +297,7 @@ describe('serializeDocumentToHTML', () => {
 		]);
 
 		const html: string = serializeDocumentToHTML(doc, registry);
-		expect(html).toBe(
+		expect(stripBlockIds(html)).toBe(
 			'<p>Before</p><table><tbody><tr><td><p>X</p></td></tr></tbody></table><p>After</p>',
 		);
 	});
@@ -303,7 +313,7 @@ describe('serializeDocumentToHTML', () => {
 		]);
 
 		const html: string = serializeDocumentToHTML(doc, registry);
-		expect(html).toBe('<table><tbody><tr><td><p><br></p></td></tr></tbody></table>');
+		expect(stripBlockIds(html)).toBe('<table><tbody><tr><td><p><br></p></td></tr></tbody></table>');
 	});
 
 	// --- Color mark serialization (defense-in-depth validation) ---
@@ -364,8 +374,8 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('style="color: #ff0000"');
-			expect(html).toContain('hello');
+			expect(stripBlockIds(html)).toContain('style="color: #ff0000"');
+			expect(stripBlockIds(html)).toContain('hello');
 		});
 
 		it('serializes valid highlight color', () => {
@@ -377,8 +387,8 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('style="background-color: #fff176"');
-			expect(html).toContain('hello');
+			expect(stripBlockIds(html)).toContain('style="background-color: #fff176"');
+			expect(stripBlockIds(html)).toContain('hello');
 		});
 
 		it('strips text color span for invalid color value', () => {
@@ -395,9 +405,9 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).not.toContain('url(evil)');
-			expect(html).not.toContain('style');
-			expect(html).toContain('hello');
+			expect(stripBlockIds(html)).not.toContain('url(evil)');
+			expect(stripBlockIds(html)).not.toContain('style');
+			expect(stripBlockIds(html)).toContain('hello');
 		});
 
 		it('strips highlight span for invalid color value', () => {
@@ -414,9 +424,9 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).not.toContain('expression');
-			expect(html).not.toContain('style');
-			expect(html).toContain('hello');
+			expect(stripBlockIds(html)).not.toContain('expression');
+			expect(stripBlockIds(html)).not.toContain('style');
+			expect(stripBlockIds(html)).toContain('hello');
 		});
 
 		it('serializes rgb() color from paste', () => {
@@ -430,7 +440,7 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('color: rgb(255, 0, 0)');
+			expect(stripBlockIds(html)).toContain('color: rgb(255, 0, 0)');
 		});
 	});
 
@@ -480,7 +490,7 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<p><strong>Hello World</strong></p>');
+			expect(stripBlockIds(html)).toBe('<p><strong>Hello World</strong></p>');
 		});
 
 		it('does not merge TextNodes with different marks', () => {
@@ -493,7 +503,7 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<p><strong>Hello </strong><em>World</em></p>');
+			expect(stripBlockIds(html)).toBe('<p><strong>Hello </strong><em>World</em></p>');
 		});
 
 		it('InlineNode between same-mark TextNodes prevents merging', () => {
@@ -518,7 +528,7 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, regWithInline);
-			expect(html).toBe('<p><strong>A</strong><br><strong>B</strong></p>');
+			expect(stripBlockIds(html)).toBe('<p><strong>A</strong><br><strong>B</strong></p>');
 		});
 	});
 
@@ -584,9 +594,9 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('style="background-color: yellow; color: red"');
+			expect(stripBlockIds(html)).toContain('style="background-color: yellow; color: red"');
 			// Should be a single span, not nested
-			expect(html).not.toMatch(/<span[^>]*><span/);
+			expect(stripBlockIds(html)).not.toMatch(/<span[^>]*><span/);
 		});
 
 		it('wraps tag-based marks outside the merged style span', () => {
@@ -602,7 +612,9 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 			// Bold should wrap the style span
-			expect(html).toBe('<p><strong><span style="color: red">hello</span></strong></p>');
+			expect(stripBlockIds(html)).toBe(
+				'<p><strong><span style="color: red">hello</span></strong></p>',
+			);
 		});
 	});
 
@@ -702,13 +714,13 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('<table');
-			expect(html).toContain('border-collapse: collapse');
-			expect(html).toContain('<tr>');
-			expect(html).toContain('<td');
-			expect(html).toContain('border: 1px solid');
-			expect(html).toContain('padding: 8px 12px');
-			expect(html).toContain('AB');
+			expect(stripBlockIds(html)).toContain('<table');
+			expect(stripBlockIds(html)).toContain('border-collapse: collapse');
+			expect(stripBlockIds(html)).toContain('<tr>');
+			expect(stripBlockIds(html)).toContain('<td');
+			expect(stripBlockIds(html)).toContain('border: 1px solid');
+			expect(stripBlockIds(html)).toContain('padding: 8px 12px');
+			expect(stripBlockIds(html)).toContain('AB');
 		});
 
 		it('includes width and vertical-align styles', () => {
@@ -717,12 +729,12 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('border-collapse: collapse');
-			expect(html).toContain('width: 100%');
-			expect(html).toContain('border: 1px solid');
-			expect(html).toContain('padding: 8px 12px');
-			expect(html).toContain('vertical-align: top');
-			expect(html).toContain('Cell content');
+			expect(stripBlockIds(html)).toContain('border-collapse: collapse');
+			expect(stripBlockIds(html)).toContain('width: 100%');
+			expect(stripBlockIds(html)).toContain('border: 1px solid');
+			expect(stripBlockIds(html)).toContain('padding: 8px 12px');
+			expect(stripBlockIds(html)).toContain('vertical-align: top');
+			expect(stripBlockIds(html)).toContain('Cell content');
 		});
 
 		it('preserves text before and after a table', () => {
@@ -734,8 +746,8 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('Before table');
-			expect(html).toContain('<table');
+			expect(stripBlockIds(html)).toContain('Before table');
+			expect(stripBlockIds(html)).toContain('<table');
 		});
 
 		it('reflects custom border color via --ntbl-bc custom property', () => {
@@ -744,8 +756,8 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('--ntbl-bc: #e69138');
-			expect(html).toContain('var(--ntbl-bc');
+			expect(stripBlockIds(html)).toContain('--ntbl-bc: #e69138');
+			expect(stripBlockIds(html)).toContain('var(--ntbl-bc');
 		});
 
 		it('renders borderless table with transparent borders', () => {
@@ -754,7 +766,7 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('--ntbl-bc: transparent');
+			expect(stripBlockIds(html)).toContain('--ntbl-bc: transparent');
 		});
 
 		it('ignores invalid border color values', () => {
@@ -765,10 +777,10 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).not.toContain('url(evil)');
+			expect(stripBlockIds(html)).not.toContain('url(evil)');
 			// Table element must NOT set --ntbl-bc for invalid colors
-			expect(html).not.toContain('--ntbl-bc:');
-			expect(html).toContain('border-collapse: collapse');
+			expect(stripBlockIds(html)).not.toContain('--ntbl-bc:');
+			expect(stripBlockIds(html)).toContain('border-collapse: collapse');
 		});
 
 		it('uses default border color fallback in cell CSS var', () => {
@@ -777,7 +789,7 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 
-			expect(html).toContain('var(--ntbl-bc, #d0d0d0)');
+			expect(stripBlockIds(html)).toContain('var(--ntbl-bc, #d0d0d0)');
 		});
 	});
 
@@ -837,7 +849,7 @@ describe('serializeDocumentToHTML', () => {
 			const doc = createDocument([listItem('A', 'bullet', 0), listItem('B', 'bullet', 0)]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<ul><li>A</li><li>B</li></ul>');
+			expect(stripBlockIds(html)).toBe('<ul><li>A</li><li>B</li></ul>');
 		});
 
 		it('serializes nested list (indent 0→1) with valid HTML5 nesting', () => {
@@ -845,7 +857,7 @@ describe('serializeDocumentToHTML', () => {
 			const doc = createDocument([listItem('A', 'bullet', 0), listItem('B', 'bullet', 1)]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<ul><li>A<ul><li>B</li></ul></li></ul>');
+			expect(stripBlockIds(html)).toBe('<ul><li>A<ul><li>B</li></ul></li></ul>');
 		});
 
 		it('serializes deep nesting (0→1→2→1) with valid HTML5 nesting', () => {
@@ -858,7 +870,9 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<ul><li>A<ul><li>B<ul><li>C</li></ul></li><li>D</li></ul></li></ul>');
+			expect(stripBlockIds(html)).toBe(
+				'<ul><li>A<ul><li>B<ul><li>C</li></ul></li><li>D</li></ul></li></ul>',
+			);
 		});
 
 		it('serializes checklist items with accessible markup', () => {
@@ -869,15 +883,15 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('role="checkbox"');
-			expect(html).toContain('aria-checked="true"');
-			expect(html).toContain('aria-checked="false"');
+			expect(stripBlockIds(html)).toContain('role="checkbox"');
+			expect(stripBlockIds(html)).toContain('aria-checked="true"');
+			expect(stripBlockIds(html)).toContain('aria-checked="false"');
 			// DOMPurify normalizes boolean attrs to `attr=""`
-			expect(html).toContain('type="checkbox"');
-			expect(html).toContain('disabled');
-			expect(html).toContain('checked');
-			expect(html).toContain('Done');
-			expect(html).toContain('Todo');
+			expect(stripBlockIds(html)).toContain('type="checkbox"');
+			expect(stripBlockIds(html)).toContain('disabled');
+			expect(stripBlockIds(html)).toContain('checked');
+			expect(stripBlockIds(html)).toContain('Done');
+			expect(stripBlockIds(html)).toContain('Todo');
 		});
 
 		it('serializes mixed ordered/bullet list types', () => {
@@ -888,8 +902,8 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('<ul>');
-			expect(html).toContain('<ol>');
+			expect(stripBlockIds(html)).toContain('<ul>');
+			expect(stripBlockIds(html)).toContain('<ol>');
 		});
 
 		it('emits dir on li element for RTL list items', () => {
@@ -904,8 +918,8 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('<li dir="rtl">');
-			expect(html).not.toContain('<ul dir=');
+			expect(stripBlockIds(html)).toContain('<li dir="rtl">');
+			expect(stripBlockIds(html)).not.toContain('<ul dir=');
 		});
 
 		it('emits dir on li element for LTR ordered list items', () => {
@@ -920,8 +934,8 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('<li dir="ltr">');
-			expect(html).not.toContain('<ol dir=');
+			expect(stripBlockIds(html)).toContain('<li dir="ltr">');
+			expect(stripBlockIds(html)).not.toContain('<ol dir=');
 		});
 
 		it('omits dir on wrapper for auto direction', () => {
@@ -929,7 +943,7 @@ describe('serializeDocumentToHTML', () => {
 			const doc = createDocument([listItem('Hello', 'bullet', 0)]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).not.toContain('dir=');
+			expect(stripBlockIds(html)).not.toContain('dir=');
 		});
 
 		it('keeps mixed-direction items in a single wrapper with per-li dir', () => {
@@ -950,7 +964,7 @@ describe('serializeDocumentToHTML', () => {
 			]);
 
 			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toBe('<ul><li dir="rtl">مرحبا</li><li dir="ltr">Hello</li></ul>');
+			expect(stripBlockIds(html)).toBe('<ul><li dir="rtl">مرحبا</li><li dir="ltr">Hello</li></ul>');
 		});
 	});
 });
@@ -1049,8 +1063,8 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
-		expect(result.html).not.toContain('style=');
+		expect(stripBlockIds(result.html)).toMatch(/class="notectl-s-[a-z0-9]+"/);
+		expect(stripBlockIds(result.html)).not.toContain('style=');
 		expect(result.css).toMatch(/\.notectl-s-[a-z0-9]+/);
 		expect(result.css).toContain('color: red');
 	});
@@ -1062,7 +1076,7 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toBe('<p>plain text</p>');
+		expect(stripBlockIds(result.html)).toBe('<p>plain text</p>');
 		expect(result.css).toBe('');
 	});
 
@@ -1096,8 +1110,8 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toContain('class="notectl-align-center"');
-		expect(result.html).not.toContain('style=');
+		expect(stripBlockIds(result.html)).toContain('class="notectl-align-center"');
+		expect(stripBlockIds(result.html)).not.toContain('style=');
 		expect(result.css).toContain('.notectl-align-center');
 		expect(result.css).toContain('text-align: center');
 	});
@@ -1111,8 +1125,8 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toContain('class="notectl-align-end"');
-		expect(result.html).not.toContain('notectl-align-right');
+		expect(stripBlockIds(result.html)).toContain('class="notectl-align-end"');
+		expect(stripBlockIds(result.html)).not.toContain('notectl-align-right');
 	});
 
 	it('handles mixed tag + style marks', () => {
@@ -1128,7 +1142,7 @@ describe('serializeDocumentToCSS', () => {
 
 		const result = serializeDocumentToCSS(doc, registry);
 		// Bold wraps the class span
-		expect(result.html).toMatch(
+		expect(stripBlockIds(result.html)).toMatch(
 			/<p><strong><span class="notectl-s-[a-z0-9]+">hello<\/span><\/strong><\/p>/,
 		);
 		expect(result.css).toContain('color: red');
@@ -1147,8 +1161,8 @@ describe('serializeDocumentToCSS', () => {
 
 		const result = serializeDocumentToCSS(doc, registry);
 		// Block has alignment class, inline has style class
-		expect(result.html).toContain('class="notectl-align-end"');
-		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
+		expect(stripBlockIds(result.html)).toContain('class="notectl-align-end"');
+		expect(stripBlockIds(result.html)).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		expect(result.css).toContain('.notectl-align-end');
 		expect(result.css).toMatch(/\.notectl-s-[a-z0-9]+/);
 	});
@@ -1165,9 +1179,9 @@ describe('serializeDocumentToCSS', () => {
 		]);
 
 		const result = serializeDocumentToCSS(doc, registry);
-		expect(result.html).toMatch(/class="notectl-s-[a-z0-9]+"/);
+		expect(stripBlockIds(result.html)).toMatch(/class="notectl-s-[a-z0-9]+"/);
 		// Should not have nested spans
-		expect(result.html).not.toMatch(/<span[^>]*><span/);
+		expect(stripBlockIds(result.html)).not.toMatch(/<span[^>]*><span/);
 		expect(result.css).toContain('background-color: yellow');
 		expect(result.css).toContain('color: red');
 	});
@@ -1182,14 +1196,14 @@ describe('serializeDocumentToCSS', () => {
 
 		const result = serializeDocumentToCSS(doc, registry);
 		// class attribute should survive DOMPurify
-		expect(result.html).toContain('class=');
+		expect(stripBlockIds(result.html)).toContain('class=');
 	});
 
 	it('works without registry', () => {
 		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('hello')])]);
 
 		const result = serializeDocumentToCSS(doc);
-		expect(result.html).toBe('<p>hello</p>');
+		expect(stripBlockIds(result.html)).toBe('<p>hello</p>');
 		expect(result.css).toBe('');
 	});
 
@@ -1255,8 +1269,8 @@ describe('serializeDocumentToCSS', () => {
 			]);
 
 			const result = serializeDocumentToCSS(doc, registry);
-			expect(result.html).not.toContain('style=');
-			expect(result.html).toContain('class="notectl-s');
+			expect(stripBlockIds(result.html)).not.toContain('style=');
+			expect(stripBlockIds(result.html)).toContain('class="notectl-s');
 			expect(result.css).toContain('border-collapse: collapse');
 		});
 
@@ -1318,8 +1332,8 @@ describe('serializeDocumentToCSS', () => {
 			]);
 
 			const result = serializeDocumentToCSS(doc, registry);
-			expect(result.html).not.toContain('style=');
-			expect(result.html).toContain('class="notectl-s');
+			expect(stripBlockIds(result.html)).not.toContain('style=');
+			expect(stripBlockIds(result.html)).toContain('class="notectl-s');
 			expect(result.css).toContain('background-color: #1e1e1e');
 		});
 
@@ -1362,7 +1376,7 @@ describe('serializeDocumentToCSS', () => {
 
 			const result = serializeDocumentToCSS(doc, registry);
 			// Both the style class and alignment class should be on the same element
-			expect(result.html).toMatch(/class="notectl-s[^ ]+ notectl-align-center"/);
+			expect(stripBlockIds(result.html)).toMatch(/class="notectl-s[^ ]+ notectl-align-center"/);
 			expect(result.css).toContain('padding: 10px');
 			expect(result.css).toContain('text-align: center');
 		});
@@ -1393,7 +1407,7 @@ describe('serializeDocumentToCSS', () => {
 
 			const result = serializeDocumentToCSS(doc, registry);
 			// DOMPurify strips the style attribute in class mode
-			expect(result.html).not.toContain('style=');
+			expect(stripBlockIds(result.html)).not.toContain('style=');
 		});
 
 		it('image alignment via serializer produces class in class mode', () => {
@@ -1427,9 +1441,53 @@ describe('serializeDocumentToCSS', () => {
 			]);
 
 			const result = serializeDocumentToCSS(doc, registry);
-			expect(result.html).toContain('class="notectl-align-center"');
-			expect(result.html).not.toContain('style=');
+			expect(stripBlockIds(result.html)).toContain('class="notectl-align-center"');
+			expect(stripBlockIds(result.html)).not.toContain('style=');
 			expect(result.css).toContain('text-align: center');
+		});
+	});
+
+	describe('block identity (data-block-id)', () => {
+		it('emits data-block-id on every leaf block', () => {
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')], blockId('b1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('b')], blockId('b2')),
+			]);
+			const html: string = serializeDocumentToHTML(doc);
+			expect(html).toContain('data-block-id="b1"');
+			expect(html).toContain('data-block-id="b2"');
+		});
+
+		it('emits data-block-id on every block in a composite table', () => {
+			const registry = createTableRegistry();
+			const cell = (text: string, id: string) =>
+				createBlockNode(
+					nodeType('table_cell'),
+					[createBlockNode(nodeType('paragraph'), [createTextNode(text)], blockId(`p-${id}`))],
+					blockId(`c-${id}`),
+				);
+			const row = createBlockNode(
+				nodeType('table_row'),
+				[cell('A', 'a'), cell('B', 'b')],
+				blockId('row-1'),
+			);
+			const table = createBlockNode(nodeType('table'), [row], blockId('tbl-1'));
+			const html: string = serializeDocumentToHTML(createDocument([table]), registry);
+
+			expect(html).toContain('data-block-id="tbl-1"');
+			expect(html).toContain('data-block-id="row-1"');
+			expect(html).toContain('data-block-id="c-a"');
+			expect(html).toContain('data-block-id="c-b"');
+			expect(html).toContain('data-block-id="p-a"');
+			expect(html).toContain('data-block-id="p-b"');
+		});
+
+		it('skips data-block-id when block id has unsafe characters', () => {
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('x')], blockId('a"b')),
+			]);
+			const html: string = serializeDocumentToHTML(doc);
+			expect(html).not.toContain('data-block-id');
 		});
 	});
 });

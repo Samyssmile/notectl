@@ -751,6 +751,53 @@ describe('parseHTMLToDocument', () => {
 			expect(getBlockText(block)).toBe('styled');
 		});
 	});
+
+	describe('block identity (data-block-id adoption)', () => {
+		it('adopts a valid data-block-id from a paragraph', () => {
+			const doc = parseHTMLToDocument('<p data-block-id="b1">x</p>');
+			const block = doc.children[0];
+			if (!block) throw new Error('expected block');
+			expect(block.id).toBe('b1');
+		});
+
+		it('keeps adopted IDs distinct when multiple blocks carry them', () => {
+			const doc = parseHTMLToDocument('<p data-block-id="b1">x</p><p data-block-id="b2">y</p>');
+			expect(doc.children.map((b) => b.id)).toEqual(['b1', 'b2']);
+		});
+
+		it('falls back to a fresh id when data-block-id collides within the same parse', () => {
+			const doc = parseHTMLToDocument('<p data-block-id="dup">a</p><p data-block-id="dup">b</p>');
+			const ids: string[] = doc.children.map((b) => b.id as string);
+			expect(ids[0]).toBe('dup');
+			expect(ids[1]).not.toBe('dup');
+			expect(ids[1]).toMatch(/^block-/);
+		});
+
+		it('falls back to a fresh id when data-block-id is malformed', () => {
+			const doc = parseHTMLToDocument('<p data-block-id="bad value">x</p>');
+			const block = doc.children[0];
+			if (!block) throw new Error('expected block');
+			expect(block.id).not.toBe('bad value');
+			expect(block.id).toMatch(/^block-/);
+		});
+
+		it('generates a fresh id when no data-block-id is present (external HTML)', () => {
+			const doc = parseHTMLToDocument('<p>plain</p>');
+			const block = doc.children[0];
+			if (!block) throw new Error('expected block');
+			expect(block.id).toMatch(/^block-/);
+		});
+
+		it('round-trips IDs through serializeDocumentToHTML → parseHTMLToDocument', () => {
+			const original = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')]),
+				createBlockNode(nodeType('paragraph'), [createTextNode('b')]),
+			]);
+			const html = serializeDocumentToHTML(original);
+			const parsed = parseHTMLToDocument(html);
+			expect(parsed.children.map((b) => b.id)).toEqual(original.children.map((b) => b.id));
+		});
+	});
 });
 
 describe('full round-trip: serializeDocumentToCSS → parseHTMLToDocument', () => {

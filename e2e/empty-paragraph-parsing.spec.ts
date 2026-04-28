@@ -42,7 +42,10 @@ test.describe('Empty paragraph parsing via setContentHTML (#85)', () => {
 	test('getContentHTML roundtrip preserves empty paragraphs as <p><br></p>', async ({ editor }) => {
 		await editor.setContentHTML(INPUT_HTML);
 
-		const output = await editor.getContentHTML();
+		// Strip the `data-block-id` attribute that the serializer emits to carry
+		// block identity across round-trips (#103); structural shape is what we
+		// assert here.
+		const output: string = (await editor.getContentHTML()).replace(/ data-block-id="[^"]*"/g, '');
 		expect(output).toBe(INPUT_HTML);
 	});
 

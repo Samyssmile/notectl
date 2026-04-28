@@ -41,6 +41,13 @@ const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', 
 /** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
 export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
 
+/**
+ * Validates a `BlockId` string for use as a `data-block-id` attribute value.
+ * Conservative pattern: alphanumeric, underscore, hyphen, max 64 chars.
+ * Mirrors `DocumentParser.isValidBlockId` — must stay in sync.
+ */
+const SAFE_BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 /** Creates an HTMLExportContext for inline style mode. */
 function createInlineExportContext(): HTMLExportContext {
 	return {
@@ -126,6 +133,13 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
 
+	// `data-block-id` carries block identity across content round-trips
+	// (`setContentHTML(getContentHTML())`) — without it, the parser would generate
+	// fresh IDs and any preserved selection would clamp to the document start.
+	if (!allowedAttrs.includes('data-block-id')) {
+		allowedAttrs.push('data-block-id');
+	}
+
 	return DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
@@ -149,6 +163,12 @@ export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry)
 	// In class mode, allow `class` attribute through DOMPurify
 	if (!allowedAttrs.includes('class')) {
 		allowedAttrs.push('class');
+	}
+
+	// `data-block-id` carries block identity across content round-trips. See
+	// note in `serializeDocumentToHTML`.
+	if (!allowedAttrs.includes('data-block-id')) {
+		allowedAttrs.push('data-block-id');
 	}
 
 	// Defense-in-depth: strip `style` attribute in class mode to guarantee
@@ -289,6 +309,19 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 		html = spec.toHTML(block, content, ctx.exportCtx);
 	} else {
 		html = `<p>${content || '<br>'}</p>`;
+	}
+
+	// Centrally inject `data-block-id` so each `NodeSpec.toHTML` is relieved of
+	// the responsibility — and the round-trip identity contract holds for every
+	// block type, including ones added by future plugins. The serializer's
+	// allowlist passes `data-block-id` through DOMPurify. Skip if the spec
+	// already emits one (mirrors the existing `dir` defense-in-depth pattern).
+	if (SAFE_BLOCK_ID.test(block.id)) {
+		const firstTagEnd: number = html.indexOf('>');
+		const firstTag: string = html.slice(0, firstTagEnd + 1);
+		if (!firstTag.includes(' data-block-id=')) {
+			html = injectAttrIntoFirstTag(html, 'data-block-id', escapeAttr(block.id));
+		}
 	}
 
 	// Inject alignment into the first opening tag (validated against allowlist).
