@@ -20,4 +20,5 @@ export { RegexTokenizer } from './highlighter/RegexTokenizer.js';
 export type { LanguageDefinition, TokenPattern } from './highlighter/TokenizerTypes.js';
 export { JAVA_LANGUAGE } from './highlighter/languages/java.js';
 export { JSON_LANGUAGE } from './highlighter/languages/json.js';
+export { TYPESCRIPT_LANGUAGE } from './highlighter/languages/typescript.js';
 export { XML_LANGUAGE } from './highlighter/languages/xml.js';

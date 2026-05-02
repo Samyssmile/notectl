@@ -27,7 +27,12 @@ import { createBlockElement } from '../../view/DomUtils.js';
 import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
 import { LanguageRegistry } from '../language/LanguageRegistry.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
-import { JAVA_SUPPORT, JSON_SUPPORT, XML_SUPPORT } from '../language/bundles/index.js';
+import {
+	JAVA_SUPPORT,
+	JSON_SUPPORT,
+	TYPESCRIPT_SUPPORT,
+	XML_SUPPORT,
+} from '../language/bundles/index.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { PopupManager } from '../shared/PopupManager.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
@@ -413,6 +418,7 @@ export class CodeBlockPlugin implements Plugin {
 
 		this.languageRegistry.register(JAVA_SUPPORT);
 		this.languageRegistry.register(JSON_SUPPORT);
+		this.languageRegistry.register(TYPESCRIPT_SUPPORT);
 		this.languageRegistry.register(XML_SUPPORT);
 	}
 

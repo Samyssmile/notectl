@@ -3,7 +3,7 @@ title: Smart Paste
 description: Automatically detects and formats structured content when pasting.
 ---
 
-The `SmartPastePlugin` detects structured content (JSON, XML) in pasted clipboard text and automatically inserts it as a formatted code block with the detected language.
+The `SmartPastePlugin` detects structured content (JSON, XML, Java, TypeScript) in pasted clipboard text and automatically inserts it as a formatted code block with the detected language.
 
 ## Usage
 
@@ -31,6 +31,10 @@ If the cursor is already inside a code block, smart paste is skipped.
 |----------|----------|-------------|
 | JSON | `json` | Detects valid JSON objects and arrays |
 | XML | `xml` | Detects XML documents and fragments |
+| Java | `java` | Detects Java source code (class/interface/enum/record declarations, package/import statements, method signatures) |
+| TypeScript | `typescript` | Detects TypeScript / modern JavaScript (ES module imports/exports, type aliases, interfaces, decorators, arrow functions, optional chaining). Includes negative signals to avoid misdetecting Java code. |
+
+Detectors are registered automatically by the `CodeBlockPlugin` via the language registry. When multiple detectors match the same input, the one with the highest confidence wins; on ties the earliest-registered detector wins (registration order: Java → JSON → TypeScript → XML).
 
 ## Configuration
 

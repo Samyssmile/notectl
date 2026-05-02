@@ -223,11 +223,11 @@ service.getSupportedLanguages();     // ['typescript', 'python', ...]
 
 ## Syntax Highlighting
 
-By default, the plugin ships with a built-in `RegexTokenizer` that supports **JSON** and **XML** syntax highlighting out of the box. You can extend it with additional languages or replace it entirely.
+By default, the plugin ships with a built-in `RegexTokenizer` that supports **JSON**, **XML**, **Java**, and **TypeScript** syntax highlighting out of the box. You can extend it with additional languages or replace it entirely.
 
 ### Built-in Languages
 
-JSON, XML, and Java are highlighted automatically when the code block language is set to `json`, `xml`, or `java`.
+JSON, XML, Java, and TypeScript are highlighted automatically when the code block language is set to `json`, `xml`, `java`, or `typescript` (the aliases `ts` and `tsx` resolve to TypeScript as well).
 
 Each language maps source tokens to the canonical `SyntaxTokenType` set:
 
@@ -236,8 +236,11 @@ Each language maps source tokens to the canonical `SyntaxTokenType` set:
 | JSON | `keyword`, `string`, `number`, `boolean`, `null`, `punctuation` |
 | XML | Tag names → `tag`, attribute names → `attribute`, string values → `string` |
 | Java | Annotations (`@Override`, `@Component`) → `annotation`, types → `type`, keywords → `keyword` |
+| TypeScript | Decorators (`@Component`) → `annotation`, template literals → `string`, modern operators (`??`, `?.`, `=>`) → `operator`, `null`/`undefined` → `null` |
 
-The semantic distinction matters for theming: XML tag names use `--notectl-code-token-tag` (not `keyword`), and Java annotations use `--notectl-code-token-annotation` (not `property`), so each construct can be styled independently in your theme.
+The semantic distinction matters for theming: XML tag names use `--notectl-code-token-tag` (not `keyword`), Java/TypeScript annotations and decorators use `--notectl-code-token-annotation` (not `property`), so each construct can be styled independently in your theme.
+
+> **Note on TSX:** The `tsx` alias maps to the TypeScript language definition. JSX-specific tags and attributes are not parsed as separate token types — they fall back to standard TypeScript tokenization.
 
 ### Adding Languages at Runtime
 
