@@ -5,11 +5,12 @@ import {
 	expectKeyBinding,
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
-import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { makeBlockState, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
 import { BidiIsolationPlugin } from './BidiIsolationPlugin.js';
 
 const HARNESS_OPTIONS = { useMiddleware: true, builtinSpecs: true } as const;
+const BIDI_MARK_TYPES = ['bold', 'italic', 'underline', 'bdi'] as const;
 
 function makeState(
 	blocks?: {
@@ -21,14 +22,7 @@ function makeState(
 	cursorBlockId?: string,
 	cursorOffset?: number,
 ): EditorState {
-	const builder = stateBuilder();
-	for (const b of blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]) {
-		builder.block(b.type, b.text, b.id, { attrs: b.attrs });
-	}
-	const bid: string = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
-	builder.cursor(bid, cursorOffset ?? 0);
-	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi']);
-	return builder.build();
+	return makeBlockState(blocks, { cursorBlockId, cursorOffset, markTypes: BIDI_MARK_TYPES });
 }
 
 describe('BidiIsolationPlugin', () => {
