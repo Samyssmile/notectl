@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBlockNode, createTextNode } from '../../model/Document.js';
-import type { BlockId } from '../../model/TypeBrands.js';
+import { type BlockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { makeBlockState, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
@@ -490,6 +490,110 @@ describe('TextDirectionAutoPlugin', () => {
 
 			h.executeCommand('toggleDirection');
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('auto');
+		});
+	});
+
+	// Regression coverage for #113: when a single transaction both modifies
+	// text AND changes block attrs (via setBlockType or setNodeAttr), the
+	// auto-detect middleware must not append its own setNodeAttr — its
+	// pre-transaction snapshot would clobber the freshly written attrs
+	// because applySetNodeAttr has full-replace semantics.
+	describe('transaction-level conflict handling', () => {
+		it('preserves attrs of new block type when deleteText + setBlockType are combined (#113 reproducer)', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: '```java ', id: 'b1', attrs: { dir: 'ltr' } },
+			]);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
+
+			const tr = h
+				.getState()
+				.transaction('input')
+				.deleteTextAt('b1' as BlockId, 0, 8)
+				.setBlockType('b1' as BlockId, nodeType('code_block'), {
+					language: 'java',
+					backgroundColor: '',
+				})
+				.build();
+			h.dispatch(tr);
+
+			const block = h.getState().doc.children[0];
+			expect(block?.type).toBe('code_block');
+			expect(block?.attrs?.language).toBe('java');
+			expect(block?.attrs?.backgroundColor).toBe('');
+		});
+
+		it('preserves new attrs when insertText + setBlockType to non-directable type are combined', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
+			]);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
+
+			const tr = h
+				.getState()
+				.transaction('input')
+				.insertText('b1' as BlockId, 0, 'hello')
+				.setBlockType('b1' as BlockId, nodeType('code_block'), { language: 'python' })
+				.build();
+			h.dispatch(tr);
+
+			const block = h.getState().doc.children[0];
+			expect(block?.type).toBe('code_block');
+			expect(block?.attrs?.language).toBe('python');
+		});
+
+		it('does not clobber a sibling setNodeAttr that targets the same block in the same transaction', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
+			]);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
+
+			const tr = h
+				.getState()
+				.transaction('command')
+				.insertText('b1' as BlockId, 0, 'مرحبا')
+				.setNodeAttr(['b1' as BlockId], { dir: 'ltr', someExternalAttr: 'keep-me' })
+				.build();
+			h.dispatch(tr);
+
+			const block = h.getState().doc.children[0];
+			expect(block?.attrs?.dir).toBe('ltr');
+			expect(block?.attrs?.someExternalAttr).toBe('keep-me');
+		});
+
+		it('still auto-detects when there is no conflicting attr step in the transaction', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
+			]);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
+
+			const tr = h
+				.getState()
+				.transaction('input')
+				.insertText('b1' as BlockId, 0, 'مرحبا')
+				.build();
+			h.dispatch(tr);
+
+			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
+		});
+
+		it('lets preserve-dir handle block-type changes to directable types (paragraph → heading)', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: 'Hello', id: 'b1', attrs: { dir: 'rtl' } },
+			]);
+			const h = await pluginHarness([...plugins([new HeadingPlugin()])], state, HARNESS_OPTIONS);
+
+			const tr = h
+				.getState()
+				.transaction('command')
+				.deleteTextAt('b1' as BlockId, 0, 5)
+				.setBlockType('b1' as BlockId, nodeType('heading'), { level: 1 })
+				.build();
+			h.dispatch(tr);
+
+			const block = h.getState().doc.children[0];
+			expect(block?.type).toBe('heading');
+			expect(block?.attrs?.level).toBe(1);
+			expect(block?.attrs?.dir).toBe('rtl');
 		});
 	});
 });
