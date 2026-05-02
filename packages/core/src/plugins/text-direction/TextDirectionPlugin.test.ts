@@ -9,13 +9,11 @@ import {
 	expectToolbarEnabled,
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
-import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { makeBlockState, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
 import type { DropdownConfig } from '../toolbar/ToolbarItem.js';
 import { DIRECTION_ICONS } from './DirectionIcons.js';
 import { TextDirectionPlugin } from './TextDirectionPlugin.js';
-
-// --- Helpers ---
 
 const HARNESS_OPTIONS = { useMiddleware: true, builtinSpecs: true } as const;
 
@@ -29,17 +27,8 @@ function makeState(
 	cursorBlockId?: string,
 	cursorOffset?: number,
 ): EditorState {
-	const builder = stateBuilder();
-	for (const b of blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }]) {
-		builder.block(b.type, b.text, b.id, { attrs: b.attrs });
-	}
-	const bid: string = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
-	builder.cursor(bid, cursorOffset ?? 0);
-	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline']);
-	return builder.build();
+	return makeBlockState(blocks, { cursorBlockId, cursorOffset });
 }
-
-// --- Tests ---
 
 describe('TextDirectionPlugin', () => {
 	describe('NodeSpec patching', () => {
