@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-05-02
+
+### Fixed
+
+- **Code-block input rule loses the `language` attribute (#113)** — Typing `` ```<lang> `` + space converts a paragraph to a `code_block` via a single transaction containing both `deleteText` and `setBlockType`. The `TextDirectionAutoPlugin`'s auto-detect middleware appended its own `setNodeAttr` step built from a pre-transaction `block.attrs` snapshot; `applySetNodeAttr` has full-replace semantics, so by application time the snapshot was stale and clobbered the `{ language, backgroundColor }` attrs written by `setBlockType`. The result was a code block with `language: ''`, no language label and no syntax highlighting. Auto-detect now pre-scans the transaction for blocks already targeted by `setBlockType` or `setNodeAttr` and skips its emission for those blocks — symmetrical to the guards already present in the `preserve-dir` and `inherit-dir` middlewares. The next text-only transaction re-detects direction normally. Generally fixes the same data-loss pattern for any future input rule or command that combines text edits with a block-type or attr change in a single atomic transaction.
+
 ## [2.1.0] - 2026-05-02
 
 ### Added
