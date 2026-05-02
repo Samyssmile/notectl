@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`BidiIsolationPlugin`** (`@notectl/core/plugins/bidi-isolation`) — Inline `<bdi>` mark, `toggleBidi*` / `removeBidi` / `toggleBidiIsolation` commands, inline toolbar dropdown, `Mod-Shift-B`. Works standalone; optionally consumes `TextDirectionService` so `toggleBidiIsolation` picks the direction opposite to the surrounding block.
+- **`TextDirectionAutoPlugin`** (`@notectl/core/plugins/text-direction-auto`) — Headless plugin that registers the three transaction middlewares (preserve / auto-detect / inherit) previously fused into the heavy `TextDirectionPlugin`. Hard-depends on `TextDirectionPlugin` via `dependencies = ['text-direction']`. Each middleware can be disabled individually via config.
+- **`TextDirectionService`** + `TEXT_DIRECTION_SERVICE_KEY` — Typed service exposing `directableTypes` and `getBlockDir`, registered by `TextDirectionPlugin` for cross-plugin consumption.
+- **`makeBlockState` test helper** in `test/TestUtils.ts` — Convenience wrapper around `stateBuilder()` for plugin tests that only need a static document.
+
+### Changed
+
+- **`TextDirectionPlugin` is now lean** (`@notectl/core/plugins/text-direction`) — Owns only the block-level `dir` attribute, toolbar dropdown, `Mod-Shift-D`, and `ShiftDirectionHandler`. Inline bidi and middleware behaviour moved to the two new plugins above. `FullPreset` registers all three so behaviour for preset users is unchanged.
+- **Locale split** — `TextDirectionLocale` keeps the 8 block-direction strings; `BidiIsolationLocale` (new) owns the 6 inline-bidi strings. All 9 language files split mechanically.
+
+### Removed (BREAKING)
+
+- **`TextDirectionAdvancedPlugin`** and the `@notectl/core/plugins/text-direction-advanced` subpath export — replace by registering `TextDirectionPlugin` + `BidiIsolationPlugin` + `TextDirectionAutoPlugin` explicitly (or use `createFullPreset`).
+- **`TextDirectionCorePlugin`** — `TextDirectionPlugin` is now the lean class; importing `TextDirectionCorePlugin` no longer resolves.
+- **Inline bidi capabilities (`<bdi>` mark, `toggleBidi*` commands, `Mod-Shift-B`, auto-detect / inherit / preserve middleware) when only importing `TextDirectionPlugin`** — those moved to the two new plugin entries. Previously the docs claimed the lean and heavy classes were "the same" — they were not, and consumers calling `executeCommand('toggleBidiLTR')` on the lean variant silently received `false`. The new split makes the contract honest.
+
+### Performance
+
+- **`TextDirectionAutoPlugin.handleInsertText`** skips the `getBlockText` string allocation in the early-return path that protects explicit non-auto block direction. Switches the guard to `getBlockLength`, which is O(n) over inline children with no string allocation. Side benefit: blocks whose only inline content is an `InlineNode` are now correctly protected from re-detection.
+
 ## [2.0.10] - 2026-04-28
 
 ### Added
