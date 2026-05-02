@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **TypeScript / TSX language support (#114)** — `CodeBlockPlugin` now ships with built-in TypeScript syntax highlighting and `SmartPastePlugin` with TypeScript content detection, alongside the existing Java / JSON / XML support. The new `TYPESCRIPT_LANGUAGE` definition covers modern TS — comments, escape-aware strings and template literals, decorators, the full keyword set incl. `satisfies` / `using` / `infer` / `keyof` / `asserts` / `out` / `override`, numeric literals with `_` separators and `BigInt` `n` suffix (hex/octal/binary/decimal/scientific), and modern operators (`=>`, `??`, `??=`, `?.`, `...`, `**=`, `>>>=`, `&&=`, `||=`). Word boundaries are enforced so identifiers like `interfaceName` are not mis-tokenized as keywords. The new `TypeScriptDetector` scores ES imports/exports, `type` / `interface` / `enum` / `namespace` / `declare`, `const` / `let` bindings, arrow functions, optional chaining, nullish coalescing, template literals, type annotations, `async`, decorators and generics; it carries explicit negative signals (`package …;`, `System.out.…`) to avoid misdetecting Java code, and is ReDoS-resistant (50 000-character adversarial inputs complete in < 100 ms). Aliases `ts` and `tsx` resolve to TypeScript in both the language registry and the tokenizer; JSX-specific tags are not parsed as separate token types in this iteration and fall back to standard TypeScript tokenization.
+
 ## [2.1.2] - 2026-05-02
 
 ### Fixed
