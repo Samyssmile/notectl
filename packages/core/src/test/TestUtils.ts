@@ -313,10 +313,7 @@ export function makeBlockState(
 	for (const b of blockList) {
 		builder.block(b.type, b.text, b.id, { attrs: b.attrs });
 	}
-	builder.cursor(
-		options?.cursorBlockId ?? blockList[0]?.id ?? 'b1',
-		options?.cursorOffset ?? 0,
-	);
+	builder.cursor(options?.cursorBlockId ?? blockList[0]?.id ?? 'b1', options?.cursorOffset ?? 0);
 	builder.schema(
 		[...(options?.nodeTypes ?? ['paragraph', 'heading'])],
 		[...(options?.markTypes ?? ['bold', 'italic', 'underline'])],
