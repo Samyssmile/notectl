@@ -10,7 +10,7 @@ import {
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
 import { hasMark } from '../../model/Document.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
+import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
 import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -72,7 +72,7 @@ export class LinkPlugin implements Plugin {
 			},
 			toDOM(mark) {
 				const a = document.createElement('a');
-				const href = mark.attrs?.href ?? '';
+				const href: string = sanitizeHref(String(mark.attrs?.href ?? ''));
 				a.setAttribute('href', href);
 				if (openInNewTab) {
 					a.setAttribute('target', '_blank');
@@ -81,7 +81,8 @@ export class LinkPlugin implements Plugin {
 				return a;
 			},
 			toHTMLString: (mark, content) => {
-				const href: string = escapeHTML(String(mark.attrs?.href ?? ''));
+				const safeHref: string = sanitizeHref(String(mark.attrs?.href ?? ''));
+				const href: string = escapeHTML(safeHref);
 				if (openInNewTab) {
 					return `<a href="${href}" target="_blank" rel="noopener noreferrer">${content}</a>`;
 				}
@@ -91,7 +92,10 @@ export class LinkPlugin implements Plugin {
 				{
 					tag: 'a',
 					getAttrs: (el) => {
-						const href: string = el.getAttribute('href') ?? '';
+						// Returning an empty href (instead of `false`) keeps the link mark
+						// applied so the parser does not fall back to the core HTMLParser's
+						// raw-href default; the empty value renders as a no-op anchor.
+						const href: string = sanitizeHref(el.getAttribute('href') ?? '');
 						return { href };
 					},
 				},
@@ -263,13 +267,27 @@ export class LinkPlugin implements Plugin {
 			applyBtn.textContent = this.locale.apply;
 			applyBtn.setAttribute('aria-label', this.locale.applyAria);
 
+			const errorMsg = document.createElement('div');
+			errorMsg.className = 'notectl-link-popup__error';
+			errorMsg.setAttribute('role', 'alert');
+			errorMsg.hidden = true;
+
 			const applyLink = (): void => {
-				const href = input.value.trim();
-				if (href) {
-					this.addLink(context, context.getState(), href);
-					onClose();
-					context.getContainer().focus();
+				const raw: string = input.value.trim();
+				if (raw === '') return;
+				const sanitized: string = sanitizeHref(raw);
+				if (sanitized === '') {
+					errorMsg.textContent = this.locale.invalidUrl;
+					errorMsg.hidden = false;
+					input.setAttribute('aria-invalid', 'true');
+					input.focus();
+					return;
 				}
+				errorMsg.hidden = true;
+				input.removeAttribute('aria-invalid');
+				this.addLink(context, context.getState(), sanitized);
+				onClose();
+				context.getContainer().focus();
 			};
 
 			applyBtn.addEventListener('mousedown', (e) => {
@@ -285,8 +303,16 @@ export class LinkPlugin implements Plugin {
 				}
 			});
 
+			input.addEventListener('input', () => {
+				if (!errorMsg.hidden) {
+					errorMsg.hidden = true;
+					input.removeAttribute('aria-invalid');
+				}
+			});
+
 			container.appendChild(input);
 			container.appendChild(applyBtn);
+			container.appendChild(errorMsg);
 
 			// Auto-focus input
 			requestAnimationFrame(() => input.focus());

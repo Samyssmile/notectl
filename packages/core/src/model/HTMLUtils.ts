@@ -22,6 +22,40 @@ export function escapeHTML(text: string): string {
 /** Escapes a value for safe interpolation into an HTML attribute (double-quoted). */
 export const escapeAttr: (value: string) => string = escapeHTML;
 
+/**
+ * URL schemes accepted by `sanitizeHref` for anchor `href` values. Intentionally narrower
+ * than the DOMPurify allowlist: `data:` and `blob:` are excluded because they can carry
+ * executable content or be used to navigate to attacker-controlled documents.
+ */
+const SAFE_HREF_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping C0 controls and DEL is the intent
+const HREF_CONTROL_CHARS: RegExp = /[\u0000-\u001F\u007F]/g;
+
+/**
+ * Validates an anchor `href` against an allowlist of safe URL schemes and returns the
+ * original (cleaned) value when safe, or an empty string otherwise. Use at every sink
+ * that writes a user-controlled URL into the document model or the live DOM to neutralize
+ * `javascript:`, `data:`, `vbscript:` and similar scheme-based XSS vectors.
+ *
+ * Safe inputs: `http(s)://...`, `mailto:...`, `tel:...`, fragment-only (`#section`),
+ * absolute paths (`/page`), and bare relative URLs (`example.com`, `page.html`).
+ * Everything else collapses to `''`.
+ */
+export function sanitizeHref(raw: string): string {
+	const cleaned: string = raw.replace(HREF_CONTROL_CHARS, '').trim();
+	if (cleaned === '') return '';
+	if (cleaned.startsWith('#') || cleaned.startsWith('/')) return cleaned;
+
+	try {
+		const parsed: URL = new URL(cleaned, 'http://_invalid_base_/');
+		if (!SAFE_HREF_SCHEMES.has(parsed.protocol)) return '';
+		return cleaned;
+	} catch {
+		return '';
+	}
+}
+
 /** Block-level HTML tags that should appear on their own line with indentation. */
 const BLOCK_TAGS: ReadonlySet<string> = new Set([
 	'p',
