@@ -9,6 +9,7 @@ const locale: LinkLocale = {
 	urlAria: 'Link-URL',
 	apply: 'Anwenden',
 	applyAria: 'Link anwenden',
+	invalidUrl: 'Nur http(s), mailto, tel, Anker und relative Pfade sind erlaubt.',
 };
 
 export default locale;

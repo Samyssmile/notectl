@@ -15,6 +15,7 @@ export interface LinkLocale {
 	readonly urlAria: string;
 	readonly apply: string;
 	readonly applyAria: string;
+	readonly invalidUrl: string;
 }
 
 // --- Default English Locale ---
@@ -28,6 +29,7 @@ export const LINK_LOCALE_EN: LinkLocale = {
 	urlAria: 'Link URL',
 	apply: 'Apply',
 	applyAria: 'Apply link',
+	invalidUrl: 'Only http(s), mailto, tel, fragments, and relative paths are allowed.',
 };
 
 // --- Lazy Locale Loader ---

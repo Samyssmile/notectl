@@ -9,6 +9,7 @@ const locale: LinkLocale = {
 	urlAria: '链接地址',
 	apply: '应用',
 	applyAria: '应用链接',
+	invalidUrl: '仅允许 http(s)、mailto、tel、锚点和相对路径。',
 };
 
 export default locale;

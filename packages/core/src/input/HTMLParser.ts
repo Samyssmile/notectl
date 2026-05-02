@@ -6,6 +6,7 @@
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import type { Mark, TextSegment } from '../model/Document.js';
 import { markSetsEqual } from '../model/Document.js';
+import { sanitizeHref } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { Schema } from '../model/Schema.js';
 import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
@@ -73,7 +74,7 @@ function resolveBoldAttrs(el: HTMLElement): Record<string, unknown> | false {
 }
 
 function resolveLinkAttrs(el: HTMLElement): Record<string, unknown> {
-	return { href: el.getAttribute('href') ?? '' };
+	return { href: sanitizeHref(el.getAttribute('href') ?? '') };
 }
 
 const FALLBACK_MARK_MAP: ReadonlyMap<string, FallbackMarkDef> = new Map([

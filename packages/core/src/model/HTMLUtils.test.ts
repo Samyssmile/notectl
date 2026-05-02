@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML } from './HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML, sanitizeHref } from './HTMLUtils.js';
 
 describe('SAFE_URI_REGEXP', () => {
 	it('allows blob: URIs', () => {
@@ -115,6 +115,76 @@ describe('formatHTML ReDoS resistance', () => {
 		formatHTML(malicious);
 		const elapsed: number = performance.now() - start;
 		expect(elapsed).toBeLessThan(100);
+	});
+});
+
+describe('sanitizeHref', () => {
+	describe('safe schemes', () => {
+		it.each([
+			'http://example.com',
+			'https://example.com/path?q=1',
+			'mailto:user@example.com',
+			'tel:+1-555-1234',
+		])('keeps %s', (input) => {
+			expect(sanitizeHref(input)).toBe(input);
+		});
+
+		it('keeps fragment-only URLs', () => {
+			expect(sanitizeHref('#section')).toBe('#section');
+		});
+
+		it('keeps absolute paths', () => {
+			expect(sanitizeHref('/page')).toBe('/page');
+		});
+
+		it('keeps bare relative URLs (no scheme)', () => {
+			expect(sanitizeHref('example.com')).toBe('example.com');
+			expect(sanitizeHref('page.html')).toBe('page.html');
+		});
+
+		it('trims surrounding whitespace before returning', () => {
+			expect(sanitizeHref('  https://example.com  ')).toBe('https://example.com');
+		});
+	});
+
+	describe('unsafe schemes', () => {
+		it.each([
+			'javascript:alert(1)',
+			'JaVaScRiPt:alert(1)',
+			'JAVASCRIPT:alert(1)',
+			'\tjavascript:alert(1)',
+			' javascript:alert(1)',
+			'java\nscript:alert(1)',
+			'vbscript:exec',
+			'data:text/html,<script>alert(1)</script>',
+			'data:image/png;base64,abc',
+			'file:///etc/passwd',
+			'blob:https://example.com/abc',
+		])('rejects %s', (input) => {
+			expect(sanitizeHref(input)).toBe('');
+		});
+
+		it('rejects javascript: with embedded NUL byte', () => {
+			expect(sanitizeHref('java\u0000script:alert(1)')).toBe('');
+		});
+
+		it('rejects javascript: with embedded DEL byte', () => {
+			expect(sanitizeHref('javascript\u007F:alert(1)')).toBe('');
+		});
+	});
+
+	describe('edge cases', () => {
+		it('returns empty for empty string', () => {
+			expect(sanitizeHref('')).toBe('');
+		});
+
+		it('returns empty for whitespace-only', () => {
+			expect(sanitizeHref('   \t\n')).toBe('');
+		});
+
+		it('returns empty for control-chars-only', () => {
+			expect(sanitizeHref('\u0000\u001F\u007F')).toBe('');
+		});
 	});
 });
 

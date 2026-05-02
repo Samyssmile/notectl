@@ -79,6 +79,18 @@ describe('HTMLParser', () => {
 			]);
 		});
 
+		it('strips javascript: href in fallback mark resolution', () => {
+			const slice = parseHTML('<p><a href="javascript:alert(1)">click</a></p>');
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ text: 'click', marks: [{ type: 'link', attrs: { href: '' } }] },
+			]);
+		});
+
+		it('strips data: href in fallback mark resolution', () => {
+			const slice = parseHTML('<p><a href="data:text/html,<script>alert(1)</script>">x</a></p>');
+			expect(slice.blocks[0]?.segments[0]?.marks).toEqual([{ type: 'link', attrs: { href: '' } }]);
+		});
+
 		it('parses nested marks', () => {
 			const slice = parseHTML('<p><strong><em>bold italic</em></strong></p>');
 			expect(slice.blocks[0]?.segments).toEqual([

@@ -90,6 +90,186 @@ describe('LinkPlugin', () => {
 		});
 	});
 
+	describe('href sanitization (XSS protection)', () => {
+		it.each([
+			'javascript:alert(1)',
+			'JaVaScRiPt:alert(1)',
+			'\tjavascript:alert(1)',
+			'data:text/html,<script>alert(1)</script>',
+			'vbscript:exec',
+			'file:///etc/passwd',
+		])('toDOM strips unsafe scheme: %s', async (unsafe) => {
+			const h = await pluginHarness(new LinkPlugin());
+			const spec = h.getMarkSpec('link');
+			const el = spec?.toDOM({ type: 'link', attrs: { href: unsafe } });
+			expect(el?.getAttribute('href')).toBe('');
+		});
+
+		it.each(['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:exec'])(
+			'parseHTML.getAttrs strips unsafe scheme: %s',
+			async (unsafe) => {
+				const h = await pluginHarness(new LinkPlugin());
+				const spec = h.getMarkSpec('link');
+				const rule = spec?.parseHTML?.[0];
+
+				const a = document.createElement('a');
+				a.setAttribute('href', unsafe);
+
+				const attrs = rule?.getAttrs?.(a);
+				expect(attrs).toEqual({ href: '' });
+			},
+		);
+
+		it.each(['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>'])(
+			'toHTMLString strips unsafe scheme: %s',
+			async (unsafe) => {
+				const h = await pluginHarness(new LinkPlugin());
+				const spec = h.getMarkSpec('link');
+				const html = spec?.toHTMLString?.({ type: 'link', attrs: { href: unsafe } }, 'click');
+				expect(html).not.toContain('javascript');
+				expect(html).not.toContain('data:');
+				expect(html).toMatch(/href=""/);
+			},
+		);
+
+		it.each([
+			'http://example.com',
+			'https://example.com',
+			'mailto:user@example.com',
+			'tel:+15551234',
+			'#anchor',
+			'/relative/path',
+		])('toDOM keeps safe URL: %s', async (safe) => {
+			const h = await pluginHarness(new LinkPlugin());
+			const spec = h.getMarkSpec('link');
+			const el = spec?.toDOM({ type: 'link', attrs: { href: safe } });
+			expect(el?.getAttribute('href')).toBe(safe);
+		});
+
+		it('popup rejects javascript: URL with role=alert error', async () => {
+			const state = makeState([{ text: 'click me', id: 'b1' }], {
+				anchorBlock: 'b1',
+				anchorOffset: 0,
+				headBlock: 'b1',
+				headOffset: 8,
+			});
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const onClose = vi.fn();
+			const dispatchSpy = vi.fn();
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: dispatchSpy,
+					getContainer: () => mockContainer,
+				}),
+				onClose,
+			);
+
+			const input = container.querySelector('input') as HTMLInputElement;
+			input.value = 'javascript:alert(1)';
+
+			const applyBtn = container.querySelector(
+				'button[aria-label="Apply link"]',
+			) as HTMLButtonElement;
+			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			expect(dispatchSpy).not.toHaveBeenCalled();
+			expect(onClose).not.toHaveBeenCalled();
+
+			const alert = container.querySelector('[role="alert"]') as HTMLElement;
+			expect(alert).not.toBeNull();
+			expect(alert.hidden).toBe(false);
+			expect(alert.textContent?.length ?? 0).toBeGreaterThan(0);
+			expect(input.getAttribute('aria-invalid')).toBe('true');
+		});
+
+		it('popup applies safe URL and closes', async () => {
+			const state = makeState([{ text: 'click me', id: 'b1' }], {
+				anchorBlock: 'b1',
+				anchorOffset: 0,
+				headBlock: 'b1',
+				headOffset: 8,
+			});
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: h.dispatch,
+					getContainer: () => mockContainer,
+				}),
+				onClose,
+			);
+
+			const input = container.querySelector('input') as HTMLInputElement;
+			input.value = 'https://example.com';
+
+			const applyBtn = container.querySelector(
+				'button[aria-label="Apply link"]',
+			) as HTMLButtonElement;
+			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			expect(h.dispatch).toHaveBeenCalled();
+			expect(onClose).toHaveBeenCalledOnce();
+
+			const alert = container.querySelector('[role="alert"]') as HTMLElement;
+			expect(alert.hidden).toBe(true);
+		});
+
+		it('popup error clears when user types again', async () => {
+			const state = makeState([{ text: 'click me', id: 'b1' }], {
+				anchorBlock: 'b1',
+				anchorOffset: 0,
+				headBlock: 'b1',
+				headOffset: 8,
+			});
+
+			const h = await pluginHarness(new LinkPlugin(), state);
+			const item = h.getToolbarItem('link');
+			const container = document.createElement('div');
+			const mockContainer = document.createElement('div');
+
+			item?.renderPopup?.(
+				container,
+				mockPluginContext({
+					getState: () => state,
+					dispatch: vi.fn(),
+					getContainer: () => mockContainer,
+				}),
+				vi.fn(),
+			);
+
+			const input = container.querySelector('input') as HTMLInputElement;
+			input.value = 'javascript:alert(1)';
+
+			const applyBtn = container.querySelector(
+				'button[aria-label="Apply link"]',
+			) as HTMLButtonElement;
+			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			const alert = container.querySelector('[role="alert"]') as HTMLElement;
+			expect(alert.hidden).toBe(false);
+
+			input.value = 'https://example.com';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+
+			expect(alert.hidden).toBe(true);
+			expect(input.getAttribute('aria-invalid')).toBeNull();
+		});
+	});
+
 	describe('commands', () => {
 		it('registers toggleLink command', async () => {
 			const h = await pluginHarness(new LinkPlugin());
