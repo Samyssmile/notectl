@@ -58,12 +58,15 @@ export function registerAutoDetectMiddleware(
 ): void {
 	context.registerMiddleware(
 		(tr, state, next) => {
+			const attrTouched: ReadonlySet<string> = collectAttrTouchedBlocks(tr.steps);
 			const extraSteps: Step[] = [];
 
 			for (const step of tr.steps) {
 				if (step.type === 'insertText') {
+					if (attrTouched.has(step.blockId)) continue;
 					handleInsertText(step, state, directableTypes, extraSteps);
 				} else if (step.type === 'deleteText') {
+					if (attrTouched.has(step.blockId)) continue;
 					handleDeleteText(step, state, directableTypes, extraSteps);
 				}
 			}
@@ -76,6 +79,25 @@ export function registerAutoDetectMiddleware(
 		},
 		{ name: 'text-direction:auto-detect' },
 	);
+}
+
+/**
+ * Collects IDs of blocks whose attrs are already mutated by `setBlockType`
+ * or `setNodeAttr` steps in the transaction. The auto-detect pass must skip
+ * these blocks: its `setNodeAttr` is built from a pre-transaction snapshot
+ * and would clobber freshly written attrs (full-replace step semantics).
+ */
+function collectAttrTouchedBlocks(steps: readonly Step[]): ReadonlySet<string> {
+	const touched: Set<string> = new Set();
+	for (const step of steps) {
+		if (step.type === 'setBlockType') {
+			touched.add(step.blockId);
+		} else if (step.type === 'setNodeAttr') {
+			const blockId: string | undefined = step.path[step.path.length - 1];
+			if (blockId) touched.add(blockId);
+		}
+	}
+	return touched;
 }
 
 function buildDirChangeStep(
