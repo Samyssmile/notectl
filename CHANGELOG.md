@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`ServiceKey` / `EventKey` moved to `model/TypedKeys.ts` (#112)** — Resolves a structural layer violation where `i18n/LocaleService` imported `ServiceKey` from `plugins/Plugin`. The classes are pure nominal typed-id wrappers and now live in `model/`, where any layer can construct typed DI keys without depending on `plugins/`. Re-exported from `plugins/Plugin.ts` and `@notectl/core` — no public API change.
+
 ### Fixed
 
 - **Signal-form cursor reset on `html` and `text` content formats (#103)** — Extends the 2.0.9 fix to `contentFormat: 'html'` and `'text'`. The caret no longer jumps to the start of the document when an Angular signal form (or any external owner) writes the same content back on every keystroke.

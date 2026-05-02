@@ -48,7 +48,7 @@ platform/         -> Browser & platform detection utilities
 
 ### Layer Responsibilities
 
-- **`model/`** — Immutable data types (`Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection`, `Schema`, `SchemaRegistry`), registries (`InputRuleRegistry`, `KeymapRegistry`, `FileHandlerRegistry`), and handler signatures (`InputRule`). All deeply `readonly`. Mutations always create new instances.
+- **`model/`** — Immutable data types (`Document`, `BlockNode`, `TextNode`, `InlineNode`, `Mark`, `Selection`, `Schema`, `SchemaRegistry`), registries (`InputRuleRegistry`, `KeymapRegistry`, `FileHandlerRegistry`), handler signatures (`InputRule`), and typed nominal keys (`TypedKeys.ts` — canonical home for `ServiceKey<T>` / `EventKey<T>` so any layer can construct typed DI keys without depending on `plugins/`). All deeply `readonly`. Mutations always create new instances.
 - **`state/`** — `EditorState` (immutable container), `Transaction` (atomic step-based changes), `StepApplication` (pure functions), `History` (undo/redo grouping via transaction inversion).
 - **`decorations/`** — Transient view annotations that do not modify the document model. Three types: `InlineDecoration` (text range styling), `NodeDecoration` (whole-block styling), `WidgetDecoration` (injected DOM elements). Managed via `DecorationSet` with position mapping through transactions.
 - **`platform/`** — Pure utility functions for browser and OS detection: `isMac()`, `isFirefox()`, `isWebKit()`, `getTextDirection()`, `isRtlContext()`. No dependencies on other layers. Results are cached after first call.
