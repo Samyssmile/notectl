@@ -3,7 +3,7 @@
  * Registered as a system-level service before plugin init.
  */
 
-import { ServiceKey } from '../plugins/Plugin.js';
+import { ServiceKey } from '../model/TypedKeys.js';
 
 export class LocaleService {
 	private readonly resolvedLocale: string;

@@ -24,17 +24,11 @@ import type { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 // --- Type-Safe Keys ---
 
-/** Type-safe event key for compile-time payload checking. */
-export class EventKey<T> {
-	declare readonly _type: T;
-	constructor(public readonly id: string) {}
-}
-
-/** Type-safe service key for compile-time type checking. */
-export class ServiceKey<T> {
-	declare readonly _type: T;
-	constructor(public readonly id: string) {}
-}
+// `ServiceKey` and `EventKey` live in `model/TypedKeys` so layers below
+// `plugins/` (e.g. `i18n/`) can construct typed DI keys without inverting
+// the layer matrix. Re-exported here for backwards compatibility.
+import { EventKey, ServiceKey } from '../model/TypedKeys.js';
+export { EventKey, ServiceKey };
 
 // --- Command System ---
 
