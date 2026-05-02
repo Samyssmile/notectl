@@ -60,13 +60,22 @@ export function mergeAdjacentSegments(segments: readonly PasteSegment[]): readon
 	return merged;
 }
 
-/** Picks the highest-confidence detection result from all detectors. */
+/**
+ * Picks the highest-confidence detection result from all detectors.
+ * Ties are broken deterministically by lexicographic language id so the
+ * outcome does not depend on detector registration order.
+ */
 function detectBest(text: string, detectors: readonly ContentDetector[]): DetectionResult | null {
 	let best: DetectionResult | null = null;
 
 	for (const detector of detectors) {
 		const result: DetectionResult | null = detector.detect(text);
-		if (result && (best === null || result.confidence > best.confidence)) {
+		if (!result) continue;
+		if (
+			best === null ||
+			result.confidence > best.confidence ||
+			(result.confidence === best.confidence && result.language < best.language)
+		) {
 			best = result;
 		}
 	}

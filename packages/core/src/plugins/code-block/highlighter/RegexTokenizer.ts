@@ -5,6 +5,7 @@
  */
 
 import type { SyntaxHighlighter, SyntaxToken } from '../CodeBlockTypes.js';
+import { iterateTokens } from './TokenIteration.js';
 import type { LanguageDefinition } from './TokenizerTypes.js';
 
 export class RegexTokenizer implements SyntaxHighlighter {
@@ -29,31 +30,9 @@ export class RegexTokenizer implements SyntaxHighlighter {
 		if (!lang) return [];
 
 		const tokens: SyntaxToken[] = [];
-		let pos = 0;
-
-		while (pos < code.length) {
-			let matched = false;
-
-			for (const pattern of lang.patterns) {
-				pattern.pattern.lastIndex = pos;
-				const match: RegExpExecArray | null = pattern.pattern.exec(code);
-				if (match && match.index === pos && match[0].length > 0) {
-					tokens.push({
-						from: pos,
-						to: pos + match[0].length,
-						type: pattern.type,
-					});
-					pos += match[0].length;
-					matched = true;
-					break;
-				}
-			}
-
-			if (!matched) {
-				pos++;
-			}
+		for (const token of iterateTokens(code, lang)) {
+			tokens.push({ from: token.from, to: token.to, type: token.type });
 		}
-
 		return tokens;
 	}
 
