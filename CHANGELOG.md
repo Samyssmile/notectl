@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-05-02
+
+### Fixed
+
+- **CI on `main` red — Bootstrap-modal-like dropdown-position spec failed (#68 regression)** — The vanillajs playground commit `98239d1` added `notectl-editor { height: 100%; min-height: 0; --notectl-content-min-height: 0 }` to make the editor fill a new 700px grid row. Those rules apply globally to the host element, including in `dropdown-position.spec.ts` which reparents `#editor-container` into a Bootstrap-modal-like dialog with no explicit height. There, `height: 100%` resolved to auto, the editor shrank to its content and the heading dropdown popup ended up mispositioned (`gap: -148px`) inside the transformed containing block. The `grid-template-rows: 700px auto` row alone keeps the actions bar pinned and the inspector height-bounded; the editor sizes to its intrinsic height (`--notectl-content-min-height: 460px`) inside the row, identical to v2.0.x behaviour.
+
 ## [2.1.1] - 2026-05-02
 
 ### Fixed
