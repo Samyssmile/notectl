@@ -9,12 +9,6 @@ const locale: TextDirectionLocale = {
 	announceLTR: 'Dirección del texto establecida de izquierda a derecha',
 	announceRTL: 'Dirección del texto establecida de derecha a izquierda',
 	announceAuto: 'Dirección del texto establecida en automático',
-	inlineLTR: 'En línea IaD',
-	inlineRTL: 'En línea DaI',
-	inlineAuto: 'En línea Auto',
-	inlineLabel: 'Dirección en línea',
-	inlineTooltip: 'Dirección en línea',
-	announceRemoveBidi: 'Aislamiento de dirección en línea eliminado',
 };
 
 export default locale;

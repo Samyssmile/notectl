@@ -30,10 +30,8 @@ const pluginEntries: Record<string, string> = {
 	'plugins/smart-paste': resolve(__dirname, 'src/plugins/smart-paste/index.ts'),
 	'plugins/language': resolve(__dirname, 'src/plugins/language/index.ts'),
 	'plugins/text-direction': resolve(__dirname, 'src/plugins/text-direction/index.ts'),
-	'plugins/text-direction-advanced': resolve(
-		__dirname,
-		'src/plugins/text-direction-advanced/index.ts',
-	),
+	'plugins/bidi-isolation': resolve(__dirname, 'src/plugins/bidi-isolation/index.ts'),
+	'plugins/text-direction-auto': resolve(__dirname, 'src/plugins/text-direction-auto/index.ts'),
 };
 
 const analyzePlugins: VitePlugin[] = [];

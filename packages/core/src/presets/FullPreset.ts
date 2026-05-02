@@ -3,6 +3,7 @@
  */
 
 import { AlignmentPlugin } from '../plugins/alignment/AlignmentPlugin.js';
+import { BidiIsolationPlugin } from '../plugins/bidi-isolation/BidiIsolationPlugin.js';
 import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { CodeBlockPlugin } from '../plugins/code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../plugins/font-size/FontSizePlugin.js';
@@ -21,7 +22,8 @@ import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugi
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
-import { TextDirectionCorePlugin } from '../plugins/text-direction/TextDirectionCorePlugin.js';
+import { TextDirectionAutoPlugin } from '../plugins/text-direction-auto/TextDirectionAutoPlugin.js';
+import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
 
@@ -33,13 +35,15 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
  *
  * Toolbar groups:
  * 1. Typography: Font, FontSize
- * 2. Inline marks: TextFormatting, Strikethrough, InlineCode, SuperSub
+ * 2. Inline marks: TextFormatting, Strikethrough, InlineCode, SuperSub, BidiIsolation
  * 3. Colors: TextColor, Highlight
  * 4. Block types: Heading, Blockquote, CodeBlock
  * 5. Paragraph layout: Alignment, TextDirection
  * 6. Lists: List
  * 7. Insert objects: Link, Table, HorizontalRule, Image
  * 8. Utility: Print
+ *
+ * Headless plugins: HardBreak, SmartPaste, TextDirectionAuto.
  */
 export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 	return {
@@ -50,6 +54,7 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 				new StrikethroughPlugin(options?.strikethrough),
 				new InlineCodePlugin(options?.inlineCode),
 				new SuperSubPlugin(options?.superSub),
+				new BidiIsolationPlugin(options?.bidiIsolation),
 			],
 			[new TextColorPlugin(options?.textColor), new HighlightPlugin(options?.highlight)],
 			[
@@ -57,10 +62,7 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 				new BlockquotePlugin(options?.blockquote),
 				new CodeBlockPlugin(options?.codeBlock),
 			],
-			[
-				new AlignmentPlugin(options?.alignment),
-				new TextDirectionCorePlugin(options?.textDirection),
-			],
+			[new AlignmentPlugin(options?.alignment), new TextDirectionPlugin(options?.textDirection)],
 			[new ListPlugin(options?.list)],
 			[
 				new LinkPlugin(options?.link),
@@ -70,6 +72,10 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 			],
 			[new PrintPlugin(options?.print)],
 		],
-		plugins: [new HardBreakPlugin(), new SmartPastePlugin(options?.smartPaste)],
+		plugins: [
+			new HardBreakPlugin(),
+			new SmartPastePlugin(options?.smartPaste),
+			new TextDirectionAutoPlugin(options?.textDirectionAuto),
+		],
 	};
 }

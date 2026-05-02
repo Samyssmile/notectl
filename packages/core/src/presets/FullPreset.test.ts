@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AlignmentPlugin } from '../plugins/alignment/AlignmentPlugin.js';
+import { BidiIsolationPlugin } from '../plugins/bidi-isolation/BidiIsolationPlugin.js';
 import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { CodeBlockPlugin } from '../plugins/code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../plugins/font-size/FontSizePlugin.js';
@@ -17,7 +18,8 @@ import { StrikethroughPlugin } from '../plugins/strikethrough/StrikethroughPlugi
 import { SuperSubPlugin } from '../plugins/super-sub/SuperSubPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
-import { TextDirectionCorePlugin } from '../plugins/text-direction/TextDirectionCorePlugin.js';
+import { TextDirectionAutoPlugin } from '../plugins/text-direction-auto/TextDirectionAutoPlugin.js';
+import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import { createFullPreset } from './FullPreset.js';
 
@@ -37,15 +39,16 @@ describe('createFullPreset', () => {
 		expect(group?.[1]).toBeInstanceOf(FontSizePlugin);
 	});
 
-	it('group 2 contains TextFormatting, Strikethrough, InlineCode, SuperSub', () => {
+	it('group 2 contains TextFormatting, Strikethrough, InlineCode, SuperSub, BidiIsolation', () => {
 		const preset = createFullPreset();
 		const group = preset.toolbar[1];
 
-		expect(group).toHaveLength(4);
+		expect(group).toHaveLength(5);
 		expect(group?.[0]).toBeInstanceOf(TextFormattingPlugin);
 		expect(group?.[1]).toBeInstanceOf(StrikethroughPlugin);
 		expect(group?.[2]).toBeInstanceOf(InlineCodePlugin);
 		expect(group?.[3]).toBeInstanceOf(SuperSubPlugin);
+		expect(group?.[4]).toBeInstanceOf(BidiIsolationPlugin);
 	});
 
 	it('group 3 contains TextColor and Highlight', () => {
@@ -73,7 +76,7 @@ describe('createFullPreset', () => {
 
 		expect(group).toHaveLength(2);
 		expect(group?.[0]).toBeInstanceOf(AlignmentPlugin);
-		expect(group?.[1]).toBeInstanceOf(TextDirectionCorePlugin);
+		expect(group?.[1]).toBeInstanceOf(TextDirectionPlugin);
 	});
 
 	it('group 6 contains List', () => {
@@ -103,11 +106,12 @@ describe('createFullPreset', () => {
 		expect(group?.[0]).toBeInstanceOf(PrintPlugin);
 	});
 
-	it('includes HardBreakPlugin and SmartPastePlugin in non-toolbar plugins', () => {
+	it('includes HardBreak, SmartPaste, and TextDirectionAuto in non-toolbar plugins', () => {
 		const preset = createFullPreset();
 
-		expect(preset.plugins).toHaveLength(2);
+		expect(preset.plugins).toHaveLength(3);
 		expect(preset.plugins[0]).toBeInstanceOf(HardBreakPlugin);
+		expect(preset.plugins[2]).toBeInstanceOf(TextDirectionAutoPlugin);
 	});
 
 	it('accepts per-plugin config overrides', () => {

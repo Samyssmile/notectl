@@ -54,4 +54,5 @@ export * from './plugins/print/index.js';
 export * from './plugins/smart-paste/index.js';
 export * from './plugins/language/index.js';
 export * from './plugins/text-direction/index.js';
-export { TextDirectionAdvancedPlugin } from './plugins/text-direction-advanced/index.js';
+export * from './plugins/bidi-isolation/index.js';
+export * from './plugins/text-direction-auto/index.js';

@@ -142,9 +142,13 @@
 			"types": "./dist/plugins/text-direction/index.d.ts",
 			"import": "./dist/plugins/text-direction.mjs"
 		},
-		"./plugins/text-direction-advanced": {
-			"types": "./dist/plugins/text-direction-advanced/index.d.ts",
-			"import": "./dist/plugins/text-direction-advanced.mjs"
+		"./plugins/bidi-isolation": {
+			"types": "./dist/plugins/bidi-isolation/index.d.ts",
+			"import": "./dist/plugins/bidi-isolation.mjs"
+		},
+		"./plugins/text-direction-auto": {
+			"types": "./dist/plugins/text-direction-auto/index.d.ts",
+			"import": "./dist/plugins/text-direction-auto.mjs"
 		}
 	},
 	"customElements": "custom-elements.json",
@@ -197,7 +201,7 @@
 		{
 			"name": "Presets (full)",
 			"path": "dist/presets/full.mjs",
-			"limit": "88 KB",
+			"limit": "92 KB",
 			"gzip": true
 		},
 		{
@@ -363,9 +367,15 @@
 			"gzip": true
 		},
 		{
-			"name": "Plugin: Text Direction Advanced",
-			"path": "dist/plugins/text-direction-advanced.mjs",
-			"limit": "7 KB",
+			"name": "Plugin: Bidi Isolation",
+			"path": "dist/plugins/bidi-isolation.mjs",
+			"limit": "5 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Text Direction Auto",
+			"path": "dist/plugins/text-direction-auto.mjs",
+			"limit": "4 KB",
 			"gzip": true
 		},
 		{

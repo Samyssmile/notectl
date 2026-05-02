@@ -12,7 +12,8 @@ import {
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
 import type { DropdownConfig } from '../toolbar/ToolbarItem.js';
-import { DIRECTION_ICONS, TextDirectionPlugin } from './TextDirectionPlugin.js';
+import { DIRECTION_ICONS } from './DirectionIcons.js';
+import { TextDirectionPlugin } from './TextDirectionPlugin.js';
 
 // --- Helpers ---
 
@@ -34,7 +35,7 @@ function makeState(
 	}
 	const bid: string = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
 	builder.cursor(bid, cursorOffset ?? 0);
-	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi']);
+	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline']);
 	return builder.build();
 }
 
@@ -348,7 +349,7 @@ describe('TextDirectionPlugin', () => {
 				.paragraph('text', 'b1')
 				.block('paragraph', 'selected', 'b2')
 				.nodeSelection('b2')
-				.schema(['paragraph'], ['bold', 'bdi'])
+				.schema(['paragraph'], ['bold'])
 				.build();
 			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
 			expectToolbarEnabled(h, 'text-direction', true);
@@ -362,7 +363,7 @@ describe('TextDirectionPlugin', () => {
 				.paragraph('World', 'b2')
 				.paragraph('Foo', 'b3')
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 3 })
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
 			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
 
@@ -379,7 +380,7 @@ describe('TextDirectionPlugin', () => {
 				.block('list_item', 'Item', 'b2', { attrs: { listType: 'bullet', indent: 0 } })
 				.paragraph('World', 'b3')
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 5 })
-				.schema(['paragraph', 'heading', 'list_item'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading', 'list_item'], ['bold', 'italic', 'underline'])
 				.build();
 			const h = await pluginHarness(
 				new TextDirectionPlugin({ directableTypes: ['paragraph'] }),
@@ -456,7 +457,7 @@ describe('TextDirectionPlugin', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'Hello', 'b1', { attrs: { dir: 'auto' } })
 				.nodeSelection('b1')
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
 			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
 
@@ -468,7 +469,7 @@ describe('TextDirectionPlugin', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'Hello', 'b1')
 				.nodeSelection('b1')
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
 			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
 
@@ -505,7 +506,7 @@ describe('TextDirectionPlugin', () => {
 				.block('paragraph', 'مرحبا', 'b1', { attrs: { dir: 'rtl' } })
 				.block('paragraph', 'Hello', 'b2', { attrs: { dir: 'ltr' } })
 				.cursor('b2', 0)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
 			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
 

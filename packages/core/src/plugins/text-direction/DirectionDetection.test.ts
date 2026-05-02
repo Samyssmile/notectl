@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createBlockNode, createTextNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { TextDirectionAutoPlugin } from '../text-direction-auto/TextDirectionAutoPlugin.js';
 import { detectTextDirection, findSiblingDirection } from './DirectionDetection.js';
 import { TextDirectionPlugin } from './TextDirectionPlugin.js';
 
 const HARNESS_OPTIONS = { useMiddleware: true, builtinSpecs: true } as const;
+
+const directionPlugins = (): readonly (TextDirectionPlugin | TextDirectionAutoPlugin)[] => [
+	new TextDirectionPlugin(),
+	new TextDirectionAutoPlugin(),
+];
 
 describe('detectTextDirection', () => {
 	it('returns rtl for Arabic text', () => {
@@ -109,9 +115,9 @@ describe('findSiblingDirection', () => {
 			.block('paragraph', 'RTL text', 'b1', { attrs: { dir: 'rtl' } })
 			.block('paragraph', 'Auto text', 'b2', { attrs: { dir: 'auto' } })
 			.cursor('b2', 0)
-			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 			.build();
-		const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+		const h = await pluginHarness(directionPlugins(), state, HARNESS_OPTIONS);
 
 		const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b3' as BlockId);
 		const tr = h.getState().transaction('command').insertNode([], 2, newBlock).build();
@@ -125,9 +131,9 @@ describe('findSiblingDirection', () => {
 		const state = stateBuilder()
 			.block('paragraph', 'RTL text', 'b1', { attrs: { dir: 'rtl' } })
 			.cursor('b1', 0)
-			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 			.build();
-		const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+		const h = await pluginHarness(directionPlugins(), state, HARNESS_OPTIONS);
 
 		const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b0' as BlockId);
 		const tr = h.getState().transaction('command').insertNode([], 0, newBlock).build();
@@ -141,9 +147,9 @@ describe('findSiblingDirection', () => {
 		const state = stateBuilder()
 			.block('paragraph', 'Auto text', 'b1', { attrs: { dir: 'auto' } })
 			.cursor('b1', 0)
-			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 			.build();
-		const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+		const h = await pluginHarness(directionPlugins(), state, HARNESS_OPTIONS);
 
 		const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b0' as BlockId);
 		const tr = h.getState().transaction('command').insertNode([], 0, newBlock).build();
@@ -159,9 +165,9 @@ describe('findSiblingDirection', () => {
 			.block('paragraph', 'Auto text', 'b1', { attrs: { dir: 'auto' } })
 			.block('paragraph', 'RTL text', 'b2', { attrs: { dir: 'rtl' } })
 			.cursor('b1', 0)
-			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 			.build();
-		const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+		const h = await pluginHarness(directionPlugins(), state, HARNESS_OPTIONS);
 
 		const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b0' as BlockId);
 		const tr = h.getState().transaction('command').insertNode([], 0, newBlock).build();
@@ -176,9 +182,9 @@ describe('findSiblingDirection', () => {
 			.block('paragraph', 'LTR text', 'b1', { attrs: { dir: 'ltr' } })
 			.block('paragraph', 'RTL text', 'b2', { attrs: { dir: 'rtl' } })
 			.cursor('b1', 0)
-			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+			.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 			.build();
-		const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+		const h = await pluginHarness(directionPlugins(), state, HARNESS_OPTIONS);
 
 		const newBlock = createBlockNode('paragraph', [createTextNode('')], 'bm' as BlockId);
 		const tr = h.getState().transaction('command').insertNode([], 1, newBlock).build();

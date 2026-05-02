@@ -9,12 +9,6 @@ const locale: TextDirectionLocale = {
 	announceLTR: 'Направление текста установлено слева направо',
 	announceRTL: 'Направление текста установлено справа налево',
 	announceAuto: 'Направление текста установлено автоматически',
-	inlineLTR: 'Строчное слева направо',
-	inlineRTL: 'Строчное справа налево',
-	inlineAuto: 'Строчное авто',
-	inlineLabel: 'Строчное направление',
-	inlineTooltip: 'Строчное направление',
-	announceRemoveBidi: 'Строчная изоляция направления удалена',
 };
 
 export default locale;
