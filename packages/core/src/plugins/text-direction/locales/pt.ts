@@ -9,12 +9,6 @@ const locale: TextDirectionLocale = {
 	announceLTR: 'Direção do texto definida da esquerda para a direita',
 	announceRTL: 'Direção do texto definida da direita para a esquerda',
 	announceAuto: 'Direção do texto definida como automática',
-	inlineLTR: 'Em linha EpD',
-	inlineRTL: 'Em linha DpE',
-	inlineAuto: 'Em linha Auto',
-	inlineLabel: 'Direção em linha',
-	inlineTooltip: 'Direção em linha',
-	announceRemoveBidi: 'Isolamento de direção em linha removido',
 };
 
 export default locale;

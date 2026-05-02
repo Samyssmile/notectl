@@ -4,11 +4,16 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
-import { TextDirectionPlugin } from './TextDirectionPlugin.js';
-
-// --- Helpers ---
+import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
+import { TextDirectionAutoPlugin } from './TextDirectionAutoPlugin.js';
 
 const HARNESS_OPTIONS = { useMiddleware: true, builtinSpecs: true } as const;
+
+function plugins(
+	extra?: HeadingPlugin[],
+): readonly (HeadingPlugin | TextDirectionPlugin | TextDirectionAutoPlugin)[] {
+	return [new TextDirectionPlugin(), new TextDirectionAutoPlugin(), ...(extra ?? [])];
+}
 
 function makeState(
 	blocks?: {
@@ -26,13 +31,19 @@ function makeState(
 	}
 	const bid: string = cursorBlockId ?? blocks?.[0]?.id ?? 'b1';
 	builder.cursor(bid, cursorOffset ?? 0);
-	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi']);
+	builder.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline']);
 	return builder.build();
 }
 
-// --- Tests ---
+describe('TextDirectionAutoPlugin', () => {
+	describe('dependency contract', () => {
+		it('throws when registered without TextDirectionPlugin', async () => {
+			await expect(
+				pluginHarness(new TextDirectionAutoPlugin(), undefined, HARNESS_OPTIONS),
+			).rejects.toThrow(/text-direction/);
+		});
+	});
 
-describe('TextDirectionPlugin — middleware', () => {
 	describe('preserve direction on block type change', () => {
 		it('preserves dir when changing paragraph to heading', async () => {
 			const state: EditorState = makeState([
@@ -43,11 +54,7 @@ describe('TextDirectionPlugin — middleware', () => {
 					attrs: { dir: 'rtl' },
 				},
 			]);
-			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextDirectionPlugin()],
-				state,
-				HARNESS_OPTIONS,
-			);
+			const h = await pluginHarness([...plugins([new HeadingPlugin()])], state, HARNESS_OPTIONS);
 
 			h.executeCommand('setHeading1');
 			const block = h.getState().doc.children[0];
@@ -64,11 +71,7 @@ describe('TextDirectionPlugin — middleware', () => {
 					attrs: { level: 1, dir: 'ltr' },
 				},
 			]);
-			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextDirectionPlugin()],
-				state,
-				HARNESS_OPTIONS,
-			);
+			const h = await pluginHarness([...plugins([new HeadingPlugin()])], state, HARNESS_OPTIONS);
 
 			h.executeCommand('setParagraph');
 			const block = h.getState().doc.children[0];
@@ -85,11 +88,7 @@ describe('TextDirectionPlugin — middleware', () => {
 					attrs: { dir: 'auto' },
 				},
 			]);
-			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextDirectionPlugin()],
-				state,
-				HARNESS_OPTIONS,
-			);
+			const h = await pluginHarness([...plugins([new HeadingPlugin()])], state, HARNESS_OPTIONS);
 
 			h.executeCommand('setHeading2');
 			const block = h.getState().doc.children[0];
@@ -99,11 +98,7 @@ describe('TextDirectionPlugin — middleware', () => {
 
 		it('does not interfere when block has no dir attr', async () => {
 			const state: EditorState = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(
-				[new HeadingPlugin(), new TextDirectionPlugin()],
-				state,
-				HARNESS_OPTIONS,
-			);
+			const h = await pluginHarness([...plugins([new HeadingPlugin()])], state, HARNESS_OPTIONS);
 
 			h.executeCommand('setHeading1');
 			const block = h.getState().doc.children[0];
@@ -117,7 +112,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -133,7 +128,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -149,7 +144,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'مرحبا', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -165,7 +160,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -181,7 +176,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -197,7 +192,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'مرحبا', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -213,7 +208,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -231,7 +226,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'مرحبا', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -247,7 +242,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'مرحبا Hello', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -263,7 +258,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'مرحبا عالم', id: 'b1', attrs: { dir: 'rtl' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -279,7 +274,7 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '123', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const tr = h
 				.getState()
@@ -297,9 +292,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'RTL text', 'b1', { attrs: { dir: 'rtl' } })
 				.cursor('b1', 8)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b2' as BlockId);
 			const tr = h.getState().transaction('command').insertNode([], 1, newBlock).build();
@@ -313,9 +308,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'Text', 'b1', { attrs: { dir: 'auto' } })
 				.cursor('b1', 4)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b2' as BlockId);
 			const tr = h.getState().transaction('command').insertNode([], 1, newBlock).build();
@@ -330,9 +325,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'Hello', 'b1', { attrs: { dir: 'ltr' } })
 				.cursor('b1', 5)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode(
 				'paragraph',
@@ -349,9 +344,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'مرحبا', 'b1', { attrs: { dir: 'rtl' } })
 				.cursor('b1', 5)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode(
 				'paragraph',
@@ -368,9 +363,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'مرحبا', 'b1', { attrs: { dir: 'rtl' } })
 				.cursor('b1', 5)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b2' as BlockId);
 			const tr = h.getState().transaction('command').insertNode([], 1, newBlock).build();
@@ -383,9 +378,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'RTL text', 'b1', { attrs: { dir: 'rtl' } })
 				.cursor('b1', 8)
-				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
 			const newBlock = createBlockNode('paragraph', [createTextNode('')], 'b2' as BlockId, {
 				dir: 'ltr',
@@ -403,9 +398,8 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
-			// Type Arabic → auto becomes rtl
 			const tr1 = h
 				.getState()
 				.transaction('input')
@@ -414,7 +408,6 @@ describe('TextDirectionPlugin — middleware', () => {
 			h.dispatch(tr1);
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
 
-			// Delete all text → back to auto
 			const tr2 = h
 				.getState()
 				.transaction('input')
@@ -430,9 +423,8 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
-			// Type Arabic → auto-detect sets RTL
 			const tr = h
 				.getState()
 				.transaction('input')
@@ -441,7 +433,6 @@ describe('TextDirectionPlugin — middleware', () => {
 			h.dispatch(tr);
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
 
-			// Manual override to LTR
 			h.executeCommand('setDirectionLTR');
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('ltr');
 		});
@@ -450,9 +441,8 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: 'Hello', id: 'b1', attrs: { dir: 'ltr' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
-			// Type Arabic into existing LTR block → should NOT change direction
 			const tr = h
 				.getState()
 				.transaction('input')
@@ -466,9 +456,8 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
-			// Type Arabic → auto-detect RTL
 			const tr1 = h
 				.getState()
 				.transaction('input')
@@ -477,11 +466,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			h.dispatch(tr1);
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
 
-			// Manual override to LTR
 			h.executeCommand('setDirectionLTR');
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('ltr');
 
-			// Delete all text → resets to auto
 			const tr2 = h
 				.getState()
 				.transaction('input')
@@ -495,9 +482,8 @@ describe('TextDirectionPlugin — middleware', () => {
 			const state: EditorState = makeState([
 				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
 			]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
 
-			// Auto-detect RTL
 			const tr = h
 				.getState()
 				.transaction('input')
@@ -506,11 +492,9 @@ describe('TextDirectionPlugin — middleware', () => {
 			h.dispatch(tr);
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
 
-			// Toggle: rtl → ltr
 			h.executeCommand('toggleDirection');
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('ltr');
 
-			// Toggle: ltr → auto
 			h.executeCommand('toggleDirection');
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('auto');
 		});

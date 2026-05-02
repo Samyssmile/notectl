@@ -26,15 +26,15 @@ This gives you the same setup as manually configuring:
 | Group | Plugins | Purpose |
 |-------|---------|---------|
 | 1 | Font, FontSize | Typography |
-| 2 | TextFormatting, Strikethrough, SuperSub | Inline marks |
+| 2 | TextFormatting, Strikethrough, InlineCode, SuperSub, BidiIsolation | Inline marks |
 | 3 | TextColor, Highlight | Colors |
 | 4 | Heading, Blockquote, CodeBlock | Block types |
-| 5 | Alignment, TextDirectionCore | Paragraph layout & direction |
+| 5 | Alignment, TextDirection | Paragraph layout & direction |
 | 6 | List | Bullet, ordered, checklist |
 | 7 | Link, Table, HorizontalRule, Image | Insert objects |
 | 8 | Print | Utility |
 
-`HardBreakPlugin` and `SmartPastePlugin` are included in the non-toolbar `plugins` array (they need no toolbar button).
+`HardBreakPlugin`, `SmartPastePlugin`, and `TextDirectionAutoPlugin` are included in the non-toolbar `plugins` array (they need no toolbar button).
 
 ## Minimal Preset
 
@@ -82,7 +82,9 @@ const editor = await createEditor({
 | `blockquote` | BlockquotePlugin | `{}` |
 | `codeBlock` | CodeBlockPlugin | `{ highlighter: myHighlighter }` |
 | `alignment` | AlignmentPlugin | `{ alignments: ['start', 'center', 'end'] }` |
-| `textDirection` | TextDirectionCorePlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
+| `textDirection` | TextDirectionPlugin | `{ directableTypes: ['paragraph', 'heading'] }` |
+| `bidiIsolation` | BidiIsolationPlugin | `{}` |
+| `textDirectionAuto` | TextDirectionAutoPlugin | `{ autoDetect: true, inherit: true, preserve: true }` |
 | `list` | ListPlugin | `{ interactiveCheckboxes: true }` |
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
 | `table` | TablePlugin | `{ maxPickerRows: 10 }` |

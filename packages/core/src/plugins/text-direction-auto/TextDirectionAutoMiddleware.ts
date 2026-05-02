@@ -1,6 +1,15 @@
 /**
- * Middleware registrations for the TextDirectionPlugin.
- * Separated from the main plugin file for maintainability.
+ * Middleware registrations for the TextDirectionAutoPlugin.
+ *
+ * Three independent middlewares that all operate on the block-level `dir`
+ * attribute owned by the {@link TextDirectionPlugin}:
+ *
+ * - **preserveDir**: keeps `dir` when another plugin replaces a block's
+ *   attrs (e.g. `setBlockType` paragraph → heading).
+ * - **autoDetect**: on `insertText` / `deleteText`, detects direction from
+ *   the first strong directional character and updates `dir`.
+ * - **inheritDir**: on `insertNode`, inherits the new block's `dir` from
+ *   the nearest sibling (or auto-detects from inserted text content).
  */
 
 import type { BlockNode } from '../../model/Document.js';
@@ -8,13 +17,13 @@ import { blockOffsetToTextOffset, getBlockText } from '../../model/Document.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Step } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
-import { detectTextDirection, findSiblingDirection, getBlockDir } from './DirectionDetection.js';
-import type { TextDirection } from './TextDirectionPlugin.js';
+import {
+	detectTextDirection,
+	findSiblingDirection,
+	getBlockDir,
+} from '../text-direction/DirectionDetection.js';
+import type { TextDirection } from '../text-direction/TextDirectionService.js';
 
-/**
- * Preserves the `dir` attribute when other plugins change the block
- * type (e.g. paragraph -> heading) via `setBlockType`, which replaces attrs.
- */
 export function registerPreserveDirMiddleware(
 	context: PluginContext,
 	directableTypes: ReadonlySet<string>,
@@ -43,11 +52,6 @@ export function registerPreserveDirMiddleware(
 	);
 }
 
-/**
- * Auto-detects text direction on `insertText` and `deleteText` steps
- * for blocks with `dir="auto"` (or blocks whose content changes direction).
- * Uses the first strong directional character to determine LTR vs RTL.
- */
 export function registerAutoDetectMiddleware(
 	context: PluginContext,
 	directableTypes: ReadonlySet<string>,
@@ -74,7 +78,6 @@ export function registerAutoDetectMiddleware(
 	);
 }
 
-/** Builds a `setNodeAttr` step to change the `dir` attribute of a block. */
 function buildDirChangeStep(
 	state: EditorState,
 	block: BlockNode,
@@ -91,7 +94,6 @@ function buildDirChangeStep(
 	};
 }
 
-/** Handles direction detection after text insertion. */
 function handleInsertText(
 	step: Extract<Step, { type: 'insertText' }>,
 	state: EditorState,
@@ -115,7 +117,6 @@ function handleInsertText(
 	if (dirStep) extraSteps.push(dirStep);
 }
 
-/** Handles direction re-detection after text deletion. */
 function handleDeleteText(
 	step: Extract<Step, { type: 'deleteText' }>,
 	state: EditorState,
@@ -146,10 +147,6 @@ function handleDeleteText(
 	if (dirStep) extraSteps.push(dirStep);
 }
 
-/**
- * Inherits `dir` from the nearest sibling when inserting a new block
- * (e.g. via GapCursor or NodeSelection).
- */
 export function registerInheritDirMiddleware(
 	context: PluginContext,
 	directableTypes: ReadonlySet<string>,
@@ -165,7 +162,6 @@ export function registerInheritDirMiddleware(
 				const newDir: string = String(step.node.attrs?.dir ?? 'auto');
 				if (newDir !== 'auto') return step;
 
-				// Detect direction from inserted node's text content
 				const nodeText: string = getBlockText(step.node);
 				if (nodeText.length > 0) {
 					const detected: TextDirection | null = detectTextDirection(nodeText);
@@ -181,7 +177,6 @@ export function registerInheritDirMiddleware(
 					}
 				}
 
-				// Fall back to sibling direction for empty blocks
 				const siblingDir: string | undefined = findSiblingDirection(
 					state,
 					step.parentPath,

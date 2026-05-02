@@ -288,6 +288,42 @@ export function stateBuilder(): StateBuilder {
 	return new StateBuilder();
 }
 
+/**
+ * Builds an `EditorState` from a list of simple block specs with a cursor and
+ * a default schema. Convenience for plugin tests that only need a static
+ * document and don't exercise selection/schema edge cases — for those, use
+ * `stateBuilder()` directly.
+ */
+export function makeBlockState(
+	blocks?: readonly {
+		type: string;
+		text: string;
+		id: string;
+		attrs?: Record<string, string | number | boolean>;
+	}[],
+	options?: {
+		readonly cursorBlockId?: string;
+		readonly cursorOffset?: number;
+		readonly nodeTypes?: readonly string[];
+		readonly markTypes?: readonly string[];
+	},
+): EditorState {
+	const builder = stateBuilder();
+	const blockList = blocks ?? [{ type: 'paragraph', text: '', id: 'b1' }];
+	for (const b of blockList) {
+		builder.block(b.type, b.text, b.id, { attrs: b.attrs });
+	}
+	builder.cursor(
+		options?.cursorBlockId ?? blockList[0]?.id ?? 'b1',
+		options?.cursorOffset ?? 0,
+	);
+	builder.schema(
+		[...(options?.nodeTypes ?? ['paragraph', 'heading'])],
+		[...(options?.markTypes ?? ['bold', 'italic', 'underline'])],
+	);
+	return builder.build();
+}
+
 // ---------------------------------------------------------------------------
 // PluginHarness
 // ---------------------------------------------------------------------------

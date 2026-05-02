@@ -11,15 +11,7 @@ export interface TextDirectionLocale {
 	readonly announceLTR: string;
 	readonly announceRTL: string;
 	readonly announceAuto: string;
-	readonly inlineLTR: string;
-	readonly inlineRTL: string;
-	readonly inlineAuto: string;
-	readonly inlineLabel: string;
-	readonly inlineTooltip: string;
-	readonly announceRemoveBidi: string;
 }
-
-// --- Default English Locale ---
 
 export const TEXT_DIRECTION_LOCALE_EN: TextDirectionLocale = {
 	ltr: 'Left to Right',
@@ -30,15 +22,7 @@ export const TEXT_DIRECTION_LOCALE_EN: TextDirectionLocale = {
 	announceLTR: 'Text direction set to left-to-right',
 	announceRTL: 'Text direction set to right-to-left',
 	announceAuto: 'Text direction set to automatic',
-	inlineLTR: 'Inline LTR',
-	inlineRTL: 'Inline RTL',
-	inlineAuto: 'Inline Auto',
-	inlineLabel: 'Inline Direction',
-	inlineTooltip: 'Inline Direction',
-	announceRemoveBidi: 'Inline direction isolation removed',
 };
-
-// --- Lazy Locale Loader ---
 
 const localeModules: LocaleModuleMap<TextDirectionLocale> = import.meta.glob<{
 	default: TextDirectionLocale;

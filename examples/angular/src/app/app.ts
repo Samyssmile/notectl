@@ -17,6 +17,8 @@ import {
   CodeBlockPlugin,
   AlignmentPlugin,
   TextDirectionPlugin,
+  BidiIsolationPlugin,
+  TextDirectionAutoPlugin,
   ListPlugin,
   LinkPlugin,
   TablePlugin,
@@ -81,6 +83,7 @@ export class App {
         new TextFormattingPlugin({ bold: true, italic: true, underline: true }),
         new StrikethroughPlugin(),
         new SuperSubPlugin(),
+        new BidiIsolationPlugin(),
       ],
       [new TextColorPlugin(), new HighlightPlugin()],
       [
@@ -101,7 +104,7 @@ export class App {
     overflow: ToolbarOverflowBehavior.Flow,
   };
 
-  protected readonly plugins: Plugin[] = [new HardBreakPlugin()];
+  protected readonly plugins: Plugin[] = [new HardBreakPlugin(), new TextDirectionAutoPlugin()];
 
   onStateChange(_event: StateChangeEvent): void {
     this.stateChangeCount.update((c) => c + 1);

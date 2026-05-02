@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
-import { parseHTMLToDocument } from '../../serialization/DocumentParser.js';
-import { serializeDocumentToHTML } from '../../serialization/DocumentSerializer.js';
 import type { EditorState } from '../../state/EditorState.js';
 import {
 	expectCommandRegistered,
@@ -9,9 +6,8 @@ import {
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
-import { TextDirectionPlugin } from './TextDirectionPlugin.js';
-
-// --- Helpers ---
+import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
+import { BidiIsolationPlugin } from './BidiIsolationPlugin.js';
 
 const HARNESS_OPTIONS = { useMiddleware: true, builtinSpecs: true } as const;
 
@@ -35,19 +31,17 @@ function makeState(
 	return builder.build();
 }
 
-// --- Tests ---
-
-describe('TextDirectionPlugin — bdi mark', () => {
+describe('BidiIsolationPlugin', () => {
 	describe('bdi mark spec', () => {
 		it('registers bdi mark spec', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 			expect(spec).toBeDefined();
 			expect(spec?.rank).toBe(10);
 		});
 
 		it('bdi mark toDOM renders <bdi> element with dir attribute', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 
 			const el = spec?.toDOM({ type: 'bdi', attrs: { dir: 'rtl' } });
@@ -56,7 +50,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('bdi mark toDOM defaults dir to auto', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 
 			const el = spec?.toDOM({ type: 'bdi' });
@@ -65,7 +59,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('bdi mark attrs default to auto', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 			expect(spec?.attrs?.dir?.default).toBe('auto');
 		});
@@ -74,7 +68,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 	describe('bdi inline commands', () => {
 		it('registers all inline bdi commands', async () => {
 			const state: EditorState = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			expectCommandRegistered(h, 'toggleBidiLTR');
 			expectCommandRegistered(h, 'toggleBidiRTL');
@@ -86,23 +80,23 @@ describe('TextDirectionPlugin — bdi mark', () => {
 	describe('toggleBidiIsolation command', () => {
 		it('registers toggleBidiIsolation command', async () => {
 			const state: EditorState = makeState();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 			expectCommandRegistered(h, 'toggleBidiIsolation');
 		});
 
 		it('registers Mod-Shift-B keymap', async () => {
 			const state: EditorState = makeState();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 			expectKeyBinding(h, 'Mod-Shift-B');
 		});
 
-		it('applies bdi-rtl mark in an auto/ltr block', async () => {
+		it('applies bdi-rtl mark in an auto/ltr block (no TextDirectionPlugin)', async () => {
 			const state: EditorState = stateBuilder()
 				.paragraph('Hello world', 'b1')
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('toggleBidiIsolation');
 
@@ -115,13 +109,17 @@ describe('TextDirectionPlugin — bdi mark', () => {
 			}
 		});
 
-		it('applies bdi-ltr mark in an RTL block', async () => {
+		it('applies bdi-ltr mark in an RTL block (with TextDirectionPlugin)', async () => {
 			const state: EditorState = stateBuilder()
 				.block('paragraph', 'مرحبا Hello', 'b1', { attrs: { dir: 'rtl' } })
 				.selection({ blockId: 'b1', offset: 6 }, { blockId: 'b1', offset: 11 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(
+				[new TextDirectionPlugin(), new BidiIsolationPlugin()],
+				state,
+				HARNESS_OPTIONS,
+			);
 
 			h.executeCommand('toggleBidiIsolation');
 
@@ -139,7 +137,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('toggleBidiIsolation');
 			h.executeCommand('toggleBidiIsolation');
@@ -154,7 +152,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 
 	describe('inline-direction toolbar item', () => {
 		it('registers an inline-direction toolbar item', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			expectToolbarItem(h, 'inline-direction', {
 				group: 'format',
 				popupType: 'dropdown',
@@ -162,14 +160,14 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('tooltip includes Mod-Shift-B shortcut hint', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const item = h.getToolbarItem('inline-direction');
 			expect(item?.tooltip).toContain('Shift');
 			expect(item?.tooltip).toContain('B');
 		});
 
 		it('dropdown contains LTR, RTL, Auto, and Remove items', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const item = h.getToolbarItem('inline-direction');
 			const config = item?.popupConfig as {
 				items: readonly { label: string; command: string }[];
@@ -188,7 +186,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('toggleBidiLTR');
 
@@ -198,7 +196,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 
 		it('isActive returns false when no bdi mark', async () => {
 			const state: EditorState = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			const item = h.getToolbarItem('inline-direction');
 			expect(item?.isActive?.(h.getState())).toBe(false);
@@ -206,7 +204,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 
 		it('isEnabled returns false for collapsed cursor', async () => {
 			const state: EditorState = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			const item = h.getToolbarItem('inline-direction');
 			expect(item?.isEnabled?.(h.getState())).toBe(false);
@@ -218,7 +216,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			const item = h.getToolbarItem('inline-direction');
 			expect(item?.isEnabled?.(h.getState())).toBe(true);
@@ -232,7 +230,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
 				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline', 'bdi'])
 				.build();
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), state, HARNESS_OPTIONS);
 
 			h.executeCommand('toggleBidiLTR');
 			const result: boolean = h.executeCommand('removeBidi');
@@ -242,7 +240,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 
 	describe('copy/paste roundtrip — bdi mark', () => {
 		it('parses <bdi dir="rtl"> as bdi mark', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 			expect(spec?.parseHTML?.[0]?.tag).toBe('bdi');
 
@@ -253,7 +251,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('bdi toHTMLString → parseHTML roundtrip preserves dir="rtl"', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 
 			const html: string | undefined = spec?.toHTMLString?.(
@@ -264,7 +262,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('bdi parseHTML rejects invalid dir values', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 
 			const el: HTMLElement = document.createElement('bdi');
@@ -274,7 +272,7 @@ describe('TextDirectionPlugin — bdi mark', () => {
 		});
 
 		it('bdi toHTMLString escapes dir attribute to prevent XSS', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
+			const h = await pluginHarness(new BidiIsolationPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getMarkSpec('bdi');
 
 			const html: string | undefined = spec?.toHTMLString?.(
@@ -284,60 +282,6 @@ describe('TextDirectionPlugin — bdi mark', () => {
 			expect(html).toBeDefined();
 			expect(html).not.toContain('<script>');
 			expect(html).toContain('&quot;');
-		});
-	});
-
-	describe('HTML serialization roundtrip', () => {
-		it('dir attribute survives serialize → parse cycle', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
-			const registry = h.pm.schemaRegistry;
-
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('مرحبا')], 'b1', { dir: 'rtl' }),
-				createBlockNode('paragraph', [createTextNode('Hello')], 'b2', { dir: 'ltr' }),
-			]);
-
-			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('dir="rtl"');
-			expect(html).toContain('dir="ltr"');
-
-			const parsed = parseHTMLToDocument(html, registry);
-			expect(parsed.children[0]?.attrs?.dir).toBe('rtl');
-			expect(parsed.children[1]?.attrs?.dir).toBe('ltr');
-		});
-
-		it('paragraph serialization includes dir="rtl" via defense-in-depth', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
-			const registry = h.pm.schemaRegistry;
-
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('مرحبا')], 'test', {
-					dir: 'rtl',
-				}),
-			]);
-			const html: string = serializeDocumentToHTML(doc, registry);
-			expect(html).toContain('dir="rtl"');
-			expect(html).toContain('مرحبا');
-		});
-
-		it('paragraph toDOM → dir="ltr" → renders attribute', async () => {
-			const h = await pluginHarness(new TextDirectionPlugin(), undefined, HARNESS_OPTIONS);
-			const spec = h.getNodeSpec('paragraph');
-
-			const block = createBlockNode('paragraph', [createTextNode('Hello')], 'test', {
-				dir: 'ltr',
-			});
-			const el = spec?.toDOM(block);
-			expect(el?.getAttribute('dir')).toBe('ltr');
-		});
-
-		it('dir appears in fallback HTML when NodeSpec has no toHTML', () => {
-			const doc = createDocument([
-				createBlockNode('paragraph', [createTextNode('مرحبا')], 'b1', { dir: 'rtl' }),
-			]);
-
-			const html: string = serializeDocumentToHTML(doc);
-			expect(html).toContain('dir="rtl"');
 		});
 	});
 });

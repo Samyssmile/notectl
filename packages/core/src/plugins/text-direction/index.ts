@@ -1,9 +1,10 @@
 export {
-	TextDirectionCorePlugin as TextDirectionPlugin,
-	DIRECTION_ICONS,
+	TextDirectionPlugin,
 	type TextDirectionConfig,
 	type TextDirection,
-} from './TextDirectionCorePlugin.js';
+} from './TextDirectionPlugin.js';
+
+export { DIRECTION_ICONS } from './DirectionIcons.js';
 
 export { detectTextDirection, findSiblingDirection, getBlockDir } from './DirectionDetection.js';
 
@@ -12,3 +13,8 @@ export {
 	TEXT_DIRECTION_LOCALE_EN,
 	loadTextDirectionLocale,
 } from './TextDirectionLocale.js';
+
+export {
+	TEXT_DIRECTION_SERVICE_KEY,
+	type TextDirectionService,
+} from './TextDirectionService.js';

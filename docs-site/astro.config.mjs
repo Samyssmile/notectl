@@ -90,6 +90,8 @@ export default defineConfig({
 						{ label: 'Smart Paste', slug: 'plugins/smart-paste' },
 						{ label: 'Toolbar', slug: 'plugins/toolbar' },
 						{ label: 'Text Direction', slug: 'plugins/text-direction' },
+						{ label: 'Bidi Isolation', slug: 'plugins/bidi-isolation' },
+						{ label: 'Text Direction Auto', slug: 'plugins/text-direction-auto' },
 						{ label: 'Caret Navigation', slug: 'plugins/caret-navigation' },
 						{ label: 'Gap Cursor', slug: 'plugins/gap-cursor' },
 					],
