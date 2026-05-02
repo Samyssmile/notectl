@@ -13,7 +13,7 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import { blockOffsetToTextOffset, getBlockText } from '../../model/Document.js';
+import { blockOffsetToTextOffset, getBlockLength, getBlockText } from '../../model/Document.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Step } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
@@ -90,7 +90,7 @@ function buildDirChangeStep(
 		type: 'setNodeAttr',
 		path,
 		attrs: { ...block.attrs, dir },
-		previousAttrs: block.attrs as Record<string, string | number | boolean>,
+		previousAttrs: block.attrs,
 	};
 }
 
@@ -103,9 +103,9 @@ function handleInsertText(
 	const block = state.getBlock(step.blockId);
 	if (!block || !directableTypes.has(block.type)) return;
 
-	const existingText: string = getBlockText(block);
-	if (getBlockDir(block) !== 'auto' && existingText.length > 0) return;
+	if (getBlockDir(block) !== 'auto' && getBlockLength(block) > 0) return;
 
+	const existingText: string = getBlockText(block);
 	const textOffset: number = blockOffsetToTextOffset(block, step.offset);
 	const textAfter: string =
 		existingText.slice(0, textOffset) + step.text + existingText.slice(textOffset);
