@@ -1,6 +1,7 @@
 /**
- * Pure step-application functions operating on Document.
- * Extracted from EditorState for reuse in TransactionBuilder.
+ * Per-step apply functions: each transforms a Document by applying a single
+ * Step of the matching type. Dispatch lives in `StepHandlers.ts`, which pairs
+ * each function with its inverse counterpart in `StepInversion.ts`.
  */
 
 import {
@@ -41,44 +42,9 @@ import type {
 	SetInlineNodeAttrStep,
 	SetNodeAttrStep,
 	SplitBlockStep,
-	Step,
 } from './Transaction.js';
 
-/** Applies a single step to a document and returns the new document. */
-export function applyStep(doc: Document, step: Step): Document {
-	switch (step.type) {
-		case 'insertText':
-			return applyInsertText(doc, step);
-		case 'deleteText':
-			return applyDeleteText(doc, step);
-		case 'splitBlock':
-			return applySplitBlock(doc, step);
-		case 'mergeBlocks':
-			return applyMergeBlocks(doc, step);
-		case 'addMark':
-			return applyAddMark(doc, step);
-		case 'removeMark':
-			return applyRemoveMark(doc, step);
-		case 'setStoredMarks':
-			return doc; // Stored marks are handled at the state level, not document
-		case 'setBlockType':
-			return applySetBlockType(doc, step);
-		case 'insertNode':
-			return applyInsertNode(doc, step);
-		case 'removeNode':
-			return applyRemoveNode(doc, step);
-		case 'setNodeAttr':
-			return applySetNodeAttr(doc, step);
-		case 'insertInlineNode':
-			return applyInsertInlineNode(doc, step);
-		case 'removeInlineNode':
-			return applyRemoveInlineNode(doc, step);
-		case 'setInlineNodeAttr':
-			return applySetInlineNodeAttr(doc, step);
-	}
-}
-
-function applyInsertText(doc: Document, step: InsertTextStep): Document {
+export function applyInsertText(doc: Document, step: InsertTextStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		step.segments
 			? insertSegmentsIntoInlineContent(inline, step.offset, step.segments)
@@ -86,13 +52,13 @@ function applyInsertText(doc: Document, step: InsertTextStep): Document {
 	);
 }
 
-function applyDeleteText(doc: Document, step: DeleteTextStep): Document {
+export function applyDeleteText(doc: Document, step: DeleteTextStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		deleteFromInlineContent(inline, step.from, step.to),
 	);
 }
 
-function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
+export function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
 	const splitAtLevel = (children: readonly ChildNode[]): readonly ChildNode[] => {
 		const blockIndex: number = children.findIndex((c) => isBlockNode(c) && c.id === step.blockId);
 		if (blockIndex === -1) return children;
@@ -138,7 +104,7 @@ function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
 	return transformed ? { children: transformed as BlockNode[] } : doc;
 }
 
-function applyMergeBlocks(doc: Document, step: MergeBlocksStep): Document {
+export function applyMergeBlocks(doc: Document, step: MergeBlocksStep): Document {
 	const mergeAtLevel = (children: readonly ChildNode[]): readonly ChildNode[] => {
 		const targetIdx: number = children.findIndex(
 			(c) => isBlockNode(c) && c.id === step.targetBlockId,
@@ -176,33 +142,42 @@ function applyMergeBlocks(doc: Document, step: MergeBlocksStep): Document {
 	return transformed ? { children: transformed as BlockNode[] } : doc;
 }
 
-function applyAddMark(doc: Document, step: AddMarkStep): Document {
+export function applyAddMark(doc: Document, step: AddMarkStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		applyMarkToInlineContent(inline, step.from, step.to, step.mark, true),
 	);
 }
 
-function applyRemoveMark(doc: Document, step: RemoveMarkStep): Document {
+export function applyRemoveMark(doc: Document, step: RemoveMarkStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		applyMarkToInlineContent(inline, step.from, step.to, step.mark, false),
 	);
 }
 
+/**
+ * Stored marks live on EditorState, not on the Document, so applying this
+ * step at the document level is a no-op. The state-level update happens in
+ * `EditorState.apply()`.
+ */
+export function applySetStoredMarks(doc: Document): Document {
+	return doc;
+}
+
 // --- InlineNode Step Application ---
 
-function applyInsertInlineNode(doc: Document, step: InsertInlineNodeStep): Document {
+export function applyInsertInlineNode(doc: Document, step: InsertInlineNodeStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		insertInlineNodeAtOffset(inline, step.offset, step.node),
 	);
 }
 
-function applyRemoveInlineNode(doc: Document, step: RemoveInlineNodeStep): Document {
+export function applyRemoveInlineNode(doc: Document, step: RemoveInlineNodeStep): Document {
 	return mapBlockInlineContent(doc, step.blockId, (inline) =>
 		removeInlineNodeAtOffset(inline, step.offset),
 	);
 }
 
-function applySetInlineNodeAttr(doc: Document, step: SetInlineNodeAttrStep): Document {
+export function applySetInlineNodeAttr(doc: Document, step: SetInlineNodeAttrStep): Document {
 	return mapBlockInlineContent(
 		doc,
 		step.blockId,
@@ -231,7 +206,7 @@ function mapBlockInlineContent(
 	});
 }
 
-function applySetBlockType(doc: Document, step: SetBlockTypeStep): Document {
+export function applySetBlockType(doc: Document, step: SetBlockTypeStep): Document {
 	return mapBlock(doc, step.blockId, (block) => {
 		const { attrs: _previousAttrs, ...rest } = block;
 		return {
@@ -244,7 +219,7 @@ function applySetBlockType(doc: Document, step: SetBlockTypeStep): Document {
 
 // --- Structural Step Application ---
 
-function applyInsertNode(doc: Document, step: InsertNodeStep): Document {
+export function applyInsertNode(doc: Document, step: InsertNodeStep): Document {
 	if (step.parentPath.length === 0) {
 		// Insert at document root
 		const newChildren: BlockNode[] = [...doc.children];
@@ -259,7 +234,7 @@ function applyInsertNode(doc: Document, step: InsertNodeStep): Document {
 	});
 }
 
-function applyRemoveNode(doc: Document, step: RemoveNodeStep): Document {
+export function applyRemoveNode(doc: Document, step: RemoveNodeStep): Document {
 	if (step.parentPath.length === 0) {
 		// Remove from document root
 		const newChildren: BlockNode[] = [...doc.children];
@@ -274,7 +249,7 @@ function applyRemoveNode(doc: Document, step: RemoveNodeStep): Document {
 	});
 }
 
-function applySetNodeAttr(doc: Document, step: SetNodeAttrStep): Document {
+export function applySetNodeAttr(doc: Document, step: SetNodeAttrStep): Document {
 	const nodeId: string | undefined = step.path[step.path.length - 1];
 	if (!nodeId) return doc;
 

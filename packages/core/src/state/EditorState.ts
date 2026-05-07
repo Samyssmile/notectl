@@ -24,7 +24,7 @@ import {
 	isNodeSelection,
 } from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
-import { applyStep } from './StepApplication.js';
+import { applyStep } from './StepHandlers.js';
 import type { Transaction } from './Transaction.js';
 import { TransactionBuilder } from './Transaction.js';
 
