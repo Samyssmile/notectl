@@ -16,7 +16,7 @@ import type { InlineNode } from '../model/Document.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
-import { applyStep } from './StepApplication.js';
+import { applyStep } from './StepHandlers.js';
 import { TransactionBuilder, invertStep, invertTransaction } from './Transaction.js';
 import type {
 	AddMarkStep,

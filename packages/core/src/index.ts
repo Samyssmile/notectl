@@ -173,7 +173,7 @@ export type {
 
 export { TransactionBuilder, invertStep, invertTransaction } from './state/Transaction.js';
 
-export { applyStep } from './state/StepApplication.js';
+export { applyStep } from './state/StepHandlers.js';
 
 export { isAllowedInReadonly, isSelectionOnlyTransaction } from './state/ReadonlyGuard.js';
 

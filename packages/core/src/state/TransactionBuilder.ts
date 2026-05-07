@@ -25,7 +25,7 @@ import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
-import { applyStep } from './StepApplication.js';
+import { applyStep } from './StepHandlers.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
