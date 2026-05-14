@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import type { InlineNode } from '../model/Document.js';
 import { blockId } from '../model/TypeBrands.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { inlineType } from '../model/TypeBrands.js';
 import type {
 	DeleteTextStep,
+	InsertInlineNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	RemoveInlineNodeStep,
 	RemoveNodeStep,
 	SplitBlockStep,
 	Step,
@@ -62,6 +66,18 @@ function removeNodeStep(removedId: BlockId): RemoveNodeStep {
 			attrs: {},
 		} as never,
 	};
+}
+
+function makeInlineNode(): InlineNode {
+	return { type: 'inline', inlineType: inlineType('hard_break'), attrs: {} };
+}
+
+function insertInlineNodeStep(bid: BlockId, offset: number): InsertInlineNodeStep {
+	return { type: 'insertInlineNode', blockId: bid, offset, node: makeInlineNode() };
+}
+
+function removeInlineNodeStep(bid: BlockId, offset: number): RemoveInlineNodeStep {
+	return { type: 'removeInlineNode', blockId: bid, offset, removedNode: makeInlineNode() };
 }
 
 // --- InsertText × Inline ---
@@ -459,6 +475,191 @@ describe('mapDecorationThroughStep', () => {
 		it('leaves decoration on other block unchanged', () => {
 			const deco: InlineDecoration = inline(B2, 0, 5, { class: 'hl' });
 			const step: RemoveNodeStep = removeNodeStep(B1);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- InsertInlineNode × Inline ---
+
+	describe('InsertInlineNode × InlineDecoration', () => {
+		it('shifts range when insertion is before', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 2);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(6);
+			expect(result.to).toBe(11);
+		});
+
+		it('expands to when insertion is at from (assoc=-1: from stays)', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 5);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(5);
+			expect(result.to).toBe(11);
+		});
+
+		it('expands range when insertion is inside', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 7);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(5);
+			expect(result.to).toBe(11);
+		});
+
+		it('shifts to at deco end (assoc=1: to expands)', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 10);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(5);
+			expect(result.to).toBe(11);
+		});
+
+		it('unchanged when insertion is after', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 15);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+
+		it('unchanged when different block', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B2, 2);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- InsertInlineNode × Widget ---
+
+	describe('InsertInlineNode × WidgetDecoration', () => {
+		it('shifts when insertion is before offset', () => {
+			const deco: WidgetDecoration = widget(B1, 5, DUMMY_TO_DOM);
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 2);
+			const result = mapDecorationThroughStep(deco, step) as WidgetDecoration;
+			expect(result.offset).toBe(6);
+		});
+
+		it('stays at boundary with side=-1 (default)', () => {
+			const deco: WidgetDecoration = widget(B1, 5, DUMMY_TO_DOM);
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 5);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+
+		it('moves at boundary with side=1', () => {
+			const deco: WidgetDecoration = widget(B1, 5, DUMMY_TO_DOM, { side: 1 });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 5);
+			const result = mapDecorationThroughStep(deco, step) as WidgetDecoration;
+			expect(result.offset).toBe(6);
+		});
+
+		it('unchanged when different block', () => {
+			const deco: WidgetDecoration = widget(B1, 5, DUMMY_TO_DOM);
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B2, 2);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- InsertInlineNode × Node ---
+
+	describe('InsertInlineNode × NodeDecoration', () => {
+		it('unchanged regardless of insertion', () => {
+			const deco: NodeDecoration = node(B1, { class: 'sel' });
+			const step: InsertInlineNodeStep = insertInlineNodeStep(B1, 5);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- RemoveInlineNode × Inline ---
+
+	describe('RemoveInlineNode × InlineDecoration', () => {
+		it('shifts range when removal is before', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 2);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(4);
+			expect(result.to).toBe(9);
+		});
+
+		it('clamps from into removed slot', () => {
+			const deco: InlineDecoration = inline(B1, 3, 10, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(3);
+			expect(result.to).toBe(9);
+		});
+
+		it('clamps to into removed slot', () => {
+			const deco: InlineDecoration = inline(B1, 0, 4, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
+			const result = mapDecorationThroughStep(deco, step) as InlineDecoration;
+			expect(result.from).toBe(0);
+			expect(result.to).toBe(3);
+		});
+
+		it('returns null when range collapses to nothing', () => {
+			const deco: InlineDecoration = inline(B1, 3, 4, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBeNull();
+		});
+
+		it('unchanged when removal is after', () => {
+			const deco: InlineDecoration = inline(B1, 0, 3, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 5);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+
+		it('unchanged when different block', () => {
+			const deco: InlineDecoration = inline(B1, 5, 10, { class: 'hl' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B2, 5);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- RemoveInlineNode × Widget ---
+
+	describe('RemoveInlineNode × WidgetDecoration', () => {
+		it('shifts when removal is before offset', () => {
+			const deco: WidgetDecoration = widget(B1, 8, DUMMY_TO_DOM);
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 2);
+			const result = mapDecorationThroughStep(deco, step) as WidgetDecoration;
+			expect(result.offset).toBe(7);
+		});
+
+		it('survives at removal boundary (from)', () => {
+			const deco: WidgetDecoration = widget(B1, 3, DUMMY_TO_DOM);
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+
+		it('shifts from removal boundary (to)', () => {
+			const deco: WidgetDecoration = widget(B1, 4, DUMMY_TO_DOM);
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
+			const result = mapDecorationThroughStep(deco, step) as WidgetDecoration;
+			expect(result.offset).toBe(3);
+		});
+
+		it('unchanged when different block', () => {
+			const deco: WidgetDecoration = widget(B1, 5, DUMMY_TO_DOM);
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B2, 3);
+			const result = mapDecorationThroughStep(deco, step);
+			expect(result).toBe(deco);
+		});
+	});
+
+	// --- RemoveInlineNode × Node ---
+
+	describe('RemoveInlineNode × NodeDecoration', () => {
+		it('unchanged regardless of removal', () => {
+			const deco: NodeDecoration = node(B1, { class: 'sel' });
+			const step: RemoveInlineNodeStep = removeInlineNodeStep(B1, 3);
 			const result = mapDecorationThroughStep(deco, step);
 			expect(result).toBe(deco);
 		});

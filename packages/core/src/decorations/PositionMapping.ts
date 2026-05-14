@@ -1,17 +1,26 @@
 /**
- * Pure functions for mapping decorations through transaction steps.
- * Handles position adjustments when the document changes — insertions,
- * deletions, splits, merges, and structural node removal.
+ * Thin decoration-specific adapters over the generic {@link StepMap}
+ * primitive. Position-shift arithmetic lives in `state/Mapping.ts`; this
+ * module only contains the decoration-shape concerns:
+ *
+ * - splitting an {@link InlineDecoration} into two when a `splitBlock`
+ *   crosses its range,
+ * - dropping a {@link NodeDecoration} when its block disappears
+ *   (`removeNode`) or is absorbed by a merge,
+ * - applying widget `side` as the mapping `assoc`.
+ *
+ * The legacy entry point `mapDecorationThroughStep(deco, step)` is
+ * preserved as a thin shim over `mapDecorationThroughStepMap` so existing
+ * tests keep working; new consumers should reach for `Transaction.mapping`
+ * directly via `DecorationSet.map(tr)`.
  */
 
-import type {
-	DeleteTextStep,
-	InsertTextStep,
-	MergeBlocksStep,
-	RemoveNodeStep,
-	SplitBlockStep,
-	Step,
-} from '../state/Transaction.js';
+import type { Document } from '../model/Document.js';
+import { createPosition } from '../model/Selection.js';
+import type { MergeMap, ShiftMap, SplitMap, StepMap } from '../state/Mapping.js';
+import { mapPositionThroughStep } from '../state/Mapping.js';
+import { getStepMap } from '../state/StepHandlers.js';
+import type { Step } from '../state/Transaction.js';
 import type {
 	Decoration,
 	InlineDecoration,
@@ -19,227 +28,169 @@ import type {
 	WidgetDecoration,
 } from './Decoration.js';
 
+const EMPTY_DOC: Document = { children: [] };
+
 /**
- * Maps a single decoration through a step.
- * Returns the mapped decoration, an array (when a split produces two),
- * or null if the decoration was deleted by the step.
+ * Maps a decoration through a single {@link StepMap}. Returns:
+ * - the (possibly identical) decoration,
+ * - an array of two decorations when a `splitBlock` cuts an inline range,
+ * - or `null` when the decoration was deleted.
+ */
+export function mapDecorationThroughStepMap(
+	deco: Decoration,
+	stepMap: StepMap,
+): Decoration | readonly Decoration[] | null {
+	switch (deco.type) {
+		case 'inline':
+			return mapInline(deco, stepMap);
+		case 'widget':
+			return mapWidget(deco, stepMap);
+		case 'node':
+			return mapNode(deco, stepMap);
+	}
+}
+
+/**
+ * Legacy entry point — kept for backward compatibility with callers and
+ * tests that hold a {@link Step} rather than a {@link StepMap}. Internally
+ * converts step → StepMap (cheap, no doc state needed for any of the
+ * shape categories used here) and delegates to
+ * {@link mapDecorationThroughStepMap}.
  */
 export function mapDecorationThroughStep(
 	deco: Decoration,
 	step: Step,
 ): Decoration | readonly Decoration[] | null {
-	switch (deco.type) {
-		case 'inline':
-			return mapInline(deco, step);
-		case 'widget':
-			return mapWidget(deco, step);
-		case 'node':
-			return mapNode(deco, step);
-	}
+	return mapDecorationThroughStepMap(deco, getStepMap(EMPTY_DOC, step));
 }
+
+// --- Inline ---
 
 function mapInline(
 	deco: InlineDecoration,
-	step: Step,
+	stepMap: StepMap,
 ): InlineDecoration | readonly InlineDecoration[] | null {
-	switch (step.type) {
-		case 'insertText':
-			return mapInlineInsert(deco, step);
-		case 'deleteText':
-			return mapInlineDelete(deco, step);
-		case 'splitBlock':
-			return mapInlineSplit(deco, step);
-		case 'mergeBlocks':
-			return mapInlineMerge(deco, step);
-		case 'removeNode':
-			return removeIfBlockDeleted(deco, step);
-		default:
+	switch (stepMap.type) {
+		case 'identity':
 			return deco;
+		case 'shift':
+			return mapInlineShift(deco, stepMap);
+		case 'split':
+			return mapInlineSplit(deco, stepMap);
+		case 'merge':
+			return mapInlineMerge(deco, stepMap);
+		case 'blockRemoval':
+			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
 	}
 }
 
-function mapWidget(deco: WidgetDecoration, step: Step): WidgetDecoration | null {
-	switch (step.type) {
-		case 'insertText':
-			return mapWidgetInsert(deco, step);
-		case 'deleteText':
-			return mapWidgetDelete(deco, step);
-		case 'splitBlock':
-			return mapWidgetSplit(deco, step);
-		case 'mergeBlocks':
-			return mapWidgetMerge(deco, step);
-		case 'removeNode':
-			return removeIfBlockDeleted(deco, step);
-		default:
-			return deco;
-	}
+function mapInlineShift(deco: InlineDecoration, map: ShiftMap): InlineDecoration | null {
+	if (deco.blockId !== map.blockId) return deco;
+
+	const fromPos = mapPositionThroughStep(createPosition(deco.blockId, deco.from), map, -1).pos;
+	const toPos = mapPositionThroughStep(createPosition(deco.blockId, deco.to), map, 1).pos;
+
+	if (fromPos.offset >= toPos.offset) return null;
+	if (fromPos.offset === deco.from && toPos.offset === deco.to) return deco;
+	return { ...deco, from: fromPos.offset, to: toPos.offset };
 }
-
-function mapNode(deco: NodeDecoration, step: Step): NodeDecoration | null {
-	switch (step.type) {
-		case 'mergeBlocks':
-			return mapNodeMerge(deco, step);
-		case 'removeNode':
-			return removeIfBlockDeleted(deco, step);
-		default:
-			return deco;
-	}
-}
-
-// --- InsertText ---
-
-function mapInlineInsert(deco: InlineDecoration, step: InsertTextStep): InlineDecoration {
-	if (deco.blockId !== step.blockId) return deco;
-
-	const len: number = step.text.length;
-	// from: assoc=-1 (stays at boundary — only shifts if insertion is strictly before)
-	const newFrom: number = deco.from > step.offset ? deco.from + len : deco.from;
-	// to: assoc=1 (moves past insertion — shifts if insertion is at or before)
-	const newTo: number = deco.to >= step.offset ? deco.to + len : deco.to;
-
-	if (newFrom === deco.from && newTo === deco.to) return deco;
-	return { ...deco, from: newFrom, to: newTo };
-}
-
-function mapWidgetInsert(deco: WidgetDecoration, step: InsertTextStep): WidgetDecoration {
-	if (deco.blockId !== step.blockId) return deco;
-
-	const len: number = step.text.length;
-	// At boundary: side=-1 means "before insertion" (assoc=-1, stays), side=1 means "after" (moves)
-	if (deco.offset > step.offset) {
-		return { ...deco, offset: deco.offset + len };
-	}
-	if (deco.offset === step.offset && deco.side >= 1) {
-		return { ...deco, offset: deco.offset + len };
-	}
-	return deco;
-}
-
-// --- DeleteText ---
-
-function mapInlineDelete(deco: InlineDecoration, step: DeleteTextStep): InlineDecoration | null {
-	if (deco.blockId !== step.blockId) return deco;
-
-	const delLen: number = step.to - step.from;
-	const newFrom: number = clampAndShift(deco.from, step.from, step.to, delLen);
-	const newTo: number = clampAndShift(deco.to, step.from, step.to, delLen);
-
-	if (newFrom >= newTo) return null;
-	if (newFrom === deco.from && newTo === deco.to) return deco;
-	return { ...deco, from: newFrom, to: newTo };
-}
-
-function mapWidgetDelete(deco: WidgetDecoration, step: DeleteTextStep): WidgetDecoration | null {
-	if (deco.blockId !== step.blockId) return deco;
-
-	// Widget strictly inside deleted range → deleted
-	if (deco.offset > step.from && deco.offset < step.to) return null;
-
-	const delLen: number = step.to - step.from;
-	if (deco.offset >= step.to) {
-		return { ...deco, offset: deco.offset - delLen };
-	}
-	return deco;
-}
-
-// --- SplitBlock ---
 
 function mapInlineSplit(
 	deco: InlineDecoration,
-	step: SplitBlockStep,
+	map: SplitMap,
 ): InlineDecoration | readonly InlineDecoration[] {
-	if (deco.blockId !== step.blockId) return deco;
+	if (deco.blockId !== map.blockId) return deco;
 
-	// Entirely before split point → unchanged
-	if (deco.to <= step.offset) return deco;
+	if (deco.to <= map.offset) return deco;
 
-	// Entirely after split point → move to new block, adjust offsets
-	if (deco.from >= step.offset) {
+	if (deco.from >= map.offset) {
 		return {
 			...deco,
-			blockId: step.newBlockId,
-			from: deco.from - step.offset,
-			to: deco.to - step.offset,
+			blockId: map.newBlockId,
+			from: deco.from - map.offset,
+			to: deco.to - map.offset,
 		};
 	}
 
-	// Spanning the split point → split into two decorations
-	const left: InlineDecoration = { ...deco, to: step.offset };
+	// Spans the split — return both halves
+	const left: InlineDecoration = { ...deco, to: map.offset };
 	const right: InlineDecoration = {
 		...deco,
-		blockId: step.newBlockId,
+		blockId: map.newBlockId,
 		from: 0,
-		to: deco.to - step.offset,
+		to: deco.to - map.offset,
 	};
 	return [left, right];
 }
 
-function mapWidgetSplit(deco: WidgetDecoration, step: SplitBlockStep): WidgetDecoration {
-	if (deco.blockId !== step.blockId) return deco;
-
-	// Before split → stays
-	if (deco.offset < step.offset) return deco;
-
-	// After split → new block
-	if (deco.offset > step.offset) {
-		return {
-			...deco,
-			blockId: step.newBlockId,
-			offset: deco.offset - step.offset,
-		};
-	}
-
-	// At boundary: side determines which block
-	if (deco.side >= 1) {
-		return {
-			...deco,
-			blockId: step.newBlockId,
-			offset: 0,
-		};
-	}
-	return deco;
-}
-
-// --- MergeBlocks ---
-
-function mapInlineMerge(deco: InlineDecoration, step: MergeBlocksStep): InlineDecoration {
-	if (deco.blockId !== step.sourceBlockId) return deco;
-
+function mapInlineMerge(deco: InlineDecoration, map: MergeMap): InlineDecoration {
+	if (deco.blockId !== map.sourceBlockId) return deco;
 	return {
 		...deco,
-		blockId: step.targetBlockId,
-		from: deco.from + step.targetLengthBefore,
-		to: deco.to + step.targetLengthBefore,
+		blockId: map.targetBlockId,
+		from: deco.from + map.targetLengthBefore,
+		to: deco.to + map.targetLengthBefore,
 	};
 }
 
-function mapWidgetMerge(deco: WidgetDecoration, step: MergeBlocksStep): WidgetDecoration {
-	if (deco.blockId !== step.sourceBlockId) return deco;
+// --- Widget ---
 
+function mapWidget(deco: WidgetDecoration, stepMap: StepMap): WidgetDecoration | null {
+	switch (stepMap.type) {
+		case 'identity':
+			return deco;
+		case 'shift':
+			return mapWidgetShift(deco, stepMap);
+		case 'split':
+			return mapWidgetSplit(deco, stepMap);
+		case 'merge':
+			return mapWidgetMerge(deco, stepMap);
+		case 'blockRemoval':
+			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
+	}
+}
+
+function mapWidgetShift(deco: WidgetDecoration, map: ShiftMap): WidgetDecoration | null {
+	if (deco.blockId !== map.blockId) return deco;
+
+	const result = mapPositionThroughStep(createPosition(deco.blockId, deco.offset), map, deco.side);
+	// A widget that lands strictly inside removed content is deleted.
+	if (result.deleted) return null;
+	if (result.pos.offset === deco.offset) return deco;
+	return { ...deco, offset: result.pos.offset };
+}
+
+function mapWidgetSplit(deco: WidgetDecoration, map: SplitMap): WidgetDecoration {
+	if (deco.blockId !== map.blockId) return deco;
+	const result = mapPositionThroughStep(createPosition(deco.blockId, deco.offset), map, deco.side);
+	if (result.pos.blockId === deco.blockId && result.pos.offset === deco.offset) return deco;
+	return { ...deco, blockId: result.pos.blockId, offset: result.pos.offset };
+}
+
+function mapWidgetMerge(deco: WidgetDecoration, map: MergeMap): WidgetDecoration {
+	if (deco.blockId !== map.sourceBlockId) return deco;
 	return {
 		...deco,
-		blockId: step.targetBlockId,
-		offset: deco.offset + step.targetLengthBefore,
+		blockId: map.targetBlockId,
+		offset: deco.offset + map.targetLengthBefore,
 	};
 }
 
-function mapNodeMerge(deco: NodeDecoration, step: MergeBlocksStep): NodeDecoration | null {
-	// Source block disappears → delete its node decoration
-	if (deco.blockId === step.sourceBlockId) return null;
-	return deco;
-}
+// --- Node ---
 
-// --- RemoveNode ---
-
-function removeIfBlockDeleted<T extends Decoration>(deco: T, step: RemoveNodeStep): T | null {
-	if (deco.blockId === step.removedNode.id) return null;
-	return deco;
-}
-
-// --- Helpers ---
-
-function clampAndShift(pos: number, delFrom: number, delTo: number, delLen: number): number {
-	if (pos <= delFrom) return pos;
-	if (pos >= delTo) return pos - delLen;
-	return delFrom;
+function mapNode(deco: NodeDecoration, stepMap: StepMap): NodeDecoration | null {
+	switch (stepMap.type) {
+		case 'identity':
+		case 'shift':
+		case 'split':
+			// Node decorations are bound to a block; in-block content edits
+			// and splits don't affect them. Splits keep the decoration on the
+			// original block (the new block has no decoration of its own).
+			return deco;
+		case 'merge':
+			// Source block disappears as a separate block → its decoration is dropped.
+			return deco.blockId === stepMap.sourceBlockId ? null : deco;
+		case 'blockRemoval':
+			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
+	}
 }
