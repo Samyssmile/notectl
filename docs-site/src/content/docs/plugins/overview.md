@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **24 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **26 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -34,7 +34,9 @@ notectl ships with **24 built-in plugins**. Every editor feature — from bold t
 | [PrintPlugin](/notectl/plugins/print/) | `print` | Print with clean output and HTML export | `Ctrl+P` |
 | [ToolbarPlugin](/notectl/plugins/toolbar/) | `toolbar` | Toolbar UI (auto-created) | - |
 | [CaretNavigationPlugin](/notectl/plugins/caret-navigation/) | `caret-navigation` | Platform-aware keyboard navigation keymaps | Arrow keys, word/line/document movement |
-| [TextDirectionPlugin](/notectl/plugins/text-direction/) | `text-direction` | RTL language support with block direction and inline bidi isolation | `Ctrl+Shift+D`, `Ctrl+Shift+B` |
+| [TextDirectionPlugin](/notectl/plugins/text-direction/) | `text-direction` | Block-level RTL/LTR direction with toolbar dropdown | `Ctrl+Shift+D` |
+| [BidiIsolationPlugin](/notectl/plugins/bidi-isolation/) | `bidi-isolation` | Inline bidi isolation via `<bdi>` mark for mixed-direction text | `Ctrl+Shift+B` |
+| [TextDirectionAutoPlugin](/notectl/plugins/text-direction-auto/) | `text-direction-auto` | Headless middleware: auto-detect, inherit, and preserve block direction | - |
 | [SmartPastePlugin](/notectl/plugins/smart-paste/) | `smart-paste` | Auto-detect and format structured content on paste | - |
 | [GapCursorPlugin](/notectl/plugins/gap-cursor/) | `gap-cursor` | Virtual cursor at void-block boundaries | Arrow keys (when gap cursor active) |
 
