@@ -11,6 +11,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
+import { Mapping } from '../state/Mapping.js';
 import { isAllowedInReadonly, isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
 import { CursorWrapper } from './CursorWrapper.js';
@@ -225,6 +226,7 @@ export class EditorView {
 				selectionBefore: oldState.selection,
 				selectionAfter: preserved.selection,
 				storedMarksAfter: preserved.storedMarks,
+				mapping: Mapping.empty,
 				metadata: {
 					origin: 'api',
 					timestamp: Date.now(),

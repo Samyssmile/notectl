@@ -25,7 +25,8 @@ import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
-import { applyStep } from './StepHandlers.js';
+import { Mapping, type StepMap } from './Mapping.js';
+import { applyStep, getStepMap } from './StepHandlers.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -48,6 +49,7 @@ import type { Transaction } from './Transaction.js';
 /** Fluent API for building transactions. */
 export class TransactionBuilder {
 	private readonly steps: Step[] = [];
+	private readonly stepMaps: StepMap[] = [];
 	private selection: EditorSelection;
 	private storedMarks: readonly Mark[] | null;
 	private readonly selectionBefore: EditorSelection;
@@ -342,6 +344,7 @@ export class TransactionBuilder {
 			selectionBefore: this.selectionBefore,
 			selectionAfter: this.selection,
 			storedMarksAfter: this.storedMarks,
+			mapping: Mapping.from(this.stepMaps),
 			metadata: {
 				origin: this.origin,
 				timestamp: Date.now(),
@@ -369,13 +372,27 @@ export class TransactionBuilder {
 		return block;
 	}
 
-	/** Advances the working document by applying a step. */
+	/**
+	 * Advances the working document by applying a step and records its
+	 * position-mapping. The map is computed against the pre-apply document
+	 * (the only state in which `removeNode` can enumerate descendants), so
+	 * the order is: getStepMap → applyStep.
+	 *
+	 * When no working document is available, falls back to the empty
+	 * document — all step types except `removeNode` produce a `StepMap`
+	 * that does not consult the document, and `removeNode` carries its
+	 * `removedNode` in the step payload, so the fallback is safe.
+	 */
 	private advanceDoc(step: Step): void {
+		const docBefore: Document = this.workingDoc ?? EMPTY_DOC;
+		this.stepMaps.push(getStepMap(docBefore, step));
 		if (this.workingDoc) {
 			this.workingDoc = applyStep(this.workingDoc, step);
 		}
 	}
 }
+
+const EMPTY_DOC: Document = { children: [] };
 
 /** Resolves the block node to be removed from a parent path and index. */
 function resolveRemovedNode(

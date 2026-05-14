@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
-import type { Transaction } from '../state/Transaction.js';
+import { Mapping, type StepMap } from '../state/Mapping.js';
+import { getStepMap } from '../state/StepHandlers.js';
+import type { Step, Transaction } from '../state/Transaction.js';
 import { DecorationSet, decorationArraysEqual, inline, node, widget } from './Decoration.js';
 import type {
 	Decoration,
@@ -201,11 +203,13 @@ describe('DecorationSet', () => {
 		const dummySel = createCollapsedSelection(B1, 0);
 
 		function makeTr(steps: Transaction['steps']): Transaction {
+			const stepMaps: StepMap[] = steps.map((s: Step) => getStepMap({ children: [] }, s));
 			return {
 				steps,
 				selectionBefore: dummySel,
 				selectionAfter: dummySel,
 				storedMarksAfter: null,
+				mapping: Mapping.from(stepMaps),
 				metadata: { origin: 'input', timestamp: 0 },
 			};
 		}

@@ -5,7 +5,7 @@
 
 import type { BlockId } from '../model/TypeBrands.js';
 import type { Transaction } from '../state/Transaction.js';
-import { mapDecorationThroughStep } from './PositionMapping.js';
+import { mapDecorationThroughStepMap } from './PositionMapping.js';
 
 // --- Decoration Attrs ---
 
@@ -210,9 +210,15 @@ export class DecorationSet {
 	 * Maps decorations through document changes described by a transaction.
 	 * Decorations that become invalid (e.g. fully deleted range) are removed.
 	 * Decorations that span a split point are split into two.
+	 *
+	 * Iterates over `tr.mapping.maps` (the position-space {@link StepMap}s)
+	 * rather than `tr.steps`. This means selection-only or other identity
+	 * transactions short-circuit (`tr.mapping.isEmpty`) without rebuilding
+	 * the set, and the decoration-specific shape concerns (split-into-two,
+	 * drop-on-block-removal) are the only logic that lives here.
 	 */
 	map(tr: Transaction): DecorationSet {
-		if (this.isEmpty || tr.steps.length === 0) return this;
+		if (this.isEmpty || tr.mapping.isEmpty) return this;
 
 		let mapped: Decoration[] = [];
 		for (const decos of this.byBlock.values()) {
@@ -221,10 +227,10 @@ export class DecorationSet {
 			}
 		}
 
-		for (const step of tr.steps) {
+		for (const stepMap of tr.mapping.maps) {
 			const next: Decoration[] = [];
 			for (const deco of mapped) {
-				const result = mapDecorationThroughStep(deco, step);
+				const result = mapDecorationThroughStepMap(deco, stepMap);
 				if (result === null) continue;
 				if (Array.isArray(result)) {
 					for (const r of result) {

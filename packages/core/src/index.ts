@@ -173,7 +173,27 @@ export type {
 
 export { TransactionBuilder, invertStep, invertTransaction } from './state/Transaction.js';
 
-export { applyStep } from './state/StepHandlers.js';
+export { applyStep, getStepMap } from './state/StepHandlers.js';
+
+// --- Position Mapping primitive (decorations, comments, selections, collab) ---
+export type {
+	StepMap,
+	Assoc,
+	MapResult,
+	PositionRange,
+	IdentityMap,
+	ShiftMap,
+	SplitMap,
+	MergeMap,
+	BlockRemovalMap,
+} from './state/Mapping.js';
+export {
+	Mapping,
+	IDENTITY_MAP,
+	mapPositionThroughStep,
+	collectRemovedBlockIds,
+} from './state/Mapping.js';
+export { mapSelection, mapTextSelection } from './state/SelectionMapping.js';
 
 export { isAllowedInReadonly, isSelectionOnlyTransaction } from './state/ReadonlyGuard.js';
 

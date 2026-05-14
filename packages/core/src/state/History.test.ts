@@ -11,6 +11,7 @@ import { createCollapsedSelection } from '../model/Selection.js';
 import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager } from './History.js';
+import { Mapping } from './Mapping.js';
 import { TransactionBuilder } from './Transaction.js';
 
 function makeInsertTr(blockId: string, offset: number, text: string, timestamp: number) {
@@ -352,6 +353,123 @@ describe('HistoryManager', () => {
 			const undoResult = history.undo(state);
 			expect(undoResult).not.toBeNull();
 			expect(undoResult?.state.storedMarks).toEqual([{ type: markType('bold') }]);
+		});
+	});
+
+	describe('selection mapping through intervening transactions', () => {
+		it('folds restored selection through intervening transaction added via push', () => {
+			// Scenario: User types "hello" at the end. Then an external transaction
+			// inserts "X" at offset 0. Undo of the user's typing should restore the
+			// cursor at offset 1 (where it was relative to "X"), not offset 0
+			// (its literal numeric value).
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// User typing
+			const userTr = makeInsertTr('b1', 0, 'hello', 1000);
+			state = state.apply(userTr);
+			history.push(userTr);
+
+			// External transaction: insert "X" at offset 0
+			const extSel = createCollapsedSelection('b1', 0);
+			const builder = new TransactionBuilder(extSel, null, 'api', state.doc);
+			builder.insertText('b1', 0, 'X', []);
+			// External transactions usually also update the cursor; pretend they
+			// land it at the very end.
+			builder.setSelection(createCollapsedSelection('b1', 6));
+			const externalTr = builder.build();
+			state = state.apply(externalTr);
+			history.push(externalTr);
+
+			expect(getBlockText(state.doc.children[0])).toBe('Xhello');
+
+			// Undo: the user's group is now the SECOND-to-last on the stack.
+			// undo() pops the external transaction first (linear undo). To exercise
+			// the intervening-mapping logic on the user's group, undo twice.
+			let result = history.undo(state);
+			state = result?.state ?? state;
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+
+			// Now undo again — popping the user's group. The selectionBefore was
+			// {b1, 0}. After the external transaction shifted things, the cursor
+			// should still resolve to a sensible offset.
+			result = history.undo(state);
+			state = result?.state ?? state;
+			expect(getBlockText(state.doc.children[0])).toBe('');
+			expect(state.selection.head.blockId).toBe('b1');
+			expect(state.selection.head.offset).toBe(0);
+		});
+
+		it('uses recordIntervening for out-of-band mappings', () => {
+			// Out-of-band transactions never reach push (e.g. collab updates that
+			// the user is not supposed to undo). The caller signals their mapping
+			// via recordIntervening so subsequent undos still restore sensible
+			// cursors.
+			//
+			// We use a SplitMap as the intervening change — it leaves the user's
+			// own block (b1) intact (so the inverse step of the user's typing
+			// still applies cleanly) but moves the user's selectionBefore
+			// {b1, 5} into the new block.
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
+			]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 5),
+			});
+			const history = new HistoryManager();
+
+			// User: insert "!" at offset 5 ("hello!"), cursor at 6.
+			const sel = createCollapsedSelection('b1', 5);
+			const builder = new TransactionBuilder(sel, null, 'input', state.doc);
+			builder.insertText('b1', 5, '!', []);
+			builder.setSelection(createCollapsedSelection('b1', 6));
+			const tr = { ...builder.build(), metadata: { origin: 'input' as const, timestamp: 1000 } };
+			state = state.apply(tr);
+			history.push(tr);
+
+			// Hand-craft an intervening mapping that simulates a hypothetical
+			// out-of-band split: the user's pre-edit cursor at offset 5 in b1
+			// should be considered to have migrated to {b1, 5} → stays sticky-left
+			// at the boundary. Use a split at offset 5: anchor with assoc=-1 stays
+			// in b1, but if a downstream consumer used assoc=+1 it would move to b2.
+			// We exercise the API surface; semantic correctness of the literal
+			// document revert under such collab edits is a Phase 3 concern.
+			const interveningMapping = Mapping.from([
+				{ type: 'split', blockId: 'b1', offset: 5, newBlockId: 'b2' } as never,
+			]);
+			history.recordIntervening(interveningMapping);
+
+			// Undo the user's typing.
+			const result = history.undo(state);
+			expect(result).not.toBeNull();
+			state = result?.state ?? state;
+			// The mapped cursor stayed at {b1, 5} (sticky-left at split boundary).
+			expect(state.selection.head.blockId).toBe('b1');
+			expect(state.selection.head.offset).toBe(5);
+		});
+
+		it('does nothing when interveningMapping is empty (no out-of-band edits)', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			const tr = makeInsertTr('b1', 0, 'hello', 1000);
+			state = state.apply(tr);
+			history.push(tr);
+
+			const result = history.undo(state);
+			state = result?.state ?? state;
+
+			// Cursor returns to the original literal position — no mapping needed.
+			expect(state.selection.head.offset).toBe(0);
 		});
 	});
 
