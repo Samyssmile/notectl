@@ -1,9 +1,9 @@
 ---
 title: Code Block Plugin
-description: Fenced code blocks with syntax highlighting, indentation, language labels, copy button, and customizable theming.
+description: Fenced code blocks with syntax highlighting, auto-indent, bracket-pairing, language labels, copy button, and customizable theming.
 ---
 
-The `CodeBlockPlugin` adds fenced code blocks with a non-editable header (language label + copy button), keyboard-driven indentation, Markdown input rules, and full color theming.
+The `CodeBlockPlugin` adds fenced code blocks with a non-editable header (language label + copy button), keyboard-driven indentation, auto-indent on Enter, bracket and quote pairing, Markdown input rules, and full color theming.
 
 ## Usage
 
@@ -30,9 +30,9 @@ interface CodeBlockConfig {
   readonly highlighter?: SyntaxHighlighter;
   /** Default language when creating new code blocks. */
   readonly defaultLanguage?: string;
-  /** Use spaces instead of tabs for indentation. */
+  /** @deprecated Use indent.useSpaces. Read as fallback when indent.useSpaces is unset. */
   readonly useSpaces?: boolean;
-  /** Number of spaces per indent level (default: 2). */
+  /** @deprecated Use indent.spaceCount. Read as fallback when indent.spaceCount is unset. */
   readonly spaceCount?: number;
   /** Show the copy button in the header (default: true). */
   readonly showCopyButton?: boolean;
@@ -48,6 +48,33 @@ interface CodeBlockConfig {
   readonly keymap?: CodeBlockKeymap;
   /** Locale override for user-facing strings. */
   readonly locale?: CodeBlockLocale;
+  /** Auto-indent settings. */
+  readonly indent?: CodeBlockIndentConfig;
+  /** Bracket-pairing settings. */
+  readonly pairing?: CodeBlockPairingConfig;
+}
+
+interface CodeBlockIndentConfig {
+  /** 'none' disables Enter-driven indent, 'keep' inherits only,
+   *  'brackets' adds an extra step after `{`, `[`, `(`. Default 'brackets'. */
+  readonly mode?: 'none' | 'keep' | 'brackets';
+  /** Use spaces instead of a literal tab character. Default false. */
+  readonly useSpaces?: boolean;
+  /** Spaces per indent unit (clamped to [1, 16]). Default 2. */
+  readonly spaceCount?: number;
+}
+
+interface CodeBlockPairingConfig {
+  /** Auto-pair behavior for brackets. Default 'languageDefined'. */
+  readonly brackets?: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+  /** Auto-pair behavior for quotes. Default 'languageDefined'. */
+  readonly quotes?: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+  /** Skip-over for auto-inserted close chars. Default true. */
+  readonly overtype?: boolean;
+  /** Backspace removes leftover empty auto-pair. Default true. */
+  readonly deletePair?: boolean;
+  /** Wrap-selection scope. Default 'languageDefined' (= brackets + quotes). */
+  readonly surround?: 'languageDefined' | 'quotes' | 'brackets' | 'never';
 }
 
 interface CodeBlockKeymap {
@@ -83,6 +110,58 @@ new CodeBlockPlugin({
 ```
 
 `Mod` resolves to Cmd on macOS and Ctrl on Windows/Linux.
+
+## Auto-Indent
+
+When the user presses Enter inside a code block, the new line automatically inherits the leading whitespace of the previous line. If the previous line ends with `{`, `[` or `(` (ignoring trailing whitespace), one extra indent unit is added. Pressing Enter directly between an open/close pair such as `{|}` expands the cursor onto its own indented line with the close char on a final line at the original indent depth.
+
+Typing `}`, `]` or `)` on a whitespace-only line reduces the leading indent by one step before inserting the character.
+
+| Setting | Values | Default | Effect |
+|---|---|---|---|
+| `indent.mode` | `'none' \| 'keep' \| 'brackets'` | `'brackets'` | `none` only inserts `\n`; `keep` inherits indent only; `brackets` adds extra step + dedents close chars. |
+| `indent.useSpaces` | `boolean` | `false` | When `true`, indent unit is `N` spaces; otherwise a literal tab. |
+| `indent.spaceCount` | `number` (clamped to `[1, 16]`) | `2` | Spaces per indent unit. |
+
+```ts
+new CodeBlockPlugin({
+  indent: { mode: 'brackets', useSpaces: true, spaceCount: 4 },
+});
+```
+
+The legacy top-level `useSpaces` / `spaceCount` fields still apply as a fallback for backwards compatibility, but the nested `indent.*` form takes precedence when both are set.
+
+## Bracket-Pairing
+
+The plugin auto-pairs `()`, `[]`, `{}`, `""`, `''`, and `` `` `` inside code blocks. Behavior is configurable per pair family and matches VS Code's defaults:
+
+- **Auto-Pair** — typing an open char inserts the matching close char and keeps the cursor between them.
+- **Overtype** — typing a close char that matches an auto-inserted next char skips over it instead of inserting a duplicate.
+- **Wrap-Selection** — typing an open char with a range selection wraps the selection in the pair.
+- **Pair-Delete** — Backspace between an empty auto-pair (`(|)`, `[|]`, …) removes both characters.
+- **Quote-Suppression** — `'` directly after a word character (`don't`, `it's`) is not paired; quotes inside `string` or `comment` tokens are also suppressed when a syntax highlighter is active.
+
+| Setting | Values | Default |
+|---|---|---|
+| `pairing.brackets` | `'always' \| 'languageDefined' \| 'beforeWhitespace' \| 'never'` | `'languageDefined'` |
+| `pairing.quotes`   | `'always' \| 'languageDefined' \| 'beforeWhitespace' \| 'never'` | `'languageDefined'` |
+| `pairing.overtype` | `boolean` | `true` |
+| `pairing.deletePair` | `boolean` | `true` |
+| `pairing.surround` | `'languageDefined' \| 'quotes' \| 'brackets' \| 'never'` | `'languageDefined'` |
+
+```ts
+new CodeBlockPlugin({
+  pairing: {
+    brackets: 'always',
+    quotes: 'beforeWhitespace',
+    overtype: true,
+    deletePair: true,
+    surround: 'brackets',
+  },
+});
+```
+
+The `languageDefined` mode reads the current syntax token at the cursor to decide whether to suppress quote-pairing (e.g. inside an existing string). Falls back to `always` if no highlighter is registered for the language.
 
 ## Theming
 

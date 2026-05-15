@@ -165,4 +165,45 @@ describe('MiddlewareChain', () => {
 		expect(chain.getChain()).toHaveLength(0);
 		expect(chain.getPasteInterceptors()).toHaveLength(0);
 	});
+
+	it('manages text-input interceptors with priority sorting', () => {
+		const chain = new MiddlewareChain();
+		const interceptorA = {
+			name: 'a',
+			pluginId: 'p1',
+			interceptor: vi.fn(),
+			priority: 200,
+		};
+		const interceptorB = {
+			name: 'b',
+			pluginId: 'p2',
+			interceptor: vi.fn(),
+			priority: 50,
+		};
+
+		chain.addTextInputInterceptor(interceptorA);
+		chain.addTextInputInterceptor(interceptorB);
+
+		const sorted = chain.getTextInputInterceptors();
+		expect(sorted).toHaveLength(2);
+		expect(sorted[0]?.name).toBe('b');
+		expect(sorted[1]?.name).toBe('a');
+	});
+
+	it('removes text-input interceptors and clears them', () => {
+		const chain = new MiddlewareChain();
+		const entry = {
+			name: 'a',
+			pluginId: 'p1',
+			interceptor: vi.fn(),
+			priority: 100,
+		};
+		chain.addTextInputInterceptor(entry);
+		chain.removeTextInputInterceptor(entry);
+		expect(chain.getTextInputInterceptors()).toHaveLength(0);
+
+		chain.addTextInputInterceptor(entry);
+		chain.clear();
+		expect(chain.getTextInputInterceptors()).toHaveLength(0);
+	});
 });

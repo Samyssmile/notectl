@@ -10,6 +10,7 @@ function makeDeps(): RegistrationCleanupDeps {
 		middlewareChain: {
 			removeMiddleware: vi.fn(),
 			removePasteInterceptor: vi.fn(),
+			removeTextInputInterceptor: vi.fn(),
 		} as never,
 		schemaRegistry: {
 			removeNodeSpec: vi.fn(),
@@ -31,6 +32,7 @@ function makeRegistrations(overrides?: Partial<PluginRegistrations>): PluginRegi
 		services: [],
 		middlewares: [],
 		pasteInterceptors: [],
+		textInputInterceptors: [],
 		unsubscribers: [],
 		nodeSpecs: [],
 		markSpecs: [],

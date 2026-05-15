@@ -60,10 +60,64 @@ export const DEFAULT_KEYMAP: Readonly<Record<keyof CodeBlockKeymap, string>> = {
 	toggle: 'Mod-Shift-M',
 };
 
+/** Auto-indent configuration block. All fields optional. */
+export interface CodeBlockIndentConfig {
+	/** Indent mode: `none` disables Enter-driven indent, `keep` only inherits the
+	 *  previous line's indent, `brackets` additionally adds an extra step after
+	 *  `{`, `[`, `(` and dedents on close chars. Default `'brackets'`. */
+	readonly mode?: 'none' | 'keep' | 'brackets';
+	/** Use spaces instead of a literal tab character. Default `false`. */
+	readonly useSpaces?: boolean;
+	/** Spaces per indent unit (clamped to [1, 16]). Default `2`. */
+	readonly spaceCount?: number;
+}
+
+/** Auto-pair configuration block. All fields optional. */
+export interface CodeBlockPairingConfig {
+	/** Auto-pair behavior for brackets. Default `'languageDefined'`. */
+	readonly brackets?: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+	/** Auto-pair behavior for quotes. Default `'languageDefined'`. */
+	readonly quotes?: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+	/** Skip-over for auto-inserted close chars. Default `true`. */
+	readonly overtype?: boolean;
+	/** Backspace removes leftover empty auto-pair. Default `true`. */
+	readonly deletePair?: boolean;
+	/** Wrap-selection scope. Default `'languageDefined'` (= brackets + quotes). */
+	readonly surround?: 'languageDefined' | 'quotes' | 'brackets' | 'never';
+}
+
+/**
+ * Fully-resolved indent config seen by the keyboard handlers.
+ * Differs from `CodeBlockIndentConfig` only in that all fields are required
+ * after the constructor merge + clamp.
+ */
+export interface ResolvedIndentConfig {
+	readonly mode: 'none' | 'keep' | 'brackets';
+	readonly useSpaces: boolean;
+	readonly spaceCount: number;
+}
+
+/** Fully-resolved pairing config — all fields required. */
+export interface ResolvedPairingConfig {
+	readonly brackets: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+	readonly quotes: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+	readonly overtype: boolean;
+	readonly deletePair: boolean;
+	readonly surround: 'languageDefined' | 'quotes' | 'brackets' | 'never';
+}
+
 export interface CodeBlockConfig {
 	readonly highlighter?: SyntaxHighlighter;
 	readonly defaultLanguage?: string;
+	/**
+	 * @deprecated Use `indent.useSpaces` instead. Read as a fallback when
+	 *  `indent.useSpaces` is unset.
+	 */
 	readonly useSpaces?: boolean;
+	/**
+	 * @deprecated Use `indent.spaceCount` instead. Read as a fallback when
+	 *  `indent.spaceCount` is unset.
+	 */
 	readonly spaceCount?: number;
 	readonly showCopyButton?: boolean;
 	/** Default body background color (overrides --notectl-code-block-bg). */
@@ -78,6 +132,10 @@ export interface CodeBlockConfig {
 	readonly keymap?: CodeBlockKeymap;
 	/** Locale override for user-facing strings. */
 	readonly locale?: import('./CodeBlockLocale.js').CodeBlockLocale;
+	/** Auto-indent settings. */
+	readonly indent?: CodeBlockIndentConfig;
+	/** Bracket-pairing settings. */
+	readonly pairing?: CodeBlockPairingConfig;
 }
 
 export const DEFAULT_CONFIG: CodeBlockConfig = {
@@ -86,6 +144,24 @@ export const DEFAULT_CONFIG: CodeBlockConfig = {
 	spaceCount: 2,
 	showCopyButton: true,
 };
+
+/** Default values applied during config merge (see CodeBlockPlugin.constructor). */
+export const DEFAULT_INDENT: ResolvedIndentConfig = {
+	mode: 'brackets',
+	useSpaces: false,
+	spaceCount: 2,
+};
+
+export const DEFAULT_PAIRING: ResolvedPairingConfig = {
+	brackets: 'languageDefined',
+	quotes: 'languageDefined',
+	overtype: true,
+	deletePair: true,
+	surround: 'languageDefined',
+};
+
+export const MIN_SPACE_COUNT = 1;
+export const MAX_SPACE_COUNT = 16;
 
 // --- Service Types ---
 
@@ -106,6 +182,13 @@ export interface SyntaxHighlighterService {
 	registerLanguage(def: import('./highlighter/TokenizerTypes.js').LanguageDefinition): void;
 	getSupportedLanguages(): readonly string[];
 	tokenize(code: string, language: string): readonly SyntaxToken[];
+	/**
+	 * Returns the cached token whose range covers `offset` in `blockId`, or
+	 * `undefined` if no token is registered at that position (e.g. cache miss,
+	 * whitespace between tokens, or block not yet tokenized). Uses binary
+	 * search over the per-block token cache; never triggers a fresh tokenize.
+	 */
+	getTokenAt(blockId: BlockId, offset: number): SyntaxToken | undefined;
 }
 
 export const SYNTAX_HIGHLIGHTER_SERVICE_KEY = new ServiceKey<SyntaxHighlighterService>(

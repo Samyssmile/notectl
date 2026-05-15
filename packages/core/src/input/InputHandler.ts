@@ -19,6 +19,7 @@ import { isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
+import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import { CompositionTracker } from './CompositionTracker.js';
 
@@ -36,6 +37,7 @@ export interface InputHandlerOptions {
 	inputRuleRegistry?: InputRuleRegistry;
 	isReadOnly?: () => boolean;
 	compositionTracker?: CompositionTracker;
+	getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 }
 
 export class InputHandler {
@@ -45,6 +47,7 @@ export class InputHandler {
 	private readonly inputRuleRegistry?: InputRuleRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
+	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
 	private compositionCommitHandled = false;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
@@ -61,6 +64,7 @@ export class InputHandler {
 		this.inputRuleRegistry = options.inputRuleRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
+		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
@@ -101,20 +105,26 @@ export class InputHandler {
 		switch (e.inputType) {
 			case 'insertText':
 				if (e.data) {
-					tr = insertTextCommand(state, e.data, 'input');
+					tr =
+						this.runTextInputInterceptors(e.data, state) ??
+						insertTextCommand(state, e.data, 'input');
 				}
 				break;
 
 			case 'insertReplacementText':
 				if (e.data) {
-					tr = insertTextCommand(state, e.data, 'input');
+					tr =
+						this.runTextInputInterceptors(e.data, state) ??
+						insertTextCommand(state, e.data, 'input');
 				}
 				break;
 
 			case 'insertFromComposition':
 				if (e.data) {
 					this.compositionCommitHandled = true;
-					tr = insertTextCommand(state, e.data, 'input');
+					tr =
+						this.runTextInputInterceptors(e.data, state) ??
+						insertTextCommand(state, e.data, 'input');
 				}
 				break;
 
@@ -201,6 +211,22 @@ export class InputHandler {
 		const state = this.getState();
 		const tr = insertTextCommand(state, composedText, 'input');
 		this.dispatch(tr);
+	}
+
+	/**
+	 * Runs registered text-input interceptors in priority order.
+	 * Returns the first non-null transaction, or null to pass through to
+	 * the default `insertTextCommand`.
+	 */
+	private runTextInputInterceptors(text: string, state: EditorState): Transaction | null {
+		const entries = this.getTextInputInterceptors();
+		if (entries.length === 0) return null;
+
+		for (const entry of entries) {
+			const tr = entry.interceptor(text, state);
+			if (tr) return tr;
+		}
+		return null;
 	}
 
 	private checkInputRules(): void {

@@ -16,6 +16,8 @@ const locale: CodeBlockLocale = {
 	selectLanguageAria: 'Sélectionner le langage',
 	languageChanged: (lang: string) => `Langage changé en ${lang}`,
 	plainText: 'texte brut',
+	indentedNLines: (n: number) => (n === 1 ? '1 ligne indentée' : `${n} lignes indentées`),
+	dedentedNLines: (n: number) => (n === 1 ? '1 ligne désindentée' : `${n} lignes désindentées`),
 };
 
 export default locale;

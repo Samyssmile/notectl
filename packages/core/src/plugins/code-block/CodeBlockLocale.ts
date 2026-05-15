@@ -19,6 +19,10 @@ export interface CodeBlockLocale {
 	readonly selectLanguageAria: string;
 	readonly languageChanged: (lang: string) => string;
 	readonly plainText: string;
+	/** Screen-reader announcement after multi-line Tab indent. */
+	readonly indentedNLines: (n: number) => string;
+	/** Screen-reader announcement after multi-line Shift-Tab dedent. */
+	readonly dedentedNLines: (n: number) => string;
 }
 
 // --- Default English Locale ---
@@ -38,6 +42,8 @@ export const CODE_BLOCK_LOCALE_EN: CodeBlockLocale = {
 	selectLanguageAria: 'Select language',
 	languageChanged: (lang: string) => `Language changed to ${lang}`,
 	plainText: 'plain',
+	indentedNLines: (n: number) => (n === 1 ? '1 line indented' : `${n} lines indented`),
+	dedentedNLines: (n: number) => (n === 1 ? '1 line dedented' : `${n} lines dedented`),
 };
 
 // --- Lazy Locale Loader ---
