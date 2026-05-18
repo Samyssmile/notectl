@@ -8,6 +8,7 @@
 import { DecorationSet } from '../decorations/Decoration.js';
 import { LocaleService, LocaleServiceKey } from '../i18n/LocaleService.js';
 import { InputManager } from '../input/InputManager.js';
+import type { CompositionState } from '../model/CompositionState.js';
 import type { Document } from '../model/Document.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { selectionsEqual } from '../model/Selection.js';
@@ -210,6 +211,11 @@ class EditorInitSession {
 				if (dom.announcer) dom.announcer.textContent = text;
 			},
 			hasAnnouncement: () => !!dom.announcer?.textContent,
+			getCompositionState: () => {
+				const tracker = this.inputManager?.compositionTracker;
+				if (tracker) return tracker;
+				return IDLE_COMPOSITION_STATE;
+			},
 			onBeforeReady: () => this.createInputAndView(dom, pm, tc),
 		});
 	}
@@ -242,6 +248,7 @@ class EditorInitSession {
 			fileHandlerRegistry: pm.fileHandlerRegistry,
 			isReadOnly: () => this.deps.configController.isReadOnly,
 			getPasteInterceptors: () => pm.getPasteInterceptors(),
+			getTextInputInterceptors: () => pm.getTextInputInterceptors(),
 			getTextDirection,
 			navigateFromGapCursor,
 		});
@@ -329,6 +336,8 @@ class EditorInitSession {
 }
 
 // --- Standalone helpers --------------------------------------------------
+
+const IDLE_COMPOSITION_STATE: CompositionState = { isComposing: false, activeBlockId: null };
 
 async function resolveLocale(cfg: NotectlEditorConfig): Promise<EditorLocale> {
 	const localeService = new LocaleService(cfg.locale ?? 'browser');

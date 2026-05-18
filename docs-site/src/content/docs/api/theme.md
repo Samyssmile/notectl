@@ -312,11 +312,17 @@ The theme engine generates CSS custom properties for all theme tokens. The total
 **Primitives (17):**
 `--notectl-bg`, `--notectl-fg`, `--notectl-fg-muted`, `--notectl-border`, `--notectl-border-focus`, `--notectl-primary`, `--notectl-primary-fg`, `--notectl-primary-muted`, `--notectl-surface-raised`, `--notectl-surface-overlay`, `--notectl-hover-bg`, `--notectl-active-bg`, `--notectl-danger`, `--notectl-danger-muted`, `--notectl-success`, `--notectl-shadow`, `--notectl-focus-ring`
 
-**Toolbar (2):**
-`--notectl-toolbar-bg`, `--notectl-toolbar-border`
+**Toolbar (2 theme-driven + 5 CSS-only):**
+`--notectl-toolbar-bg`, `--notectl-toolbar-border`, `--notectl-toolbar-button-bg`, `--notectl-toolbar-button-fg`, `--notectl-toolbar-button-hover-bg`, `--notectl-toolbar-button-active-bg`, `--notectl-toolbar-button-active-fg`
 
 **Code Block (5):**
 `--notectl-code-block-bg`, `--notectl-code-block-color`, `--notectl-code-block-header-bg`, `--notectl-code-block-header-color`, `--notectl-code-block-header-border`
+
+**Table (3, CSS-only):**
+`--notectl-table-border`, `--notectl-table-cell-bg`, `--notectl-table-header-bg`
+
+**Blockquote (3, CSS-only):**
+`--notectl-blockquote-border`, `--notectl-blockquote-bg`, `--notectl-blockquote-fg`
 
 **Syntax Tokens — color (16):**
 `--notectl-code-token-keyword`, `--notectl-code-token-string`, `--notectl-code-token-comment`, `--notectl-code-token-number`, `--notectl-code-token-function`, `--notectl-code-token-operator`, `--notectl-code-token-punctuation`, `--notectl-code-token-boolean`, `--notectl-code-token-null`, `--notectl-code-token-property`, `--notectl-code-token-type`, `--notectl-code-token-annotation`, `--notectl-code-token-tag`, `--notectl-code-token-attribute`, `--notectl-code-token-constant`, `--notectl-code-token-regex`

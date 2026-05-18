@@ -173,6 +173,7 @@ export class TablePlugin implements Plugin {
 				const wrapper: HTMLDivElement = document.createElement('div');
 				wrapper.className = 'notectl-table-wrapper';
 				wrapper.setAttribute('data-block-id', node.id);
+				wrapper.setAttribute('part', 'table');
 				return wrapper;
 			},
 			toHTML(node, content, ctx?: HTMLExportContext) {
@@ -192,6 +193,7 @@ export class TablePlugin implements Plugin {
 				const tr: HTMLTableRowElement = document.createElement('tr');
 				tr.setAttribute('data-block-id', node.id);
 				tr.setAttribute('role', 'row');
+				tr.setAttribute('part', 'table-row');
 				return tr;
 			},
 			toHTML(_node, content) {
@@ -211,6 +213,7 @@ export class TablePlugin implements Plugin {
 				const td: HTMLTableCellElement = document.createElement('td');
 				td.setAttribute('data-block-id', node.id);
 				td.setAttribute('role', 'cell');
+				td.setAttribute('part', 'table-cell');
 				return td;
 			},
 			toHTML(node, content, ctx?: HTMLExportContext) {

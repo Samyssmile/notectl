@@ -63,11 +63,13 @@ export function createCodeBlockNodeViewFactory(
 		pre.setAttribute('dir', 'ltr');
 		pre.setAttribute('role', 'group');
 		pre.setAttribute('aria-roledescription', 'code block');
+		pre.setAttribute('part', 'code-block');
 
 		// Header (non-editable)
 		const header: HTMLDivElement = document.createElement('div');
 		header.className = 'notectl-code-block__header';
 		header.setAttribute('contenteditable', 'false');
+		header.setAttribute('part', 'code-block-header');
 
 		const langBtn: HTMLButtonElement = document.createElement('button');
 		langBtn.className = 'notectl-code-block__language-btn';
@@ -118,6 +120,7 @@ export function createCodeBlockNodeViewFactory(
 		// Content area (Reconciler target)
 		const code: HTMLElement = document.createElement('code');
 		code.className = 'notectl-code-block__content';
+		code.setAttribute('part', 'code-block-content');
 
 		// Escape hint (visible only when focused, CSS-driven)
 		const escHint: HTMLDivElement = document.createElement('div');

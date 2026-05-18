@@ -9,7 +9,7 @@ import {
 } from '../../test/PluginTestUtils.js';
 import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { CodeBlockPlugin } from './CodeBlockPlugin.js';
-import { CODE_BLOCK_SERVICE_KEY } from './CodeBlockTypes.js';
+import { CODE_BLOCK_SERVICE_KEY, SYNTAX_HIGHLIGHTER_SERVICE_KEY } from './CodeBlockTypes.js';
 
 // --- Helpers ---
 
@@ -83,6 +83,16 @@ describe('CodeBlockPlugin', () => {
 			const node = createBlockNode('code_block', [createTextNode('const x = 1;')], 'test');
 			const el = spec.toDOM(node);
 			expect(el.getAttribute('dir')).toBe('ltr');
+		});
+
+		it('toDOM exposes part="code-block" on <pre> and part="code-block-content" on <code>', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('')], 'test');
+			const el = spec.toDOM(node);
+			expect(el.getAttribute('part')).toBe('code-block');
+			expect(el.querySelector('code')?.getAttribute('part')).toBe('code-block-content');
 		});
 
 		it('parseHTML matches <pre> tags', async () => {
@@ -1002,6 +1012,51 @@ describe('CodeBlockPlugin', () => {
 		});
 	});
 
+	describe('SyntaxHighlighterService.getTokenAt', () => {
+		it('returns undefined on cache miss', async () => {
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin);
+			const service = h.pm.getService(SYNTAX_HIGHLIGHTER_SERVICE_KEY);
+			assertDefined(service);
+			const result = service.getTokenAt('b1' as import('../../model/TypeBrands.js').BlockId, 0);
+			expect(result).toBeUndefined();
+		});
+
+		it('returns the token covering the offset after decorations() populates the cache', async () => {
+			const mockHighlighter = {
+				tokenize: () => [
+					{ from: 0, to: 5, type: 'keyword' },
+					{ from: 6, to: 7, type: 'punctuation' },
+					{ from: 8, to: 11, type: 'number' },
+				],
+				getSupportedLanguages: () => ['typescript'] as const,
+			};
+			const state = stateBuilder()
+				.block('code_block', 'const x = 1', 'b1', {
+					attrs: { language: 'typescript' },
+				})
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+
+			const plugin = new CodeBlockPlugin({ highlighter: mockHighlighter });
+			const h = await pluginHarness(plugin, state);
+			plugin.decorations(state); // warms cache
+
+			const service = h.pm.getService(SYNTAX_HIGHLIGHTER_SERVICE_KEY);
+			assertDefined(service);
+			const blockId = 'b1' as import('../../model/TypeBrands.js').BlockId;
+
+			expect(service.getTokenAt(blockId, 0)?.type).toBe('keyword');
+			expect(service.getTokenAt(blockId, 4)?.type).toBe('keyword');
+			expect(service.getTokenAt(blockId, 5)).toBeUndefined(); // gap
+			expect(service.getTokenAt(blockId, 6)?.type).toBe('punctuation');
+			expect(service.getTokenAt(blockId, 8)?.type).toBe('number');
+			expect(service.getTokenAt(blockId, 10)?.type).toBe('number');
+			expect(service.getTokenAt(blockId, 11)).toBeUndefined(); // past end
+		});
+	});
+
 	describe('decorations', () => {
 		it('returns empty when cursor is not in code block and no highlighter', async () => {
 			const state = makeState([{ type: 'paragraph', text: 'text', id: 'b1' }]);
@@ -1259,6 +1314,463 @@ describe('CodeBlockPlugin', () => {
 			assertDefined(handler);
 
 			expect(handler()).toBe(false);
+		});
+	});
+
+	describe('Auto-Indent', () => {
+		it("Enter inherits the line's leading whitespace", async () => {
+			const state = stateBuilder()
+				.block('code_block', '  fn()', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 6)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('  fn()\n  ');
+		});
+
+		it('Enter after `{` adds one extra indent unit', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'fn() {', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 6)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('fn() {\n  ');
+		});
+
+		it('Enter between `{|}` creates the 3-line block pattern', async () => {
+			const state = stateBuilder()
+				.block('code_block', '{}', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 1)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n  \n}');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.offset).toBe(4); // after "{\n  "
+			}
+		});
+
+		it("indent.mode='none' disables every Enter mechanism beyond `\\n`", async () => {
+			const state = stateBuilder()
+				.block('code_block', '  fn() {', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 8)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ indent: { mode: 'none' } }), state);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('  fn() {\n');
+		});
+
+		it("indent.mode='keep' inherits indent but does not add for open bracket", async () => {
+			const state = stateBuilder()
+				.block('code_block', '  fn() {', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 8)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ indent: { mode: 'keep' } }), state);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('  fn() {\n  ');
+		});
+
+		it('clamps spaceCount above 16 to 16', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(
+				new CodeBlockPlugin({ indent: { useSpaces: true, spaceCount: 999 } }),
+				state,
+			);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe(' '.repeat(16));
+		});
+
+		it('clamps spaceCount of 0 to 1', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(
+				new CodeBlockPlugin({ indent: { useSpaces: true, spaceCount: 0 } }),
+				state,
+			);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe(' ');
+		});
+
+		it('legacy top-level useSpaces/spaceCount still apply as fallback', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 4 }), state);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('    ');
+		});
+
+		it('explicit indent.* overrides legacy fields', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(
+				new CodeBlockPlugin({
+					useSpaces: true,
+					spaceCount: 4,
+					indent: { useSpaces: true, spaceCount: 2 },
+				}),
+				state,
+			);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('  ');
+		});
+	});
+
+	describe('Multi-Line-Indent', () => {
+		it('Tab on a range across two lines indents both lines', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'a\nb\nc', 'b1', { attrs: { language: 'typescript' } })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 3 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('  a\n  b\nc');
+		});
+
+		it('Tab on a range within a single line replaces selection with indent', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'abc', 'b1', { attrs: { language: 'typescript' } })
+				.selection({ blockId: 'b1', offset: 1 }, { blockId: 'b1', offset: 2 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('a  c');
+		});
+
+		it('Shift-Tab on a range dedents each line', async () => {
+			const state = stateBuilder()
+				.block('code_block', '  a\n  b\n  c', 'b1', { attrs: { language: 'typescript' } })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 11 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const shift = h.getKeymaps().find((km) => km['Shift-Tab'])?.['Shift-Tab'];
+			assertDefined(shift);
+			shift();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('a\nb\nc');
+		});
+
+		it('Selection direction is preserved after multi-line indent', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'a\nb', 'b1', { attrs: { language: 'typescript' } })
+				.selection({ blockId: 'b1', offset: 3 }, { blockId: 'b1', offset: 0 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 }), state);
+			const tab = h.getKeymaps().find((km) => km.Tab)?.Tab;
+			assertDefined(tab);
+			tab();
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				// anchor was the higher offset → still after the lower offset
+				expect(sel.anchor.offset).toBeGreaterThan(sel.head.offset);
+			}
+		});
+	});
+
+	describe('Bracket-Pairing', () => {
+		it('typing `}` on whitespace-only line with indent dedents one step', async () => {
+			const state = stateBuilder()
+				.block('code_block', '{\n  ', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 4)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 });
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			// Simulate text input — this is what the InputHandler does via the interceptor.
+			const interceptors = h.pm.getTextInputInterceptors();
+			expect(interceptors.length).toBeGreaterThan(0);
+			const tr = interceptors[0]?.interceptor('}', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) {
+				h.dispatch(tr);
+			}
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n}');
+		});
+
+		it('typing `}` at column 0 inserts the char normally (no dedent)', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state);
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor('}', h.getState());
+			expect(tr).toBeNull(); // passthrough → InputHandler will run default
+		});
+
+		it('auto-pair: typing `(` inserts `()` and keeps cursor between them', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor('(', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('()');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.offset).toBe(1);
+			}
+		});
+
+		it('overtype: typing `)` over auto-paired close skips the cursor over it', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+			// Type `(` to set up auto-pair stack
+			let tr = interceptors[0]?.interceptor('(', h.getState());
+			if (tr) h.dispatch(tr);
+			// Now type `)` — should overtype.
+			tr = interceptors[0]?.interceptor(')', h.getState());
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('()');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.offset).toBe(2);
+			}
+		});
+
+		it('wrap-selection: typing `(` with range selection wraps it', async () => {
+			const state = stateBuilder()
+				.block('code_block', 'abc', 'b1', { attrs: { language: 'typescript' } })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 3 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state);
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor('(', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('(abc)');
+		});
+
+		it('pair-delete: backspace between auto-paired empty pair removes both chars', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+			// Type `(` to set up the stack
+			const tr = interceptors[0]?.interceptor('(', h.getState());
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('()');
+
+			// Backspace handler should now delete both chars.
+			const backspace = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(backspace);
+			backspace();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('');
+		});
+
+		it('pair-delete: backspace between user-typed `()` does NOT delete both', async () => {
+			const state = stateBuilder()
+				.block('code_block', '()', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 1)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness(new CodeBlockPlugin(), state);
+			const backspace = h.getKeymaps().find((km) => km.Backspace)?.Backspace;
+			assertDefined(backspace);
+			// Backspace handler returns false (not handled) so default behavior takes over.
+			const handled = backspace();
+			// Whatever the result — the text should NOT have lost both characters via pair-delete.
+			expect(getBlockText(h.getState().doc.children[0])).toBe('()');
+			// The pair-delete logic returned false because no entry in the stack.
+			expect(handled).toBe(false);
+		});
+
+		it("does not pair ' after a word char (apostrophe context)", async () => {
+			const state = stateBuilder()
+				.block('code_block', 'don', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 3)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state);
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor("'", h.getState());
+			expect(tr).toBeNull(); // passthrough → default insertText
+		});
+
+		it('skips auto-pair during composition', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1')
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state);
+			// Override the composition state to pretend an IME session is active.
+			// biome-ignore lint/complexity/useLiteralKeys: intentional reach into a private field for this test.
+			const ctx = plugin['context'];
+			expect(ctx).not.toBeNull();
+			if (ctx) {
+				ctx.getCompositionState = () => ({ isComposing: true, activeBlockId: null });
+			}
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor('(', h.getState());
+			expect(tr).toBeNull();
+		});
+
+		it('typing `}` after Enter on `{|}` consumes the auto-paired `}` (no doubled close)', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+
+			// Type `{` → auto-pair → `{}` with tracked `}` at offset 1.
+			let tr = interceptors[0]?.interceptor('{', h.getState());
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{}');
+
+			// Press Enter between `{|}` → 3-line block pattern.
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n\t\n}');
+
+			// Type `}` on the indented line → should consume the tracked `}`,
+			// collapse the gap, and land the cursor after the (sole) `}`.
+			tr = interceptors[0]?.interceptor('}', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n}');
+			const sel = h.getState().selection;
+			if ('anchor' in sel) {
+				expect(sel.anchor.offset).toBe(3);
+			}
+		});
+
+		it('combined dedent+overtype works with `]` and `)` too', async () => {
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+
+			let tr = interceptors[0]?.interceptor('[', h.getState());
+			if (tr) h.dispatch(tr);
+			const enter = h.getKeymaps().find((km) => km.Enter)?.Enter;
+			assertDefined(enter);
+			enter();
+			expect(getBlockText(h.getState().doc.children[0])).toBe('[\n\t\n]');
+			tr = interceptors[0]?.interceptor(']', h.getState());
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('[\n]');
+		});
+
+		it('plain dedent still fires when no tracked close lies ahead', async () => {
+			// Existing pre-fix scenario: bare indent on a whitespace-only line with
+			// no auto-pair stack entry past the cursor. Must still dedent + insert.
+			const state = stateBuilder()
+				.block('code_block', '{\n  ', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 4)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 });
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+			const tr = interceptors[0]?.interceptor('}', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) h.dispatch(tr);
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n}');
+		});
+
+		it('pendingPairOps queue is cleared on each interceptor invocation', async () => {
+			// B2 robustness: a suppressed transaction must not leave stale push
+			// ops in the queue that would corrupt the next successful cycle.
+			const state = stateBuilder()
+				.block('code_block', '', 'b1', { attrs: { language: 'typescript' } })
+				.cursor('b1', 0)
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const plugin = new CodeBlockPlugin();
+			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
+			const interceptors = h.pm.getTextInputInterceptors();
+
+			// Trigger an auto-pair to enqueue a push, but DON'T dispatch the tr —
+			// simulates a middleware that suppresses the transaction.
+			interceptors[0]?.interceptor('(', h.getState());
+
+			// Reach into the plugin's queue to confirm it had a pending op.
+			// biome-ignore lint/complexity/useLiteralKeys: private field access for verification.
+			expect((plugin['pendingPairOps'] as unknown[]).length).toBeGreaterThan(0);
+
+			// Next interceptor call must drop the stale op before processing.
+			const tr = interceptors[0]?.interceptor('{', h.getState());
+			expect(tr).not.toBeNull();
+			if (tr) h.dispatch(tr);
+			// Only the `{` auto-pair should be tracked; the suppressed `(` push is gone.
+			expect(getBlockText(h.getState().doc.children[0])).toBe('{}');
+			// biome-ignore lint/complexity/useLiteralKeys: private field access for verification.
+			const stack = plugin['pairStack'];
+			expect(stack.sizeForBlock('b1' as import('../../model/TypeBrands.js').BlockId)).toBe(1);
 		});
 	});
 });

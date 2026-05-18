@@ -127,9 +127,96 @@ export const OCEAN_THEME: Theme = createTheme(DARK_THEME, {
 });
 ```
 
+## Theming Contract: Three-Tier Cascade
+
+Every component-level rule in notectl reads its color through a layered cascade:
+
+```css
+border-color: var(--notectl-table-border, var(--notectl-border, #d0d7de));
+/*             ^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^   ^^^^^^^^
+               component-scoped token     global semantic     hard-coded
+               (target a single component) (theme-wide)       (last resort) */
+```
+
+| Tier | Example | Audience |
+|---|---|---|
+| Component-scoped token | `--notectl-table-border` | You only want to recolor a single component |
+| Global semantic token | `--notectl-border` | You want a unified theme across the editor |
+| Hard-coded fallback | `#d0d7de` | Used only when neither token is set |
+
+**Backwards compatibility.** Setting `--notectl-border` continues to work exactly as before — it cascades to every component that doesn't have a more specific override. The component-scoped tokens are purely additive; they exist for cases where the global token is too broad.
+
+**Example — theme just the table:**
+
+```css
+notectl-editor {
+  --notectl-table-border: #6366f1;
+  --notectl-table-header-bg: #eef2ff;
+}
+```
+
+This is the exact ask from [discussion #120](https://github.com/Samyssmile/notectl/discussions/120): style the table without affecting any other component.
+
+## Shadow Parts
+
+For customization beyond what tokens cover, notectl exposes [CSS Shadow Parts](https://developer.mozilla.org/en-US/docs/Web/CSS/::part) on every structural element. Parts let you target deep DOM internals from outside the shadow root without forking the editor or piercing the boundary.
+
+```css
+notectl-editor::part(toolbar-button) {
+  border-radius: 9999px;
+}
+
+notectl-editor::part(toolbar-button-active) {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+notectl-editor::part(blockquote) {
+  font-style: italic;
+}
+```
+
+### Part Inventory
+
+| Part | Element | Notes |
+|---|---|---|
+| `editor` | `<notectl-editor>` wrapper | Root of the editor surface |
+| `content` | Editable content area | Where the user types |
+| `plugin-container` + `plugin-container-top` | Toolbar host | Two parts on the same element so consumers can target either |
+| `plugin-container` + `plugin-container-bottom` | Below-content slot | |
+| `toolbar` | Toolbar root | |
+| `toolbar-button` | Any toolbar button | |
+| `toolbar-button` + `toolbar-button-active` | Active toolbar button | Modifier part synced with `aria-pressed` |
+| `toolbar-button` + `toolbar-overflow-button` | The "more" button in burger-menu overflow mode | |
+| `toolbar-divider` | Group separator | |
+| `table` | Table wrapper | |
+| `table-row` | `<tr>` | |
+| `table-cell` | `<td>` | |
+| `code-block` | `<pre>` root | |
+| `code-block-header` | Header row (language label + actions) | |
+| `code-block-content` | `<code>` inside | |
+| `blockquote` | `<blockquote>` root | |
+
+### State Expression
+
+Stateful elements expose state via *modifier parts* (space-separated values). The modifier mirrors ARIA state for *styling only* — semantic state remains on attributes like `aria-pressed`.
+
+```html
+<button part="toolbar-button toolbar-button-active" aria-pressed="true">B</button>
+```
+
+```css
+notectl-editor::part(toolbar-button-active) {
+  color: var(--my-accent);
+}
+```
+
+This works in every browser that supports `::part()` and does not depend on the newer `CustomStateSet` API.
+
 ## CSS Custom Properties Reference
 
 The theme engine sets all properties on `:host` inside the Shadow DOM. Every color in the editor references these variables.
+
+Documented public tokens are declared with [`@property`](https://developer.mozilla.org/en-US/docs/Web/CSS/@property) so DevTools surfaces them and invalid values fall back to a typed initial value instead of breaking downstream rules.
 
 ### Primitives
 
@@ -161,6 +248,29 @@ These are the core tokens that all components derive their colors from.
 |---|---|---|
 | `--notectl-toolbar-bg` | `toolbar.background` | `var(--notectl-surface-raised)` |
 | `--notectl-toolbar-border` | `toolbar.borderColor` | `var(--notectl-border)` |
+| `--notectl-toolbar-button-bg` | — (CSS-only) | `transparent` |
+| `--notectl-toolbar-button-fg` | — (CSS-only) | `var(--notectl-fg)` |
+| `--notectl-toolbar-button-hover-bg` | — (CSS-only) | `var(--notectl-hover-bg)` |
+| `--notectl-toolbar-button-active-bg` | — (CSS-only) | `var(--notectl-active-bg)` |
+| `--notectl-toolbar-button-active-fg` | — (CSS-only) | `var(--notectl-primary-fg)` |
+
+### Component: Table
+
+| CSS Property | Description | Fallback |
+|---|---|---|
+| `--notectl-table-border` | All table cell borders | `var(--notectl-border)` |
+| `--notectl-table-cell-bg` | Per-cell background | `transparent` |
+| `--notectl-table-header-bg` | Header row background (`<th>`) | `var(--notectl-surface-raised)` |
+
+The per-table inline override set by the toolbar's "Border color" action (`--ntbl-border-color`) still wins over `--notectl-table-border` so user customizations remain visible after a theme switch.
+
+### Component: Blockquote
+
+| CSS Property | Description | Fallback |
+|---|---|---|
+| `--notectl-blockquote-border` | Left bar color | `var(--notectl-border)` |
+| `--notectl-blockquote-bg` | Background | `transparent` |
+| `--notectl-blockquote-fg` | Foreground | `inherit` |
 
 ### Component: Code Block
 
@@ -374,6 +484,12 @@ All theme-related exports from `@notectl/core`:
 | `SyntaxTokenType` | Type | Union of all 16 token type name strings |
 | `TokenStyle` | Type | Per-token style with color, optional fontWeight and fontStyle |
 | `TokenStyleValue` | Type | `string \| TokenStyle` — accepted by every syntax token slot |
+
+## Forced-Colors Mode
+
+notectl honors [`@media (forced-colors: active)`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/forced-colors) (Windows High Contrast Mode, equivalent system-level accessibility settings). The editor falls back to system colors (`CanvasText`, `Highlight`, …) so structural elements stay legible even when a user's OS overrides all color choices.
+
+When writing custom styles for plugins, avoid setting `background-color` and `color` independently in a way that breaks the system palette — prefer system colors or `currentColor` inside forced-colors blocks.
 
 ## For Plugin Authors
 

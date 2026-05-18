@@ -530,4 +530,65 @@ describe('ToolbarPlugin', () => {
 			expect(labelSpan?.textContent).toBe('Updated');
 		});
 	});
+
+	describe('Shadow Parts', () => {
+		it('toolbar root exposes part="toolbar"', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar');
+			expect(toolbarEl?.getAttribute('part')).toBe('toolbar');
+		});
+
+		it('buttons expose part="toolbar-button"', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const btn = container.querySelector('button.notectl-toolbar-btn');
+			expect(btn?.getAttribute('part')).toBe('toolbar-button');
+		});
+
+		it('separators expose part="toolbar-divider"', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a'], ['plugin-b']] });
+
+			const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
+			const sep = container.querySelector('.notectl-toolbar-separator');
+			expect(sep?.getAttribute('part')).toBe('toolbar-divider');
+		});
+
+		it('active state appends modifier part "toolbar-button-active" alongside aria-pressed', async () => {
+			let active = false;
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1', isActive: () => active }),
+			]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const btn = container.querySelector('button.notectl-toolbar-btn') as HTMLElement;
+
+			// Initially inactive
+			expect(btn.getAttribute('part')).toBe('toolbar-button');
+			expect(btn.getAttribute('aria-pressed')).toBe('false');
+
+			// Flip to active and re-render via onStateChange
+			active = true;
+			const state = makeState();
+			const tr = state.transaction('input').insertText('b1', 0, 'x').build();
+			toolbar.onStateChange(state, state.apply(tr), tr);
+
+			expect(btn.getAttribute('part')).toBe('toolbar-button toolbar-button-active');
+			expect(btn.getAttribute('aria-pressed')).toBe('true');
+
+			// Flip back to inactive — modifier must be removed
+			active = false;
+			toolbar.onStateChange(state, state.apply(tr), tr);
+
+			expect(btn.getAttribute('part')).toBe('toolbar-button');
+			expect(btn.getAttribute('aria-pressed')).toBe('false');
+		});
+	});
 });

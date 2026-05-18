@@ -4,6 +4,7 @@
  * following SRP — extracted from PluginManager.createContext().
  */
 
+import type { CompositionState } from '../model/CompositionState.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InputRule } from '../model/InputRule.js';
@@ -12,6 +13,7 @@ import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewRegistry } from '../view/NodeViewRegistry.js';
@@ -29,6 +31,8 @@ import type {
 	PluginContext,
 	PluginEventBus,
 	ServiceKey,
+	TextInputInterceptor,
+	TextInputInterceptorOptions,
 	TransactionMiddleware,
 } from './Plugin.js';
 import type { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.js';
@@ -48,6 +52,7 @@ export interface PluginRegistrations {
 	services: string[];
 	middlewares: MiddlewareEntry[];
 	pasteInterceptors: PasteInterceptorEntry[];
+	textInputInterceptors: TextInputInterceptorEntry[];
 	unsubscribers: (() => void)[];
 	nodeSpecs: string[];
 	markSpecs: string[];
@@ -75,6 +80,7 @@ export interface ContextFactoryDeps {
 	readonly services: Map<string, unknown>;
 	readonly middlewares: MiddlewareEntry[];
 	readonly pasteInterceptors: PasteInterceptorEntry[];
+	readonly textInputInterceptors: TextInputInterceptorEntry[];
 	readonly pluginStyleSheets: CSSStyleSheet[];
 	readonly plugins: Map<string, Plugin>;
 	readonly eventBus: EventBus;
@@ -85,9 +91,11 @@ export interface ContextFactoryDeps {
 	readonly blockTypePickerRegistry: BlockTypePickerRegistry;
 	readonly fileHandlerRegistry: FileHandlerRegistry;
 	readonly nodeViewRegistry: NodeViewRegistry;
+	getCompositionState(): CompositionState;
 	isReadOnly(): boolean;
 	invalidateMiddlewareSort(): void;
 	invalidatePasteSort(): void;
+	invalidateTextInputSort(): void;
 	executeCommand(name: string): boolean;
 }
 
@@ -98,6 +106,7 @@ export function createEmptyRegistrations(): PluginRegistrations {
 		services: [],
 		middlewares: [],
 		pasteInterceptors: [],
+		textInputInterceptors: [],
 		unsubscribers: [],
 		nodeSpecs: [],
 		markSpecs: [],
@@ -168,10 +177,15 @@ function createMiddlewareRegistrar(
 	pluginId: string,
 	middlewares: MiddlewareEntry[],
 	pasteInterceptors: PasteInterceptorEntry[],
+	textInputInterceptors: TextInputInterceptorEntry[],
 	reg: PluginRegistrations,
 	invalidateMiddlewareSort: () => void,
 	invalidatePasteSort: () => void,
-): Pick<PluginContext, 'registerMiddleware' | 'registerPasteInterceptor'> {
+	invalidateTextInputSort: () => void,
+): Pick<
+	PluginContext,
+	'registerMiddleware' | 'registerPasteInterceptor' | 'registerTextInputInterceptor'
+> {
 	return {
 		registerMiddleware: (middleware: TransactionMiddleware, options?: MiddlewareOptions) => {
 			const name: string = options?.name ?? (middleware.name || 'anonymous');
@@ -191,6 +205,17 @@ function createMiddlewareRegistrar(
 			pasteInterceptors.push(entry);
 			reg.pasteInterceptors.push(entry);
 			invalidatePasteSort();
+		},
+		registerTextInputInterceptor: (
+			interceptor: TextInputInterceptor,
+			options?: TextInputInterceptorOptions,
+		) => {
+			const name: string = options?.name ?? 'anonymous';
+			const priority: number = options?.priority ?? DEFAULT_PRIORITY;
+			const entry: TextInputInterceptorEntry = { name, pluginId, interceptor, priority };
+			textInputInterceptors.push(entry);
+			reg.textInputInterceptors.push(entry);
+			invalidateTextInputSort();
 		},
 	};
 }
@@ -326,9 +351,11 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 			deps.pluginId,
 			deps.middlewares,
 			deps.pasteInterceptors,
+			deps.textInputInterceptors,
 			reg,
 			deps.invalidateMiddlewareSort,
 			deps.invalidatePasteSort,
+			deps.invalidateTextInputSort,
 		),
 		...createSchemaRegistrar(deps.schemaRegistry, reg),
 		...createExtensionRegistrar(deps.pluginId, deps, reg),
@@ -350,6 +377,7 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 			deps.announce?.(text);
 		},
 		hasAnnouncement: () => deps.hasAnnouncement?.() ?? false,
+		getCompositionState: () => deps.getCompositionState(),
 	};
 
 	return { context, registrations: reg };

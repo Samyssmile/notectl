@@ -88,6 +88,30 @@ describe('TablePlugin', () => {
 			expect(el?.tagName).toBe('TD');
 			expect(el?.getAttribute('role')).toBe('cell');
 		});
+
+		it('table NodeSpec exposes part="table"', async () => {
+			const { createBlockNode } = await import('../../model/Document.js');
+			const h = await pluginHarness(new TablePlugin());
+			const spec = h.getNodeSpec('table');
+			const el = spec?.toDOM(createBlockNode('table', [], 'tbl-1' as BlockId));
+			expect(el?.getAttribute('part')).toBe('table');
+		});
+
+		it('table_row NodeSpec exposes part="table-row"', async () => {
+			const { createBlockNode } = await import('../../model/Document.js');
+			const h = await pluginHarness(new TablePlugin());
+			const spec = h.getNodeSpec('table_row');
+			const el = spec?.toDOM(createBlockNode('table_row', [], 'row-1' as BlockId));
+			expect(el?.getAttribute('part')).toBe('table-row');
+		});
+
+		it('table_cell NodeSpec exposes part="table-cell"', async () => {
+			const { createBlockNode, createTextNode } = await import('../../model/Document.js');
+			const h = await pluginHarness(new TablePlugin());
+			const spec = h.getNodeSpec('table_cell');
+			const el = spec?.toDOM(createBlockNode('table_cell', [createTextNode('')], 'c1' as BlockId));
+			expect(el?.getAttribute('part')).toBe('table-cell');
+		});
 	});
 
 	describe('NodeView registration', () => {

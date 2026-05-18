@@ -357,6 +357,8 @@ export interface PluginHarnessOptions {
 	readonly useMiddleware?: boolean;
 	/** When true, registers built-in node specs (paragraph) before plugins. */
 	readonly builtinSpecs?: boolean;
+	/** When true, dispatch notifies plugins via `pm.notifyStateChange()`. */
+	readonly notifyStateChange?: boolean;
 }
 
 /**
@@ -395,14 +397,18 @@ export async function pluginHarness(
 	let currentState: EditorState = state ?? EditorState.create();
 
 	const useMiddleware: boolean = options?.useMiddleware ?? false;
+	const notifyStateChange: boolean = options?.notifyStateChange ?? false;
 
 	const trackingDispatch = vi.fn((tr: Transaction) => {
+		const oldState: EditorState = currentState;
 		if (useMiddleware) {
 			pm.dispatchWithMiddleware(tr, currentState, (finalTr: Transaction) => {
 				currentState = currentState.apply(finalTr);
+				if (notifyStateChange) pm.notifyStateChange(oldState, currentState, finalTr);
 			});
 		} else {
 			currentState = currentState.apply(tr);
+			if (notifyStateChange) pm.notifyStateChange(oldState, currentState, tr);
 		}
 	});
 
@@ -490,6 +496,8 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerFileHandler: vi.fn(),
 		registerBlockTypePickerEntry: vi.fn(),
 		registerPasteInterceptor: vi.fn(),
+		registerTextInputInterceptor: vi.fn(),
+		getCompositionState: vi.fn(() => ({ isComposing: false, activeBlockId: null })),
 		getSchemaRegistry: vi.fn() as never,
 		getKeymapRegistry: vi.fn() as never,
 		getInputRuleRegistry: vi.fn() as never,
