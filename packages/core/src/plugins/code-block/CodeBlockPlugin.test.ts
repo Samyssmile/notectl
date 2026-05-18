@@ -85,6 +85,16 @@ describe('CodeBlockPlugin', () => {
 			expect(el.getAttribute('dir')).toBe('ltr');
 		});
 
+		it('toDOM exposes part="code-block" on <pre> and part="code-block-content" on <code>', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('')], 'test');
+			const el = spec.toDOM(node);
+			expect(el.getAttribute('part')).toBe('code-block');
+			expect(el.querySelector('code')?.getAttribute('part')).toBe('code-block-content');
+		});
+
 		it('parseHTML matches <pre> tags', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const spec = h.getNodeSpec('code_block');

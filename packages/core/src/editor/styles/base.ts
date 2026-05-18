@@ -1,5 +1,29 @@
 /** Core editor styles — :host, .notectl-editor, .notectl-content, generic utilities. */
 export const BASE_CSS = `
+/**
+ * Public theme tokens.
+ *
+ * Declared via @property so that:
+ *  - DevTools surfaces them as first-class CSS variables,
+ *  - invalid values are rejected at the engine level instead of breaking
+ *    downstream rules silently,
+ *  - the values are interpolatable for animations.
+ *
+ * The registration is scoped to this shadow root. Consumers override these
+ * by setting the same custom properties on a parent (e.g. ::host).
+ *
+ * Components use the three-tier cascade:
+ *   var(--notectl-<component>-<prop>, var(--notectl-<prop>, <fallback>))
+ */
+@property --notectl-bg { syntax: '<color>'; initial-value: #ffffff; inherits: true; }
+@property --notectl-fg { syntax: '<color>'; initial-value: #1f2328; inherits: true; }
+@property --notectl-fg-muted { syntax: '<color>'; initial-value: #6e7781; inherits: true; }
+@property --notectl-border { syntax: '<color>'; initial-value: #d0d7de; inherits: true; }
+@property --notectl-border-focus { syntax: '<color>'; initial-value: #0969da; inherits: true; }
+@property --notectl-primary { syntax: '<color>'; initial-value: #0969da; inherits: true; }
+@property --notectl-primary-fg { syntax: '<color>'; initial-value: #ffffff; inherits: true; }
+@property --notectl-focus-ring { syntax: '<color>'; initial-value: rgba(9, 105, 218, 0.3); inherits: true; }
+
 :host {
 	display: block;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -101,5 +125,26 @@ export const BASE_CSS = `
 .notectl-node-selected {
 	outline: 2px solid var(--notectl-primary);
 	outline-offset: 2px;
+}
+
+/* High-contrast / forced-colors mode (Windows High Contrast, etc.) */
+@media (forced-colors: active) {
+	.notectl-editor {
+		border-color: CanvasText;
+	}
+	.notectl-editor:focus-within {
+		border-color: Highlight;
+		box-shadow: 0 0 0 2px Highlight;
+	}
+	.notectl-content {
+		color: CanvasText;
+	}
+	.notectl-plugin-container--top,
+	.notectl-plugin-container--bottom {
+		border-color: CanvasText;
+	}
+	.notectl-node-selected {
+		outline-color: Highlight;
+	}
 }
 `;

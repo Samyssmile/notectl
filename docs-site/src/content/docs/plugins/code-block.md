@@ -234,6 +234,23 @@ When both methods are used, plugin config wins because it sets inline CSS custom
 2. External CSS custom properties on `notectl-editor`
 3. Plugin config (highest)
 
+### Shadow Parts
+
+The code block exposes structural parts so consumers can target it via `::part()` without forking the plugin:
+
+| Part | Element |
+|---|---|
+| `code-block` | `<pre>` root |
+| `code-block-header` | Header row (language label + actions) |
+| `code-block-content` | `<code>` inside |
+
+```css
+notectl-editor::part(code-block) { border-radius: 12px; }
+notectl-editor::part(code-block-header) { letter-spacing: 0.05em; }
+```
+
+See the [Theming guide](/notectl/guides/styling/#shadow-parts) for the full part inventory across all components.
+
 ## Commands
 
 | Command | Description | Returns |

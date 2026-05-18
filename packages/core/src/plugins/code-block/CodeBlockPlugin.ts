@@ -275,8 +275,10 @@ export class CodeBlockPlugin implements Plugin {
 				const pre: HTMLElement = createBlockElement('pre', node.id);
 				pre.className = 'notectl-code-block';
 				pre.setAttribute('dir', 'ltr');
+				pre.setAttribute('part', 'code-block');
 				const code: HTMLElement = document.createElement('code');
 				code.className = 'notectl-code-block__content';
+				code.setAttribute('part', 'code-block-content');
 				pre.appendChild(code);
 				return pre;
 			},

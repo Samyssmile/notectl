@@ -120,6 +120,41 @@ import { TableSelectionServiceKey } from '@notectl/core/plugins/table';
 editor.executeCommand('resetTableBorderColor');
 ```
 
+## Theming
+
+The table participates in the [three-tier theming cascade](/notectl/guides/styling/#theming-contract-three-tier-cascade). Setting the global `--notectl-border` continues to recolor every table border alongside the rest of the editor; the component-scoped tokens override only the table:
+
+```css
+notectl-editor {
+  --notectl-table-border: #6366f1;
+  --notectl-table-cell-bg: #fafafa;
+  --notectl-table-header-bg: #eef2ff;
+}
+```
+
+| Token | Default fallback |
+|---|---|
+| `--notectl-table-border` | `var(--notectl-border)` |
+| `--notectl-table-cell-bg` | `transparent` |
+| `--notectl-table-header-bg` | `var(--notectl-surface-raised)` |
+
+Per-table border colors set via the toolbar's "Border color" action retain highest priority over both tokens, so user customizations survive theme switches.
+
+### Shadow Parts
+
+Each structural element exposes a `part` attribute, so styles can target them via `::part()` from outside the shadow root:
+
+```css
+notectl-editor::part(table) { border-radius: 8px; }
+notectl-editor::part(table-cell) { padding: 12px; }
+```
+
+| Part | Element |
+|---|---|
+| `table` | Table wrapper (`<div class="notectl-table-wrapper">`) |
+| `table-row` | `<tr>` |
+| `table-cell` | `<td>` |
+
 ## Interactive Controls
 
 When hovering over a table, interactive overlay controls appear:

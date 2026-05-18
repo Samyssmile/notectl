@@ -171,9 +171,54 @@ When the editor enters read-only mode, the toolbar automatically hides itself. W
 ## Button States
 
 The toolbar automatically updates button states on every state change:
-- **Active** (`aria-pressed="true"`) — when `isActive()` returns `true` (e.g., bold button when cursor is in bold text)
+- **Active** (`aria-pressed="true"` + `part="toolbar-button toolbar-button-active"`) — when `isActive()` returns `true` (e.g., bold button when cursor is in bold text). The modifier part is kept in sync with `aria-pressed` and is the recommended way to style the active state from outside the shadow root.
 - **Disabled** (`aria-disabled="true"`) — when `isEnabled()` returns `false`
 - **Popup open** — visual indicator when a popup is visible
+
+## Theming
+
+The toolbar participates in the [three-tier theming cascade](/notectl/guides/styling/#theming-contract-three-tier-cascade). The existing `--notectl-toolbar-bg` and `--notectl-toolbar-border` are theme-driven; new button-level tokens are CSS-only:
+
+```css
+notectl-editor {
+  --notectl-toolbar-button-bg: #fafafa;
+  --notectl-toolbar-button-hover-bg: #f0f0f0;
+  --notectl-toolbar-button-active-bg: #6366f1;
+  --notectl-toolbar-button-active-fg: #ffffff;
+}
+```
+
+| Token | Default fallback |
+|---|---|
+| `--notectl-toolbar-button-bg` | `transparent` |
+| `--notectl-toolbar-button-fg` | `var(--notectl-fg)` |
+| `--notectl-toolbar-button-hover-bg` | `var(--notectl-hover-bg)` |
+| `--notectl-toolbar-button-active-bg` | `var(--notectl-active-bg)` |
+| `--notectl-toolbar-button-active-fg` | `var(--notectl-primary-fg)` |
+
+### Shadow Parts
+
+The toolbar exposes structural parts so consumers can target it via `::part()` without piercing the shadow DOM:
+
+| Part | Element | Notes |
+|---|---|---|
+| `toolbar` | Toolbar root | |
+| `toolbar-button` | Any toolbar button | |
+| `toolbar-button` + `toolbar-button-active` | Active button | Modifier part synced with `aria-pressed` |
+| `toolbar-button` + `toolbar-overflow-button` | The "more" button in burger-menu mode | |
+| `toolbar-divider` | Group separator | |
+
+Example — pill-shaped buttons with a custom active gradient:
+
+```css
+notectl-editor::part(toolbar-button) {
+  border-radius: 9999px;
+}
+notectl-editor::part(toolbar-button-active) {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+}
+```
 
 ## Accessibility
 

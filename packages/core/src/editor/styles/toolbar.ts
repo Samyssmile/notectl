@@ -34,9 +34,9 @@ export const TOOLBAR_CSS = `
 	height: 32px;
 	border: 1px solid transparent;
 	border-radius: 4px;
-	background: transparent;
+	background: var(--notectl-toolbar-button-bg, transparent);
 	cursor: pointer;
-	color: var(--notectl-fg);
+	color: var(--notectl-toolbar-button-fg, var(--notectl-fg));
 	font-size: 14px;
 	line-height: 1;
 	padding: 0;
@@ -46,15 +46,15 @@ export const TOOLBAR_CSS = `
 
 @media (hover: hover) {
 	.notectl-toolbar-btn:hover {
-		background: var(--notectl-hover-bg);
+		background: var(--notectl-toolbar-button-hover-bg, var(--notectl-hover-bg));
 		border-color: var(--notectl-border);
 	}
 }
 
 .notectl-toolbar-btn--active {
-	background: var(--notectl-active-bg);
+	background: var(--notectl-toolbar-button-active-bg, var(--notectl-active-bg));
 	border-color: var(--notectl-primary-muted);
-	color: var(--notectl-primary-fg);
+	color: var(--notectl-toolbar-button-active-fg, var(--notectl-primary-fg));
 }
 
 .notectl-toolbar-btn:focus-visible {

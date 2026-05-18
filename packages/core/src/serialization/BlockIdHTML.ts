@@ -3,7 +3,7 @@
  *
  * Block identity round-trips through `getContentHTML` → `setContentHTML` so the
  * caret-preserving `EditorView.replaceState()` keeps the cursor on the same block
- * across content sync (Angular signal forms, RxJS pipes — see ARCHITECTURE §9.1).
+ * across content sync (Angular signal forms, RxJS pipes — see ARCHITECTURE §9.2).
  * Both serializer and parser must agree on the same shape; this module is the
  * single source of truth.
  */

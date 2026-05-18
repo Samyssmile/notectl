@@ -76,4 +76,30 @@ describe('createEditorDOM', () => {
 		expect(children[2]).toBe(dom.bottomPluginContainer);
 		expect(children[3]).toBe(dom.announcer);
 	});
+
+	describe('Shadow Parts', () => {
+		it('wrapper exposes part="editor"', () => {
+			const dom = createEditorDOM({});
+			expect(dom.wrapper.getAttribute('part')).toBe('editor');
+		});
+
+		it('content surface exposes part="content"', () => {
+			const dom = createEditorDOM({});
+			expect(dom.content.getAttribute('part')).toBe('content');
+		});
+
+		it('top plugin container exposes plugin-container + plugin-container-top parts', () => {
+			const dom = createEditorDOM({});
+			expect(dom.topPluginContainer.getAttribute('part')).toBe(
+				'plugin-container plugin-container-top',
+			);
+		});
+
+		it('bottom plugin container exposes plugin-container + plugin-container-bottom parts', () => {
+			const dom = createEditorDOM({});
+			expect(dom.bottomPluginContainer.getAttribute('part')).toBe(
+				'plugin-container plugin-container-bottom',
+			);
+		});
+	});
 });

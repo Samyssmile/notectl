@@ -45,6 +45,15 @@ describe('BlockquotePlugin', () => {
 			expect(el?.tagName).toBe('BLOCKQUOTE');
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 		});
+
+		it('blockquote element exposes part="blockquote" for ::part() targeting', async () => {
+			const h = await pluginHarness(new BlockquotePlugin());
+			const spec = h.getNodeSpec('blockquote');
+			assertDefined(spec);
+			const { createBlockNode, createTextNode } = await import('../../model/Document.js');
+			const el = spec.toDOM(createBlockNode('blockquote', [createTextNode('')], 'test'));
+			expect(el?.getAttribute('part')).toBe('blockquote');
+		});
 	});
 
 	describe('commands', () => {
