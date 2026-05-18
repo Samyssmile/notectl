@@ -187,7 +187,7 @@ export class NotectlEditor extends HTMLElement {
 	 * Each block element carries a `data-block-id` attribute. This is part of
 	 * the wire format: it lets `setContentHTML(getContentHTML())` preserve
 	 * block identity so the caret survives content round-trips driven by
-	 * external sync (Angular signal forms, RxJS pipes — see ARCHITECTURE §9.1).
+	 * external sync (Angular signal forms, RxJS pipes — see ARCHITECTURE §9.2).
 	 */
 	async getContentHTML(): Promise<string>;
 	async getContentHTML(options: { pretty?: boolean }): Promise<string>;
@@ -207,7 +207,7 @@ export class NotectlEditor extends HTMLElement {
 	 * the safe pattern (`[A-Za-z0-9_-]{1,64}`) and don't collide within the
 	 * document; otherwise fresh IDs are generated. This makes
 	 * `setContentHTML(getContentHTML())` identity-preserving (see
-	 * ARCHITECTURE §9.1).
+	 * ARCHITECTURE §9.2).
 	 */
 	async setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void> {
 		this.assertInitialized();

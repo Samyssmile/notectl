@@ -250,6 +250,7 @@ export class ToolbarOverflowController {
 		btn.setAttribute('aria-label', this.ariaLabel);
 		btn.setAttribute('aria-haspopup', 'true');
 		btn.setAttribute('aria-expanded', 'false');
+		btn.setAttribute('part', 'toolbar-button toolbar-overflow-button');
 		btn.innerHTML = ELLIPSIS_SVG;
 
 		btn.addEventListener('mousedown', (e: MouseEvent) => {

@@ -68,7 +68,9 @@ export class BlockquotePlugin implements Plugin {
 			group: 'block',
 			content: { allow: ['text'] },
 			toDOM(node) {
-				return createBlockElement('blockquote', node.id);
+				const el = createBlockElement('blockquote', node.id);
+				el.setAttribute('part', 'blockquote');
+				return el;
 			},
 			toHTML(_node, content) {
 				return `<blockquote>${content || '<br>'}</blockquote>`;

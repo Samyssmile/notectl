@@ -5,6 +5,7 @@
  */
 
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
+import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { type Logger, consoleLogger, scopedLogger } from './Logger.js';
@@ -23,6 +24,8 @@ export class MiddlewareChain {
 	private middlewareSorted: MiddlewareEntry[] | null = null;
 	private readonly pasteInterceptors: PasteInterceptorEntry[] = [];
 	private pasteInterceptorsSorted: PasteInterceptorEntry[] | null = null;
+	private readonly textInputInterceptors: TextInputInterceptorEntry[] = [];
+	private textInputInterceptorsSorted: TextInputInterceptorEntry[] | null = null;
 	private readonly log: Logger;
 
 	constructor(logger: Logger = consoleLogger) {
@@ -118,6 +121,29 @@ export class MiddlewareChain {
 		return this.getSortedPasteInterceptors();
 	}
 
+	// --- Text-Input Interceptors ---
+
+	addTextInputInterceptor(entry: TextInputInterceptorEntry): void {
+		this.textInputInterceptors.push(entry);
+		this.textInputInterceptorsSorted = null;
+	}
+
+	removeTextInputInterceptor(entry: TextInputInterceptorEntry): void {
+		const idx = this.textInputInterceptors.indexOf(entry);
+		if (idx !== -1) this.textInputInterceptors.splice(idx, 1);
+		this.textInputInterceptorsSorted = null;
+	}
+
+	/** Invalidates the sorted text-input interceptor cache. */
+	invalidateTextInputSort(): void {
+		this.textInputInterceptorsSorted = null;
+	}
+
+	/** Returns text-input interceptors in priority order. */
+	getTextInputInterceptors(): readonly TextInputInterceptorEntry[] {
+		return this.getSortedTextInputInterceptors();
+	}
+
 	// --- Raw accessors for ContextFactoryDeps ---
 
 	get rawMiddlewares(): MiddlewareEntry[] {
@@ -128,6 +154,10 @@ export class MiddlewareChain {
 		return this.pasteInterceptors;
 	}
 
+	get rawTextInputInterceptors(): TextInputInterceptorEntry[] {
+		return this.textInputInterceptors;
+	}
+
 	// --- Lifecycle ---
 
 	clear(): void {
@@ -135,6 +165,8 @@ export class MiddlewareChain {
 		this.middlewareSorted = null;
 		this.pasteInterceptors.length = 0;
 		this.pasteInterceptorsSorted = null;
+		this.textInputInterceptors.length = 0;
+		this.textInputInterceptorsSorted = null;
 	}
 
 	// --- Private ---
@@ -153,5 +185,14 @@ export class MiddlewareChain {
 			);
 		}
 		return this.pasteInterceptorsSorted;
+	}
+
+	private getSortedTextInputInterceptors(): TextInputInterceptorEntry[] {
+		if (!this.textInputInterceptorsSorted) {
+			this.textInputInterceptorsSorted = [...this.textInputInterceptors].sort(
+				(a, b) => a.priority - b.priority,
+			);
+		}
+		return this.textInputInterceptorsSorted;
 	}
 }

@@ -62,4 +62,31 @@ editor.executeCommand('toggleBlockquote');
 |------|----------|-------------|
 | `blockquote` | `<blockquote>` | Block-level quote container |
 
-The `toDOM` method creates a `<blockquote>` element with the required `data-block-id` attribute. The editor's default styles render a left border and padding for visual distinction.
+The `toDOM` method creates a `<blockquote>` element with the required `data-block-id` attribute and `part="blockquote"` for shadow-part targeting. The editor's default styles render a left border and padding for visual distinction.
+
+## Theming
+
+The blockquote participates in the [three-tier theming cascade](/notectl/guides/styling/#theming-contract-three-tier-cascade). Setting the global `--notectl-border` still recolors the left bar alongside other borders; the component-scoped tokens override only the blockquote:
+
+```css
+notectl-editor {
+  --notectl-blockquote-border: #6366f1;
+  --notectl-blockquote-bg: #f5f3ff;
+  --notectl-blockquote-fg: #4338ca;
+}
+```
+
+| Token | Default fallback |
+|---|---|
+| `--notectl-blockquote-border` | `var(--notectl-border)` |
+| `--notectl-blockquote-bg` | `transparent` |
+| `--notectl-blockquote-fg` | `inherit` |
+
+Alternatively, use [`::part(blockquote)`](/notectl/guides/styling/#shadow-parts) for structural styling beyond what tokens cover:
+
+```css
+notectl-editor::part(blockquote) {
+  font-style: italic;
+  border-radius: 4px;
+}
+```

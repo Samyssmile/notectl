@@ -27,13 +27,16 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 
 	const wrapper: HTMLElement = document.createElement('div');
 	wrapper.className = 'notectl-editor';
+	wrapper.setAttribute('part', 'editor');
 
 	const topPluginContainer: HTMLElement = document.createElement('div');
 	topPluginContainer.className = 'notectl-plugin-container--top';
+	topPluginContainer.setAttribute('part', 'plugin-container plugin-container-top');
 	topPluginContainer.setAttribute('data-notectl-no-print', '');
 
 	const content: HTMLElement = document.createElement('div');
 	content.className = 'notectl-content';
+	content.setAttribute('part', 'content');
 	content.contentEditable = config.readonly ? 'false' : 'true';
 	content.setAttribute('role', 'textbox');
 	content.setAttribute('aria-multiline', 'true');
@@ -52,6 +55,7 @@ export function createEditorDOM(config: EditorDOMConfig): EditorDOMElements {
 
 	const bottomPluginContainer: HTMLElement = document.createElement('div');
 	bottomPluginContainer.className = 'notectl-plugin-container--bottom';
+	bottomPluginContainer.setAttribute('part', 'plugin-container plugin-container-bottom');
 	bottomPluginContainer.setAttribute('data-notectl-no-print', '');
 
 	// Screen reader announcer

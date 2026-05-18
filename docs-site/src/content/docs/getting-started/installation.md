@@ -32,7 +32,7 @@ bun add @notectl/core
 The `@notectl/core` package includes:
 
 - The `<notectl-editor>` Web Component
-- All 23 built-in plugins (text formatting, headings, lists, tables, fonts, etc.)
+- All 26 built-in plugins (text formatting, headings, lists, tables, fonts, etc.)
 - Full TypeScript type definitions
 - ESM and UMD builds
 

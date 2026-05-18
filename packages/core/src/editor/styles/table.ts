@@ -13,12 +13,27 @@ export const TABLE_CSS = `
 	table-layout: fixed;
 }
 
+/* Border resolution order: per-table local override → theme component token → theme global token.
+ * The inline --ntbl-border-color is set by the toolbar's "border color" action and must win
+ * over the theme so per-table customizations remain visible after a theme switch.
+ */
 .notectl-table td {
-	border: 1px solid var(--ntbl-border-color, var(--notectl-border));
+	border: 1px solid var(--ntbl-border-color, var(--notectl-table-border, var(--notectl-border)));
+	background: var(--notectl-table-cell-bg, transparent);
 	padding: 8px 12px;
 	min-width: 60px;
 	vertical-align: top;
 	min-height: 1.6em;
+}
+
+.notectl-table th {
+	border: 1px solid var(--ntbl-border-color, var(--notectl-table-border, var(--notectl-border)));
+	background: var(--notectl-table-header-bg, var(--notectl-surface-raised));
+	padding: 8px 12px;
+	min-width: 60px;
+	vertical-align: top;
+	text-align: start;
+	font-weight: 600;
 }
 
 .notectl-table--borderless td {

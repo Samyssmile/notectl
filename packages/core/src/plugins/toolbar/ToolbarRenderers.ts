@@ -144,5 +144,6 @@ export function createSeparator(): HTMLSpanElement {
 	const sep: HTMLSpanElement = document.createElement('span');
 	sep.className = 'notectl-toolbar-separator';
 	sep.setAttribute('role', 'separator');
+	sep.setAttribute('part', 'toolbar-divider');
 	return sep;
 }

@@ -17,6 +17,12 @@ const locale: CodeBlockLocale = {
 	selectLanguageAria: '\u9009\u62e9\u8bed\u8a00',
 	languageChanged: (lang: string) => `\u8bed\u8a00\u5df2\u66f4\u6539\u4e3a ${lang}`,
 	plainText: '\u7eaf\u6587\u672c',
+	indentedNLines: (n: number) =>
+		n === 1 ? '\u5df2\u7f29\u8fdb 1 \u884c' : `\u5df2\u7f29\u8fdb ${n} \u884c`,
+	dedentedNLines: (n: number) =>
+		n === 1
+			? '\u5df2\u51cf\u5c11 1 \u884c\u7684\u7f29\u8fdb'
+			: `\u5df2\u51cf\u5c11 ${n} \u884c\u7684\u7f29\u8fdb`,
 };
 
 export default locale;

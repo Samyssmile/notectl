@@ -7,11 +7,13 @@
  */
 
 import type { DecorationSet } from '../decorations/Decoration.js';
+import type { CompositionState } from '../model/CompositionState.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { NodeViewRegistry } from '../view/NodeViewRegistry.js';
@@ -37,6 +39,7 @@ import { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 export type { MiddlewareInfo } from './MiddlewareChain.js';
 export type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
+export type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 export type { MiddlewareEntry, PluginRegistrations } from './PluginContextFactory.js';
 
 /** Optional dependencies for PluginManager. */
@@ -58,6 +61,7 @@ export interface PluginManagerInitOptions {
 	getPluginContainer(position: 'top' | 'bottom'): HTMLElement;
 	announce?(text: string): void;
 	hasAnnouncement?(): boolean;
+	getCompositionState?(): CompositionState;
 	onBeforeReady?(): void | Promise<void>;
 	isCancelled?(): boolean;
 }
@@ -183,6 +187,10 @@ export class PluginManager {
 		return this.middlewareChain.getPasteInterceptors();
 	}
 
+	getTextInputInterceptors(): readonly TextInputInterceptorEntry[] {
+		return this.middlewareChain.getTextInputInterceptors();
+	}
+
 	get(id: string): Plugin | undefined {
 		return this.lifecycle.get(id);
 	}
@@ -220,6 +228,8 @@ export class PluginManager {
 	// --- Private ---
 
 	private createContext(pluginId: string, options: PluginManagerInitOptions): PluginContext {
+		const getCompositionState: () => CompositionState =
+			options.getCompositionState ?? (() => IDLE_COMPOSITION);
 		const deps: ContextFactoryDeps = {
 			pluginId,
 			logger: this.logger,
@@ -233,6 +243,7 @@ export class PluginManager {
 			services: this.serviceRegistry.rawMap,
 			middlewares: this.middlewareChain.rawMiddlewares,
 			pasteInterceptors: this.middlewareChain.rawPasteInterceptors,
+			textInputInterceptors: this.middlewareChain.rawTextInputInterceptors,
 			pluginStyleSheets: this.registrationTracker.rawStyleSheets,
 			plugins: this.lifecycle.rawPlugins,
 			eventBus: this.eventBus,
@@ -243,9 +254,11 @@ export class PluginManager {
 			blockTypePickerRegistry: this.blockTypePickerRegistry,
 			fileHandlerRegistry: this.fileHandlerRegistry,
 			nodeViewRegistry: this.nodeViewRegistry,
+			getCompositionState,
 			isReadOnly: () => this.lifecycle.isReadOnly(),
 			invalidateMiddlewareSort: () => this.middlewareChain.invalidateMiddlewareSort(),
 			invalidatePasteSort: () => this.middlewareChain.invalidatePasteSort(),
+			invalidateTextInputSort: () => this.middlewareChain.invalidateTextInputSort(),
 			executeCommand: (name: string) => this.executeCommand(name),
 		};
 
@@ -254,3 +267,5 @@ export class PluginManager {
 		return context;
 	}
 }
+
+const IDLE_COMPOSITION: CompositionState = { isComposing: false, activeBlockId: null };

@@ -331,7 +331,33 @@ The bundle system is based on modular entry points + subpath exports.
 - For `toHTML()` on style-based nodes, use `ctx.styleAttr(...)` so `cssMode: 'classes'` works correctly.
 - Every new HTML structure must extend `sanitize.tags` and optionally `sanitize.attrs`, otherwise round-trip fidelity is lost.
 
-### 9.1 Content Round-Trip Identity Contract
+### 9.1 Theming Contract
+
+notectl exposes a layered theming surface so consumers can customize at the appropriate granularity. Every component-level rule MUST follow the three-tier cascade.
+
+**Cascade.** Component-scoped tokens cascade through global tokens to a hard-coded fallback:
+
+```css
+border-color: var(--notectl-table-border, var(--notectl-border, #d0d7de));
+```
+
+| Tier | Example | Audience |
+|---|---|---|
+| Component-scoped token | `--notectl-table-border` | Consumers theming a single component |
+| Global semantic token | `--notectl-border` | Consumers applying a unified theme |
+| Hard-coded fallback | `#d0d7de` | Used only when neither token is set |
+
+**Naming.** `--notectl-<component>[-<sub-element>][-<state>]-<property>`. The component segment matches the plugin folder name (`table`, `code-block`, `blockquote`, `toolbar`, `image`). States are expressed via dedicated tokens (`--notectl-toolbar-button-active-bg`), not pseudo-class duplication, so consumers can theme without writing selectors.
+
+**Shadow Parts.** Every structural element exposes a `part` attribute so consumers can target it via `::part()` without piercing the shadow DOM. Stateful elements expose state via *modifier parts* (space-separated values), e.g. `part="toolbar-button toolbar-button-active"`. Modifier parts mirror state for styling only; semantic state remains on ARIA attributes.
+
+**`@property` registration.** Public tokens are declared with `@property` in `editor/styles/base.ts` so DevTools surfaces them and invalid values fall back to `initial-value` instead of breaking downstream rules. Internal helpers may skip `@property`.
+
+**Forced-colors mode.** `base.ts` declares system-color overrides under `@media (forced-colors: active)` so Windows High Contrast Mode and equivalents stay legible. New components MUST keep their structural styles compatible with forced-colors (avoid setting `background-color` and `color` independently in a way that breaks the system palette).
+
+**Backwards compatibility.** Tokens must never be renamed or removed once documented. New component tokens are additive — existing consumers of global tokens continue working unchanged.
+
+### 9.2 Content Round-Trip Identity Contract
 
 For every public format pair `(getX, setX)` in `NotectlEditor`, the round-trip
 `setX(getX(state))` must preserve **block identity** — i.e. the `BlockId`s in

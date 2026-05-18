@@ -81,6 +81,22 @@ export interface MiddlewareOptions {
 import type { PasteInterceptor, PasteInterceptorOptions } from '../model/PasteInterceptor.js';
 export type { PasteInterceptor, PasteInterceptorOptions } from '../model/PasteInterceptor.js';
 
+// --- Text-Input Interceptors (re-exported from model for backward compatibility) ---
+
+import type {
+	TextInputInterceptor,
+	TextInputInterceptorOptions,
+} from '../model/TextInputInterceptor.js';
+export type {
+	TextInputInterceptor,
+	TextInputInterceptorOptions,
+} from '../model/TextInputInterceptor.js';
+
+// --- Composition State (re-exported from model) ---
+
+import type { CompositionState } from '../model/CompositionState.js';
+export type { CompositionState } from '../model/CompositionState.js';
+
 // --- Plugin Context ---
 
 export interface PluginContext {
@@ -107,6 +123,12 @@ export interface PluginContext {
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 	registerPasteInterceptor(interceptor: PasteInterceptor, options?: PasteInterceptorOptions): void;
+	registerTextInputInterceptor(
+		interceptor: TextInputInterceptor,
+		options?: TextInputInterceptorOptions,
+	): void;
+	/** Returns the read-only composition state shared with view/input layers. */
+	getCompositionState(): CompositionState;
 	getSchemaRegistry(): SchemaRegistry;
 	getKeymapRegistry(): KeymapRegistry;
 	getInputRuleRegistry(): InputRuleRegistry;

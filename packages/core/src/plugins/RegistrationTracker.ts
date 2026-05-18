@@ -52,6 +52,9 @@ export class RegistrationTracker {
 		for (const entry of reg.pasteInterceptors) {
 			this.deps.middlewareChain.removePasteInterceptor(entry);
 		}
+		for (const entry of reg.textInputInterceptors) {
+			this.deps.middlewareChain.removeTextInputInterceptor(entry);
+		}
 		for (const unsub of reg.unsubscribers) unsub();
 
 		for (const type of reg.nodeSpecs) this.deps.schemaRegistry.removeNodeSpec(type);

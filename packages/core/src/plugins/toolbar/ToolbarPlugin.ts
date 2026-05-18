@@ -177,6 +177,7 @@ export class ToolbarPlugin implements Plugin {
 		this.toolbarElement.setAttribute('role', 'toolbar');
 		this.toolbarElement.setAttribute('aria-label', this.locale.formattingOptionsAria);
 		this.toolbarElement.setAttribute('data-notectl-no-print', '');
+		this.toolbarElement.setAttribute('part', 'toolbar');
 		this.toolbarElement.className = 'notectl-toolbar';
 
 		this.toolbarElement.addEventListener('keydown', (e) => this.handleToolbarKeydown(e));
@@ -418,6 +419,7 @@ export class ToolbarPlugin implements Plugin {
 		btn.setAttribute('aria-label', item.label);
 		btn.setAttribute('data-toolbar-item', item.id);
 		btn.setAttribute('data-tooltip', item.tooltip ?? item.label);
+		btn.setAttribute('part', 'toolbar-button');
 
 		let comboLabelEl: HTMLSpanElement | null = null;
 
@@ -473,6 +475,12 @@ export class ToolbarPlugin implements Plugin {
 			const enabled: boolean = btn.item.isEnabled?.(state) ?? true;
 			btn.element.setAttribute('aria-pressed', String(active));
 			btn.element.classList.toggle('notectl-toolbar-btn--active', active);
+			// Modifier part mirrors active state for ::part() targeting from outside the shadow root.
+			// Kept in sync with aria-pressed — never drift these apart.
+			btn.element.setAttribute(
+				'part',
+				active ? 'toolbar-button toolbar-button-active' : 'toolbar-button',
+			);
 			btn.element.disabled = !enabled;
 			if (!enabled) {
 				btn.element.setAttribute('aria-disabled', 'true');
