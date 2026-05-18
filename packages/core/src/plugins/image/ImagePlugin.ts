@@ -25,6 +25,7 @@ import {
 import { IMAGE_LOCALE_EN, type ImageLocale, loadImageLocale } from './ImageLocale.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
 import { renderImagePopup } from './ImagePopup.js';
+import { IMAGE_POPUP_CSS } from './ImagePopupStyles.js';
 import {
 	DEFAULT_IMAGE_CONFIG,
 	DEFAULT_IMAGE_KEYMAP,
@@ -75,6 +76,7 @@ export class ImagePlugin implements Plugin {
 			loadImageLocale,
 		);
 		context.registerStyleSheet(IMAGE_CSS);
+		context.registerStyleSheet(IMAGE_POPUP_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
 		this.registerNodeView(context);
