@@ -3,7 +3,6 @@
  * following the same pattern as FontSizePopup.
  */
 
-import { setStyleProperty, setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginContext } from '../Plugin.js';
 import { insertImage } from './ImageCommands.js';
 import type { ImageLocale } from './ImageLocale.js';
@@ -25,8 +24,7 @@ export function renderImagePopup(
 	context: PluginContext,
 	config: ImagePopupConfig,
 ): void {
-	setStyleProperty(container, 'padding', '8px');
-	setStyleProperty(container, 'minWidth', '240px');
+	container.classList.add('notectl-image-popup');
 
 	appendFileUploadSection(container, context, config);
 	appendSeparator(container, config.locale);
@@ -43,19 +41,13 @@ function appendFileUploadSection(
 	const fileInput: HTMLInputElement = document.createElement('input');
 	fileInput.type = 'file';
 	fileInput.accept = config.acceptedTypes.join(',');
-	setStyleText(fileInput, 'position:absolute;width:0;height:0;overflow:hidden;opacity:0;');
+	fileInput.className = 'notectl-image-popup__file-input';
 
 	const uploadBtn: HTMLButtonElement = document.createElement('button');
 	uploadBtn.type = 'button';
 	uploadBtn.textContent = config.locale.uploadFromComputer;
 	uploadBtn.setAttribute('aria-label', config.locale.uploadAria);
-	setStyleText(
-		uploadBtn,
-		'display:block;width:100%;padding:8px 12px;cursor:pointer;' +
-			'text-align:center;box-sizing:border-box;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
-	);
+	uploadBtn.className = 'notectl-image-popup__upload-btn';
 
 	uploadBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
@@ -80,21 +72,17 @@ function appendFileUploadSection(
 
 function appendSeparator(container: HTMLElement, locale: ImageLocale): void {
 	const separator: HTMLDivElement = document.createElement('div');
-	setStyleText(
-		separator,
-		'display:flex;align-items:center;margin:8px 0;' +
-			'color:var(--notectl-fg-muted);font-size:12px;',
-	);
+	separator.className = 'notectl-image-popup__separator';
 
 	const line1: HTMLSpanElement = document.createElement('span');
-	setStyleText(line1, 'flex:1;height:1px;background:var(--notectl-border);');
+	line1.className = 'notectl-image-popup__separator-line';
 
 	const orText: HTMLSpanElement = document.createElement('span');
 	orText.textContent = locale.separator;
-	setStyleText(orText, 'padding:0 8px;');
+	orText.className = 'notectl-image-popup__separator-text';
 
 	const line2: HTMLSpanElement = document.createElement('span');
-	setStyleText(line2, 'flex:1;height:1px;background:var(--notectl-border);');
+	line2.className = 'notectl-image-popup__separator-line';
 
 	separator.appendChild(line1);
 	separator.appendChild(orText);
@@ -113,23 +101,13 @@ function appendUrlSection(
 	urlInput.type = 'url';
 	urlInput.placeholder = config.locale.urlPlaceholder;
 	urlInput.setAttribute('aria-label', config.locale.urlAria);
-	setStyleText(
-		urlInput,
-		'width:100%;padding:6px 8px;box-sizing:border-box;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-surface-overlay);color:var(--notectl-fg);',
-	);
+	urlInput.className = 'notectl-image-popup__url-input';
 
 	const insertBtn: HTMLButtonElement = document.createElement('button');
 	insertBtn.type = 'button';
 	insertBtn.textContent = config.locale.insertButton;
 	insertBtn.setAttribute('aria-label', config.locale.insertAria);
-	setStyleText(
-		insertBtn,
-		'width:100%;padding:8px 12px;margin-top:4px;cursor:pointer;' +
-			'border:1px solid var(--notectl-border);border-radius:4px;' +
-			'background:var(--notectl-surface-raised);color:var(--notectl-fg);',
-	);
+	insertBtn.className = 'notectl-image-popup__insert-btn';
 
 	const applyUrl = (): void => {
 		const src: string = urlInput.value.trim();
