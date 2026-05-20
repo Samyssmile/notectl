@@ -817,6 +817,7 @@ test.describe('Documentation screenshots', () => {
 			style.textContent = [
 				'.notectl-toolbar-btn--overflow-hidden { display: flex !important; }',
 				'.notectl-toolbar-separator--overflow-hidden { display: block !important; }',
+				'.notectl-toolbar-group--overflow-hidden { display: flex !important; }',
 				'.notectl-toolbar-overflow-btn { display: none !important; }',
 			].join('\n');
 			editor.shadowRoot.appendChild(style);

@@ -26,6 +26,19 @@ export const TOOLBAR_CSS = `
 	display: none;
 }
 
+/* Group wrapper — real flex container so consumers can style it via ::part(toolbar-group)
+   with padding/background/border directly. Group gap mirrors the toolbar gap so the
+   visual rhythm between buttons stays uniform whether or not a group boundary lies between them. */
+.notectl-toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.notectl-toolbar-group--overflow-hidden {
+	display: none;
+}
+
 .notectl-toolbar-btn {
 	display: inline-flex;
 	align-items: center;

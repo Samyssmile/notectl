@@ -17,13 +17,33 @@ import {
 	TextFormattingPlugin,
 } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
-import { type ToolbarLayoutConfig, ToolbarPlugin } from '../plugins/toolbar/ToolbarPlugin.js';
-import type { ToolbarConfig } from './EditorConfig.js';
+import {
+	type ToolbarGroupConfig,
+	type ToolbarLayoutConfig,
+	ToolbarPlugin,
+} from '../plugins/toolbar/ToolbarPlugin.js';
+import type { ToolbarConfig, ToolbarGroupInput } from './EditorConfig.js';
 
 type ToolbarInput = ReadonlyArray<ReadonlyArray<Plugin>> | ToolbarConfig;
 
 function isToolbarConfig(toolbar: ToolbarInput): toolbar is ToolbarConfig {
 	return !Array.isArray(toolbar);
+}
+
+interface NormalizedPluginGroup {
+	readonly plugins: ReadonlyArray<Plugin>;
+	readonly label: string | undefined;
+}
+
+function normalizePluginGroup(group: ToolbarGroupInput): NormalizedPluginGroup {
+	if (Array.isArray(group)) {
+		return { plugins: group, label: undefined };
+	}
+	const obj: { readonly plugins: ReadonlyArray<Plugin>; readonly label?: string } = group as {
+		readonly plugins: ReadonlyArray<Plugin>;
+		readonly label?: string;
+	};
+	return { plugins: obj.plugins, label: obj.label };
 }
 
 /**
@@ -34,21 +54,22 @@ function isToolbarConfig(toolbar: ToolbarInput): toolbar is ToolbarConfig {
 export function processToolbarConfig(pm: PluginManager, toolbar: ToolbarInput | undefined): void {
 	if (!toolbar) return;
 
-	const pluginGroups: ReadonlyArray<ReadonlyArray<Plugin>> = isToolbarConfig(toolbar)
+	const pluginGroups: ReadonlyArray<ToolbarGroupInput> = isToolbarConfig(toolbar)
 		? toolbar.groups
 		: toolbar;
 	const overflow: ToolbarOverflowBehavior | undefined = isToolbarConfig(toolbar)
 		? toolbar.overflow
 		: undefined;
 
-	const groups: string[][] = [];
-	for (const group of pluginGroups) {
+	const groups: ToolbarGroupConfig[] = [];
+	for (const rawGroup of pluginGroups) {
+		const { plugins, label } = normalizePluginGroup(rawGroup);
 		const pluginIds: string[] = [];
-		for (const plugin of group) {
+		for (const plugin of plugins) {
 			pluginIds.push(plugin.id);
 			pm.register(plugin);
 		}
-		groups.push(pluginIds);
+		groups.push(label !== undefined ? { plugins: pluginIds, label } : pluginIds);
 	}
 
 	const layoutConfig: ToolbarLayoutConfig = { groups, overflow };

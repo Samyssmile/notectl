@@ -3,6 +3,7 @@ export {
 	ToolbarServiceKey,
 	type ToolbarServiceAPI,
 	type ToolbarLayoutConfig,
+	type ToolbarGroupConfig,
 } from './ToolbarPlugin.js';
 
 export type {

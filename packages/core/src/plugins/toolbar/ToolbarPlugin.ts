@@ -33,13 +33,43 @@ import { ToolbarTooltip } from './ToolbarTooltip.js';
 
 // --- Layout Config ---
 
+/**
+ * Configuration for a single toolbar group. Accepts either:
+ *  - A `ReadonlyArray<string>` of plugin ids (backwards-compatible tuple form), or
+ *  - An object with `plugins` and an optional accessible `label`. When `label` is set,
+ *    the group wrapper receives `role="group"` and `aria-label`, so assistive technology
+ *    can announce the cluster by name.
+ */
+export type ToolbarGroupConfig =
+	| ReadonlyArray<string>
+	| {
+			readonly plugins: ReadonlyArray<string>;
+			readonly label?: string;
+	  };
+
 export interface ToolbarLayoutConfig {
-	readonly groups: ReadonlyArray<ReadonlyArray<string>>;
+	readonly groups: ReadonlyArray<ToolbarGroupConfig>;
 	/**
 	 * Controls responsive overflow behavior when toolbar items exceed available width.
 	 * Defaults to `ToolbarOverflowBehavior.BurgerMenu`.
 	 */
 	readonly overflow?: ToolbarOverflowBehaviorType;
+}
+
+interface NormalizedGroup {
+	readonly plugins: ReadonlyArray<string>;
+	readonly label: string | undefined;
+}
+
+function normalizeGroupConfig(group: ToolbarGroupConfig): NormalizedGroup {
+	if (Array.isArray(group)) {
+		return { plugins: group, label: undefined };
+	}
+	const obj: { readonly plugins: ReadonlyArray<string>; readonly label?: string } = group as {
+		readonly plugins: ReadonlyArray<string>;
+		readonly label?: string;
+	};
+	return { plugins: obj.plugins, label: obj.label };
 }
 
 // --- Typed Service API ---
@@ -230,6 +260,9 @@ export class ToolbarPlugin implements Plugin {
 		for (const sep of this.toolbarElement.querySelectorAll('.notectl-toolbar-separator')) {
 			sep.remove();
 		}
+		for (const grp of this.toolbarElement.querySelectorAll('.notectl-toolbar-group')) {
+			grp.remove();
+		}
 
 		if (this.layoutConfig) {
 			this.renderItemsByLayout();
@@ -245,6 +278,17 @@ export class ToolbarPlugin implements Plugin {
 		this.overflowController?.update(this.buttons);
 		this.initRovingTabindex();
 		this.updateButtonStates(this.context.getState());
+	}
+
+	private createGroupWrapper(label: string | undefined): HTMLDivElement {
+		const wrapper: HTMLDivElement = document.createElement('div');
+		wrapper.className = 'notectl-toolbar-group';
+		wrapper.setAttribute('part', 'toolbar-group');
+		if (label !== undefined) {
+			wrapper.setAttribute('role', 'group');
+			wrapper.setAttribute('aria-label', label);
+		}
+		return wrapper;
 	}
 
 	// --- Roving Tabindex ---
@@ -347,9 +391,10 @@ export class ToolbarPlugin implements Plugin {
 		const toolbarReg = this.context.getToolbarRegistry();
 		let firstGroup = true;
 
-		for (const groupPluginIds of this.layoutConfig.groups) {
+		for (const rawGroup of this.layoutConfig.groups) {
+			const { plugins, label }: NormalizedGroup = normalizeGroupConfig(rawGroup);
 			const groupItems: ToolbarItem[] = [];
-			for (const pId of groupPluginIds) {
+			for (const pId of plugins) {
 				const items: ToolbarItem[] = toolbarReg
 					.getToolbarItemsByPlugin(pId)
 					.filter((item) => !this.hiddenItems.has(item.id));
@@ -363,11 +408,13 @@ export class ToolbarPlugin implements Plugin {
 			}
 			firstGroup = false;
 
+			const wrapper: HTMLDivElement = this.createGroupWrapper(label);
 			for (const item of groupItems) {
 				const btn: ToolbarButton = this.createButton(item);
-				this.toolbarElement.appendChild(btn.element);
+				wrapper.appendChild(btn.element);
 				this.buttons.push(btn);
 			}
+			this.toolbarElement.appendChild(wrapper);
 		}
 
 		if (this.buttons.length === 0) {
@@ -401,11 +448,13 @@ export class ToolbarPlugin implements Plugin {
 			}
 			firstGroup = false;
 
+			const wrapper: HTMLDivElement = this.createGroupWrapper(undefined);
 			for (const item of groupItems) {
 				const btn: ToolbarButton = this.createButton(item);
-				this.toolbarElement.appendChild(btn.element);
+				wrapper.appendChild(btn.element);
 				this.buttons.push(btn);
 			}
+			this.toolbarElement.appendChild(wrapper);
 		}
 	}
 

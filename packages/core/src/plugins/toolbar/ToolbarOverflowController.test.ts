@@ -564,4 +564,134 @@ describe('ToolbarOverflowController', () => {
 
 		controller.destroy();
 	});
+
+	// --- Group-aware overflow ---
+
+	describe('group-aware overflow', () => {
+		function createGroup(width: number): HTMLDivElement {
+			const group: HTMLDivElement = document.createElement('div');
+			group.className = 'notectl-toolbar-group';
+			group.setAttribute('part', 'toolbar-group');
+			Object.defineProperty(group, 'offsetWidth', { value: width, configurable: true });
+			return group;
+		}
+
+		function appendInGroup(
+			toolbar: HTMLElement,
+			group: HTMLDivElement,
+			items: readonly ToolbarItem[],
+		): { element: HTMLButtonElement; item: ToolbarItem }[] {
+			const out: { element: HTMLButtonElement; item: ToolbarItem }[] = [];
+			for (const item of items) {
+				const b = makeButton(item);
+				group.appendChild(b.element);
+				out.push(b);
+			}
+			toolbar.appendChild(group);
+			return out;
+		}
+
+		it('keeps an entire group together when it fits', () => {
+			const toolbar: HTMLElement = createToolbar();
+			Object.defineProperty(toolbar, 'clientWidth', { value: 500, configurable: true });
+			const { controller } = createController({ toolbar });
+
+			const group = createGroup(66); // 2 buttons * 32 + 2 gap
+			const buttons = appendInGroup(toolbar, group, [makeItem('bold'), makeItem('italic')]);
+
+			controller.update(buttons);
+
+			expect(group.classList.contains('notectl-toolbar-group--overflow-hidden')).toBe(false);
+			for (const b of buttons) {
+				expect(b.element.classList.contains('notectl-toolbar-btn--overflow-hidden')).toBe(false);
+			}
+
+			controller.destroy();
+		});
+
+		it('hides the entire trailing group when any of its buttons would not fit', () => {
+			const toolbar: HTMLElement = createToolbar();
+			// Available = 100, max = 100 - 34 (overflow btn) - 2 (gap) = 64
+			Object.defineProperty(toolbar, 'clientWidth', { value: 100, configurable: true });
+			const { controller } = createController({ toolbar });
+
+			const groupA = createGroup(34); // fits: 32+2
+			const sep = createSeparator();
+			const groupB = createGroup(66); // 2 buttons — would overflow
+
+			const buttonsA = appendInGroup(toolbar, groupA, [makeItem('bold')]);
+			toolbar.appendChild(sep);
+			const buttonsB = appendInGroup(toolbar, groupB, [makeItem('h1'), makeItem('h2')]);
+			const allButtons = [...buttonsA, ...buttonsB];
+
+			controller.update(allButtons);
+
+			expect(groupA.classList.contains('notectl-toolbar-group--overflow-hidden')).toBe(false);
+			expect(groupB.classList.contains('notectl-toolbar-group--overflow-hidden')).toBe(true);
+
+			// Both buttons of group B should be marked overflow-hidden (group as a unit)
+			for (const b of buttonsB) {
+				expect(b.element.classList.contains('notectl-toolbar-btn--overflow-hidden')).toBe(true);
+			}
+			// Button in group A stays visible
+			expect(buttonsA[0]?.element.classList.contains('notectl-toolbar-btn--overflow-hidden')).toBe(
+				false,
+			);
+
+			controller.destroy();
+		});
+
+		it('overflowed group buttons appear in the dropdown when opened', () => {
+			const toolbar: HTMLElement = createToolbar();
+			Object.defineProperty(toolbar, 'clientWidth', { value: 100, configurable: true });
+			const { controller } = createController({
+				toolbar,
+				getActiveElement: () => document.activeElement,
+			});
+
+			const groupA = createGroup(34);
+			const sep = createSeparator();
+			const groupB = createGroup(66);
+
+			const buttonsA = appendInGroup(toolbar, groupA, [makeItem('bold')]);
+			toolbar.appendChild(sep);
+			const buttonsB = appendInGroup(toolbar, groupB, [makeItem('h1'), makeItem('h2')]);
+
+			controller.update([...buttonsA, ...buttonsB]);
+
+			const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
+				'.notectl-toolbar-overflow-btn',
+			);
+			expect(overflowBtn).not.toBeNull();
+			overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+			const menuItems: NodeListOf<Element> = document.querySelectorAll('.notectl-dropdown__item');
+			const ids: string[] = Array.from(menuItems).map(
+				(m) => m.getAttribute('data-toolbar-item') ?? '',
+			);
+			expect(ids).toEqual(['h1', 'h2']);
+
+			controller.destroy();
+		});
+
+		it('hides the trailing separator after the last visible group', () => {
+			const toolbar: HTMLElement = createToolbar();
+			Object.defineProperty(toolbar, 'clientWidth', { value: 100, configurable: true });
+			const { controller } = createController({ toolbar });
+
+			const groupA = createGroup(34);
+			const sep = createSeparator();
+			const groupB = createGroup(66);
+
+			const buttonsA = appendInGroup(toolbar, groupA, [makeItem('bold')]);
+			toolbar.appendChild(sep);
+			const buttonsB = appendInGroup(toolbar, groupB, [makeItem('h1'), makeItem('h2')]);
+
+			controller.update([...buttonsA, ...buttonsB]);
+
+			expect(sep.classList.contains('notectl-toolbar-separator--overflow-hidden')).toBe(true);
+
+			controller.destroy();
+		});
+	});
 });

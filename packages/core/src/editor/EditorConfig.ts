@@ -14,15 +14,30 @@ import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflow
 import type { Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /**
+ * A single toolbar group in the editor-level config. Accepts either:
+ *  - A `ReadonlyArray<Plugin>` (backwards-compatible tuple form), or
+ *  - An object with `plugins` and an optional accessible `label`. When `label` is set,
+ *    the group's wrapper element receives `role="group"` and `aria-label`, so assistive
+ *    technology can announce the cluster by name.
+ */
+export type ToolbarGroupInput =
+	| ReadonlyArray<Plugin>
+	| {
+			readonly plugins: ReadonlyArray<Plugin>;
+			readonly label?: string;
+	  };
+
+/**
  * Expanded toolbar configuration for `createEditor`.
  * Allows specifying both the plugin layout and overflow behavior.
  */
 export interface ToolbarConfig {
 	/**
-	 * Plugin groups defining toolbar layout. Each inner array is a visual group;
+	 * Plugin groups defining toolbar layout. Each entry is a visual group;
 	 * separators are rendered between groups. Order = array order.
+	 * Use the object form `{ plugins, label }` to attach an accessible label.
 	 */
-	readonly groups: ReadonlyArray<ReadonlyArray<Plugin>>;
+	readonly groups: ReadonlyArray<ToolbarGroupInput>;
 	/**
 	 * Controls responsive overflow behavior when items exceed available width.
 	 * Defaults to `ToolbarOverflowBehavior.BurgerMenu`.
