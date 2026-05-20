@@ -156,21 +156,27 @@ describe('ToolbarPlugin', () => {
 
 		const { container } = await initWithPlugins([pluginA, pluginB, pluginC], toolbar);
 
-		const toolbarEl = container.querySelector('.notectl-toolbar');
-		const children = [...(toolbarEl?.children ?? [])];
+		const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
 
-		// Group 1: a1, a2 | separator | Group 2: b1, c1
-		const buttons = children.filter(
-			(el) => el.tagName === 'BUTTON' && el.classList.contains('notectl-toolbar-btn'),
+		// DOM shape: [group(a1, a2)] [separator] [group(b1, c1)]
+		const buttons = Array.from(
+			toolbarEl.querySelectorAll('button.notectl-toolbar-btn'),
 		) as HTMLButtonElement[];
-		const separators = children.filter((el) => el.classList.contains('notectl-toolbar-separator'));
+		const groups = Array.from(toolbarEl.querySelectorAll(':scope > .notectl-toolbar-group'));
+		const separators = Array.from(
+			toolbarEl.querySelectorAll(':scope > .notectl-toolbar-separator'),
+		);
 
 		expect(buttons).toHaveLength(4);
 		expect(buttons[0]?.getAttribute('data-toolbar-item')).toBe('a1');
 		expect(buttons[1]?.getAttribute('data-toolbar-item')).toBe('a2');
 		expect(buttons[2]?.getAttribute('data-toolbar-item')).toBe('b1');
 		expect(buttons[3]?.getAttribute('data-toolbar-item')).toBe('c1');
+		expect(groups).toHaveLength(2);
 		expect(separators).toHaveLength(1);
+		// a1/a2 belong to the first group, b1/c1 to the second
+		expect(groups[0]?.querySelectorAll('button.notectl-toolbar-btn')).toHaveLength(2);
+		expect(groups[1]?.querySelectorAll('button.notectl-toolbar-btn')).toHaveLength(2);
 	});
 
 	it('skips empty groups without extra separators', async () => {
@@ -589,6 +595,141 @@ describe('ToolbarPlugin', () => {
 
 			expect(btn.getAttribute('part')).toBe('toolbar-button');
 			expect(btn.getAttribute('aria-pressed')).toBe('false');
+		});
+	});
+
+	describe('Group wrappers', () => {
+		it('wraps each group in part="toolbar-group" container', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a'], ['plugin-b']] });
+
+			const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
+
+			const groups = container.querySelectorAll('[part="toolbar-group"]');
+			expect(groups).toHaveLength(2);
+			for (const group of groups) {
+				expect(group.classList.contains('notectl-toolbar-group')).toBe(true);
+			}
+		});
+
+		it('buttons are direct children of their group wrapper', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const group = container.querySelector('.notectl-toolbar-group') as HTMLElement;
+
+			expect(group).not.toBeNull();
+			const directButtons = group.querySelectorAll(':scope > button.notectl-toolbar-btn');
+			expect(directButtons).toHaveLength(2);
+		});
+
+		it('separators stay between group wrappers, not inside them', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a'], ['plugin-b']] });
+
+			const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			const separatorsInsideGroups = toolbarEl.querySelectorAll(
+				'.notectl-toolbar-group .notectl-toolbar-separator',
+			);
+			expect(separatorsInsideGroups).toHaveLength(0);
+
+			const topLevelSeparators = toolbarEl.querySelectorAll(':scope > .notectl-toolbar-separator');
+			expect(topLevelSeparators).toHaveLength(1);
+		});
+
+		it('group wrapper has no ARIA role or label when no label is configured', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { container } = await initWithPlugins([pluginA], toolbar);
+			const group = container.querySelector('.notectl-toolbar-group') as HTMLElement;
+
+			expect(group.getAttribute('role')).toBeNull();
+			expect(group.getAttribute('aria-label')).toBeNull();
+		});
+
+		it('group wrapper opts into role="group" + aria-label when label is configured', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const pluginB = createFakePlugin('plugin-b', [makeToolbarItem({ id: 'b1' })]);
+
+			const toolbar = new ToolbarPlugin({
+				groups: [
+					{ plugins: ['plugin-a'], label: 'Text formatting' },
+					['plugin-b'], // unlabeled — must stay role-less
+				],
+			});
+
+			const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
+			const groups = container.querySelectorAll('.notectl-toolbar-group');
+			expect(groups).toHaveLength(2);
+
+			expect(groups[0]?.getAttribute('role')).toBe('group');
+			expect(groups[0]?.getAttribute('aria-label')).toBe('Text formatting');
+
+			expect(groups[1]?.getAttribute('role')).toBeNull();
+			expect(groups[1]?.getAttribute('aria-label')).toBeNull();
+		});
+
+		it('renderItemsByGroup (no layout config) also wraps each group', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1', group: 'format' }),
+			]);
+			const pluginB = createFakePlugin('plugin-b', [
+				makeToolbarItem({ id: 'b1', group: 'insert' }),
+			]);
+
+			const toolbar = new ToolbarPlugin();
+			const { container } = await initWithPlugins([pluginA, pluginB], toolbar);
+
+			const groups = container.querySelectorAll('[part="toolbar-group"]');
+			expect(groups).toHaveLength(2);
+			// Default-mode wrappers are role-less (no label source available)
+			for (const group of groups) {
+				expect(group.getAttribute('role')).toBeNull();
+			}
+		});
+
+		it('hidden items do not produce empty group wrappers', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { pm, container } = await initWithPlugins([pluginA], toolbar);
+
+			// Hide every item in plugin-a
+			pm.configurePlugin('toolbar', { a1: false, a2: false });
+
+			const groups = container.querySelectorAll('.notectl-toolbar-group');
+			expect(groups).toHaveLength(0);
+		});
+
+		it('group wrapper is removed on re-render so no stale wrappers accumulate', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = new ToolbarPlugin({ groups: [['plugin-a']] });
+
+			const { pm, container } = await initWithPlugins([pluginA], toolbar);
+
+			// Trigger a re-render via configure
+			pm.configurePlugin('toolbar', { a2: false });
+			pm.configurePlugin('toolbar', { a2: true });
+
+			const groups = container.querySelectorAll('.notectl-toolbar-group');
+			expect(groups).toHaveLength(1);
+			const buttonsInGroup = groups[0]?.querySelectorAll('button.notectl-toolbar-btn');
+			expect(buttonsInGroup).toHaveLength(2);
 		});
 	});
 });

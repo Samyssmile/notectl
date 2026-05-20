@@ -43,7 +43,11 @@ const OVERFLOW_BTN_WIDTH = 34;
 const GAP = 2;
 const HIDDEN_BTN_CLASS = 'notectl-toolbar-btn--overflow-hidden';
 const HIDDEN_SEP_CLASS = 'notectl-toolbar-separator--overflow-hidden';
+const HIDDEN_GROUP_CLASS = 'notectl-toolbar-group--overflow-hidden';
 const HIDDEN_OVERFLOW_CLASS = 'notectl-toolbar-overflow-btn--hidden';
+const GROUP_CLASS = 'notectl-toolbar-group';
+const SEPARATOR_CLASS = 'notectl-toolbar-separator';
+const BUTTON_CLASS = 'notectl-toolbar-btn';
 const ELLIPSIS_SVG =
 	'<svg viewBox="0 0 16 16" width="16" height="16"><circle cx="3" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/></svg>';
 
@@ -87,7 +91,14 @@ export class ToolbarOverflowController {
 		this.recalculate();
 	}
 
-	/** Measures toolbar and redistributes items between visible and overflow. */
+	/**
+	 * Measures the toolbar and redistributes content between visible and overflow.
+	 *
+	 * Overflow unit is the **group wrapper** (`.notectl-toolbar-group`), not individual
+	 * buttons — when any button in a group would not fit, the whole group moves to the
+	 * overflow dropdown so logical clusters stay together. Standalone buttons appended
+	 * directly to the toolbar (legacy / test setups) are treated as single-button groups.
+	 */
 	recalculate(): void {
 		if (this.entries.length === 0) return;
 
@@ -110,13 +121,9 @@ export class ToolbarOverflowController {
 		for (const child of children) {
 			if (child === this.overflowButton) continue;
 
-			if (child.classList.contains('notectl-toolbar-separator')) {
-				if (overflowing) {
-					child.classList.add(HIDDEN_SEP_CLASS);
-					continue;
-				}
+			if (child.classList.contains(SEPARATOR_CLASS)) {
 				const sepWidth: number = (childWidths.get(child) ?? 0) + GAP;
-				if (usedWidth + sepWidth > maxWidth) {
+				if (overflowing || usedWidth + sepWidth > maxWidth) {
 					overflowing = true;
 					child.classList.add(HIDDEN_SEP_CLASS);
 				} else {
@@ -125,17 +132,24 @@ export class ToolbarOverflowController {
 				continue;
 			}
 
-			const entry: OverflowEntry | undefined = this.entries.find((oe) => oe.element === child);
-			if (!entry) continue;
-
-			if (overflowing) {
-				entry.element.classList.add(HIDDEN_BTN_CLASS);
-				overflowList.push(entry);
+			if (child.classList.contains(GROUP_CLASS)) {
+				const groupWidth: number = (childWidths.get(child) ?? 0) + GAP;
+				const groupEntries: OverflowEntry[] = this.entriesInside(child);
+				if (overflowing || usedWidth + groupWidth > maxWidth) {
+					overflowing = true;
+					this.hideGroup(child, groupEntries, overflowList);
+				} else {
+					usedWidth += groupWidth;
+				}
 				continue;
 			}
 
+			// Standalone button (used by tests that append buttons directly to the toolbar)
+			const entry: OverflowEntry | undefined = this.entries.find((oe) => oe.element === child);
+			if (!entry) continue;
+
 			const btnWidth: number = (childWidths.get(child) ?? 0) + GAP;
-			if (usedWidth + btnWidth > maxWidth) {
+			if (overflowing || usedWidth + btnWidth > maxWidth) {
 				overflowing = true;
 				entry.element.classList.add(HIDDEN_BTN_CLASS);
 				overflowList.push(entry);
@@ -148,6 +162,32 @@ export class ToolbarOverflowController {
 		this.hideTrailingSeparators();
 		this.setOverflowButtonVisible(overflowList.length > 0);
 		this.notifyChange();
+	}
+
+	/**
+	 * Hides a group wrapper and marks every entry inside it as overflowed.
+	 * Marking individual buttons too keeps `notifyChange()` filter logic uniform.
+	 */
+	private hideGroup(
+		group: HTMLElement,
+		entries: readonly OverflowEntry[],
+		overflowList: OverflowEntry[],
+	): void {
+		group.classList.add(HIDDEN_GROUP_CLASS);
+		for (const entry of entries) {
+			entry.element.classList.add(HIDDEN_BTN_CLASS);
+			overflowList.push(entry);
+		}
+	}
+
+	private entriesInside(group: HTMLElement): OverflowEntry[] {
+		const result: OverflowEntry[] = [];
+		for (const entry of this.entries) {
+			if (group.contains(entry.element)) {
+				result.push(entry);
+			}
+		}
+		return result;
 	}
 
 	/** Updates active/disabled states for items in the open overflow dropdown. */
@@ -224,10 +264,16 @@ export class ToolbarOverflowController {
 			entry.element.classList.remove(HIDDEN_BTN_CLASS);
 		}
 		const separators: HTMLElement[] = Array.from(
-			this.toolbar.querySelectorAll('.notectl-toolbar-separator'),
+			this.toolbar.querySelectorAll(`.${SEPARATOR_CLASS}`),
 		) as HTMLElement[];
 		for (const sep of separators) {
 			sep.classList.remove(HIDDEN_SEP_CLASS);
+		}
+		const groups: HTMLElement[] = Array.from(
+			this.toolbar.querySelectorAll(`.${GROUP_CLASS}`),
+		) as HTMLElement[];
+		for (const grp of groups) {
+			grp.classList.remove(HIDDEN_GROUP_CLASS);
 		}
 	}
 
@@ -486,13 +532,18 @@ export class ToolbarOverflowController {
 		for (let i = children.length - 1; i >= 0; i--) {
 			const child: HTMLElement | undefined = children[i];
 			if (!child || child === this.overflowButton) continue;
-			if (child.classList.contains('notectl-toolbar-separator')) {
+			if (child.classList.contains(SEPARATOR_CLASS)) {
 				if (!child.classList.contains(HIDDEN_SEP_CLASS)) {
 					child.classList.add(HIDDEN_SEP_CLASS);
 				}
-			} else if (!child.classList.contains(HIDDEN_BTN_CLASS)) {
-				break;
+				continue;
 			}
+			const isHiddenGroup: boolean =
+				child.classList.contains(GROUP_CLASS) && child.classList.contains(HIDDEN_GROUP_CLASS);
+			const isHiddenButton: boolean =
+				child.classList.contains(BUTTON_CLASS) && child.classList.contains(HIDDEN_BTN_CLASS);
+			if (isHiddenGroup || isHiddenButton) continue;
+			break;
 		}
 	}
 

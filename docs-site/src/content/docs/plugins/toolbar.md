@@ -203,6 +203,7 @@ The toolbar exposes structural parts so consumers can target it via `::part()` w
 | Part | Element | Notes |
 |---|---|---|
 | `toolbar` | Toolbar root | |
+| `toolbar-group` | Group wrapper around a logical cluster of buttons | Real flex container — `padding`, `background`, `border` apply directly |
 | `toolbar-button` | Any toolbar button | |
 | `toolbar-button` + `toolbar-button-active` | Active button | Modifier part synced with `aria-pressed` |
 | `toolbar-button` + `toolbar-overflow-button` | The "more" button in burger-menu mode | |
@@ -219,6 +220,46 @@ notectl-editor::part(toolbar-button-active) {
   color: #ffffff;
 }
 ```
+
+Example — tint each group with a soft background and rounded corners:
+
+```css
+notectl-editor::part(toolbar-group) {
+  background: var(--my-group-bg);
+  border-radius: 6px;
+  padding: 0 4px;
+}
+```
+
+### Group-aware overflow
+
+In `ToolbarOverflowBehavior.BurgerMenu` mode (the default), overflow is measured at the
+**group level**: when any button in a group would not fit, the entire group moves into
+the burger menu so logical clusters stay together. Standalone buttons appended directly
+to the toolbar (without a group wrapper) are treated as single-button groups.
+
+### Accessible group labels
+
+The internal `ToolbarLayoutConfig` accepts an object form per group so groups can carry
+an accessible name. When a `label` is provided, the wrapper additionally receives
+`role="group"` and `aria-label`:
+
+```ts
+new ToolbarPlugin({
+  groups: [
+    { plugins: ['text-formatting'], label: 'Text formatting' },
+    { plugins: ['heading'], label: 'Headings' },
+    ['lists'], // unlabeled — wrapper stays role-less, no aria-label
+  ],
+});
+```
+
+The same object form is accepted at the editor level via `createEditor({ toolbar: { groups: [...] } })`
+where each entry is either a `ReadonlyArray<Plugin>` or `{ plugins: ReadonlyArray<Plugin>; label?: string }`.
+
+When no `label` is set, the wrapper carries only `part="toolbar-group"` for styling and
+is **not** announced as a group by assistive technology — this matches the W3C ARIA
+APG toolbar example, where unlabeled sub-groups stay purely structural.
 
 ## Accessibility
 
