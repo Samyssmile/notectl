@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Toolbar group wrapper exposed as `part="toolbar-group"` with opt-in accessible labels (#125)** — Each visual cluster of toolbar buttons is now wrapped in a real `<div part="toolbar-group" class="notectl-toolbar-group">` flex container in both render paths (`renderItemsByLayout` and `renderItemsByGroup`). Consumers can style groups via `::part(toolbar-group)` directly with `padding` / `background` / `border` — no `display: contents` workaround required, since the wrapper participates in layout (`display: flex; align-items: center; gap: 2px`). `ToolbarLayoutConfig.groups` and the editor-level `ToolbarConfig.groups` now accept a backwards-compatible union per entry: either a `ReadonlyArray<Plugin>` / `ReadonlyArray<string>` (existing tuple form, unchanged) or an object `{ plugins, label? }`. When `label` is set, the wrapper additionally receives `role="group"` and `aria-label="<label>"` so assistive technology announces the cluster by name; without a label the wrapper stays role-less, matching the W3C ARIA APG toolbar example for unlabeled sub-groups. Separators continue to be rendered between groups, never inside, and empty / fully-hidden groups produce no wrapper at all. Stale wrappers are removed on every re-render, so runtime `configurePlugin` toggles cannot accumulate orphan DOM. New `ToolbarGroupConfig` type exported from `@notectl/core` (`packages/core/src/plugins/toolbar/index.ts`) for downstream typing.
+
+### Changed
+
+- **Toolbar overflow is now measured at the group level (#125)** — `ToolbarOverflowController` previously iterated `this.toolbar.children` and resolved each child as either a button or a separator, which split logical clusters mid-group when space ran out. The controller now recognizes `.notectl-toolbar-group` wrappers as the unit of overflow: when any button inside a group would not fit, the entire group moves into the burger menu (every button in it gets `notectl-toolbar-btn--overflow-hidden` for uniform `notifyChange()` filtering, the wrapper itself gets the new `notectl-toolbar-group--overflow-hidden` class to hide via `display: none`). Standalone buttons appended directly to the toolbar — the shape used by the controller's unit tests — are still handled as single-button groups via a fallback branch, so no test refactor was required. Trailing-separator cleanup (`hideTrailingSeparators`) was extended to treat a hidden trailing group identically to a hidden trailing button. Roving tabindex is unaffected — it continues to operate on the flat `this.buttons` array — and the screenshot generator was updated to keep overflow-hidden groups visible in the docs build (`e2e/generate-screenshots.spec.ts`).
+
 ## [2.1.3] - 2026-05-18
 
 ### Added
