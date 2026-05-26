@@ -210,6 +210,7 @@ describe('DecorationSet', () => {
 				selectionAfter: dummySel,
 				storedMarksAfter: null,
 				mapping: Mapping.from(stepMaps),
+				forwardStepMaps: stepMaps,
 				metadata: { origin: 'input', timestamp: 0 },
 			};
 		}

@@ -421,6 +421,7 @@ export class TransactionBuilder {
 			selectionAfter: this.selection,
 			storedMarksAfter: this.storedMarks,
 			mapping: Mapping.from(this.stepMaps),
+			forwardStepMaps: [...this.stepMaps],
 			metadata: {
 				origin: this.origin,
 				timestamp: Date.now(),

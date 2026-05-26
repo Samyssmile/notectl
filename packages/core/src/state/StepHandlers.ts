@@ -10,7 +10,7 @@
  */
 
 import type { Document } from '../model/Document.js';
-import { Mapping, type StepMap } from './Mapping.js';
+import { IDENTITY_MAP, Mapping, type StepMap } from './Mapping.js';
 import {
 	applyAddMark,
 	applyDeleteText,
@@ -45,6 +45,22 @@ import {
 	invertSplitBlock,
 } from './StepInversion.js';
 import {
+	mapAddMark,
+	mapDeleteText,
+	mapInsertInlineNode,
+	mapInsertNode,
+	mapInsertText,
+	mapMergeBlocks,
+	mapRemoveInlineNode,
+	mapRemoveMark,
+	mapRemoveNode,
+	mapSetBlockType,
+	mapSetInlineNodeAttr,
+	mapSetNodeAttr,
+	mapSetStoredMarks,
+	mapSplitBlock,
+} from './StepMapping.js';
+import {
 	getMapAddMark,
 	getMapDeleteText,
 	getMapInsertInlineNode,
@@ -64,17 +80,26 @@ import type { Step } from './Steps.js';
 import type { Transaction } from './Transaction.js';
 
 /**
- * Forward, inverse, and position-mapping behavior of one step subtype,
- * co-located so a new step type is one registry entry.
+ * Forward, inverse, position-mapping, and step-rebase behavior of one step
+ * subtype, co-located so a new step type is one registry entry.
  *
- * `getMap` receives the document **before** the step is applied. Most maps
- * don't need it, but `removeNode` walks the subtree to enumerate descendant
- * block IDs and `mergeBlocks` may use it for invariant checks.
+ * - `apply` / `invert` / `getMap` cover the existing step pipeline.
+ * - `map` rebases the step itself through a {@link Mapping} describing
+ *   intervening changes; returns `null` when the step can no longer be
+ *   applied meaningfully (block removed, range fragmented, range fully
+ *   eaten). See {@link StepMapping.ts} for per-step semantics.
+ *
+ * `getMap` and `map` both receive the document at the step's "current"
+ * frame: `getMap` against the pre-apply doc, `map` against the doc that
+ * the rebased step will be applied to. The latter is needed to re-snapshot
+ * inverse-payload fields (`deletedText`, `previousAttrs`, etc.) so the
+ * rebased step inverts correctly on redo.
  */
 export interface StepHandler<S extends Step> {
 	readonly apply: (doc: Document, step: S) => Document;
 	readonly invert: (step: S) => Step;
 	readonly getMap: (doc: Document, step: S) => StepMap;
+	readonly map: (step: S, mapping: Mapping, doc: Document) => Step | null;
 }
 
 /**
@@ -87,39 +112,89 @@ type StepHandlerRegistry = {
 };
 
 const STEP_HANDLERS: StepHandlerRegistry = {
-	insertText: { apply: applyInsertText, invert: invertInsertText, getMap: getMapInsertText },
-	deleteText: { apply: applyDeleteText, invert: invertDeleteText, getMap: getMapDeleteText },
-	splitBlock: { apply: applySplitBlock, invert: invertSplitBlock, getMap: getMapSplitBlock },
-	mergeBlocks: { apply: applyMergeBlocks, invert: invertMergeBlocks, getMap: getMapMergeBlocks },
-	addMark: { apply: applyAddMark, invert: invertAddMark, getMap: getMapAddMark },
-	removeMark: { apply: applyRemoveMark, invert: invertRemoveMark, getMap: getMapRemoveMark },
+	insertText: {
+		apply: applyInsertText,
+		invert: invertInsertText,
+		getMap: getMapInsertText,
+		map: mapInsertText,
+	},
+	deleteText: {
+		apply: applyDeleteText,
+		invert: invertDeleteText,
+		getMap: getMapDeleteText,
+		map: mapDeleteText,
+	},
+	splitBlock: {
+		apply: applySplitBlock,
+		invert: invertSplitBlock,
+		getMap: getMapSplitBlock,
+		map: mapSplitBlock,
+	},
+	mergeBlocks: {
+		apply: applyMergeBlocks,
+		invert: invertMergeBlocks,
+		getMap: getMapMergeBlocks,
+		map: mapMergeBlocks,
+	},
+	addMark: {
+		apply: applyAddMark,
+		invert: invertAddMark,
+		getMap: getMapAddMark,
+		map: mapAddMark,
+	},
+	removeMark: {
+		apply: applyRemoveMark,
+		invert: invertRemoveMark,
+		getMap: getMapRemoveMark,
+		map: mapRemoveMark,
+	},
 	setStoredMarks: {
 		apply: applySetStoredMarks,
 		invert: invertSetStoredMarks,
 		getMap: getMapSetStoredMarks,
+		map: mapSetStoredMarks,
 	},
 	setBlockType: {
 		apply: applySetBlockType,
 		invert: invertSetBlockType,
 		getMap: getMapSetBlockType,
+		map: mapSetBlockType,
 	},
-	insertNode: { apply: applyInsertNode, invert: invertInsertNode, getMap: getMapInsertNode },
-	removeNode: { apply: applyRemoveNode, invert: invertRemoveNode, getMap: getMapRemoveNode },
-	setNodeAttr: { apply: applySetNodeAttr, invert: invertSetNodeAttr, getMap: getMapSetNodeAttr },
+	insertNode: {
+		apply: applyInsertNode,
+		invert: invertInsertNode,
+		getMap: getMapInsertNode,
+		map: mapInsertNode,
+	},
+	removeNode: {
+		apply: applyRemoveNode,
+		invert: invertRemoveNode,
+		getMap: getMapRemoveNode,
+		map: mapRemoveNode,
+	},
+	setNodeAttr: {
+		apply: applySetNodeAttr,
+		invert: invertSetNodeAttr,
+		getMap: getMapSetNodeAttr,
+		map: mapSetNodeAttr,
+	},
 	insertInlineNode: {
 		apply: applyInsertInlineNode,
 		invert: invertInsertInlineNode,
 		getMap: getMapInsertInlineNode,
+		map: mapInsertInlineNode,
 	},
 	removeInlineNode: {
 		apply: applyRemoveInlineNode,
 		invert: invertRemoveInlineNode,
 		getMap: getMapRemoveInlineNode,
+		map: mapRemoveInlineNode,
 	},
 	setInlineNodeAttr: {
 		apply: applySetInlineNodeAttr,
 		invert: invertSetInlineNodeAttr,
 		getMap: getMapSetInlineNodeAttr,
+		map: mapSetInlineNodeAttr,
 	},
 };
 
@@ -152,6 +227,26 @@ export function getStepMap(doc: Document, step: Step): StepMap {
 }
 
 /**
+ * Rebases a step through a {@link Mapping} describing intervening edits in
+ * position space, returning either the rebased step or `null` when the
+ * step can no longer be applied meaningfully (block removed, range fully
+ * eaten, range fragmented across blocks, structural ancestor migrated).
+ *
+ * `doc` must be the document at the frame the rebased step will run
+ * against — `map` re-snapshots inverse-payload fields (`deletedText`,
+ * `previousAttrs`, …) from it so the rebased step inverts correctly on
+ * redo.
+ *
+ * Callers (e.g. {@link HistoryManager.undo}) treat a `null` as a signal to
+ * abandon the entire undo/redo group rather than apply a partial rebase
+ * that would silently corrupt the document.
+ */
+export function mapStep(step: Step, mapping: Mapping, doc: Document): Step | null {
+	if (mapping.isEmpty) return step;
+	return getHandler(step).map(step, mapping, doc);
+}
+
+/**
  * Inverts an entire transaction (reverses step order and swaps selections).
  *
  * The returned transaction's `mapping` is {@link Mapping.empty}: producing a
@@ -160,14 +255,21 @@ export function getStepMap(doc: Document, step: Step): StepMap {
  * only present in the forward step's payload, not its inverse). Callers
  * that need a real mapping for the inverted transaction should accumulate
  * step maps via {@link getStepMap} as they apply each inverse step.
+ *
+ * `forwardStepMaps` is set to identity placeholders for the same reason —
+ * the inverse-step forward effect is only computable against the document
+ * state at each inverse, which the caller (e.g. `HistoryManager.undo`)
+ * tracks while walking.
  */
 export function invertTransaction(tr: Transaction): Transaction {
+	const invertedSteps: Step[] = tr.steps.map(invertStep).reverse();
 	return {
-		steps: tr.steps.map(invertStep).reverse(),
+		steps: invertedSteps,
 		selectionBefore: tr.selectionAfter,
 		selectionAfter: tr.selectionBefore,
 		storedMarksAfter: deriveStoredMarksBefore(tr),
 		mapping: Mapping.empty,
+		forwardStepMaps: invertedSteps.map(() => IDENTITY_MAP),
 		metadata: {
 			origin: 'history',
 			timestamp: Date.now(),

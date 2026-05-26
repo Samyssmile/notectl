@@ -227,6 +227,7 @@ export class EditorView {
 				selectionAfter: preserved.selection,
 				storedMarksAfter: preserved.storedMarks,
 				mapping: Mapping.empty,
+				forwardStepMaps: [],
 				metadata: {
 					origin: 'api',
 					timestamp: Date.now(),

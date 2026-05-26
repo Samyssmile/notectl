@@ -53,6 +53,19 @@ import type { Position } from '../model/Selection.js';
 import { createPosition } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 
+/**
+ * Result of mapping an `(blockId, [from, to))` range through a {@link Mapping}.
+ *
+ * Both endpoints are guaranteed to live in the same block. Callers can rely
+ * on `from <= to` (the helper returns `null` rather than producing an
+ * inverted range).
+ */
+export interface MappedInBlockRange {
+	readonly blockId: BlockId;
+	readonly from: number;
+	readonly to: number;
+}
+
 /** Position-mapping bias at a boundary. */
 export type Assoc = -1 | 1;
 
@@ -351,5 +364,174 @@ export class Mapping {
 			}
 		}
 		return { from: from.pos, to: to.pos };
+	}
+}
+
+// --- In-block range helpers (used by per-step Step→Step mapping) ---
+
+/**
+ * Maps an `(blockId, [from, to))` range through `mapping`, asserting the
+ * result lives in a single block.
+ *
+ * Returns `null` when the range no longer addresses live content in a single
+ * block:
+ *
+ * - the host block was removed;
+ * - the range was fully deleted (both endpoints flagged deleted and collapse);
+ * - the endpoints migrated to different blocks (range fragmented, e.g. a
+ *   `split` map placed `from` and `to` on opposite sides of the cut).
+ *
+ * Default biases are **conservative for step rebasing**: `assocFrom = +1`,
+ * `assocTo = -1`. An intervening insertion at either boundary therefore
+ * does NOT expand the rebased range to cover the new content — the user's
+ * original edit only addressed the original content, and the agent's
+ * intervening insertion should be preserved across an undo/redo. This is
+ * the opposite of {@link Mapping.mapRange}'s default biases, which model
+ * selections (inclusive-start, exclusive-end) where boundary insertions
+ * naturally extend the selection.
+ */
+export function mapInBlockRange(
+	blockId: BlockId,
+	from: number,
+	to: number,
+	mapping: Mapping,
+	assocFrom: Assoc = 1,
+	assocTo: Assoc = -1,
+): MappedInBlockRange | null {
+	if (mapping.isEmpty) return { blockId, from, to };
+
+	const fromPos: Position = createPosition(blockId, from);
+	const toPos: Position = createPosition(blockId, to);
+	const fromResult: MapResult = mapping.mapResult(fromPos, assocFrom);
+	const toResult: MapResult = mapping.mapResult(toPos, assocTo);
+
+	// If both endpoints fell inside removed/replaced content, the range no
+	// longer addresses live document territory — abandon. A partial overlap
+	// (one endpoint deleted, the other shifted) still survives clamped.
+	if (fromResult.deleted && toResult.deleted) return null;
+
+	// Range must remain within a single block. A split could have moved one
+	// endpoint to the new block; that's a fragmentation we cannot represent
+	// as a single in-block step.
+	if (fromResult.pos.blockId !== toResult.pos.blockId) return null;
+
+	// Defensive: a range whose endpoints inverted (from > to) is invalid.
+	// An empty range with from === to is still valid (e.g. a pure-insertion
+	// `shift` whose offset survived).
+	if (fromResult.pos.offset > toResult.pos.offset) return null;
+
+	return {
+		blockId: fromResult.pos.blockId,
+		from: fromResult.pos.offset,
+		to: toResult.pos.offset,
+	};
+}
+
+/**
+ * Maps an `(blockId, offset)` point through `mapping`, returning the
+ * equivalent in-block position or `null` when the host block was removed.
+ *
+ * Convenience wrapper around {@link mapInBlockRange} for steps that carry a
+ * single offset (`insertText`, `insertInlineNode`, `splitBlock`).
+ */
+export function mapOffsetInBlock(
+	blockId: BlockId,
+	offset: number,
+	mapping: Mapping,
+	assoc: Assoc = -1,
+): MappedInBlockRange | null {
+	if (mapping.isEmpty) return { blockId, from: offset, to: offset };
+
+	const pos: Position = createPosition(blockId, offset);
+	const result: MapResult = mapping.mapResult(pos, assoc);
+	if (result.deleted) return null;
+	return { blockId: result.pos.blockId, from: result.pos.offset, to: result.pos.offset };
+}
+
+// --- StepMap inversion (used by history's frame-walk cancellation) ---
+
+/**
+ * Returns the {@link StepMap} that undoes `map` in position space — i.e.
+ * composing `map` with `invertStepMap(map)` is content-preserving (though
+ * the composed position-mapping is *not* a true identity in our framework:
+ * positions interior to a delete-then-reinsert round-trip clamp to the
+ * deletion start during the deletion half and don't return on the insert
+ * half).
+ *
+ * Used by history to detect mutually-inverse stepmaps in the rebase chain
+ * and cancel them, sidestepping the round-trip clamping for cases where
+ * the rebase is a no-op in content terms.
+ *
+ * `BlockRemovalMap`'s inverse is {@link IDENTITY_MAP}: re-inserting a
+ * removed block subtree does not shift positions in *other* blocks, so the
+ * inverse direction is invisible to position-mapping. Callers that need to
+ * re-validate "did the block come back" must check the document instead.
+ */
+export function invertStepMap(map: StepMap): StepMap {
+	switch (map.type) {
+		case 'identity':
+			return IDENTITY_MAP;
+		case 'shift':
+			return {
+				type: 'shift',
+				blockId: map.blockId,
+				from: map.from,
+				to: map.from + map.newLen,
+				newLen: map.to - map.from,
+			};
+		case 'split':
+			return {
+				type: 'merge',
+				targetBlockId: map.blockId,
+				sourceBlockId: map.newBlockId,
+				targetLengthBefore: map.offset,
+			};
+		case 'merge':
+			return {
+				type: 'split',
+				blockId: map.targetBlockId,
+				offset: map.targetLengthBefore,
+				newBlockId: map.sourceBlockId,
+			};
+		case 'blockRemoval':
+			return IDENTITY_MAP;
+	}
+}
+
+/**
+ * Structural equality for {@link StepMap}s. Used by history to recognize
+ * cancelling pairs in the rebase chain ({@link invertStepMap}(a) ≡ b).
+ */
+export function stepMapsEqual(a: StepMap, b: StepMap): boolean {
+	if (a.type !== b.type) return false;
+	switch (a.type) {
+		case 'identity':
+			return true;
+		case 'shift': {
+			const bs = b as ShiftMap;
+			return (
+				a.blockId === bs.blockId && a.from === bs.from && a.to === bs.to && a.newLen === bs.newLen
+			);
+		}
+		case 'split': {
+			const bs = b as SplitMap;
+			return a.blockId === bs.blockId && a.offset === bs.offset && a.newBlockId === bs.newBlockId;
+		}
+		case 'merge': {
+			const bm = b as MergeMap;
+			return (
+				a.targetBlockId === bm.targetBlockId &&
+				a.sourceBlockId === bm.sourceBlockId &&
+				a.targetLengthBefore === bm.targetLengthBefore
+			);
+		}
+		case 'blockRemoval': {
+			const br = b as BlockRemovalMap;
+			if (a.removedBlockIds.size !== br.removedBlockIds.size) return false;
+			for (const id of a.removedBlockIds) {
+				if (!br.removedBlockIds.has(id)) return false;
+			}
+			return true;
+		}
 	}
 }

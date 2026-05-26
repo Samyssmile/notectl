@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
+import { Mapping } from '../state/Mapping.js';
 import type { Transaction } from '../state/Transaction.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import { buildAnnouncement, getBlockTypeLabel } from './Announcer.js';
@@ -14,6 +15,8 @@ function makeTr(overrides: Partial<Transaction> = {}): Transaction {
 		selectionBefore: sel,
 		selectionAfter: sel,
 		storedMarksAfter: null,
+		mapping: Mapping.empty,
+		forwardStepMaps: [],
 		metadata: { origin: 'command', timestamp: Date.now() },
 		...overrides,
 	};
