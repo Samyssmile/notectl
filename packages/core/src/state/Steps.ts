@@ -63,6 +63,15 @@ export interface MergeBlocksStep {
 	readonly path?: readonly BlockId[];
 }
 
+/**
+ * Adds `mark` to every text node in `[from, to)`.
+ *
+ * **Builder invariant** (enforced by `TransactionBuilder.addMark`): the range
+ * carries no text node with a mark of `mark.type`. Steps emitted under this
+ * invariant invert exactly to a `RemoveMarkStep` over the same range, so undo
+ * cannot strip pre-existing marks. Direct step construction (rare; e.g.
+ * middleware) must uphold the same precondition.
+ */
 export interface AddMarkStep {
 	readonly type: 'addMark';
 	readonly blockId: BlockId;
@@ -72,6 +81,15 @@ export interface AddMarkStep {
 	readonly path?: readonly BlockId[];
 }
 
+/**
+ * Removes the mark of `mark.type` from every text node in `[from, to)`.
+ *
+ * **Builder invariant** (enforced by `TransactionBuilder.removeMark`): every
+ * text node in the range carries exactly `mark` (deep equality, including
+ * attrs). The `mark` field therefore stores the actual document mark, which
+ * the symmetric inverse (`AddMarkStep`) re-adds verbatim, preserving attrs
+ * through undo. Direct step construction must uphold the same precondition.
+ */
 export interface RemoveMarkStep {
 	readonly type: 'removeMark';
 	readonly blockId: BlockId;

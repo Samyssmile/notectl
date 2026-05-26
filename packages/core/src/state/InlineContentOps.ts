@@ -13,8 +13,10 @@ import {
 	createTextNode,
 	isInlineNode,
 	isTextNode,
+	marksEqual,
 	removeMarkFromSet,
 } from '../model/Document.js';
+import type { MarkTypeName } from '../model/TypeBrands.js';
 
 /**
  * Inserts text into mixed inline content at the given offset.
@@ -226,6 +228,124 @@ export function applyMarkToInlineContent(
 		pos = nodeEnd;
 	}
 
+	return result;
+}
+
+/**
+ * Maximal sub-ranges within [from, to) where no text node carries a mark
+ * of type `markType`. InlineNodes are inert: they pass through and do not
+ * break coalescing, but a range never starts on an InlineNode.
+ *
+ * Used by `TransactionBuilder.addMark` to emit `AddMarkStep`s only over
+ * sub-ranges that actually lack the mark, so the symmetric inverse
+ * preserves any marks that pre-existed.
+ */
+export function findRangesMissingMark(
+	nodes: readonly (TextNode | InlineNode)[],
+	from: number,
+	to: number,
+	markType: MarkTypeName,
+): readonly { readonly from: number; readonly to: number }[] {
+	const result: { from: number; to: number }[] = [];
+	if (from >= to) return result;
+	let current: { from: number; to: number } | null = null;
+	let pos = 0;
+
+	const flush = (): void => {
+		if (current) {
+			result.push(current);
+			current = null;
+		}
+	};
+
+	for (const node of nodes) {
+		const nodeLength: number = isInlineNode(node) ? 1 : node.text.length;
+		const nodeEnd: number = pos + nodeLength;
+
+		if (nodeEnd <= from || pos >= to) {
+			pos = nodeEnd;
+			continue;
+		}
+
+		const overlapStart: number = Math.max(pos, from);
+		const overlapEnd: number = Math.min(nodeEnd, to);
+
+		if (isInlineNode(node)) {
+			if (current) current.to = overlapEnd;
+		} else if (node.marks.some((m) => m.type === markType)) {
+			flush();
+		} else if (current) {
+			current.to = overlapEnd;
+		} else {
+			current = { from: overlapStart, to: overlapEnd };
+		}
+
+		pos = nodeEnd;
+	}
+
+	flush();
+	return result;
+}
+
+/**
+ * Maximal sub-ranges within [from, to) where every text node carries a mark
+ * of type `markType`. Each range is paired with the actual mark from the
+ * document (including attrs). Adjacent sub-ranges coalesce only when their
+ * marks are `marksEqual`. InlineNodes are inert: they pass through and do
+ * not break coalescing, but a range never starts on an InlineNode.
+ *
+ * Used by `TransactionBuilder.removeMark` to emit `RemoveMarkStep`s whose
+ * `mark` reflects the actual document content, so the symmetric inverse
+ * restores attrs faithfully.
+ */
+export function findRangesWithMark(
+	nodes: readonly (TextNode | InlineNode)[],
+	from: number,
+	to: number,
+	markType: MarkTypeName,
+): readonly { readonly from: number; readonly to: number; readonly mark: Mark }[] {
+	const result: { from: number; to: number; mark: Mark }[] = [];
+	if (from >= to) return result;
+	let current: { from: number; to: number; mark: Mark } | null = null;
+	let pos = 0;
+
+	const flush = (): void => {
+		if (current) {
+			result.push(current);
+			current = null;
+		}
+	};
+
+	for (const node of nodes) {
+		const nodeLength: number = isInlineNode(node) ? 1 : node.text.length;
+		const nodeEnd: number = pos + nodeLength;
+
+		if (nodeEnd <= from || pos >= to) {
+			pos = nodeEnd;
+			continue;
+		}
+
+		const overlapStart: number = Math.max(pos, from);
+		const overlapEnd: number = Math.min(nodeEnd, to);
+
+		if (isInlineNode(node)) {
+			if (current) current.to = overlapEnd;
+		} else {
+			const actual: Mark | undefined = node.marks.find((m) => m.type === markType);
+			if (!actual) {
+				flush();
+			} else if (current && marksEqual(current.mark, actual)) {
+				current.to = overlapEnd;
+			} else {
+				flush();
+				current = { from: overlapStart, to: overlapEnd, mark: actual };
+			}
+		}
+
+		pos = nodeEnd;
+	}
+
+	flush();
 	return result;
 }
 

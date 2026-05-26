@@ -25,6 +25,7 @@ import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
+import { findRangesMissingMark, findRangesWithMark } from './InlineContentOps.js';
 import { Mapping, type StepMap } from './Mapping.js';
 import { applyStep, getStepMap } from './StepHandlers.js';
 import type {
@@ -197,19 +198,71 @@ export class TransactionBuilder {
 		);
 	}
 
-	/** Adds an add-mark step. Updates workingDoc if available. */
+	/**
+	 * Emits one `AddMarkStep` per maximal sub-range of `[from, to)` that does
+	 * not yet carry a mark of `mark.type`. Sub-ranges that already carry the
+	 * mark type are skipped, so the symmetric inverse never strips a
+	 * pre-existing mark.
+	 *
+	 * Falls back to a single full-range step when no working document is
+	 * available (e.g. direct construction without a doc, used in low-level
+	 * tests).
+	 */
 	addMark(blockId: BlockId, from: number, to: number, mark: Mark): this {
-		const step: AddMarkStep = { type: 'addMark', blockId, from, to, mark };
-		this.steps.push(step);
-		this.advanceDoc(step);
+		const block: BlockNode | null = this.tryGetBlock(blockId);
+		if (!block) {
+			const step: AddMarkStep = { type: 'addMark', blockId, from, to, mark };
+			this.steps.push(step);
+			this.advanceDoc(step);
+			return this;
+		}
+
+		const ranges = findRangesMissingMark(getInlineChildren(block), from, to, mark.type);
+		for (const range of ranges) {
+			const step: AddMarkStep = {
+				type: 'addMark',
+				blockId,
+				from: range.from,
+				to: range.to,
+				mark,
+			};
+			this.steps.push(step);
+			this.advanceDoc(step);
+		}
 		return this;
 	}
 
-	/** Adds a remove-mark step. Updates workingDoc if available. */
+	/**
+	 * Emits one `RemoveMarkStep` per maximal sub-range of `[from, to)` that
+	 * carries a mark of `mark.type`. The step's `mark` is the actual mark
+	 * found in the document (including attrs), so the symmetric inverse
+	 * restores it faithfully. Sub-ranges without the mark are skipped.
+	 *
+	 * Falls back to a single full-range step when no working document is
+	 * available (e.g. direct construction without a doc, used in low-level
+	 * tests).
+	 */
 	removeMark(blockId: BlockId, from: number, to: number, mark: Mark): this {
-		const step: RemoveMarkStep = { type: 'removeMark', blockId, from, to, mark };
-		this.steps.push(step);
-		this.advanceDoc(step);
+		const block: BlockNode | null = this.tryGetBlock(blockId);
+		if (!block) {
+			const step: RemoveMarkStep = { type: 'removeMark', blockId, from, to, mark };
+			this.steps.push(step);
+			this.advanceDoc(step);
+			return this;
+		}
+
+		const ranges = findRangesWithMark(getInlineChildren(block), from, to, mark.type);
+		for (const range of ranges) {
+			const step: RemoveMarkStep = {
+				type: 'removeMark',
+				blockId,
+				from: range.from,
+				to: range.to,
+				mark: range.mark,
+			};
+			this.steps.push(step);
+			this.advanceDoc(step);
+		}
 		return this;
 	}
 
@@ -393,6 +446,17 @@ export class TransactionBuilder {
 			throw new Error(`Block "${blockId}" not found in working document.`);
 		}
 		return block;
+	}
+
+	/**
+	 * Returns the resolved block from the working document, or `null` if
+	 * either the document is unavailable or the block is missing. Used by
+	 * mark builders that want a working-doc-aware planning pass with a
+	 * safe fallback when neither precondition holds.
+	 */
+	private tryGetBlock(blockId: BlockId): BlockNode | null {
+		if (!this.workingDoc) return null;
+		return findNode(this.workingDoc, blockId) ?? null;
 	}
 
 	/**
