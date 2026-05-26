@@ -149,13 +149,28 @@ export class TransactionBuilder {
 		return this;
 	}
 
-	/** Adds a merge-blocks step with explicit targetLengthBefore. Updates workingDoc if available. */
-	mergeBlocks(targetBlockId: BlockId, sourceBlockId: BlockId, targetLengthBefore: number): this {
+	/**
+	 * Adds a merge-blocks step with explicit data. Updates workingDoc if available.
+	 *
+	 * `sourceType` / `sourceAttrs` snapshot the source block's identity so the
+	 * inverse split can restore it on undo. Callers that do not know the source
+	 * identity should prefer {@link mergeBlocksAt}, which derives both from the
+	 * working document.
+	 */
+	mergeBlocks(
+		targetBlockId: BlockId,
+		sourceBlockId: BlockId,
+		targetLengthBefore: number,
+		sourceType?: NodeTypeName,
+		sourceAttrs?: BlockAttrs,
+	): this {
 		const step: MergeBlocksStep = {
 			type: 'mergeBlocks',
 			targetBlockId,
 			sourceBlockId,
 			targetLengthBefore,
+			...(sourceType !== undefined ? { sourceType } : {}),
+			...(sourceAttrs ? { sourceAttrs } : {}),
 		};
 		this.steps.push(step);
 		this.advanceDoc(step);
@@ -163,15 +178,23 @@ export class TransactionBuilder {
 	}
 
 	/**
-	 * Merges two blocks, auto-deriving targetLengthBefore from the working document.
-	 * Requires a document to be provided at construction.
+	 * Merges two blocks, auto-deriving targetLengthBefore and the source
+	 * block's identity (type + attrs) from the working document. Requires a
+	 * document to be provided at construction.
 	 */
 	mergeBlocksAt(targetBlockId: BlockId, sourceBlockId: BlockId): this {
 		const doc: Document = this.requireDoc('mergeBlocksAt');
 		const targetBlock: BlockNode = this.requireBlock(doc, targetBlockId);
+		const sourceBlock: BlockNode = this.requireBlock(doc, sourceBlockId);
 
 		const targetLengthBefore = getBlockLength(targetBlock);
-		return this.mergeBlocks(targetBlockId, sourceBlockId, targetLengthBefore);
+		return this.mergeBlocks(
+			targetBlockId,
+			sourceBlockId,
+			targetLengthBefore,
+			sourceBlock.type,
+			sourceBlock.attrs,
+		);
 	}
 
 	/** Adds an add-mark step. Updates workingDoc if available. */

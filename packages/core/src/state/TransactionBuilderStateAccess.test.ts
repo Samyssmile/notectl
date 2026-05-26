@@ -181,6 +181,94 @@ describe('Fix Verification: TransactionBuilder with state access', () => {
 		});
 	});
 
+	describe('cross-type merge preserves source block identity on undo', () => {
+		function createHeadingThenParagraphState(): EditorState {
+			const doc = createDocument([
+				createBlockNode('heading', [createTextNode('Title')], 'b1', { level: 1 }),
+				createBlockNode('paragraph', [createTextNode('body')], 'b2'),
+			]);
+			return EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b2', 0),
+			});
+		}
+
+		it('undo restores the source paragraph as a paragraph after heading+paragraph merge', () => {
+			let state = createHeadingThenParagraphState();
+			const history = new HistoryManager();
+
+			const tr = state
+				.transaction('input')
+				.mergeBlocksAt('b1', 'b2')
+				.setSelection(createCollapsedSelection('b1', 5))
+				.build();
+
+			state = state.apply(tr);
+			history.push(tr);
+			expect(state.doc.children).toHaveLength(1);
+			expect(state.doc.children[0]?.type).toBe('heading');
+			expect(getBlockText(state.doc.children[0])).toBe('Titlebody');
+
+			state = history.undo(state)?.state ?? state;
+			expect(state.doc.children).toHaveLength(2);
+			expect(state.doc.children[0]?.type).toBe('heading');
+			expect(state.doc.children[0]?.attrs).toEqual({ level: 1 });
+			expect(state.doc.children[1]?.type).toBe('paragraph');
+			expect(state.doc.children[1]?.attrs).toBeUndefined();
+			expect(getBlockText(state.doc.children[1])).toBe('body');
+		});
+
+		it('undo restores source block attrs (e.g. heading level) when both sides carry attrs', () => {
+			const doc = createDocument([
+				createBlockNode('heading', [createTextNode('Big')], 'b1', { level: 1 }),
+				createBlockNode('heading', [createTextNode('small')], 'b2', { level: 3 }),
+			]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b2', 0),
+			});
+			const history = new HistoryManager();
+
+			const tr = state
+				.transaction('input')
+				.mergeBlocksAt('b1', 'b2')
+				.setSelection(createCollapsedSelection('b1', 3))
+				.build();
+
+			state = state.apply(tr);
+			history.push(tr);
+			expect(state.doc.children).toHaveLength(1);
+			expect(state.doc.children[0]?.attrs).toEqual({ level: 1 });
+
+			state = history.undo(state)?.state ?? state;
+			expect(state.doc.children).toHaveLength(2);
+			expect(state.doc.children[0]?.attrs).toEqual({ level: 1 });
+			expect(state.doc.children[1]?.attrs).toEqual({ level: 3 });
+		});
+
+		it('redo after undo reproduces the merged document', () => {
+			let state = createHeadingThenParagraphState();
+			const history = new HistoryManager();
+
+			const tr = state
+				.transaction('input')
+				.mergeBlocksAt('b1', 'b2')
+				.setSelection(createCollapsedSelection('b1', 5))
+				.build();
+
+			const merged = state.apply(tr);
+			history.push(tr);
+
+			state = history.undo(merged)?.state ?? merged;
+			state = history.redo(state)?.state ?? state;
+
+			expect(state.doc.children).toHaveLength(1);
+			expect(state.doc.children[0]?.type).toBe('heading');
+			expect(state.doc.children[0]?.attrs).toEqual({ level: 1 });
+			expect(getBlockText(state.doc.children[0])).toBe('Titlebody');
+		});
+	});
+
 	describe('working document tracks multi-step mutations', () => {
 		it('deleteTextAt works after a preceding insertText step', () => {
 			let state = createStateWithText('hello');
