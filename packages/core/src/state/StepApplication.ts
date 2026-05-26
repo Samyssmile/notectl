@@ -5,6 +5,7 @@
  */
 
 import {
+	type BlockAttrs,
 	type BlockNode,
 	type ChildNode,
 	type Document,
@@ -16,6 +17,7 @@ import {
 	isBlockNode,
 	normalizeInlineContent,
 } from '../model/Document.js';
+import type { NodeTypeName } from '../model/TypeBrands.js';
 import { findAndTransformChildren, mapBlock, mapNodeByPath } from './BlockTreeOps.js';
 import {
 	applyMarkToInlineContent,
@@ -81,11 +83,21 @@ export function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
 			...block,
 			children: normalizeInlineContent(nodesBeforeSplit),
 		};
+
+		// When the step carries overrides (typically produced by inverting a
+		// cross-type merge), use the captured source identity verbatim so
+		// undo restores the original block. An absent override means the new
+		// block inherits the target block's type/attrs, matching the natural
+		// outcome of a user-initiated split.
+		const hasOverride: boolean = step.newBlockType !== undefined;
+		const newType: NodeTypeName = step.newBlockType ?? block.type;
+		const newAttrs: BlockAttrs | undefined = hasOverride ? step.newBlockAttrs : block.attrs;
+
 		const newBlock: BlockNode = createBlockNode(
-			block.type,
+			newType,
 			normalizeInlineContent(nodesAfterSplit),
 			step.newBlockId,
-			block.attrs,
+			newAttrs,
 		);
 
 		const result: ChildNode[] = [...children];

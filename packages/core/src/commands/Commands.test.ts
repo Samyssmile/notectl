@@ -98,6 +98,25 @@ describe('Commands', () => {
 			const newState = state.apply(tr);
 			expect(getTextChildren(newState.doc.children[0])[0]?.marks).toEqual([]);
 		});
+
+		// Regression test for issue #130: an empty middle block must not flip the
+		// multi-block active check. Two passes of toggleBold should round-trip.
+		it('round-trips toggleBold across blocks with an empty middle block', () => {
+			const initial = stateBuilder()
+				.paragraph('line 1', 'b1')
+				.paragraph('', 'b2')
+				.paragraph('line 3', 'b3')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 6 })
+				.build();
+
+			const afterApply = initial.apply(toggleBold(initial));
+			expect(getTextChildren(afterApply.doc.children[0])[0]?.marks).toEqual([{ type: 'bold' }]);
+			expect(getTextChildren(afterApply.doc.children[2])[0]?.marks).toEqual([{ type: 'bold' }]);
+
+			const afterToggleOff = afterApply.apply(toggleBold(afterApply));
+			expect(getTextChildren(afterToggleOff.doc.children[0])[0]?.marks).toEqual([]);
+			expect(getTextChildren(afterToggleOff.doc.children[2])[0]?.marks).toEqual([]);
+		});
 	});
 
 	describe('toggleMark respects features', () => {
@@ -459,6 +478,19 @@ describe('Commands', () => {
 			const newState = state.apply(tr);
 
 			expect(isMarkActive(newState, 'bold')).toBe(true);
+		});
+
+		// Regression test for issue #130: an empty paragraph in the middle of a
+		// multi-block selection must not invert the active check.
+		it('treats an empty middle block as neutral across a multi-block range', () => {
+			const state = stateBuilder()
+				.paragraph('line 1', 'b1', { marks: [{ type: 'bold' }] })
+				.paragraph('', 'b2')
+				.paragraph('line 3', 'b3', { marks: [{ type: 'bold' }] })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 6 })
+				.build();
+
+			expect(isMarkActive(state, 'bold')).toBe(true);
 		});
 	});
 
