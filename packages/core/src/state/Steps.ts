@@ -32,6 +32,19 @@ export interface SplitBlockStep {
 	readonly blockId: BlockId;
 	readonly offset: number;
 	readonly newBlockId: BlockId;
+	/**
+	 * Override for the new block's node type. When present, the new block is
+	 * created with this type instead of inheriting from the target. Populated
+	 * by {@link invertMergeBlocks} so undo can restore the original source
+	 * block's identity across cross-type merges.
+	 */
+	readonly newBlockType?: NodeTypeName;
+	/**
+	 * Override for the new block's attrs. Only consulted when
+	 * {@link newBlockType} is also present; the override pair is taken
+	 * as-is (an absent value here means "the source block had no attrs").
+	 */
+	readonly newBlockAttrs?: BlockAttrs;
 	readonly path?: readonly BlockId[];
 }
 
@@ -40,6 +53,13 @@ export interface MergeBlocksStep {
 	readonly targetBlockId: BlockId;
 	readonly sourceBlockId: BlockId;
 	readonly targetLengthBefore: number;
+	/**
+	 * Source block's node type at merge time. Captured by the builder so the
+	 * inverse split can restore the source block with its original identity.
+	 */
+	readonly sourceType?: NodeTypeName;
+	/** Source block's attrs at merge time, if any. */
+	readonly sourceAttrs?: BlockAttrs;
 	readonly path?: readonly BlockId[];
 }
 
