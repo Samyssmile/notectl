@@ -143,7 +143,10 @@ function isMarkActiveInBlock(
 	to: number,
 	markType: MarkTypeName,
 ): boolean {
-	if (from === to) return false;
+	// Empty slice (e.g. an empty paragraph inside a multi-block range): vacuously
+	// satisfies "all characters in this slice carry the mark". Returning false
+	// would let an empty middle block invert the multi-block active check.
+	if (from === to) return true;
 	let pos = 0;
 	for (const child of getInlineChildren(block)) {
 		if (isTextNode(child)) {

@@ -32,6 +32,19 @@ export interface SplitBlockStep {
 	readonly blockId: BlockId;
 	readonly offset: number;
 	readonly newBlockId: BlockId;
+	/**
+	 * Override for the new block's node type. When present, the new block is
+	 * created with this type instead of inheriting from the target. Populated
+	 * by {@link invertMergeBlocks} so undo can restore the original source
+	 * block's identity across cross-type merges.
+	 */
+	readonly newBlockType?: NodeTypeName;
+	/**
+	 * Override for the new block's attrs. Only consulted when
+	 * {@link newBlockType} is also present; the override pair is taken
+	 * as-is (an absent value here means "the source block had no attrs").
+	 */
+	readonly newBlockAttrs?: BlockAttrs;
 	readonly path?: readonly BlockId[];
 }
 
@@ -40,9 +53,25 @@ export interface MergeBlocksStep {
 	readonly targetBlockId: BlockId;
 	readonly sourceBlockId: BlockId;
 	readonly targetLengthBefore: number;
+	/**
+	 * Source block's node type at merge time. Captured by the builder so the
+	 * inverse split can restore the source block with its original identity.
+	 */
+	readonly sourceType?: NodeTypeName;
+	/** Source block's attrs at merge time, if any. */
+	readonly sourceAttrs?: BlockAttrs;
 	readonly path?: readonly BlockId[];
 }
 
+/**
+ * Adds `mark` to every text node in `[from, to)`.
+ *
+ * **Builder invariant** (enforced by `TransactionBuilder.addMark`): the range
+ * carries no text node with a mark of `mark.type`. Steps emitted under this
+ * invariant invert exactly to a `RemoveMarkStep` over the same range, so undo
+ * cannot strip pre-existing marks. Direct step construction (rare; e.g.
+ * middleware) must uphold the same precondition.
+ */
 export interface AddMarkStep {
 	readonly type: 'addMark';
 	readonly blockId: BlockId;
@@ -52,6 +81,15 @@ export interface AddMarkStep {
 	readonly path?: readonly BlockId[];
 }
 
+/**
+ * Removes the mark of `mark.type` from every text node in `[from, to)`.
+ *
+ * **Builder invariant** (enforced by `TransactionBuilder.removeMark`): every
+ * text node in the range carries exactly `mark` (deep equality, including
+ * attrs). The `mark` field therefore stores the actual document mark, which
+ * the symmetric inverse (`AddMarkStep`) re-adds verbatim, preserving attrs
+ * through undo. Direct step construction must uphold the same precondition.
+ */
 export interface RemoveMarkStep {
 	readonly type: 'removeMark';
 	readonly blockId: BlockId;

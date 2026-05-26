@@ -64,6 +64,8 @@ export function invertSplitBlock(step: SplitBlockStep): Step {
 		targetBlockId: step.blockId,
 		sourceBlockId: step.newBlockId,
 		targetLengthBefore: step.offset,
+		...(step.newBlockType !== undefined ? { sourceType: step.newBlockType } : {}),
+		...(step.newBlockAttrs ? { sourceAttrs: step.newBlockAttrs } : {}),
 		...optionalPath(step),
 	};
 }
@@ -74,6 +76,8 @@ export function invertMergeBlocks(step: MergeBlocksStep): Step {
 		blockId: step.targetBlockId,
 		offset: step.targetLengthBefore,
 		newBlockId: step.sourceBlockId,
+		...(step.sourceType !== undefined ? { newBlockType: step.sourceType } : {}),
+		...(step.sourceAttrs ? { newBlockAttrs: step.sourceAttrs } : {}),
 		...optionalPath(step),
 	};
 }
