@@ -5,6 +5,8 @@ import { inlineType, markType } from '../model/TypeBrands.js';
 import {
 	applyMarkToInlineContent,
 	deleteFromInlineContent,
+	findRangesMissingMark,
+	findRangesWithMark,
 	insertInlineNodeAtOffset,
 	insertSegmentsIntoInlineContent,
 	insertTextIntoInlineContent,
@@ -365,6 +367,136 @@ describe('InlineContentOps', () => {
 			expect(result).toHaveLength(2);
 			expect((result as readonly unknown[])[0]).toMatchObject({ text: 'new' });
 			expect((result as readonly unknown[])[1]).toBe(blockChild);
+		});
+	});
+
+	describe('findRangesMissingMark', () => {
+		it('returns empty for an empty range', () => {
+			expect(findRangesMissingMark([text('hello')], 2, 2, markType('bold'))).toEqual([]);
+		});
+
+		it('returns empty when the mark is fully present', () => {
+			expect(findRangesMissingMark([text('hello', [bold])], 0, 5, markType('bold'))).toEqual([]);
+		});
+
+		it('returns the full range when the mark is absent', () => {
+			expect(findRangesMissingMark([text('hello')], 0, 5, markType('bold'))).toEqual([
+				{ from: 0, to: 5 },
+			]);
+		});
+
+		it('skips a leading marked sub-range', () => {
+			// "A"(bold) + "B" → only [1,2) is missing
+			expect(findRangesMissingMark([text('A', [bold]), text('B')], 0, 2, markType('bold'))).toEqual(
+				[{ from: 1, to: 2 }],
+			);
+		});
+
+		it('coalesces adjacent unmarked text nodes', () => {
+			// "A" + "B" → one combined range [0,2)
+			expect(findRangesMissingMark([text('A'), text('B')], 0, 2, markType('bold'))).toEqual([
+				{ from: 0, to: 2 },
+			]);
+		});
+
+		it('returns multiple ranges when marked sub-ranges interrupt', () => {
+			// "A"(bold) + "B" + "C"(bold) + "D" → [1,2) and [3,4)
+			expect(
+				findRangesMissingMark(
+					[text('A', [bold]), text('B'), text('C', [bold]), text('D')],
+					0,
+					4,
+					markType('bold'),
+				),
+			).toEqual([
+				{ from: 1, to: 2 },
+				{ from: 3, to: 4 },
+			]);
+		});
+
+		it('clips ranges to [from, to)', () => {
+			expect(findRangesMissingMark([text('ABCDE')], 1, 4, markType('bold'))).toEqual([
+				{ from: 1, to: 4 },
+			]);
+		});
+
+		it('treats InlineNodes as inert and coalesces across them', () => {
+			// "A" + emoji + "B" with range [0,3) and bold absent everywhere → coalesced [0,3)
+			expect(findRangesMissingMark([text('A'), emoji, text('B')], 0, 3, markType('bold'))).toEqual([
+				{ from: 0, to: 3 },
+			]);
+		});
+
+		it('does not start a range on a leading InlineNode', () => {
+			// emoji + "A" with range [0,2) → range starts at position 1 (text)
+			expect(findRangesMissingMark([emoji, text('A')], 0, 2, markType('bold'))).toEqual([
+				{ from: 1, to: 2 },
+			]);
+		});
+	});
+
+	describe('findRangesWithMark', () => {
+		const boldRed: Mark = { type: markType('bold'), attrs: { color: 'red' } };
+		const boldBlue: Mark = { type: markType('bold'), attrs: { color: 'blue' } };
+
+		it('returns empty for an empty range', () => {
+			expect(findRangesWithMark([text('hello', [bold])], 2, 2, markType('bold'))).toEqual([]);
+		});
+
+		it('returns empty when the mark is fully absent', () => {
+			expect(findRangesWithMark([text('hello')], 0, 5, markType('bold'))).toEqual([]);
+		});
+
+		it('returns the full range with the actual mark when uniformly present', () => {
+			expect(findRangesWithMark([text('hello', [bold])], 0, 5, markType('bold'))).toEqual([
+				{ from: 0, to: 5, mark: bold },
+			]);
+		});
+
+		it('captures the actual mark including attrs', () => {
+			expect(findRangesWithMark([text('hi', [boldRed])], 0, 2, markType('bold'))).toEqual([
+				{ from: 0, to: 2, mark: boldRed },
+			]);
+		});
+
+		it('splits when adjacent nodes carry the same-type mark with different attrs', () => {
+			expect(
+				findRangesWithMark([text('A', [boldRed]), text('B', [boldBlue])], 0, 2, markType('bold')),
+			).toEqual([
+				{ from: 0, to: 1, mark: boldRed },
+				{ from: 1, to: 2, mark: boldBlue },
+			]);
+		});
+
+		it('coalesces adjacent equal-mark sub-ranges', () => {
+			expect(
+				findRangesWithMark([text('A', [bold]), text('B', [bold])], 0, 2, markType('bold')),
+			).toEqual([{ from: 0, to: 2, mark: bold }]);
+		});
+
+		it('skips unmarked sub-ranges', () => {
+			// "A"(bold) + "B" + "C"(bold) → two ranges [0,1) and [2,3)
+			expect(
+				findRangesWithMark(
+					[text('A', [bold]), text('B'), text('C', [bold])],
+					0,
+					3,
+					markType('bold'),
+				),
+			).toEqual([
+				{ from: 0, to: 1, mark: bold },
+				{ from: 2, to: 3, mark: bold },
+			]);
+		});
+
+		it('treats InlineNodes as inert and coalesces equal-mark sub-ranges across them', () => {
+			expect(
+				findRangesWithMark([text('A', [bold]), emoji, text('B', [bold])], 0, 3, markType('bold')),
+			).toEqual([{ from: 0, to: 3, mark: bold }]);
+		});
+
+		it('ignores other mark types', () => {
+			expect(findRangesWithMark([text('hi', [italic])], 0, 2, markType('bold'))).toEqual([]);
 		});
 	});
 });

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Undo of `addMark` / `removeMark` over a partially-marked range no longer strips pre-existing marks (#128)** — `AddMarkStep` / `RemoveMarkStep` previously carried only `{ blockId, from, to, mark }` and the symmetric inverse covered the entire user-supplied range. When the action was applied to a range where some positions already carried the mark, the inverse stripped those pre-existing marks on undo (and the mirror case re-added marks to previously-unmarked sub-ranges through `removeMark` → undo), silently corrupting the document. The fix moves planning out of the steps and into the `TransactionBuilder`: `addMark` now walks the working document and emits one `AddMarkStep` per maximal sub-range that does not yet carry the mark type; `removeMark` emits one `RemoveMarkStep` per maximal sub-range that does carry the mark, with each step's `mark` field capturing the actual mark from the document (including attrs) so the inverse restores `link href`, `color` and other attributed marks faithfully. `StepApplication` and `StepInversion` are unchanged — the existing symmetric inverse is now exact because every emitted step accurately describes only the positions it modified. New helpers `findRangesMissingMark` / `findRangesWithMark` in `state/InlineContentOps.ts` are pure and coalesce across `InlineNode`s (which are inert: passed through, never break or start a range), and the builder falls back to a single full-range step when no working document is available (e.g. low-level tests). `AddMarkStep` / `RemoveMarkStep` now document the builder-enforced invariants explicitly. Acceptance criteria from the issue are covered by new tests in `state/MarkUndo.test.ts` (both add and remove polarity, attribute preservation through undo, redo correctness, no-op transactions when the mark already covers / is absent across the entire range, `InlineNode` coalescing, mixed mark types).
+
 
 ## [2.1.3] - 2026-05-18
 
