@@ -1,5 +1,5 @@
 /**
- * Regression test for GitHub issue #130:
+ * Regression test for GitHub issue #130.
  * A selection spanning multiple blocks where one block is empty must still
  * correctly report the mark as active and allow toggling it off.
  *
@@ -9,14 +9,14 @@
  *   line 3
  *   line 4
  *
- * The selection covers "line 1" → end of "line 3" (3 blocks, middle one empty).
+ * The selection covers "line 1" through end of "line 3" (3 blocks, middle one empty).
  */
 
 import { expect, test } from './fixtures/editor-page';
 
-test.describe('Issue #130 — formatting across empty line', () => {
+test.describe('Issue #130, formatting across empty line', () => {
 	test('Bold across 3 blocks with empty middle block', async ({ editor, page }) => {
-		// Arrange — type four paragraphs with the second one empty
+		// Arrange. Type four paragraphs with the second one empty.
 		await editor.focus();
 		await page.keyboard.type('line 1', { delay: 10 });
 		await page.keyboard.press('Enter');
@@ -25,7 +25,7 @@ test.describe('Issue #130 — formatting across empty line', () => {
 		await page.keyboard.press('Enter');
 		await page.keyboard.type('line 4', { delay: 10 });
 
-		// Build the cross-block selection: block 0 offset 0 → block 2 offset 6.
+		// Build the cross-block selection: block 0 offset 0 through block 2 offset 6.
 		await page.evaluate(() => {
 			const root = document.querySelector('notectl-editor');
 			const content = root?.shadowRoot?.querySelector('.notectl-content');
@@ -51,29 +51,27 @@ test.describe('Issue #130 — formatting across empty line', () => {
 			sel?.addRange(range);
 			document.dispatchEvent(new Event('selectionchange'));
 		});
-		await page.waitForTimeout(150);
 
 		const boldBtn = editor.markButton('bold');
 		await expect(boldBtn).toHaveAttribute('aria-pressed', 'false');
 
-		// Act — apply Bold
+		// Act. Apply Bold.
 		await boldBtn.click();
-		await page.waitForTimeout(100);
 
-		// Both non-empty blocks become bold
+		// Toolbar reflects the active state across the multi-block selection,
+		// even though the middle block is empty. The auto-waiting assertion is
+		// the sync point; no manual sleep needed.
+		await expect(boldBtn).toHaveAttribute('aria-pressed', 'true');
+
+		// Both non-empty blocks become bold.
 		const htmlAfterApply = await editor.getContentHTML();
 		expect(htmlAfterApply).toContain('<strong>line 1</strong>');
 		expect(htmlAfterApply).toContain('<strong>line 3</strong>');
 
-		// Toolbar reflects the active state across the multi-block selection,
-		// even though the middle block is empty.
-		await expect(boldBtn).toHaveAttribute('aria-pressed', 'true');
-
 		// Toggling Bold again removes the mark from the selection.
 		await boldBtn.click();
-		await page.waitForTimeout(100);
+		await expect(boldBtn).toHaveAttribute('aria-pressed', 'false');
 		const htmlAfterToggleOff = await editor.getContentHTML();
 		expect(htmlAfterToggleOff).not.toContain('<strong>');
-		await expect(boldBtn).toHaveAttribute('aria-pressed', 'false');
 	});
 });
