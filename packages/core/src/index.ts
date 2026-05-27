@@ -186,11 +186,14 @@ export type {
 	SplitMap,
 	MergeMap,
 	BlockRemovalMap,
+	ChildIndexShiftMap,
 } from './state/Mapping.js';
 export {
 	Mapping,
 	IDENTITY_MAP,
 	mapPositionThroughStep,
+	mapChildIndex,
+	mapInsertionIndex,
 	collectRemovedBlockIds,
 } from './state/Mapping.js';
 export { mapSelection, mapTextSelection } from './state/SelectionMapping.js';

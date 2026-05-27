@@ -43,7 +43,7 @@ function merge(target: typeof B1, source: typeof B1, targetLen: number): MergeMa
 }
 
 function blockRemoval(...ids: (typeof B1)[]): BlockRemovalMap {
-	return { type: 'blockRemoval', removedBlockIds: new Set(ids) };
+	return { type: 'blockRemoval', removedBlockIds: new Set(ids), parentPath: [], index: 0 };
 }
 
 describe('mapSelection', () => {

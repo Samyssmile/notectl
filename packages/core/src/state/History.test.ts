@@ -838,6 +838,144 @@ describe('HistoryManager', () => {
 			expect(getBlockText(redone?.state.doc.children[0])).toBe('ZhelloX');
 		});
 
+		// Sibling-shift: undo of a structural insertNode must follow the
+		// sibling shift produced by an intervening insertNode in the same
+		// parent. Before the childIndexShift StepMap category existed, the
+		// inverse removeNode would target the original index and either fail
+		// or remove the wrong block.
+		it('insertNode undo follows intervening insertNode in the same parent', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('first')], 'b1')]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// User: insert a new block at index 1 (after b1).
+			const userNode = createBlockNode('paragraph', [createTextNode('user')], 'bUser');
+			const userB = new TransactionBuilder(state.selection, null, 'input', state.doc);
+			userB.insertNode([], 1, userNode);
+			const userTr = userB.build();
+			state = state.apply(userTr);
+			history.push(userTr);
+			expect(state.doc.children.length).toBe(2);
+			expect(state.doc.children[1]?.id).toBe('bUser');
+
+			// Agent: insert another block at index 0 (before everything).
+			const agentNode = createBlockNode('paragraph', [createTextNode('agent')], 'bAgent');
+			const agentB = new TransactionBuilder(state.selection, null, 'api', state.doc);
+			agentB.insertNode([], 0, agentNode);
+			const agentTr = agentB.build();
+			state = state.apply(agentTr);
+			history.recordIntervening(agentTr.mapping);
+
+			// After agent's insert, user's block sits at index 2.
+			expect(state.doc.children.length).toBe(3);
+			expect(state.doc.children[0]?.id).toBe('bAgent');
+			expect(state.doc.children[1]?.id).toBe('b1');
+			expect(state.doc.children[2]?.id).toBe('bUser');
+
+			// Undo: must remove the user's block (at index 2), not the agent's.
+			const undone = history.undo(state);
+			expect(undone).not.toBeNull();
+			const after = undone?.state;
+			expect(after?.doc.children.length).toBe(2);
+			expect(after?.doc.children[0]?.id).toBe('bAgent');
+			expect(after?.doc.children[1]?.id).toBe('b1');
+		});
+
+		// Sibling-shift: undo of a structural removeNode must compensate for
+		// an intervening insertNode in the same parent.
+		it('removeNode undo follows intervening insertNode in the same parent', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('first')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('victim')], 'b2'),
+			]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// User: remove the second block (b2 at index 1).
+			const userB = new TransactionBuilder(state.selection, null, 'input', state.doc);
+			userB.removeNode([], 1);
+			const userTr = userB.build();
+			state = state.apply(userTr);
+			history.push(userTr);
+			expect(state.doc.children.length).toBe(1);
+			expect(state.doc.children[0]?.id).toBe('b1');
+
+			// Agent: insert a block at index 0.
+			const agentNode = createBlockNode('paragraph', [createTextNode('agent')], 'bAgent');
+			const agentB = new TransactionBuilder(state.selection, null, 'api', state.doc);
+			agentB.insertNode([], 0, agentNode);
+			const agentTr = agentB.build();
+			state = state.apply(agentTr);
+			history.recordIntervening(agentTr.mapping);
+			expect(state.doc.children.length).toBe(2);
+			expect(state.doc.children[0]?.id).toBe('bAgent');
+			expect(state.doc.children[1]?.id).toBe('b1');
+
+			// Undo: the inverse insertNode of b2 must land at index 2 (after b1),
+			// not at index 1 (which would push b1 down — wrong).
+			const undone = history.undo(state);
+			expect(undone).not.toBeNull();
+			const after = undone?.state;
+			expect(after?.doc.children.length).toBe(3);
+			expect(after?.doc.children[0]?.id).toBe('bAgent');
+			expect(after?.doc.children[1]?.id).toBe('b1');
+			expect(after?.doc.children[2]?.id).toBe('b2');
+		});
+
+		// Slot-preservation: when intervening removes exactly the block at the
+		// slot the user's removeNode-undo would insert into, an InsertNodeStep
+		// references an *insertion slot* (not an existing block), so the slot
+		// itself survives. This exercises `mapInsertionIndex` end-to-end:
+		// without the insertion-vs-existing-child distinction, the undo would
+		// be abandoned and the user's removed block could not be restored.
+		it('removeNode undo restores the block when intervening removed the sibling at the same index', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('first')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('user-victim')], 'b2'),
+				createBlockNode('paragraph', [createTextNode('sibling')], 'b3'),
+			]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const history = new HistoryManager();
+
+			// User removes b2 (at index 1). Inverse will insertNode at slot 1.
+			const userB = new TransactionBuilder(state.selection, null, 'input', state.doc);
+			userB.removeNode([], 1);
+			const userTr = userB.build();
+			state = state.apply(userTr);
+			history.push(userTr);
+			expect(state.doc.children.length).toBe(2);
+			expect(state.doc.children[0]?.id).toBe('b1');
+			expect(state.doc.children[1]?.id).toBe('b3');
+
+			// Agent removes b3 — which now sits at index 1 (the same numeric slot
+			// the user's undo will target).
+			const agentB = new TransactionBuilder(state.selection, null, 'api', state.doc);
+			agentB.removeNode([], 1);
+			const agentTr = agentB.build();
+			state = state.apply(agentTr);
+			history.recordIntervening(agentTr.mapping);
+			expect(state.doc.children.length).toBe(1);
+			expect(state.doc.children[0]?.id).toBe('b1');
+
+			// Undo: insertion slot 1 survives (mapInsertionIndex), b2 reinserted
+			// at the end. Existing-child semantics would have abandoned the undo.
+			const undone = history.undo(state);
+			expect(undone).not.toBeNull();
+			const after = undone?.state;
+			expect(after?.doc.children.length).toBe(2);
+			expect(after?.doc.children[0]?.id).toBe('b1');
+			expect(after?.doc.children[1]?.id).toBe('b2');
+		});
+
 		// Cross-scenario: two consecutive intervenings compose correctly.
 		it('chained intervening mappings compose for one undo', () => {
 			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
