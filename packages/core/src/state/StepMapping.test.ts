@@ -378,7 +378,9 @@ describe('mapStep', () => {
 
 		it('shifts index up when intervening insertNode preceded it in the same parent', () => {
 			// Agent inserted at index 0; user's removeNode index 1 → becomes 2.
-			const doc = docWith(paragraphBlock('first', B1), removedNode);
+			// The doc must reflect the post-intervening shape: an extra block
+			// sits at index 0, the user's target lives at the rebased index.
+			const doc = docWith(paragraphBlock('agent', B3), paragraphBlock('first', B1), removedNode);
 			const m = Mapping.from([childIndexShift([], 0, 1)]);
 			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
 			expect(result.type).toBe('removeNode');
@@ -408,6 +410,42 @@ describe('mapStep', () => {
 			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
 			expect(result.index).toBe(0);
 			expect(result.removedNode).toBe(removedNode);
+		});
+
+		it('re-snapshots removedNode from the current doc when block content drifted', () => {
+			// Intervening edits modified the block's content (e.g. agent typed
+			// into a block the user's history will re-remove on redo). The
+			// rebased step must carry the *current* subtree as `removedNode`,
+			// not the stale snapshot from when the original step was emitted —
+			// otherwise the inverse `insertNode` would silently lose the
+			// intervening edits on a later undo.
+			const currentNode: BlockNode = createBlockNode(
+				'paragraph',
+				[createTextNode('removed-and-edited') as TextNode],
+				B2,
+			);
+			const doc = docWith(paragraphBlock('first', B1), currentNode);
+			const m = Mapping.from([shift(B2, 7, 7, 11)]); // agent inserted into B2
+			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
+			expect(result.removedNode).toBe(currentNode);
+			expect(result.removedNode).not.toBe(removedNode);
+		});
+
+		it('returns null when the rebased slot is occupied by a different block', () => {
+			// Defensive structural-integrity guard: in practice the History
+			// rebase loop produces consistent doc+mapping pairs, but a custom
+			// mapping caller could pass a mapping that disagrees with the doc.
+			// The check must abandon rather than remove an unrelated subtree.
+			const doc = docWith(
+				paragraphBlock('imposter-before', B3),
+				removedNode,
+				paragraphBlock('imposter-after', B1),
+			);
+			// Mapping claims indices ≥ 0 shifted up by +1, putting the rebased
+			// index at 2. The doc shows B1 at that slot, not removedNode (B2).
+			const m = Mapping.from([childIndexShift([], 0, 1)]);
+			const result = mapStep(baseStep, m, doc);
+			expect(result).toBeNull();
 		});
 	});
 

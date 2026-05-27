@@ -30,6 +30,27 @@ export function resolveNodeByPath(doc: Document, path: readonly string[]): Block
 }
 
 /**
+ * Resolves the block child at `(parentPath, index)`. `parentPath = []` addresses
+ * the document root; otherwise the path traces from the document root to the
+ * containing block. Returns `undefined` when the parent does not exist or the
+ * indexed slot is missing / occupied by a non-block child.
+ */
+export function resolveChildAt(
+	doc: Document,
+	parentPath: readonly string[],
+	index: number,
+): BlockNode | undefined {
+	if (parentPath.length === 0) {
+		const child = doc.children[index];
+		return child && isBlockNode(child) ? child : undefined;
+	}
+	const parent = resolveNodeByPath(doc, parentPath);
+	if (!parent) return undefined;
+	const child = parent.children[index];
+	return child && isBlockNode(child) ? child : undefined;
+}
+
+/**
  * Resolves the parent of a node at the given path.
  * Returns the parent container (Document or BlockNode) and the child's index within it.
  */
