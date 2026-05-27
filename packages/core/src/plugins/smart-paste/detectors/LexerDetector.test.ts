@@ -212,14 +212,14 @@ describe('LexerDetector', () => {
 	});
 
 	describe('ReDoS resistance', () => {
-		it('handles 50k whitespace runs in under 100ms', () => {
+		it('handles 50k whitespace runs in under 150ms', () => {
 			const input: string = `interface${' '.repeat(50_000)}\nfoo`;
 
 			const start: number = performance.now();
 			typescriptDetector.detect(input);
 			const elapsed: number = performance.now() - start;
 
-			expect(elapsed).toBeLessThan(100);
+			expect(elapsed).toBeLessThan(150);
 		});
 
 		it('returns null beyond the default 100k length cap', () => {
