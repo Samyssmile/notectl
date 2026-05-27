@@ -976,6 +976,54 @@ describe('HistoryManager', () => {
 			expect(after?.doc.children[1]?.id).toBe('b2');
 		});
 
+		// Payload re-snapshot: when intervening edits modified a block's
+		// content after an undo restored it, a subsequent redo must re-snapshot
+		// the current subtree into the synthetic so the next undo restores the
+		// agent's edits rather than the stale pre-intervening state. Block-level
+		// analog to the inline identity fix in mapRemoveInlineNode.
+		it('agent edits inside a restored block survive undo+redo+undo', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('A')], 'a1'),
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+			]);
+			let state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('a1', 0),
+			});
+			const history = new HistoryManager();
+
+			// User removes b1.
+			const removeB = new TransactionBuilder(state.selection, null, 'input', state.doc);
+			removeB.removeNode([], 1);
+			const removeTr = removeB.build();
+			state = state.apply(removeTr);
+			history.push(removeTr);
+			expect(state.doc.children.length).toBe(1);
+
+			// User undoes → b1 restored with original 'hello'.
+			state = history.undo(state)?.state ?? state;
+			expect(state.doc.children.length).toBe(2);
+			expect(getBlockText(state.doc.children[1])).toBe('hello');
+
+			// Agent edits b1's content.
+			const agentB = new TransactionBuilder(state.selection, null, 'api', state.doc);
+			agentB.insertText('b1', 5, 'X', []);
+			const agentTr = agentB.build();
+			state = state.apply(agentTr);
+			history.recordIntervening(agentTr.mapping);
+			expect(getBlockText(state.doc.children[1])).toBe('helloX');
+
+			// User redoes → b1 re-removed. The synthetic on the undo stack must
+			// carry the current b1('helloX'), not the stale b1('hello').
+			state = history.redo(state)?.state ?? state;
+			expect(state.doc.children.length).toBe(1);
+
+			// User undoes again → restores b1 with the agent's edit intact.
+			state = history.undo(state)?.state ?? state;
+			expect(state.doc.children.length).toBe(2);
+			expect(getBlockText(state.doc.children[1])).toBe('helloX');
+		});
+
 		// Cross-scenario: two consecutive intervenings compose correctly.
 		it('chained intervening mappings compose for one undo', () => {
 			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);

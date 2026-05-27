@@ -18,10 +18,9 @@ import {
 	getBlockText,
 	getContentAtOffset,
 	getInlineChildren,
-	isBlockNode,
 	isInlineNode,
 } from '../model/Document.js';
-import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
+import { findNode, resolveChildAt, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
@@ -295,7 +294,7 @@ export class TransactionBuilder {
 	removeNode(parentPath: readonly BlockId[], index: number): this {
 		const doc: Document = this.requireDoc('removeNode');
 
-		const removedNode = resolveRemovedNode(doc, parentPath, index);
+		const removedNode = resolveChildAt(doc, parentPath, index);
 		if (!removedNode) {
 			throw new Error(
 				`Node at index ${index} not found under parent path [${parentPath.join(', ')}].`,
@@ -481,19 +480,3 @@ export class TransactionBuilder {
 }
 
 const EMPTY_DOC: Document = { children: [] };
-
-/** Resolves the block node to be removed from a parent path and index. */
-function resolveRemovedNode(
-	doc: Document,
-	parentPath: readonly BlockId[],
-	index: number,
-): BlockNode | undefined {
-	if (parentPath.length === 0) {
-		const child = doc.children[index];
-		return child && isBlockNode(child) ? child : undefined;
-	}
-	const parent = resolveNodeByPath(doc, parentPath);
-	if (!parent) return undefined;
-	const child = parent.children[index];
-	return child && isBlockNode(child) ? child : undefined;
-}

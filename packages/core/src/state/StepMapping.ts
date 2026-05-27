@@ -41,7 +41,7 @@ import {
 	getContentAtOffset,
 	isInlineNode,
 } from '../model/Document.js';
-import { findNode, resolveNodeByPath } from '../model/NodeResolver.js';
+import { findNode, resolveChildAt, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import {
 	type MappedInBlockRange,
@@ -417,7 +417,7 @@ export function mapInsertNode(step: InsertNodeStep, mapping: Mapping, _doc: Docu
 	};
 }
 
-export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, _doc: Document): Step | null {
+export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, doc: Document): Step | null {
 	if (!parentPathStillValid(step.parentPath, mapping)) return null;
 	// The to-be-removed block itself must still exist as a distinct block.
 	const probe = mapping.mapResult({ blockId: step.removedNode.id, offset: 0 }, -1);
@@ -428,12 +428,27 @@ export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, _doc: Docu
 	// `null` means an intervening edit already removed the exact slot this
 	// step targets; the inverse cannot meaningfully proceed.
 	if (rebasedIndex === null) return null;
-	if (rebasedIndex === step.index) return step;
+
+	// Re-snapshot the removed subtree from the current doc — intervening edits
+	// may have modified the block's content (text inserted, marks toggled,
+	// child blocks added) after the original step was recorded. Without the
+	// refresh, the rebased step's inverse `insertNode` would restore the stale
+	// payload and silently lose those edits on a subsequent undo. Same class
+	// of bug as the inline identity check in {@link mapRemoveInlineNode}.
+	const block = resolveChildAt(doc, step.parentPath, rebasedIndex);
+	if (!block) return null;
+	// Defensive structural-integrity check: the rebased index must point at
+	// the block we expect. A mismatch indicates either a mapping inconsistency
+	// or that the slot is now occupied by a different block — either way we
+	// must not remove an unrelated subtree.
+	if (block.id !== step.removedNode.id) return null;
+
+	if (rebasedIndex === step.index && block === step.removedNode) return step;
 	return {
 		type: 'removeNode',
 		parentPath: step.parentPath,
 		index: rebasedIndex,
-		removedNode: step.removedNode,
+		removedNode: block,
 	};
 }
 
