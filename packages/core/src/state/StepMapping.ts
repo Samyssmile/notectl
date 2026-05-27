@@ -188,26 +188,30 @@ export function mapRemoveInlineNode(
 ): Step | null {
 	// Inline nodes occupy [offset, offset+1) atomically. Treating the position
 	// as a width-1 range with sticky-right `from` is what keeps the rebased
-	// offset pointing at the SAME inline node even when intervening edits
-	// inserted content immediately before it.
+	// offset pointing at the SAME slot even when intervening edits inserted
+	// content immediately before it.
 	const mapped = mapInBlockRange(step.blockId, step.offset, step.offset + 1, mapping, 1, 1);
 	if (!mapped) return null;
 	if (mapped.to - mapped.from !== 1) return null;
-	if (mapped.blockId === step.blockId && mapped.from === step.offset) return step;
 
-	// Re-snapshot removedNode from the current doc — the inline at the rebased
-	// offset may differ if an intervening edit replaced the node. Returning
-	// `null` in that case is safer than rewriting the user's removal as a
-	// removal of an unrelated inline.
+	// Verify the inline at the rebased slot is still the one the user wanted
+	// to remove. The position mapping does not track inline identity, so an
+	// intervening `removeInlineNode` + `insertInlineNode` pair at the same
+	// offset would shift the position by zero net while replacing the
+	// content. Removing the substitute would corrupt the agent's edit; abandon
+	// the group instead.
 	const block = findNode(doc, mapped.blockId);
 	if (!block) return null;
 	const content = getContentAtOffset(block, mapped.from);
-	if (!content || content.kind !== 'inline') return null;
+	if (!content || content.kind !== 'inline' || !isInlineNode(content.node)) return null;
+	if (!inlineNodesEqual(step.removedNode, content.node)) return null;
+
+	if (mapped.blockId === step.blockId && mapped.from === step.offset) return step;
 	return {
 		type: 'removeInlineNode',
 		blockId: mapped.blockId,
 		offset: mapped.from,
-		removedNode: content.node as InlineNode,
+		removedNode: content.node,
 		...preservedPath(step.blockId, mapped.blockId, step.path),
 	};
 }
@@ -430,4 +434,10 @@ function blockAttrsEqual(
 		if (a[k] !== b[k]) return false;
 	}
 	return true;
+}
+
+function inlineNodesEqual(a: InlineNode, b: InlineNode): boolean {
+	if (a === b) return true;
+	if (a.inlineType !== b.inlineType) return false;
+	return blockAttrsEqual(a.attrs, b.attrs);
 }
