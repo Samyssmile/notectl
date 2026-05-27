@@ -9,6 +9,7 @@ import {
 import { type BlockId, blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import {
 	type BlockRemovalMap,
+	type ChildIndexShiftMap,
 	Mapping,
 	type MergeMap,
 	type ShiftMap,
@@ -60,6 +61,30 @@ const merge = (target: BlockId, source: BlockId, targetLen: number): MergeMap =>
 const blockRemoval = (...ids: BlockId[]): BlockRemovalMap => ({
 	type: 'blockRemoval',
 	removedBlockIds: new Set(ids),
+	parentPath: [],
+	index: 0,
+});
+
+const blockRemovalAt = (
+	parentPath: readonly BlockId[],
+	index: number,
+	...ids: BlockId[]
+): BlockRemovalMap => ({
+	type: 'blockRemoval',
+	removedBlockIds: new Set(ids),
+	parentPath,
+	index,
+});
+
+const childIndexShift = (
+	parentPath: readonly BlockId[],
+	fromIndex: number,
+	delta: number,
+): ChildIndexShiftMap => ({
+	type: 'childIndexShift',
+	parentPath,
+	fromIndex,
+	delta,
 });
 
 function docWith(...blocks: BlockNode[]): Document {
@@ -350,6 +375,40 @@ describe('mapStep', () => {
 			const result = mapStep(baseStep, m, doc);
 			expect(result).toBe(baseStep);
 		});
+
+		it('shifts index up when intervening insertNode preceded it in the same parent', () => {
+			// Agent inserted at index 0; user's removeNode index 1 → becomes 2.
+			const doc = docWith(paragraphBlock('first', B1), removedNode);
+			const m = Mapping.from([childIndexShift([], 0, 1)]);
+			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
+			expect(result.type).toBe('removeNode');
+			expect(result.index).toBe(2);
+			expect(result.removedNode).toBe(removedNode);
+		});
+
+		it('does not shift index when intervening insertNode comes after it', () => {
+			const doc = docWith(paragraphBlock('first', B1), removedNode);
+			const m = Mapping.from([childIndexShift([], 5, 1)]);
+			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
+			expect(result.index).toBe(1);
+		});
+
+		it('ignores child-index shifts in a different parent', () => {
+			const doc = docWith(paragraphBlock('first', B1), removedNode);
+			const m = Mapping.from([childIndexShift([B1], 0, 1)]);
+			const result = mapStep(baseStep, m, doc);
+			expect(result).toBe(baseStep);
+		});
+
+		it('shifts index down when an earlier sibling was removed in the same parent', () => {
+			// Agent removed index 0 (with a different block id); user's removeNode
+			// index 1 → becomes 0.
+			const doc = docWith(removedNode);
+			const m = Mapping.from([blockRemovalAt([], 0, B3)]);
+			const result = mapStep(baseStep, m, doc) as RemoveNodeStep;
+			expect(result.index).toBe(0);
+			expect(result.removedNode).toBe(removedNode);
+		});
 	});
 
 	// --- insertInlineNode ---
@@ -613,6 +672,52 @@ describe('mapStep', () => {
 			const doc = docWith(paragraphBlock('xxxhello', B1));
 			const result = mapStep(nestedStep, m, doc);
 			expect(result).toBe(nestedStep);
+		});
+
+		it('shifts index up when intervening insertNode preceded it in the same parent', () => {
+			// Agent inserted at index 0; user's insertNode at index 1 → becomes 2.
+			const doc = docWith(paragraphBlock('first'));
+			const m = Mapping.from([childIndexShift([], 0, 1)]);
+			const result = mapStep(baseStep, m, doc) as InsertNodeStep;
+			expect(result.type).toBe('insertNode');
+			expect(result.index).toBe(2);
+			expect(result.node).toBe(insertedNode);
+		});
+
+		it('does not shift index when intervening insertNode comes after it', () => {
+			const doc = docWith(paragraphBlock('first'));
+			const m = Mapping.from([childIndexShift([], 5, 1)]);
+			const result = mapStep(baseStep, m, doc) as InsertNodeStep;
+			expect(result.index).toBe(1);
+		});
+
+		it('shifts index down when an earlier sibling was removed in the same parent', () => {
+			// Agent removed index 0; user's insertNode at index 1 → becomes 0.
+			const doc = docWith(paragraphBlock('first'));
+			const m = Mapping.from([blockRemovalAt([], 0, B3)]);
+			const result = mapStep(baseStep, m, doc) as InsertNodeStep;
+			expect(result.index).toBe(0);
+		});
+
+		it('ignores child-index shifts in a different parent', () => {
+			const doc = docWith(paragraphBlock('first'));
+			const m = Mapping.from([childIndexShift([B1], 0, 1)]);
+			const result = mapStep(baseStep, m, doc);
+			expect(result).toBe(baseStep);
+		});
+
+		it('keeps the slot when an intervening removed exactly the block at that index', () => {
+			// Insertion-slot semantics: an `insertNode.index` references a slot,
+			// not an existing block. When intervening removes the block that *was*
+			// at that index, the slot itself survives (just points at the gap
+			// where the block used to be). mapInsertionIndex returns the same
+			// numeric index; the step is unchanged.
+			const doc = docWith(paragraphBlock('first'));
+			const stepAt2: InsertNodeStep = { ...baseStep, index: 2 };
+			const m = Mapping.from([blockRemovalAt([], 2, B3)]);
+			const result = mapStep(stepAt2, m, doc) as InsertNodeStep;
+			expect(result.type).toBe('insertNode');
+			expect(result.index).toBe(2);
 		});
 	});
 

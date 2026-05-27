@@ -11,6 +11,7 @@
 import type { Document } from '../model/Document.js';
 import {
 	type BlockRemovalMap,
+	type ChildIndexShiftMap,
 	IDENTITY_MAP,
 	type MergeMap,
 	type ShiftMap,
@@ -101,19 +102,36 @@ export function getMapRemoveNode(_doc: Document, step: RemoveNodeStep): BlockRem
 	return {
 		type: 'blockRemoval',
 		removedBlockIds: collectRemovedBlockIds(step.removedNode),
+		parentPath: step.parentPath,
+		index: step.index,
+	};
+}
+
+// --- Structural sibling shifts ---
+
+/**
+ * Inserting a block at `step.index` in `step.parentPath`'s child list does
+ * not move any position in `{blockId, offset}` space, but it shifts every
+ * sibling index `≥ step.index` up by 1. {@link mapChildIndex} consumes this
+ * to rebase later `insertNode` / `removeNode` steps that target the same
+ * parent.
+ */
+export function getMapInsertNode(_doc: Document, step: InsertNodeStep): ChildIndexShiftMap {
+	return {
+		type: 'childIndexShift',
+		parentPath: step.parentPath,
+		fromIndex: step.index,
+		delta: 1,
 	};
 }
 
 // --- Identity steps (positions unchanged) ---
 //
-// The following step types do not move offsets:
+// The following step types do not move offsets or child indices:
 // - addMark / removeMark: annotation only
 // - setStoredMarks: state-only
 // - setBlockType: type/attrs change, children unchanged
 // - setNodeAttr / setInlineNodeAttr: attribute-only
-// - insertNode: a *whole* new block is inserted; positions in *other*
-//   blocks (addressed by {blockId, offset}) are not affected, and the
-//   new block has no prior positions to map.
 
 export function getMapAddMark(_doc: Document, _step: AddMarkStep): StepMap {
 	return IDENTITY_MAP;
@@ -128,10 +146,6 @@ export function getMapSetStoredMarks(_doc: Document, _step: SetStoredMarksStep):
 }
 
 export function getMapSetBlockType(_doc: Document, _step: SetBlockTypeStep): StepMap {
-	return IDENTITY_MAP;
-}
-
-export function getMapInsertNode(_doc: Document, _step: InsertNodeStep): StepMap {
 	return IDENTITY_MAP;
 }
 

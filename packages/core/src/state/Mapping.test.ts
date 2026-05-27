@@ -4,6 +4,7 @@ import type { Position } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import {
 	type BlockRemovalMap,
+	type ChildIndexShiftMap,
 	IDENTITY_MAP,
 	Mapping,
 	type MergeMap,
@@ -11,6 +12,8 @@ import {
 	type SplitMap,
 	type StepMap,
 	collectRemovedBlockIds,
+	mapChildIndex,
+	mapInsertionIndex,
 	mapPositionThroughStep,
 } from './Mapping.js';
 
@@ -40,7 +43,23 @@ function merge(target: typeof B1, source: typeof B1, targetLen: number): MergeMa
 }
 
 function blockRemoval(...ids: (typeof B1)[]): BlockRemovalMap {
-	return { type: 'blockRemoval', removedBlockIds: new Set(ids) };
+	return { type: 'blockRemoval', removedBlockIds: new Set(ids), parentPath: [], index: 0 };
+}
+
+function blockRemovalAt(
+	parentPath: readonly (typeof B1)[],
+	index: number,
+	...ids: (typeof B1)[]
+): BlockRemovalMap {
+	return { type: 'blockRemoval', removedBlockIds: new Set(ids), parentPath, index };
+}
+
+function childIndexShift(
+	parentPath: readonly (typeof B1)[],
+	fromIndex: number,
+	delta: number,
+): ChildIndexShiftMap {
+	return { type: 'childIndexShift', parentPath, fromIndex, delta };
 }
 
 // --- mapPositionThroughStep: identity ---
@@ -241,6 +260,18 @@ describe('mapPositionThroughStep', () => {
 			expect(result.deleted).toBe(false);
 		});
 	});
+
+	// --- childIndexShift: positions pass through unchanged ---
+
+	describe('childIndexShift', () => {
+		it('does not move positions in any block', () => {
+			const map: ChildIndexShiftMap = childIndexShift([], 0, 1);
+			const p: Position = pos(B1, 7);
+			const result = mapPositionThroughStep(p, map);
+			expect(result.pos).toBe(p);
+			expect(result.deleted).toBe(false);
+		});
+	});
 });
 
 // --- collectRemovedBlockIds ---
@@ -372,5 +403,120 @@ describe('Mapping', () => {
 		const result = mapping.map(pos(B1, 7));
 		expect(result.blockId).toBe(B1);
 		expect(result.offset).toBe(7);
+	});
+});
+
+// --- mapChildIndex ---
+
+describe('mapChildIndex', () => {
+	it('returns the input index on empty mapping', () => {
+		expect(mapChildIndex([], 3, Mapping.empty)).toBe(3);
+	});
+
+	it('passes through non-structural maps unchanged', () => {
+		const m = Mapping.from([shift(B1, 0, 0, 2), split(B1, 3, B2), merge(B1, B2, 4)]);
+		expect(mapChildIndex([], 3, m)).toBe(3);
+	});
+
+	describe('childIndexShift (insertNode-style)', () => {
+		it('shifts indices ≥ fromIndex up by delta', () => {
+			const m = Mapping.from([childIndexShift([], 2, 1)]);
+			expect(mapChildIndex([], 2, m)).toBe(3);
+			expect(mapChildIndex([], 5, m)).toBe(6);
+		});
+
+		it('leaves indices < fromIndex unchanged', () => {
+			const m = Mapping.from([childIndexShift([], 2, 1)]);
+			expect(mapChildIndex([], 0, m)).toBe(0);
+			expect(mapChildIndex([], 1, m)).toBe(1);
+		});
+
+		it('ignores shifts in a different parent', () => {
+			const m = Mapping.from([childIndexShift([B1], 0, 1)]);
+			expect(mapChildIndex([], 5, m)).toBe(5);
+			expect(mapChildIndex([B2], 5, m)).toBe(5);
+		});
+	});
+
+	describe('blockRemoval (removeNode-style)', () => {
+		it('returns null for the exact removed slot', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapChildIndex([], 2, m)).toBeNull();
+		});
+
+		it('shifts indices > removed.index down by 1', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapChildIndex([], 3, m)).toBe(2);
+			expect(mapChildIndex([], 5, m)).toBe(4);
+		});
+
+		it('leaves indices < removed.index unchanged', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapChildIndex([], 0, m)).toBe(0);
+			expect(mapChildIndex([], 1, m)).toBe(1);
+		});
+
+		it('ignores removals in a different parent', () => {
+			const m = Mapping.from([blockRemovalAt([B2], 0, B1)]);
+			expect(mapChildIndex([], 5, m)).toBe(5);
+		});
+	});
+
+	describe('composed structural maps', () => {
+		it('applies childIndexShift then blockRemoval in order', () => {
+			// Agent inserts at index 2 (shifts our index 3 → 4), then removes index 1
+			// (which doesn't shift our index because 4 > 1 → 4 - 1 = 3).
+			const m = Mapping.from([childIndexShift([], 2, 1), blockRemovalAt([], 1, B1)]);
+			expect(mapChildIndex([], 3, m)).toBe(3);
+		});
+
+		it('propagates null through subsequent maps', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1), childIndexShift([], 0, 1)]);
+			expect(mapChildIndex([], 2, m)).toBeNull();
+		});
+	});
+});
+
+// --- mapInsertionIndex ---
+
+describe('mapInsertionIndex', () => {
+	it('returns the input index on empty mapping', () => {
+		expect(mapInsertionIndex([], 3, Mapping.empty)).toBe(3);
+	});
+
+	it('matches mapChildIndex behaviour for non-removal maps', () => {
+		const m = Mapping.from([childIndexShift([], 2, 1)]);
+		expect(mapInsertionIndex([], 2, m)).toBe(3);
+		expect(mapInsertionIndex([], 5, m)).toBe(6);
+		expect(mapInsertionIndex([], 1, m)).toBe(1);
+	});
+
+	describe('insertion-slot vs existing-child semantics under blockRemoval', () => {
+		it('keeps the slot when intervening removed exactly the block at that index', () => {
+			// Doc had block at index 2; agent removed it. An insertion-slot at
+			// index 2 still names a valid slot in the post-removal frame (now
+			// pointing at the gap where the block was). Existing-child semantics
+			// would return null here.
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapInsertionIndex([], 2, m)).toBe(2);
+			expect(mapChildIndex([], 2, m)).toBeNull();
+		});
+
+		it('still shifts indices strictly past the removed slot down by 1', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapInsertionIndex([], 3, m)).toBe(2);
+			expect(mapInsertionIndex([], 5, m)).toBe(4);
+		});
+
+		it('still leaves indices strictly before the removed slot untouched', () => {
+			const m = Mapping.from([blockRemovalAt([], 2, B1)]);
+			expect(mapInsertionIndex([], 0, m)).toBe(0);
+			expect(mapInsertionIndex([], 1, m)).toBe(1);
+		});
+
+		it('ignores removals in a different parent', () => {
+			const m = Mapping.from([blockRemovalAt([B2], 0, B1)]);
+			expect(mapInsertionIndex([], 5, m)).toBe(5);
+		});
 	});
 });

@@ -114,6 +114,8 @@ describe('PairStack', () => {
 		const map: StepMap = {
 			type: 'blockRemoval',
 			removedBlockIds: new Set([B1]),
+			parentPath: [],
+			index: 0,
 		};
 		stack.migrate(Mapping.from([map]));
 		expect(stack.sizeForBlock(B1)).toBe(0);

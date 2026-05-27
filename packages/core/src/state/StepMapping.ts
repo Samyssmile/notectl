@@ -46,7 +46,9 @@ import type { BlockId } from '../model/TypeBrands.js';
 import {
 	type MappedInBlockRange,
 	type Mapping,
+	mapChildIndex,
 	mapInBlockRange,
+	mapInsertionIndex,
 	mapOffsetInBlock,
 } from './Mapping.js';
 import type {
@@ -87,10 +89,10 @@ function preservedPath(
 
 /**
  * Validates that every block id along `parentPath` still exists and has
- * not migrated. Structural steps cannot be rebased through child-index
- * shifts (no `childIndexShift` StepMap category exists), so a `null` here
- * is the conservative answer for "the structural anchor is no longer
- * stable".
+ * not migrated. The `parentPath` itself is **never** rebased through
+ * `childIndexShift` / `blockRemoval` (those describe shifts in *child
+ * slots*, not in block identity), so when any ancestor block is gone the
+ * structural anchor is lost and the step must be abandoned.
  */
 function parentPathStillValid(parentPath: readonly BlockId[], mapping: Mapping): boolean {
 	if (mapping.isEmpty) return true;
@@ -398,25 +400,41 @@ export function mapSetInlineNodeAttr(
 	};
 }
 
-// --- Tree-structural steps (conservative rebase) ---
+// --- Tree-structural steps ---
 
 export function mapInsertNode(step: InsertNodeStep, mapping: Mapping, _doc: Document): Step | null {
-	// `index` lives in child-index space, which the StepMap categories do not
-	// describe. Sibling-shift produced by intervening insertNode/removeNode
-	// inside the same parent is therefore not representable; we accept it
-	// silently for the (very common) cross-parent case and abandon when the
-	// parent itself migrated or was removed.
 	if (!parentPathStillValid(step.parentPath, mapping)) return null;
-	return step;
+	// Insertion-slot semantics: the slot survives even when the block
+	// previously at this index was removed by an intervening edit. The slot
+	// is *where to insert*, not a reference to an existing child.
+	const rebasedIndex: number = mapInsertionIndex(step.parentPath, step.index, mapping);
+	if (rebasedIndex === step.index) return step;
+	return {
+		type: 'insertNode',
+		parentPath: step.parentPath,
+		index: rebasedIndex,
+		node: step.node,
+	};
 }
 
 export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, _doc: Document): Step | null {
 	if (!parentPathStillValid(step.parentPath, mapping)) return null;
-	// Additionally: the to-be-removed block itself must still exist.
+	// The to-be-removed block itself must still exist as a distinct block.
 	const probe = mapping.mapResult({ blockId: step.removedNode.id, offset: 0 }, -1);
 	if (probe.deleted) return null;
 	if (probe.pos.blockId !== step.removedNode.id) return null;
-	return step;
+
+	const rebasedIndex: number | null = mapChildIndex(step.parentPath, step.index, mapping);
+	// `null` means an intervening edit already removed the exact slot this
+	// step targets; the inverse cannot meaningfully proceed.
+	if (rebasedIndex === null) return null;
+	if (rebasedIndex === step.index) return step;
+	return {
+		type: 'removeNode',
+		parentPath: step.parentPath,
+		index: rebasedIndex,
+		removedNode: step.removedNode,
+	};
 }
 
 // --- Local utilities ---
