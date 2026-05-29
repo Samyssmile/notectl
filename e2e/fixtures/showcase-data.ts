@@ -228,11 +228,12 @@ export async function buildShowcaseViaInteraction(
 	await typeText(page, 'Blockquote');
 	await page.keyboard.press('Enter');
 
-	// Block 6: Blockquote
+	// Block 6: Blockquote (B2 container, #136). Exit via double-Enter: the first
+	// Enter adds an empty trailing line inside the quote, the second exits it.
 	await clickButton(editor, 'blockquote');
 	await typeText(page, 'A wise observation.');
 	await page.keyboard.press('Enter');
-	await clickButton(editor, 'blockquote'); // toggle off → back to paragraph
+	await page.keyboard.press('Enter'); // empty last child → exit the blockquote
 
 	// Block 7: H2 "Lists"
 	await pickHeading(editor, 'Heading 2');

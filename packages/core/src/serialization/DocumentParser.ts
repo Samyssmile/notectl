@@ -106,6 +106,13 @@ function parseChildNode(
 			return;
 		}
 
+		// Blockquotes are container blocks (issue #136): parse their children
+		// recursively into block nodes instead of flattening to inline content.
+		if (tag === 'blockquote') {
+			parseBlockquoteElement(el, blocks, adoptedIds, registry);
+			return;
+		}
+
 		// Try block parse rules
 		const match = matchBlockParseRule(el, blockRules);
 		if (match) {
@@ -336,6 +343,46 @@ function extractCellSpanAttrs(
 		const value: number = Number.parseInt(rowspan, 10);
 		if (value > 1) attrs.rowspan = value;
 	}
+}
+
+/**
+ * Parses a `<blockquote>` into a container block whose children are block nodes
+ * (issue #136). Block-level children (lists, paragraphs, headings, nested quotes)
+ * are parsed recursively; a quote holding only inline content becomes a single
+ * paragraph child so the container invariant (block children only) always holds.
+ */
+function parseBlockquoteElement(
+	el: HTMLElement,
+	blocks: BlockNode[],
+	adoptedIds: Set<string>,
+	registry?: SchemaRegistry,
+): void {
+	const blockRules = registry?.getBlockParseRules() ?? [];
+	const innerBlocks: BlockNode[] = [];
+
+	for (const child of Array.from(el.childNodes)) {
+		parseChildNode(child, innerBlocks, blockRules, adoptedIds, registry);
+	}
+
+	// Pure inline content (e.g. `<blockquote>text</blockquote>`): wrap in a paragraph.
+	if (innerBlocks.length === 0) {
+		const inlineContent = parseElementToInlineContent(el, registry);
+		innerBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));
+	}
+
+	// Preserve direction/alignment on the container so the HTML round-trip is stable.
+	const attrs: Record<string, string | number | boolean> = {};
+	extractAlignment(el, attrs);
+	extractDirection(el, attrs);
+
+	blocks.push(
+		createBlockNode(
+			nodeType('blockquote'),
+			innerBlocks,
+			adoptBlockId(el, adoptedIds),
+			Object.keys(attrs).length > 0 ? attrs : undefined,
+		),
+	);
 }
 
 /** Parses a table cell's content into blocks, supporting all block types (lists, quotes, etc.). */

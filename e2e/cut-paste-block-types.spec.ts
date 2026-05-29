@@ -16,6 +16,13 @@ type JsonChild = {
 	marks?: { type: string }[];
 };
 
+/** Collects plain text from a node and all its descendants (handles container blocks). */
+function nodeText(node: JsonChild | undefined): string {
+	if (!node) return '';
+	if (typeof node.text === 'string') return node.text;
+	return (node.children ?? []).map(nodeText).join('');
+}
+
 test.describe('Cut and paste preserves block types', () => {
 	test('cut & paste bullet list items preserves list type', async ({ editor, page }) => {
 		await editor.focus();
@@ -93,9 +100,34 @@ test.describe('Cut and paste preserves block types', () => {
 		expect(heading?.attrs?.level).toBe(1);
 	});
 
+	// Pasting blockquote HTML routes through the container-aware DocumentParser
+	// (#136): a <blockquote> with block children lands as one clean container with
+	// a nested paragraph — not a flat blockquote holding text directly, and not
+	// double-nested. Keyboard-independent: it dispatches a paste event at a
+	// top-level landing point, isolating the paste routing from cut semantics.
+	test('paste blockquote HTML lands as a clean container (no flatten, no double-nest)', async ({
+		editor,
+	}) => {
+		await editor.focus();
+		await editor.pasteHTML('<blockquote><p>quoted item</p></blockquote>');
+
+		const json: { children: JsonChild[] } = await editor.getJSON();
+		const bq: JsonChild | undefined = json.children.find((c) => c.type === 'blockquote');
+		expect(bq).toBeDefined();
+		// Direct child is a block (paragraph), not text — the container invariant holds.
+		const inner = bq?.children ?? [];
+		expect(inner).toHaveLength(1);
+		expect(inner[0]?.type).toBe('paragraph');
+		// No quote-in-quote: the blockquote does not directly nest another blockquote.
+		expect(inner[0]?.type).not.toBe('blockquote');
+		const text: string = (inner[0]?.children ?? []).map((c) => c.text ?? '').join('');
+		expect(text).toContain('quoted item');
+	});
+
 	test('cut & paste blockquote preserves block type', async ({ editor, page }) => {
 		await editor.focus();
-		// Use input rule > for blockquote
+		// Build a blockquote via the > input rule, then exit it with double-Enter
+		// (B2 container keyboard, #136) before adding a trailing paragraph.
 		await page.keyboard.type('> ', { delay: 10 });
 		await page.keyboard.type('A famous quote', { delay: 10 });
 		await page.keyboard.press('Enter');
@@ -117,8 +149,37 @@ test.describe('Cut and paste preserves block types', () => {
 		const json: { children: JsonChild[] } = await editor.getJSON();
 		const bq: JsonChild | undefined = json.children.find((c) => c.type === 'blockquote');
 		expect(bq).toBeDefined();
-		const bqText: string = (bq?.children ?? []).map((c) => c.text ?? '').join('');
-		expect(bqText).toContain('A famous quote');
+		// B2: the blockquote is a container — text lives in a nested paragraph, so
+		// collect text across descendants rather than reading bq.children[].text.
+		expect(nodeText(bq)).toContain('A famous quote');
+	});
+
+	// Deferred (#136): when the document contains ONLY a blockquote, cutting it
+	// leaves an empty container shell (`blockquote > p("")`) and pasting lands the
+	// clipboard quote inside it → a valid but redundant quote-in-quote. No static
+	// structural fix is safe: that leftover shell is byte-identical to a
+	// deliberately-created empty quote a user is about to fill, so any "escape the
+	// empty container on paste" rule would break "make a quote, paste into it". The
+	// result is valid-not-corrupt (nested quotes round-trip), and every keyboard
+	// flow already avoids empty quotes via the lift/exit handlers — only this
+	// all-quote-document cut→paste residual remains. Desired end state below.
+	test.fixme('cut & paste a lone blockquote yields a single quote', async ({ editor, page }) => {
+		await editor.focus();
+		await page.keyboard.type('> ', { delay: 10 });
+		await page.keyboard.type('Lone quote', { delay: 10 });
+
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Control+x');
+		await page.waitForTimeout(100);
+		await page.keyboard.press('Control+v');
+		await page.waitForTimeout(200);
+
+		const json: { children: JsonChild[] } = await editor.getJSON();
+		const quotes = json.children.filter((c) => c.type === 'blockquote');
+		expect(quotes).toHaveLength(1);
+		// No quote-in-quote: the single quote's direct child is a paragraph.
+		expect(quotes[0]?.children?.[0]?.type).toBe('paragraph');
+		expect(nodeText(quotes[0])).toContain('Lone quote');
 	});
 
 	test('cut & paste mixed content preserves all block types', async ({ editor, page }) => {
