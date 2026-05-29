@@ -28,13 +28,21 @@ function topLevelIndexOf(state: EditorState, blockId: BlockId): number {
 }
 
 /**
- * Wraps the top-level blocks spanned by `selection` into a single new container
- * block of `containerType`. Returns `null` when the range cannot be resolved.
+ * Wraps the top-level blocks spanned by `selection` into new container blocks of
+ * `containerType`. Returns `null` when the range cannot be resolved.
+ *
+ * `isAllowedChild` guards the container's schema (`content.allow`): blocks the
+ * container cannot legally hold (e.g. a `table` inside a `blockquote`) are left at
+ * the top level instead of being nested into an invalid document. Disallowed blocks
+ * therefore split the range into separate contiguous runs, each wrapped in its own
+ * container, mirroring `wrapIn`. Defaults to wrapping everything when omitted.
+ * Returns `null` when no block in the range is wrappable.
  */
 export function wrapSelectionInContainer(
 	state: EditorState,
 	containerType: NodeTypeName,
 	selection: Selection,
+	isAllowedChild?: (block: BlockNode) => boolean,
 ): Transaction | null {
 	const range = selectionRange(selection, state.getBlockOrder());
 	const fromIdx: number = topLevelIndexOf(state, range.from.blockId);
@@ -45,13 +53,38 @@ export function wrapSelectionInContainer(
 	const hi: number = Math.max(fromIdx, toIdx);
 
 	const blocks: readonly BlockNode[] = state.doc.children.slice(lo, hi + 1);
-	const container: BlockNode = createBlockNode(containerType, blocks, generateBlockId());
+	const allowed: (block: BlockNode) => boolean = isAllowedChild ?? (() => true);
+
+	// Group the range into maximal runs of wrappable blocks; each run becomes one
+	// container, disallowed blocks pass through unchanged and break the run.
+	const sequence: BlockNode[] = [];
+	let run: BlockNode[] = [];
+	let wrappedAny = false;
+	const flushRun = (): void => {
+		if (run.length === 0) return;
+		sequence.push(createBlockNode(containerType, run, generateBlockId()));
+		wrappedAny = true;
+		run = [];
+	};
+	for (const block of blocks) {
+		if (allowed(block)) {
+			run.push(block);
+		} else {
+			flushRun();
+			sequence.push(block);
+		}
+	}
+	flushRun();
+
+	if (!wrappedAny) return null;
 
 	const builder = state.transaction('command');
 	for (let i: number = hi; i >= lo; i--) {
 		builder.removeNode([], i);
 	}
-	builder.insertNode([], lo, container);
+	sequence.forEach((node, i) => {
+		builder.insertNode([], lo + i, node);
+	});
 	builder.setSelection(selection);
 	return builder.build();
 }
