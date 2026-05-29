@@ -998,4 +998,41 @@ test.describe('Arrow Navigation', () => {
 			expect(text.trim()).toContain('Only block');
 		});
 	});
+
+	// Blockquote is a container block (#136): its children are real leaf blocks, so
+	// the caret crosses the container boundary via native arrow navigation (no
+	// custom handler). This verifies that crossing rather than asserting it.
+	test.describe('Across blockquote container boundary', () => {
+		test('ArrowUp crosses from the paragraph below into the quote', async ({ editor, page }) => {
+			type Json = {
+				children: { type: string; children?: Json['children'] & { text?: string }[] }[];
+			};
+
+			await editor.focus();
+			await page.keyboard.type('> ', { delay: 10 });
+			await page.keyboard.type('Inside', { delay: 10 });
+			await page.keyboard.press('Enter');
+			await page.keyboard.press('Enter'); // exit the quote (B2 double-Enter)
+			await page.keyboard.type('Outside', { delay: 10 });
+			await page.waitForTimeout(100);
+
+			// Caret at end of the top-level "Outside" paragraph. ArrowUp must land in
+			// the quoted paragraph one line above.
+			await page.keyboard.press('ArrowUp');
+			await page.waitForTimeout(50);
+			await page.keyboard.type('X', { delay: 10 });
+			await page.waitForTimeout(50);
+
+			const json = (await editor.getJSON()) as unknown as Json;
+			const bq = json.children.find((c) => c.type === 'blockquote');
+			expect(bq).toBeDefined();
+			const quotedText: string = (bq?.children ?? [])
+				.flatMap((p) => p.children ?? [])
+				.map((t) => t.text ?? '')
+				.join('');
+			// X landed inside the quote → the caret crossed the boundary upward.
+			expect(quotedText).toContain('X');
+			expect(quotedText).toContain('Inside');
+		});
+	});
 });

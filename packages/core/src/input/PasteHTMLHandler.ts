@@ -136,9 +136,14 @@ export class PasteHTMLHandler {
 			.replace(/&amp;/g, '&');
 	}
 
-	/** Checks whether HTML requires the DocumentParser (tables, void blocks). */
+	/** Checks whether HTML requires the DocumentParser (tables, blockquotes, void blocks). */
 	private requiresDocumentParser(html: string, container: DocumentFragment): boolean {
 		if (/<table[\s>]/i.test(html)) return true;
+		// Blockquotes are container blocks (#136): the flat HTMLParser/slice path
+		// cannot represent their nested block children, so route them through the
+		// container-aware DocumentParser to preserve nesting (and to wrap inline
+		// content in a paragraph rather than producing an invalid flat blockquote).
+		if (/<blockquote[\s>]/i.test(html)) return true;
 		return this.containsVoidBlockElements(container);
 	}
 

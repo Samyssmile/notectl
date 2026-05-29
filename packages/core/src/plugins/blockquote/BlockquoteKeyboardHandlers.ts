@@ -1,173 +1,150 @@
 /**
- * Keyboard handlers for blockquote boundary navigation and escape.
+ * Keyboard handlers for the blockquote container (issue #136, B2 model).
  *
- * Handles ArrowDown/ArrowUp at block boundaries, Enter on empty blockquote
- * (converts to paragraph), and Backspace at offset 0 (reverts to paragraph).
+ * Under the container model the caret lives in a child block of the blockquote,
+ * not in the blockquote itself. These handlers manage the two container
+ * boundaries; everything in between (splitting, merging, arrow navigation) is
+ * left to the default commands, which already operate correctly on the nested
+ * child blocks:
+ *
+ *  - Enter in an empty last child  → exit the blockquote (paragraph after it).
+ *  - Backspace at start of the first child → lift that child out of the quote.
+ *
+ * List items are deferred to the list plugin's own handlers.
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import { generateBlockId, getBlockLength } from '../../model/Document.js';
+import { createEmptyParagraph, getBlockChildren, getBlockLength } from '../../model/Document.js';
+import { resolveParentByPath } from '../../model/NodeResolver.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
-import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 
 // --- Context Guard ---
 
-interface BlockquoteContext {
+interface QuoteChildContext {
 	readonly state: EditorState;
-	readonly block: BlockNode;
-	readonly blockId: BlockId;
+	readonly quotePath: readonly BlockId[];
+	readonly quoteParentPath: readonly BlockId[];
+	readonly quoteIndex: number;
+	readonly child: BlockNode;
+	readonly childIndex: number;
+	readonly childCount: number;
 	readonly offset: number;
 }
 
 /**
- * Guards against non-blockquote contexts.
- * Returns false (not handled) if the cursor is not inside a blockquote.
+ * Resolves the caret context when the cursor sits in a direct child of a
+ * blockquote. Returns false (not handled) otherwise, so the default keymap and
+ * other plugins keep their behavior.
  */
-function withBlockquoteContext(
+function withBlockquoteChildContext(
 	context: PluginContext,
-	handler: (ctx: BlockquoteContext) => boolean,
+	handler: (ctx: QuoteChildContext) => boolean,
 ): boolean {
 	const state: EditorState = context.getState();
 	if (!isTextSelection(state.selection)) return false;
-
 	const sel = state.selection;
 	if (!isCollapsed(sel)) return false;
 
-	const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
-	if (!block || block.type !== 'blockquote') return false;
+	const childId: BlockId = sel.anchor.blockId;
+	const quote: BlockNode | undefined = state.getParent(childId);
+	if (!quote || quote.type !== 'blockquote') return false;
+
+	const child: BlockNode | undefined = state.getBlock(childId);
+	if (!child) return false;
+
+	const quotePath: BlockId[] | undefined = state.getNodePath(quote.id);
+	if (!quotePath) return false;
+	const parentRef = resolveParentByPath(state.doc, quotePath);
+	if (!parentRef) return false;
+
+	const children: readonly BlockNode[] = getBlockChildren(quote);
+	const childIndex: number = children.findIndex((b) => b.id === childId);
+	if (childIndex < 0) return false;
 
 	return handler({
 		state,
-		block,
-		blockId: sel.anchor.blockId,
+		quotePath,
+		quoteParentPath: quotePath.slice(0, -1),
+		quoteIndex: parentRef.index,
+		child,
+		childIndex,
+		childCount: children.length,
 		offset: sel.anchor.offset,
 	});
 }
 
-/** Registers blockquote keyboard handlers at context priority. */
+/** Registers the blockquote container keyboard handlers at context priority. */
 export function registerBlockquoteKeymaps(context: PluginContext): void {
 	context.registerKeymap(
 		{
-			ArrowDown: () => handleArrowDown(context),
-			ArrowUp: () => handleArrowUp(context),
-			Enter: () => handleEnterOnEmpty(context),
-			Backspace: () => handleBackspaceAtStart(context),
+			Enter: () => handleEnterExit(context),
+			Backspace: () => handleBackspaceLift(context),
 		},
 		{ priority: 'context' },
 	);
 }
 
-// --- Handler Functions ---
+// --- Handlers ---
 
 /**
- * Moves cursor to the next block when at the end of the blockquote text.
- * If no next block exists, inserts a new paragraph after the blockquote.
+ * Enter in an empty last child of the blockquote exits the container: a fresh
+ * paragraph is created after the quote (or, when that child is the quote's only
+ * child, the quote dissolves into that paragraph). Any other case returns false
+ * so the default splitBlock creates a new line inside the quote.
  */
-function handleArrowDown(context: PluginContext): boolean {
-	return withBlockquoteContext(context, ({ state, block, blockId, offset }) => {
-		const textLength: number = getBlockLength(block);
-		if (offset !== textLength) return false;
+function handleEnterExit(context: PluginContext): boolean {
+	return withBlockquoteChildContext(context, (ctx) => {
+		if (ctx.child.type === 'list_item') return false;
+		const isLast: boolean = ctx.childIndex === ctx.childCount - 1;
+		if (!isLast || getBlockLength(ctx.child) > 0) return false;
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
+		const paragraph: BlockNode = createEmptyParagraph();
+		const builder = ctx.state.transaction('input');
 
-		if (idx < blockOrder.length - 1) {
-			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(nextId, 0))
-				.build();
-			context.dispatch(tr);
+		if (ctx.childCount === 1) {
+			// Sole child: dissolve the quote, replacing it with the paragraph.
+			builder.removeNode(ctx.quoteParentPath, ctx.quoteIndex);
+			builder.insertNode(ctx.quoteParentPath, ctx.quoteIndex, paragraph);
 		} else {
-			insertParagraphAfter(context, blockId);
+			// Drop the empty trailing child and continue after the quote.
+			builder.removeNode(ctx.quotePath, ctx.childIndex);
+			builder.insertNode(ctx.quoteParentPath, ctx.quoteIndex + 1, paragraph);
 		}
 
+		builder.setSelection(createCollapsedSelection(paragraph.id, 0));
+		context.dispatch(builder.build());
 		return true;
 	});
 }
 
 /**
- * Moves cursor to the previous block when at the start of the blockquote text.
- * Returns false if no previous block exists.
+ * Backspace at the start of the blockquote's first child lifts that child out of
+ * the quote (placing it directly before the quote, or dissolving the quote when
+ * it was the only child). Inner children at offset 0 fall through to the default
+ * merge, which joins adjacent siblings within the quote.
  */
-function handleArrowUp(context: PluginContext): boolean {
-	return withBlockquoteContext(context, ({ state, blockId, offset }) => {
-		if (offset !== 0) return false;
+function handleBackspaceLift(context: PluginContext): boolean {
+	return withBlockquoteChildContext(context, (ctx) => {
+		if (ctx.offset !== 0 || ctx.childIndex !== 0) return false;
+		if (ctx.child.type === 'list_item') return false;
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
+		const builder = ctx.state.transaction('input');
 
-		if (idx > 0) {
-			const prevId: BlockId = blockOrder[idx - 1] as BlockId;
-			const prevBlock: BlockNode | undefined = state.getBlock(prevId);
-			const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(prevId, prevLen))
-				.build();
-			context.dispatch(tr);
-			return true;
+		if (ctx.childCount === 1) {
+			// Sole child: dissolve the quote, the child takes its place.
+			builder.removeNode(ctx.quoteParentPath, ctx.quoteIndex);
+			builder.insertNode(ctx.quoteParentPath, ctx.quoteIndex, ctx.child);
+		} else {
+			// Lift the first child out, immediately before the quote.
+			builder.removeNode(ctx.quotePath, 0);
+			builder.insertNode(ctx.quoteParentPath, ctx.quoteIndex, ctx.child);
 		}
 
-		return false;
-	});
-}
-
-/**
- * Converts an empty blockquote to a paragraph on Enter.
- * Returns false for non-empty blockquotes, letting splitBlock handle them.
- */
-function handleEnterOnEmpty(context: PluginContext): boolean {
-	return withBlockquoteContext(context, ({ state, block, blockId }) => {
-		if (getBlockLength(block) > 0) return false;
-
-		const tr: Transaction = state
-			.transaction('command')
-			.setBlockType(blockId, nodeType('paragraph'))
-			.setSelection(createCollapsedSelection(blockId, 0))
-			.build();
-		context.dispatch(tr);
+		builder.setSelection(createCollapsedSelection(ctx.child.id, 0));
+		context.dispatch(builder.build());
 		return true;
 	});
-}
-
-/**
- * Converts a blockquote to a paragraph when Backspace is pressed at offset 0.
- */
-function handleBackspaceAtStart(context: PluginContext): boolean {
-	return withBlockquoteContext(context, ({ state, blockId, offset }) => {
-		if (offset !== 0) return false;
-
-		const tr: Transaction = state
-			.transaction('input')
-			.setBlockType(blockId, nodeType('paragraph'))
-			.setSelection(state.selection)
-			.build();
-		context.dispatch(tr);
-		return true;
-	});
-}
-
-// --- Shared Helpers ---
-
-function insertParagraphAfter(context: PluginContext, bid: BlockId): void {
-	const state: EditorState = context.getState();
-	const block: BlockNode | undefined = state.getBlock(bid);
-	if (!block) return;
-
-	const blockLength: number = getBlockLength(block);
-	const newId: BlockId = generateBlockId();
-
-	const tr: Transaction = state
-		.transaction('command')
-		.splitBlock(bid, blockLength, newId)
-		.setBlockType(newId, nodeType('paragraph'))
-		.setSelection(createCollapsedSelection(newId, 0))
-		.build();
-
-	context.dispatch(tr);
 }
