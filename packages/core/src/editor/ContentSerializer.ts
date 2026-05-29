@@ -10,6 +10,7 @@ import {
 	type Document,
 	createBlockNode,
 	createTextNode,
+	getBlockChildren,
 	getBlockText,
 	isInlineNode,
 	isLeafBlock,
@@ -121,9 +122,19 @@ export function setEditorContentHTML(
 	setEditorJSON(doc, registry, replaceState);
 }
 
-/** Returns plain text content. */
+/** Returns plain text content, descending into container blocks (e.g. blockquote). */
 export function getEditorText(state: EditorState): string {
-	return state.doc.children.map((b) => getBlockText(b)).join('\n');
+	return state.doc.children.map(blockTreeText).join('\n');
+}
+
+/**
+ * Extracts plain text from a block and all its descendants. Leaf blocks yield
+ * their inline text; container blocks (blockquote, table, …) join their child
+ * blocks' text with newlines, mirroring the line-per-block convention.
+ */
+function blockTreeText(block: BlockNode): string {
+	if (isLeafBlock(block)) return getBlockText(block);
+	return getBlockChildren(block).map(blockTreeText).join('\n');
 }
 
 /**

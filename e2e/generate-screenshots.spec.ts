@@ -462,14 +462,18 @@ const TABLE_PLUGIN_CONTENT: DocDef = {
 
 const BLOCKQUOTE_CONTENT: DocDef = {
 	children: [
-		para([txt('An important insight from our team lead:')]),
-		blockquote([
-			txt(
-				'Great software is built in layers. Each layer should be independent, testable, and composable. This philosophy guides every design decision.',
-				italic,
-			),
-		]),
-		para([txt('This principle drives the architecture of notectl.')]),
+		para([txt('A blockquote is a container that wraps whole blocks, including lists:')]),
+		{
+			id: uid(),
+			type: 'blockquote',
+			children: [
+				para([txt('Great software is built in layers, each one:', italic)]),
+				listItem('bullet', [txt('independent')]),
+				listItem('bullet', [txt('testable')]),
+				listItem('bullet', [txt('composable')]),
+			],
+		},
+		para([txt('This philosophy guides every design decision in notectl.')]),
 	],
 };
 

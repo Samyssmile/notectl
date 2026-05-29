@@ -3,8 +3,14 @@
  * toggle command, keyboard shortcut, input rule, and a toolbar button.
  */
 
+import {
+	liftSelectionFromContainer,
+	wrapSelectionInContainer,
+} from '../../commands/ContainerCommands.js';
+import { createBlockNode, generateBlockId } from '../../model/Document.js';
+import { hasAncestorOfType } from '../../model/NodeResolver.js';
 import { isCollapsed, isTextSelection } from '../../model/Selection.js';
-import { type NodeTypeName, nodeType } from '../../model/TypeBrands.js';
+import { nodeType } from '../../model/TypeBrands.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
@@ -66,7 +72,13 @@ export class BlockquotePlugin implements Plugin {
 		context.registerNodeSpec({
 			type: 'blockquote',
 			group: 'block',
-			content: { allow: ['text'] },
+			// Container block (issue #136): a blockquote wraps other blocks, mirroring
+			// HTML flow-content semantics. `isolating` is intentionally NOT set so the
+			// caret can flow across the container boundary (unlike table_cell).
+			content: {
+				allow: ['paragraph', 'heading', 'list_item', 'blockquote', 'horizontal_rule', 'code_block'],
+				min: 1,
+			},
 			toDOM(node) {
 				const el = createBlockElement('blockquote', node.id);
 				el.setAttribute('part', 'blockquote');
@@ -86,7 +98,7 @@ export class BlockquotePlugin implements Plugin {
 		});
 
 		context.registerCommand('setBlockquote', () => {
-			return this.setBlockType(context, nodeType('blockquote'));
+			return this.wrapInBlockquote(context);
 		});
 	}
 
@@ -108,10 +120,17 @@ export class BlockquotePlugin implements Plugin {
 				const block = state.getBlock(sel.anchor.blockId);
 				if (!block || block.type !== 'paragraph') return null;
 
+				const index: number = state.doc.children.findIndex((b) => b.id === block.id);
+				if (index < 0) return null;
+
+				// B2: wrap the paragraph into a blockquote container, then strip the
+				// "> " marker from the (now nested) paragraph in the same transaction.
+				const container = createBlockNode(nodeType('blockquote'), [block], generateBlockId());
 				return state
 					.transaction('input')
+					.removeNode([], index)
+					.insertNode([], index, container)
 					.deleteTextAt(sel.anchor.blockId, start, start + 2)
-					.setBlockType(sel.anchor.blockId, nodeType('blockquote'))
 					.setSelection(sel)
 					.build();
 			},
@@ -131,44 +150,38 @@ export class BlockquotePlugin implements Plugin {
 			command: 'toggleBlockquote',
 			isActive: (state) => {
 				if (!isTextSelection(state.selection)) return false;
-				const block = state.getBlock(state.selection.anchor.blockId);
-				return block?.type === 'blockquote';
+				return hasAncestorOfType(state.doc, state.selection.anchor.blockId, 'blockquote');
 			},
 		});
 	}
 
 	/**
-	 * Toggles between blockquote and paragraph.
-	 * If the block is already a blockquote, resets to paragraph.
+	 * Toggles the blockquote container around the selection.
+	 * If the selection already lives inside a blockquote, its blocks are lifted
+	 * back out; otherwise the selected blocks are wrapped into one blockquote.
 	 */
 	private toggleBlockquote(context: PluginContext): boolean {
-		const state = context.getState();
-		if (!isTextSelection(state.selection)) return false;
-		const block = state.getBlock(state.selection.anchor.blockId);
-		if (!block) return false;
-
-		if (block.type === 'blockquote') {
-			return this.setBlockType(context, nodeType('paragraph'));
-		}
-
-		return this.setBlockType(context, nodeType('blockquote'));
-	}
-
-	private setBlockType(
-		context: PluginContext,
-		type: NodeTypeName,
-		attrs?: Record<string, string | number | boolean>,
-	): boolean {
 		const state = context.getState();
 		const sel = state.selection;
 		if (!isTextSelection(sel)) return false;
 
-		const tr = state
-			.transaction('command')
-			.setBlockType(sel.anchor.blockId, type, attrs)
-			.setSelection(sel)
-			.build();
+		const tr = hasAncestorOfType(state.doc, sel.anchor.blockId, 'blockquote')
+			? liftSelectionFromContainer(state, nodeType('blockquote'), sel)
+			: wrapSelectionInContainer(state, nodeType('blockquote'), sel);
 
+		if (!tr) return false;
+		context.dispatch(tr);
+		return true;
+	}
+
+	/** Wraps the selected blocks into a blockquote container (no toggle-off). */
+	private wrapInBlockquote(context: PluginContext): boolean {
+		const state = context.getState();
+		const sel = state.selection;
+		if (!isTextSelection(sel)) return false;
+
+		const tr = wrapSelectionInContainer(state, nodeType('blockquote'), sel);
+		if (!tr) return false;
 		context.dispatch(tr);
 		return true;
 	}
