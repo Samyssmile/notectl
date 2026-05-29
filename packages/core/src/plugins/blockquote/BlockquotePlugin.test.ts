@@ -373,6 +373,44 @@ describe('BlockquotePlugin', () => {
 			]);
 		});
 
+		it('leaves a disallowed block (table) at the top level instead of nesting it', async () => {
+			// A `table` is not in the blockquote's `content.allow`, so wrapping a
+			// select-all range must not produce a schema-invalid quote-with-table.
+			const state = stateBuilder()
+				.paragraph('intro', 'p1')
+				.block('table', '', 't1')
+				.selection({ blockId: 'p1', offset: 0 }, { blockId: 't1', offset: 0 })
+				.schema(['paragraph', 'table', 'blockquote'], ['bold'])
+				.build();
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			h.executeCommand('toggleBlockquote');
+
+			const top = h.getState().doc.children;
+			expect(top.map((b) => b.type)).toEqual(['blockquote', 'table']);
+			const quote = top[0];
+			assertDefined(quote);
+			expect(getBlockChildren(quote).map((b) => b.type)).toEqual(['paragraph']);
+		});
+
+		it('splits the range around a disallowed block into separate quotes', async () => {
+			const state = stateBuilder()
+				.paragraph('before', 'p1')
+				.block('table', '', 't1')
+				.paragraph('after', 'p2')
+				.selection({ blockId: 'p1', offset: 0 }, { blockId: 'p2', offset: 5 })
+				.schema(['paragraph', 'table', 'blockquote'], ['bold'])
+				.build();
+			const h = await pluginHarness(new BlockquotePlugin(), state);
+
+			h.executeCommand('toggleBlockquote');
+
+			const top = h.getState().doc.children;
+			expect(top.map((b) => b.type)).toEqual(['blockquote', 'table', 'blockquote']);
+			expect(getBlockText(getBlockChildren(top[0] as BlockNode)[0] as BlockNode)).toBe('before');
+			expect(getBlockText(getBlockChildren(top[2] as BlockNode)[0] as BlockNode)).toBe('after');
+		});
+
 		it('wraps a single paragraph into a container (not a flat type swap)', async () => {
 			const state = stateBuilder()
 				.paragraph('Hello', 'p1')

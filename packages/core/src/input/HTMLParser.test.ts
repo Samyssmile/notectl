@@ -136,6 +136,41 @@ describe('HTMLParser', () => {
 			expect(slice.blocks[1]?.segments).toEqual([{ text: 'more', marks: [{ type: 'bold' }] }]);
 		});
 
+		it('keeps a source-wrapped paragraph as one block (collapses newlines, issue #137)', () => {
+			// Firefox hard-wraps clipboard text/html at ~72 columns, inserting `\n`
+			// inside the text content. Those newlines are insignificant whitespace.
+			const html =
+				'<p>Do not collect the GST/HST when a customer gives you a deposit\n' +
+				'towards a taxable purchase. Collect the GST/HST on the deposit when you\n' +
+				'apply it to the purchase price.</p>';
+			const slice = parseHTML(html);
+			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{
+					text:
+						'Do not collect the GST/HST when a customer gives you a deposit ' +
+						'towards a taxable purchase. Collect the GST/HST on the deposit when you ' +
+						'apply it to the purchase price.',
+					marks: [],
+				},
+			]);
+		});
+
+		it('strips indentation whitespace inside list items (issue #137)', () => {
+			const slice = parseHTML(
+				'<ul>\n  <li>\n    first item\n  </li>\n  <li>\n    second\n  </li>\n</ul>',
+			);
+			expect(slice.blocks).toHaveLength(2);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: 'first item', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ text: 'second', marks: [] }]);
+		});
+
+		it('preserves whitespace inside <pre> blocks (issue #137)', () => {
+			const slice = parseHTML('<pre>  indented\n    deeper\n</pre>');
+			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.segments).toEqual([{ text: '  indented\n    deeper\n', marks: [] }]);
+		});
+
 		it('does not apply bold for <b style="font-weight:normal">', () => {
 			const slice = parseHTML('<p><b style="font-weight:normal">text</b></p>');
 			expect(slice.blocks[0]?.segments).toEqual([{ text: 'text', marks: [] }]);

@@ -7,6 +7,7 @@ import {
 	liftSelectionFromContainer,
 	wrapSelectionInContainer,
 } from '../../commands/ContainerCommands.js';
+import type { BlockNode } from '../../model/Document.js';
 import { createBlockNode, generateBlockId } from '../../model/Document.js';
 import { hasAncestorOfType } from '../../model/NodeResolver.js';
 import { isCollapsed, isTextSelection } from '../../model/Selection.js';
@@ -167,7 +168,7 @@ export class BlockquotePlugin implements Plugin {
 
 		const tr = hasAncestorOfType(state.doc, sel.anchor.blockId, 'blockquote')
 			? liftSelectionFromContainer(state, nodeType('blockquote'), sel)
-			: wrapSelectionInContainer(state, nodeType('blockquote'), sel);
+			: wrapSelectionInContainer(state, nodeType('blockquote'), sel, this.isQuoteChild(context));
 
 		if (!tr) return false;
 		context.dispatch(tr);
@@ -180,9 +181,33 @@ export class BlockquotePlugin implements Plugin {
 		const sel = state.selection;
 		if (!isTextSelection(sel)) return false;
 
-		const tr = wrapSelectionInContainer(state, nodeType('blockquote'), sel);
+		const tr = wrapSelectionInContainer(
+			state,
+			nodeType('blockquote'),
+			sel,
+			this.isQuoteChild(context),
+		);
 		if (!tr) return false;
 		context.dispatch(tr);
 		return true;
+	}
+
+	/**
+	 * Builds a predicate that reports whether a block may legally become a direct
+	 * child of the blockquote container, derived from the registered NodeSpec's
+	 * `content.allow` (single source of truth). Matches both concrete child types
+	 * and group names (e.g. `block`), so blocks the quote cannot hold (e.g. a
+	 * `table`) are excluded rather than nested into an invalid document.
+	 */
+	private isQuoteChild(context: PluginContext): (block: BlockNode) => boolean {
+		const registry = context.getSchemaRegistry();
+		const allow: ReadonlySet<string> = new Set(
+			registry.getNodeSpec(nodeType('blockquote'))?.content?.allow ?? [],
+		);
+		return (block: BlockNode): boolean => {
+			if (allow.has(block.type)) return true;
+			const group: string | undefined = registry.getNodeSpec(block.type)?.group;
+			return group !== undefined && allow.has(group);
+		};
 	}
 }
