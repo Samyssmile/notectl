@@ -13,6 +13,7 @@ import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { NodeTypeName } from '../model/TypeBrands.js';
 import { markType, nodeType } from '../model/TypeBrands.js';
+import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 
 export interface HTMLParserOptions {
 	readonly schema: Schema;
@@ -112,6 +113,10 @@ export class HTMLParser {
 
 	/** Parses an HTML fragment and returns a ContentSlice. */
 	parse(container: DocumentFragment | HTMLElement): ContentSlice {
+		// Collapse insignificant HTML whitespace (newlines/indentation from source
+		// formatting or a browser's clipboard serializer) before walking the tree,
+		// so wrapped text stays a single block instead of splitting at every `\n`.
+		normalizeHTMLWhitespace(container);
 		const blocks: SliceBlock[] = this.parseContainer(container);
 
 		if (blocks.length === 0) {

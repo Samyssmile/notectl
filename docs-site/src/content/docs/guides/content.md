@@ -151,6 +151,12 @@ Inline formatting maps:
 | `<span style="font-size: ...">` | `fontSize` |
 | `<br>` | `hard_break` (InlineNode) |
 
+#### Whitespace handling
+
+HTML whitespace is normalized following the rules a browser uses to render it. Newlines, tabs, and runs of spaces in normal flow content are *insignificant*: they collapse to a single space, and whitespace at block edges is trimmed. Source-formatted or indented HTML therefore imports cleanly, and content copied from another browser (some serialize the clipboard HTML with hard-wrapped lines) is no longer split into extra paragraphs. The same normalization applies to pasted HTML.
+
+Whitespace is preserved verbatim inside `<pre>` (and any element with `white-space: pre*`), so code blocks keep their indentation. A literal line break still requires a `<br>`; a non-breaking space (`&nbsp;`) is significant and is never collapsed.
+
 ### From JSON
 
 ```ts
