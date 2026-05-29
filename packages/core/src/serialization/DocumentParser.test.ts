@@ -4,6 +4,7 @@ import {
 	createBlockNode,
 	createDocument,
 	createTextNode,
+	getBlockChildren,
 	getBlockText,
 	getInlineChildren,
 	isInlineNode,
@@ -1422,8 +1423,14 @@ describe('table HTML parsing', () => {
 		if (!cell || !('children' in cell)) return;
 
 		expect(cell.children).toHaveLength(1);
-		expect(cell.children[0]?.type).toBe('blockquote');
-		expect(getBlockText(cell.children[0] as never)).toBe('A quote');
+		const quote = cell.children[0];
+		expect(quote?.type).toBe('blockquote');
+		// B2 (#136): blockquote is a container — inline content is wrapped in a
+		// paragraph child rather than held directly on the blockquote.
+		const quoteChildren = getBlockChildren(quote as never);
+		expect(quoteChildren).toHaveLength(1);
+		expect(quoteChildren[0]?.type).toBe('paragraph');
+		expect(getBlockText(quoteChildren[0] as never)).toBe('A quote');
 	});
 
 	it('parses code block inside table cells', () => {

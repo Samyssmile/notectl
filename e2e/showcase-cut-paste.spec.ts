@@ -35,11 +35,21 @@ test.describe('Showcase document cut/paste roundtrip', () => {
 		expect(types).toContain('heading');
 		expect(types).toContain('paragraph');
 		expect(types).toContain('code_block');
-		expect(types).toContain('blockquote');
 		expect(types).toContain('list_item');
 		expect(types).toContain('table');
 		expect(types).toContain('horizontal_rule');
 		expect(types).toContain('image');
+		// NOTE: 'blockquote' is asserted separately below — see the PR2-pending test.
+	});
+
+	test('blockquote survives the roundtrip', async ({ editor, page }) => {
+		test.setTimeout(120_000);
+
+		await buildShowcaseViaInteraction(page, editor);
+		const { afterJson } = await performCutPasteRoundtrip(page, editor);
+		const types: string[] = afterJson.children.map((c) => c.type);
+
+		expect(types).toContain('blockquote');
 	});
 
 	test('all inline mark types survive the roundtrip', async ({ editor, page }) => {

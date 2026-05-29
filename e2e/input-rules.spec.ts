@@ -264,12 +264,12 @@ test.describe('Input Rules — Markdown Shortcuts', () => {
 		await page.keyboard.press('Enter');
 		// Enter at end of heading already creates a paragraph
 
-		// Blockquote
+		// Blockquote (B2 container, #136): double-Enter exits the quote — the first
+		// Enter splits an empty trailing line, the second exits it to a paragraph.
 		await page.keyboard.type('> ', { delay: 10 });
 		await page.keyboard.type('Quote', { delay: 10 });
 		await page.keyboard.press('Enter');
-		// Enter on blockquote creates new blockquote; toggle back to paragraph
-		await editor.markButton('blockquote').click();
+		await page.keyboard.press('Enter');
 
 		// Bullet list
 		await page.keyboard.type('- ', { delay: 10 });

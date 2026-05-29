@@ -166,3 +166,29 @@ export function findNodeWithPath(
 	if (!node) return undefined;
 	return { node, path };
 }
+
+/**
+ * Returns the nearest ancestor of the given node whose type matches `type`,
+ * together with its path. Excludes the node itself. Returns undefined when no
+ * matching ancestor exists.
+ */
+export function findAncestorOfType(
+	doc: Document,
+	nodeId: string,
+	type: string,
+): { node: BlockNode; path: string[] } | undefined {
+	const path = findNodePath(doc, nodeId);
+	if (!path || path.length < 2) return undefined;
+	// Walk ancestors from nearest to root, skipping the node itself (last entry).
+	for (let i = path.length - 2; i >= 0; i--) {
+		const ancestorPath = path.slice(0, i + 1);
+		const ancestor = resolveNodeByPath(doc, ancestorPath);
+		if (ancestor?.type === type) return { node: ancestor, path: ancestorPath };
+	}
+	return undefined;
+}
+
+/** Returns true if the node has an ancestor (excluding itself) of the given type. */
+export function hasAncestorOfType(doc: Document, nodeId: string, type: string): boolean {
+	return findAncestorOfType(doc, nodeId, type) !== undefined;
+}
