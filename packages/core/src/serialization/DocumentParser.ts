@@ -18,6 +18,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
+import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
@@ -61,6 +62,10 @@ export function parseHTMLToDocument(
 	if (options?.styleMap) {
 		rehydrateClasses(root, options.styleMap);
 	}
+
+	// Collapse insignificant HTML whitespace so source-formatted/indented input does
+	// not leave stray newlines and indentation inside block text content.
+	normalizeHTMLWhitespace(root);
 
 	const blockRules = registry?.getBlockParseRules() ?? [];
 	const blocks: BlockNode[] = [];

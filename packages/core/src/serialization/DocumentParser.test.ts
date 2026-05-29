@@ -9,6 +9,7 @@ import {
 	getInlineChildren,
 	isInlineNode,
 } from '../model/Document.js';
+import { formatHTML } from '../model/HTMLUtils.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -241,6 +242,81 @@ describe('parseHTMLToDocument', () => {
 		if (!block) return;
 		expect(block.type).toBe('paragraph');
 		expect(getBlockText(block)).toBe('content');
+	});
+
+	// --- Whitespace normalization (issue #137) ---
+
+	describe('whitespace normalization (#137)', () => {
+		it('collapses source-wrapped newlines so a paragraph stays one block', () => {
+			const html =
+				'<p>Do not collect the GST/HST when a customer gives you a deposit\n' +
+				'towards a taxable purchase. Collect the GST/HST on the deposit when you\n' +
+				'apply it to the purchase price.</p>';
+			const doc = parseHTMLToDocument(html, createTestRegistry());
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(getBlockText(block)).toBe(
+				'Do not collect the GST/HST when a customer gives you a deposit ' +
+					'towards a taxable purchase. Collect the GST/HST on the deposit when you ' +
+					'apply it to the purchase price.',
+			);
+		});
+
+		it('strips indentation whitespace inside list items', () => {
+			const doc = parseHTMLToDocument(
+				'<ul>\n  <li>\n    first item\n  </li>\n  <li>\n    second\n  </li>\n</ul>',
+				createTestRegistry(),
+			);
+			expect(doc.children).toHaveLength(2);
+			const first = doc.children[0];
+			const second = doc.children[1];
+			if (!first || !second) return;
+			expect(getBlockText(first)).toBe('first item');
+			expect(getBlockText(second)).toBe('second');
+		});
+
+		it('preserves whitespace inside <pre> code blocks', () => {
+			const registry = {
+				getNodeSpec: () => undefined,
+				getInlineNodeSpec: () => undefined,
+				getMarkSpec: () => undefined,
+				getMarkTypes: () => [],
+				getBlockParseRules: () => [{ rule: { tag: 'pre' }, type: 'code_block' }],
+				getMarkParseRules: () => [],
+				getInlineParseRules: () => [],
+				getAllowedTags: () => ['p', 'pre', 'code'],
+				getAllowedAttrs: () => ['class'],
+			} as unknown as SchemaRegistry;
+
+			const doc = parseHTMLToDocument('<pre>  indented\n    deeper\n</pre>', registry);
+			expect(doc.children).toHaveLength(1);
+			const block = doc.children[0];
+			if (!block) return;
+			expect(block.type).toBe('code_block');
+			expect(getBlockText(block)).toBe('  indented\n    deeper\n');
+		});
+
+		it('is idempotent through a pretty-printed serialization round-trip', () => {
+			const registry = createTestRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('First paragraph of text.')]),
+				createBlockNode(nodeType('paragraph'), [createTextNode('Second paragraph of text.')]),
+			]);
+
+			// `getContentHTML({ pretty: true })` runs the serialized HTML through
+			// formatHTML, which indents blocks onto their own lines. Re-parsing must
+			// not let that insignificant whitespace leak into the block text.
+			const pretty: string = formatHTML(serializeDocumentToHTML(doc));
+			const reparsed = parseHTMLToDocument(pretty, registry);
+
+			expect(reparsed.children).toHaveLength(2);
+			const first = reparsed.children[0];
+			const second = reparsed.children[1];
+			if (!first || !second) return;
+			expect(getBlockText(first)).toBe('First paragraph of text.');
+			expect(getBlockText(second)).toBe('Second paragraph of text.');
+		});
 	});
 
 	// --- Alignment parsing ---
