@@ -7,6 +7,7 @@
 
 import type { BlockNode, ChildNode, Document } from '../model/Document.js';
 import { getBlockLength, isBlockNode, isLeafBlock } from '../model/Document.js';
+import { findNodePath } from '../model/NodeResolver.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -58,6 +59,25 @@ export function extractParentPath(path: readonly string[] | undefined): BlockId[
 /** Finds the index of a block by ID within a sibling list. */
 export function findSiblingIndex(siblings: readonly ChildNode[], targetId: BlockId): number {
 	return siblings.findIndex((c) => isBlockNode(c) && c.id === targetId);
+}
+
+/** A block's parent path, its sibling list, and its index within that list. */
+export interface SiblingContext {
+	readonly parentPath: BlockId[];
+	readonly siblings: readonly ChildNode[];
+	readonly index: number;
+}
+
+/**
+ * Resolves a node's parent path, sibling list, and index among its siblings.
+ * `index` is `-1` when the node is not found; callers that require the node to
+ * exist should guard on `index < 0`.
+ */
+export function resolveSiblingContext(state: EditorState, nodeId: BlockId): SiblingContext {
+	const parentPath: BlockId[] = extractParentPath(findNodePath(state.doc, nodeId));
+	const siblings: readonly ChildNode[] = getSiblings(state, parentPath);
+	const index: number = findSiblingIndex(siblings, nodeId);
+	return { parentPath, siblings, index };
 }
 
 /** Finds the first leaf block ID in a subtree. */
