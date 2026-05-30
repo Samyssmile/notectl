@@ -18,6 +18,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { patchNodeSpecAttr } from '../shared/NodeSpecPatching.js';
 import { dispatchIfPresent, getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { getBlockDir } from './DirectionDetection.js';
@@ -105,30 +106,11 @@ export class TextDirectionPlugin implements Plugin {
 	}
 
 	private patchNodeSpecs(context: PluginContext): void {
-		const registry = context.getSchemaRegistry();
-
-		for (const type of this.config.directableTypes) {
-			const spec = registry.getNodeSpec(type);
-			if (!spec) continue;
-
-			if (spec.attrs?.dir) continue;
-
-			const originalToDOM = spec.toDOM;
-
-			registry.removeNodeSpec(type);
-			registry.registerNodeSpec({
-				...spec,
-				attrs: {
-					...spec.attrs,
-					dir: { default: 'auto' },
-				},
-				toDOM(node) {
-					const el = originalToDOM.call(spec, node);
-					applyDirection(el, node);
-					return el;
-				},
-			});
-		}
+		patchNodeSpecAttr(context.getSchemaRegistry(), this.config.directableTypes, {
+			attrName: 'dir',
+			getDefault: () => 'auto',
+			applyToDOM: applyDirection,
+		});
 	}
 
 	private registerCommands(context: PluginContext): void {
