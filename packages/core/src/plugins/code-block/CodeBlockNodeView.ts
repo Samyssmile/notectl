@@ -17,6 +17,9 @@ import { CODE_BLOCK_LOCALE_EN, type CodeBlockLocale } from './CodeBlockLocale.js
 import type { CodeBlockConfig } from './CodeBlockTypes.js';
 import { openLanguagePicker } from './LanguagePicker.js';
 
+/** How long a screen-reader announcement stays in the live region before clearing. */
+const ANNOUNCE_CLEAR_MS = 1000;
+
 /** Dependencies for the language picker in the code block header. */
 export interface LanguagePickerDeps {
 	readonly popupManager: PopupServiceAPI;
@@ -186,7 +189,7 @@ export function createCodeBlockNodeViewFactory(
 			announcer.textContent = message;
 			setTimeout(() => {
 				announcer.textContent = '';
-			}, 1000);
+			}, ANNOUNCE_CLEAR_MS);
 		}
 
 		if (copyBtn) {
@@ -256,10 +259,7 @@ export function createCodeBlockNodeViewFactory(
 						dispatch(tr);
 
 						const langName: string = language || locale.plainText;
-						announcer.textContent = locale.languageChanged(langName);
-						setTimeout(() => {
-							announcer.textContent = '';
-						}, 1000);
+						announce(locale.languageChanged(langName));
 					},
 				});
 			});
