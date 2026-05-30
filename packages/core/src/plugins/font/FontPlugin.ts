@@ -18,7 +18,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
-import { resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import { FONT_LOCALE_EN, type FontLocale, loadFontLocale } from './FontLocale.js';
 
@@ -223,19 +223,11 @@ export class FontPlugin implements Plugin {
 
 	applyFont(context: PluginContext, state: EditorState, family: string): boolean {
 		const mark = { type: markType('font'), attrs: { family } };
-		const tr = applyAttributedMark(state, mark);
-		if (!tr) return false;
-
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, applyAttributedMark(state, mark));
 	}
 
 	private removeFont(context: PluginContext, state: EditorState): boolean {
-		const tr = removeAttributedMark(state, markType('font'));
-		if (!tr) return false;
-
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, removeAttributedMark(state, markType('font')));
 	}
 
 	// --- @font-face Injection ---

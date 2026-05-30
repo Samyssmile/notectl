@@ -6,7 +6,7 @@
 import { isMarkActive, toggleMark } from '../../commands/Commands.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	STRIKETHROUGH_LOCALE_EN,
@@ -81,14 +81,9 @@ export class StrikethroughPlugin implements Plugin {
 	}
 
 	private registerCommand(context: PluginContext): void {
-		context.registerCommand('toggleStrikethrough', () => {
-			const tr = toggleMark(context.getState(), markType('strikethrough'));
-			if (tr) {
-				context.dispatch(tr);
-				return true;
-			}
-			return false;
-		});
+		context.registerCommand('toggleStrikethrough', () =>
+			dispatchIfPresent(context, toggleMark(context.getState(), markType('strikethrough'))),
+		);
 	}
 
 	private registerKeymap(context: PluginContext): void {

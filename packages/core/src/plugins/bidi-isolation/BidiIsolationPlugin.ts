@@ -19,7 +19,7 @@ import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { DIRECTION_ICONS } from '../text-direction/DirectionIcons.js';
 import {
@@ -196,17 +196,11 @@ export class BidiIsolationPlugin implements Plugin {
 	private applyBdi(context: PluginContext, dir: TextDirection): boolean {
 		const state = context.getState();
 		const mark = { type: markType('bdi'), attrs: { dir } };
-		const tr = applyAttributedMark(state, mark);
-		if (!tr) return false;
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, applyAttributedMark(state, mark));
 	}
 
 	private removeBdi(context: PluginContext): boolean {
 		const state = context.getState();
-		const tr = removeAttributedMark(state, markType('bdi'));
-		if (!tr) return false;
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, removeAttributedMark(state, markType('bdi')));
 	}
 }

@@ -11,7 +11,7 @@ import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../mo
 import { markType } from '../../model/TypeBrands.js';
 import type { Step } from '../../state/Steps.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	INLINE_CODE_LOCALE_EN,
@@ -146,14 +146,9 @@ export class InlineCodePlugin implements Plugin {
 	}
 
 	private registerCommand(context: PluginContext): void {
-		context.registerCommand('toggleInlineCode', () => {
-			const tr = toggleMark(context.getState(), markType('code'));
-			if (tr) {
-				context.dispatch(tr);
-				return true;
-			}
-			return false;
-		});
+		context.registerCommand('toggleInlineCode', () =>
+			dispatchIfPresent(context, toggleMark(context.getState(), markType('code'))),
+		);
 	}
 
 	private registerKeymap(context: PluginContext): void {
