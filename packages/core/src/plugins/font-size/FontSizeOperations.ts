@@ -15,6 +15,7 @@ import {
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { dispatchIfPresent } from '../shared/PluginHelpers.js';
 
 // --- State Queries ---
 
@@ -41,20 +42,12 @@ export function isFontSizeActive(state: EditorState): boolean {
 /** Applies a fontSize mark with the given CSS size string to the selection. */
 export function applyFontSize(context: PluginContext, state: EditorState, size: string): boolean {
 	const mark = { type: markType('fontSize'), attrs: { size } };
-	const tr = applyAttributedMark(state, mark);
-	if (!tr) return false;
-
-	context.dispatch(tr);
-	return true;
+	return dispatchIfPresent(context, applyAttributedMark(state, mark));
 }
 
 /** Removes the fontSize mark from the current selection. */
 export function removeFontSize(context: PluginContext, state: EditorState): boolean {
-	const tr = removeAttributedMark(state, markType('fontSize'));
-	if (!tr) return false;
-
-	context.dispatch(tr);
-	return true;
+	return dispatchIfPresent(context, removeAttributedMark(state, markType('fontSize')));
 }
 
 /** Steps the font size up or down through the preset list. */

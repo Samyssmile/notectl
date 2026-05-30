@@ -18,7 +18,7 @@ import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { resolveLocale, toCommandName } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, resolveLocale, toCommandName } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	TEXT_FORMATTING_LOCALE_EN,
@@ -193,14 +193,9 @@ export class TextFormattingPlugin implements Plugin {
 			sanitize: def.sanitize,
 		});
 
-		context.registerCommand(commandName, () => {
-			const tr = toggleMark(context.getState(), mkType(def.type));
-			if (tr) {
-				context.dispatch(tr);
-				return true;
-			}
-			return false;
-		});
+		context.registerCommand(commandName, () =>
+			dispatchIfPresent(context, toggleMark(context.getState(), mkType(def.type))),
+		);
 
 		if (toolbarVisible) {
 			const label: string = this.getMarkLabel(def.type);

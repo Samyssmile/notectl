@@ -18,7 +18,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { getBlockDir } from './DirectionDetection.js';
 import { DIRECTION_ICONS } from './DirectionIcons.js';
@@ -227,9 +227,7 @@ export class TextDirectionPlugin implements Plugin {
 
 		if (!changed) return false;
 
-		const tr = tb.setSelection(state.selection).build();
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, tb.setSelection(state.selection).build());
 	}
 
 	private getSelectedBlockIds(state: EditorState): BlockId[] {
