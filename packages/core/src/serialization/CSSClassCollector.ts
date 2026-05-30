@@ -88,12 +88,15 @@ export class CSSClassCollector {
 	 * Unlike style classes, alignment classes use descriptive names.
 	 */
 	getAlignmentClassName(alignment: string): string {
-		const declarations: string = `text-align: ${alignment}`;
-		const existing: string | undefined = this.classMap.get(declarations);
+		// Key by the normalized declaration so the "one declaration → one class"
+		// invariant is shared with getClassName(); if a style class for the same
+		// declaration already exists, reuse it rather than minting a second name.
+		const normalized: string = normalizeDeclarations(`text-align: ${alignment}`);
+		const existing: string | undefined = this.classMap.get(normalized);
 		if (existing) return existing;
 
 		const className = `notectl-align-${alignment}`;
-		this.classMap.set(declarations, className);
+		this.classMap.set(normalized, className);
 		return className;
 	}
 
