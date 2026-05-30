@@ -11,28 +11,33 @@ import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { CSSClassCollector } from './CSSClassCollector.js';
 
+/** Rank assigned to marks whose spec does not declare an explicit `rank`. */
+const DEFAULT_MARK_RANK = 99;
+
 /** Builds a map of mark type name to rank from the registry (compute once per pass). */
 export function buildMarkOrder(registry: SchemaRegistry): Map<string, number> {
 	const types: readonly string[] = registry.getMarkTypes();
 	const order = new Map<string, number>();
 	for (const t of types) {
 		const spec: MarkSpec | undefined = registry.getMarkSpec(t);
-		if (spec) order.set(t, spec.rank ?? 99);
+		if (spec) order.set(t, spec.rank ?? DEFAULT_MARK_RANK);
 	}
 	return order;
 }
 
 /**
- * Serializes text with marks to HTML.
- * Style-based marks (`toHTMLStyle`) are merged into a single `<span style="...">`.
- * Tag-based marks (`toHTMLString`) wrap the content in rank order.
+ * Shared mark-serialization core. Style-based marks (`toHTMLStyle`) are merged
+ * and wrapped via `wrapStyleSpan`; tag-based marks (`toHTMLString`) then wrap
+ * the result in rank order. The two public entry points differ only in how the
+ * merged style declarations become a `<span>`.
  */
-export function serializeMarksToHTML(
+function serializeMarks(
 	text: string,
 	marks: readonly Mark[],
 	registry: SchemaRegistry,
-	markOrder?: Map<string, number>,
-	exportCtx?: HTMLExportContext,
+	markOrder: Map<string, number> | undefined,
+	exportCtx: HTMLExportContext | undefined,
+	wrapStyleSpan: (html: string, declarations: string) => string,
 ): string {
 	if (text === '') return '';
 
@@ -42,7 +47,7 @@ export function serializeMarksToHTML(
 
 	const order: Map<string, number> = markOrder ?? buildMarkOrder(registry);
 	const sortedMarks: Mark[] = [...marks].sort(
-		(a, b) => (order.get(a.type) ?? 99) - (order.get(b.type) ?? 99),
+		(a, b) => (order.get(a.type) ?? DEFAULT_MARK_RANK) - (order.get(b.type) ?? DEFAULT_MARK_RANK),
 	);
 
 	const styleParts: string[] = [];
@@ -60,16 +65,12 @@ export function serializeMarksToHTML(
 		}
 	}
 
-	// Wrap with merged style span first (closest to text)
+	// Wrap with the merged style span first (closest to text).
 	if (styleParts.length > 0) {
-		const declarations: string = styleParts.join('; ');
-		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
-		if (attr) {
-			html = `<span${attr}>${html}</span>`;
-		}
+		html = wrapStyleSpan(html, styleParts.join('; '));
 	}
 
-	// Then wrap with tag-based marks in rank order
+	// Then wrap with tag-based marks in rank order.
 	for (const mark of tagMarks) {
 		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
 		if (markSpec?.toHTMLString) {
@@ -78,6 +79,24 @@ export function serializeMarksToHTML(
 	}
 
 	return html;
+}
+
+/**
+ * Serializes text with marks to HTML.
+ * Style-based marks (`toHTMLStyle`) are merged into a single `<span style="...">`.
+ * Tag-based marks (`toHTMLString`) wrap the content in rank order.
+ */
+export function serializeMarksToHTML(
+	text: string,
+	marks: readonly Mark[],
+	registry: SchemaRegistry,
+	markOrder?: Map<string, number>,
+	exportCtx?: HTMLExportContext,
+): string {
+	return serializeMarks(text, marks, registry, markOrder, exportCtx, (html, declarations) => {
+		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
+		return attr ? `<span${attr}>${html}</span>` : html;
+	});
 }
 
 /**
@@ -93,46 +112,12 @@ export function serializeMarksToClassHTML(
 	markOrder?: Map<string, number>,
 	exportCtx?: HTMLExportContext,
 ): string {
-	if (text === '') return '';
-
-	let html: string = escapeHTML(text);
-
-	if (marks.length === 0) return html;
-
-	const order: Map<string, number> = markOrder ?? buildMarkOrder(registry);
-	const sortedMarks: Mark[] = [...marks].sort(
-		(a, b) => (order.get(a.type) ?? 99) - (order.get(b.type) ?? 99),
+	return serializeMarks(
+		text,
+		marks,
+		registry,
+		markOrder,
+		exportCtx,
+		(html, declarations) => `<span class="${collector.getClassName(declarations)}">${html}</span>`,
 	);
-
-	const styleParts: string[] = [];
-	const tagMarks: Mark[] = [];
-
-	for (const mark of sortedMarks) {
-		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
-		if (markSpec?.toHTMLStyle) {
-			const style: string | null = markSpec.toHTMLStyle(mark);
-			if (style) {
-				styleParts.push(style);
-			}
-		} else {
-			tagMarks.push(mark);
-		}
-	}
-
-	// Wrap with class-based span (closest to text)
-	if (styleParts.length > 0) {
-		const declarations: string = styleParts.join('; ');
-		const className: string = collector.getClassName(declarations);
-		html = `<span class="${className}">${html}</span>`;
-	}
-
-	// Then wrap with tag-based marks in rank order
-	for (const mark of tagMarks) {
-		const markSpec: MarkSpec | undefined = registry.getMarkSpec(mark.type);
-		if (markSpec?.toHTMLString) {
-			html = markSpec.toHTMLString(mark, html, exportCtx);
-		}
-	}
-
-	return html;
 }
