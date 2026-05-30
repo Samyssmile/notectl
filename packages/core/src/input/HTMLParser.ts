@@ -20,6 +20,9 @@ export interface HTMLParserOptions {
 	readonly schemaRegistry?: SchemaRegistry;
 }
 
+/** The list flavors the parser recognizes. */
+type ListType = 'bullet' | 'ordered' | 'checklist';
+
 const BLOCK_ELEMENTS: ReadonlySet<string> = new Set([
 	'P',
 	'DIV',
@@ -268,7 +271,7 @@ export class HTMLParser {
 		];
 	}
 
-	private parseList(element: HTMLElement, listType: string, depth: number): SliceBlock[] {
+	private parseList(element: HTMLElement, listType: ListType, depth: number): SliceBlock[] {
 		const blocks: SliceBlock[] = [];
 
 		for (const child of Array.from(element.children)) {
@@ -285,12 +288,12 @@ export class HTMLParser {
 		return blocks;
 	}
 
-	private parseListItem(element: HTMLElement, listType: string, depth: number): SliceBlock[] {
+	private parseListItem(element: HTMLElement, listType: ListType, depth: number): SliceBlock[] {
 		const blocks: SliceBlock[] = [];
 		const blockType: NodeTypeName = this.resolveBlockType(nodeType('list_item'));
 
 		const isChecklist: boolean = this.hasCheckbox(element);
-		const resolvedListType: string = isChecklist ? 'checklist' : listType;
+		const resolvedListType: ListType = isChecklist ? 'checklist' : listType;
 		const checked: boolean = isChecklist ? this.isCheckboxChecked(element) : false;
 
 		const inlineSegments: TextSegment[] = [];
@@ -327,7 +330,7 @@ export class HTMLParser {
 		});
 
 		for (const nested of nestedLists) {
-			const nestedType: string = nested.tagName === 'OL' ? 'ordered' : 'bullet';
+			const nestedType: ListType = nested.tagName === 'OL' ? 'ordered' : 'bullet';
 			blocks.push(...this.parseList(nested, nestedType, depth + 1));
 		}
 
