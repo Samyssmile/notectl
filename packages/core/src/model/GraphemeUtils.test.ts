@@ -41,6 +41,12 @@ describe('nextGraphemeSize', () => {
 		const flag = '\u{1F1FA}\u{1F1F8}';
 		expect(nextGraphemeSize(flag, 0)).toBe(flag.length);
 	});
+
+	it('returns remaining units when offset lands inside a cluster', () => {
+		// Offset 1 is inside the 2-unit wave emoji; advancing should reach the
+		// next boundary (1 remaining unit), not skip ahead to "b".
+		expect(nextGraphemeSize('\u{1F44B}b', 1)).toBe(1);
+	});
 });
 
 describe('prevGraphemeSize', () => {

@@ -16,20 +16,34 @@ export function mapBlock(
 	};
 }
 
-/** Recursively maps over children to find and transform a block by ID. */
+/**
+ * Recursively maps over children to find and transform a block by ID.
+ *
+ * Preserves reference identity: when the target block is not found in a given
+ * subtree, the original `children` array (and the original child nodes along
+ * the way) are returned unchanged, so unrelated subtrees are not reallocated on
+ * every edit.
+ */
 export function mapBlockInChildren(
 	children: readonly ChildNode[],
 	blockId: string,
 	fn: (block: BlockNode) => BlockNode,
 ): ChildNode[] {
-	return children.map((child) => {
+	let changed = false;
+	const mapped: ChildNode[] = children.map((child) => {
 		if (!isBlockNode(child)) return child;
-		if (child.id === blockId) return fn(child);
-		// Recurse into block children
+		if (child.id === blockId) {
+			changed = true;
+			return fn(child);
+		}
+		// Recurse into block children; an unchanged subtree returns the same
+		// `child.children` reference, so the identity check below holds.
 		const mappedChildren: ChildNode[] = mapBlockInChildren(child.children, blockId, fn);
 		if (mappedChildren === child.children) return child;
+		changed = true;
 		return { ...child, children: mappedChildren };
 	});
+	return changed ? mapped : (children as ChildNode[]);
 }
 
 /**
