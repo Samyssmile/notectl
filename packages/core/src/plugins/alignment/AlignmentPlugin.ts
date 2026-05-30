@@ -13,6 +13,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { patchNodeSpecAttr } from '../shared/NodeSpecPatching.js';
 import {
 	capitalize,
 	getSelectedBlock,
@@ -98,32 +99,11 @@ export class AlignmentPlugin implements Plugin {
 	 * that already define an `align` attribute in their spec.
 	 */
 	private patchNodeSpecs(context: PluginContext): void {
-		const registry = context.getSchemaRegistry();
-
-		for (const type of this.config.alignableTypes) {
-			const spec = registry.getNodeSpec(type);
-			if (!spec) continue;
-
-			// Skip types that already declare an `align` attr (e.g. image)
-			if (spec.attrs?.align) continue;
-
-			const originalToDOM = spec.toDOM;
-			const defaultAlign: BlockAlignment = this.config.defaults[type] ?? 'start';
-
-			registry.removeNodeSpec(type);
-			registry.registerNodeSpec({
-				...spec,
-				attrs: {
-					...spec.attrs,
-					align: { default: defaultAlign },
-				},
-				toDOM(node) {
-					const el = originalToDOM.call(spec, node);
-					applyAlignment(el, node);
-					return el;
-				},
-			});
-		}
+		patchNodeSpecAttr(context.getSchemaRegistry(), this.config.alignableTypes, {
+			attrName: 'align',
+			getDefault: (type) => this.config.defaults[type] ?? 'start',
+			applyToDOM: applyAlignment,
+		});
 	}
 
 	// --- Commands ---
