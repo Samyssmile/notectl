@@ -21,6 +21,7 @@ import {
 	createBlockNode,
 	generateBlockId,
 } from '../model/Document.js';
+import type { RichBlockData } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
 	createCollapsedSelection,
@@ -34,7 +35,6 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import type { RichBlockData } from './InternalClipboard.js';
 
 export class PasteRichBlockHandler {
 	constructor(
