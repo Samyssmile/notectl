@@ -5,6 +5,7 @@
 
 import {
 	type BlockNode,
+	type ChildNode,
 	type Document,
 	type Mark,
 	createDocument,
@@ -177,7 +178,7 @@ function fallbackSelection(doc: Document, sel: EditorSelection): EditorSelection
 
 /** Descends into the first child of each container block to find the first leaf block. */
 function findFirstLeafBlock(
-	children: readonly import('../model/Document.js').ChildNode[],
+	children: readonly ChildNode[],
 ): BlockNode | null {
 	for (const child of children) {
 		if (!isBlockNode(child)) continue;
@@ -191,7 +192,7 @@ function findFirstLeafBlock(
 /** Recursively builds a Map of blockId → BlockNode for all nodes in the tree. */
 function buildBlockMap(doc: Document): Map<BlockId, BlockNode> {
 	const map = new Map<BlockId, BlockNode>();
-	function walk(blocks: readonly import('../model/Document.js').ChildNode[]): void {
+	function walk(blocks: readonly ChildNode[]): void {
 		for (const child of blocks) {
 			if (isBlockNode(child)) {
 				map.set(child.id, child);
@@ -206,7 +207,7 @@ function buildBlockMap(doc: Document): Map<BlockId, BlockNode> {
 /** Returns leaf-block IDs in depth-first order. */
 function buildBlockOrder(doc: Document): BlockId[] {
 	const order: BlockId[] = [];
-	function walk(blocks: readonly import('../model/Document.js').ChildNode[]): void {
+	function walk(blocks: readonly ChildNode[]): void {
 		for (const child of blocks) {
 			if (isBlockNode(child)) {
 				if (isLeafBlock(child)) {
