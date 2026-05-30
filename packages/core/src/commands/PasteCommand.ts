@@ -8,7 +8,7 @@ import { segmentsLength, segmentsToText } from '../model/ContentSlice.js';
 import { createBlockNode, createTextNode, generateBlockId } from '../model/Document.js';
 import type { TextSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
-import type { GapCursorSelection } from '../model/Selection.js';
+import type { GapCursorSelection, Selection } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
 	isCollapsed,
@@ -19,6 +19,7 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
+import type { InsertPoint } from './CommandHelpers.js';
 import {
 	extractParentPath,
 	findSiblingIndex,
@@ -50,6 +51,33 @@ export function pasteSlice(state: EditorState, slice: ContentSlice): Transaction
 	return pasteMultiBlock(state, slice);
 }
 
+interface PasteTarget {
+	readonly builder: TransactionBuilder;
+	readonly landingId: BlockId | undefined;
+	readonly resolved: InsertPoint;
+	readonly insertBlockId: BlockId;
+	readonly insertOffset: number;
+}
+
+/**
+ * Shared preamble for the text-selection paste strategies: opens a paste
+ * builder, deletes any range selection, and resolves the insert position.
+ */
+function resolvePasteTarget(state: EditorState, sel: Selection): PasteTarget {
+	const builder: TransactionBuilder = state.transaction('paste');
+
+	let landingId: BlockId | undefined;
+	if (!isCollapsed(sel)) {
+		landingId = addDeleteSelectionSteps(state, builder);
+	}
+
+	const resolved: InsertPoint = resolveInsertPoint(sel, state.getBlockOrder());
+	const insertBlockId: BlockId = landingId ?? resolved.blockId;
+	const insertOffset: number = landingId ? 0 : resolved.offset;
+
+	return { builder, landingId, resolved, insertBlockId, insertOffset };
+}
+
 /** Case 1: single paragraph — insert segments into current block. */
 function pasteInline(state: EditorState, segments: readonly TextSegment[]): Transaction {
 	const sel = state.selection;
@@ -59,16 +87,7 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 	if (isGapCursor(sel)) {
 		return pasteInlineAtGap(state, sel, segments);
 	}
-	const builder: TransactionBuilder = state.transaction('paste');
-
-	let landingId: BlockId | undefined;
-	if (!isCollapsed(sel)) {
-		landingId = addDeleteSelectionSteps(state, builder);
-	}
-
-	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
-	const insertBlockId: BlockId = landingId ?? resolved.blockId;
-	const insertOffset: number = landingId ? 0 : resolved.offset;
+	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
 	const totalLength: number = segmentsLength(segments);
 	const text: string = segmentsToText(segments);
 
@@ -87,16 +106,7 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	if (isGapCursor(sel)) {
 		return pasteBlocksAtGap(state, sel, [block]);
 	}
-	const builder: TransactionBuilder = state.transaction('paste');
-
-	let landingId: BlockId | undefined;
-	if (!isCollapsed(sel)) {
-		landingId = addDeleteSelectionSteps(state, builder);
-	}
-
-	const resolved = resolveInsertPoint(sel, state.getBlockOrder());
-	const insertBlockId: BlockId = landingId ?? resolved.blockId;
-	const insertOffset: number = landingId ? 0 : resolved.offset;
+	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
 	const totalLength: number = segmentsLength(block.segments);
 	const text: string = segmentsToText(block.segments);
 
@@ -116,17 +126,14 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	if (isGapCursor(sel)) {
 		return pasteBlocksAtGap(state, sel, slice.blocks);
 	}
-	const builder: TransactionBuilder = state.transaction('paste');
-
-	let landingId: BlockId | undefined;
-	if (!isCollapsed(sel)) {
-		landingId = addDeleteSelectionSteps(state, builder);
-	}
-
+	const {
+		builder,
+		landingId,
+		resolved,
+		insertBlockId: blockId,
+		insertOffset: offset,
+	} = resolvePasteTarget(state, sel);
 	const blockOrder = state.getBlockOrder();
-	const resolved = resolveInsertPoint(sel, blockOrder);
-	const blockId: BlockId = landingId ?? resolved.blockId;
-	const offset: number = landingId ? 0 : resolved.offset;
 
 	let blockIdx: number;
 	if (landingId) {

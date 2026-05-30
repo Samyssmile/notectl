@@ -23,12 +23,7 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
-import {
-	createSelectionForBlockBoundary,
-	extractParentPath,
-	findSiblingIndex,
-	getSiblings,
-} from './CommandHelpers.js';
+import { createSelectionForBlockBoundary, resolveSiblingContext } from './CommandHelpers.js';
 
 export { findFirstLeafBlockId, findLastLeafBlockId } from './CommandHelpers.js';
 
@@ -37,13 +32,7 @@ export { findFirstLeafBlockId, findLastLeafBlockId } from './CommandHelpers.js';
  * If it is the only child in its parent, replaces it with an empty paragraph.
  */
 export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Transaction | null {
-	const path = findNodePath(state.doc, sel.nodeId);
-	if (!path) return null;
-
-	const parentPath: BlockId[] = extractParentPath(path);
-	const siblings = getSiblings(state, parentPath);
-
-	const index: number = findSiblingIndex(siblings, sel.nodeId);
+	const { parentPath, siblings, index } = resolveSiblingContext(state, sel.nodeId);
 	if (index < 0) return null;
 
 	const builder = state.transaction('input');
@@ -86,13 +75,7 @@ export function insertParagraphAfterNodeSelection(
 	state: EditorState,
 	sel: NodeSelection,
 ): Transaction | null {
-	const path = findNodePath(state.doc, sel.nodeId);
-	if (!path) return null;
-
-	const parentPath: BlockId[] = extractParentPath(path);
-	const siblings = getSiblings(state, parentPath);
-
-	const index: number = findSiblingIndex(siblings, sel.nodeId);
+	const { parentPath, index } = resolveSiblingContext(state, sel.nodeId);
 	if (index < 0) return null;
 
 	const newId = generateBlockId();
@@ -109,11 +92,7 @@ export function insertTextAfterNodeSelection(
 	text: string,
 	origin: 'input' | 'paste',
 ): Transaction {
-	const path = findNodePath(state.doc, sel.nodeId);
-	const parentPath: BlockId[] = extractParentPath(path);
-	const siblings = getSiblings(state, parentPath);
-
-	const index: number = findSiblingIndex(siblings, sel.nodeId);
+	const { parentPath, siblings, index } = resolveSiblingContext(state, sel.nodeId);
 
 	const newId = generateBlockId();
 	const builder = state.transaction(origin);
