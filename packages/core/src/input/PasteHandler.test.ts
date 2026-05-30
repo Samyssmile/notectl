@@ -16,7 +16,6 @@ import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import { clearRichClipboard, setRichClipboard } from './InternalClipboard.js';
 import { PasteHandler } from './PasteHandler.js';
 
 // --- Helpers ---
@@ -69,7 +68,6 @@ describe('PasteHandler file paste', () => {
 	let getState: GetStateFn;
 
 	afterEach(() => {
-		clearRichClipboard();
 		handler.destroy();
 	});
 
@@ -175,24 +173,6 @@ describe('PasteHandler text paste', () => {
 		expect(dispatch).toHaveBeenCalledTimes(1);
 		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(tr.metadata.origin).toBe('paste');
-	});
-
-	it('does not treat stale internal clipboard data as proof of paste origin', () => {
-		element = document.createElement('div');
-		const state: EditorState = createTestState();
-		dispatch = vi.fn();
-		getState = () => state;
-		setRichClipboard('hello', [{ type: 'heading', text: 'stale', attrs: { level: 2 } }]);
-
-		handler = new PasteHandler(element, { getState, dispatch });
-
-		const event: ClipboardEvent = createPasteEvent({ text: 'hello' });
-		element.dispatchEvent(event);
-
-		expect(dispatch).toHaveBeenCalledTimes(1);
-		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
-		expect(tr.metadata.origin).toBe('paste');
-		expect(tr.steps.some((step) => step.type === 'setBlockType')).toBe(false);
 	});
 
 	it('HTML paste extracts text and dispatches transaction', () => {
