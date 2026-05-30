@@ -5,12 +5,11 @@
  */
 
 import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
-import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
+import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { FONT_SIZE_LOCALE_EN, type FontSizeLocale, loadFontSizeLocale } from './FontSizeLocale.js';
 import {
@@ -98,44 +97,16 @@ export class FontSizePlugin implements Plugin {
 	// --- Schema ---
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'fontSize',
-			rank: 4,
-			attrs: {
-				size: { default: '' },
-			},
-			toDOM(mark) {
-				const span: HTMLElement = document.createElement('span');
-				const size: string = mark.attrs?.size ?? '';
-				if (size) {
-					setStyleProperty(span, 'fontSize', size);
-				}
-				return span;
-			},
-			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
-				const size: string = String(mark.attrs?.size ?? '');
-				if (!size || !isValidCSSFontSize(size)) return content;
-				const decl: string = `font-size: ${escapeHTML(size)}`;
-				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
-				return `<span${attr}>${content}</span>`;
-			},
-			toHTMLStyle: (mark) => {
-				const size: string = String(mark.attrs?.size ?? '');
-				if (!size || !isValidCSSFontSize(size)) return null;
-				return `font-size: ${escapeHTML(size)}`;
-			},
-			parseHTML: [
-				{
-					tag: 'span',
-					getAttrs: (el) => {
-						const size: string = el.style.fontSize;
-						if (!size) return false;
-						return { size };
-					},
-				},
-			],
-			sanitize: { tags: ['span'] },
-		});
+		context.registerMarkSpec(
+			createInlineStyleMarkSpec({
+				type: 'fontSize',
+				rank: 4,
+				valueAttr: 'size',
+				domStyleProperty: 'fontSize',
+				cssProperty: 'font-size',
+				validate: isValidCSSFontSize,
+			}),
+		);
 	}
 
 	// --- Commands ---

@@ -4,14 +4,12 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
-import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
+import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	HIGHLIGHT_LOCALE_EN,
@@ -131,42 +129,17 @@ export class HighlightPlugin implements Plugin {
 	}
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'highlight',
-			rank: 4,
-			attrs: {
-				color: { default: '' },
-			},
-			toDOM(mark) {
-				const span = document.createElement('span');
-				const color = mark.attrs?.color ?? '';
-				setStyleProperty(span, 'backgroundColor', color);
-				return span;
-			},
-			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
-				const color: string = String(mark.attrs?.color ?? '');
-				if (!color || !isValidCSSColor(color)) return content;
-				const decl: string = `background-color: ${escapeHTML(color)}`;
-				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
-				return `<span${attr}>${content}</span>`;
-			},
-			toHTMLStyle: (mark) => {
-				const color: string = String(mark.attrs?.color ?? '');
-				if (!color || !isValidCSSColor(color)) return null;
-				return `background-color: ${escapeHTML(color)}`;
-			},
-			parseHTML: [
-				{
-					tag: 'span',
-					getAttrs: (el) => {
-						const color: string = el.style.backgroundColor;
-						if (!color || !isValidCSSColor(color)) return false;
-						return { color };
-					},
-				},
-			],
-			sanitize: { tags: ['span'] },
-		});
+		context.registerMarkSpec(
+			createInlineStyleMarkSpec({
+				type: 'highlight',
+				rank: 4,
+				valueAttr: 'color',
+				domStyleProperty: 'backgroundColor',
+				cssProperty: 'background-color',
+				validate: isValidCSSColor,
+				validateOnParse: true,
+			}),
+		);
 	}
 
 	private registerCommands(context: PluginContext): void {
