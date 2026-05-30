@@ -174,18 +174,30 @@ function createServiceRegistrar(
 }
 
 function createMiddlewareRegistrar(
-	pluginId: string,
-	middlewares: MiddlewareEntry[],
-	pasteInterceptors: PasteInterceptorEntry[],
-	textInputInterceptors: TextInputInterceptorEntry[],
+	deps: Pick<
+		ContextFactoryDeps,
+		| 'pluginId'
+		| 'middlewares'
+		| 'pasteInterceptors'
+		| 'textInputInterceptors'
+		| 'invalidateMiddlewareSort'
+		| 'invalidatePasteSort'
+		| 'invalidateTextInputSort'
+	>,
 	reg: PluginRegistrations,
-	invalidateMiddlewareSort: () => void,
-	invalidatePasteSort: () => void,
-	invalidateTextInputSort: () => void,
 ): Pick<
 	PluginContext,
 	'registerMiddleware' | 'registerPasteInterceptor' | 'registerTextInputInterceptor'
 > {
+	const {
+		pluginId,
+		middlewares,
+		pasteInterceptors,
+		textInputInterceptors,
+		invalidateMiddlewareSort,
+		invalidatePasteSort,
+		invalidateTextInputSort,
+	} = deps;
 	return {
 		registerMiddleware: (middleware: TransactionMiddleware, options?: MiddlewareOptions) => {
 			const name: string = options?.name ?? (middleware.name || 'anonymous');
@@ -347,16 +359,7 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 
 		...createCommandRegistrar(deps.pluginId, deps.commands, reg, deps.executeCommand),
 		...createServiceRegistrar(deps.services, reg),
-		...createMiddlewareRegistrar(
-			deps.pluginId,
-			deps.middlewares,
-			deps.pasteInterceptors,
-			deps.textInputInterceptors,
-			reg,
-			deps.invalidateMiddlewareSort,
-			deps.invalidatePasteSort,
-			deps.invalidateTextInputSort,
-		),
+		...createMiddlewareRegistrar(deps, reg),
 		...createSchemaRegistrar(deps.schemaRegistry, reg),
 		...createExtensionRegistrar(deps.pluginId, deps, reg),
 		...createRegistryAccessors(deps),
