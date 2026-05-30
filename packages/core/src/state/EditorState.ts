@@ -177,9 +177,7 @@ function fallbackSelection(doc: Document, sel: EditorSelection): EditorSelection
 }
 
 /** Descends into the first child of each container block to find the first leaf block. */
-function findFirstLeafBlock(
-	children: readonly ChildNode[],
-): BlockNode | null {
+function findFirstLeafBlock(children: readonly ChildNode[]): BlockNode | null {
 	for (const child of children) {
 		if (!isBlockNode(child)) continue;
 		if (isLeafBlock(child)) return child;
