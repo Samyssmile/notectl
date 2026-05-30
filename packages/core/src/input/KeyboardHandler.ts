@@ -43,6 +43,14 @@ export interface KeyboardHandlerOptions {
 	navigateFromGapCursor?: GapCursorNavigateFn;
 }
 
+/** Maps arrow key names to navigation directions. */
+const ARROW_DIRECTIONS: Record<string, 'left' | 'right' | 'up' | 'down'> = {
+	ArrowLeft: 'left',
+	ArrowRight: 'right',
+	ArrowUp: 'up',
+	ArrowDown: 'down',
+};
+
 export class KeyboardHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
@@ -172,14 +180,8 @@ export class KeyboardHandler {
 			!e.ctrlKey &&
 			!e.altKey
 		) {
-			const direction =
-				key === 'ArrowLeft'
-					? 'left'
-					: key === 'ArrowRight'
-						? 'right'
-						: key === 'ArrowUp'
-							? 'up'
-							: 'down';
+			const direction = ARROW_DIRECTIONS[key];
+			if (!direction) return false;
 			const isRtl: boolean = this.isSelectedBlockRtl(sel.nodeId);
 			const tr = navigateArrowIntoVoid(state, direction, isRtl);
 			if (tr) {
@@ -316,14 +318,8 @@ export class KeyboardHandler {
 			return false;
 		}
 
-		const direction =
-			key === 'ArrowLeft'
-				? 'left'
-				: key === 'ArrowRight'
-					? 'right'
-					: key === 'ArrowUp'
-						? 'up'
-						: 'down';
+		const direction = ARROW_DIRECTIONS[key];
+		if (!direction) return false;
 		if (!this.navigateFromGapCursorFn) return false;
 		const tr: Transaction | null = this.navigateFromGapCursorFn(state, direction, this.element);
 		if (tr && !selectionsEqual(tr.selectionAfter, sel)) {

@@ -12,7 +12,11 @@ import type { BlockId } from '../model/TypeBrands.js';
 import { findWordBoundaryBackward, findWordBoundaryForward } from '../model/WordBoundary.js';
 import { moveToBlockEnd, moveToBlockStart } from '../state/BlockBoundaryMovement.js';
 import type { EditorState } from '../state/EditorState.js';
-import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
+import {
+	canCrossBlockBoundary,
+	isVoidBlock,
+	resolveAdjacentBlock,
+} from '../state/NavigationQueries.js';
 import { extendTx, moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
 import { navigateAcrossBlocks } from './CaretNavigation.js';
@@ -166,26 +170,16 @@ function fallbackExtend(
 		newOffset = direction === 'forward' ? getBlockLength(block) : 0;
 	} else {
 		// line: extend to next block boundary
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(head.blockId);
-		const targetIdx: number = direction === 'forward' ? idx + 1 : idx - 1;
+		const adj = resolveAdjacentBlock(state, head.blockId, direction === 'forward');
+		if (!adj) return null;
+		// Cannot extend a text selection into a void block
+		if (adj.isVoid) return null;
 
-		if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
-
-		const targetId: BlockId | undefined = blockOrder[targetIdx];
-		if (!targetId) return null;
-		if (!canCrossBlockBoundary(state, head.blockId, targetId)) return null;
-
-		if (isVoidBlock(state, targetId)) {
-			// Cannot extend a text selection into a void block
-			return null;
-		}
-
-		const targetBlock = state.getBlock(targetId);
+		const targetBlock = state.getBlock(adj.targetId);
 		if (!targetBlock) return null;
 
 		const targetOffset: number = direction === 'forward' ? 0 : getBlockLength(targetBlock);
-		return extendTx(state, sel.anchor.blockId, sel.anchor.offset, targetId, targetOffset);
+		return extendTx(state, sel.anchor.blockId, sel.anchor.offset, adj.targetId, targetOffset);
 	}
 
 	return extendTx(state, sel.anchor.blockId, sel.anchor.offset, head.blockId, newOffset);
@@ -222,23 +216,16 @@ function fallbackCrossBlock(
 	blockId: BlockId,
 	direction: Direction,
 ): Transaction | null {
-	const blockOrder: readonly BlockId[] = state.getBlockOrder();
-	const idx: number = blockOrder.indexOf(blockId);
-	const targetIdx: number = direction === 'forward' ? idx + 1 : idx - 1;
+	const adj = resolveAdjacentBlock(state, blockId, direction === 'forward');
+	if (!adj) return null;
 
-	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
+	if (adj.isVoid) return nodeSelTx(state, adj.targetId);
 
-	const targetId: BlockId | undefined = blockOrder[targetIdx];
-	if (!targetId) return null;
-	if (!canCrossBlockBoundary(state, blockId, targetId)) return null;
-
-	if (isVoidBlock(state, targetId)) return nodeSelTx(state, targetId);
-
-	const targetBlock = state.getBlock(targetId);
+	const targetBlock = state.getBlock(adj.targetId);
 	if (!targetBlock) return null;
 
 	const targetOffset: number = direction === 'forward' ? 0 : getBlockLength(targetBlock);
-	return moveTx(state, targetId, targetOffset);
+	return moveTx(state, adj.targetId, targetOffset);
 }
 
 // ---------------------------------------------------------------------------
