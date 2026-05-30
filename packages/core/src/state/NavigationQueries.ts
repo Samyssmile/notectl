@@ -59,6 +59,36 @@ export function isIsolatingBlock(state: EditorState, blockId: BlockId): boolean 
 	return getNodeSpec(block.type)?.isolating === true;
 }
 
+/** The block reached by crossing one block boundary, plus whether it is void. */
+export interface AdjacentBlock {
+	readonly targetId: BlockId;
+	readonly isVoid: boolean;
+}
+
+/**
+ * Resolves the block immediately before/after `fromBlockId` in document order
+ * when the boundary may be crossed. Returns `null` at a document boundary or
+ * when an isolating boundary blocks the crossing.
+ */
+export function resolveAdjacentBlock(
+	state: EditorState,
+	fromBlockId: BlockId,
+	forward: boolean,
+): AdjacentBlock | null {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const idx: number = blockOrder.indexOf(fromBlockId);
+	if (idx < 0) return null;
+
+	const targetIdx: number = forward ? idx + 1 : idx - 1;
+	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
+
+	const targetId: BlockId | undefined = blockOrder[targetIdx];
+	if (!targetId) return null;
+	if (!canCrossBlockBoundary(state, fromBlockId, targetId)) return null;
+
+	return { targetId, isVoid: isVoidBlock(state, targetId) };
+}
+
 /**
  * Checks whether navigation between two blocks is allowed.
  * Prevents crossing isolating boundaries (e.g. table cells).
