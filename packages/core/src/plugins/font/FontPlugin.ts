@@ -11,13 +11,12 @@ import {
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
 import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
-import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
+import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
 import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import { FONT_LOCALE_EN, type FontLocale, loadFontLocale } from './FontLocale.js';
@@ -119,47 +118,19 @@ export class FontPlugin implements Plugin {
 	// --- Schema ---
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'font',
-			rank: 6,
-			attrs: {
-				family: { default: '' },
-			},
-			toDOM(mark) {
-				const span: HTMLElement = document.createElement('span');
-				const family: string = mark.attrs?.family ?? '';
-				if (family) {
-					setStyleProperty(span, 'fontFamily', family);
-				}
-				return span;
-			},
-			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
-				const family: string = String(mark.attrs?.family ?? '');
-				if (!family || !isValidCSSFontFamily(family)) return content;
-				const decl: string = `font-family: ${escapeHTML(family)}`;
-				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
-				return `<span${attr}>${content}</span>`;
-			},
-			toHTMLStyle: (mark) => {
-				const family: string = String(mark.attrs?.family ?? '');
-				if (!family || !isValidCSSFontFamily(family)) return null;
-				return `font-family: ${escapeHTML(family)}`;
-			},
-			parseHTML: [
-				{
-					tag: 'span',
-					getAttrs: (el) => {
-						const family: string = el.style.fontFamily;
-						if (!family) return false;
-						// Browsers normalize CSS quotes to double-quotes;
-						// our internal convention uses single-quotes.
-						const normalized: string = family.replace(/"/g, "'");
-						return { family: normalized };
-					},
-				},
-			],
-			sanitize: { tags: ['span'] },
-		});
+		context.registerMarkSpec(
+			createInlineStyleMarkSpec({
+				type: 'font',
+				rank: 6,
+				valueAttr: 'family',
+				domStyleProperty: 'fontFamily',
+				cssProperty: 'font-family',
+				validate: isValidCSSFontFamily,
+				// Browsers normalize CSS quotes to double-quotes; our internal
+				// convention uses single-quotes.
+				transformParsed: (family) => family.replace(/"/g, "'"),
+			}),
+		);
 	}
 
 	// --- Commands ---
