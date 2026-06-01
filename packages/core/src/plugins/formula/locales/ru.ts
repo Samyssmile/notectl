@@ -1,0 +1,35 @@
+import type { FormulaLocale } from '../FormulaLocale.js';
+
+const locale: FormulaLocale = {
+	insertInline: 'Вставить формулу',
+	insertInlineTooltip: 'Вставить встроенную формулу',
+	insertDisplay: 'Вставить блочную формулу',
+	insertDisplayTooltip: 'Вставить блочную формулу',
+	editFormula: 'Редактировать формулу',
+	latexLabel: 'LaTeX',
+	latexPlaceholder: 'напр. \\frac{a}{b} + \\sqrt{x}',
+	previewLabel: 'Предпросмотр',
+	insertButton: 'Вставить',
+	updateButton: 'Обновить',
+	cancelButton: 'Отмена',
+	displayToggle: 'Блочная (выключная) формула',
+	altLabel: 'Описание',
+	altPlaceholder: 'Устное описание (необязательно)',
+	paletteLabel: 'Символы и структуры',
+	emptyPreview: 'Пока нечего показать.',
+	inserted: 'Формула вставлена.',
+	updated: 'Формула обновлена.',
+	editing: 'Редактирование формулы.',
+	selected: 'Формула выбрана. Нажмите Enter для редактирования.',
+	unknownCommand: (command: string) => `Неизвестная команда LaTeX: ${command}`,
+	groupFractions: 'Дроби',
+	groupScripts: 'Индексы и степени',
+	groupRoots: 'Корни',
+	groupOperators: 'Операторы',
+	groupGreek: 'Греческие буквы',
+	groupRelations: 'Отношения',
+	groupMatrices: 'Матрицы',
+	groupArrows: 'Стрелки',
+};
+
+export default locale;

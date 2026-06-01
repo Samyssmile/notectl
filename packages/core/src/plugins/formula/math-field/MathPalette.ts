@@ -39,6 +39,11 @@ export class MathPalette {
 		this.buttons[this.activeIndex]?.focus();
 	}
 
+	/** The palette's currently roving-active button (the single tabbable one). */
+	activeButton(): HTMLButtonElement | undefined {
+		return this.buttons[this.activeIndex];
+	}
+
 	private buildGroup(group: MathPaletteGroup, onInsert: (snippet: string) => void): HTMLElement {
 		const wrapper: HTMLDivElement = document.createElement('div');
 		wrapper.className = 'notectl-math-palette__group';

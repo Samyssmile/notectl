@@ -26,6 +26,9 @@ export class MathField {
 	private readonly errorsList: HTMLElement;
 	private readonly altInput: HTMLInputElement;
 	private readonly commitBtn: HTMLButtonElement;
+	private palette: MathPalette | null = null;
+	private displayCheckbox: HTMLInputElement | null = null;
+	private cancelBtn: HTMLButtonElement | null = null;
 	private display: boolean;
 	private lastErrorKey = '';
 
@@ -40,10 +43,10 @@ export class MathField {
 		this.root.setAttribute('aria-label', options.locale.latexLabel);
 
 		if (options.palette && options.palette.length > 0) {
-			const palette = new MathPalette(options.palette, options.locale.paletteLabel, (s) =>
+			this.palette = new MathPalette(options.palette, options.locale.paletteLabel, (s) =>
 				this.insertSnippet(s),
 			);
-			this.root.appendChild(palette.root);
+			this.root.appendChild(this.palette.root);
 		}
 
 		this.textarea = this.buildLatexField(uid);
@@ -64,6 +67,8 @@ export class MathField {
 		this.errorsList.setAttribute('aria-live', 'polite');
 		this.textarea.setAttribute('aria-describedby', this.errorsList.id);
 
+		this.root.addEventListener('keydown', (e: KeyboardEvent) => this.onRootKeydown(e));
+
 		this.update();
 	}
 
@@ -71,6 +76,58 @@ export class MathField {
 	focus(): void {
 		this.textarea.focus();
 		this.textarea.setSelectionRange(this.textarea.value.length, this.textarea.value.length);
+	}
+
+	private onRootKeydown(e: KeyboardEvent): void {
+		// Escape closes from any field, not just the LaTeX textarea. Stopping
+		// propagation keeps it from bubbling out to exit the editor.
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			this.options.onCancel();
+			return;
+		}
+		if (e.key !== 'Tab') return;
+		// The field is a dialog with several focusable sections (palette, LaTeX,
+		// description, display toggle, actions). Tab/Shift+Tab cycle between them
+		// instead of leaving the field, and stopping propagation prevents a host
+		// toolbar popup from dismissing itself on Tab.
+		e.preventDefault();
+		e.stopPropagation();
+		this.moveFocus(!e.shiftKey);
+	}
+
+	/** Ordered keyboard stops: palette (one roving button), LaTeX, description, toggle, actions. */
+	private focusStops(): HTMLElement[] {
+		const stops: HTMLElement[] = [];
+		const paletteButton: HTMLButtonElement | undefined = this.palette?.activeButton();
+		if (paletteButton) stops.push(paletteButton);
+		stops.push(this.textarea, this.altInput);
+		if (this.displayCheckbox) stops.push(this.displayCheckbox);
+		if (this.cancelBtn) stops.push(this.cancelBtn);
+		stops.push(this.commitBtn);
+		return stops;
+	}
+
+	private moveFocus(forward: boolean): void {
+		const stops: HTMLElement[] = this.focusStops();
+		if (stops.length === 0) return;
+		const active: Element | null = this.activeElement();
+		let index: number = stops.findIndex((stop) => stop === active);
+		if (index === -1 && active && this.palette?.root.contains(active)) {
+			index = 0; // focus sits on some palette button → the palette stop
+		}
+		if (index === -1) index = forward ? stops.length - 1 : 0;
+		const next: number = (index + (forward ? 1 : -1) + stops.length) % stops.length;
+		stops[next]?.focus();
+	}
+
+	/** The focused element within this field's root, piercing shadow boundaries. */
+	private activeElement(): Element | null {
+		const root = this.root.getRootNode() as Document | ShadowRoot;
+		let el: Element | null = root.activeElement;
+		while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+		return el;
 	}
 
 	/** Builds the committed result (canonical MathML + LaTeX + alt + display). */
@@ -170,6 +227,7 @@ export class MathField {
 			this.display = checkbox.checked;
 			this.update();
 		});
+		this.displayCheckbox = checkbox;
 		const text: HTMLSpanElement = document.createElement('span');
 		text.textContent = this.options.locale.displayToggle;
 		wrapper.appendChild(checkbox);
@@ -189,6 +247,7 @@ export class MathField {
 			e.stopPropagation();
 		});
 		cancel.addEventListener('click', () => this.options.onCancel());
+		this.cancelBtn = cancel;
 		this.commitBtn.type = 'button';
 		this.commitBtn.className = 'notectl-formula-editor__btn notectl-formula-editor__btn--primary';
 		this.commitBtn.textContent =
@@ -206,12 +265,11 @@ export class MathField {
 	}
 
 	private onTextareaKeydown(e: KeyboardEvent): void {
+		// Escape is handled at the field root (see onRootKeydown) so it works from
+		// every field; here we only intercept Enter to commit.
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			this.commit();
-		} else if (e.key === 'Escape') {
-			e.preventDefault();
-			this.options.onCancel();
 		}
 	}
 

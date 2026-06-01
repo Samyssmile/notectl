@@ -7,7 +7,12 @@
 import type { BlockNode } from '../../model/Document.js';
 import type { NodeSpec } from '../../model/NodeSpec.js';
 import { createBlockElement } from '../../view/DomUtils.js';
-import { mathMarkup, readFormulaAttrs, renderFormulaInto } from './FormulaRendering.js';
+import {
+	mathMarkup,
+	readFormulaAttrs,
+	renderFormulaInto,
+	setFormulaFontSize,
+} from './FormulaRendering.js';
 import { DISPLAY_MATH_TYPE } from './FormulaTypes.js';
 import { extractTexAnnotation } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
@@ -23,6 +28,7 @@ export function createDisplayMathNodeSpec(): NodeSpec<typeof DISPLAY_MATH_TYPE> 
 			mathml: { default: '' },
 			latex: { default: '' },
 			alt: { default: '' },
+			fontSize: { default: '' },
 		},
 		toDOM(node): HTMLElement {
 			const host: HTMLElement = createBlockElement('div', node.id);
@@ -30,6 +36,7 @@ export function createDisplayMathNodeSpec(): NodeSpec<typeof DISPLAY_MATH_TYPE> 
 			host.setAttribute('data-void', 'true');
 			host.setAttribute('data-selectable', 'true');
 			renderFormulaInto(host, readFormulaAttrs(node.attrs));
+			setFormulaFontSize(host, node.attrs);
 			return host;
 		},
 		toHTML(node: BlockNode): string {

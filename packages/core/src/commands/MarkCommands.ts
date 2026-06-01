@@ -112,6 +112,9 @@ export function isMarkActive(state: EditorState, markType: MarkTypeName): boolea
 	return isMarkActiveInRange(state, markType);
 }
 
+/** Per-slice result of scanning a block for a mark. */
+type SliceMarkStatus = 'present' | 'missing' | 'empty';
+
 /** Checks if a mark is active across the entire selection range. */
 function isMarkActiveInRange(state: EditorState, markType: MarkTypeName): boolean {
 	const sel = state.selection;
@@ -122,6 +125,7 @@ function isMarkActiveInRange(state: EditorState, markType: MarkTypeName): boolea
 	const fromIdx = blockOrder.indexOf(range.from.blockId);
 	const toIdx = blockOrder.indexOf(range.to.blockId);
 
+	let sawMarkedText = false;
 	for (let i = fromIdx; i <= toIdx; i++) {
 		const blockId = blockOrder[i];
 		if (!blockId) continue;
@@ -131,36 +135,50 @@ function isMarkActiveInRange(state: EditorState, markType: MarkTypeName): boolea
 		const from = i === fromIdx ? range.from.offset : 0;
 		const to = i === toIdx ? range.to.offset : blockLen;
 
-		if (!isMarkActiveInBlock(block, from, to, markType)) return false;
+		const status = markStatusInBlock(block, from, to, markType);
+		if (status === 'missing') return false;
+		if (status === 'present') sawMarkedText = true;
 	}
 
-	return true;
+	// Active only when the range actually contains text that carries the mark.
+	// A range with no markable text (only empty blocks, or a void block such as a
+	// lone display formula on Ctrl+A) is NOT active — returning true there would
+	// light up every toolbar format button.
+	return sawMarkedText;
 }
 
-function isMarkActiveInBlock(
+/**
+ * Scans a block's `[from, to)` slice for `markType`. Returns:
+ * - `missing` when some text character in the slice lacks the mark,
+ * - `present` when the slice has text and all of it carries the mark,
+ * - `empty` when the slice has no markable text (empty slice or only InlineNodes).
+ *
+ * An `empty` slice is neutral: it neither activates nor inverts the range check,
+ * so an empty paragraph in the middle of a multi-block selection does not flip
+ * the result (regression #130).
+ */
+function markStatusInBlock(
 	block: BlockNode,
 	from: number,
 	to: number,
 	markType: MarkTypeName,
-): boolean {
-	// Empty slice (e.g. an empty paragraph inside a multi-block range): vacuously
-	// satisfies "all characters in this slice carry the mark". Returning false
-	// would let an empty middle block invert the multi-block active check.
-	if (from === to) return true;
+): SliceMarkStatus {
 	let pos = 0;
+	let sawText = false;
 	for (const child of getInlineChildren(block)) {
 		if (isTextNode(child)) {
 			const childEnd = pos + child.text.length;
 			if (childEnd > from && pos < to) {
-				if (!hasMark(child.marks, markType)) return false;
+				sawText = true;
+				if (!hasMark(child.marks, markType)) return 'missing';
 			}
 			pos = childEnd;
 		} else {
-			// InlineNode: skip (width 1, no marks)
+			// InlineNode: atomic, width 1, carries no marks.
 			pos += 1;
 		}
 	}
-	return true;
+	return sawText ? 'present' : 'empty';
 }
 
 function isFeatureGated(type: MarkTypeName, features: FeatureConfig): boolean {

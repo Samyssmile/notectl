@@ -52,6 +52,10 @@ notectl solves this with a bundled font, `NOTECTL_MATH_FONT`, a subset of Noto S
 
 Edits commit as a single transaction, so undo and redo work out of the box.
 
+## Sizing formulas
+
+Formulas honour the editor's **Font Size** control. Select a display formula (it shows a selection ring) or an inline formula, then pick a size from the Font Size dropdown to scale the whole expression. MathML inherits the font size, so fractions, roots, and matrices enlarge proportionally. The size is stored as a node attribute, so it survives undo and redo and is preserved when you later edit the formula's LaTeX. Any node that declares a `fontSize` attribute participates in this mechanism, so the integration is generic rather than formula-specific.
+
 ## Authoring methods
 
 ### LaTeX field
@@ -82,6 +86,7 @@ Because MathML is the shared language of serious math producers, paste interop c
 - The stored MathML is the screen-reader surface. No extra configuration is needed.
 - Each formula carries a readable fallback label via the native `alttext` attribute for assistive technology that does not process MathML.
 - The editor field, palette, and overlay are fully keyboard operable, with ARIA roles and labels, visible focus, and live announcements.
+- The insert and edit popup contains keyboard focus: it opens on the LaTeX field, and Tab and Shift+Tab cycle through the palette, LaTeX field, description, display toggle, and action buttons without leaving the popup. Escape closes it.
 - Display formulas are selectable by keyboard through the gap cursor.
 
 ## Supported LaTeX
@@ -115,6 +120,10 @@ interface FormulaPluginConfig {
   readonly mathFont?: FontDefinition;
 }
 ```
+
+### Internationalization
+
+Every user-facing string (toolbar label and tooltip, the editor popup, palette group names, and live-region announcements) is translatable. The plugin ships translations for Arabic, German, English, Spanish, French, Hindi, Portuguese, Russian, and Chinese, chosen automatically from the editor's language. Pass a custom `locale` to override individual strings.
 
 ## Architecture note
 

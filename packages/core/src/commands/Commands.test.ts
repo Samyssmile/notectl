@@ -492,6 +492,49 @@ describe('Commands', () => {
 
 			expect(isMarkActive(state, 'bold')).toBe(true);
 		});
+
+		// A range that contains no markable text (only empty blocks) must not report
+		// any mark as active — otherwise every toolbar format button lights up.
+		it('returns false when a multi-block range contains only empty blocks', () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.paragraph('', 'b2')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b2', offset: 0 })
+				.build();
+
+			expect(isMarkActive(state, 'bold')).toBe(false);
+			expect(isMarkActive(state, 'italic')).toBe(false);
+		});
+
+		// Regression for the formula Ctrl+A bug: selecting all when the document is
+		// just empty paragraphs around a void formula must not activate every mark.
+		it('returns false across empty paragraphs surrounding a void block (Ctrl+A on a formula)', () => {
+			const state = stateBuilder()
+				.paragraph('', 'b1')
+				.voidBlock('math_display', 'm1')
+				.paragraph('', 'b2')
+				.schema(['paragraph', 'math_display'], ['bold', 'italic'])
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b2', offset: 0 })
+				.build();
+
+			expect(isMarkActive(state, 'bold')).toBe(false);
+			expect(isMarkActive(state, 'italic')).toBe(false);
+		});
+
+		// A range covering only an atomic inline node (no text) carries no marks.
+		it('returns false for a range covering only an inline node (inline formula)', () => {
+			const state = stateBuilder()
+				.blockWithInlines(
+					'paragraph',
+					[createInlineNode(inlineType('math_inline'), { mathml: '<math></math>' })],
+					'b1',
+				)
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 1 })
+				.schema(['paragraph'], ['bold'])
+				.build();
+
+			expect(isMarkActive(state, 'bold')).toBe(false);
+		});
 	});
 
 	describe('deleteSelectionCommand', () => {
