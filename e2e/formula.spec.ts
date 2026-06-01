@@ -164,6 +164,58 @@ test.describe('Formula plugin', () => {
 		expect((await mathInfo(page)).inline).toBe(0);
 	});
 
+	test('the formula popup keeps keyboard focus inside the dialog and starts on the LaTeX field', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		const input = page.locator('.notectl-formula-editor__input');
+		await input.waitFor({ state: 'visible' });
+		await page.waitForTimeout(250); // let the popup's auto-focus settle
+
+		const active = (): Promise<string> =>
+			page.evaluate(() => {
+				const ed = document.querySelector('notectl-editor');
+				let el = ed?.shadowRoot?.activeElement as Element | null;
+				while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+				return el ? `${el.tagName}.${(el.className || '').toString().split(' ')[0]}` : 'null';
+			});
+		const focusInContent = (): Promise<boolean> =>
+			page.evaluate(() => {
+				const ed = document.querySelector('notectl-editor');
+				let el = ed?.shadowRoot?.activeElement as Element | null;
+				while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+				return !!el?.closest('.notectl-content');
+			});
+
+		// Initial focus is the LaTeX authoring field, not the description input.
+		expect(await active()).toBe('TEXTAREA.notectl-formula-editor__input');
+
+		// Tab moves to the next field within the dialog; the popup stays open.
+		await page.keyboard.press('Tab');
+		expect(await active()).toBe('INPUT.notectl-formula-editor__alt');
+		await expect(input).toBeVisible();
+
+		// Tab continues to the display-equation checkbox (still inside the dialog).
+		await page.keyboard.press('Tab');
+		const onCheckbox = await page.evaluate(() => {
+			const ed = document.querySelector('notectl-editor');
+			let el = ed?.shadowRoot?.activeElement as Element | null;
+			while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+			return (el as HTMLInputElement | null)?.type === 'checkbox';
+		});
+		expect(onCheckbox).toBe(true);
+		await expect(input).toBeVisible();
+
+		// Focus never escaped into the editor content.
+		expect(await focusInContent()).toBe(false);
+
+		// Escape closes the popup from any field (focus is on the checkbox here).
+		await page.keyboard.press('Escape');
+		await expect(input).toBeHidden();
+	});
+
 	test('the editor is keyboard accessible: labelled field and roving-tabindex palette', async ({
 		editor,
 		page,

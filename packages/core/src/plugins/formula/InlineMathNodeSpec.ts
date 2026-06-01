@@ -6,7 +6,12 @@
 
 import type { InlineNode } from '../../model/Document.js';
 import type { InlineNodeSpec } from '../../model/InlineNodeSpec.js';
-import { mathMarkup, readFormulaAttrs, renderFormulaInto } from './FormulaRendering.js';
+import {
+	mathMarkup,
+	readFormulaAttrs,
+	renderFormulaInto,
+	setFormulaFontSize,
+} from './FormulaRendering.js';
 import { INLINE_MATH_TYPE } from './FormulaTypes.js';
 import { extractTexAnnotation } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
@@ -19,6 +24,7 @@ export function createInlineMathNodeSpec(): InlineNodeSpec<typeof INLINE_MATH_TY
 			mathml: { default: '' },
 			latex: { default: '' },
 			alt: { default: '' },
+			fontSize: { default: '' },
 		},
 		toDOM(node: InlineNode): HTMLElement {
 			const span: HTMLSpanElement = document.createElement('span');
@@ -26,6 +32,7 @@ export function createInlineMathNodeSpec(): InlineNodeSpec<typeof INLINE_MATH_TY
 			span.setAttribute('contenteditable', 'false');
 			span.setAttribute('data-inline-type', INLINE_MATH_TYPE);
 			renderFormulaInto(span, readFormulaAttrs(node.attrs));
+			setFormulaFontSize(span, node.attrs);
 			return span;
 		},
 		toHTMLString(node: InlineNode): string {

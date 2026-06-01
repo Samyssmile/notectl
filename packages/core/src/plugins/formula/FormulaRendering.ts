@@ -34,6 +34,19 @@ export function renderFormulaInto(host: HTMLElement, attrs: FormulaAttrs): void 
 	host.textContent = attrs.latex || attrs.alt || '⊡';
 }
 
+/**
+ * Applies the node's optional `fontSize` attribute to the host as a CSS
+ * `font-size`. MathML scales with the inherited font size, so this resizes the
+ * whole formula. An empty/missing value clears any previously set size.
+ */
+export function setFormulaFontSize(
+	host: HTMLElement,
+	attrs: Readonly<Record<string, unknown>> | undefined,
+): void {
+	const fontSize: string = typeof attrs?.fontSize === 'string' ? attrs.fontSize : '';
+	host.style.fontSize = fontSize;
+}
+
 /** Reads formula attributes from a model node's raw attrs, with safe defaults. */
 export function readFormulaAttrs(
 	attrs: Readonly<Record<string, unknown>> | undefined,

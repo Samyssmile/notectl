@@ -237,7 +237,10 @@ export class PopupManager implements PopupServiceAPI {
 				popup.querySelector('[role="menuitem"]') ??
 				popup.querySelector('[role="option"]') ??
 				popup.querySelector('[role="gridcell"]') ??
-				popup.querySelector('input') ??
+				// `input, textarea` returns whichever comes first in the DOM, so a
+				// popup whose primary field is a textarea (e.g. the formula editor's
+				// LaTeX field) focuses that rather than a later text input.
+				popup.querySelector('input, textarea') ??
 				popup.querySelector('button');
 			firstFocusable?.focus();
 		});

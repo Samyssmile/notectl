@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Mark } from '../model/Document.js';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createInlineNode,
+	createTextNode,
+} from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { blockId, markType, nodeType } from '../model/TypeBrands.js';
+import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import {
 	getEditorContentHTML,
@@ -208,6 +213,17 @@ describe('isEditorEmpty', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('')], blockId('b1')),
 			createBlockNode(nodeType('paragraph'), [createTextNode('')], blockId('b2')),
+		]);
+		expect(isEditorEmpty(doc)).toBe(false);
+	});
+
+	it('returns false for a paragraph holding only an inline node (e.g. inline formula)', () => {
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createInlineNode(inlineType('math_inline'), { mathml: '<math></math>' })],
+				blockId('b1'),
+			),
 		]);
 		expect(isEditorEmpty(doc)).toBe(false);
 	});

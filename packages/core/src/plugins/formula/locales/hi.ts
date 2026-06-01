@@ -1,0 +1,35 @@
+import type { FormulaLocale } from '../FormulaLocale.js';
+
+const locale: FormulaLocale = {
+	insertInline: 'सूत्र डालें',
+	insertInlineTooltip: 'इनलाइन सूत्र डालें',
+	insertDisplay: 'ब्लॉक सूत्र डालें',
+	insertDisplayTooltip: 'ब्लॉक सूत्र डालें',
+	editFormula: 'सूत्र संपादित करें',
+	latexLabel: 'LaTeX',
+	latexPlaceholder: 'उदा. \\frac{a}{b} + \\sqrt{x}',
+	previewLabel: 'पूर्वावलोकन',
+	insertButton: 'डालें',
+	updateButton: 'अपडेट करें',
+	cancelButton: 'रद्द करें',
+	displayToggle: 'ब्लॉक (डिस्प्ले) समीकरण',
+	altLabel: 'विवरण',
+	altPlaceholder: 'बोला गया विवरण (वैकल्पिक)',
+	paletteLabel: 'प्रतीक और संरचनाएं',
+	emptyPreview: 'अभी पूर्वावलोकन के लिए कुछ नहीं है।',
+	inserted: 'सूत्र डाला गया।',
+	updated: 'सूत्र अपडेट किया गया।',
+	editing: 'सूत्र संपादित किया जा रहा है।',
+	selected: 'सूत्र चयनित। संपादित करने के लिए Enter दबाएं।',
+	unknownCommand: (command: string) => `अज्ञात LaTeX कमांड: ${command}`,
+	groupFractions: 'भिन्न',
+	groupScripts: 'घातांक और निम्नांक',
+	groupRoots: 'मूल',
+	groupOperators: 'संकारक',
+	groupGreek: 'ग्रीक अक्षर',
+	groupRelations: 'संबंध',
+	groupMatrices: 'आव्यूह',
+	groupArrows: 'तीर',
+};
+
+export default locale;
