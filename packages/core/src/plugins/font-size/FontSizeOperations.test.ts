@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createInlineNode } from '../../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createInlineNode,
+	createTextNode,
+	getInlineChildren,
+	isInlineNode,
+} from '../../model/Document.js';
 import type { InlineNodeSpec } from '../../model/InlineNodeSpec.js';
 import type { NodeSpec } from '../../model/NodeSpec.js';
 import type { Schema } from '../../model/Schema.js';
@@ -476,6 +483,122 @@ describe('node-aware font size does not leak to nodes that do not opt in', () =>
 		const ctx = mockPluginContext({ getState: () => state, dispatch: vi.fn() });
 		expect(applyFontSize(ctx, state, '48px')).toBe(false);
 		expect(getActiveSize(state)).toBeNull();
+	});
+});
+
+// --- Range font sizing across mixed content (the Ctrl+A case) ---
+
+function docWithDisplayFormula(fontSize: string): EditorState {
+	const p0 = createBlockNode(nodeType('paragraph'), [createTextNode('')], blockId('p0'));
+	const math = createBlockNode(nodeType('math_display'), [], blockId('m1'), {
+		mathml: '<math></math>',
+		fontSize,
+	});
+	const p1 = createBlockNode(nodeType('paragraph'), [createTextNode('')], blockId('p1'));
+	return EditorState.create({
+		doc: createDocument([p0, math, p1]),
+		// What select-all produces over [para, void formula, para].
+		selection: createSelection(
+			{ blockId: blockId('p0'), offset: 0 },
+			{ blockId: blockId('p1'), offset: 0 },
+		),
+		schema: FORMULA_SCHEMA,
+	});
+}
+
+describe('range font size spanning a void formula (select-all / Ctrl+A)', () => {
+	it('applyFontSize sets the void formula node fontSize attr', () => {
+		const state = docWithDisplayFormula('');
+		const dispatch = vi.fn();
+		const ctx = mockPluginContext({ getState: () => state, dispatch });
+
+		expect(applyFontSize(ctx, state, '48px')).toBe(true);
+		const tr = dispatch.mock.calls[0]?.[0];
+		const step = tr.steps.find((s: { type: string }) => s.type === 'setNodeAttr');
+		expect(step).toBeDefined();
+		expect(step.attrs.fontSize).toBe('48px');
+		expect(step.attrs.mathml).toBe('<math></math>');
+	});
+
+	it('getActiveSize reports the formula size across the range', () => {
+		expect(getActiveSize(docWithDisplayFormula('48px'))).toBe('48px');
+	});
+
+	it('isFontSizeActive is true when the spanned formula is sized', () => {
+		expect(isFontSizeActive(docWithDisplayFormula('48px'))).toBe(true);
+		expect(isFontSizeActive(docWithDisplayFormula(''))).toBe(false);
+	});
+
+	it('removeFontSize clears the formula size across the range', () => {
+		const state = docWithDisplayFormula('48px');
+		const dispatch = vi.fn();
+		const ctx = mockPluginContext({ getState: () => state, dispatch });
+
+		expect(removeFontSize(ctx, state)).toBe(true);
+		const tr = dispatch.mock.calls[0]?.[0];
+		const step = tr.steps.find((s: { type: string }) => s.type === 'setNodeAttr');
+		expect(step.attrs.fontSize).toBe('');
+	});
+});
+
+describe('range font size over text plus an inline formula (one transaction)', () => {
+	it('applies the mark to text AND the node attr to the inline formula, and applies cleanly', () => {
+		const inline = createInlineNode(inlineType('math_inline'), {
+			mathml: '<math></math>',
+			fontSize: '',
+		});
+		const block = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('a'), inline, createTextNode('b')],
+			blockId('b1'),
+		);
+		const state = EditorState.create({
+			doc: createDocument([block]),
+			selection: createSelection(
+				{ blockId: blockId('b1'), offset: 0 },
+				{ blockId: blockId('b1'), offset: 3 },
+			),
+			schema: FORMULA_SCHEMA,
+		});
+		const dispatch = vi.fn();
+		const ctx = mockPluginContext({ getState: () => state, dispatch });
+
+		expect(applyFontSize(ctx, state, '24px')).toBe(true);
+		const tr = dispatch.mock.calls[0]?.[0];
+		const addMark = tr.steps.find((s: { type: string }) => s.type === 'addMark');
+		const inlineAttr = tr.steps.find((s: { type: string }) => s.type === 'setInlineNodeAttr');
+		expect(addMark, 'text gets the fontSize mark').toBeDefined();
+		expect(addMark.mark.attrs.size).toBe('24px');
+		expect(inlineAttr, 'inline formula gets the node attr').toBeDefined();
+		expect(inlineAttr.attrs.fontSize).toBe('24px');
+
+		// Offset stability: the combined transaction must apply without throwing and
+		// the inline node must end up sized.
+		const next = state.apply(tr);
+		const nextBlock = next.getBlock(blockId('b1'));
+		const inlineNode = getInlineChildren(nextBlock ?? block).find((c) => isInlineNode(c));
+		expect(inlineNode && isInlineNode(inlineNode) ? inlineNode.attrs.fontSize : null).toBe('24px');
+	});
+});
+
+describe('range font size leaves text-only sizing unchanged (additive)', () => {
+	it('a text-only range applies only a mark, no node steps', () => {
+		const state = stateBuilder()
+			.paragraph('hello', 'b1')
+			.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+			.schema(['paragraph'], ['fontSize'])
+			.build();
+		const dispatch = vi.fn();
+		const ctx = mockPluginContext({ getState: () => state, dispatch });
+
+		applyFontSize(ctx, state, '24px');
+		const tr = dispatch.mock.calls[0]?.[0];
+		expect(tr.steps.some((s: { type: string }) => s.type === 'addMark')).toBe(true);
+		expect(
+			tr.steps.some(
+				(s: { type: string }) => s.type === 'setNodeAttr' || s.type === 'setInlineNodeAttr',
+			),
+		).toBe(false);
 	});
 });
 

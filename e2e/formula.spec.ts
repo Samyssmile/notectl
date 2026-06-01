@@ -164,6 +164,46 @@ test.describe('Formula plugin', () => {
 		expect((await mathInfo(page)).inline).toBe(0);
 	});
 
+	test('selecting a formula (incl. via Ctrl+A) and picking a Font Size resizes it', async ({
+		editor,
+		page,
+	}) => {
+		const displayFontSize = (): Promise<string> =>
+			page.evaluate(() => {
+				const host = document
+					.querySelector('notectl-editor')
+					?.shadowRoot?.querySelector('.notectl-math--display') as HTMLElement | null;
+				return host ? getComputedStyle(host).fontSize : 'none';
+			});
+
+		// Insert a display formula via the toolbar popup (display toggle).
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		const input = page.locator('.notectl-formula-editor__input');
+		await input.waitFor({ state: 'visible' });
+		await page.locator('.notectl-formula-editor__toggle input[type="checkbox"]').check();
+		await input.fill('\\frac{2}{3}');
+		await page.locator('.notectl-formula-editor__btn--primary').click();
+		await page.waitForTimeout(150);
+		expect(await displayFontSize()).toBe('16px');
+
+		// The user's gesture: focus the editor, Ctrl+A, then pick a size.
+		await editor.content.click();
+		await page.keyboard.press('Control+a');
+		await page.waitForTimeout(50);
+
+		await editor.root.locator('[data-toolbar-item="fontSize"]').click();
+		await page.waitForTimeout(100);
+		await editor.root
+			.locator('button[role="option"]')
+			.filter({ hasText: /^48$/ })
+			.first()
+			.click({ force: true });
+		await page.waitForTimeout(100);
+
+		expect(await displayFontSize()).toBe('48px');
+	});
+
 	test('the formula popup keeps keyboard focus inside the dialog and starts on the LaTeX field', async ({
 		editor,
 		page,

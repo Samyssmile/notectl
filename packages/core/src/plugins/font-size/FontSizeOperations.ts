@@ -12,10 +12,21 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import type { InlineNode } from '../../model/Document.js';
-import { getInlineChildren, isInlineNode, walkInlineContent } from '../../model/Document.js';
-import { isCollapsed, isNodeSelection, isTextSelection } from '../../model/Selection.js';
-import { type BlockId, markType } from '../../model/TypeBrands.js';
+import type { BlockNode, InlineNode, Mark } from '../../model/Document.js';
+import {
+	getBlockLength,
+	getInlineChildren,
+	isInlineNode,
+	isTextNode,
+	walkInlineContent,
+} from '../../model/Document.js';
+import {
+	isCollapsed,
+	isNodeSelection,
+	isTextSelection,
+	selectionRange,
+} from '../../model/Selection.js';
+import { type BlockId, type MarkTypeName, markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { dispatchIfPresent } from '../shared/PluginHelpers.js';
@@ -92,28 +103,186 @@ function singleSelectedInlineNode(
 	return null;
 }
 
-/** The node's current fontSize value, or null when unset. */
-function nodeFontSizeValue(target: NodeFontSizeTarget): string | null {
-	const fontSize = target.attrs.fontSize;
+/** Reads a fontSize attr value from raw attrs, or null when unset. */
+function readFontSize(attrs: NodeAttrs | undefined): string | null {
+	const fontSize = attrs?.fontSize;
 	return typeof fontSize === 'string' && fontSize.length > 0 ? fontSize : null;
 }
 
-/** Writes `size` (or '' to clear) onto the target node's fontSize attr, preserving the rest. */
+/** Merges a fontSize value ('' clears it) into existing attrs, preserving the rest. */
+function mergeFontSize(
+	attrs: NodeAttrs | undefined,
+	size: string,
+): Record<string, string | number | boolean> {
+	return { ...(attrs ?? {}), fontSize: size };
+}
+
+/** The node's current fontSize value, or null when unset. */
+function nodeFontSizeValue(target: NodeFontSizeTarget): string | null {
+	return readFontSize(target.attrs);
+}
+
+/** Writes `size` (or '' to clear) onto a single target node's fontSize attr. */
 function dispatchNodeFontSize(
 	context: PluginContext,
 	state: EditorState,
 	target: NodeFontSizeTarget,
 	size: string,
 ): boolean {
-	const nextAttrs: Record<string, string | number | boolean> = { ...target.attrs, fontSize: size };
 	const builder = state.transaction('command');
 	if (target.kind === 'block') {
-		builder.setNodeAttr(target.path, nextAttrs);
+		builder.setNodeAttr(target.path, mergeFontSize(target.attrs, size));
 	} else {
-		builder.setInlineNodeAttr(target.blockId, target.offset, nextAttrs);
+		builder.setInlineNodeAttr(target.blockId, target.offset, mergeFontSize(target.attrs, size));
 	}
 	context.dispatch(builder.build());
 	return true;
+}
+
+// --- Range carriers (text marks + font-size-aware nodes) ---
+//
+// A font-size operation over a selection range touches every "carrier" it spans:
+// text runs (which take the fontSize mark) and atomic font-size-aware nodes such
+// as formulas (which take the fontSize attr). This is what lets a select-all that
+// includes a formula resize the formula alongside the surrounding text.
+
+const FONT_SIZE_TYPE: MarkTypeName = markType('fontSize');
+
+type FontSizeCarrier =
+	| {
+			readonly kind: 'text';
+			readonly blockId: BlockId;
+			readonly from: number;
+			readonly to: number;
+			readonly mark: Mark | undefined;
+	  }
+	| { readonly kind: 'blockNode'; readonly path: readonly BlockId[]; readonly attrs: NodeAttrs }
+	| {
+			readonly kind: 'inlineNode';
+			readonly blockId: BlockId;
+			readonly offset: number;
+			readonly attrs: NodeAttrs;
+	  };
+
+/** Enumerates the font-size carriers within the current (non-collapsed) text range. */
+function rangeCarriers(state: EditorState): FontSizeCarrier[] {
+	const sel = state.selection;
+	if (!isTextSelection(sel)) return [];
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const range = selectionRange(sel, blockOrder);
+	const fromIdx: number = blockOrder.indexOf(range.from.blockId);
+	const toIdx: number = blockOrder.indexOf(range.to.blockId);
+	const carriers: FontSizeCarrier[] = [];
+
+	for (let i = fromIdx; i <= toIdx; i++) {
+		const blockId = blockOrder[i];
+		if (!blockId) continue;
+		const block = state.getBlock(blockId);
+		if (!block) continue;
+		const from: number = i === fromIdx ? range.from.offset : 0;
+		const to: number = i === toIdx ? range.to.offset : getBlockLength(block);
+
+		// Atomic, font-size-aware block (e.g. a display formula): size the whole node.
+		if (specDeclaresFontSize(state.schema.getNodeSpec?.(block.type))) {
+			carriers.push({
+				kind: 'blockNode',
+				path: state.getNodePath(blockId) ?? [blockId],
+				attrs: block.attrs ?? {},
+			});
+			continue;
+		}
+		if (from === to) continue;
+		collectInlineCarriers(state, block, blockId, from, to, carriers);
+	}
+	return carriers;
+}
+
+/** Adds a text carrier (when the slice holds text) plus any font-size-aware inline nodes. */
+function collectInlineCarriers(
+	state: EditorState,
+	block: BlockNode,
+	blockId: BlockId,
+	from: number,
+	to: number,
+	carriers: FontSizeCarrier[],
+): void {
+	let pos = 0;
+	let hasText = false;
+	let textMark: Mark | undefined;
+	for (const child of getInlineChildren(block)) {
+		if (isTextNode(child)) {
+			const end: number = pos + child.text.length;
+			if (child.text.length > 0 && end > from && pos < to) {
+				hasText = true;
+				if (!textMark) textMark = child.marks.find((m) => m.type === FONT_SIZE_TYPE);
+			}
+			pos = end;
+		} else {
+			if (
+				pos >= from &&
+				pos < to &&
+				specDeclaresFontSize(state.schema.getInlineNodeSpec?.(child.inlineType))
+			) {
+				carriers.push({ kind: 'inlineNode', blockId, offset: pos, attrs: child.attrs });
+			}
+			pos += 1;
+		}
+	}
+	if (hasText) carriers.push({ kind: 'text', blockId, from, to, mark: textMark });
+}
+
+/** Sizes every carrier in the range ('' clears). Returns false when nothing changed. */
+function dispatchRangeFontSize(context: PluginContext, state: EditorState, size: string): boolean {
+	const carriers: FontSizeCarrier[] = rangeCarriers(state);
+	if (carriers.length === 0) return false;
+	const builder = state.transaction('command');
+	let changed = false;
+
+	for (const carrier of carriers) {
+		if (carrier.kind === 'text') {
+			if (size === '') {
+				if (carrier.mark) {
+					builder.removeMark(carrier.blockId, carrier.from, carrier.to, carrier.mark);
+					changed = true;
+				}
+			} else {
+				if (carrier.mark)
+					builder.removeMark(carrier.blockId, carrier.from, carrier.to, carrier.mark);
+				builder.addMark(carrier.blockId, carrier.from, carrier.to, {
+					type: FONT_SIZE_TYPE,
+					attrs: { size },
+				});
+				changed = true;
+			}
+			continue;
+		}
+		const current: string | null = readFontSize(carrier.attrs);
+		if (size === current || (size === '' && current === null)) continue;
+		if (carrier.kind === 'blockNode') {
+			builder.setNodeAttr(carrier.path, mergeFontSize(carrier.attrs, size));
+		} else {
+			builder.setInlineNodeAttr(
+				carrier.blockId,
+				carrier.offset,
+				mergeFontSize(carrier.attrs, size),
+			);
+		}
+		changed = true;
+	}
+
+	if (!changed) return false;
+	builder.setSelection(state.selection);
+	context.dispatch(builder.build());
+	return true;
+}
+
+/** The set of fontSize values carried by font-size-aware nodes in the range, or null when none. */
+function rangeNodeSizes(state: EditorState): Set<string> | null {
+	const nodeAttrs: NodeAttrs[] = rangeCarriers(state)
+		.filter((carrier) => carrier.kind !== 'text')
+		.map((carrier) => carrier.attrs);
+	if (nodeAttrs.length === 0) return null;
+	return new Set(nodeAttrs.map((attrs) => readFontSize(attrs) ?? ''));
 }
 
 // --- State Queries ---
@@ -122,6 +291,13 @@ function dispatchNodeFontSize(
 export function getActiveSize(state: EditorState): string | null {
 	const target = nodeFontSizeTarget(state);
 	if (target) return nodeFontSizeValue(target);
+	// Additive: when a range spans font-size-aware nodes (e.g. a formula) that all
+	// share one explicit size, report it; otherwise read the text mark as before.
+	const sizes = rangeNodeSizes(state);
+	if (sizes && sizes.size === 1) {
+		const [only] = sizes;
+		if (only) return only;
+	}
 	return getMarkAttrAtSelection(state, 'fontSize', (m) => m.attrs.size ?? null);
 }
 
@@ -137,6 +313,8 @@ export function getActiveSizeNumeric(state: EditorState, defaultSize: number): n
 export function isFontSizeActive(state: EditorState): boolean {
 	const target = nodeFontSizeTarget(state);
 	if (target) return nodeFontSizeValue(target) !== null;
+	const sizes = rangeNodeSizes(state);
+	if (sizes && [...sizes].some((size) => size.length > 0)) return true;
 	return isAttributedMarkActive(state, 'fontSize');
 }
 
@@ -150,8 +328,13 @@ export function isFontSizeActive(state: EditorState): boolean {
 export function applyFontSize(context: PluginContext, state: EditorState, size: string): boolean {
 	const target = nodeFontSizeTarget(state);
 	if (target) return dispatchNodeFontSize(context, state, target, size);
-	const mark = { type: markType('fontSize'), attrs: { size } };
-	return dispatchIfPresent(context, applyAttributedMark(state, mark));
+	const sel = state.selection;
+	if (!isTextSelection(sel)) return false;
+	if (isCollapsed(sel)) {
+		const mark = { type: markType('fontSize'), attrs: { size } };
+		return dispatchIfPresent(context, applyAttributedMark(state, mark));
+	}
+	return dispatchRangeFontSize(context, state, size);
 }
 
 /** Removes the fontSize (node attribute or mark) from the current selection. */
@@ -161,7 +344,12 @@ export function removeFontSize(context: PluginContext, state: EditorState): bool
 		if (nodeFontSizeValue(target) === null) return false;
 		return dispatchNodeFontSize(context, state, target, '');
 	}
-	return dispatchIfPresent(context, removeAttributedMark(state, markType('fontSize')));
+	const sel = state.selection;
+	if (!isTextSelection(sel)) return false;
+	if (isCollapsed(sel)) {
+		return dispatchIfPresent(context, removeAttributedMark(state, markType('fontSize')));
+	}
+	return dispatchRangeFontSize(context, state, '');
 }
 
 /** Steps the font size up or down through the preset list. */
