@@ -56,6 +56,15 @@ const PRIME = '′';
 /** Integral-family glyphs whose limits remain side scripts even in display. */
 const INTEGRAL_CHARS: ReadonlySet<string> = new Set(['∫', '∬', '∭', '∮']);
 
+/**
+ * Hard cap on structural nesting depth. The descent recurses one frame chain per
+ * nested group/argument, so pathological input (e.g. thousands of nested braces)
+ * would otherwise overflow the call stack and throw, breaking the documented
+ * "never throws" contract. Real formulas nest only a handful of levels, so this
+ * is never reached in practice.
+ */
+const MAX_PARSE_DEPTH = 256;
+
 /** Parses a LaTeX source string into top-level atoms plus collected errors. */
 export function parseLatex(
 	src: string,
@@ -70,6 +79,8 @@ class LatexParser implements ParserApi {
 	private readonly source: string;
 	private readonly tokens: readonly Token[];
 	private pos = 0;
+	private depth = 0;
+	private depthExceeded = false;
 	private readonly errors: LatexError[] = [];
 	public readonly display: boolean;
 
@@ -219,6 +230,31 @@ class LatexParser implements ParserApi {
 	}
 
 	private parseBaseAtom(): Atom | undefined {
+		if (this.depth >= MAX_PARSE_DEPTH) return this.bailDeepNesting();
+		this.depth += 1;
+		try {
+			return this.parseBaseAtomInner();
+		} finally {
+			this.depth -= 1;
+		}
+	}
+
+	/**
+	 * Recovers from pathologically deep nesting without overflowing the call stack:
+	 * consumes one token so the enclosing loops always advance (never trading the
+	 * overflow for an infinite loop), records the limit once, and emits a single
+	 * visible marker for the dropped subtree.
+	 */
+	private bailDeepNesting(): Atom | undefined {
+		const tok: Token | undefined = this.next();
+		if (tok === undefined) return undefined;
+		if (this.depthExceeded) return undefined;
+		this.depthExceeded = true;
+		this.error({ message: 'Maximum nesting depth exceeded', position: tok.position });
+		return atom(element('merror', mtext('⋯')));
+	}
+
+	private parseBaseAtomInner(): Atom | undefined {
 		const tok: Token | undefined = this.next();
 		if (tok === undefined) return undefined;
 		switch (tok.type) {
