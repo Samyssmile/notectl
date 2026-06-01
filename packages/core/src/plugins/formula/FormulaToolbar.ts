@@ -21,7 +21,11 @@ const FORMULA_ICON =
 	'<path d="M18 5 H6 L12 12 L6 19 H18"/></svg>';
 
 /** Registers the "Insert formula" toolbar item (group: insert). */
-export function registerFormulaToolbar(context: PluginContext, locale: FormulaLocale): void {
+export function registerFormulaToolbar(
+	context: PluginContext,
+	locale: FormulaLocale,
+	fontSizes: readonly number[],
+): void {
 	context.registerToolbarItem({
 		id: 'formula',
 		group: 'insert',
@@ -35,9 +39,15 @@ export function registerFormulaToolbar(context: PluginContext, locale: FormulaLo
 				context: ctx,
 				locale,
 				mode: 'insert',
+				fontSizes,
 				onClose,
 				onCommit: (result: MathFieldResult): void => {
-					const attrs = { mathml: result.mathml, latex: result.latex, alt: result.alt };
+					const attrs = {
+						mathml: result.mathml,
+						latex: result.latex,
+						alt: result.alt,
+						fontSize: result.fontSize,
+					};
 					if (result.display) insertDisplayMath(ctx, attrs);
 					else insertInlineMath(ctx, attrs);
 					ctx.announce(locale.inserted);

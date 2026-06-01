@@ -55,5 +55,6 @@ export function readFormulaAttrs(
 		mathml: typeof attrs?.mathml === 'string' ? attrs.mathml : '',
 		latex: typeof attrs?.latex === 'string' ? attrs.latex : '',
 		alt: typeof attrs?.alt === 'string' ? attrs.alt : '',
+		fontSize: typeof attrs?.fontSize === 'string' ? attrs.fontSize : '',
 	};
 }

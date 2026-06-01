@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: 'Обновить',
 	cancelButton: 'Отмена',
 	displayToggle: 'Блочная (выключная) формула',
+	sizeLabel: 'Размер',
+	sizeDefault: 'По умолчанию',
 	altLabel: 'Описание',
 	altPlaceholder: 'Устное описание (необязательно)',
 	paletteLabel: 'Символы и структуры',

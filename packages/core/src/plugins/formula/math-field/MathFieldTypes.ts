@@ -18,6 +18,8 @@ export interface MathFieldResult {
 	readonly alt: string;
 	/** Whether this is display (block) math. */
 	readonly display: boolean;
+	/** CSS font-size for the whole formula (e.g. `'24px'`); empty string inherits. */
+	readonly fontSize: string;
 }
 
 /** User-facing strings the math field renders (supplied by the host). */
@@ -29,6 +31,8 @@ export interface MathFieldLocale {
 	readonly altLabel: string;
 	readonly altPlaceholder: string;
 	readonly displayToggle: string;
+	readonly sizeLabel: string;
+	readonly sizeDefault: string;
 	readonly commitInsert: string;
 	readonly commitUpdate: string;
 	readonly cancel: string;
@@ -60,6 +64,10 @@ export interface MathFieldOptions {
 	readonly initialLatex?: string;
 	readonly initialAlt?: string;
 	readonly initialDisplay?: boolean;
+	/** Initial CSS font-size (e.g. `'24px'`); empty/omitted means inherit. */
+	readonly initialFontSize?: string;
+	/** Preset px sizes for the size control; omit to hide the control entirely. */
+	readonly fontSizes?: readonly number[];
 	/** Structural palette groups; omit for a LaTeX-only field. */
 	readonly palette?: readonly MathPaletteGroup[];
 	/** Called when the user commits (Insert/Update button or Ctrl/Cmd+Enter). */

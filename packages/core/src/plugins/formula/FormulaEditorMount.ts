@@ -17,6 +17,8 @@ export interface MountFormulaEditorOptions {
 	readonly initialLatex?: string;
 	readonly initialAlt?: string;
 	readonly initialDisplay?: boolean;
+	readonly initialFontSize?: string;
+	readonly fontSizes?: readonly number[];
 	readonly onCommit: (result: MathFieldResult) => void;
 	readonly onClose: () => void;
 }
@@ -30,6 +32,8 @@ function toMathFieldLocale(locale: FormulaLocale): MathFieldLocale {
 		altLabel: locale.altLabel,
 		altPlaceholder: locale.altPlaceholder,
 		displayToggle: locale.displayToggle,
+		sizeLabel: locale.sizeLabel,
+		sizeDefault: locale.sizeDefault,
 		commitInsert: locale.insertButton,
 		commitUpdate: locale.updateButton,
 		cancel: locale.cancelButton,
@@ -62,6 +66,8 @@ export function mountFormulaEditor(
 		initialLatex: options.initialLatex,
 		initialAlt: options.initialAlt,
 		initialDisplay: options.initialDisplay,
+		initialFontSize: options.initialFontSize,
+		fontSizes: options.fontSizes,
 		palette: paletteFor(options.locale),
 		onCommit: options.onCommit,
 		onCancel: options.onClose,

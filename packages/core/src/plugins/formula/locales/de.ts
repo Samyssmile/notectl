@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: 'Aktualisieren',
 	cancelButton: 'Abbrechen',
 	displayToggle: 'Abgesetzte (Block-)Gleichung',
+	sizeLabel: 'Größe',
+	sizeDefault: 'Standard',
 	altLabel: 'Beschreibung',
 	altPlaceholder: 'Gesprochene Beschreibung (optional)',
 	paletteLabel: 'Symbole und Strukturen',

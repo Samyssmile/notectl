@@ -57,7 +57,12 @@ function inlineRule(): InputRule {
 
 			const { presentation } = latexToMathML(latex, { display: false });
 			const mathml: string = buildMathML({ presentation, latex, display: false });
-			const node = createInlineNode(inlineType(INLINE_MATH_TYPE), { mathml, latex, alt: '' });
+			const node = createInlineNode(inlineType(INLINE_MATH_TYPE), {
+				mathml,
+				latex,
+				alt: '',
+				fontSize: '',
+			});
 
 			return state
 				.transaction('input')
@@ -92,6 +97,7 @@ function displayRule(): InputRule {
 				mathml,
 				latex,
 				alt: '',
+				fontSize: '',
 			});
 
 			return state

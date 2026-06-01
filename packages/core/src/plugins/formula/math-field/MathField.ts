@@ -29,6 +29,7 @@ export class MathField {
 	private palette: MathPalette | null = null;
 	private displayCheckbox: HTMLInputElement | null = null;
 	private cancelBtn: HTMLButtonElement | null = null;
+	private fontSizeSelect: HTMLSelectElement | null = null;
 	private display: boolean;
 	private lastErrorKey = '';
 
@@ -59,6 +60,9 @@ export class MathField {
 		this.root.appendChild(this.buildPreview());
 		this.root.appendChild(this.errorsList);
 		this.root.appendChild(this.altInput.parentElement as HTMLElement);
+		if (options.fontSizes && options.fontSizes.length > 0) {
+			this.root.appendChild(this.buildSizeField(uid));
+		}
 		if (options.mode === 'insert') this.root.appendChild(this.buildDisplayToggle(uid));
 		this.root.appendChild(this.buildActions());
 
@@ -103,6 +107,7 @@ export class MathField {
 		const paletteButton: HTMLButtonElement | undefined = this.palette?.activeButton();
 		if (paletteButton) stops.push(paletteButton);
 		stops.push(this.textarea, this.altInput);
+		if (this.fontSizeSelect) stops.push(this.fontSizeSelect);
 		if (this.displayCheckbox) stops.push(this.displayCheckbox);
 		if (this.cancelBtn) stops.push(this.cancelBtn);
 		stops.push(this.commitBtn);
@@ -141,7 +146,13 @@ export class MathField {
 			display: this.display,
 			alt: alt || undefined,
 		});
-		return { latex, mathml, alt, display: this.display };
+		return {
+			latex,
+			mathml,
+			alt,
+			display: this.display,
+			fontSize: this.fontSizeSelect?.value ?? '',
+		};
 	}
 
 	/** Inserts a LaTeX snippet at the caret, honouring an optional `$0` caret marker. */
@@ -215,6 +226,47 @@ export class MathField {
 		return input;
 	}
 
+	private buildSizeField(uid: number): HTMLElement {
+		const field: HTMLDivElement = document.createElement('div');
+		field.className = 'notectl-formula-editor__field';
+		const label: HTMLLabelElement = document.createElement('label');
+		label.className = 'notectl-formula-editor__label';
+		label.htmlFor = `notectl-formula-size-${uid}`;
+		label.textContent = this.options.locale.sizeLabel;
+
+		const select: HTMLSelectElement = document.createElement('select');
+		select.id = `notectl-formula-size-${uid}`;
+		select.className = 'notectl-formula-editor__size';
+		const initial: string = this.options.initialFontSize ?? '';
+		select.appendChild(this.buildSizeOption('', this.options.locale.sizeDefault));
+		for (const size of this.options.fontSizes ?? []) {
+			select.appendChild(this.buildSizeOption(`${size}px`, String(size)));
+		}
+		// Preserve a current size that is not among the presets.
+		if (initial && !Array.from(select.options).some((o) => o.value === initial)) {
+			select.appendChild(this.buildSizeOption(initial, initial.replace('px', '')));
+		}
+		select.value = initial;
+		select.addEventListener('change', () => this.applyPreviewFontSize());
+		this.fontSizeSelect = select;
+
+		field.appendChild(label);
+		field.appendChild(select);
+		return field;
+	}
+
+	private buildSizeOption(value: string, label: string): HTMLOptionElement {
+		const option: HTMLOptionElement = document.createElement('option');
+		option.value = value;
+		option.textContent = label;
+		return option;
+	}
+
+	/** Scales the live preview to the selected font size, so sizing is WYSIWYG. */
+	private applyPreviewFontSize(): void {
+		this.preview.style.fontSize = this.fontSizeSelect?.value || '';
+	}
+
 	private buildDisplayToggle(uid: number): HTMLElement {
 		const wrapper: HTMLLabelElement = document.createElement('label');
 		wrapper.className = 'notectl-formula-editor__toggle';
@@ -283,6 +335,7 @@ export class MathField {
 	}
 
 	private update(): void {
+		this.applyPreviewFontSize();
 		const latex: string = this.textarea.value.trim();
 		if (!latex) {
 			this.preview.innerHTML = '';

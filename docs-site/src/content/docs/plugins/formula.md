@@ -54,7 +54,9 @@ Edits commit as a single transaction, so undo and redo work out of the box.
 
 ## Sizing formulas
 
-Formulas honour the editor's **Font Size** control. Select a display formula (it shows a selection ring) or an inline formula, then pick a size from the Font Size dropdown to scale the whole expression. MathML inherits the font size, so fractions, roots, and matrices enlarge proportionally. The size is stored as a node attribute, so it survives undo and redo and is preserved when you later edit the formula's LaTeX. Any node that declares a `fontSize` attribute participates in this mechanism, so the integration is generic rather than formula-specific.
+Every formula has a **Size** control in its editor. Open a formula (click an inline formula, or double-click a display formula) and pick a size next to the LaTeX field. The live preview reflects the choice immediately. This is the most direct way to resize a single formula, and it works the same for inline and display. The size is stored as a node attribute, so it survives undo, redo, and later LaTeX edits.
+
+Formulas also honour the toolbar's **Font Size** control. Select a formula (a display formula via the gap cursor, an inline formula via Shift and arrow keys) or a range that includes formulas, such as Select All, then pick a size. MathML inherits the font size, so fractions, roots, and matrices enlarge proportionally. Both paths write the same `fontSize` node attribute, so they stay consistent. The toolbar integration is generic: any node that declares a `fontSize` attribute participates, not just formulas.
 
 ## Authoring methods
 
@@ -86,8 +88,8 @@ Because MathML is the shared language of serious math producers, paste interop c
 - The stored MathML is the screen-reader surface. No extra configuration is needed.
 - Each formula carries a readable fallback label via the native `alttext` attribute for assistive technology that does not process MathML.
 - The editor field, palette, and overlay are fully keyboard operable, with ARIA roles and labels, visible focus, and live announcements.
-- The insert and edit popup contains keyboard focus: it opens on the LaTeX field, and Tab and Shift+Tab cycle through the palette, LaTeX field, description, display toggle, and action buttons without leaving the popup. Escape closes it.
-- Display formulas are selectable by keyboard through the gap cursor.
+- The insert and edit popup contains keyboard focus: it opens on the LaTeX field, and Tab and Shift+Tab cycle through the palette, LaTeX field, description, size control, display toggle, and action buttons without leaving the popup. Escape closes it.
+- Display formulas are selectable by keyboard through the gap cursor; an inline formula selected with Shift and the arrow keys shows the normal selection highlight.
 
 ## Supported LaTeX
 
@@ -116,6 +118,8 @@ interface FormulaPluginConfig {
     readonly insertInline?: string | null;   // default: 'Mod-Shift-E'
     readonly insertDisplay?: string | null;  // default: 'Mod-Shift-M'
   };
+  /** Preset px sizes in the editor's size control; pass [] to hide it. */
+  readonly fontSizes?: readonly number[];
   /** Bundled OpenType MATH font (import NOTECTL_MATH_FONT from '@notectl/core/fonts'). */
   readonly mathFont?: FontDefinition;
 }

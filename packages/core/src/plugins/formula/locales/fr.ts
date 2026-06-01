@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: 'Mettre à jour',
 	cancelButton: 'Annuler',
 	displayToggle: 'Équation en bloc (display)',
+	sizeLabel: 'Taille',
+	sizeDefault: 'Par défaut',
 	altLabel: 'Description',
 	altPlaceholder: 'Description orale (facultatif)',
 	paletteLabel: 'Symboles et structures',

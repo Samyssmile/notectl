@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: 'अपडेट करें',
 	cancelButton: 'रद्द करें',
 	displayToggle: 'ब्लॉक (डिस्प्ले) समीकरण',
+	sizeLabel: 'आकार',
+	sizeDefault: 'डिफ़ॉल्ट',
 	altLabel: 'विवरण',
 	altPlaceholder: 'बोला गया विवरण (वैकल्पिक)',
 	paletteLabel: 'प्रतीक और संरचनाएं',

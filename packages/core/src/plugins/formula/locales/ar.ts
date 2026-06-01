@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: 'تحديث',
 	cancelButton: 'إلغاء',
 	displayToggle: 'معادلة ككتلة (عرض)',
+	sizeLabel: 'الحجم',
+	sizeDefault: 'افتراضي',
 	altLabel: 'الوصف',
 	altPlaceholder: 'وصف منطوق (اختياري)',
 	paletteLabel: 'الرموز والبُنى',

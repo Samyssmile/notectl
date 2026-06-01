@@ -34,6 +34,8 @@ const STRING_KEYS: ReadonlyArray<keyof FormulaLocale> = [
 	'updateButton',
 	'cancelButton',
 	'displayToggle',
+	'sizeLabel',
+	'sizeDefault',
 	'altLabel',
 	'altPlaceholder',
 	'paletteLabel',

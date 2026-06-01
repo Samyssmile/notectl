@@ -6,16 +6,24 @@ import { createInlineMathNodeSpec } from './InlineMathNodeSpec.js';
 
 describe('readFormulaAttrs', () => {
 	it('reads string attributes with safe defaults', () => {
-		expect(readFormulaAttrs({ mathml: '<math></math>', latex: 'x', alt: 'ex' })).toEqual({
+		expect(
+			readFormulaAttrs({ mathml: '<math></math>', latex: 'x', alt: 'ex', fontSize: '24px' }),
+		).toEqual({
 			mathml: '<math></math>',
 			latex: 'x',
 			alt: 'ex',
+			fontSize: '24px',
 		});
 	});
 
 	it('falls back to empty strings for missing or non-string values', () => {
-		expect(readFormulaAttrs(undefined)).toEqual({ mathml: '', latex: '', alt: '' });
-		expect(readFormulaAttrs({ mathml: 42 })).toEqual({ mathml: '', latex: '', alt: '' });
+		expect(readFormulaAttrs(undefined)).toEqual({ mathml: '', latex: '', alt: '', fontSize: '' });
+		expect(readFormulaAttrs({ mathml: 42 })).toEqual({
+			mathml: '',
+			latex: '',
+			alt: '',
+			fontSize: '',
+		});
 	});
 });
 

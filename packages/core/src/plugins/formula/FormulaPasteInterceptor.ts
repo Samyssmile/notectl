@@ -65,7 +65,7 @@ export function createFormulaPasteInterceptor(): PasteInterceptor {
 		if (!mathml) return null;
 
 		const latex: string = extractTexAnnotation(mathml) ?? '';
-		const attrs: FormulaAttrs = { mathml, latex, alt: '' };
+		const attrs: FormulaAttrs = { mathml, latex, alt: '', fontSize: '' };
 		return isDisplayMath(mathml)
 			? buildInsertDisplayMathTr(state, attrs)
 			: buildInsertInlineMathTr(state, attrs);

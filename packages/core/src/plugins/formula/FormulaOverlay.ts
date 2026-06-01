@@ -27,6 +27,8 @@ export interface FormulaEditTarget {
 	readonly kind: 'inline' | 'display';
 	readonly latex: string;
 	readonly alt: string;
+	/** Current CSS font-size of the formula (e.g. `'24px'`); empty inherits. */
+	readonly fontSize: string;
 	/** Anchor rect; when null the overlay falls back to the caret position. */
 	readonly rect: DOMRect | null;
 	/** Inline: the containing block id + the node's offset within it. */
@@ -39,7 +41,12 @@ export interface FormulaEditTarget {
 const PANEL_MARGIN = 8;
 
 function resultToAttrs(result: MathFieldResult): FormulaAttrs {
-	return { mathml: result.mathml, latex: result.latex, alt: result.alt };
+	return {
+		mathml: result.mathml,
+		latex: result.latex,
+		alt: result.alt,
+		fontSize: result.fontSize,
+	};
 }
 
 export class FormulaOverlay {
@@ -49,6 +56,7 @@ export class FormulaOverlay {
 	constructor(
 		private readonly context: PluginContext,
 		private readonly locale: FormulaLocale,
+		private readonly fontSizes: readonly number[],
 	) {}
 
 	/** Whether the overlay is currently open. */
@@ -84,6 +92,7 @@ export class FormulaOverlay {
 			initialLatex: target.latex,
 			initialAlt: target.alt,
 			initialDisplay: target.kind === 'display',
+			initialFontSize: target.fontSize,
 			onCommit: (result: MathFieldResult) => {
 				this.commitEdit(target, result);
 				this.context.announce(this.locale.updated);
@@ -119,6 +128,7 @@ export class FormulaOverlay {
 		initialLatex?: string;
 		initialAlt?: string;
 		initialDisplay?: boolean;
+		initialFontSize?: string;
 		onCommit: (result: MathFieldResult) => void;
 	}): void {
 		this.close(false);
@@ -138,6 +148,8 @@ export class FormulaOverlay {
 			initialLatex: config.initialLatex,
 			initialAlt: config.initialAlt,
 			initialDisplay: config.initialDisplay,
+			initialFontSize: config.initialFontSize,
+			fontSizes: this.fontSizes,
 			onCommit: config.onCommit,
 			onClose: () => this.close(true),
 		});
