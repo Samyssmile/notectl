@@ -79,6 +79,10 @@ The currently active size is highlighted in the list. If the cursor is on text w
 |------|-----------|-----------|
 | `fontSize` | `size: string` (e.g., `"24px"`) | `<span style="font-size: 24px">` |
 
+## Font-size-aware nodes
+
+Marks only apply to text, so they cannot size atomic nodes such as a formula. The size control is therefore node-aware: when the selection targets a node whose schema spec declares a `fontSize` attribute (for example a [formula](/notectl/plugins/formula/)), the size is written to that attribute instead of a mark, and a range that mixes text and such nodes sizes both in one transaction. This is generic — any node or inline node that declares a `fontSize` attribute participates.
+
 ## Default Size Behavior
 
 When the user selects the `defaultSize`, the font size mark is **removed** rather than applied. This keeps the document clean — text at the default size has no unnecessary marks.
