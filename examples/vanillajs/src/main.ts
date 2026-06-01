@@ -1,10 +1,11 @@
 import { ThemePreset, createEditor } from '@notectl/core';
 import type { NotectlEditor, StateChangeEvent, Theme } from '@notectl/core';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { NOTECTL_MATH_FONT, STARTER_FONTS } from '@notectl/core/fonts';
 import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
 import { FontPlugin } from '@notectl/core/plugins/font';
 import { FontSizePlugin } from '@notectl/core/plugins/font-size';
+import { FormulaPlugin } from '@notectl/core/plugins/formula';
 import { HeadingPlugin } from '@notectl/core/plugins/heading';
 import { HighlightPlugin } from '@notectl/core/plugins/highlight';
 import { HorizontalRulePlugin } from '@notectl/core/plugins/horizontal-rule';
@@ -37,6 +38,7 @@ declare global {
 		TablePlugin: typeof TablePlugin;
 		HorizontalRulePlugin: typeof HorizontalRulePlugin;
 		ImagePlugin: typeof ImagePlugin;
+		FormulaPlugin: typeof FormulaPlugin;
 	}
 }
 
@@ -57,6 +59,7 @@ window.LinkPlugin = LinkPlugin;
 window.TablePlugin = TablePlugin;
 window.HorizontalRulePlugin = HorizontalRulePlugin;
 window.ImagePlugin = ImagePlugin;
+window.FormulaPlugin = FormulaPlugin;
 
 const container = document.getElementById('editor-container') as HTMLElement;
 
@@ -212,6 +215,7 @@ const READONLY_DEMO_HTML: string = `
 (async () => {
 	const preset = createFullPreset({
 		font: { fonts: STARTER_FONTS },
+		formula: { mathFont: NOTECTL_MATH_FONT },
 		list: { interactiveCheckboxes: true },
 		codeBlock: {
 			keymap: { insertAfter: 'Mod-Shift-Enter', toggle: 'Mod-Shift-C' },

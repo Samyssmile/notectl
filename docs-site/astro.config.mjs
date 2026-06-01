@@ -77,6 +77,7 @@ export default defineConfig({
 						{ label: 'Code Block', slug: 'plugins/code-block' },
 						{ label: 'Blockquote', slug: 'plugins/blockquote' },
 						{ label: 'Image', slug: 'plugins/image' },
+						{ label: 'Formula', slug: 'plugins/formula' },
 						{ label: 'Font', slug: 'plugins/font' },
 						{ label: 'Font Size', slug: 'plugins/font-size' },
 						{ label: 'Text Color', slug: 'plugins/text-color' },

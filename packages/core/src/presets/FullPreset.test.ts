@@ -5,6 +5,7 @@ import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { CodeBlockPlugin } from '../plugins/code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../plugins/font-size/FontSizePlugin.js';
 import { FontPlugin } from '../plugins/font/FontPlugin.js';
+import { FormulaPlugin } from '../plugins/formula/FormulaPlugin.js';
 import { HardBreakPlugin } from '../plugins/hard-break/HardBreakPlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { HighlightPlugin } from '../plugins/highlight/HighlightPlugin.js';
@@ -87,15 +88,16 @@ describe('createFullPreset', () => {
 		expect(group?.[0]).toBeInstanceOf(ListPlugin);
 	});
 
-	it('group 7 contains Link, Table, HorizontalRule, Image', () => {
+	it('group 7 contains Link, Table, HorizontalRule, Image, Formula', () => {
 		const preset = createFullPreset();
 		const group = preset.toolbar[6];
 
-		expect(group).toHaveLength(4);
+		expect(group).toHaveLength(5);
 		expect(group?.[0]).toBeInstanceOf(LinkPlugin);
 		expect(group?.[1]).toBeInstanceOf(TablePlugin);
 		expect(group?.[2]).toBeInstanceOf(HorizontalRulePlugin);
 		expect(group?.[3]).toBeInstanceOf(ImagePlugin);
+		expect(group?.[4]).toBeInstanceOf(FormulaPlugin);
 	});
 
 	it('group 8 contains Print', () => {
