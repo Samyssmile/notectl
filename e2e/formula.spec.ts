@@ -164,6 +164,57 @@ test.describe('Formula plugin', () => {
 		expect((await mathInfo(page)).inline).toBe(0);
 	});
 
+	test('the formula editor has a size control that sets the font-size and round-trips on edit', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		const input = page.locator('.notectl-formula-editor__input');
+		await input.waitFor({ state: 'visible' });
+
+		const sizeSelect = page.locator('.notectl-formula-editor__size');
+		await expect(sizeSelect).toHaveCount(1);
+
+		await page.locator('.notectl-formula-editor__toggle input[type="checkbox"]').check();
+		await input.fill('\\frac{2}{3}');
+		await sizeSelect.selectOption('48px');
+		await page.locator('.notectl-formula-editor__btn--primary').click();
+		await page.waitForTimeout(150);
+
+		const renderedSize = await page.evaluate(() => {
+			const host = document
+				.querySelector('notectl-editor')
+				?.shadowRoot?.querySelector('.notectl-math--display') as HTMLElement | null;
+			return host ? getComputedStyle(host).fontSize : 'none';
+		});
+		expect(renderedSize).toBe('48px');
+
+		// Re-open the editor: the size control reflects the stored size (round-trip).
+		await page.locator('.notectl-math--display').first().dblclick();
+		const overlaySize = page.locator('.notectl-formula-overlay .notectl-formula-editor__size');
+		await overlaySize.waitFor({ state: 'visible' });
+		await expect(overlaySize).toHaveValue('48px');
+	});
+
+	test('a selected inline formula is visibly highlighted (not user-select:none)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await editor.typeText('$x^2$');
+		await page.waitForTimeout(100);
+		await page.keyboard.press('Shift+ArrowLeft'); // select the inline atom
+		await page.waitForTimeout(80);
+		const userSelect = await page.evaluate(() => {
+			const atom = document
+				.querySelector('notectl-editor')
+				?.shadowRoot?.querySelector('.notectl-math--inline') as HTMLElement | null;
+			return atom ? getComputedStyle(atom).userSelect : 'none';
+		});
+		expect(userSelect).not.toBe('none');
+	});
+
 	test('selecting a formula (incl. via Ctrl+A) and picking a Font Size resizes it', async ({
 		editor,
 		page,
@@ -232,9 +283,14 @@ test.describe('Formula plugin', () => {
 		// Initial focus is the LaTeX authoring field, not the description input.
 		expect(await active()).toBe('TEXTAREA.notectl-formula-editor__input');
 
-		// Tab moves to the next field within the dialog; the popup stays open.
+		// Tab moves to the description field within the dialog; the popup stays open.
 		await page.keyboard.press('Tab');
 		expect(await active()).toBe('INPUT.notectl-formula-editor__alt');
+		await expect(input).toBeVisible();
+
+		// Tab reaches the size control (still inside the dialog).
+		await page.keyboard.press('Tab');
+		expect(await active()).toBe('SELECT.notectl-formula-editor__size');
 		await expect(input).toBeVisible();
 
 		// Tab continues to the display-equation checkbox (still inside the dialog).

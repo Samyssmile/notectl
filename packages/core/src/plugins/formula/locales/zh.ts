@@ -13,6 +13,8 @@ const locale: FormulaLocale = {
 	updateButton: '更新',
 	cancelButton: '取消',
 	displayToggle: '块级（显示）公式',
+	sizeLabel: '字号',
+	sizeDefault: '默认',
 	altLabel: '描述',
 	altPlaceholder: '朗读描述（可选）',
 	paletteLabel: '符号与结构',

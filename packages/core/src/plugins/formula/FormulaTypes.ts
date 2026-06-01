@@ -21,16 +21,18 @@ export interface FormulaAttrs {
 	readonly mathml: string;
 	readonly latex: string;
 	readonly alt: string;
+	/** CSS font-size for the whole formula (e.g. `'24px'`); empty string inherits. */
+	readonly fontSize: string;
 }
 
 // --- Attribute Registry Augmentation (typed, branded) ---
 
 declare module '../../model/AttrRegistry.js' {
 	interface InlineNodeAttrRegistry {
-		math_inline: { mathml: string; latex: string; alt: string };
+		math_inline: { mathml: string; latex: string; alt: string; fontSize: string };
 	}
 	interface NodeAttrRegistry {
-		math_display: { mathml: string; latex: string; alt: string };
+		math_display: { mathml: string; latex: string; alt: string; fontSize: string };
 	}
 }
 
@@ -48,6 +50,9 @@ export const DEFAULT_FORMULA_KEYMAP: Readonly<Record<keyof FormulaKeymap, string
 	insertDisplay: 'Mod-Shift-M',
 };
 
+/** Preset px sizes offered by the formula editor's size control. */
+export const DEFAULT_FORMULA_FONT_SIZES: readonly number[] = [12, 16, 20, 24, 32, 40, 48, 64, 96];
+
 // --- Configuration ---
 
 export interface FormulaPluginConfig {
@@ -55,6 +60,11 @@ export interface FormulaPluginConfig {
 	readonly locale?: FormulaLocale;
 	/** Keyboard shortcut overrides. */
 	readonly keymap?: FormulaKeymap;
+	/**
+	 * Preset px sizes shown in the formula editor's size control. Pass an empty
+	 * array to hide the control. Defaults to {@link DEFAULT_FORMULA_FONT_SIZES}.
+	 */
+	readonly fontSizes?: readonly number[];
 	/**
 	 * Optional OpenType MATH font, registered as `@font-face` for correct
 	 * stretchy rendering in Chromium. Import `NOTECTL_MATH_FONT` from

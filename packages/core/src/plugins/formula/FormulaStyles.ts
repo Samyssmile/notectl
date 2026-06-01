@@ -19,8 +19,6 @@ export const FORMULA_CSS = `
 	padding: 0 1px;
 	border-radius: 3px;
 	cursor: pointer;
-	user-select: none;
-	-webkit-user-select: none;
 }
 
 .notectl-math--inline:hover {
@@ -112,6 +110,22 @@ export const FORMULA_EDITOR_CSS = `
 	border-radius: 4px;
 	background: var(--notectl-surface-overlay, #fff);
 	color: var(--notectl-fg);
+}
+
+.notectl-formula-editor__size {
+	box-sizing: border-box;
+	padding: 5px 8px;
+	font-size: 13px;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-surface-overlay, #fff);
+	color: var(--notectl-fg);
+	cursor: pointer;
+}
+
+.notectl-formula-editor__size:focus-visible {
+	outline: 2px solid var(--notectl-primary);
+	outline-offset: 1px;
 }
 
 .notectl-formula-editor__preview {

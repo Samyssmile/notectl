@@ -41,6 +41,7 @@ export function inlineEditTargetFromElement(
 		offset: pos.offset,
 		latex: attrs.latex,
 		alt: attrs.alt,
+		fontSize: attrs.fontSize,
 		rect: element.getBoundingClientRect(),
 	};
 }
@@ -55,7 +56,14 @@ export function displayEditTarget(
 	if (!block || block.type !== DISPLAY_MATH_TYPE) return null;
 	const attrs = readFormulaAttrs(block.attrs);
 	const path = state.getNodePath(blockId) ?? [blockId];
-	return { kind: 'display', path, latex: attrs.latex, alt: attrs.alt, rect };
+	return {
+		kind: 'display',
+		path,
+		latex: attrs.latex,
+		alt: attrs.alt,
+		fontSize: attrs.fontSize,
+		rect,
+	};
 }
 
 /** When the collapsed caret sits next to an inline formula, returns its edit target. */
@@ -76,6 +84,7 @@ export function adjacentInlineEditTarget(state: EditorState): FormulaEditTarget 
 				offset: from,
 				latex: attrs.latex,
 				alt: attrs.alt,
+				fontSize: attrs.fontSize,
 				rect: null,
 			};
 		}

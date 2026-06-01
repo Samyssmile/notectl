@@ -21,6 +21,8 @@ export interface FormulaLocale {
 	readonly updateButton: string;
 	readonly cancelButton: string;
 	readonly displayToggle: string;
+	readonly sizeLabel: string;
+	readonly sizeDefault: string;
 	readonly altLabel: string;
 	readonly altPlaceholder: string;
 	readonly paletteLabel: string;
@@ -61,6 +63,8 @@ export const FORMULA_LOCALE_EN: FormulaLocale = {
 	updateButton: 'Update',
 	cancelButton: 'Cancel',
 	displayToggle: 'Display (block) equation',
+	sizeLabel: 'Size',
+	sizeDefault: 'Default',
 	altLabel: 'Description',
 	altPlaceholder: 'Spoken description (optional)',
 	paletteLabel: 'Symbols and structures',

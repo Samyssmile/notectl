@@ -7,12 +7,7 @@
 
 import { resolveInsertPoint } from '../../commands/CommandHelpers.js';
 import { addDeleteSelectionSteps } from '../../commands/Commands.js';
-import {
-	createBlockNode,
-	createInlineNode,
-	getInlineChildren,
-	isInlineNode,
-} from '../../model/Document.js';
+import { createBlockNode, createInlineNode } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -27,7 +22,7 @@ import { getSelectedBlockId } from '../shared/PluginHelpers.js';
 import { DISPLAY_MATH_TYPE, type FormulaAttrs, INLINE_MATH_TYPE } from './FormulaTypes.js';
 
 function toNodeAttrs(attrs: FormulaAttrs): Record<string, string> {
-	return { mathml: attrs.mathml, latex: attrs.latex, alt: attrs.alt };
+	return { mathml: attrs.mathml, latex: attrs.latex, alt: attrs.alt, fontSize: attrs.fontSize };
 }
 
 /** Builds a transaction inserting an inline math node at the cursor (replacing a range). */
@@ -107,10 +102,10 @@ export function updateInlineMath(
 	attrs: FormulaAttrs,
 ): boolean {
 	const state: EditorState = context.getState();
-	// Merge over the current attrs so presentation attributes set elsewhere
-	// (e.g. a fontSize applied via the toolbar) survive a content edit.
-	const merged = { ...inlineNodeAttrsAt(state, blockId, offset), ...toNodeAttrs(attrs) };
-	const tr = state.transaction('command').setInlineNodeAttr(blockId, offset, merged).build();
+	const tr = state
+		.transaction('command')
+		.setInlineNodeAttr(blockId, offset, toNodeAttrs(attrs))
+		.build();
 	context.dispatch(tr);
 	return true;
 }
@@ -122,30 +117,7 @@ export function updateDisplayMath(
 	attrs: FormulaAttrs,
 ): boolean {
 	const state: EditorState = context.getState();
-	const targetId: BlockId | undefined = path[path.length - 1];
-	const current = targetId ? (state.getBlock(targetId)?.attrs ?? {}) : {};
-	const merged = { ...current, ...toNodeAttrs(attrs) };
-	const tr = state.transaction('command').setNodeAttr(path, merged).build();
+	const tr = state.transaction('command').setNodeAttr(path, toNodeAttrs(attrs)).build();
 	context.dispatch(tr);
 	return true;
-}
-
-/** Returns the attrs of the inline node at `offset` within a block, or an empty object. */
-function inlineNodeAttrsAt(
-	state: EditorState,
-	blockId: BlockId,
-	offset: number,
-): Readonly<Record<string, string | number | boolean>> {
-	const block = state.getBlock(blockId);
-	if (!block) return {};
-	let pos = 0;
-	for (const child of getInlineChildren(block)) {
-		if (isInlineNode(child)) {
-			if (pos === offset) return child.attrs;
-			pos += 1;
-		} else {
-			pos += child.text.length;
-		}
-	}
-	return {};
 }

@@ -31,6 +31,7 @@ import { FORMULA_CSS, FORMULA_EDITOR_CSS } from './FormulaStyles.js';
 import { registerFormulaToolbar } from './FormulaToolbar.js';
 import {
 	DEFAULT_FORMULA_CONFIG,
+	DEFAULT_FORMULA_FONT_SIZES,
 	DEFAULT_FORMULA_KEYMAP,
 	DISPLAY_MATH_TYPE,
 	type FormulaKeymap,
@@ -48,6 +49,7 @@ export class FormulaPlugin implements Plugin {
 
 	private readonly config: FormulaPluginConfig;
 	private readonly resolvedKeymap: Readonly<Record<keyof FormulaKeymap, string | null>>;
+	private readonly fontSizes: readonly number[];
 	private locale: FormulaLocale = FORMULA_LOCALE_EN;
 	private overlay: FormulaOverlay | null = null;
 	private context: PluginContext | null = null;
@@ -56,6 +58,7 @@ export class FormulaPlugin implements Plugin {
 	constructor(config?: Partial<FormulaPluginConfig>) {
 		this.config = { ...DEFAULT_FORMULA_CONFIG, ...config };
 		this.resolvedKeymap = { ...DEFAULT_FORMULA_KEYMAP, ...config?.keymap };
+		this.fontSizes = this.config.fontSizes ?? DEFAULT_FORMULA_FONT_SIZES;
 	}
 
 	async init(context: PluginContext): Promise<void> {
@@ -75,7 +78,7 @@ export class FormulaPlugin implements Plugin {
 		context.registerInlineNodeSpec(createInlineMathNodeSpec());
 		context.registerNodeSpec(createDisplayMathNodeSpec());
 
-		this.overlay = new FormulaOverlay(context, this.locale);
+		this.overlay = new FormulaOverlay(context, this.locale, this.fontSizes);
 		context.registerNodeView(
 			DISPLAY_MATH_TYPE,
 			createDisplayMathNodeViewFactory((blockId, rect) => this.editDisplay(blockId, rect)),
@@ -89,7 +92,7 @@ export class FormulaPlugin implements Plugin {
 
 		this.registerCommands(context);
 		this.registerKeymap(context);
-		registerFormulaToolbar(context, this.locale);
+		registerFormulaToolbar(context, this.locale, this.fontSizes);
 		this.installClickToEdit(context);
 	}
 

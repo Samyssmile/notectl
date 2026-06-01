@@ -11,8 +11,11 @@ interface AttrStep {
 	readonly attrs: Record<string, string>;
 }
 
+// The editor's size control round-trips the current fontSize (initialFontSize →
+// control → result.fontSize), so the update commands carry it through verbatim.
+
 describe('updateInlineMath', () => {
-	it('preserves the existing fontSize attr when editing latex/mathml', () => {
+	it('writes mathml/latex/alt and the chosen fontSize onto the inline node', () => {
 		const inline = createInlineNode(inlineType('math_inline'), {
 			mathml: '<math>old</math>',
 			latex: 'a',
@@ -27,7 +30,12 @@ describe('updateInlineMath', () => {
 		const dispatch = vi.fn();
 		const ctx = mockPluginContext({ getState: () => state, dispatch });
 
-		updateInlineMath(ctx, blockId('b1'), 0, { mathml: '<math>new</math>', latex: 'b', alt: '' });
+		updateInlineMath(ctx, blockId('b1'), 0, {
+			mathml: '<math>new</math>',
+			latex: 'b',
+			alt: '',
+			fontSize: '32px',
+		});
 
 		const tr = dispatch.mock.calls[0]?.[0];
 		const step = tr.steps.find((s: AttrStep) => s.type === 'setInlineNodeAttr') as AttrStep;
@@ -38,7 +46,7 @@ describe('updateInlineMath', () => {
 });
 
 describe('updateDisplayMath', () => {
-	it('preserves the existing fontSize attr when editing', () => {
+	it('writes mathml/latex/alt and the chosen fontSize onto the display block', () => {
 		const mathBlock = createBlockNode(nodeType('math_display'), [], blockId('m1'), {
 			mathml: '<math>old</math>',
 			latex: 'a',
@@ -52,7 +60,12 @@ describe('updateDisplayMath', () => {
 		const dispatch = vi.fn();
 		const ctx = mockPluginContext({ getState: () => state, dispatch });
 
-		updateDisplayMath(ctx, [blockId('m1')], { mathml: '<math>new</math>', latex: 'b', alt: '' });
+		updateDisplayMath(ctx, [blockId('m1')], {
+			mathml: '<math>new</math>',
+			latex: 'b',
+			alt: '',
+			fontSize: '48px',
+		});
 
 		const tr = dispatch.mock.calls[0]?.[0];
 		const step = tr.steps.find((s: AttrStep) => s.type === 'setNodeAttr') as AttrStep;
