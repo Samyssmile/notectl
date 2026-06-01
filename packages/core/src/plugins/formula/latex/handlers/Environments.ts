@@ -98,6 +98,15 @@ function collectRows(envName: string, api: ParserApi): string[][] {
 			flushRow();
 			continue;
 		}
+		if (tok.type === TokenType.GroupClose) {
+			// A stray '}' has no matching '{' in the environment body. Consume it and
+			// record the mismatch (mirrors parseTopLevel) so the loop always advances;
+			// `parseAtomsUntil` stops on '}' without consuming it, so skipping this
+			// guard would spin forever on the same token.
+			api.next();
+			api.error({ message: 'Unmatched brace', position: tok.position });
+			continue;
+		}
 		const atoms: readonly Atom[] = api.parseAtomsUntil(isCellBoundary);
 		cell.push(...atoms.map((a) => a.node));
 	}

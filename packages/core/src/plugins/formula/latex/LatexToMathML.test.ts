@@ -27,6 +27,18 @@ describe('entry contract', () => {
 	it('never throws on arbitrary input', () => {
 		expect(() => render('}{)(^_&\\\\\\right\\end{x}')).not.toThrow();
 	});
+
+	it('recovers from pathologically deep nesting instead of overflowing the stack', () => {
+		const deep = '{'.repeat(20000) + '}'.repeat(20000);
+		expect(() => latexToMathML(deep)).not.toThrow();
+		const result = latexToMathML(deep);
+		expect(result.presentation).toBeTypeOf('string');
+		expect(result.errors.some((e) => e.message.toLowerCase().includes('depth'))).toBe(true);
+	});
+
+	it('recovers from deep unbalanced nesting instead of overflowing the stack', () => {
+		expect(() => latexToMathML('{'.repeat(20000))).not.toThrow();
+	});
 });
 
 describe('ordinary atoms', () => {
@@ -273,6 +285,19 @@ describe('environments', () => {
 		const result = latexToMathML('\\begin{pmatrix}1 & 2');
 		expect(result.presentation).toContain('<mtable>');
 		expect(result.errors.some((e) => e.message.includes('Unterminated'))).toBe(true);
+	});
+
+	it('recovers from a stray closing brace inside an environment without hanging', () => {
+		const result = latexToMathML('\\begin{matrix}}\\end{matrix}');
+		expect(result.presentation).toContain('<mtable>');
+		expect(result.errors.some((e) => e.message.includes('Unmatched brace'))).toBe(true);
+	});
+
+	it('recovers from a stray closing brace inside a matrix cell', () => {
+		const result = latexToMathML('\\begin{pmatrix} a } b \\end{pmatrix}');
+		expect(result.presentation).toContain('<mtable>');
+		expect(result.presentation).toContain('<mi>a</mi>');
+		expect(result.presentation).toContain('<mi>b</mi>');
 	});
 });
 

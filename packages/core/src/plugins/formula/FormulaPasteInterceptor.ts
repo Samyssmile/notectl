@@ -24,10 +24,17 @@ import type { FormulaAttrs } from './FormulaTypes.js';
 import { extractTexAnnotation, isDisplayMath } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
 
-function parseFragment(html: string): HTMLElement {
-	const host: HTMLDivElement = document.createElement('div');
-	host.innerHTML = html;
-	return host;
+/**
+ * Parses untrusted clipboard HTML into an INERT fragment. A `<template>`'s content
+ * lives in a document with no browsing context, so parsing it triggers no resource
+ * loads and fires no `onerror`/`onload` handlers, unlike assigning `innerHTML` on a
+ * live `<div>`. This matches the parse path the core uses everywhere
+ * (`DocumentParser`, `PasteHTMLHandler`) and runs on the RAW, pre-sanitization HTML.
+ */
+function parseFragment(html: string): DocumentFragment {
+	const template: HTMLTemplateElement = document.createElement('template');
+	template.innerHTML = html;
+	return template.content;
 }
 
 /**
@@ -37,9 +44,9 @@ function parseFragment(html: string): HTMLElement {
  */
 export function isStandaloneMathHtml(html: string): boolean {
 	if (!html) return false;
-	const host: HTMLElement = parseFragment(html);
+	const host: DocumentFragment = parseFragment(html);
 	if (!host.querySelector('math')) return false;
-	const clone: HTMLElement = host.cloneNode(true) as HTMLElement;
+	const clone: DocumentFragment = host.cloneNode(true) as DocumentFragment;
 	for (const el of Array.from(clone.querySelectorAll('math, [aria-hidden="true"]'))) {
 		el.remove();
 	}

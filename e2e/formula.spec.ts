@@ -133,6 +133,34 @@ test.describe('Formula plugin', () => {
 		expect(await editor.getText()).not.toContain('a²');
 	});
 
+	test('a malicious payload smuggled beside pasted MathML cannot execute script', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// A hostile page can place arbitrary HTML on the clipboard. Shaped like a KaTeX
+		// fragment (a real <math> plus an aria-hidden visual layer) so the interceptor
+		// claims it as a standalone formula, but the visual layer smuggles an
+		// <img onerror>. The raw, pre-sanitization HTML must be parsed inertly, so the
+		// handler never runs.
+		const html =
+			'<span class="katex"><span class="katex-mathml"><math><semantics>' +
+			'<mrow><mi>x</mi></mrow>' +
+			'<annotation encoding="application/x-tex">x</annotation></semantics></math></span>' +
+			'<span class="katex-html" aria-hidden="true">' +
+			'<img src="totally-invalid-xyz" onerror="window.__formulaPasteXss = true"></span></span>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x' });
+
+		// The formula is still claimed and inserted as a node...
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(1);
+		// ...and the smuggled image error handler never executed.
+		await page.waitForTimeout(300);
+		const xss = await page.evaluate(
+			() => (window as Window & { __formulaPasteXss?: boolean }).__formulaPasteXss === true,
+		);
+		expect(xss).toBe(false);
+	});
+
 	test('blackboard-bold renders as a real Unicode glyph (no mathvariant reliance)', async ({
 		editor,
 		page,
