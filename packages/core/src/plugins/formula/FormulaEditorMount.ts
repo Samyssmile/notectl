@@ -1,0 +1,73 @@
+/**
+ * Glue between the framework-agnostic MathField (Layer A) and notectl. Maps the
+ * plugin locale onto the math field's locale and builds the structural palette,
+ * then mounts a MathField into a container and wires focus + announcements.
+ */
+
+import type { PluginContext } from '../Plugin.js';
+import type { FormulaLocale } from './FormulaLocale.js';
+import { MathField, buildMathPalette } from './math-field/index.js';
+import type { MathFieldLocale, MathFieldResult, MathPaletteGroup } from './math-field/index.js';
+
+/** Options for mounting the formula editor into a host container. */
+export interface MountFormulaEditorOptions {
+	readonly context: PluginContext;
+	readonly locale: FormulaLocale;
+	readonly mode: 'insert' | 'edit';
+	readonly initialLatex?: string;
+	readonly initialAlt?: string;
+	readonly initialDisplay?: boolean;
+	readonly onCommit: (result: MathFieldResult) => void;
+	readonly onClose: () => void;
+}
+
+function toMathFieldLocale(locale: FormulaLocale): MathFieldLocale {
+	return {
+		latexLabel: locale.latexLabel,
+		latexPlaceholder: locale.latexPlaceholder,
+		previewLabel: locale.previewLabel,
+		emptyPreview: locale.emptyPreview,
+		altLabel: locale.altLabel,
+		altPlaceholder: locale.altPlaceholder,
+		displayToggle: locale.displayToggle,
+		commitInsert: locale.insertButton,
+		commitUpdate: locale.updateButton,
+		cancel: locale.cancelButton,
+		paletteLabel: locale.paletteLabel,
+		unknownCommand: locale.unknownCommand,
+	};
+}
+
+function paletteFor(locale: FormulaLocale): MathPaletteGroup[] {
+	return buildMathPalette({
+		fractions: locale.groupFractions,
+		scripts: locale.groupScripts,
+		roots: locale.groupRoots,
+		operators: locale.groupOperators,
+		greek: locale.groupGreek,
+		relations: locale.groupRelations,
+		matrices: locale.groupMatrices,
+		arrows: locale.groupArrows,
+	});
+}
+
+/** Creates a MathField, appends it to `container`, and focuses it on next frame. */
+export function mountFormulaEditor(
+	container: HTMLElement,
+	options: MountFormulaEditorOptions,
+): MathField {
+	const field = new MathField({
+		locale: toMathFieldLocale(options.locale),
+		mode: options.mode,
+		initialLatex: options.initialLatex,
+		initialAlt: options.initialAlt,
+		initialDisplay: options.initialDisplay,
+		palette: paletteFor(options.locale),
+		onCommit: options.onCommit,
+		onCancel: options.onClose,
+		announce: (message: string) => options.context.announce(message),
+	});
+	container.appendChild(field.root);
+	requestAnimationFrame(() => field.focus());
+	return field;
+}

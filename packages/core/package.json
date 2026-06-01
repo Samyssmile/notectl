@@ -62,6 +62,10 @@
 			"types": "./dist/plugins/image/index.d.ts",
 			"import": "./dist/plugins/image.mjs"
 		},
+		"./plugins/formula": {
+			"types": "./dist/plugins/formula/index.d.ts",
+			"import": "./dist/plugins/formula.mjs"
+		},
 		"./plugins/code-block": {
 			"types": "./dist/plugins/code-block/index.d.ts",
 			"import": "./dist/plugins/code-block.mjs"

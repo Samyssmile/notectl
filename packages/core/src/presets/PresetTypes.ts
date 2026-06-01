@@ -9,6 +9,7 @@ import type { BlockquoteConfig } from '../plugins/blockquote/BlockquotePlugin.js
 import type { CodeBlockConfig } from '../plugins/code-block/CodeBlockTypes.js';
 import type { FontSizeConfig } from '../plugins/font-size/FontSizePlugin.js';
 import type { FontConfig } from '../plugins/font/FontPlugin.js';
+import type { FormulaPluginConfig } from '../plugins/formula/FormulaTypes.js';
 import type { HeadingConfig } from '../plugins/heading/HeadingPlugin.js';
 import type { HighlightConfig } from '../plugins/highlight/HighlightPlugin.js';
 import type { HorizontalRuleConfig } from '../plugins/horizontal-rule/HorizontalRulePlugin.js';
@@ -61,6 +62,7 @@ export interface FullPresetOptions {
 	readonly table?: Partial<import('../plugins/table/TablePlugin.js').TableConfig>;
 	readonly horizontalRule?: Partial<HorizontalRuleConfig>;
 	readonly image?: Partial<ImagePluginConfig>;
+	readonly formula?: Partial<FormulaPluginConfig>;
 	readonly print?: PrintPluginConfig;
 	readonly smartPaste?: Partial<SmartPasteConfig>;
 }
