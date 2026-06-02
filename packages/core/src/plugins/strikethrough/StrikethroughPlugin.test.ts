@@ -108,7 +108,7 @@ describe('StrikethroughPlugin', () => {
 				'<p><span style="text-decoration:line-through">struck</span></p>',
 			);
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'struck', marks: [{ type: 'strikethrough' }] },
+				{ kind: 'text', text: 'struck', marks: [{ type: 'strikethrough' }] },
 			]);
 		});
 	});

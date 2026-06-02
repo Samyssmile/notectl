@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Schema } from '../model/Schema.js';
+import { schemaFromRegistry } from '../model/Schema.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { HTMLParser } from './HTMLParser.js';
 
 function createTestSchema(opts?: {
@@ -31,58 +33,68 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<p><strong>bold</strong> text</p>');
 			expect(slice.blocks).toHaveLength(1);
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: ' text', marks: [] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' text', marks: [] },
 			]);
 		});
 
 		it('parses <b> as bold', () => {
 			const slice = parseHTML('<p><b>bold</b></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'bold', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+			]);
 		});
 
 		it('parses italic text', () => {
 			const slice = parseHTML('<p><em>italic</em></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'italic', marks: [{ type: 'italic' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'italic', marks: [{ type: 'italic' }] },
+			]);
 		});
 
 		it('parses <i> as italic', () => {
 			const slice = parseHTML('<p><i>italic</i></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'italic', marks: [{ type: 'italic' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'italic', marks: [{ type: 'italic' }] },
+			]);
 		});
 
 		it('parses underline', () => {
 			const slice = parseHTML('<p><u>underlined</u></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'underlined', marks: [{ type: 'underline' }] },
+				{ kind: 'text', text: 'underlined', marks: [{ type: 'underline' }] },
 			]);
 		});
 
 		it('parses strikethrough from <s>', () => {
 			const slice = parseHTML('<p><s>deleted</s></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'deleted', marks: [{ type: 'strikethrough' }] },
+				{ kind: 'text', text: 'deleted', marks: [{ type: 'strikethrough' }] },
 			]);
 		});
 
 		it('parses strikethrough from <del>', () => {
 			const slice = parseHTML('<p><del>deleted</del></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'deleted', marks: [{ type: 'strikethrough' }] },
+				{ kind: 'text', text: 'deleted', marks: [{ type: 'strikethrough' }] },
 			]);
 		});
 
 		it('parses links', () => {
 			const slice = parseHTML('<p><a href="https://example.com">link</a></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'link', marks: [{ type: 'link', attrs: { href: 'https://example.com' } }] },
+				{
+					kind: 'text',
+					text: 'link',
+					marks: [{ type: 'link', attrs: { href: 'https://example.com' } }],
+				},
 			]);
 		});
 
 		it('strips javascript: href in fallback mark resolution', () => {
 			const slice = parseHTML('<p><a href="javascript:alert(1)">click</a></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'click', marks: [{ type: 'link', attrs: { href: '' } }] },
+				{ kind: 'text', text: 'click', marks: [{ type: 'link', attrs: { href: '' } }] },
 			]);
 		});
 
@@ -94,46 +106,50 @@ describe('HTMLParser', () => {
 		it('parses nested marks', () => {
 			const slice = parseHTML('<p><strong><em>bold italic</em></strong></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold italic', marks: [{ type: 'bold' }, { type: 'italic' }] },
+				{ kind: 'text', text: 'bold italic', marks: [{ type: 'bold' }, { type: 'italic' }] },
 			]);
 		});
 
 		it('parses mixed marks across spans', () => {
 			const slice = parseHTML('<p><strong>bold</strong> and <em>italic</em></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: ' and ', marks: [] },
-				{ text: 'italic', marks: [{ type: 'italic' }] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' and ', marks: [] },
+				{ kind: 'text', text: 'italic', marks: [{ type: 'italic' }] },
 			]);
 		});
 
 		it('normalizes adjacent segments with same marks', () => {
 			const slice = parseHTML('<p><strong>first</strong><strong> second</strong></p>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'first second', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: 'first second', marks: [{ type: 'bold' }] },
 			]);
 		});
 
 		it('splits <br> into separate blocks', () => {
 			const slice = parseHTML('<p>line1<br>line2</p>');
 			expect(slice.blocks).toHaveLength(2);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'line1', marks: [] }]);
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'line2', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'line1', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'line2', marks: [] }]);
 		});
 
 		it('splits multiple <br> into separate blocks', () => {
 			const slice = parseHTML('<p>a<br>b<br>c</p>');
 			expect(slice.blocks).toHaveLength(3);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'a', marks: [] }]);
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'b', marks: [] }]);
-			expect(slice.blocks[2]?.segments).toEqual([{ text: 'c', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'a', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'b', marks: [] }]);
+			expect(slice.blocks[2]?.segments).toEqual([{ kind: 'text', text: 'c', marks: [] }]);
 		});
 
 		it('preserves marks across <br> split', () => {
 			const slice = parseHTML('<p><b>bold<br>more</b></p>');
 			expect(slice.blocks).toHaveLength(2);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'bold', marks: [{ type: 'bold' }] }]);
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'more', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+			]);
+			expect(slice.blocks[1]?.segments).toEqual([
+				{ kind: 'text', text: 'more', marks: [{ type: 'bold' }] },
+			]);
 		});
 
 		it('keeps a source-wrapped paragraph as one block (collapses newlines, issue #137)', () => {
@@ -147,6 +163,7 @@ describe('HTMLParser', () => {
 			expect(slice.blocks).toHaveLength(1);
 			expect(slice.blocks[0]?.segments).toEqual([
 				{
+					kind: 'text',
 					text:
 						'Do not collect the GST/HST when a customer gives you a deposit ' +
 						'towards a taxable purchase. Collect the GST/HST on the deposit when you ' +
@@ -161,19 +178,21 @@ describe('HTMLParser', () => {
 				'<ul>\n  <li>\n    first item\n  </li>\n  <li>\n    second\n  </li>\n</ul>',
 			);
 			expect(slice.blocks).toHaveLength(2);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'first item', marks: [] }]);
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'second', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'first item', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'second', marks: [] }]);
 		});
 
 		it('preserves whitespace inside <pre> blocks (issue #137)', () => {
 			const slice = parseHTML('<pre>  indented\n    deeper\n</pre>');
 			expect(slice.blocks).toHaveLength(1);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: '  indented\n    deeper\n', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: '  indented\n    deeper\n', marks: [] },
+			]);
 		});
 
 		it('does not apply bold for <b style="font-weight:normal">', () => {
 			const slice = parseHTML('<p><b style="font-weight:normal">text</b></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'text', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'text', marks: [] }]);
 		});
 	});
 
@@ -182,9 +201,9 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<p>first</p><p>second</p>');
 			expect(slice.blocks).toHaveLength(2);
 			expect(slice.blocks[0]?.type).toBe('paragraph');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'first', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'first', marks: [] }]);
 			expect(slice.blocks[1]?.type).toBe('paragraph');
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'second', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'second', marks: [] }]);
 		});
 
 		it('parses headings h1-h6', () => {
@@ -198,7 +217,7 @@ describe('HTMLParser', () => {
 		it('parses blockquote', () => {
 			const slice = parseHTML('<blockquote>quoted text</blockquote>');
 			expect(slice.blocks[0]?.type).toBe('blockquote');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'quoted text', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'quoted text', marks: [] }]);
 		});
 
 		it('parses horizontal rule', () => {
@@ -212,7 +231,7 @@ describe('HTMLParser', () => {
 			expect(slice.blocks).toHaveLength(2);
 			expect(slice.blocks[0]?.type).toBe('list_item');
 			expect(slice.blocks[0]?.attrs).toEqual({ listType: 'bullet', indent: 0 });
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'item 1', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'item 1', marks: [] }]);
 			expect(slice.blocks[1]?.type).toBe('list_item');
 		});
 
@@ -226,9 +245,9 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<ul><li>top<ul><li>nested</li></ul></li></ul>');
 			expect(slice.blocks).toHaveLength(2);
 			expect(slice.blocks[0]?.attrs).toEqual({ listType: 'bullet', indent: 0 });
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'top', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'top', marks: [] }]);
 			expect(slice.blocks[1]?.attrs).toEqual({ listType: 'bullet', indent: 1 });
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'nested', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'nested', marks: [] }]);
 		});
 
 		it('parses div as paragraph', () => {
@@ -248,8 +267,8 @@ describe('HTMLParser', () => {
 			const schema = createTestSchema({ markTypes: ['bold'] });
 			const slice = parseHTML('<p><strong>bold</strong> <em>not italic</em></p>', schema);
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: ' not italic', marks: [] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' not italic', marks: [] },
 			]);
 		});
 
@@ -273,16 +292,16 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<h1><strong>Bold</strong> Title</h1>');
 			expect(slice.blocks[0]?.type).toBe('heading');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'Bold', marks: [{ type: 'bold' }] },
-				{ text: ' Title', marks: [] },
+				{ kind: 'text', text: 'Bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' Title', marks: [] },
 			]);
 		});
 
 		it('parses list items with marks', () => {
 			const slice = parseHTML('<ul><li><strong>bold</strong> item</li></ul>');
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: ' item', marks: [] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' item', marks: [] },
 			]);
 		});
 
@@ -300,7 +319,7 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('');
 			expect(slice.blocks).toHaveLength(1);
 			expect(slice.blocks[0]?.type).toBe('paragraph');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: '', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: '', marks: [] }]);
 		});
 
 		it('handles plain text without wrapper', () => {
@@ -313,8 +332,8 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<strong>bold</strong> text');
 			expect(slice.blocks).toHaveLength(1);
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: ' text', marks: [] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: ' text', marks: [] },
 			]);
 		});
 
@@ -322,14 +341,14 @@ describe('HTMLParser', () => {
 			const slice = parseHTML('<blockquote><p>first</p><p>second</p></blockquote>');
 			expect(slice.blocks).toHaveLength(2);
 			expect(slice.blocks[0]?.type).toBe('blockquote');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'first', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'first', marks: [] }]);
 			expect(slice.blocks[1]?.type).toBe('blockquote');
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'second', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'second', marks: [] }]);
 		});
 
 		it('ensures empty blocks have at least one segment', () => {
 			const slice = parseHTML('<p></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: '', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: '', marks: [] }]);
 		});
 
 		it('parses link with bold text inside', () => {
@@ -338,6 +357,7 @@ describe('HTMLParser', () => {
 			);
 			expect(slice.blocks[0]?.segments).toEqual([
 				{
+					kind: 'text',
 					text: 'bold link',
 					marks: [{ type: 'link', attrs: { href: 'https://example.com' } }, { type: 'bold' }],
 				},
@@ -347,8 +367,52 @@ describe('HTMLParser', () => {
 		it('handles inline element wrapping block descendants', () => {
 			const slice = parseHTML('<b><p>para one</p><p>para two</p></b>');
 			expect(slice.blocks).toHaveLength(2);
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'para one', marks: [{ type: 'bold' }] }]);
-			expect(slice.blocks[1]?.segments).toEqual([{ text: 'para two', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'para one', marks: [{ type: 'bold' }] },
+			]);
+			expect(slice.blocks[1]?.segments).toEqual([
+				{ kind: 'text', text: 'para two', marks: [{ type: 'bold' }] },
+			]);
+		});
+	});
+
+	describe('inline nodes (parseHTML rules)', () => {
+		function parserWithInlineMath(): HTMLParser {
+			const registry = new SchemaRegistry();
+			registry.registerInlineNodeSpec({
+				type: 'inline_math',
+				toDOM: () => document.createElement('span'),
+				parseHTML: [{ tag: 'math', getAttrs: (el: HTMLElement) => ({ mathml: el.outerHTML }) }],
+			});
+			return new HTMLParser({ schema: schemaFromRegistry(registry), schemaRegistry: registry });
+		}
+
+		function parseWith(parser: HTMLParser, html: string): ReturnType<HTMLParser['parse']> {
+			const template = document.createElement('template');
+			template.innerHTML = html;
+			return parser.parse(template.content);
+		}
+
+		it('preserves an inline node interleaved with text (issue A1)', () => {
+			const slice = parseWith(parserWithInlineMath(), '<p>before<math><mi>x</mi></math>after</p>');
+			expect(slice.blocks).toHaveLength(1);
+			const segments = slice.blocks[0]?.segments ?? [];
+			expect(segments).toHaveLength(3);
+			expect(segments[0]).toEqual({ kind: 'text', text: 'before', marks: [] });
+			const inline = segments[1];
+			expect(inline?.kind).toBe('inline');
+			if (inline?.kind === 'inline') {
+				expect(inline.node.inlineType).toBe('inline_math');
+				expect(String(inline.node.attrs.mathml)).toContain('<math');
+			}
+			expect(segments[2]).toEqual({ kind: 'text', text: 'after', marks: [] });
+		});
+
+		it('flattens inline elements to text when no parse rule is registered', () => {
+			const slice = parseHTML('<p>before<math><mi>x</mi></math>after</p>');
+			const segments = slice.blocks[0]?.segments ?? [];
+			expect(segments.some((s) => s.kind === 'inline')).toBe(false);
+			expect(segments.every((s) => s.kind === 'text')).toBe(true);
 		});
 	});
 });

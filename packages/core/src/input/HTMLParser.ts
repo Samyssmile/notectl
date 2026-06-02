@@ -4,15 +4,15 @@
  */
 
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
-import type { Mark, TextSegment } from '../model/Document.js';
-import { markSetsEqual } from '../model/Document.js';
+import type { ContentSegment, InlineNode, Mark } from '../model/Document.js';
+import { createInlineNode, inlineSegment, markSetsEqual, textSegment } from '../model/Document.js';
 import { sanitizeHref } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { Schema } from '../model/Schema.js';
 import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import type { NodeTypeName } from '../model/TypeBrands.js';
-import { markType, nodeType } from '../model/TypeBrands.js';
+import type { InlineTypeName, NodeTypeName } from '../model/TypeBrands.js';
+import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 
 export interface HTMLParserOptions {
@@ -105,12 +105,17 @@ export class HTMLParser {
 		readonly rule: ParseRule;
 		readonly type: string;
 	}[];
+	private readonly inlineParseRules: readonly {
+		readonly rule: ParseRule;
+		readonly type: string;
+	}[];
 	private readonly blockTagHandlers: ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]>;
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
 		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
 		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
+		this.inlineParseRules = options.schemaRegistry?.getInlineParseRules() ?? [];
 		this.blockTagHandlers = this.buildBlockTagHandlers();
 	}
 
@@ -127,7 +132,7 @@ export class HTMLParser {
 				blocks: [
 					{
 						type: this.resolveBlockType(nodeType('paragraph')),
-						segments: [{ text: '', marks: [] }],
+						segments: [textSegment('')],
 					},
 				],
 			};
@@ -175,7 +180,7 @@ export class HTMLParser {
 
 	private parseContainer(container: DocumentFragment | HTMLElement): SliceBlock[] {
 		const blocks: SliceBlock[] = [];
-		let pendingSegments: TextSegment[] = [];
+		let pendingSegments: ContentSegment[] = [];
 
 		for (const child of Array.from(container.childNodes)) {
 			if (child.nodeType === Node.ELEMENT_NODE) {
@@ -195,7 +200,7 @@ export class HTMLParser {
 			} else if (child.nodeType === Node.TEXT_NODE) {
 				const text: string = child.textContent ?? '';
 				if (text) {
-					pendingSegments.push({ text, marks: [] });
+					pendingSegments.push(textSegment(text));
 				}
 			}
 		}
@@ -296,7 +301,7 @@ export class HTMLParser {
 		const resolvedListType: ListType = isChecklist ? 'checklist' : listType;
 		const checked: boolean = isChecklist ? this.isCheckboxChecked(element) : false;
 
-		const inlineSegments: TextSegment[] = [];
+		const inlineSegments: ContentSegment[] = [];
 		const nestedLists: HTMLElement[] = [];
 
 		for (const child of Array.from(element.childNodes)) {
@@ -314,7 +319,7 @@ export class HTMLParser {
 			} else if (child.nodeType === Node.TEXT_NODE) {
 				const text: string = child.textContent ?? '';
 				if (text) {
-					inlineSegments.push({ text, marks: [] });
+					inlineSegments.push(textSegment(text));
 				}
 			}
 		}
@@ -337,8 +342,11 @@ export class HTMLParser {
 		return blocks;
 	}
 
-	private parseInlineChildren(element: HTMLElement, parentMarks: readonly Mark[]): TextSegment[] {
-		const segments: TextSegment[] = [];
+	private parseInlineChildren(
+		element: HTMLElement,
+		parentMarks: readonly Mark[],
+	): ContentSegment[] {
+		const segments: ContentSegment[] = [];
 
 		for (const child of Array.from(element.childNodes)) {
 			segments.push(...this.parseInlineNode(child, parentMarks));
@@ -347,11 +355,11 @@ export class HTMLParser {
 		return this.normalizeSegments(segments);
 	}
 
-	private parseInlineNode(node: Node, parentMarks: readonly Mark[]): TextSegment[] {
+	private parseInlineNode(node: Node, parentMarks: readonly Mark[]): ContentSegment[] {
 		if (node.nodeType === Node.TEXT_NODE) {
 			const text: string = node.textContent ?? '';
 			if (text) {
-				return [{ text, marks: this.resolveMarks(parentMarks) }];
+				return [textSegment(text, this.resolveMarks(parentMarks))];
 			}
 			return [];
 		}
@@ -361,8 +369,16 @@ export class HTMLParser {
 		const el: HTMLElement = node as HTMLElement;
 		const tag: string = el.tagName;
 
+		// `<br>` becomes a newline that `parseBlockWithLineBreaks` splits into blocks;
+		// resolve it before inline-node rules to preserve that block-splitting behavior.
 		if (tag === 'BR') {
-			return [{ text: '\n', marks: this.resolveMarks(parentMarks) }];
+			return [textSegment('\n', this.resolveMarks(parentMarks))];
+		}
+
+		// Atomic inline nodes (e.g. <math>) declared by plugins via inline parseHTML rules.
+		const inlineNode: InlineNode | null = this.matchInlineNodeRule(el);
+		if (inlineNode) {
+			return [inlineSegment(inlineNode)];
 		}
 
 		if (this.isBlockElement(el) && !INLINE_ELEMENTS.has(tag)) {
@@ -373,10 +389,32 @@ export class HTMLParser {
 		return this.parseInlineChildren(el, childMarks);
 	}
 
-	private parsePreContent(element: HTMLElement): TextSegment[] {
+	/** Matches an element against inline-node parse rules, returning a built InlineNode or null. */
+	private matchInlineNodeRule(el: HTMLElement): InlineNode | null {
+		if (this.inlineParseRules.length === 0) return null;
+
+		const tag: string = el.tagName.toLowerCase();
+		for (const entry of this.inlineParseRules) {
+			if (entry.rule.tag !== tag) continue;
+
+			if (entry.rule.getAttrs) {
+				const attrs = entry.rule.getAttrs(el);
+				if (attrs === false) continue;
+				return createInlineNode(
+					inlineType(entry.type) as InlineTypeName,
+					attrs as Readonly<Record<string, string | number | boolean>>,
+				);
+			}
+			return createInlineNode(inlineType(entry.type) as InlineTypeName);
+		}
+
+		return null;
+	}
+
+	private parsePreContent(element: HTMLElement): ContentSegment[] {
 		const text: string = element.textContent ?? '';
 		if (!text) return [];
-		return [{ text, marks: [] }];
+		return [textSegment(text)];
 	}
 
 	private parseTableAsParagraphs(element: HTMLElement): SliceBlock[] {
@@ -384,8 +422,11 @@ export class HTMLParser {
 		const cells: NodeListOf<HTMLTableCellElement> = element.querySelectorAll('td, th');
 
 		for (const cell of Array.from(cells)) {
-			const segments: TextSegment[] = this.parseInlineChildren(cell, []);
-			if (segments.length > 0 && segments.some((s: TextSegment) => s.text.length > 0)) {
+			const segments: ContentSegment[] = this.parseInlineChildren(cell, []);
+			const hasContent: boolean = segments.some(
+				(s: ContentSegment) => s.kind === 'inline' || s.text.length > 0,
+			);
+			if (hasContent) {
 				blocks.push({
 					type: this.resolveBlockType(nodeType('paragraph')),
 					segments: this.ensureSegments(segments),
@@ -464,17 +505,19 @@ export class HTMLParser {
 		return nodeType('paragraph');
 	}
 
-	private normalizeSegments(segments: readonly TextSegment[]): TextSegment[] {
+	private normalizeSegments(segments: readonly ContentSegment[]): ContentSegment[] {
 		if (segments.length === 0) return [];
 
-		const result: TextSegment[] = [];
+		const result: ContentSegment[] = [];
 		for (const segment of segments) {
-			const prev: TextSegment | undefined = result[result.length - 1];
-			if (prev && markSetsEqual(prev.marks, segment.marks)) {
-				result[result.length - 1] = {
-					text: prev.text + segment.text,
-					marks: prev.marks,
-				};
+			// Inline nodes are atomic and act as a merge barrier between text runs.
+			if (segment.kind === 'inline') {
+				result.push(segment);
+				continue;
+			}
+			const prev: ContentSegment | undefined = result[result.length - 1];
+			if (prev && prev.kind === 'text' && markSetsEqual(prev.marks, segment.marks)) {
+				result[result.length - 1] = textSegment(prev.text + segment.text, prev.marks);
 			} else if (segment.text.length > 0) {
 				result.push(segment);
 			}
@@ -482,8 +525,8 @@ export class HTMLParser {
 		return result;
 	}
 
-	private ensureSegments(segments: readonly TextSegment[]): readonly TextSegment[] {
-		if (segments.length === 0) return [{ text: '', marks: [] }];
+	private ensureSegments(segments: readonly ContentSegment[]): readonly ContentSegment[] {
+		if (segments.length === 0) return [textSegment('')];
 		return segments;
 	}
 
@@ -552,14 +595,12 @@ export class HTMLParser {
 
 	/** Merges inherited marks into each segment's mark list. */
 	private prependMarks(
-		segments: readonly TextSegment[],
+		segments: readonly ContentSegment[],
 		marks: readonly Mark[],
-	): readonly TextSegment[] {
+	): readonly ContentSegment[] {
 		return segments.map(
-			(s: TextSegment): TextSegment => ({
-				text: s.text,
-				marks: this.mergeMarks(marks, s.marks),
-			}),
+			(s: ContentSegment): ContentSegment =>
+				s.kind === 'inline' ? s : textSegment(s.text, this.mergeMarks(marks, s.marks)),
 		);
 	}
 
@@ -568,8 +609,10 @@ export class HTMLParser {
 	 * at `<br>` boundaries.
 	 */
 	private parseBlockWithLineBreaks(element: HTMLElement, blockType: NodeTypeName): SliceBlock[] {
-		const segments: readonly TextSegment[] = this.parseInlineChildren(element, []);
-		const hasLineBreak: boolean = segments.some((s: TextSegment) => s.text.includes('\n'));
+		const segments: readonly ContentSegment[] = this.parseInlineChildren(element, []);
+		const hasLineBreak: boolean = segments.some(
+			(s: ContentSegment) => s.kind === 'text' && s.text.includes('\n'),
+		);
 
 		if (!hasLineBreak) {
 			return [
@@ -581,9 +624,13 @@ export class HTMLParser {
 		}
 
 		const blocks: SliceBlock[] = [];
-		let current: TextSegment[] = [];
+		let current: ContentSegment[] = [];
 
 		for (const segment of segments) {
+			if (segment.kind === 'inline') {
+				current.push(segment);
+				continue;
+			}
 			const parts: readonly string[] = segment.text.split('\n');
 			for (let i = 0; i < parts.length; i++) {
 				if (i > 0) {
@@ -595,7 +642,7 @@ export class HTMLParser {
 				}
 				const part: string = parts[i] ?? '';
 				if (part) {
-					current.push({ text: part, marks: segment.marks });
+					current.push(textSegment(part, segment.marks));
 				}
 			}
 		}
@@ -608,10 +655,14 @@ export class HTMLParser {
 		return blocks;
 	}
 
-	private flushPendingSegments(blocks: SliceBlock[], segments: TextSegment[]): void {
-		const normalized: TextSegment[] = this.normalizeSegments(segments);
+	private flushPendingSegments(blocks: SliceBlock[], segments: ContentSegment[]): void {
+		const normalized: ContentSegment[] = this.normalizeSegments(segments);
 		if (normalized.length === 0) return;
-		if (normalized.every((s: TextSegment) => s.text.trim() === '')) return;
+		// Skip whitespace-only runs, but keep anything that carries an inline node.
+		const isBlank: boolean = normalized.every(
+			(s: ContentSegment) => s.kind === 'text' && s.text.trim() === '',
+		);
+		if (isBlank) return;
 
 		blocks.push({
 			type: this.resolveBlockType(nodeType('paragraph')),

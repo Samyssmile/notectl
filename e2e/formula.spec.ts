@@ -114,6 +114,31 @@ test.describe('Formula plugin', () => {
 		expect(json).toContain('\\\\frac{1}{2}');
 	});
 
+	test('pasting mixed HTML with inline math amid text preserves the formula (issue A1)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// Text on BOTH sides of <math>: NOT a standalone formula, so FormulaPasteInterceptor
+		// declines and the content flows through the general HTML paste pipeline
+		// (HTMLParser → ContentSlice → PasteCommand). The inline formula must survive
+		// interleaved with the surrounding text instead of being flattened to token text.
+		const html =
+			'<p>before <math display="inline"><semantics><mrow><msup><mi>a</mi><mn>2</mn></msup></mrow>' +
+			'<annotation encoding="application/x-tex">a^2</annotation></semantics></math> after</p>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'before a^2 after' });
+
+		// The formula survived as a real, editable inline node...
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(1);
+		expect(JSON.stringify(await editor.getJSON())).toContain('a^2');
+		// ...interleaved with the surrounding text inside a single block.
+		const block = page
+			.locator('[data-block-id]')
+			.filter({ has: page.locator('.notectl-math--inline') });
+		await expect(block).toContainText('before');
+		await expect(block).toContainText('after');
+	});
+
 	test('pasting a KaTeX clipboard fragment (visual layer + assistive math) works', async ({
 		editor,
 		page,

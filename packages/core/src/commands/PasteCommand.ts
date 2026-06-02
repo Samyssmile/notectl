@@ -4,9 +4,14 @@
  */
 
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
-import { segmentsLength, segmentsToText } from '../model/ContentSlice.js';
-import { createBlockNode, createTextNode, generateBlockId } from '../model/Document.js';
-import type { TextSegment } from '../model/Document.js';
+import { segmentsLength } from '../model/ContentSlice.js';
+import {
+	createBlockNode,
+	createTextNode,
+	generateBlockId,
+	segmentsToInlineChildren,
+} from '../model/Document.js';
+import type { ContentSegment, TextSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { GapCursorSelection, Selection } from '../model/Selection.js';
 import {
@@ -78,8 +83,46 @@ function resolvePasteTarget(state: EditorState, sel: Selection): PasteTarget {
 	return { builder, landingId, resolved, insertBlockId, insertOffset };
 }
 
+/**
+ * Inserts content segments at a position by interleaving `insertText` and
+ * `insertInlineNode` steps. Consecutive text segments are coalesced into a single
+ * mark-preserving `insertText`. Returns the resulting end offset.
+ */
+function insertSegmentsAt(
+	builder: TransactionBuilder,
+	blockId: BlockId,
+	startOffset: number,
+	segments: readonly ContentSegment[],
+): number {
+	let offset: number = startOffset;
+	let textRun: TextSegment[] = [];
+
+	const flushTextRun = (): void => {
+		if (textRun.length === 0) return;
+		const text: string = textRun.map((s: TextSegment) => s.text).join('');
+		if (text.length > 0) {
+			builder.insertText(blockId, offset, text, [], textRun);
+			offset += text.length;
+		}
+		textRun = [];
+	};
+
+	for (const segment of segments) {
+		if (segment.kind === 'inline') {
+			flushTextRun();
+			builder.insertInlineNode(blockId, offset, segment.node);
+			offset += 1;
+		} else {
+			textRun.push({ text: segment.text, marks: segment.marks });
+		}
+	}
+	flushTextRun();
+
+	return offset;
+}
+
 /** Case 1: single paragraph — insert segments into current block. */
-function pasteInline(state: EditorState, segments: readonly TextSegment[]): Transaction {
+function pasteInline(state: EditorState, segments: readonly ContentSegment[]): Transaction {
 	const sel = state.selection;
 	if (isNodeSelection(sel)) {
 		return state.transaction('paste').setSelection(sel).build();
@@ -88,11 +131,8 @@ function pasteInline(state: EditorState, segments: readonly TextSegment[]): Tran
 		return pasteInlineAtGap(state, sel, segments);
 	}
 	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
-	const totalLength: number = segmentsLength(segments);
-	const text: string = segmentsToText(segments);
-
-	builder.insertText(insertBlockId, insertOffset, text, [], segments);
-	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + totalLength));
+	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, segments);
+	builder.setSelection(createCollapsedSelection(insertBlockId, endOffset));
 
 	return builder.build();
 }
@@ -107,12 +147,10 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 		return pasteBlocksAtGap(state, sel, [block]);
 	}
 	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
-	const totalLength: number = segmentsLength(block.segments);
-	const text: string = segmentsToText(block.segments);
 
 	builder.setBlockType(insertBlockId, block.type, block.attrs);
-	builder.insertText(insertBlockId, insertOffset, text, [], block.segments);
-	builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + totalLength));
+	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, block.segments);
+	builder.setSelection(createCollapsedSelection(insertBlockId, endOffset));
 
 	return builder.build();
 }
@@ -153,34 +191,23 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	const middleSlices: readonly SliceBlock[] = slice.blocks.slice(1, -1);
 
 	// 1. Insert first slice's segments into current block
-	const firstLen: number = segmentsLength(firstSlice.segments);
-	if (firstSlice.segments.length > 0 && firstLen > 0) {
-		builder.insertText(
-			blockId,
-			offset,
-			segmentsToText(firstSlice.segments),
-			[],
-			firstSlice.segments,
-		);
-	}
+	const firstEnd: number = insertSegmentsAt(builder, blockId, offset, firstSlice.segments);
 
 	// 2. Change block type if first slice is not a paragraph
 	if (firstSlice.type !== nodeType('paragraph')) {
 		builder.setBlockType(blockId, firstSlice.type, firstSlice.attrs);
 	}
 
-	// 3. Split current block after inserted text
-	const splitOffset: number = offset + firstLen;
+	// 3. Split current block after the inserted content
 	const tailBlockId = generateBlockId();
-	builder.splitBlock(blockId, splitOffset, tailBlockId);
+	builder.splitBlock(blockId, firstEnd, tailBlockId);
 
 	// 4. Insert middle blocks between first and tail
 	let insertAt: number = blockIdx + 1;
 	for (const mid of middleSlices) {
-		const textNodes = mid.segments.map((s: TextSegment) => createTextNode(s.text, [...s.marks]));
 		const newBlock = createBlockNode(
 			mid.type,
-			textNodes.length > 0 ? textNodes : undefined,
+			segmentsToInlineChildren(mid.segments),
 			generateBlockId(),
 			mid.attrs,
 		);
@@ -189,10 +216,7 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	}
 
 	// 5. Insert last slice's segments at start of tail block
-	const lastLen: number = segmentsLength(lastSlice.segments);
-	if (lastSlice.segments.length > 0 && lastLen > 0) {
-		builder.insertText(tailBlockId, 0, segmentsToText(lastSlice.segments), [], lastSlice.segments);
-	}
+	insertSegmentsAt(builder, tailBlockId, 0, lastSlice.segments);
 
 	// 6. Change tail block type if needed
 	if (lastSlice.type !== nodeType('paragraph')) {
@@ -200,7 +224,7 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	}
 
 	// 7. Set cursor to end of inserted content
-	builder.setSelection(createCollapsedSelection(tailBlockId, lastLen));
+	builder.setSelection(createCollapsedSelection(tailBlockId, segmentsLength(lastSlice.segments)));
 
 	return builder.build();
 }
@@ -232,7 +256,7 @@ function gapInsertIndex(
 function pasteInlineAtGap(
 	state: EditorState,
 	sel: GapCursorSelection,
-	segments: readonly TextSegment[],
+	segments: readonly ContentSegment[],
 ): Transaction {
 	const gap = gapInsertIndex(state, sel);
 	if (!gap) {
@@ -240,8 +264,6 @@ function pasteInlineAtGap(
 	}
 
 	const newId: BlockId = generateBlockId();
-	const text: string = segmentsToText(segments);
-	const totalLength: number = segmentsLength(segments);
 	const builder: TransactionBuilder = state.transaction('paste');
 
 	builder.insertNode(
@@ -249,10 +271,8 @@ function pasteInlineAtGap(
 		gap.insertIndex,
 		createBlockNode(nodeType('paragraph') as NodeTypeName, [createTextNode('')], newId),
 	);
-	if (text.length > 0) {
-		builder.insertText(newId, 0, text, [], segments);
-	}
-	builder.setSelection(createCollapsedSelection(newId, totalLength));
+	const endOffset: number = insertSegmentsAt(builder, newId, 0, segments);
+	builder.setSelection(createCollapsedSelection(newId, endOffset));
 
 	return builder.build();
 }
@@ -271,26 +291,24 @@ function pasteBlocksAtGap(
 	const builder: TransactionBuilder = state.transaction('paste');
 	let insertAt: number = gap.insertIndex;
 	let lastBlockId: BlockId | undefined;
-	let lastTextLen = 0;
+	let lastLen = 0;
 
 	for (const block of blocks) {
 		const newId: BlockId = generateBlockId();
-		const text: string = segmentsToText(block.segments);
-		const textNodes = block.segments.map((s: TextSegment) => createTextNode(s.text, [...s.marks]));
 		const newBlock = createBlockNode(
 			block.type,
-			textNodes.length > 0 ? textNodes : [createTextNode('')],
+			segmentsToInlineChildren(block.segments),
 			newId,
 			block.attrs,
 		);
 		builder.insertNode(gap.parentPath, insertAt, newBlock);
 		insertAt++;
 		lastBlockId = newId;
-		lastTextLen = text.length;
+		lastLen = segmentsLength(block.segments);
 	}
 
 	if (lastBlockId) {
-		builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
+		builder.setSelection(createCollapsedSelection(lastBlockId, lastLen));
 	}
 
 	return builder.build();

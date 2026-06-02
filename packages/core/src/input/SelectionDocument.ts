@@ -5,12 +5,11 @@
 
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
-	createTextNode,
 	getBlockChildren,
 	getBlockContentSegmentsInRange,
 	getBlockLength,
 	isLeafBlock,
-	normalizeInlineContent,
+	segmentsToInlineChildren,
 } from '../model/Document.js';
 import type { Selection } from '../model/Selection.js';
 import { selectionRange } from '../model/Selection.js';
@@ -111,11 +110,7 @@ function sliceLeafBlock(block: BlockNode, boundary: SelectionBoundary): BlockNod
 	}
 
 	const segments = getBlockContentSegmentsInRange(block, from, to);
-	const children: readonly (TextNode | InlineNode)[] = normalizeInlineContent(
-		segments.map((segment) =>
-			segment.kind === 'inline' ? segment.node : createTextNode(segment.text, segment.marks),
-		),
-	);
+	const children: readonly (TextNode | InlineNode)[] = segmentsToInlineChildren(segments);
 
 	return {
 		...block,
