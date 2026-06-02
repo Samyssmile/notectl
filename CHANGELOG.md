@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Optional clean HTML export via `getContentHTML({ includeBlockIds: false })` (#147)** — `getContentHTML` gains an `includeBlockIds` option (default `true`, so existing behaviour is unchanged) that omits the editor-internal `data-block-id` attribute from the output. By default every block element carries `data-block-id` as notectl's wire format, which lets `setContentHTML(getContentHTML())` preserve block identity so the caret survives content round-trips driven by external sync (Angular signal forms, RxJS pipes). Consumers that treat the output as a final artifact (database storage, server-side tag/attribute validation, handoff to another system) can now pass `includeBlockIds: false` for clean HTML, accepting that round-trips of the cleaned HTML generate fresh ids and no longer preserve the caret. The option works in both `cssMode: 'inline'` and `cssMode: 'classes'`. The strip is enforced with DOMPurify `FORBID_ATTR: ['data-block-id']` rather than allowlist removal, because `data-block-id` is a `data-*` attribute that DOMPurify permits by default via `ALLOW_DATA_ATTR` regardless of `ALLOWED_ATTR`; the serializer skips its central injection and `FORBID_ATTR` guarantees removal even when a third-party `NodeSpec.toHTML` emits its own id. `ContentHTMLOptions` now extends a new low-level `SerializeOptions` type, and the `getContentHTML` overloads were updated so the option is available in both return-type modes. Documented in the API reference, the content guide, and ARCHITECTURE 9.2, with an `includeBlockIds` toggle added to the vanillajs playground's HTML / CSS+HTML inspector tabs.
+
 ## [2.2.0] - 2026-06-02
 
 ### Added
