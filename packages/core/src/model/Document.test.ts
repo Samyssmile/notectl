@@ -5,6 +5,7 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	forEachInlineChildInRange,
 	generateBlockId,
 	getBlockContentSegmentsInRange,
 	getBlockLength,
@@ -286,6 +287,63 @@ describe('Document model', () => {
 			expect(entries[0]).toEqual({ child: children[0], from: 0, to: 2 });
 			expect(entries[1]).toEqual({ child: inline, from: 2, to: 3 });
 			expect(entries[2]).toEqual({ child: children[2], from: 3, to: 5 });
+		});
+	});
+
+	describe('forEachInlineChildInRange', () => {
+		it('clips text nodes to the range before invoking onText', () => {
+			const block = createBlockNode('paragraph', [createTextNode('abcde')]);
+			const texts: string[] = [];
+			forEachInlineChildInRange(block, 1, 4, {
+				onText: (text: string): void => {
+					texts.push(text);
+				},
+			});
+			expect(texts).toEqual(['bcd']);
+		});
+
+		it('skips children fully outside the range and empty slices', () => {
+			const block = createBlockNode('paragraph', [createTextNode('ab'), createTextNode('cd')]);
+			const texts: string[] = [];
+			forEachInlineChildInRange(block, 2, 4, {
+				onText: (text: string): void => {
+					texts.push(text);
+				},
+			});
+			expect(texts).toEqual(['cd']);
+		});
+
+		it('invokes onInline for inline nodes within the range', () => {
+			const inline: InlineNode = createInlineNode(inlineType('img'));
+			const block = createBlockNode('paragraph', [
+				createTextNode('ab'),
+				inline,
+				createTextNode('cd'),
+			]);
+			const visited: Array<string> = [];
+			forEachInlineChildInRange(block, 0, 5, {
+				onText: (text: string): void => {
+					visited.push(`t:${text}`);
+				},
+				onInline: (node: InlineNode): void => {
+					visited.push(`i:${node.inlineType}`);
+				},
+			});
+			expect(visited).toEqual(['t:ab', 'i:img', 't:cd']);
+		});
+
+		it('omits onInline gracefully when not provided', () => {
+			const inline: InlineNode = createInlineNode(inlineType('img'));
+			const block = createBlockNode('paragraph', [createTextNode('ab'), inline]);
+			const texts: string[] = [];
+			expect(() =>
+				forEachInlineChildInRange(block, 0, 3, {
+					onText: (text: string): void => {
+						texts.push(text);
+					},
+				}),
+			).not.toThrow();
+			expect(texts).toEqual(['ab']);
 		});
 	});
 

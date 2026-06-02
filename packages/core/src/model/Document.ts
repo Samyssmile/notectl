@@ -86,7 +86,7 @@ export function getBlockSegmentsInRange(
 	to: number,
 ): readonly TextSegment[] {
 	const segments: TextSegment[] = [];
-	walkBlockRange(block, from, to, {
+	forEachInlineChildInRange(block, from, to, {
 		onText(text: string, marks: readonly Mark[]): void {
 			segments.push({ text, marks });
 		},
@@ -101,7 +101,7 @@ export function getBlockContentSegmentsInRange(
 	to: number,
 ): readonly ContentSegment[] {
 	const segments: ContentSegment[] = [];
-	walkBlockRange(block, from, to, {
+	forEachInlineChildInRange(block, from, to, {
 		onText(text: string, marks: readonly Mark[]): void {
 			segments.push({ kind: 'text', text, marks });
 		},
@@ -112,13 +112,21 @@ export function getBlockContentSegmentsInRange(
 	return segments;
 }
 
-interface BlockRangeVisitor {
+/** Visitor callbacks invoked by {@link forEachInlineChildInRange} for each in-range child. */
+export interface BlockRangeVisitor {
+	/** Called with the clipped text and its marks for each text node overlapping the range. */
 	readonly onText: (text: string, marks: readonly Mark[]) => void;
+	/** Called for each inline node falling within the range. */
 	readonly onInline?: (node: InlineNode) => void;
 }
 
-/** Walks inline children within [from, to) and calls visitor callbacks for each relevant child. */
-function walkBlockRange(
+/**
+ * Walks the inline children of `block` overlapping `[from, to)` and invokes the
+ * matching visitor callback for each. Text nodes are clipped to the range before
+ * `onText` fires; empty slices are skipped. This is the single read-only walker
+ * for range-based inline serialization (segments, HTML, clipboard).
+ */
+export function forEachInlineChildInRange(
 	block: BlockNode,
 	from: number,
 	to: number,
