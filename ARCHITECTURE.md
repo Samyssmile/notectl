@@ -369,8 +369,17 @@ form, RxJS pipe, …) round-trips the content on every keystroke (#103).
 | Pair | Identity carrier |
 |---|---|
 | `getJSON` / `setJSON` | block IDs are part of the JSON shape |
-| `getContentHTML` / `setContentHTML` | `data-block-id` attribute, emitted centrally by the serializer and adopted by the parser with format validation + uniqueness |
+| `getContentHTML` / `setContentHTML` | `data-block-id` attribute, emitted centrally by the serializer and adopted by the parser with format validation + uniqueness — present unless the caller opts out via `getContentHTML({ includeBlockIds: false })` |
 | `getText` / `setText` | `setText` reuses existing top-level block IDs in document order; new lines beyond the existing block count get fresh IDs |
+
+**Opting out of `data-block-id`.** `getContentHTML({ includeBlockIds: false })` produces clean
+export HTML with no `data-block-id`, for consumers that treat the output as a final artifact
+(database storage, server-side tag/attribute validation, handoff to another system) where the
+editor-internal id is an abstraction leak. The serializer skips its central injection and adds
+`FORBID_ATTR: ['data-block-id']` to the DOMPurify pass — necessary because `data-block-id` is a
+`data-*` attribute that DOMPurify's `ALLOW_DATA_ATTR` default would otherwise let through. The
+trade-off is explicit: round-trips of opted-out HTML generate fresh IDs, so the caret is no longer
+preserved. The default (`true`) keeps the identity contract above intact.
 
 Identity is best-effort, not guaranteed: when block content changes the block
 may legitimately end up with a different `BlockId`. Identity matters only for

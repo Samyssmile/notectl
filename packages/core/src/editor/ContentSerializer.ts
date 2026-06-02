@@ -102,13 +102,13 @@ export function getEditorContentHTML(
 	const doc: Document = state.doc;
 
 	if (options?.cssMode === 'classes') {
-		const result: ContentCSSResult = serializeDocumentToCSS(doc, registry);
+		const result: ContentCSSResult = serializeDocumentToCSS(doc, registry, options);
 		return options.pretty
 			? { html: formatHTML(result.html), css: result.css, styleMap: result.styleMap }
 			: result;
 	}
 
-	const html: string = serializeDocumentToHTML(doc, registry);
+	const html: string = serializeDocumentToHTML(doc, registry, options);
 	return options?.pretty ? formatHTML(html) : html;
 }
 

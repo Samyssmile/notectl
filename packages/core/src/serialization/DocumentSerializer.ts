@@ -19,7 +19,7 @@ import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
-import type { ContentCSSResult } from './ContentHTMLTypes.js';
+import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
 import {
 	buildMarkOrder,
 	serializeMarksToClassHTML,
@@ -31,6 +31,8 @@ interface SerializerContext {
 	readonly registry?: SchemaRegistry;
 	readonly collector?: CSSClassCollector;
 	readonly exportCtx?: HTMLExportContext;
+	/** Resolved from {@link SerializeOptions.includeBlockIds}; defaults to `true`. */
+	readonly includeBlockIds: boolean;
 }
 
 /** Known-safe alignment values accepted by the serializer (defense-in-depth). */
@@ -125,26 +127,39 @@ function firstOpeningTag(html: string): string {
 	return html.slice(range.start, range.end + 1);
 }
 
+/**
+ * DOMPurify config fragment that controls `data-block-id` in the output.
+ *
+ * `data-block-id` is a `data-*` attribute, which DOMPurify permits by default
+ * (`ALLOW_DATA_ATTR`) regardless of `ALLOWED_ATTR`. Excluding it therefore
+ * requires `FORBID_ATTR` — this is the load-bearing strip that guarantees clean
+ * output even when a third-party `NodeSpec.toHTML` emits its own id (the central
+ * injection in `serializeBlock` is merely skipped). Including it needs no special
+ * config; the centrally injected attribute passes as a data-* attribute.
+ */
+function blockIdSanitizeConfig(includeBlockIds: boolean): { FORBID_ATTR?: string[] } {
+	return includeBlockIds ? {} : { FORBID_ATTR: ['data-block-id'] };
+}
+
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
-export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
+export function serializeDocumentToHTML(
+	doc: Document,
+	registry?: SchemaRegistry,
+	options?: SerializeOptions,
+): string {
+	const includeBlockIds: boolean = options?.includeBlockIds !== false;
 	const exportCtx: HTMLExportContext = createInlineExportContext();
-	const ctx: SerializerContext = { registry, exportCtx };
+	const ctx: SerializerContext = { registry, exportCtx, includeBlockIds };
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
 
-	// `data-block-id` carries block identity across content round-trips
-	// (`setContentHTML(getContentHTML())`) — without it, the parser would generate
-	// fresh IDs and any preserved selection would clamp to the document start.
-	if (!allowedAttrs.includes('data-block-id')) {
-		allowedAttrs.push('data-block-id');
-	}
-
 	return DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
 		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+		...blockIdSanitizeConfig(includeBlockIds),
 	});
 }
 
@@ -152,34 +167,35 @@ export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry
  * Serializes a document to HTML with CSS class names instead of inline styles.
  * Returns the HTML and a collected stylesheet with only the rules actually used.
  */
-export function serializeDocumentToCSS(doc: Document, registry?: SchemaRegistry): ContentCSSResult {
+export function serializeDocumentToCSS(
+	doc: Document,
+	registry?: SchemaRegistry,
+	options?: SerializeOptions,
+): ContentCSSResult {
+	const includeBlockIds: boolean = options?.includeBlockIds !== false;
 	const collector = new CSSClassCollector();
 	const exportCtx: HTMLExportContext = createClassExportContext(collector);
-	const ctx: SerializerContext = { registry, collector, exportCtx };
+	const ctx: SerializerContext = { registry, collector, exportCtx, includeBlockIds };
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'class', 'dir'];
+	const baseAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'class', 'dir'];
 
-	// In class mode, allow `class` attribute through DOMPurify
-	if (!allowedAttrs.includes('class')) {
-		allowedAttrs.push('class');
-	}
-
-	// `data-block-id` carries block identity across content round-trips. See
-	// note in `serializeDocumentToHTML`.
-	if (!allowedAttrs.includes('data-block-id')) {
-		allowedAttrs.push('data-block-id');
-	}
+	// In class mode, allow `class` through DOMPurify (it is not a data-* attr, so
+	// it must be in ALLOWED_ATTR).
+	const withClass: string[] = baseAttrs.includes('class')
+		? [...baseAttrs]
+		: [...baseAttrs, 'class'];
 
 	// Defense-in-depth: strip `style` attribute in class mode to guarantee
 	// zero inline styles — even from third-party plugins that forgot to use ctx.styleAttr().
-	const filteredAttrs: string[] = allowedAttrs.filter((a) => a !== 'style');
+	const filteredAttrs: string[] = withClass.filter((attr) => attr !== 'style');
 
 	const sanitizedHTML: string = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: filteredAttrs,
 		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+		...blockIdSanitizeConfig(includeBlockIds),
 	});
 
 	return { html: sanitizedHTML, css: collector.toCSS(), styleMap: collector.toStyleMap() };
@@ -318,8 +334,9 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	// allowlist passes `data-block-id` through DOMPurify. Skip if the spec
 	// already emits one (mirrors the existing `dir` defense-in-depth pattern).
 	// `escapeAttr` is defense-in-depth — `isSafeBlockId` already excludes any
-	// character that would need escaping.
-	if (isSafeBlockId(block.id)) {
+	// character that would need escaping. Skipped entirely when the caller opted
+	// out via `includeBlockIds: false`; the allowlist strip is the guarantee.
+	if (ctx.includeBlockIds && isSafeBlockId(block.id)) {
 		if (!firstOpeningTag(html).includes(' data-block-id=')) {
 			html = injectAttrIntoFirstTag(html, 'data-block-id', escapeAttr(block.id));
 		}

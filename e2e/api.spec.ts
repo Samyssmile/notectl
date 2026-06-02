@@ -41,6 +41,28 @@ test.describe('API', () => {
 		expect(html).toContain('normal');
 	});
 
+	test('getContentHTML omits data-block-id with includeBlockIds: false', async ({
+		editor,
+		page,
+	}) => {
+		await editor.typeText('Hello');
+
+		const { withIds, clean } = await page.evaluate(async () => {
+			const el = document.querySelector('notectl-editor') as HTMLElement & {
+				getContentHTML(options?: { includeBlockIds?: boolean }): Promise<string>;
+			};
+			return {
+				withIds: await el.getContentHTML(),
+				clean: await el.getContentHTML({ includeBlockIds: false }),
+			};
+		});
+
+		expect(withIds).toContain('data-block-id');
+		expect(withIds).toContain('Hello');
+		expect(clean).not.toContain('data-block-id');
+		expect(clean).toContain('Hello');
+	});
+
 	test('setContentHTML parses HTML into document', async ({ editor }) => {
 		await editor.setContentHTML('<p><strong>Bold</strong> and <em>italic</em></p>');
 

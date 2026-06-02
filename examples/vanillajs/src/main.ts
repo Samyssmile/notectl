@@ -81,6 +81,10 @@ for (const id of ['json', 'html', 'css-html', 'text', 'info']) {
 
 let activeTab = 'json';
 
+// Toggled via the "includeBlockIds" checkbox in the HTML / CSS+HTML inspect tabs.
+// Demonstrates issue #147: clean export HTML without editor-internal data-block-id.
+let includeBlockIds = true;
+
 function switchTab(tabId: string): void {
 	activeTab = tabId;
 	for (const [id, el] of tabs) {
@@ -95,6 +99,19 @@ for (const btn of tabButtons) {
 	btn.addEventListener('click', () => {
 		const tabId: string = btn.dataset.tab ?? 'json';
 		switchTab(tabId);
+		refreshActiveTab(currentEditor);
+	});
+}
+
+// `includeBlockIds` toggle (HTML + CSS+HTML tabs share one state; keep both in sync).
+const includeBlockIdsToggles: NodeListOf<HTMLInputElement> =
+	document.querySelectorAll('.opt-include-block-ids');
+for (const toggle of includeBlockIdsToggles) {
+	toggle.addEventListener('change', () => {
+		includeBlockIds = toggle.checked;
+		for (const other of includeBlockIdsToggles) {
+			other.checked = includeBlockIds;
+		}
 		refreshActiveTab(currentEditor);
 	});
 }
@@ -129,12 +146,16 @@ async function refreshActiveTab(editor: NotectlEditor | null): Promise<void> {
 			setTabContent('json', JSON.stringify(editor.getJSON(), null, 2));
 			break;
 		case 'html': {
-			const html: string = await editor.getContentHTML({ pretty: true });
+			const html: string = await editor.getContentHTML({ pretty: true, includeBlockIds });
 			setTabContent('html', html);
 			break;
 		}
 		case 'css-html': {
-			const result = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
+			const result = await editor.getContentHTML({
+				cssMode: 'classes',
+				pretty: true,
+				includeBlockIds,
+			});
 			setTabContent(
 				'css-html',
 				`/* === CSS === */\n${result.css}\n\n/* === HTML === */\n${result.html}`,

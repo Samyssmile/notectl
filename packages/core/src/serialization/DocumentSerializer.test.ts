@@ -1491,3 +1491,94 @@ describe('serializeDocumentToCSS', () => {
 		});
 	});
 });
+
+describe('includeBlockIds option', () => {
+	function twoParagraphDoc(): ReturnType<typeof createDocument> {
+		return createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('hello')], blockId('b1')),
+			createBlockNode(nodeType('paragraph'), [createTextNode('world')], blockId('b2')),
+		]);
+	}
+
+	/**
+	 * Registry whose `toHTML` emits its own `data-block-id` AND declares the
+	 * attribute allowed — simulating a third-party plugin. The allowlist filter
+	 * (not just the skipped central injection) must still strip it when ids are
+	 * excluded; this is what makes the test load-bearing for the guarantee.
+	 */
+	function createLeakyRegistry(extraAttrs: readonly string[]): SchemaRegistry {
+		return {
+			getNodeSpec: () => ({
+				toHTML: (_n: unknown, content: string) =>
+					`<p data-block-id="leaked">${content || '<br>'}</p>`,
+			}),
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getAllowedTags: () => ['p', 'br'],
+			getAllowedAttrs: () => ['style', ...extraAttrs, 'data-block-id'],
+		} as unknown as SchemaRegistry;
+	}
+
+	describe('inline mode (serializeDocumentToHTML)', () => {
+		it('emits data-block-id by default', () => {
+			const html: string = serializeDocumentToHTML(twoParagraphDoc());
+			expect(html).toContain('data-block-id="b1"');
+			expect(html).toContain('data-block-id="b2"');
+		});
+
+		it('emits data-block-id when includeBlockIds is explicitly true', () => {
+			const html: string = serializeDocumentToHTML(twoParagraphDoc(), undefined, {
+				includeBlockIds: true,
+			});
+			expect(html).toContain('data-block-id="b1"');
+			expect(html).toContain('data-block-id="b2"');
+		});
+
+		it('omits data-block-id when includeBlockIds is false, leaving content intact', () => {
+			const html: string = serializeDocumentToHTML(twoParagraphDoc(), undefined, {
+				includeBlockIds: false,
+			});
+			expect(html).not.toContain('data-block-id');
+			expect(html).toBe('<p>hello</p><p>world</p>');
+		});
+
+		it('strips a data-block-id emitted by a third-party NodeSpec.toHTML when excluded', () => {
+			const registry: SchemaRegistry = createLeakyRegistry([]);
+
+			const withIds: string = serializeDocumentToHTML(twoParagraphDoc(), registry, {
+				includeBlockIds: true,
+			});
+			expect(withIds).toContain('data-block-id="leaked"');
+
+			const clean: string = serializeDocumentToHTML(twoParagraphDoc(), registry, {
+				includeBlockIds: false,
+			});
+			expect(clean).not.toContain('data-block-id');
+		});
+	});
+
+	describe('class mode (serializeDocumentToCSS)', () => {
+		it('emits data-block-id by default', () => {
+			const result = serializeDocumentToCSS(twoParagraphDoc());
+			expect(result.html).toContain('data-block-id="b1"');
+			expect(result.html).toContain('data-block-id="b2"');
+		});
+
+		it('omits data-block-id when includeBlockIds is false', () => {
+			const result = serializeDocumentToCSS(twoParagraphDoc(), undefined, {
+				includeBlockIds: false,
+			});
+			expect(result.html).not.toContain('data-block-id');
+		});
+
+		it('strips a data-block-id emitted by a third-party NodeSpec.toHTML when excluded', () => {
+			const registry: SchemaRegistry = createLeakyRegistry(['class']);
+
+			const clean = serializeDocumentToCSS(twoParagraphDoc(), registry, {
+				includeBlockIds: false,
+			});
+			expect(clean.html).not.toContain('data-block-id');
+		});
+	});
+});

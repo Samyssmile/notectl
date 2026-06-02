@@ -353,6 +353,24 @@
 			display: block;
 		}
 
+		.inspect-option {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 10px 16px;
+			border-bottom: 1px solid var(--border);
+			background: var(--surface-alt);
+			font-family: var(--font-mono);
+			font-size: 12px;
+			color: var(--text-secondary);
+			cursor: pointer;
+			user-select: none;
+		}
+
+		.inspect-option input {
+			cursor: pointer;
+		}
+
 		.inspect-content pre {
 			font-family: var(--font-mono);
 			font-size: 12px;
@@ -515,9 +533,17 @@
 					<pre></pre>
 				</div>
 				<div class="inspect-content" id="tab-html">
+					<label class="inspect-option">
+						<input type="checkbox" class="opt-include-block-ids" checked />
+						includeBlockIds
+					</label>
 					<pre></pre>
 				</div>
 				<div class="inspect-content" id="tab-css-html">
+					<label class="inspect-option">
+						<input type="checkbox" class="opt-include-block-ids" checked />
+						includeBlockIds
+					</label>
 					<pre></pre>
 				</div>
 				<div class="inspect-content" id="tab-text">

@@ -239,6 +239,56 @@ describe('getEditorContentHTML', () => {
 		expect(typeof html).toBe('string');
 		expect(html).toContain('hello');
 	});
+
+	describe('includeBlockIds option', () => {
+		it('emits data-block-id by default (inline mode)', () => {
+			const state: EditorState = EditorState.create({ doc: singleParagraphDoc('hello') });
+
+			const html = getEditorContentHTML(state, undefined);
+
+			expect(html).toContain('data-block-id="b1"');
+		});
+
+		it('omits data-block-id when includeBlockIds is false (inline mode)', () => {
+			const state: EditorState = EditorState.create({ doc: singleParagraphDoc('hello') });
+
+			const html = getEditorContentHTML(state, undefined, { includeBlockIds: false });
+
+			expect(html).not.toContain('data-block-id');
+			expect(html).toContain('hello');
+		});
+
+		it('threads includeBlockIds through pretty formatting (inline mode)', () => {
+			const state: EditorState = EditorState.create({ doc: singleParagraphDoc('hello') });
+
+			const html = getEditorContentHTML(state, undefined, {
+				includeBlockIds: false,
+				pretty: true,
+			});
+
+			expect(html).not.toContain('data-block-id');
+		});
+
+		it('emits data-block-id by default (class mode)', () => {
+			const state: EditorState = EditorState.create({ doc: singleParagraphDoc('hello') });
+
+			const result = getEditorContentHTML(state, undefined, { cssMode: 'classes' });
+
+			expect(typeof result).not.toBe('string');
+			expect((result as { html: string }).html).toContain('data-block-id="b1"');
+		});
+
+		it('omits data-block-id when includeBlockIds is false (class mode)', () => {
+			const state: EditorState = EditorState.create({ doc: singleParagraphDoc('hello') });
+
+			const result = getEditorContentHTML(state, undefined, {
+				cssMode: 'classes',
+				includeBlockIds: false,
+			});
+
+			expect((result as { html: string }).html).not.toContain('data-block-id');
+		});
+	});
 });
 
 describe('normalizeCompositeBlocks', () => {
