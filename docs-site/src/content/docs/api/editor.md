@@ -109,6 +109,9 @@ const html = await editor.getContentHTML();
 // Pretty-printed — returns indented HTML string
 const pretty = await editor.getContentHTML({ pretty: true });
 
+// Clean export HTML — no editor-internal data-block-id attributes
+const clean = await editor.getContentHTML({ includeBlockIds: false });
+
 // Class-based CSS mode — returns { html, css, styleMap } object
 const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 const { html, css } = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
@@ -118,7 +121,7 @@ const { html, css } = await editor.getContentHTML({ cssMode: 'classes', pretty: 
 
 ```ts
 getContentHTML(): Promise<string>;
-getContentHTML(options: { pretty?: boolean }): Promise<string>;
+getContentHTML(options: ContentHTMLOptions & { cssMode?: 'inline' }): Promise<string>;
 getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): Promise<ContentCSSResult>;
 ```
 
@@ -127,7 +130,8 @@ getContentHTML(options: ContentHTMLOptions & { cssMode: 'classes' }): Promise<Co
 ```ts
 interface ContentHTMLOptions {
   readonly pretty?: boolean;
-  readonly cssMode?: CSSMode;  // 'inline' (default) | 'classes'
+  readonly cssMode?: CSSMode;        // 'inline' (default) | 'classes'
+  readonly includeBlockIds?: boolean; // default: true
 }
 ```
 
@@ -155,11 +159,27 @@ Identical style combinations are deduplicated — multiple elements with the sam
 
 See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for integration examples.
 
+#### Clean HTML Output (`includeBlockIds`)
+
+By default every block element carries a `data-block-id` attribute. This is part of notectl's wire format: it lets `setContentHTML(getContentHTML())` preserve block identity so the caret stays put across content round-trips driven by external sync (see [Round-Trip Identity](/notectl/guides/content/#round-trip-identity)).
+
+If you treat the output as a **final artifact** — persisting to a database, validating tags/attributes server-side, rendering it, or handing it to another system — the editor-internal `data-block-id` is noise. Pass `includeBlockIds: false` to omit it:
+
+```ts
+const clean = await editor.getContentHTML({ includeBlockIds: false });
+// '<p>Hello</p><p>World</p>'  — no data-block-id
+
+// Works in class mode too
+const { html } = await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false });
+```
+
+The default (`true`) keeps the current behavior; this is intentional, since flipping it would silently break the caret for existing binding-based integrations. The trade-off when opting out: round-trips of the cleaned HTML generate fresh IDs and no longer preserve the caret.
+
 ### `setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void>`
 
 Parses HTML and sets it as the editor content.
 
-Each serialized block carries a `data-block-id` attribute (part of the wire format). When `setContentHTML` parses HTML produced by `getContentHTML`, those IDs are adopted so block identity round-trips — this is what keeps the caret stable when an external owner (Angular signal form, RxJS pipe, …) writes back the same content on every keystroke. Externally pasted HTML without `data-block-id` works as before; fresh IDs are generated. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
+By default each serialized block carries a `data-block-id` attribute (part of the wire format). When `setContentHTML` parses HTML produced by `getContentHTML`, those IDs are adopted so block identity round-trips — this is what keeps the caret stable when an external owner (Angular signal form, RxJS pipe, …) writes back the same content on every keystroke. Externally pasted HTML without `data-block-id` (including output of `getContentHTML({ includeBlockIds: false })`) works as before; fresh IDs are generated. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
 
 ### `getText(): string`
 

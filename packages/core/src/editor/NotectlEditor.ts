@@ -184,13 +184,18 @@ export class NotectlEditor extends HTMLElement {
 	/**
 	 * Returns sanitized HTML representation of the document.
 	 *
-	 * Each block element carries a `data-block-id` attribute. This is part of
-	 * the wire format: it lets `setContentHTML(getContentHTML())` preserve
-	 * block identity so the caret survives content round-trips driven by
+	 * By default each block element carries a `data-block-id` attribute. This is
+	 * part of the wire format: it lets `setContentHTML(getContentHTML())`
+	 * preserve block identity so the caret survives content round-trips driven by
 	 * external sync (Angular signal forms, RxJS pipes — see ARCHITECTURE §9.2).
+	 *
+	 * Pass `{ includeBlockIds: false }` for clean export HTML (database storage,
+	 * server-side tag/attribute validation, handoff to another system) with no
+	 * `data-block-id`. Round-trips then generate fresh ids and no longer preserve
+	 * the caret. Works in both `cssMode: 'inline'` and `cssMode: 'classes'`.
 	 */
 	async getContentHTML(): Promise<string>;
-	async getContentHTML(options: { pretty?: boolean }): Promise<string>;
+	async getContentHTML(options: ContentHTMLOptions & { cssMode?: 'inline' }): Promise<string>;
 	async getContentHTML(
 		options: ContentHTMLOptions & { cssMode: 'classes' },
 	): Promise<ContentCSSResult>;

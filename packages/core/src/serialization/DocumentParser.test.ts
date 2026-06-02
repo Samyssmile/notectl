@@ -13,7 +13,7 @@ import { formatHTML } from '../model/HTMLUtils.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { markType, nodeType } from '../model/TypeBrands.js';
+import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
 
@@ -873,6 +873,23 @@ describe('parseHTMLToDocument', () => {
 			const html = serializeDocumentToHTML(original);
 			const parsed = parseHTMLToDocument(html);
 			expect(parsed.children.map((b) => b.id)).toEqual(original.children.map((b) => b.id));
+		});
+
+		it('does not preserve IDs when serialized with includeBlockIds: false', () => {
+			const original = createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('a')], blockId('keep-1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('b')], blockId('keep-2')),
+			]);
+			const html = serializeDocumentToHTML(original, undefined, { includeBlockIds: false });
+			expect(html).not.toContain('data-block-id');
+
+			// With no id to adopt, the parser generates fresh ones — the round-trip
+			// is no longer identity-preserving, which is the documented trade-off.
+			const parsed = parseHTMLToDocument(html);
+			expect(parsed.children.map((b) => b.id)).not.toEqual(original.children.map((b) => b.id));
+			for (const block of parsed.children) {
+				expect(block.id).toMatch(/^block-/);
+			}
 		});
 	});
 });

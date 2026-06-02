@@ -62,6 +62,17 @@ The HTML is sanitized with DOMPurify. The allowed tags and attributes are **sche
 
 If you use a subset of plugins, only the tags relevant to those plugins are allowed.
 
+#### Clean Export HTML (`includeBlockIds: false`)
+
+By default every block element carries a `data-block-id` attribute. It is notectl's wire format for [round-trip identity](#round-trip-identity) — keep it when content is bound to an external owner that writes back on every keystroke. When you store the HTML in a database, validate it server-side, or hand it to another system, omit the attribute:
+
+```ts
+const clean = await editor.getContentHTML({ includeBlockIds: false });
+// "<h1>Hello <strong>World</strong></h1><p>Some text here.</p>"  — no data-block-id
+```
+
+This works in every mode, including `cssMode: 'classes'`. The trade-off: round-trips of the cleaned HTML generate fresh IDs, so the caret is no longer preserved. The default (`true`) keeps the identity contract intact.
+
 ### HTML with CSS Classes (CSP-Compliant)
 
 For environments with strict Content Security Policy where inline `style` attributes are blocked, use the `cssMode: 'classes'` option. Instead of inline styles, dynamic marks and alignment are emitted as CSS class names:
@@ -188,10 +199,10 @@ When an external owner (e.g. a form binding) reads the editor content and writes
 | Pair | Identity carrier |
 |---|---|
 | `getJSON` / `setJSON` | block IDs are part of the JSON shape |
-| `getContentHTML` / `setContentHTML` | `data-block-id` attribute on every block element |
+| `getContentHTML` / `setContentHTML` | `data-block-id` attribute on every block element (present unless you opt out with `includeBlockIds: false`) |
 | `getText` / `setText` | `setText` reuses existing top-level block IDs in document order |
 
-Externally pasted HTML without `data-block-id` continues to receive fresh IDs, so external content imports behave as before. For `setText`, IDs are reused **by position**, not by content match — this is by design (the cursor stays on the same line index when text is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` calls.
+Externally pasted HTML without `data-block-id` — including the output of [`getContentHTML({ includeBlockIds: false })`](#clean-export-html-includeblockids-false) — continues to receive fresh IDs, so external content imports behave as before. For `setText`, IDs are reused **by position**, not by content match — this is by design (the cursor stays on the same line index when text is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` calls.
 
 This contract enables Angular signal forms, RxJS-driven sync pipelines, and any external state owner to round-trip content on every input event without disturbing the user's cursor. See `ARCHITECTURE.md` §9.1 for the full contract.
 

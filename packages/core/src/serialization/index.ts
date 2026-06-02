@@ -8,6 +8,7 @@
 
 export type {
 	CSSMode,
+	SerializeOptions,
 	ContentHTMLOptions,
 	ContentCSSResult,
 	SetContentHTMLOptions,
