@@ -3,10 +3,13 @@ import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import {
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockLength,
 	getBlockText,
+	getInlineChildren,
 	getTextChildren,
+	isInlineNode,
 } from '../model/Document.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import type { Schema } from '../model/Schema.js';
@@ -17,7 +20,7 @@ import {
 	isTextSelection,
 } from '../model/Selection.js';
 import type { NodeTypeName } from '../model/TypeBrands.js';
-import { markType, nodeType } from '../model/TypeBrands.js';
+import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import { invertTransaction } from '../state/Transaction.js';
 import { stateBuilder } from '../test/TestUtils.js';
@@ -53,7 +56,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: ' beautiful', marks: [] }],
+						segments: [{ kind: 'text', text: ' beautiful', marks: [] }],
 					},
 				],
 			};
@@ -72,9 +75,9 @@ describe('PasteCommand', () => {
 					{
 						type: nt('paragraph'),
 						segments: [
-							{ text: ' ', marks: [] },
-							{ text: 'bold', marks: [{ type: markType('bold') }] },
-							{ text: ' text', marks: [] },
+							{ kind: 'text', text: ' ', marks: [] },
+							{ kind: 'text', text: 'bold', marks: [{ type: markType('bold') }] },
+							{ kind: 'text', text: ' text', marks: [] },
 						],
 					},
 				],
@@ -108,7 +111,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: '!', marks: [] }],
+						segments: [{ kind: 'text', text: '!', marks: [] }],
 					},
 				],
 			};
@@ -125,7 +128,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'inserted', marks: [] }],
+						segments: [{ kind: 'text', text: 'inserted', marks: [] }],
 					},
 				],
 			};
@@ -145,7 +148,7 @@ describe('PasteCommand', () => {
 					{
 						type: nt('heading'),
 						attrs: { level: 2 },
-						segments: [{ text: 'My Heading', marks: [] }],
+						segments: [{ kind: 'text', text: 'My Heading', marks: [] }],
 					},
 				],
 			};
@@ -166,11 +169,11 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'first', marks: [] }],
+						segments: [{ kind: 'text', text: 'first', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'second', marks: [] }],
+						segments: [{ kind: 'text', text: 'second', marks: [] }],
 					},
 				],
 			};
@@ -190,15 +193,15 @@ describe('PasteCommand', () => {
 					{
 						type: nt('heading'),
 						attrs: { level: 1 },
-						segments: [{ text: 'Title', marks: [] }],
+						segments: [{ kind: 'text', text: 'Title', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'middle', marks: [] }],
+						segments: [{ kind: 'text', text: 'middle', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'end', marks: [] }],
+						segments: [{ kind: 'text', text: 'end', marks: [] }],
 					},
 				],
 			};
@@ -235,7 +238,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: ' World', marks: [] }],
+						segments: [{ kind: 'text', text: ' World', marks: [] }],
 					},
 				],
 			};
@@ -247,6 +250,61 @@ describe('PasteCommand', () => {
 			const undoTr = invertTransaction(tr);
 			const undoneState = newState.apply(undoTr);
 			expect(getBlockText(undoneState.doc.children[0])).toBe('Hello');
+		});
+	});
+
+	describe('inline content (issue A1)', () => {
+		it('inserts a slice with an inline node, interleaving text and inline', () => {
+			const state = createState([{ type: 'paragraph', text: 'AB', id: 'b1' }], 'b1', 1);
+			const mathNode = createInlineNode(inlineType('inline_math'), { mathml: '<math/>' });
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [
+							{ kind: 'text', text: 'x', marks: [] },
+							{ kind: 'inline', node: mathNode },
+							{ kind: 'text', text: 'y', marks: [] },
+						],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+			const block = newState.doc.children[0];
+			if (!block) throw new Error('missing block');
+
+			// "A" + "x" + <inline> + "y" + "B": inline counts as width 1.
+			expect(getBlockLength(block)).toBe(5);
+			expect(getBlockText(block)).toBe('AxyB'); // getBlockText skips inline nodes
+			const inlines = getInlineChildren(block).filter(isInlineNode);
+			expect(inlines).toHaveLength(1);
+			expect(inlines[0]?.inlineType).toBe('inline_math');
+			// Cursor after the inserted content: 1 + (x, inline, y) = 4.
+			expect(newState.selection.anchor.offset).toBe(4);
+		});
+
+		it('inline-node paste is invertible', () => {
+			const state = createState([{ type: 'paragraph', text: 'AB', id: 'b1' }], 'b1', 1);
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						segments: [{ kind: 'inline', node: createInlineNode(inlineType('inline_math')) }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const newState = state.apply(tr);
+			expect(getBlockLength(newState.doc.children[0])).toBe(3);
+
+			const undoneState = newState.apply(invertTransaction(tr));
+			const restored = undoneState.doc.children[0];
+			if (!restored) throw new Error('missing block');
+			expect(getBlockText(restored)).toBe('AB');
+			expect(getInlineChildren(restored).filter(isInlineNode)).toHaveLength(0);
 		});
 	});
 
@@ -287,7 +345,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'pasted text', marks: [] }],
+						segments: [{ kind: 'text', text: 'pasted text', marks: [] }],
 					},
 				],
 			};
@@ -307,7 +365,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'after text', marks: [] }],
+						segments: [{ kind: 'text', text: 'after text', marks: [] }],
 					},
 				],
 			};
@@ -326,7 +384,7 @@ describe('PasteCommand', () => {
 					{
 						type: nt('heading'),
 						attrs: { level: 1 },
-						segments: [{ text: 'Title', marks: [] }],
+						segments: [{ kind: 'text', text: 'Title', marks: [] }],
 					},
 				],
 			};
@@ -345,11 +403,11 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'first', marks: [] }],
+						segments: [{ kind: 'text', text: 'first', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'second', marks: [] }],
+						segments: [{ kind: 'text', text: 'second', marks: [] }],
 					},
 				],
 			};
@@ -412,7 +470,7 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'pasted', marks: [] }],
+						segments: [{ kind: 'text', text: 'pasted', marks: [] }],
 					},
 				],
 			};
@@ -435,7 +493,7 @@ describe('PasteCommand', () => {
 					{
 						type: nt('heading'),
 						attrs: { level: 2 },
-						segments: [{ text: 'Title', marks: [] }],
+						segments: [{ kind: 'text', text: 'Title', marks: [] }],
 					},
 				],
 			};
@@ -455,15 +513,15 @@ describe('PasteCommand', () => {
 				blocks: [
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'first', marks: [] }],
+						segments: [{ kind: 'text', text: 'first', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'middle', marks: [] }],
+						segments: [{ kind: 'text', text: 'middle', marks: [] }],
 					},
 					{
 						type: nt('paragraph'),
-						segments: [{ text: 'last', marks: [] }],
+						segments: [{ kind: 'text', text: 'last', marks: [] }],
 					},
 				],
 			};
