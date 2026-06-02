@@ -172,33 +172,41 @@ function attachKeyboardNavigation(
 		}
 	};
 
+	// As an editable combobox (input + listbox), this popup owns its keyboard
+	// model. `consume` claims a handled key so the toolbar's generic popup
+	// handler does not also act on it and advance focus a second time (#144).
+	const consume = (e: KeyboardEvent): void => {
+		e.preventDefault();
+		e.stopPropagation();
+	};
+
 	input.addEventListener('keydown', (e: KeyboardEvent) => {
 		if (e.key === 'Enter') {
-			e.preventDefault();
+			consume(e);
 			const val: number = Number.parseInt(input.value, 10);
 			if (!Number.isNaN(val) && val >= MIN_CUSTOM_SIZE && val <= MAX_CUSTOM_SIZE) {
 				selectSize(context, val, config.defaultSize);
 				config.onClose({ restoreFocusTo: config.contentElement });
 			}
 		} else if (e.key === 'ArrowDown') {
-			e.preventDefault();
+			consume(e);
 			setFocused(0);
 			items[0]?.focus();
 		} else if (e.key === 'Escape') {
-			e.preventDefault();
+			consume(e);
 			config.onClose({ restoreFocusTo: config.contentElement });
 		}
 	});
 
 	list.addEventListener('keydown', (e: KeyboardEvent) => {
 		if (e.key === 'ArrowDown') {
-			e.preventDefault();
+			consume(e);
 			if (focusedIndex < items.length - 1) {
 				setFocused(focusedIndex + 1);
 				items[focusedIndex]?.focus();
 			}
 		} else if (e.key === 'ArrowUp') {
-			e.preventDefault();
+			consume(e);
 			if (focusedIndex > 0) {
 				setFocused(focusedIndex - 1);
 				items[focusedIndex]?.focus();
@@ -207,14 +215,14 @@ function attachKeyboardNavigation(
 				input.focus();
 			}
 		} else if (e.key === 'Enter') {
-			e.preventDefault();
+			consume(e);
 			const selectedSize: number | undefined = config.sizes[focusedIndex];
 			if (focusedIndex >= 0 && focusedIndex < config.sizes.length && selectedSize !== undefined) {
 				selectSize(context, selectedSize, config.defaultSize);
 				config.onClose({ restoreFocusTo: config.contentElement });
 			}
 		} else if (e.key === 'Escape') {
-			e.preventDefault();
+			consume(e);
 			config.onClose({ restoreFocusTo: config.contentElement });
 		}
 	});

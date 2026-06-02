@@ -1646,3 +1646,181 @@ function createListParseRegistry(): SchemaRegistry {
 		getAllowedAttrs: () => ['style', 'dir'],
 	} as unknown as SchemaRegistry;
 }
+
+// Regression: #141 — blockquote (and table cells) must coalesce consecutive
+// inline content into a single paragraph with marks intact, not fragment it.
+describe('blockquote mixed inline content (#141)', () => {
+	function createInlineAwareRegistry(): SchemaRegistry {
+		const blockRules = [
+			{ rule: { tag: 'p' }, type: 'paragraph' },
+			{ rule: { tag: 'blockquote' }, type: 'blockquote' },
+			{ rule: { tag: 'li' }, type: 'list_item' },
+		];
+		return {
+			getNodeSpec: () => undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => ['italic', 'bold'],
+			getBlockParseRules: () => blockRules,
+			getMarkParseRules: () => [
+				{ rule: { tag: 'em' }, type: 'italic' },
+				{ rule: { tag: 'i' }, type: 'italic' },
+				{ rule: { tag: 'strong' }, type: 'bold' },
+				{
+					rule: {
+						tag: 'a',
+						getAttrs: (el: HTMLElement) => ({ href: el.getAttribute('href') ?? '' }),
+					},
+					type: 'link',
+				},
+			],
+			getInlineParseRules: () => [],
+			getAllowedTags: () => [
+				'p',
+				'br',
+				'blockquote',
+				'em',
+				'i',
+				'strong',
+				'a',
+				'ul',
+				'ol',
+				'li',
+				'table',
+				'tbody',
+				'tr',
+				'td',
+				'th',
+			],
+			getAllowedAttrs: () => ['style', 'dir', 'href'],
+		} as unknown as SchemaRegistry;
+	}
+
+	it('coalesces mixed inline content into one paragraph with marks preserved', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<blockquote>This is a <em>great</em> quote.</blockquote>',
+			registry,
+		);
+
+		const quote = doc.children[0];
+		expect(quote?.type).toBe('blockquote');
+
+		const quoteChildren = getBlockChildren(quote as never);
+		expect(quoteChildren).toHaveLength(1);
+		expect(quoteChildren[0]?.type).toBe('paragraph');
+		expect(getBlockText(quoteChildren[0] as never)).toBe('This is a great quote.');
+
+		const inline = getInlineChildren(quoteChildren[0] as never);
+		const italicRun = inline.find((n) => !isInlineNode(n) && n.text === 'great') as
+			| { readonly marks?: readonly Mark[] }
+			| undefined;
+		expect(italicRun?.marks?.some((m) => m.type === 'italic')).toBe(true);
+
+		// The surrounding text must NOT carry the italic mark.
+		const plainRun = inline.find((n) => !isInlineNode(n) && n.text === 'This is a ') as
+			| { readonly marks?: readonly Mark[] }
+			| undefined;
+		expect(plainRun?.marks?.some((m) => m.type === 'italic') ?? false).toBe(false);
+	});
+
+	it('preserves a link mark with its href on the coalesced run (issue headline)', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<blockquote>See <a href="https://example.com/">the docs</a> for more.</blockquote>',
+			registry,
+		);
+
+		const quoteChildren = getBlockChildren(doc.children[0] as never);
+		expect(quoteChildren).toHaveLength(1);
+		expect(getBlockText(quoteChildren[0] as never)).toBe('See the docs for more.');
+
+		const inline = getInlineChildren(quoteChildren[0] as never);
+		const linkRun = inline.find((n) => !isInlineNode(n) && n.text === 'the docs') as
+			| { readonly marks?: readonly Mark[] }
+			| undefined;
+		const linkMark = linkRun?.marks?.find((m) => m.type === 'link') as
+			| { readonly attrs?: { readonly href?: string } }
+			| undefined;
+		expect(linkMark).toBeDefined();
+		expect(linkMark?.attrs?.href).toBe('https://example.com/');
+	});
+
+	it('coalesces direct mixed inline content in a table cell into one paragraph', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<table><tr><td>text <em>x</em> end</td></tr></table>',
+			registry,
+		);
+
+		const table = doc.children[0];
+		const row = getBlockChildren(table as never)[0];
+		const cell = getBlockChildren(row as never)[0];
+		const cellChildren = getBlockChildren(cell as never);
+		expect(cellChildren).toHaveLength(1);
+		expect(cellChildren[0]?.type).toBe('paragraph');
+		expect(getBlockText(cellChildren[0] as never)).toBe('text x end');
+	});
+
+	it('coalesces mixed inline content inside a table cell blockquote', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<table><tr><td><blockquote>text <em>x</em> end</blockquote></td></tr></table>',
+			registry,
+		);
+
+		const table = doc.children[0];
+		const row = getBlockChildren(table as never)[0];
+		const cell = getBlockChildren(row as never)[0];
+		const quote = getBlockChildren(cell as never)[0];
+		expect(quote?.type).toBe('blockquote');
+
+		const quoteChildren = getBlockChildren(quote as never);
+		expect(quoteChildren).toHaveLength(1);
+		expect(quoteChildren[0]?.type).toBe('paragraph');
+		expect(getBlockText(quoteChildren[0] as never)).toBe('text x end');
+	});
+
+	it('still nests genuine block children (paragraphs, lists) recursively', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<blockquote><p>First</p><ul><li>One</li><li>Two</li></ul></blockquote>',
+			registry,
+		);
+
+		const quote = doc.children[0];
+		const children = getBlockChildren(quote as never);
+		expect(children).toHaveLength(3);
+		expect(children[0]?.type).toBe('paragraph');
+		expect(getBlockText(children[0] as never)).toBe('First');
+		expect(children[1]?.type).toBe('list_item');
+		expect(children[2]?.type).toBe('list_item');
+	});
+
+	it('mixes a leading inline run with a following block child', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument(
+			'<blockquote>Intro <strong>bold</strong> text<p>Then a paragraph</p></blockquote>',
+			registry,
+		);
+
+		const quote = doc.children[0];
+		const children = getBlockChildren(quote as never);
+		expect(children).toHaveLength(2);
+		expect(children[0]?.type).toBe('paragraph');
+		expect(getBlockText(children[0] as never)).toBe('Intro bold text');
+		expect(children[1]?.type).toBe('paragraph');
+		expect(getBlockText(children[1] as never)).toBe('Then a paragraph');
+	});
+
+	it('keeps a single empty paragraph for an empty blockquote', () => {
+		const registry = createInlineAwareRegistry();
+		const doc = parseHTMLToDocument('<blockquote></blockquote>', registry);
+
+		const quote = doc.children[0];
+		const children = getBlockChildren(quote as never);
+		expect(children).toHaveLength(1);
+		expect(children[0]?.type).toBe('paragraph');
+		expect(getBlockText(children[0] as never)).toBe('');
+	});
+});

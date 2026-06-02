@@ -209,6 +209,43 @@ describe('renderFontSizePopup', () => {
 			const firstItem = container.querySelector('.notectl-font-size-picker__item');
 			expect(firstItem?.classList.contains('notectl-font-size-picker__item--focused')).toBe(true);
 		});
+
+		// Regression: #144 — the combobox must stop navigation
+		// keys from bubbling so the toolbar's generic popup handler does not advance
+		// focus a second time. The container is where ToolbarPopupController binds
+		// its handler in production.
+		it('stops ArrowDown on the list from bubbling to the toolbar handler (#144)', () => {
+			const { container } = renderPopup({ sizes: [12, 16, 24] });
+			const toolbarHandler = vi.fn();
+			container.addEventListener('keydown', toolbarHandler);
+
+			const list = getList(container);
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+			expect(toolbarHandler).not.toHaveBeenCalled();
+		});
+
+		it('stops ArrowDown on the input from bubbling to the toolbar handler (#144)', () => {
+			const { container } = renderPopup({ sizes: [12, 16, 24] });
+			const toolbarHandler = vi.fn();
+			container.addEventListener('keydown', toolbarHandler);
+
+			const input = getInput(container);
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+			expect(toolbarHandler).not.toHaveBeenCalled();
+		});
+
+		it('ArrowDown on input lands on the first item, never the second (#144)', () => {
+			const { container } = renderPopup({ sizes: [12, 16, 24] });
+
+			const input = getInput(container);
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+			const items = container.querySelectorAll('.notectl-font-size-picker__item');
+			expect(items[0]?.classList.contains('notectl-font-size-picker__item--focused')).toBe(true);
+			expect(items[1]?.classList.contains('notectl-font-size-picker__item--focused')).toBe(false);
+		});
 	});
 
 	describe('mouse interaction', () => {
