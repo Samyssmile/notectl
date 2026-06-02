@@ -3,8 +3,6 @@ import type { FormulaLocale } from '../FormulaLocale.js';
 const locale: FormulaLocale = {
 	insertInline: 'إدراج صيغة',
 	insertInlineTooltip: 'إدراج صيغة مضمّنة',
-	insertDisplay: 'إدراج صيغة ككتلة',
-	insertDisplayTooltip: 'إدراج صيغة ككتلة',
 	editFormula: 'تحرير الصيغة',
 	latexLabel: 'LaTeX',
 	latexPlaceholder: 'مثال: \\frac{a}{b} + \\sqrt{x}',

@@ -3,8 +3,6 @@ import type { FormulaLocale } from '../FormulaLocale.js';
 const locale: FormulaLocale = {
 	insertInline: 'Formel einfügen',
 	insertInlineTooltip: 'Inline-Formel einfügen',
-	insertDisplay: 'Blockformel einfügen',
-	insertDisplayTooltip: 'Blockformel einfügen',
 	editFormula: 'Formel bearbeiten',
 	latexLabel: 'LaTeX',
 	latexPlaceholder: 'z. B. \\frac{a}{b} + \\sqrt{x}',

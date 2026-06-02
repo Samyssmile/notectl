@@ -24,8 +24,6 @@ const ALL_LOCALES: ReadonlyArray<readonly [string, FormulaLocale]> = [
 const STRING_KEYS: ReadonlyArray<keyof FormulaLocale> = [
 	'insertInline',
 	'insertInlineTooltip',
-	'insertDisplay',
-	'insertDisplayTooltip',
 	'editFormula',
 	'latexLabel',
 	'latexPlaceholder',

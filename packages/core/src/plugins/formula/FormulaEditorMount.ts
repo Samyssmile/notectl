@@ -71,7 +71,6 @@ export function mountFormulaEditor(
 		palette: paletteFor(options.locale),
 		onCommit: options.onCommit,
 		onCancel: options.onClose,
-		announce: (message: string) => options.context.announce(message),
 	});
 	container.appendChild(field.root);
 	requestAnimationFrame(() => field.focus());

@@ -6,18 +6,14 @@
  * lookbehind).
  */
 
-import { createBlockNode, createInlineNode } from '../../model/Document.js';
+import { createInlineNode } from '../../model/Document.js';
 import type { InputRule } from '../../model/InputRule.js';
-import {
-	createCollapsedSelection,
-	createNodeSelection,
-	isCollapsed,
-	isTextSelection,
-} from '../../model/Selection.js';
-import { inlineType, nodeType } from '../../model/TypeBrands.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
+import { type BlockId, inlineType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { DISPLAY_MATH_TYPE, INLINE_MATH_TYPE } from './FormulaTypes.js';
+import { appendDisplayMathSteps } from './FormulaCommands.js';
+import { INLINE_MATH_TYPE } from './FormulaTypes.js';
 import { latexToMathML } from './latex/index.js';
 import { buildMathML } from './mathml/index.js';
 
@@ -25,8 +21,8 @@ const INLINE_PATTERN = /(?<!\$)\$([^$\n]+)\$$/;
 const DISPLAY_PATTERN = /\$\$([^$\n]+)\$\$$/;
 
 /** Returns true when the block under the cursor accepts inline-flow transforms. */
-function isTransformable(state: EditorState, blockId: string): boolean {
-	const block = state.getBlock(blockId as never);
+function isTransformable(state: EditorState, blockId: BlockId): boolean {
+	const block = state.getBlock(blockId);
 	return block !== undefined && block.type !== 'code_block';
 }
 
@@ -93,19 +89,10 @@ function displayRule(): InputRule {
 
 			const { presentation } = latexToMathML(latex, { display: true });
 			const mathml: string = buildMathML({ presentation, latex, display: true });
-			const block = createBlockNode(nodeType(DISPLAY_MATH_TYPE), [], undefined, {
-				mathml,
-				latex,
-				alt: '',
-				fontSize: '',
-			});
 
-			return state
-				.transaction('input')
-				.deleteTextAt(blockId, range.from, range.to)
-				.insertNode([], blockIndex + 1, block)
-				.setSelection(createNodeSelection(block.id, []))
-				.build();
+			const builder = state.transaction('input').deleteTextAt(blockId, range.from, range.to);
+			appendDisplayMathSteps(builder, blockIndex + 1, { mathml, latex, alt: '', fontSize: '' });
+			return builder.build();
 		},
 	};
 }

@@ -81,7 +81,10 @@ export class FormulaPlugin implements Plugin {
 		this.overlay = new FormulaOverlay(context, this.locale, this.fontSizes);
 		context.registerNodeView(
 			DISPLAY_MATH_TYPE,
-			createDisplayMathNodeViewFactory((blockId, rect) => this.editDisplay(blockId, rect)),
+			createDisplayMathNodeViewFactory({
+				onEdit: (blockId, rect) => this.editDisplay(blockId, rect),
+				onSelect: () => context.announce(this.locale.selected),
+			}),
 		);
 		for (const rule of createFormulaInputRules()) context.registerInputRule(rule);
 		// Priority below smart-paste (50) so standalone <math> is claimed first.

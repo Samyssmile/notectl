@@ -12,8 +12,8 @@
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
 import {
-	insertDisplayMath,
-	insertInlineMath,
+	commitInsertFormula,
+	resultToFormulaAttrs,
 	updateDisplayMath,
 	updateInlineMath,
 } from './FormulaCommands.js';
@@ -40,15 +40,6 @@ export interface FormulaEditTarget {
 
 const PANEL_MARGIN = 8;
 
-function resultToAttrs(result: MathFieldResult): FormulaAttrs {
-	return {
-		mathml: result.mathml,
-		latex: result.latex,
-		alt: result.alt,
-		fontSize: result.fontSize,
-	};
-}
-
 export class FormulaOverlay {
 	private panel: HTMLElement | null = null;
 	private outsideHandler: ((e: MouseEvent) => void) | null = null;
@@ -73,10 +64,7 @@ export class FormulaOverlay {
 			mode: 'insert',
 			initialDisplay: display,
 			onCommit: (result: MathFieldResult) => {
-				const attrs: FormulaAttrs = resultToAttrs(result);
-				if (result.display) insertDisplayMath(this.context, attrs);
-				else insertInlineMath(this.context, attrs);
-				this.context.announce(this.locale.inserted);
+				commitInsertFormula(this.context, this.locale, result);
 				this.close(true);
 			},
 		});
@@ -114,7 +102,7 @@ export class FormulaOverlay {
 	}
 
 	private commitEdit(target: FormulaEditTarget, result: MathFieldResult): void {
-		const attrs: FormulaAttrs = resultToAttrs(result);
+		const attrs: FormulaAttrs = resultToFormulaAttrs(result);
 		if (target.kind === 'inline' && target.blockId && target.offset !== undefined) {
 			updateInlineMath(this.context, target.blockId, target.offset, attrs);
 		} else if (target.kind === 'display' && target.path) {
