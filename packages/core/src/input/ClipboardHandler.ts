@@ -6,13 +6,7 @@
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
 import type { BlockNode, Mark } from '../model/Document.js';
-import {
-	getBlockLength,
-	getInlineChildren,
-	isInlineNode,
-	isLeafBlock,
-	isTextNode,
-} from '../model/Document.js';
+import { forEachInlineChildInRange, getBlockLength, isLeafBlock } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { RichBlockData, RichSegment } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -328,36 +322,20 @@ export class ClipboardHandler {
 		end: number,
 		markOrder?: Map<string, number>,
 	): string {
-		const children = getInlineChildren(block);
 		const parts: string[] = [];
-		let pos = 0;
-
-		for (const child of children) {
-			const width: number = isInlineNode(child) ? 1 : child.text.length;
-			const childEnd: number = pos + width;
-
-			if (childEnd <= start || pos >= end) {
-				pos = childEnd;
-				continue;
-			}
-
-			if (isTextNode(child)) {
-				const sliceFrom: number = Math.max(0, start - pos);
-				const sliceTo: number = Math.min(child.text.length, end - pos);
-				const text: string = child.text.slice(sliceFrom, sliceTo);
-				if (text.length > 0 && this.schemaRegistry) {
-					parts.push(serializeMarksToHTML(text, child.marks, this.schemaRegistry, markOrder));
+		forEachInlineChildInRange(block, start, end, {
+			onText: (text: string, marks: readonly Mark[]): void => {
+				if (this.schemaRegistry) {
+					parts.push(serializeMarksToHTML(text, marks, this.schemaRegistry, markOrder));
 				}
-			} else if (isInlineNode(child)) {
-				const spec = this.schemaRegistry?.getInlineNodeSpec(child.inlineType);
+			},
+			onInline: (node): void => {
+				const spec = this.schemaRegistry?.getInlineNodeSpec(node.inlineType);
 				if (spec?.toHTMLString) {
-					parts.push(spec.toHTMLString(child));
+					parts.push(spec.toHTMLString(node));
 				}
-			}
-
-			pos = childEnd;
-		}
-
+			},
+		});
 		return parts.join('');
 	}
 
@@ -367,41 +345,25 @@ export class ClipboardHandler {
 		start: number,
 		end: number,
 	): readonly RichSegment[] {
-		const children = getInlineChildren(block);
 		const segments: RichSegment[] = [];
-		let pos = 0;
-
-		for (const child of children) {
-			const width: number = isInlineNode(child) ? 1 : child.text.length;
-			const childEnd: number = pos + width;
-
-			if (childEnd <= start || pos >= end) {
-				pos = childEnd;
-				continue;
-			}
-
-			if (isTextNode(child)) {
-				const sliceFrom: number = Math.max(0, start - pos);
-				const sliceTo: number = Math.min(child.text.length, end - pos);
-				const text: string = child.text.slice(sliceFrom, sliceTo);
-				if (text.length > 0) {
-					const marks = child.marks.map((m: Mark) => ({
+		forEachInlineChildInRange(block, start, end, {
+			onText: (text: string, marks: readonly Mark[]): void => {
+				segments.push({
+					text,
+					marks: marks.map((m: Mark) => ({
 						type: m.type,
 						...(m.attrs ? { attrs: { ...m.attrs } } : {}),
-					}));
-					segments.push({ text, marks });
-				}
-			} else if (isInlineNode(child)) {
+					})),
+				});
+			},
+			onInline: (node): void => {
 				segments.push({
 					kind: 'inline',
-					inlineType: child.inlineType,
-					...(Object.keys(child.attrs).length > 0 ? { attrs: { ...child.attrs } } : {}),
+					inlineType: node.inlineType,
+					...(Object.keys(node.attrs).length > 0 ? { attrs: { ...node.attrs } } : {}),
 				});
-			}
-
-			pos = childEnd;
-		}
-
+			},
+		});
 		return segments;
 	}
 

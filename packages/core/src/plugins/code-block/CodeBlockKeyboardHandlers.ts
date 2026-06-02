@@ -330,20 +330,7 @@ function dedentSingleLine(
  */
 export function handleEscape(context: PluginContext): boolean {
 	return withCodeBlockContext(context, ({ state, blockId }) => {
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
-
-		if (idx < blockOrder.length - 1) {
-			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(nextId, 0))
-				.build();
-			context.dispatch(tr);
-		} else {
-			insertParagraphAfter(context, blockId);
-		}
-
+		moveToNextBlockOrInsertParagraph(context, state, blockId);
 		return true;
 	});
 }
@@ -356,20 +343,7 @@ function handleArrowDown(context: PluginContext): boolean {
 		const nextNewline: number = text.indexOf('\n', offset);
 		if (nextNewline !== -1) return false;
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
-
-		if (idx < blockOrder.length - 1) {
-			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(nextId, 0))
-				.build();
-			context.dispatch(tr);
-		} else {
-			insertParagraphAfter(context, blockId);
-		}
-
+		moveToNextBlockOrInsertParagraph(context, state, blockId);
 		return true;
 	});
 }
@@ -384,22 +358,7 @@ function handleArrowUp(context: PluginContext): boolean {
 			return false;
 		}
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
-
-		if (idx > 0) {
-			const prevId: BlockId = blockOrder[idx - 1] as BlockId;
-			const prevBlock: BlockNode | undefined = state.getBlock(prevId);
-			const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(prevId, prevLen))
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		return false;
+		return moveToPreviousBlockEnd(context, state, blockId);
 	});
 }
 
@@ -410,20 +369,7 @@ function handleArrowRight(context: PluginContext): boolean {
 		const text: string = getBlockText(block);
 		if (offset !== text.length) return false;
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
-
-		if (idx < blockOrder.length - 1) {
-			const nextId: BlockId = blockOrder[idx + 1] as BlockId;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(nextId, 0))
-				.build();
-			context.dispatch(tr);
-		} else {
-			insertParagraphAfter(context, blockId);
-		}
-
+		moveToNextBlockOrInsertParagraph(context, state, blockId);
 		return true;
 	});
 }
@@ -433,22 +379,7 @@ function handleArrowLeft(context: PluginContext): boolean {
 		if (!isCollapsed(state.selection)) return false;
 		if (offset !== 0) return false;
 
-		const blockOrder: readonly BlockId[] = state.getBlockOrder();
-		const idx: number = blockOrder.indexOf(blockId);
-
-		if (idx > 0) {
-			const prevId: BlockId = blockOrder[idx - 1] as BlockId;
-			const prevBlock: BlockNode | undefined = state.getBlock(prevId);
-			const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
-			const tr: Transaction = state
-				.transaction('command')
-				.setSelection(createCollapsedSelection(prevId, prevLen))
-				.build();
-			context.dispatch(tr);
-			return true;
-		}
-
-		return false;
+		return moveToPreviousBlockEnd(context, state, blockId);
 	});
 }
 
@@ -566,6 +497,53 @@ function insertParagraphAfter(context: PluginContext, bid: BlockId): void {
 		.build();
 
 	context.dispatch(tr);
+}
+
+/**
+ * Moves the cursor to the start of the following block, or appends a fresh
+ * paragraph when the code block is the last block. Shared exit tail for
+ * Escape / ArrowDown / ArrowRight at the end of the code block.
+ */
+function moveToNextBlockOrInsertParagraph(
+	context: PluginContext,
+	state: EditorState,
+	bid: BlockId,
+): void {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const idx: number = blockOrder.indexOf(bid);
+
+	if (idx < blockOrder.length - 1) {
+		const nextId: BlockId = blockOrder[idx + 1] as BlockId;
+		const tr: Transaction = state
+			.transaction('command')
+			.setSelection(createCollapsedSelection(nextId, 0))
+			.build();
+		context.dispatch(tr);
+		return;
+	}
+
+	insertParagraphAfter(context, bid);
+}
+
+/**
+ * Moves the cursor to the end of the preceding block. Shared tail for
+ * ArrowUp / ArrowLeft at the start of the code block. Returns `false` when the
+ * code block is already the first block (no movement performed).
+ */
+function moveToPreviousBlockEnd(context: PluginContext, state: EditorState, bid: BlockId): boolean {
+	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+	const idx: number = blockOrder.indexOf(bid);
+	if (idx <= 0) return false;
+
+	const prevId: BlockId = blockOrder[idx - 1] as BlockId;
+	const prevBlock: BlockNode | undefined = state.getBlock(prevId);
+	const prevLen: number = prevBlock ? getBlockLength(prevBlock) : 0;
+	const tr: Transaction = state
+		.transaction('command')
+		.setSelection(createCollapsedSelection(prevId, prevLen))
+		.build();
+	context.dispatch(tr);
+	return true;
 }
 
 function exitOnDoubleEnter(context: PluginContext, bid: BlockId, text: string): boolean {
