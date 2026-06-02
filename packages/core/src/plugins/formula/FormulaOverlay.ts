@@ -11,6 +11,7 @@
 
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { PluginContext } from '../Plugin.js';
+import { promoteToTopLayer } from '../shared/PopupPositioning.js';
 import {
 	commitInsertFormula,
 	resultToFormulaAttrs,
@@ -145,6 +146,10 @@ export class FormulaOverlay {
 		// Mount inside the editor's shadow DOM so the registered stylesheets apply,
 		// but outside the editable content flow. Positioned `fixed` (viewport coords).
 		this.context.getPluginContainer('top').appendChild(panel);
+		// Promote to the top layer before positioning so the panel escapes any
+		// ancestor stacking context in the host page and `offsetWidth` reflects the
+		// displayed box. Falls back to plain stacking when unsupported.
+		promoteToTopLayer(panel);
 		positionPanel(panel, config.rect);
 		this.installOutsideHandler();
 	}

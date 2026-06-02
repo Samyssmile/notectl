@@ -213,3 +213,34 @@ export function appendToRoot(element: HTMLElement, referenceNode: Node): void {
 		document.body.appendChild(element);
 	}
 }
+
+/**
+ * Promotes a popup/overlay to the browser's top layer via the Popover API so it
+ * paints above — and receives pointer events ahead of — every stacking context
+ * in the host page. A high `z-index` alone is not enough: an ancestor that forms
+ * a stacking context (e.g. Starlight's `isolation: isolate` content wrapper)
+ * traps the popup below a sibling such as the fixed table-of-contents sidebar,
+ * so clicks on the overlapped region hit the sidebar and dismiss the popup.
+ *
+ * The element keeps living in the editor's shadow DOM, so its registered styles
+ * still apply; only its paint layer changes. Must be called while the element is
+ * connected to the document and BEFORE positioning, so subsequent
+ * `offsetWidth`/containing-block measurements reflect the displayed top-layer
+ * box.
+ *
+ * No-ops when the Popover API is unavailable (older engines, happy-dom in unit
+ * tests); callers then fall back to plain `z-index` stacking. Neutralizes the UA
+ * popover box styles (`inset: 0; margin: auto`) so the caller's explicit
+ * `top`/`left` placement is what positions the element.
+ */
+export function promoteToTopLayer(element: HTMLElement): void {
+	if (typeof element.showPopover !== 'function') return;
+	element.setAttribute('popover', 'manual');
+	try {
+		element.showPopover();
+	} catch {
+		element.removeAttribute('popover');
+		return;
+	}
+	setStyleProperties(element, { margin: '0', inset: 'auto' });
+}

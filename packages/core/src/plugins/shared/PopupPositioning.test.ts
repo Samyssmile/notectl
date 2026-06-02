@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ContainingBlockOffset } from './PopupPositioning.js';
-import { appendToRoot, measureContainingBlockOffset, positionPopup } from './PopupPositioning.js';
+import {
+	appendToRoot,
+	measureContainingBlockOffset,
+	positionPopup,
+	promoteToTopLayer,
+} from './PopupPositioning.js';
+
+/** A popover-capable element with stubbed top-layer methods for assertions. */
+type PopoverStub = HTMLDivElement & { showPopover: () => void };
 
 describe('PopupPositioning', () => {
 	describe('positionPopup', () => {
@@ -220,6 +228,40 @@ describe('PopupPositioning', () => {
 			expect(popup.style.left).toBe('auto');
 
 			popup.remove();
+		});
+	});
+
+	describe('promoteToTopLayer', () => {
+		it('no-ops when the Popover API is unavailable', () => {
+			const element: HTMLDivElement = document.createElement('div');
+			// happy-dom does not implement showPopover, so this is the real path
+			// taken in the unit-test environment.
+			expect(() => promoteToTopLayer(element)).not.toThrow();
+			expect(element.hasAttribute('popover')).toBe(false);
+		});
+
+		it('shows the element as a manual popover when supported', () => {
+			const element: HTMLDivElement = document.createElement('div');
+			const showPopover = vi.fn();
+			(element as PopoverStub).showPopover = showPopover;
+
+			promoteToTopLayer(element);
+
+			expect(element.getAttribute('popover')).toBe('manual');
+			expect(showPopover).toHaveBeenCalledTimes(1);
+			// Neutralizes the UA popover box styles so explicit positioning wins.
+			expect(element.style.margin).toBe('0px');
+			expect(element.style.inset).toBe('auto');
+		});
+
+		it('reverts the popover attribute when showPopover throws', () => {
+			const element: HTMLDivElement = document.createElement('div');
+			(element as PopoverStub).showPopover = (): void => {
+				throw new Error('not connected');
+			};
+
+			expect(() => promoteToTopLayer(element)).not.toThrow();
+			expect(element.hasAttribute('popover')).toBe(false);
 		});
 	});
 
