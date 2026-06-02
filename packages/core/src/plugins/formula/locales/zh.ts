@@ -1,0 +1,35 @@
+import type { FormulaLocale } from '../FormulaLocale.js';
+
+const locale: FormulaLocale = {
+	insertInline: '插入公式',
+	insertInlineTooltip: '插入行内公式',
+	editFormula: '编辑公式',
+	latexLabel: 'LaTeX',
+	latexPlaceholder: '例如 \\frac{a}{b} + \\sqrt{x}',
+	previewLabel: '预览',
+	insertButton: '插入',
+	updateButton: '更新',
+	cancelButton: '取消',
+	displayToggle: '块级（显示）公式',
+	sizeLabel: '字号',
+	sizeDefault: '默认',
+	altLabel: '描述',
+	altPlaceholder: '朗读描述（可选）',
+	paletteLabel: '符号与结构',
+	emptyPreview: '暂无可预览内容。',
+	inserted: '已插入公式。',
+	updated: '已更新公式。',
+	editing: '正在编辑公式。',
+	selected: '已选中公式。按 Enter 编辑。',
+	unknownCommand: (command: string) => `未知的 LaTeX 命令：${command}`,
+	groupFractions: '分数',
+	groupScripts: '上下标',
+	groupRoots: '根式',
+	groupOperators: '运算符',
+	groupGreek: '希腊字母',
+	groupRelations: '关系符',
+	groupMatrices: '矩阵',
+	groupArrows: '箭头',
+};
+
+export default locale;

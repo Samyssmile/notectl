@@ -359,13 +359,15 @@ export function createImageNodeViewFactory(
 			sizeIndicator.className = 'notectl-image__size-indicator';
 			resizeOverlay.appendChild(sizeIndicator);
 
-			const isRtl: boolean = getTextDirection(figure) === 'rtl';
 			const positions: readonly HandlePosition[] = ['nw', 'ne', 'sw', 'se'];
 			for (const pos of positions) {
 				const handle: HTMLDivElement = document.createElement('div');
 				handle.className = `notectl-image__resize-handle notectl-image__resize-handle--${pos}`;
-				handle.setAttribute('role', 'separator');
-				handle.setAttribute('aria-label', getHandleLabel(pos, isRtl, locale));
+				// Pointer-only visual grips. Keyboard resize is provided via shortcuts
+				// with live-region announcements (see registerResizeKeymaps), so these
+				// decorative handles are hidden from assistive technology rather than
+				// exposed with a misleading `separator` role.
+				handle.setAttribute('aria-hidden', 'true');
 				attachHandleListeners(handle, pos, nodeId, sizeIndicator);
 				resizeOverlay.appendChild(handle);
 			}

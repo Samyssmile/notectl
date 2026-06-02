@@ -1758,9 +1758,11 @@ describe('CodeBlockPlugin', () => {
 			// simulates a middleware that suppresses the transaction.
 			interceptors[0]?.interceptor('(', h.getState());
 
-			// Reach into the plugin's queue to confirm it had a pending op.
+			// Reach into the controller's queue to confirm it had a pending op.
 			// biome-ignore lint/complexity/useLiteralKeys: private field access for verification.
-			expect((plugin['pendingPairOps'] as unknown[]).length).toBeGreaterThan(0);
+			const autoPair = plugin['autoPair'];
+			// biome-ignore lint/complexity/useLiteralKeys: private field access for verification.
+			expect((autoPair['pendingPairOps'] as unknown[]).length).toBeGreaterThan(0);
 
 			// Next interceptor call must drop the stale op before processing.
 			const tr = interceptors[0]?.interceptor('{', h.getState());
@@ -1768,8 +1770,7 @@ describe('CodeBlockPlugin', () => {
 			if (tr) h.dispatch(tr);
 			// Only the `{` auto-pair should be tracked; the suppressed `(` push is gone.
 			expect(getBlockText(h.getState().doc.children[0])).toBe('{}');
-			// biome-ignore lint/complexity/useLiteralKeys: private field access for verification.
-			const stack = plugin['pairStack'];
+			const stack = autoPair.pairStack;
 			expect(stack.sizeForBlock('b1' as import('../../model/TypeBrands.js').BlockId)).toBe(1);
 		});
 	});

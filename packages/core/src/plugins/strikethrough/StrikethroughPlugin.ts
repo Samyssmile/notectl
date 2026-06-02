@@ -3,11 +3,10 @@
  * toggle command, keyboard shortcut (Mod-Shift-X), and a toolbar button.
  */
 
-import { isMarkActive, toggleMark } from '../../commands/Commands.js';
-import { markType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
+import { registerSimpleMark } from '../shared/SimpleMark.js';
 import {
 	STRIKETHROUGH_LOCALE_EN,
 	type StrikethroughLocale,
@@ -51,64 +50,39 @@ export class StrikethroughPlugin implements Plugin {
 			STRIKETHROUGH_LOCALE_EN,
 			loadStrikethroughLocale,
 		);
-		this.registerMarkSpec(context);
-		this.registerCommand(context);
-		this.registerKeymap(context);
-		this.registerToolbarItem(context);
-	}
-
-	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'strikethrough',
-			rank: 3,
-			toDOM() {
-				return document.createElement('s');
-			},
-			toHTMLString: (_mark, content) => `<s>${content}</s>`,
-			parseHTML: [
-				{ tag: 's' },
-				{ tag: 'strike' },
-				{ tag: 'del' },
-				{
-					tag: 'span',
-					getAttrs: (el: HTMLElement) => {
-						return el.style.textDecoration.includes('line-through') ? {} : false;
-					},
-				},
-			],
-			sanitize: { tags: ['s'] },
-		});
-	}
-
-	private registerCommand(context: PluginContext): void {
-		context.registerCommand('toggleStrikethrough', () => {
-			const tr = toggleMark(context.getState(), markType('strikethrough'));
-			if (tr) {
-				context.dispatch(tr);
-				return true;
-			}
-			return false;
-		});
-	}
-
-	private registerKeymap(context: PluginContext): void {
-		context.registerKeymap({
-			'Mod-Shift-X': () => context.executeCommand('toggleStrikethrough'),
-		});
-	}
-
-	private registerToolbarItem(context: PluginContext): void {
 		const icon =
 			'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>';
 
-		context.registerToolbarItem({
-			id: 'strikethrough',
-			group: 'format',
-			icon,
-			label: this.locale.label,
-			tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-X')),
+		registerSimpleMark(context, {
+			markSpec: {
+				type: 'strikethrough',
+				rank: 3,
+				toDOM() {
+					return document.createElement('s');
+				},
+				toHTMLString: (_mark, content) => `<s>${content}</s>`,
+				parseHTML: [
+					{ tag: 's' },
+					{ tag: 'strike' },
+					{ tag: 'del' },
+					{
+						tag: 'span',
+						getAttrs: (el: HTMLElement) => {
+							return el.style.textDecoration.includes('line-through') ? {} : false;
+						},
+					},
+				],
+				sanitize: { tags: ['s'] },
+			},
 			command: 'toggleStrikethrough',
-			isActive: (state) => isMarkActive(state, markType('strikethrough')),
+			keyBinding: 'Mod-Shift-X',
+			toolbar: {
+				id: 'strikethrough',
+				group: 'format',
+				icon,
+				label: this.locale.label,
+				tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-X')),
+			},
 		});
 	}
 }

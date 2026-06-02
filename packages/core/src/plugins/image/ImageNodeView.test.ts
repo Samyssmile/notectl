@@ -200,7 +200,7 @@ describe('ImageNodeView', () => {
 			expect(handles).toHaveLength(4);
 		});
 
-		it('resize handles have role="separator" and aria-label', () => {
+		it('resize handles are decorative (aria-hidden, no role)', () => {
 			const uploadStates = new Map<BlockId, UploadState>();
 			const factory = createImageNodeViewFactory(DEFAULT_IMAGE_CONFIG, uploadStates);
 			const node = makeImageBlock();
@@ -208,9 +208,11 @@ describe('ImageNodeView', () => {
 
 			view.selectNode?.();
 			const handles = view.dom.querySelectorAll('.notectl-image__resize-handle');
+			expect(handles.length).toBeGreaterThan(0);
 			for (const handle of handles) {
-				expect(handle.getAttribute('role')).toBe('separator');
-				expect(handle.getAttribute('aria-label')).toBeTruthy();
+				// Pointer-only grips; keyboard resize is exposed via shortcuts.
+				expect(handle.getAttribute('aria-hidden')).toBe('true');
+				expect(handle.getAttribute('role')).toBeNull();
 			}
 		});
 

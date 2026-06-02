@@ -64,6 +64,34 @@ describe('BlockTreeOps', () => {
 			expect(isBlockNode(second) && second.type).toBe('heading');
 			expect(isBlockNode(first) && first.type).toBe('paragraph'); // untouched
 		});
+
+		it('preserves reference identity for unrelated subtrees when block not found', () => {
+			const sibling: BlockNode = makeParent('b1', [makeBlock('b1a', 'a')]);
+			const target: BlockNode = makeParent('b2', [makeBlock('b2a', 'b')]);
+			const children: ChildNode[] = [sibling, target];
+
+			const result: ChildNode[] = mapBlockInChildren(children, 'missing', (block) => block);
+
+			// Nothing matched: the same array and the same child nodes are returned.
+			expect(result).toBe(children);
+			expect(result[0]).toBe(sibling);
+		});
+
+		it('does not reallocate sibling subtrees when transforming a nested block', () => {
+			const sibling: BlockNode = makeParent('b1', [makeBlock('b1a', 'a')]);
+			const target: BlockNode = makeParent('b2', [makeBlock('b2a', 'b')]);
+			const children: ChildNode[] = [sibling, target];
+
+			const result: ChildNode[] = mapBlockInChildren(children, 'b2a', (block) => ({
+				...block,
+				type: nodeType('heading'),
+			}));
+
+			// The untouched sibling keeps its identity; the array itself is new.
+			expect(result).not.toBe(children);
+			expect(result[0]).toBe(sibling);
+			expect(result[1]).not.toBe(target);
+		});
 	});
 
 	describe('mapNodeByPath', () => {

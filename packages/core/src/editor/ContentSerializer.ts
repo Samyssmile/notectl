@@ -11,6 +11,7 @@ import {
 	createBlockNode,
 	createTextNode,
 	getBlockChildren,
+	getBlockLength,
 	getBlockText,
 	isInlineNode,
 	isLeafBlock,
@@ -174,5 +175,7 @@ export function isEditorEmpty(doc: Document | undefined): boolean {
 	if (doc.children.length > 1) return false;
 	const block = doc.children[0];
 	if (!block) return true;
-	return block.type === 'paragraph' && getBlockText(block) === '';
+	// getBlockLength counts InlineNodes (e.g. an inline formula) as width 1, so a
+	// paragraph holding only an atomic inline node is correctly treated as non-empty.
+	return block.type === 'paragraph' && getBlockLength(block) === 0;
 }

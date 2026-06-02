@@ -17,6 +17,14 @@ interface DOMPosition {
 	offset: number;
 }
 
+/**
+ * True when `node` is an InlineNode element — rendered `contenteditable="false"`
+ * and counted as width 1 in state offset space.
+ */
+function isInlineNodeEl(node: Node | null | undefined): node is HTMLElement {
+	return node instanceof HTMLElement && node.getAttribute('contenteditable') === 'false';
+}
+
 /** Gets the selection object for writing (collapse, setBaseAndExtent). */
 export function getSelection(): globalThis.Selection | null {
 	return window.getSelection();
@@ -219,10 +227,7 @@ function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition 
 				return { node: current, offset: remaining };
 			}
 			remaining -= len;
-		} else if (
-			current instanceof HTMLElement &&
-			current.getAttribute('contenteditable') === 'false'
-		) {
+		} else if (isInlineNodeEl(current)) {
 			// InlineNode element — width 1 in state offset space
 			if (remaining === 0) {
 				// Position before this inline element
@@ -302,10 +307,7 @@ export function domPositionToState(
 		}
 		if (walkerNode.nodeType === Node.TEXT_NODE) {
 			offset += walkerNode.textContent?.length ?? 0;
-		} else if (
-			walkerNode instanceof HTMLElement &&
-			walkerNode.getAttribute('contenteditable') === 'false'
-		) {
+		} else if (isInlineNodeEl(walkerNode)) {
 			offset += 1;
 		}
 		walkerNode = walker.nextNode();
@@ -358,7 +360,7 @@ function inlineOffsetBeforeNode(root: Element, node: Node): number | null {
 function isInsideInlineElement(node: Node, root: Element): boolean {
 	let parent: Node | null = node.parentNode;
 	while (parent && parent !== root) {
-		if (parent instanceof HTMLElement && parent.getAttribute('contenteditable') === 'false') {
+		if (isInlineNodeEl(parent)) {
 			return true;
 		}
 		parent = parent.parentNode;
@@ -386,7 +388,7 @@ function createInlineContentWalker(blockEl: Element): TreeWalker {
 			// Accept text nodes
 			if (n.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
 			// Accept inline elements (contentEditable="false")
-			if (n instanceof HTMLElement && n.getAttribute('contenteditable') === 'false') {
+			if (isInlineNodeEl(n)) {
 				return NodeFilter.FILTER_ACCEPT;
 			}
 			// Skip other elements (mark wrappers, decoration wrappers) — descend
@@ -420,7 +422,7 @@ function inlineContentWidth(node: Node): number {
 	if (node.nodeType === Node.TEXT_NODE) {
 		return node.textContent?.length ?? 0;
 	}
-	if (node instanceof HTMLElement && node.getAttribute('contenteditable') === 'false') {
+	if (isInlineNodeEl(node)) {
 		return 1;
 	}
 	// Mark wrapper or other element — sum children

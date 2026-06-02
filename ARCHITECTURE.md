@@ -75,7 +75,7 @@ platform/         -> Browser & platform detection utilities
 | `commands/` | Editing operations | `model/*`, `state/*` | `editor/*` |
 | `input/` | Browser input -> commands | `commands/*`, `model/*`, `state/*`, `serialization/*` (clipboard) | `editor/*` internals |
 | `view/` | DOM rendering + SelectionSync | `model/*`, `state/*`, `decorations/*` | `editor/*` internals |
-| `plugins/` | Features via `PluginContext` | `commands/*`, `model/*`, `state/*`, `view/*` (targeted), `decorations/*`, `platform/*`, `i18n/*`, `editor/styles/*` | direct use of private editor fields |
+| `plugins/` | Features via `PluginContext` | `commands/*`, `model/*`, `state/*`, `view/*` (targeted), `decorations/*`, `platform/*`, `i18n/*`, `style/*` (CSP-safe styling utilities), `editor/styles/*` | direct use of private editor fields |
 | `editor/` | Composition root (`NotectlEditor`) | all lower layers | cyclic back-references into deep layers |
 
 ¹ `model/` files may use `import type` from `state/` for handler signatures (e.g. `EditorState`, `Transaction` in `InputRule`). These are type-only imports with zero runtime coupling.

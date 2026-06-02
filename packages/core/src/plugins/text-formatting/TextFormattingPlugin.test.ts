@@ -264,17 +264,21 @@ describe('TextFormattingPlugin', () => {
 
 		it('rejects <b style="font-weight:normal"> as bold', async () => {
 			const slice = await parseViaPlugin('<p><b style="font-weight:normal">not bold</b></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'not bold', marks: [] }]);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'not bold', marks: [] }]);
 		});
 
 		it('detects <span style="font-weight:700"> as bold', async () => {
 			const slice = await parseViaPlugin('<p><span style="font-weight:700">bold</span></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'bold', marks: [{ type: 'bold' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+			]);
 		});
 
 		it('detects <span style="font-style:italic"> as italic', async () => {
 			const slice = await parseViaPlugin('<p><span style="font-style:italic">italic</span></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'italic', marks: [{ type: 'italic' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'italic', marks: [{ type: 'italic' }] },
+			]);
 		});
 
 		it('detects <span style="text-decoration:underline"> as underline', async () => {
@@ -282,7 +286,7 @@ describe('TextFormattingPlugin', () => {
 				'<p><span style="text-decoration:underline">underlined</span></p>',
 			);
 			expect(slice.blocks[0]?.segments).toEqual([
-				{ text: 'underlined', marks: [{ type: 'underline' }] },
+				{ kind: 'text', text: 'underlined', marks: [{ type: 'underline' }] },
 			]);
 		});
 	});

@@ -1,0 +1,35 @@
+import type { FormulaLocale } from '../FormulaLocale.js';
+
+const locale: FormulaLocale = {
+	insertInline: 'Insérer une formule',
+	insertInlineTooltip: 'Insérer une formule en ligne',
+	editFormula: 'Modifier la formule',
+	latexLabel: 'LaTeX',
+	latexPlaceholder: 'p. ex. \\frac{a}{b} + \\sqrt{x}',
+	previewLabel: 'Aperçu',
+	insertButton: 'Insérer',
+	updateButton: 'Mettre à jour',
+	cancelButton: 'Annuler',
+	displayToggle: 'Équation en bloc (display)',
+	sizeLabel: 'Taille',
+	sizeDefault: 'Par défaut',
+	altLabel: 'Description',
+	altPlaceholder: 'Description orale (facultatif)',
+	paletteLabel: 'Symboles et structures',
+	emptyPreview: 'Rien à prévisualiser pour le moment.',
+	inserted: 'Formule insérée.',
+	updated: 'Formule mise à jour.',
+	editing: 'Modification de la formule.',
+	selected: 'Formule sélectionnée. Appuyez sur Entrée pour modifier.',
+	unknownCommand: (command: string) => `Commande LaTeX inconnue : ${command}`,
+	groupFractions: 'Fractions',
+	groupScripts: 'Indices et exposants',
+	groupRoots: 'Racines',
+	groupOperators: 'Opérateurs',
+	groupGreek: 'Lettres grecques',
+	groupRelations: 'Relations',
+	groupMatrices: 'Matrices',
+	groupArrows: 'Flèches',
+};
+
+export default locale;

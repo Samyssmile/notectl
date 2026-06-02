@@ -15,7 +15,7 @@ import { isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { resolveLocale } from '../shared/PluginHelpers.js';
+import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
 
@@ -166,11 +166,7 @@ export class LinkPlugin implements Plugin {
 		if (isCollapsed(sel)) return false;
 
 		const mark = { type: markType('link'), attrs: { href } };
-		const tr = applyAttributedMark(state, mark);
-		if (!tr) return false;
-
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, applyAttributedMark(state, mark));
 	}
 
 	private removeLink(context: PluginContext, state: EditorState): boolean {
@@ -222,10 +218,7 @@ export class LinkPlugin implements Plugin {
 		}
 
 		// Range selection: delegate to shared helper
-		const tr = removeAttributedMark(state, markType('link'));
-		if (!tr) return false;
-		context.dispatch(tr);
-		return true;
+		return dispatchIfPresent(context, removeAttributedMark(state, markType('link')));
 	}
 
 	private renderLinkPopup(

@@ -4,7 +4,6 @@
  * toolbar button, and mark exclusivity middleware.
  */
 
-import { isMarkActive, toggleMark } from '../../commands/Commands.js';
 import type { BlockNode, Mark } from '../../model/Document.js';
 import { getBlockContentSegmentsInRange } from '../../model/Document.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
@@ -13,6 +12,7 @@ import type { Step } from '../../state/Steps.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
+import { registerSimpleMark } from '../shared/SimpleMark.js';
 import {
 	INLINE_CODE_LOCALE_EN,
 	type InlineCodeLocale,
@@ -101,65 +101,57 @@ export class InlineCodePlugin implements Plugin {
 			loadInlineCodeLocale,
 		);
 		context.registerStyleSheet(INLINE_CODE_CSS);
-		this.registerMarkSpec(context);
-		this.registerCommand(context);
+		this.registerMark(context);
 
-		if (this.config.keymap !== null) {
-			this.registerKeymap(context);
-		}
 		if (this.config.inputRule !== false) {
 			this.registerInputRule(context);
-		}
-		if (this.config.toolbar !== false) {
-			this.registerToolbarItem(context);
 		}
 		this.registerExclusivityMiddleware(context);
 	}
 
-	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'code',
-			rank: 3,
-			toDOM() {
-				return document.createElement('code');
+	private registerMark(context: PluginContext): void {
+		const icon =
+			'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>';
+
+		registerSimpleMark(context, {
+			markSpec: {
+				type: 'code',
+				rank: 3,
+				toDOM() {
+					return document.createElement('code');
+				},
+				toHTMLString: (_mark, content) => `<code>${content}</code>`,
+				parseHTML: [
+					{
+						tag: 'code',
+						getAttrs: (el: HTMLElement) => {
+							if (el.parentElement?.tagName === 'PRE') return false;
+							return {};
+						},
+					},
+					{
+						tag: 'span',
+						getAttrs: (el: HTMLElement) => {
+							const fontFamily: string = el.style.fontFamily.replace(/['"]/g, '').trim();
+							if (/^monospace$/i.test(fontFamily)) return {};
+							return false;
+						},
+					},
+				],
+				sanitize: { tags: ['code'] },
 			},
-			toHTMLString: (_mark, content) => `<code>${content}</code>`,
-			parseHTML: [
-				{
-					tag: 'code',
-					getAttrs: (el: HTMLElement) => {
-						if (el.parentElement?.tagName === 'PRE') return false;
-						return {};
-					},
-				},
-				{
-					tag: 'span',
-					getAttrs: (el: HTMLElement) => {
-						const fontFamily: string = el.style.fontFamily.replace(/['"]/g, '').trim();
-						if (/^monospace$/i.test(fontFamily)) return {};
-						return false;
-					},
-				},
-			],
-			sanitize: { tags: ['code'] },
-		});
-	}
-
-	private registerCommand(context: PluginContext): void {
-		context.registerCommand('toggleInlineCode', () => {
-			const tr = toggleMark(context.getState(), markType('code'));
-			if (tr) {
-				context.dispatch(tr);
-				return true;
-			}
-			return false;
-		});
-	}
-
-	private registerKeymap(context: PluginContext): void {
-		const key: string = this.config.keymap ?? 'Mod-E';
-		context.registerKeymap({
-			[key]: () => context.executeCommand('toggleInlineCode'),
+			command: 'toggleInlineCode',
+			keyBinding: this.config.keymap !== null ? (this.config.keymap ?? 'Mod-E') : null,
+			toolbar:
+				this.config.toolbar !== false
+					? {
+							id: 'inline_code',
+							group: 'format',
+							icon,
+							label: this.locale.label,
+							tooltip: this.locale.tooltip(formatShortcut(this.config.keymap ?? 'Mod-E')),
+						}
+					: undefined,
 		});
 	}
 
@@ -193,21 +185,6 @@ export class InlineCodePlugin implements Plugin {
 					)
 					.build();
 			},
-		});
-	}
-
-	private registerToolbarItem(context: PluginContext): void {
-		const icon =
-			'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>';
-
-		context.registerToolbarItem({
-			id: 'inline_code',
-			group: 'format',
-			icon,
-			label: this.locale.label,
-			tooltip: this.locale.tooltip(formatShortcut(this.config.keymap ?? 'Mod-E')),
-			command: 'toggleInlineCode',
-			isActive: (state) => isMarkActive(state, markType('code')),
 		});
 	}
 

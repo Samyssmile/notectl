@@ -318,12 +318,16 @@ describe('InlineCodePlugin', () => {
 
 		it('detects <code> as code mark', async () => {
 			const slice = await parseViaPlugin('<p><code>hello</code></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'hello', marks: [{ type: 'code' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'hello', marks: [{ type: 'code' }] },
+			]);
 		});
 
 		it('detects <span style="font-family:monospace"> as code mark', async () => {
 			const slice = await parseViaPlugin('<p><span style="font-family:monospace">mono</span></p>');
-			expect(slice.blocks[0]?.segments).toEqual([{ text: 'mono', marks: [{ type: 'code' }] }]);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'mono', marks: [{ type: 'code' }] },
+			]);
 		});
 	});
 
