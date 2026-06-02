@@ -17,32 +17,11 @@
 
 <script>
 import { ThemePreset, createEditor } from '@notectl/core';
-	import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
-	import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
-	import { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
-	import { FontPlugin } from '@notectl/core/plugins/font';
-	import { FontSizePlugin } from '@notectl/core/plugins/font-size';
-	import { HardBreakPlugin } from '@notectl/core/plugins/hard-break';
-	import { HeadingPlugin } from '@notectl/core/plugins/heading';
-	import { HighlightPlugin } from '@notectl/core/plugins/highlight';
-	import { HorizontalRulePlugin } from '@notectl/core/plugins/horizontal-rule';
-	import { ImagePlugin } from '@notectl/core/plugins/image';
-	import { LinkPlugin } from '@notectl/core/plugins/link';
-	import { ListPlugin } from '@notectl/core/plugins/list';
-	import { StrikethroughPlugin } from '@notectl/core/plugins/strikethrough';
-	import { SuperSubPlugin } from '@notectl/core/plugins/super-sub';
-	import { TablePlugin } from '@notectl/core/plugins/table';
-	import { TextColorPlugin } from '@notectl/core/plugins/text-color';
-	import { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';
-	import { PrintPlugin } from '@notectl/core/plugins/print';
-	import { GapCursorPlugin } from '@notectl/core/plugins/gap-cursor';
 	import { CaretNavigationPlugin } from '@notectl/core/plugins/caret-navigation';
-	import { SmartPastePlugin } from '@notectl/core/plugins/smart-paste';
-	import { TextDirectionPlugin } from '@notectl/core/plugins/text-direction';
-	import { BidiIsolationPlugin } from '@notectl/core/plugins/bidi-isolation';
-	import { TextDirectionAutoPlugin } from '@notectl/core/plugins/text-direction-auto';
+	import { GapCursorPlugin } from '@notectl/core/plugins/gap-cursor';
 	import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
-	import { STARTER_FONTS } from '@notectl/core/fonts';
+	import { createFullPreset } from '@notectl/core/presets/full';
+	import { NOTECTL_MATH_FONT, STARTER_FONTS } from '@notectl/core/fonts';
 
 	const container = document.getElementById('playground-editor');
 	const output = document.getElementById('playground-output');
@@ -54,48 +33,25 @@ import { ThemePreset, createEditor } from '@notectl/core';
 	}
 
 	if (container && output) {
+		// Showcase the full preset (every standard plugin, including the formula
+		// plugin). The bundled OpenType MATH font ensures correct stretchy
+		// rendering of formulas in Chromium.
+		const preset = createFullPreset({
+			font: { fonts: [...STARTER_FONTS] },
+			fontSize: {
+				sizes: [10, 12, 14, 16, 18, 20, 24, 28, 32, 48],
+				defaultSize: 14,
+			},
+			formula: { mathFont: NOTECTL_MATH_FONT },
+		});
+
 		const editor = await createEditor({
 			theme: getStarlightTheme(),
 			toolbar: {
-				groups: [
-					[
-						new FontPlugin({ fonts: [...STARTER_FONTS] }),
-						new FontSizePlugin({
-							sizes: [10, 12, 14, 16, 18, 20, 24, 28, 32, 48],
-							defaultSize: 14,
-						}),
-					],
-					[
-						new TextFormattingPlugin({
-							bold: true,
-							italic: true,
-							underline: true,
-						}),
-						new StrikethroughPlugin(),
-						new SuperSubPlugin(),
-					],
-					[new TextColorPlugin(), new HighlightPlugin()],
-					[new HeadingPlugin(), new BlockquotePlugin(), new CodeBlockPlugin()],
-					[new AlignmentPlugin()],
-					[new ListPlugin()],
-					[
-						new LinkPlugin(),
-						new TablePlugin(),
-						new HorizontalRulePlugin(),
-						new ImagePlugin(),
-						new PrintPlugin(),
-					],
-					[new TextDirectionPlugin(), new BidiIsolationPlugin()],
-				],
+				groups: preset.toolbar,
 				overflow: ToolbarOverflowBehavior.Flow,
 			},
-			plugins: [
-				new HardBreakPlugin(),
-				new GapCursorPlugin(),
-				new CaretNavigationPlugin(),
-				new SmartPastePlugin(),
-				new TextDirectionAutoPlugin(),
-			],
+			plugins: [...preset.plugins, new GapCursorPlugin(), new CaretNavigationPlugin()],
 			placeholder: 'Start typing to try notectl...',
 			autofocus: false,
 		});
