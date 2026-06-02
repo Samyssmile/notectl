@@ -363,16 +363,17 @@ function parseBlockquoteElement(
 	registry?: SchemaRegistry,
 ): void {
 	const blockRules = registry?.getBlockParseRules() ?? [];
-	const innerBlocks: BlockNode[] = [];
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
+		el,
+		blockRules,
+		adoptedIds,
+		registry,
+	);
 
-	for (const child of Array.from(el.childNodes)) {
-		parseChildNode(child, innerBlocks, blockRules, adoptedIds, registry);
-	}
-
-	// Pure inline content (e.g. `<blockquote>text</blockquote>`): wrap in a paragraph.
+	// Empty or whitespace-only blockquote: keep a single empty paragraph so the
+	// container always holds editable content.
 	if (innerBlocks.length === 0) {
-		const inlineContent = parseElementToInlineContent(el, registry);
-		innerBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));
+		innerBlocks.push(createBlockNode(nodeType('paragraph'), [createTextNode('')]));
 	}
 
 	// Preserve direction/alignment on the container so the HTML round-trip is stable.
@@ -397,19 +398,83 @@ function parseTableCellContent(
 	registry?: SchemaRegistry,
 ): BlockNode[] {
 	const blockRules = registry?.getBlockParseRules() ?? [];
-	const cellBlocks: BlockNode[] = [];
+	const cellBlocks: BlockNode[] = parseBlockContainerChildren(
+		cellEl,
+		blockRules,
+		adoptedIds,
+		registry,
+	);
 
-	for (const child of Array.from(cellEl.childNodes)) {
-		parseChildNode(child, cellBlocks, blockRules, adoptedIds, registry);
-	}
-
-	// No blocks produced: treat entire cell content as one paragraph
+	// No blocks produced: treat the cell as one empty paragraph.
 	if (cellBlocks.length === 0) {
-		const inlineContent = parseElementToInlineContent(cellEl, registry);
-		cellBlocks.push(createBlockNode(nodeType('paragraph'), inlineContent));
+		cellBlocks.push(createBlockNode(nodeType('paragraph'), [createTextNode('')]));
 	}
 
 	return cellBlocks;
+}
+
+type BlockParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
+
+/**
+ * Parses the children of a block container (blockquote, table cell) into block
+ * nodes. Consecutive inline content (text nodes and inline elements such as
+ * `<em>`, `<strong>`, `<a>`) is coalesced into a single paragraph with its marks
+ * intact, while genuine block children (paragraphs, headings, lists, tables,
+ * nested blockquotes) are parsed recursively. This preserves the common quote
+ * shape that mixes text with inline marks as one paragraph (issue #141).
+ */
+function parseBlockContainerChildren(
+	el: HTMLElement,
+	blockRules: BlockParseRules,
+	adoptedIds: Set<string>,
+	registry?: SchemaRegistry,
+): BlockNode[] {
+	const blocks: BlockNode[] = [];
+	let inlineRun: ChildNode[] = [];
+
+	const flushInlineRun = (): void => {
+		if (inlineRunHasContent(inlineRun)) {
+			blocks.push(
+				createBlockNode(nodeType('paragraph'), parseNodesToInlineContent(inlineRun, registry)),
+			);
+		}
+		inlineRun = [];
+	};
+
+	for (const child of Array.from(el.childNodes)) {
+		if (isBlockLevelChild(child, blockRules)) {
+			flushInlineRun();
+			parseChildNode(child, blocks, blockRules, adoptedIds, registry);
+		} else {
+			inlineRun.push(child);
+		}
+	}
+	flushInlineRun();
+
+	return blocks;
+}
+
+/**
+ * Whether a child node is block-level content. Known container tags (lists,
+ * tables, nested blockquotes) and any element matching a block parse rule
+ * (paragraphs, headings, code blocks, ...) are block-level; text nodes and
+ * inline elements (`<em>`, `<a>`, `<br>`, ...) are not.
+ */
+function isBlockLevelChild(node: ChildNode, blockRules: BlockParseRules): boolean {
+	if (node.nodeType !== Node.ELEMENT_NODE) return false;
+	const el = node as HTMLElement;
+	const tag: string = el.tagName.toLowerCase();
+	if (tag === 'ul' || tag === 'ol' || tag === 'table' || tag === 'blockquote') return true;
+	return matchBlockParseRule(el, blockRules) !== null;
+}
+
+/** Whether an inline run carries meaningful content (non-whitespace text or any element). */
+function inlineRunHasContent(nodes: readonly ChildNode[]): boolean {
+	for (const node of nodes) {
+		if (node.nodeType === Node.ELEMENT_NODE) return true;
+		if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return true;
+	}
+	return false;
 }
 
 /**
@@ -421,10 +486,26 @@ function parseElementToInlineContent(
 	registry?: SchemaRegistry,
 	skipNestedLists?: boolean,
 ): (TextNode | InlineNode)[] {
+	return parseNodesToInlineContent([el], registry, skipNestedLists);
+}
+
+/**
+ * Walks a list of sibling DOM nodes into inline content, applying mark and
+ * inline-node parse rules. Each node is walked from an empty mark set, so a run
+ * mixing text and inline elements (e.g. `text <em>x</em> end`) coalesces into a
+ * single inline sequence with marks preserved on the styled run.
+ */
+function parseNodesToInlineContent(
+	nodes: readonly ChildNode[],
+	registry?: SchemaRegistry,
+	skipNestedLists?: boolean,
+): (TextNode | InlineNode)[] {
 	const result: (TextNode | InlineNode)[] = [];
 	const markRules = registry?.getMarkParseRules() ?? [];
 	const inlineRules = registry?.getInlineParseRules() ?? [];
-	walkElement(el, [], result, markRules, inlineRules, skipNestedLists);
+	for (const node of nodes) {
+		walkElement(node, [], result, markRules, inlineRules, skipNestedLists);
+	}
 
 	// A lone <br> as the only content of a block is a placeholder for an empty
 	// paragraph (e.g. `<p><br></p>`), not a real hard break. Normalize to empty text.
