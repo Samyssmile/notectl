@@ -74,6 +74,4 @@ export interface MathFieldOptions {
 	readonly onCommit: (result: MathFieldResult) => void;
 	/** Called when the user cancels (Cancel button or Escape). */
 	readonly onCancel: () => void;
-	/** Optional live-region announcer for status messages. */
-	readonly announce?: (message: string) => void;
 }

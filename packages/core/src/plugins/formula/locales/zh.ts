@@ -3,8 +3,6 @@ import type { FormulaLocale } from '../FormulaLocale.js';
 const locale: FormulaLocale = {
 	insertInline: '插入公式',
 	insertInlineTooltip: '插入行内公式',
-	insertDisplay: '插入块级公式',
-	insertDisplayTooltip: '插入块级公式',
 	editFormula: '编辑公式',
 	latexLabel: 'LaTeX',
 	latexPlaceholder: '例如 \\frac{a}{b} + \\sqrt{x}',

@@ -161,6 +161,44 @@ test.describe('Formula plugin', () => {
 		expect(xss).toBe(false);
 	});
 
+	test('a dangerous payload INSIDE pasted MathML is stripped by sanitization', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// The hostile content rides INSIDE the <math> itself: an event handler on an
+		// operator, a <script> in an mtext integration point, and an annotation-xml
+		// HTML-injection. DOMPurify must drop all of it before the MathML is stored
+		// and re-rendered via innerHTML (the classic MathML mutation-XSS surface).
+		const html =
+			'<math><semantics><mrow><mi>x</mi>' +
+			'<mo onclick="window.__inMathXss = true">+</mo></mrow>' +
+			'<mtext><script>window.__inMathXss = true</script></mtext>' +
+			'<annotation-xml encoding="text/html">' +
+			'<img src="invalid-xyz" onerror="window.__inMathXss = true"></annotation-xml>' +
+			'</semantics></math>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x' });
+
+		// The formula is still claimed and inserted...
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(1);
+		// ...nothing executed...
+		await page.waitForTimeout(300);
+		const xss = await page.evaluate(
+			() => (window as Window & { __inMathXss?: boolean }).__inMathXss === true,
+		);
+		expect(xss).toBe(false);
+
+		// ...and the stored MathML carries none of the dangerous markup.
+		const json = JSON.stringify(await editor.getJSON()).toLowerCase();
+		expect(json).not.toContain('onclick');
+		expect(json).not.toContain('onerror');
+		expect(json).not.toContain('<script');
+		expect(json).not.toContain('<img');
+		expect(json).not.toContain('annotation-xml');
+		// The legitimate content survives.
+		expect(json).toContain('<mi>x</mi>');
+	});
+
 	test('blackboard-bold renders as a real Unicode glyph (no mathvariant reliance)', async ({
 		editor,
 		page,

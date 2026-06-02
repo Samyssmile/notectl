@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { isStandaloneMathHtml } from './FormulaPasteInterceptor.js';
 
+// NOTE: the DOMPurify sanitization path (sanitizeMath) cannot be unit-tested here:
+// happy-dom has no MathML namespace, so DOMPurify drops `<math>` entirely (returns '').
+// Allowlist invariants are locked in MathMLSanitize.test.ts, and the real
+// browser sanitization behaviour is covered by e2e/formula.spec.ts.
+
 describe('isStandaloneMathHtml', () => {
 	it('accepts a bare math element', () => {
 		expect(isStandaloneMathHtml('<math><mi>x</mi></math>')).toBe(true);

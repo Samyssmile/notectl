@@ -75,7 +75,10 @@ export function parseFontCommand(name: string, api: ParserApi): Atom {
 	if (name === 'mathrm') {
 		return atom(applyUprightIdentifiers(api.parseArgument()));
 	}
+	// The only commands left are the mathvariant-only families (\boldsymbol, \bm),
+	// which have no dedicated Unicode glyph block.
 	const variant: string | undefined = VARIANTS[name];
 	const body: string = api.parseArgument();
-	return atom(mstyle(body, { mathvariant: variant ?? 'normal' }));
+	if (variant === undefined) return atom(body);
+	return atom(mstyle(body, { mathvariant: variant }));
 }

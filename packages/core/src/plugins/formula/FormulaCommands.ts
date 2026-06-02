@@ -16,10 +16,12 @@ import {
 } from '../../model/Selection.js';
 import { type BlockId, inlineType, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
+import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import { getSelectedBlockId } from '../shared/PluginHelpers.js';
+import type { FormulaLocale } from './FormulaLocale.js';
 import { DISPLAY_MATH_TYPE, type FormulaAttrs, INLINE_MATH_TYPE } from './FormulaTypes.js';
+import type { MathFieldResult } from './math-field/index.js';
 
 function toNodeAttrs(attrs: FormulaAttrs): Record<string, string> {
 	return { mathml: attrs.mathml, latex: attrs.latex, alt: attrs.alt, fontSize: attrs.fontSize };
@@ -53,6 +55,25 @@ export function buildInsertInlineMathTr(
 	return builder.build();
 }
 
+/**
+ * Appends the steps that place a display-math block, followed by a trailing empty
+ * paragraph, at top-level index `insertAt`, then selects the new block. Shared by
+ * the insert command and the `$$…$$` input rule so a display equation always has
+ * a paragraph after it and both entry points behave identically.
+ */
+export function appendDisplayMathSteps(
+	builder: TransactionBuilder,
+	insertAt: number,
+	attrs: FormulaAttrs,
+): void {
+	const block = createBlockNode(nodeType(DISPLAY_MATH_TYPE), [], undefined, toNodeAttrs(attrs));
+	const trailing = createBlockNode(nodeType('paragraph'));
+	builder
+		.insertNode([], insertAt, block)
+		.insertNode([], insertAt + 1, trailing)
+		.setSelection(createNodeSelection(block.id, []));
+}
+
 /** Builds a transaction inserting a display math block after the current top-level block. */
 export function buildInsertDisplayMathTr(
 	state: EditorState,
@@ -67,15 +88,9 @@ export function buildInsertDisplayMathTr(
 	const topIndex: number = state.doc.children.findIndex((b) => b.id === topId);
 	const insertAt: number = topIndex === -1 ? state.doc.children.length : topIndex + 1;
 
-	const block = createBlockNode(nodeType(DISPLAY_MATH_TYPE), [], undefined, toNodeAttrs(attrs));
-	const trailing = createBlockNode(nodeType('paragraph'));
-
-	return state
-		.transaction('command')
-		.insertNode([], insertAt, block)
-		.insertNode([], insertAt + 1, trailing)
-		.setSelection(createNodeSelection(block.id, []))
-		.build();
+	const builder: TransactionBuilder = state.transaction('command');
+	appendDisplayMathSteps(builder, insertAt, attrs);
+	return builder.build();
 }
 
 /** Inserts an inline math node at the current cursor, replacing any range selection. */
@@ -120,4 +135,30 @@ export function updateDisplayMath(
 	const tr = state.transaction('command').setNodeAttr(path, toNodeAttrs(attrs)).build();
 	context.dispatch(tr);
 	return true;
+}
+
+/** Maps a committed math-field result onto formula node attributes. */
+export function resultToFormulaAttrs(result: MathFieldResult): FormulaAttrs {
+	return {
+		mathml: result.mathml,
+		latex: result.latex,
+		alt: result.alt,
+		fontSize: result.fontSize,
+	};
+}
+
+/**
+ * Inserts a freshly committed formula at the selection — a display block or an
+ * inline node per the field's toggle — and announces it. Shared by the toolbar
+ * popup and the floating overlay so the insert-commit path is defined once.
+ */
+export function commitInsertFormula(
+	context: PluginContext,
+	locale: FormulaLocale,
+	result: MathFieldResult,
+): void {
+	const attrs: FormulaAttrs = resultToFormulaAttrs(result);
+	if (result.display) insertDisplayMath(context, attrs);
+	else insertInlineMath(context, attrs);
+	context.announce(locale.inserted);
 }

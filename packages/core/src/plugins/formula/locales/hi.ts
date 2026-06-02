@@ -3,8 +3,6 @@ import type { FormulaLocale } from '../FormulaLocale.js';
 const locale: FormulaLocale = {
 	insertInline: 'सूत्र डालें',
 	insertInlineTooltip: 'इनलाइन सूत्र डालें',
-	insertDisplay: 'ब्लॉक सूत्र डालें',
-	insertDisplayTooltip: 'ब्लॉक सूत्र डालें',
 	editFormula: 'सूत्र संपादित करें',
 	latexLabel: 'LaTeX',
 	latexPlaceholder: 'उदा. \\frac{a}{b} + \\sqrt{x}',

@@ -127,10 +127,9 @@ export function tokenize(src: string): readonly Token[] {
 			tokens.push(cmd);
 			// Advance past the backslash and the command body.
 			i += cmd.type === TokenType.RowBreak ? 2 : Math.max(1, cmd.value.length) + 1;
-			// Swallow whitespace right after a lettered command.
-			if (cmd.type === TokenType.Command && cmd.value.length > 1) {
-				while (i < src.length && isWhitespace(src[i] ?? '')) i += 1;
-			} else if (cmd.type === TokenType.Command && isLetter(cmd.value)) {
+			// Swallow whitespace after a lettered command (single- or multi-letter),
+			// e.g. `\alpha x` → `\alpha`,`x`; not after a control symbol like `\,`.
+			if (cmd.type === TokenType.Command && isLetter(cmd.value[0] ?? '')) {
 				while (i < src.length && isWhitespace(src[i] ?? '')) i += 1;
 			}
 			continue;

@@ -11,8 +11,6 @@ import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.j
 export interface FormulaLocale {
 	readonly insertInline: string;
 	readonly insertInlineTooltip: string;
-	readonly insertDisplay: string;
-	readonly insertDisplayTooltip: string;
 	readonly editFormula: string;
 	readonly latexLabel: string;
 	readonly latexPlaceholder: string;
@@ -53,8 +51,6 @@ export interface FormulaLocale {
 export const FORMULA_LOCALE_EN: FormulaLocale = {
 	insertInline: 'Insert formula',
 	insertInlineTooltip: 'Insert inline formula',
-	insertDisplay: 'Insert block formula',
-	insertDisplayTooltip: 'Insert block formula',
 	editFormula: 'Edit formula',
 	latexLabel: 'LaTeX',
 	latexPlaceholder: 'e.g. \\frac{a}{b} + \\sqrt{x}',

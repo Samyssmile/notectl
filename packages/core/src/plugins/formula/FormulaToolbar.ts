@@ -5,7 +5,7 @@
  */
 
 import type { PluginContext } from '../Plugin.js';
-import { insertDisplayMath, insertInlineMath } from './FormulaCommands.js';
+import { commitInsertFormula } from './FormulaCommands.js';
 import { mountFormulaEditor } from './FormulaEditorMount.js';
 import type { FormulaLocale } from './FormulaLocale.js';
 import type { MathFieldResult } from './math-field/index.js';
@@ -42,15 +42,7 @@ export function registerFormulaToolbar(
 				fontSizes,
 				onClose,
 				onCommit: (result: MathFieldResult): void => {
-					const attrs = {
-						mathml: result.mathml,
-						latex: result.latex,
-						alt: result.alt,
-						fontSize: result.fontSize,
-					};
-					if (result.display) insertDisplayMath(ctx, attrs);
-					else insertInlineMath(ctx, attrs);
-					ctx.announce(locale.inserted);
+					commitInsertFormula(ctx, locale, result);
 					onClose();
 					ctx.getContainer().focus();
 				},

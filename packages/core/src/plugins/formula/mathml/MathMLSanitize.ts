@@ -14,7 +14,11 @@ export const MATHML_TAGS: readonly string[] = [
 	'math',
 	'semantics',
 	'annotation',
-	'annotation-xml',
+	// NOTE: `annotation-xml` is deliberately NOT allowed. Our converter never
+	// emits it (the TeX source rides in a plain `<annotation>`), and
+	// `<annotation-xml encoding="text/html">` is an HTML integration point — the
+	// classic MathML mutation-XSS surface once the stored string is re-parsed via
+	// `innerHTML`. Excluding it removes the surface entirely with no feature loss.
 	'mrow',
 	'mi',
 	'mn',
