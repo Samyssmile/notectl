@@ -6,7 +6,12 @@
 
 import { isRtlContext } from '../../platform/Platform.js';
 import { ServiceKey } from '../Plugin.js';
-import { type PopupPosition, appendToRoot, positionPopup } from './PopupPositioning.js';
+import {
+	type PopupPosition,
+	appendToRoot,
+	positionPopup,
+	promoteToTopLayer,
+} from './PopupPositioning.js';
 
 // --- Types ---
 
@@ -130,6 +135,9 @@ export class PopupManager implements PopupServiceAPI {
 
 		const refNode: Node = config.referenceNode ?? this.referenceNode;
 		appendToRoot(popup, refNode);
+		// Promote to the top layer before measuring/positioning so the popup
+		// escapes any ancestor stacking context in the host page.
+		promoteToTopLayer(popup);
 
 		const anchorRect: DOMRect =
 			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
