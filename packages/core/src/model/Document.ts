@@ -69,6 +69,16 @@ export type ContentSegment =
 	| { readonly kind: 'text'; readonly text: string; readonly marks: readonly Mark[] }
 	| { readonly kind: 'inline'; readonly node: InlineNode };
 
+/** Creates a text {@link ContentSegment}. */
+export function textSegment(text: string, marks: readonly Mark[] = []): ContentSegment {
+	return { kind: 'text', text, marks };
+}
+
+/** Creates an inline {@link ContentSegment} wrapping an {@link InlineNode}. */
+export function inlineSegment(node: InlineNode): ContentSegment {
+	return { kind: 'inline', node };
+}
+
 /** Extracts TextNode segments within a block for the given offset range. */
 export function getBlockSegmentsInRange(
 	block: BlockNode,
@@ -114,30 +124,21 @@ function walkBlockRange(
 	to: number,
 	visitor: BlockRangeVisitor,
 ): void {
-	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-	let pos = 0;
-
-	for (const child of inlineChildren) {
-		const childWidth: number = isInlineNode(child) ? 1 : child.text.length;
-		const childEnd: number = pos + childWidth;
-
-		if (childEnd <= from || pos >= to) {
-			pos = childEnd;
-			continue;
-		}
+	for (const { child, from: childFrom, to: childEnd } of walkInlineContent(
+		getInlineChildren(block),
+	)) {
+		if (childEnd <= from || childFrom >= to) continue;
 
 		if (isInlineNode(child)) {
 			visitor.onInline?.(child);
 		} else {
-			const sliceFrom: number = Math.max(0, from - pos);
-			const sliceTo: number = Math.min(child.text.length, to - pos);
+			const sliceFrom: number = Math.max(0, from - childFrom);
+			const sliceTo: number = Math.min(child.text.length, to - childFrom);
 			const text: string = child.text.slice(sliceFrom, sliceTo);
 			if (text.length > 0) {
 				visitor.onText(text, child.marks);
 			}
 		}
-
-		pos = childEnd;
 	}
 }
 
@@ -269,10 +270,9 @@ export function getBlockText(block: BlockNode): string {
 
 /** Returns the length of a block's inline content (InlineNodes count as 1). */
 export function getBlockLength(block: BlockNode): number {
-	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
 	let len = 0;
-	for (const child of inlineChildren) {
-		len += isInlineNode(child) ? 1 : child.text.length;
+	for (const { to } of walkInlineContent(getInlineChildren(block))) {
+		len = to;
 	}
 	return len;
 }
@@ -280,22 +280,19 @@ export function getBlockLength(block: BlockNode): number {
 /** Returns the marks active at the given offset (empty for InlineNode offsets). */
 export function getBlockMarksAtOffset(block: BlockNode, offset: number): readonly Mark[] {
 	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-	let pos = 0;
 
-	for (const child of inlineChildren) {
+	for (const { child, from, to } of walkInlineContent(inlineChildren)) {
 		if (isInlineNode(child)) {
-			if (offset === pos) return [];
-			pos += 1;
+			if (offset === from) return [];
 			continue;
 		}
-		const end: number = pos + child.text.length;
-		if (offset >= pos && offset < end) {
+		if (offset >= from && offset < to) {
 			return child.marks;
 		}
-		if (offset === pos && child.text.length === 0) {
+		// Empty text node (from === to): match exactly at its position.
+		if (offset === from && child.text.length === 0) {
 			return child.marks;
 		}
-		pos = end;
 	}
 
 	// Fall back to last text child's marks
@@ -418,6 +415,21 @@ export function normalizeInlineContent(
 	return cleaned;
 }
 
+/**
+ * Materializes content segments (text + inline) into normalized inline children.
+ * Inverse of {@link getBlockContentSegmentsInRange}: used when turning a range of
+ * segments back into a block's children (paste insertion, slice extraction).
+ */
+export function segmentsToInlineChildren(
+	segments: readonly ContentSegment[],
+): readonly (TextNode | InlineNode)[] {
+	return normalizeInlineContent(
+		segments.map((segment) =>
+			segment.kind === 'inline' ? segment.node : createTextNode(segment.text, segment.marks),
+		),
+	);
+}
+
 /** Yields each inline child with its offset range. InlineNodes have width 1. */
 export function* walkInlineContent(children: readonly (TextNode | InlineNode)[]): Generator<{
 	readonly child: TextNode | InlineNode;
@@ -440,19 +452,13 @@ export function* walkInlineContent(children: readonly (TextNode | InlineNode)[])
  * text-only string returned by `getBlockText()`.
  */
 export function blockOffsetToTextOffset(block: BlockNode, blockOffset: number): number {
-	const inlineChildren: readonly (TextNode | InlineNode)[] = getInlineChildren(block);
-	let blockPos = 0;
 	let textPos = 0;
 
-	for (const child of inlineChildren) {
+	for (const { child, from, to } of walkInlineContent(getInlineChildren(block))) {
 		if (isInlineNode(child)) {
-			if (blockPos >= blockOffset) return textPos;
-			blockPos += 1;
+			if (from >= blockOffset) return textPos;
 		} else {
-			if (blockPos + child.text.length >= blockOffset) {
-				return textPos + (blockOffset - blockPos);
-			}
-			blockPos += child.text.length;
+			if (to >= blockOffset) return textPos + (blockOffset - from);
 			textPos += child.text.length;
 		}
 	}

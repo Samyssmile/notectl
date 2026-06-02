@@ -8,7 +8,20 @@ import type { BlockNode } from '../../model/Document.js';
 import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
+
+/**
+ * Dispatches `tr` when it is non-null and reports whether anything happened.
+ * Collapses the command body `if (tr) { dispatch(tr); return true; } return false;`
+ * shared by mark toggle commands and attributed-mark operations into a single
+ * call: `return dispatchIfPresent(context, tr);`.
+ */
+export function dispatchIfPresent(context: PluginContext, tr: Transaction | null): boolean {
+	if (!tr) return false;
+	context.dispatch(tr);
+	return true;
+}
 
 /** Capitalizes the first character of a string. */
 export function capitalize(s: string): string {

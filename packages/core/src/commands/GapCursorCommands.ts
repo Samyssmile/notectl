@@ -11,7 +11,7 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
-import { extractParentPath, findSiblingIndex, getSiblings } from './CommandHelpers.js';
+import { resolveSiblingContext } from './CommandHelpers.js';
 import { deleteNodeSelection } from './NodeSelectionCommands.js';
 
 /**
@@ -99,13 +99,7 @@ export function insertParagraphAtGap(
 	state: EditorState,
 	sel: GapCursorSelection,
 ): Transaction | null {
-	const path = findNodePath(state.doc, sel.blockId);
-	if (!path) return null;
-
-	const parentPath: BlockId[] = extractParentPath(path);
-	const siblings = getSiblings(state, parentPath);
-
-	const index: number = findSiblingIndex(siblings, sel.blockId);
+	const { parentPath, index } = resolveSiblingContext(state, sel.blockId);
 	if (index < 0) return null;
 
 	const insertIdx: number = sel.side === 'before' ? index : index + 1;
@@ -123,11 +117,7 @@ export function insertTextAtGap(
 	text: string,
 	origin: 'input' | 'paste',
 ): Transaction {
-	const path = findNodePath(state.doc, sel.blockId);
-	const parentPath: BlockId[] = extractParentPath(path);
-	const siblings = getSiblings(state, parentPath);
-
-	const index: number = findSiblingIndex(siblings, sel.blockId);
+	const { parentPath, siblings, index } = resolveSiblingContext(state, sel.blockId);
 	const insertIdx: number =
 		sel.side === 'before' ? Math.max(index, 0) : index >= 0 ? index + 1 : siblings.length;
 

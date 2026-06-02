@@ -4,20 +4,19 @@
  */
 
 import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
-import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
 import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
+import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import {
 	TEXT_COLOR_LOCALE_EN,
 	type TextColorLocale,
 	loadTextColorLocale,
 } from './TextColorLocale.js';
+import { COLOR_PALETTE } from './TextColorPalette.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -39,88 +38,6 @@ export interface TextColorConfig {
 	readonly colors?: readonly string[];
 	readonly locale?: TextColorLocale;
 }
-
-// --- Color Palette (Google Docs style: 10 columns x 7 rows) ---
-
-const COLOR_PALETTE: readonly string[] = [
-	// Row 1 — dark
-	'#000000',
-	'#434343',
-	'#666666',
-	'#999999',
-	'#b7b7b7',
-	'#cccccc',
-	'#d9d9d9',
-	'#efefef',
-	'#f3f3f3',
-	'#ffffff',
-	// Row 2 — vivid
-	'#980000',
-	'#ff0000',
-	'#ff9900',
-	'#ffff00',
-	'#00ff00',
-	'#00ffff',
-	'#4a86e8',
-	'#0000ff',
-	'#9900ff',
-	'#ff00ff',
-	// Row 3 — light 3
-	'#e6b8af',
-	'#f4cccc',
-	'#fce5cd',
-	'#fff2cc',
-	'#d9ead3',
-	'#d0e0e3',
-	'#c9daf8',
-	'#cfe2f3',
-	'#d9d2e9',
-	'#ead1dc',
-	// Row 4 — light 2
-	'#dd7e6b',
-	'#ea9999',
-	'#f9cb9c',
-	'#ffe599',
-	'#b6d7a8',
-	'#a2c4c9',
-	'#a4c2f4',
-	'#9fc5e8',
-	'#b4a7d6',
-	'#d5a6bd',
-	// Row 5 — light 1
-	'#cc4125',
-	'#e06666',
-	'#f6b26b',
-	'#ffd966',
-	'#93c47d',
-	'#76a5af',
-	'#6d9eeb',
-	'#6fa8dc',
-	'#8e7cc3',
-	'#c27ba0',
-	// Row 6 — dark 1
-	'#a61c00',
-	'#cc0000',
-	'#e69138',
-	'#f1c232',
-	'#6aa84f',
-	'#45818e',
-	'#3c78d8',
-	'#3d85c6',
-	'#674ea7',
-	'#a64d79',
-	// Row 7 — dark 2
-	'#85200c',
-	'#990000',
-	'#b45f06',
-	'#bf9000',
-	'#38761d',
-	'#134f5c',
-	'#1155cc',
-	'#0b5394',
-	'#351c75',
-	'#741b47',
-];
 
 // --- Plugin ---
 
@@ -153,42 +70,17 @@ export class TextColorPlugin implements Plugin {
 	}
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec({
-			type: 'textColor',
-			rank: 5,
-			attrs: {
-				color: { default: '' },
-			},
-			toDOM(mark) {
-				const span = document.createElement('span');
-				const color = mark.attrs?.color ?? '';
-				setStyleProperty(span, 'color', color);
-				return span;
-			},
-			toHTMLString: (mark, content, ctx?: HTMLExportContext) => {
-				const color: string = String(mark.attrs?.color ?? '');
-				if (!color || !isValidCSSColor(color)) return content;
-				const decl: string = `color: ${escapeHTML(color)}`;
-				const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
-				return `<span${attr}>${content}</span>`;
-			},
-			toHTMLStyle: (mark) => {
-				const color: string = String(mark.attrs?.color ?? '');
-				if (!color || !isValidCSSColor(color)) return null;
-				return `color: ${escapeHTML(color)}`;
-			},
-			parseHTML: [
-				{
-					tag: 'span',
-					getAttrs: (el) => {
-						const color: string = el.style.color;
-						if (!color || !isValidCSSColor(color)) return false;
-						return { color };
-					},
-				},
-			],
-			sanitize: { tags: ['span'] },
-		});
+		context.registerMarkSpec(
+			createInlineStyleMarkSpec({
+				type: 'textColor',
+				rank: 5,
+				valueAttr: 'color',
+				domStyleProperty: 'color',
+				cssProperty: 'color',
+				validate: isValidCSSColor,
+				validateOnParse: true,
+			}),
+		);
 	}
 
 	private registerCommands(context: PluginContext): void {

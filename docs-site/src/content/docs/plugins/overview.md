@@ -22,6 +22,7 @@ notectl ships with **26 built-in plugins**. Every editor feature — from bold t
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
 | [ImagePlugin](/notectl/plugins/image/) | `image` | Image blocks with upload support | - |
+| [FormulaPlugin](/notectl/plugins/formula/) | `formula` | Inline & block math (native MathML, zero-dep) | `Ctrl+Shift+E`/`M`, `$...$`, `$$...$$` |
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
 | [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`_` |
 | [TextColorPlugin](/notectl/plugins/text-color/) | `textColor` | Text color picker | - |

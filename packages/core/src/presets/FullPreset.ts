@@ -8,6 +8,7 @@ import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { CodeBlockPlugin } from '../plugins/code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../plugins/font-size/FontSizePlugin.js';
 import { FontPlugin } from '../plugins/font/FontPlugin.js';
+import { FormulaPlugin } from '../plugins/formula/FormulaPlugin.js';
 import { HardBreakPlugin } from '../plugins/hard-break/HardBreakPlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { HighlightPlugin } from '../plugins/highlight/HighlightPlugin.js';
@@ -40,7 +41,7 @@ import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
  * 4. Block types: Heading, Blockquote, CodeBlock
  * 5. Paragraph layout: Alignment, TextDirection
  * 6. Lists: List
- * 7. Insert objects: Link, Table, HorizontalRule, Image
+ * 7. Insert objects: Link, Table, HorizontalRule, Image, Formula
  * 8. Utility: Print
  *
  * Headless plugins: HardBreak, SmartPaste, TextDirectionAuto.
@@ -69,6 +70,7 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 				new TablePlugin(options?.table),
 				new HorizontalRulePlugin(options?.horizontalRule),
 				new ImagePlugin(options?.image),
+				new FormulaPlugin(options?.formula),
 			],
 			[new PrintPlugin(options?.print)],
 		],

@@ -19,7 +19,6 @@ import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import { clearRichClipboard } from './InternalClipboard.js';
 
 // --- Helpers ---
 
@@ -61,7 +60,6 @@ describe('ClipboardHandler copy', () => {
 
 	afterEach(() => {
 		handler?.destroy();
-		clearRichClipboard();
 	});
 
 	it('writes block JSON for NodeSelection', () => {
@@ -310,7 +308,6 @@ describe('ClipboardHandler copy with void blocks', () => {
 
 	afterEach(() => {
 		handler?.destroy();
-		clearRichClipboard();
 	});
 
 	it('uses document serializer for text selection spanning void blocks', () => {
@@ -388,7 +385,6 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 
 	afterEach(() => {
 		handler?.destroy();
-		clearRichClipboard();
 	});
 
 	it('serializes only the selected range within a single table', () => {
@@ -543,7 +539,6 @@ describe('ClipboardHandler cut', () => {
 
 	afterEach(() => {
 		handler?.destroy();
-		clearRichClipboard();
 	});
 
 	it('writes to clipboard AND dispatches delete for NodeSelection', () => {

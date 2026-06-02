@@ -14,6 +14,7 @@ import {
 	isTextNode,
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
+import type { RichBlockData, RichSegment } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { Selection } from '../model/Selection.js';
 import {
@@ -30,7 +31,6 @@ import {
 } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
-import type { RichBlockData, RichSegment } from './InternalClipboard.js';
 import { buildSelectionDocument } from './SelectionDocument.js';
 
 export interface ClipboardHandlerOptions {

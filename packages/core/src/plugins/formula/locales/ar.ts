@@ -1,0 +1,35 @@
+import type { FormulaLocale } from '../FormulaLocale.js';
+
+const locale: FormulaLocale = {
+	insertInline: 'إدراج صيغة',
+	insertInlineTooltip: 'إدراج صيغة مضمّنة',
+	editFormula: 'تحرير الصيغة',
+	latexLabel: 'LaTeX',
+	latexPlaceholder: 'مثال: \\frac{a}{b} + \\sqrt{x}',
+	previewLabel: 'معاينة',
+	insertButton: 'إدراج',
+	updateButton: 'تحديث',
+	cancelButton: 'إلغاء',
+	displayToggle: 'معادلة ككتلة (عرض)',
+	sizeLabel: 'الحجم',
+	sizeDefault: 'افتراضي',
+	altLabel: 'الوصف',
+	altPlaceholder: 'وصف منطوق (اختياري)',
+	paletteLabel: 'الرموز والبُنى',
+	emptyPreview: 'لا شيء للمعاينة بعد.',
+	inserted: 'تم إدراج الصيغة.',
+	updated: 'تم تحديث الصيغة.',
+	editing: 'جارٍ تحرير الصيغة.',
+	selected: 'تم تحديد الصيغة. اضغط Enter للتحرير.',
+	unknownCommand: (command: string) => `أمر LaTeX غير معروف: ${command}`,
+	groupFractions: 'الكسور',
+	groupScripts: 'الأسس والدلائل',
+	groupRoots: 'الجذور',
+	groupOperators: 'المؤثّرات',
+	groupGreek: 'الحروف اليونانية',
+	groupRelations: 'العلاقات',
+	groupMatrices: 'المصفوفات',
+	groupArrows: 'الأسهم',
+};
+
+export default locale;

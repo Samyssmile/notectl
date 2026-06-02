@@ -118,6 +118,13 @@ function findFirstOpeningTagRange(html: string): { start: number; end: number } 
 	return undefined;
 }
 
+/** Returns the first opening tag of `html` (quote-aware), or `''` if none exists. */
+function firstOpeningTag(html: string): string {
+	const range: { start: number; end: number } | undefined = findFirstOpeningTagRange(html);
+	if (!range) return '';
+	return html.slice(range.start, range.end + 1);
+}
+
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
 export function serializeDocumentToHTML(doc: Document, registry?: SchemaRegistry): string {
 	const exportCtx: HTMLExportContext = createInlineExportContext();
@@ -313,9 +320,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	// `escapeAttr` is defense-in-depth — `isSafeBlockId` already excludes any
 	// character that would need escaping.
 	if (isSafeBlockId(block.id)) {
-		const firstTagEnd: number = html.indexOf('>');
-		const firstTag: string = html.slice(0, firstTagEnd + 1);
-		if (!firstTag.includes(' data-block-id=')) {
+		if (!firstOpeningTag(html).includes(' data-block-id=')) {
 			html = injectAttrIntoFirstTag(html, 'data-block-id', escapeAttr(block.id));
 		}
 	}
@@ -343,9 +348,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 		| string
 		| undefined;
 	if (dir && VALID_DIRECTIONS.has(dir)) {
-		const firstTagEnd: number = html.indexOf('>');
-		const firstTag: string = html.slice(0, firstTagEnd + 1);
-		if (!firstTag.includes(' dir=')) {
+		if (!firstOpeningTag(html).includes(' dir=')) {
 			html = injectAttrIntoFirstTag(html, 'dir', escapeAttr(dir));
 		}
 	}

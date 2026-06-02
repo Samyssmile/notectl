@@ -26,6 +26,9 @@ import {
 } from './TableHelpers.js';
 import type { TableLocale } from './TableLocale.js';
 
+/** Tracks the active context menu for Shift-F10 (one at a time). */
+let activeContextMenu: TableContextMenuHandle | null = null;
+
 /** Registers all table navigation keymaps. */
 export function registerTableKeymaps(context: PluginContext, locale: TableLocale): void {
 	const keymap: Keymap = {
@@ -286,9 +289,6 @@ function handleContextMenu(context: PluginContext): boolean {
 		return true;
 	});
 }
-
-/** Tracks active context menu for Shift-F10 (one at a time). */
-let activeContextMenu: TableContextMenuHandle | null = null;
 
 // --- Cell navigation helpers ---
 

@@ -9,12 +9,16 @@
 import { type BlockNode, getBlockLength, getContentAtOffset } from '../model/Document.js';
 import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { getTextDirection } from '../platform/Platform.js';
 import type { EditorState } from '../state/EditorState.js';
-import { canCrossBlockBoundary, isVoidBlock } from '../state/NavigationQueries.js';
+import { type AdjacentBlock, resolveAdjacentBlock } from '../state/NavigationQueries.js';
 import { moveTx, nodeSelTx } from '../state/SelectionTransactions.js';
 import type { Transaction } from '../state/Transaction.js';
 import { domPositionFromPoint } from './DomPointUtils.js';
 import { findBlockAncestor } from './DomUtils.js';
+import type { SelectionEndpoints } from './SelectionSync.js';
+import { domPositionToState, getSelection, readDOMSelectionEndpoints } from './SelectionSync.js';
+
 export { navigateFromGapCursor } from './GapCursorNavigation.js';
 
 /** Inset in pixels from block edge for vertical goal-column probing. */
@@ -22,17 +26,8 @@ const BLOCK_EDGE_INSET_PX = 2;
 
 /** Minimum vertical movement (pixels) for a Selection.modify probe to be considered a real move. */
 const VERTICAL_MOVEMENT_THRESHOLD_PX = 1;
-import { getTextDirection } from '../platform/Platform.js';
-import type { SelectionEndpoints } from './SelectionSync.js';
-import { domPositionToState, getSelection, readDOMSelectionEndpoints } from './SelectionSync.js';
 
 export type CaretDirection = 'left' | 'right' | 'up' | 'down';
-
-/** Result of resolving the adjacent block for vertical navigation. */
-interface NavigationTarget {
-	readonly targetId: BlockId;
-	readonly isVoid: boolean;
-}
 
 /**
  * Checks whether the cursor is at the visual edge of its text block.
@@ -94,7 +89,7 @@ export function navigateAcrossBlocks(
 	state: EditorState,
 	direction: CaretDirection,
 ): Transaction | null {
-	const target: NavigationTarget | null = resolveNavigationTarget(state, direction);
+	const target: AdjacentBlock | null = resolveNavigationTarget(state, direction);
 	if (!target) return null;
 
 	if (target.isVoid) return nodeSelTx(state, target.targetId);
@@ -122,7 +117,7 @@ export function navigateVerticalWithGoalColumn(
 	direction: 'up' | 'down',
 	goalColumn: number | null,
 ): Transaction | null {
-	const target: NavigationTarget | null = resolveNavigationTarget(state, direction);
+	const target: AdjacentBlock | null = resolveNavigationTarget(state, direction);
 	if (!target) return null;
 
 	// Void → NodeSelection (goalColumn irrelevant)
@@ -260,25 +255,11 @@ export function getCaretRectFromSelection(
 function resolveNavigationTarget(
 	state: EditorState,
 	direction: CaretDirection,
-): NavigationTarget | null {
-	const blockOrder: readonly BlockId[] = state.getBlockOrder();
+): AdjacentBlock | null {
 	const sel = state.selection;
 	if (!isTextSelection(sel)) return null;
-
-	const currentIdx: number = blockOrder.indexOf(sel.anchor.blockId);
-	if (currentIdx < 0) return null;
-
-	const targetIdx: number =
-		direction === 'left' || direction === 'up' ? currentIdx - 1 : currentIdx + 1;
-
-	if (targetIdx < 0 || targetIdx >= blockOrder.length) return null;
-
-	const targetId: BlockId | undefined = blockOrder[targetIdx];
-	if (!targetId) return null;
-
-	if (!canCrossBlockBoundary(state, sel.anchor.blockId, targetId)) return null;
-
-	return { targetId, isVoid: isVoidBlock(state, targetId) };
+	const forward: boolean = direction === 'right' || direction === 'down';
+	return resolveAdjacentBlock(state, sel.anchor.blockId, forward);
 }
 
 /**

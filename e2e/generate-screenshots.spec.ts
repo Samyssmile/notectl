@@ -11,6 +11,7 @@
  * - Keep it as a separate docs-screenshot workflow.
  */
 import { type Page, test } from '@playwright/test';
+import { FORMULA_CONTENT } from './fixtures/formula-content.js';
 
 const DIR = 'docs-site/src/assets/screenshots';
 
@@ -720,6 +721,12 @@ test.describe('Documentation screenshots', () => {
 		await setMinHeight(page, '80px');
 		await setEditorJSON(page, BLOCKQUOTE_CONTENT);
 		await shot(page, 'plugin-blockquote.png');
+	});
+
+	test('plugin-formula', async ({ page }) => {
+		await setMinHeight(page, '120px');
+		await setEditorJSON(page, FORMULA_CONTENT as unknown as Parameters<typeof setEditorJSON>[1]);
+		await shot(page, 'plugin-formula.png');
 	});
 
 	test('plugin-font', async ({ page }) => {

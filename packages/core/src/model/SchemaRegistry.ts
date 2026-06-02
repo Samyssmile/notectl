@@ -10,6 +10,9 @@ import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
 
+/** Priority assigned to parse rules that do not declare an explicit `priority`. */
+const DEFAULT_PARSE_PRIORITY = 50;
+
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
 	private readonly _markSpecs = new Map<string, MarkSpec>();
@@ -123,7 +126,10 @@ export class SchemaRegistry {
 				}
 			}
 		}
-		return results.sort((a, b) => (b.rule.priority ?? 50) - (a.rule.priority ?? 50));
+		return results.sort(
+			(a, b) =>
+				(b.rule.priority ?? DEFAULT_PARSE_PRIORITY) - (a.rule.priority ?? DEFAULT_PARSE_PRIORITY),
+		);
 	}
 
 	private collectSanitizeValues(
