@@ -35,6 +35,33 @@ test.describe('FontSizePlugin', () => {
 		await expect(popup).toBeVisible();
 	});
 
+	test('ArrowDown advances the preset focus by exactly one, never two (#144)', async ({
+		editor,
+		page,
+	}) => {
+		const sizeBtn = editor.markButton('fontSize');
+		await sizeBtn.click();
+
+		const popup = editor.root.locator('.notectl-font-size-picker');
+		await expect(popup).toBeVisible();
+
+		const input = popup.locator('input');
+		await input.click();
+
+		const items = popup.locator(SIZE_ITEM);
+
+		// Assert on real DOM focus, not the bespoke `--focused` class: the double-advance
+		// bug moves actual focus via the toolbar's generic handler while the class stays
+		// single-stepped, so only `toBeFocused()` can detect a skipped preset.
+		// From the input, ArrowDown must land on the FIRST preset (index 0), not the second.
+		await page.keyboard.press('ArrowDown');
+		await expect(items.nth(0)).toBeFocused();
+
+		// A second ArrowDown advances to the SECOND preset (index 1), not the third.
+		await page.keyboard.press('ArrowDown');
+		await expect(items.nth(1)).toBeFocused();
+	});
+
 	test('Selecting default size (12) removes font-size mark', async ({ editor, page }) => {
 		await editor.recreateWithPlugins({
 			toolbar: [
