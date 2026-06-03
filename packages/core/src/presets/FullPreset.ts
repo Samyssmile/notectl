@@ -26,6 +26,7 @@ import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
 import { TextDirectionAutoPlugin } from '../plugins/text-direction-auto/TextDirectionAutoPlugin.js';
 import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
+import { VideoPlugin } from '../plugins/video/VideoPlugin.js';
 import type { FullPresetOptions, PresetConfig } from './PresetTypes.js';
 
 /**
@@ -71,6 +72,7 @@ export function createFullPreset(options?: FullPresetOptions): PresetConfig {
 				new HorizontalRulePlugin(options?.horizontalRule),
 				new ImagePlugin(options?.image),
 				new FormulaPlugin(options?.formula),
+				new VideoPlugin(options?.video),
 			],
 			[new PrintPlugin(options?.print)],
 		],
