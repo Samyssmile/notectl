@@ -115,8 +115,8 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 ## Why teams choose notectl
 
 <CardGrid stagger>
-	<Card title="26 built-in plugins" icon="puzzle">
-		Text formatting, headings, lists, tables, links, code blocks, images, fonts, font sizes, text colors, alignment, blockquotes, strikethrough, superscript/subscript, highlight, horizontal rules, hard breaks, a declarative toolbar, platform-aware caret navigation, gap cursor for void-block boundaries, RTL/LTR direction control, inline bidi isolation, and auto-direction middleware. Every plugin ships with keyboard shortcuts, input rules, and accessible toolbar items.
+	<Card title="27 built-in plugins" icon="puzzle">
+		Text formatting, headings, lists, tables, links, code blocks, images, video embeds, fonts, font sizes, text colors, alignment, blockquotes, strikethrough, superscript/subscript, highlight, horizontal rules, hard breaks, a declarative toolbar, platform-aware caret navigation, gap cursor for void-block boundaries, RTL/LTR direction control, inline bidi isolation, and auto-direction middleware. Every plugin ships with keyboard shortcuts, input rules, and accessible toolbar items.
 	</Card>
 	<Card title="Markdown-style shortcuts" icon="pencil">
 		Type `# ` for headings, `- ` for bullet lists, `1. ` for numbered lists, `> ` for blockquotes, `---` for horizontal rules, `[ ] ` for checklists. Your power users will feel right at home.
@@ -126,6 +126,9 @@ Most rich text editors force you into their world. notectl works in yours. Ship 
 	</Card>
 	<Card title="Custom fonts made easy" icon="document">
 		Pass a `FontDefinition` with WOFF2/TTF/OTF sources. notectl injects `@font-face` rules automatically. Bundle starter fonts (Fira Sans, Fira Code) or bring your own.
+	</Card>
+	<Card title="Video embeds: privacy and accessibility by default" icon="approve-check">
+		The Video plugin embeds YouTube, Vimeo, and Dailymotion behind a click-to-load facade. Zero provider contact before the user opts in, so it is GDPR safe out of the box. Every embed requires a descriptive accessible title (WCAG SC 4.1.2 enforced at the form level), and the Play button is a real keyboard-operable control. Most editors' video embeds have neither.
 	</Card>
 </CardGrid>
 
@@ -151,7 +154,7 @@ This gives you predictable updates, built-in undo/redo, plugin interception poin
 
 <CardGrid>
 	<LinkCard title="Installation" href="/notectl/getting-started/installation/" description="npm install, one import, and you have a working editor. Takes under 2 minutes." />
-	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 26 built-in plugins with their APIs, commands, keyboard shortcuts, and screenshots." />
+	<LinkCard title="Plugin Reference" href="/notectl/plugins/overview/" description="Browse all 27 built-in plugins with their APIs, commands, keyboard shortcuts, and screenshots." />
 	<LinkCard title="Write Your Own Plugin" href="/notectl/guides/writing-plugins/" description="Full guide to building custom plugins with the PluginContext API." />
 	<LinkCard title="Architecture Deep Dive" href="/notectl/architecture/overview/" description="Understand the layered architecture and unidirectional data flow." />
 </CardGrid>

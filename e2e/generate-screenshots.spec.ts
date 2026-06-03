@@ -12,6 +12,7 @@
  */
 import { type Page, test } from '@playwright/test';
 import { FORMULA_CONTENT } from './fixtures/formula-content.js';
+import { insertTable } from './fixtures/table-utils.js';
 
 const DIR = 'docs-site/src/assets/screenshots';
 
@@ -861,5 +862,86 @@ test.describe('Documentation screenshots', () => {
 		});
 		await page.waitForTimeout(300);
 		await shot(page, 'readonly-checklist.png');
+	});
+
+	// ── Video Plugin Screenshots ──────────────────────────────────
+
+	/**
+	 * Inserts a video via the toolbar button + accessible form.
+	 * Mirrors the flow in video.spec.ts but uses only the `page` object
+	 * (generate-screenshots.spec.ts does not use the EditorPage fixture).
+	 */
+	async function insertVideoViaToolbar(
+		page: Page,
+		url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+		title = 'How to set up notectl in 3 minutes',
+	): Promise<void> {
+		await page.locator('notectl-editor button[data-toolbar-item="video"]').click();
+		const urlInput = page.locator('notectl-editor input[aria-label="Video URL"]');
+		await urlInput.waitFor({ state: 'visible' });
+		await urlInput.fill(url);
+		await page.locator('notectl-editor input[aria-label="Video title"]').fill(title);
+		await page.locator('notectl-editor button[aria-label="Insert video"]').click();
+		await page.locator('notectl-editor figure.notectl-video').first().waitFor({ state: 'visible' });
+	}
+
+	/**
+	 * Shot (a): the privacy-first click-to-load facade.
+	 * After insertion the video is node-selected; we deselect by clicking an empty
+	 * paragraph so the selection toolbar does not overlay the facade.
+	 */
+	test('plugin-video-facade', async ({ page }) => {
+		await setMinHeight(page, '300px');
+		// Focus the editor content area before interacting with the toolbar.
+		await page.locator('notectl-editor div.notectl-content').click();
+		await insertVideoViaToolbar(page);
+		// Click below the video to deselect it, giving a clean facade shot.
+		const trailing = page.locator('notectl-editor .notectl-content [data-block-id]').last();
+		await trailing.click();
+		await page.waitForTimeout(300);
+		await shot(page, 'plugin-video-facade.png');
+	});
+
+	/**
+	 * Shot (b): the activated/embedded state — facade button clicked, iframe built.
+	 * We do NOT wait for the player to load (cross-origin, holds connections open);
+	 * the iframe element itself is sufficient to show the activated state.
+	 */
+	test('plugin-video-embed', async ({ page }) => {
+		await setMinHeight(page, '300px');
+		await page.locator('notectl-editor div.notectl-content').click();
+		await insertVideoViaToolbar(page);
+		// Deselect first so the on-selection toolbar is gone before activation.
+		const trailing = page.locator('notectl-editor .notectl-content [data-block-id]').last();
+		await trailing.click();
+		await page.waitForTimeout(200);
+		// Activate the facade.
+		await page.locator('notectl-editor button.notectl-video__facade').click();
+		await page
+			.locator('notectl-editor iframe.notectl-video__iframe')
+			.waitFor({ state: 'attached', timeout: 5000 });
+		await page.waitForTimeout(600);
+		await shot(page, 'plugin-video-embed.png');
+	});
+
+	/**
+	 * Shot (c): a video embedded inside a table cell.
+	 * Uses insertTable() from table-utils (page-based, no fixture needed).
+	 */
+	test('plugin-video-table', async ({ page }) => {
+		await setMinHeight(page, '400px');
+		await page.locator('notectl-editor div.notectl-content').click();
+		await insertTable(page);
+		// Click into the second cell so the video lands there.
+		await page.locator('notectl-editor td').nth(1).click();
+		await page.waitForTimeout(100);
+		await insertVideoViaToolbar(page);
+		// Press Escape to deselect the video (the table's hover controls block
+		// clicking the trailing paragraph, so keyboard deselect is more reliable).
+		await page.keyboard.press('Escape');
+		// Move focus to a safe target (the toolbar) so the selection toolbar disappears.
+		await page.locator('notectl-editor [role="toolbar"]').first().focus();
+		await page.waitForTimeout(300);
+		await shot(page, 'plugin-video-table.png');
 	});
 });

@@ -11,6 +11,7 @@ const pluginEntries: Record<string, string> = {
 	'plugins/table': resolve(__dirname, 'src/plugins/table/index.ts'),
 	'plugins/image': resolve(__dirname, 'src/plugins/image/index.ts'),
 	'plugins/formula': resolve(__dirname, 'src/plugins/formula/index.ts'),
+	'plugins/video': resolve(__dirname, 'src/plugins/video/index.ts'),
 	'plugins/code-block': resolve(__dirname, 'src/plugins/code-block/index.ts'),
 	'plugins/link': resolve(__dirname, 'src/plugins/link/index.ts'),
 	'plugins/list': resolve(__dirname, 'src/plugins/list/index.ts'),
