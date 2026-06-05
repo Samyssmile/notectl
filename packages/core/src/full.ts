@@ -35,6 +35,7 @@ export * from './plugins/shared/index.js';
 export * from './plugins/table/index.js';
 export * from './plugins/image/index.js';
 export * from './plugins/formula/index.js';
+export * from './plugins/video/index.js';
 export * from './plugins/code-block/index.js';
 export * from './plugins/link/index.js';
 export * from './plugins/list/index.js';

@@ -22,6 +22,7 @@ import { TextColorPlugin } from '../plugins/text-color/TextColorPlugin.js';
 import { TextDirectionAutoPlugin } from '../plugins/text-direction-auto/TextDirectionAutoPlugin.js';
 import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
+import { VideoPlugin } from '../plugins/video/VideoPlugin.js';
 import { createFullPreset } from './FullPreset.js';
 
 describe('createFullPreset', () => {
@@ -88,16 +89,17 @@ describe('createFullPreset', () => {
 		expect(group?.[0]).toBeInstanceOf(ListPlugin);
 	});
 
-	it('group 7 contains Link, Table, HorizontalRule, Image, Formula', () => {
+	it('group 7 contains Link, Table, HorizontalRule, Image, Formula, Video', () => {
 		const preset = createFullPreset();
 		const group = preset.toolbar[6];
 
-		expect(group).toHaveLength(5);
+		expect(group).toHaveLength(6);
 		expect(group?.[0]).toBeInstanceOf(LinkPlugin);
 		expect(group?.[1]).toBeInstanceOf(TablePlugin);
 		expect(group?.[2]).toBeInstanceOf(HorizontalRulePlugin);
 		expect(group?.[3]).toBeInstanceOf(ImagePlugin);
 		expect(group?.[4]).toBeInstanceOf(FormulaPlugin);
+		expect(group?.[5]).toBeInstanceOf(VideoPlugin);
 	});
 
 	it('group 8 contains Print', () => {

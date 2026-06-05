@@ -66,6 +66,10 @@
 			"types": "./dist/plugins/formula/index.d.ts",
 			"import": "./dist/plugins/formula.mjs"
 		},
+		"./plugins/video": {
+			"types": "./dist/plugins/video/index.d.ts",
+			"import": "./dist/plugins/video.mjs"
+		},
 		"./plugins/code-block": {
 			"types": "./dist/plugins/code-block/index.d.ts",
 			"import": "./dist/plugins/code-block.mjs"
@@ -254,6 +258,13 @@
 			"name": "Plugin: Image",
 			"path": "dist/plugins/image.mjs",
 			"limit": "15 KB",
+			"gzip": true
+		},
+		{
+			"name": "Plugin: Video",
+			"path": "dist/plugins/video.mjs",
+			"limit": "25 KB",
+			"ignore": ["dompurify"],
 			"gzip": true
 		},
 		{
