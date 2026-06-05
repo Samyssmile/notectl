@@ -110,6 +110,7 @@ The `<ntl-editor>` component uses Angular signals for all inputs and outputs:
 | `dir` | `'ltr' \| 'rtl'` | — | Text direction override |
 | `locale` | `Locale` | — | Locale for plugin i18n |
 | `styleNonce` | `string` | — | CSP nonce for injected styles |
+| `disabled` | `boolean` | `false` | Disabled state, bound automatically by a Signal Forms field; folds into readonly |
 
 ### Outputs
 
@@ -120,6 +121,7 @@ The `<ntl-editor>` component uses Angular signals for all inputs and outputs:
 | `editorFocus` | `void` | Editor gained focus |
 | `editorBlur` | `void` | Editor lost focus |
 | `ready` | `void` | Editor fully initialized |
+| `touch` | `void` | Editor blurred; marks a bound Signal Forms field touched |
 
 ### Two-Way Content Binding
 
@@ -205,6 +207,35 @@ provideNotectl({
 | `'text'` | `string` | Plain text |
 
 All three formats are **cursor-stable** with reactive forms (including signal forms): when Angular writes the same value back to the editor on every keystroke — as `[(ngModel)]`, `formControl`, and signal forms all do — the caret stays in place. This is enforced by the [round-trip identity contract](/notectl/guides/content/#round-trip-identity) of the underlying core API.
+
+## Signal Forms (Angular 22)
+
+Angular 22 stabilized [Signal Forms](https://angular.dev/guide/forms/signals). `<ntl-editor>` is a first-class Signal Forms custom control: it implements the `FormValueControl<Document>` contract through a `value` model, so you bind it to a field with `[formField]`. The classic `ControlValueAccessor` integration above stays fully supported, so pick whichever forms system your app uses; an individual editor instance uses one binding at a time.
+
+```ts
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { FormField, form } from '@angular/forms/signals';
+import { NotectlEditorComponent } from '@notectl/angular';
+import type { Document } from '@notectl/angular';
+
+@Component({
+  selector: 'app-signal-form-editor',
+  imports: [NotectlEditorComponent, FormField],
+  template: `<ntl-editor [formField]="doc" />`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class SignalFormEditorComponent {
+  // The form model is the editor document; `form()` derives a typed FieldTree from it.
+  protected readonly model = signal<Document>({ children: [] });
+  protected readonly doc = form(this.model);
+}
+```
+
+The binding is two-way and strongly typed: editor edits flow into `model()`, and writing `model.set(...)` renders in the editor. The `value` model and the `[(content)]` two-way binding are independent views onto editor state, so you can use either, and the optional `FormUiControl` surface is wired for you: a field's disabled state binds to the `disabled` input (folding into the editor's readonly state), and blurring the editor marks the field touched via the `touch` output.
+
+:::note
+`[formField]` requires Angular 22. The package itself still targets `@angular/core` `>=21`, where you use the [reactive forms](#reactive-forms) bindings instead; the Signal Forms `value`, `disabled`, and `touch` members reference only `@angular/core` types, so they never break an Angular 21 build.
+:::
 
 ## Theming
 

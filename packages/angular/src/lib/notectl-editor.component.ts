@@ -58,6 +58,13 @@ function initConfigEquals(a: InitConfigSnapshot, b: InitConfigSnapshot): boolean
 	);
 }
 
+/**
+ * Sentinel default for the Signal Forms `value` model. Reference identity lets the
+ * value-to-editor effect ignore the untouched initial value (so it never clobbers
+ * `content` or initial content) while still syncing any document a bound field provides.
+ */
+const EMPTY_FORM_VALUE: Document = { children: [] };
+
 @Component({
 	selector: 'ntl-editor',
 	standalone: true,
@@ -98,13 +105,27 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 	readonly locale = input<Locale | undefined>(undefined);
 	readonly styleNonce = input<string | undefined>(undefined);
 
+	/** Disabled status received from a bound Signal Forms field (`FormUiControl.disabled`). */
+	readonly disabled = input<boolean>(false);
+
 	readonly content: ModelSignal<Document | undefined> = model<Document | undefined>(undefined);
+
+	/**
+	 * Signal Forms value model implementing the `FormValueControl<Document>` contract, so the
+	 * editor binds to Angular 22 Signal Forms through the `[formField]` directive. `value` and
+	 * `content` are independent views onto editor state: both are driven from editor state
+	 * changes and both write to the editor when set externally, never to each other.
+	 */
+	readonly value: ModelSignal<Document> = model<Document>(EMPTY_FORM_VALUE);
 
 	readonly stateChange = output<StateChangeEvent>();
 	readonly selectionChange = output<SelectionChangeEvent>();
 	readonly editorFocus = output<void>();
 	readonly editorBlur = output<void>();
 	readonly ready = output<void>();
+
+	/** Emitted when the editor blurs, so a bound Signal Forms field marks itself touched. */
+	readonly touch = output<void>();
 
 	readonly editorState = signal<EditorState | null>(null);
 	readonly isEmpty = computed<boolean>(() => {
@@ -156,7 +177,7 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 	);
 
 	readonly effectiveReadonly = computed<boolean>(
-		() => this.disabledByForms() || this.resolvedReadonlyMode(),
+		() => this.disabledByForms() || this.disabled() || this.resolvedReadonlyMode(),
 	);
 
 	private readonly hostRef = viewChild.required<ElementRef<HTMLDivElement>>('host');
@@ -167,7 +188,10 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		emitControlValue: (value: NotectlValue) => this.onChange(value),
 		getEditor: () => this.editorRef,
 		getFormat: () => this.contentFormat,
-		updateContent: (doc: Document) => this.content.set(doc),
+		updateContent: (doc: Document) => {
+			this.content.set(doc);
+			this.value.set(doc);
+		},
 		whenReady: () => this.readyPromise,
 	});
 
@@ -204,6 +228,12 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		effect(() => {
 			const doc: Document | undefined = this.content();
 			if (!doc) return;
+			this.valueController.syncExternalContent(doc);
+		});
+
+		effect(() => {
+			const doc: Document = this.value();
+			if (doc === EMPTY_FORM_VALUE) return;
 			this.valueController.syncExternalContent(doc);
 		});
 
@@ -333,7 +363,12 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		});
 
 		editor.on('blur', () => {
-			this.onTouched();
+			// Only blurs after the editor is initialized mark the form field touched; any blur
+			// emitted while the editor is still setting up is not a user interaction.
+			if (this.initialized()) {
+				this.onTouched();
+				this.touch.emit();
+			}
 			this.editorBlur.emit();
 		});
 

@@ -206,7 +206,15 @@ export class TablePlugin implements Plugin {
 			type: 'table_cell',
 			group: 'table_content',
 			content: {
-				allow: ['paragraph', 'list_item', 'heading', 'blockquote', 'image', 'horizontal_rule'],
+				allow: [
+					'paragraph',
+					'list_item',
+					'heading',
+					'blockquote',
+					'image',
+					'video',
+					'horizontal_rule',
+				],
 			},
 			isolating: true,
 			toDOM(node) {

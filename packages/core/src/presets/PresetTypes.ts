@@ -25,6 +25,7 @@ import type { TextColorConfig } from '../plugins/text-color/TextColorPlugin.js';
 import type { TextDirectionAutoConfig } from '../plugins/text-direction-auto/TextDirectionAutoPlugin.js';
 import type { TextDirectionConfig } from '../plugins/text-direction/TextDirectionPlugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
+import type { VideoPluginConfig } from '../plugins/video/VideoTypes.js';
 
 /**
  * Return type of preset factory functions.
@@ -63,6 +64,7 @@ export interface FullPresetOptions {
 	readonly horizontalRule?: Partial<HorizontalRuleConfig>;
 	readonly image?: Partial<ImagePluginConfig>;
 	readonly formula?: Partial<FormulaPluginConfig>;
+	readonly video?: Partial<VideoPluginConfig>;
 	readonly print?: PrintPluginConfig;
 	readonly smartPaste?: Partial<SmartPasteConfig>;
 }

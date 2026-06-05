@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **26 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **27 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 
@@ -22,6 +22,7 @@ notectl ships with **26 built-in plugins**. Every editor feature — from bold t
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
 | [ImagePlugin](/notectl/plugins/image/) | `image` | Image blocks with upload support | - |
+| [VideoPlugin](/notectl/plugins/video/) | `video` | Privacy-first, a11y-first video embeds (YouTube, Vimeo, Dailymotion) | `Mod-Shift-←/→` (resize) |
 | [FormulaPlugin](/notectl/plugins/formula/) | `formula` | Inline & block math (native MathML, zero-dep) | `Ctrl+Shift+E`/`M`, `$...$`, `$$...$$` |
 | [FontPlugin](/notectl/plugins/font/) | `font` | Custom font families | - |
 | [FontSizePlugin](/notectl/plugins/font-size/) | `fontSize` | Font size control | `Ctrl+Shift++`/`_` |

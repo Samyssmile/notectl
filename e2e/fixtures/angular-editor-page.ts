@@ -30,7 +30,9 @@ export class AngularEditorPage {
 	readonly output: Locator;
 
 	constructor(public readonly page: Page) {
-		this.root = page.locator(WC_SEL);
+		// The playground now renders a second editor for the Signal Forms demo; the page object
+		// targets the first (main, [formControl]) editor.
+		this.root = page.locator(WC_SEL).first();
 		this.content = this.root.locator('div.notectl-content');
 		this.output = page.locator('.output pre');
 	}
