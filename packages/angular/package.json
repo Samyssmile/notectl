@@ -47,15 +47,16 @@
 		"rxjs": ">=7.0.0"
 	},
 	"devDependencies": {
-		"@angular/compiler": "^21.2.6",
-		"@angular/compiler-cli": "^21.2.6",
-		"@angular/core": "^21.2.6",
-		"@angular/forms": "^21.2.6",
-		"@angular/platform-browser": "^21.2.6",
-		"@angular/platform-browser-dynamic": "^21.2.6",
+		"@angular/compiler": "^22.0.0",
+		"@angular/compiler-cli": "^22.0.0",
+		"@angular/core": "^22.0.0",
+		"@angular/forms": "^22.0.0",
+		"@angular/platform-browser": "^22.0.0",
+		"@angular/platform-browser-dynamic": "^22.0.0",
 		"@notectl/core": "workspace:*",
-		"ng-packagr": "^21.2.1",
+		"ng-packagr": "^22.0.0",
 		"rxjs": "~7.8.2",
+		"typescript": "^6.0.0",
 		"vite": "^8.0.8",
 		"vitest": "^4.1.2"
 	}

@@ -40,6 +40,22 @@
     aria-hidden="true"
   ></span>
 
+  <div class="signal-forms" data-testid="signal-forms-section">
+    <h3>Signal Forms (Angular 22)</h3>
+    <div class="editor-container">
+      <ntl-editor
+        #signalEditor
+        [formField]="signalForm"
+        [placeholder]="'Signal Forms editor...'"
+      />
+    </div>
+    <button (click)="setSignalFormSample()" data-testid="set-signal-form">Set Signal Form</button>
+    <button (click)="toggleSignalDisabled()" data-testid="toggle-signal-disabled">Toggle Disabled</button>
+    <button (click)="resetSignalForm()" data-testid="reset-signal-form">Reset Touched</button>
+    <span data-testid="signal-form-touched">{{ signalFormTouched() }}</span>
+    <pre data-testid="signal-form-json">{{ signalFormJson() }}</pre>
+  </div>
+
   <div class="output">
     <h3>Output</h3>
     <pre>{{ output() }}</pre>

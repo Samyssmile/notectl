@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, signal, viewChild } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormField, disabled, form } from '@angular/forms/signals';
 import {
   type Document,
   NotectlEditorComponent,
@@ -53,7 +54,7 @@ const INTER: FontDefinition = {
 
 @Component({
   selector: 'app-root',
-  imports: [ReactiveFormsModule, NotectlEditorComponent],
+  imports: [ReactiveFormsModule, NotectlEditorComponent, FormField],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,6 +65,25 @@ export class App {
   protected readonly theme = signal<ThemePreset>(ThemePreset.Light);
   protected readonly readonlyMode = signal(false);
   protected readonly editorControl = new FormControl<Document | string | null>(null);
+
+  // Signal Forms (Angular 22): the editor binds via [formField] through its FormValueControl
+  // `value` model. `signalForm` is a FieldTree<Document> over `signalDoc`.
+  protected readonly signalDoc = signal<Document>({
+    children: [
+      {
+        id: 'sf-init',
+        type: 'paragraph',
+        children: [{ type: 'text', text: 'Signal Forms initial', marks: [] }],
+      },
+    ],
+  } as never);
+  protected readonly signalDisabled = signal(false);
+  protected readonly signalForm = form(this.signalDoc, (path) => {
+    disabled(path, () => this.signalDisabled());
+  });
+  protected readonly signalFormJson = computed(() => JSON.stringify(this.signalForm().value()));
+  protected readonly signalFormTouched = computed(() => this.signalForm().touched());
+
   protected readonly output = signal('Click a button above to inspect editor state.');
   protected readonly stateChangeCount = signal(0);
   protected readonly lastEvent = signal('');
@@ -195,5 +215,28 @@ export class App {
     const next = this.isDark() ? ThemePreset.Light : ThemePreset.Dark;
     this.theme.set(next);
     this.output.set(`Theme: ${next}`);
+  }
+
+  setSignalFormSample(): void {
+    this.signalDoc.set({
+      children: [
+        {
+          id: 'sf-set',
+          type: 'paragraph',
+          children: [{ type: 'text', text: 'Set via Signal Form', marks: [] }],
+        },
+      ],
+    } as never);
+    this.output.set('Signal form model set programmatically');
+  }
+
+  toggleSignalDisabled(): void {
+    this.signalDisabled.update((v) => !v);
+    this.output.set(`Signal form disabled: ${this.signalDisabled()}`);
+  }
+
+  resetSignalForm(): void {
+    this.signalForm().reset();
+    this.output.set('Signal form touched/dirty state reset');
   }
 }
