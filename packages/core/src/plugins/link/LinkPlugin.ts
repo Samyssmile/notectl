@@ -67,6 +67,7 @@ export class LinkPlugin implements Plugin {
 		context.registerMarkSpec({
 			type: 'link',
 			rank: 10,
+			inclusive: false,
 			attrs: {
 				href: { default: '' },
 			},
