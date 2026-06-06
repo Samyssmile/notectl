@@ -373,7 +373,8 @@ describe('Table insertTable command', () => {
 		h.executeCommand('insertTable');
 
 		const newState = h.getState();
-		const table = newState.doc.children[1];
+		// The empty paragraph is consumed (#152), so the table is the first block.
+		const table = newState.doc.children[0];
 		const firstRow = getBlockChildren(table)[0];
 		const firstCell = getBlockChildren(firstRow)[0];
 		const firstParagraph = getBlockChildren(firstCell)[0];

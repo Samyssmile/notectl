@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2026-06-06
+## [Unreleased]
+
+### Fixed
+
+- **Inserting a block object on an empty line no longer leaves a stray empty paragraph above it (#152)** — Inserting a table, horizontal rule, image, or display formula while the cursor sat in an empty paragraph did not consume that paragraph: the object was inserted after it, leaving a blank line above (`[paragraph, table, paragraph]` instead of `[table, paragraph]`), and the blank lines accumulated in longer documents. The four insert commands each hand-rolled their own placement logic; they now route through a single shared `insertBlockObjectOnOwnLine` primitive (`commands/BlockInsertion.ts`) that resolves the top-level ancestor of the selection, inserts the object followed by a trailing paragraph, and consumes the anchor when it is a blank-line paragraph. The emptiness test is inline-aware (it counts inline atoms as width 1), so a paragraph holding only an inline node such as an inline formula is never deleted; it is deliberately stricter than the paste pipeline's helper (paragraph-only, not any empty non-void block). A side effect of routing through top-level-ancestor resolution: inserting a horizontal rule or image with the cursor inside a container (e.g. a blockquote) now escapes to the document root, consistent with table and display-formula insertion, instead of failing. Covered by new unit tests (including a content-loss guard for the inline-node case) and the e2e regression suite.
 
 ### Added
 

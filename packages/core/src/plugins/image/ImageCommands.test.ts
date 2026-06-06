@@ -98,7 +98,10 @@ describe('ImageCommands', () => {
 			pm.executeCommand('insertImage');
 
 			const doc = getState().doc;
-			expect(doc.children[2]?.type).toBe('paragraph');
+			// The empty paragraph is consumed (#152): [image, trailing paragraph].
+			expect(doc.children).toHaveLength(2);
+			expect(doc.children[0]?.type).toBe('image');
+			expect(doc.children[1]?.type).toBe('paragraph');
 		});
 
 		it('sets NodeSelection on the new image block', async () => {
@@ -115,7 +118,8 @@ describe('ImageCommands', () => {
 			const sel = getState().selection;
 			expect(isNodeSelection(sel)).toBe(true);
 			if (isNodeSelection(sel)) {
-				expect(sel.nodeId).toBe(getState().doc.children[1]?.id);
+				// Empty paragraph consumed (#152): the image is the first block.
+				expect(sel.nodeId).toBe(getState().doc.children[0]?.id);
 			}
 		});
 
