@@ -72,8 +72,18 @@ export class PasteHTMLHandler {
 
 	/** Sanitizes and processes pasted HTML content. */
 	private handleHTML(html: string, state: EditorState): void {
+		// The pre-sanitize pass scrubs active content while keeping DOMPurify's
+		// broad default allowlist so legacy normalization still sees deprecated
+		// tags (`<font>`, `<center>`, ...). Schema-registered tags/attrs are added
+		// on top (`ADD_TAGS`/`ADD_ATTR`) so plugin markup outside DOMPurify's
+		// defaults survives this first pass — notably MathML `<semantics>` and
+		// `<annotation>` (and its `encoding` attr), which carry a formula's LaTeX
+		// source. Without this they are stripped here before the registry-aware
+		// passes run, dropping the annotation and leaving the formula uneditable.
 		const preSanitized: string = DOMPurify.sanitize(html, {
 			FORBID_TAGS: PRE_SANITIZE_FORBID,
+			ADD_TAGS: this.schemaRegistry ? this.schemaRegistry.getAllowedTags() : [],
+			ADD_ATTR: this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [],
 			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
 		});
 		const richJson: string | undefined = this.extractRichData(preSanitized);
