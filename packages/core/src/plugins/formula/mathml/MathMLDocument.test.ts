@@ -6,6 +6,7 @@ import {
 	findAllMathElements,
 	findMathElement,
 	isDisplayMath,
+	stripBlockIds,
 	withAlttext,
 } from './MathMLDocument.js';
 
@@ -101,5 +102,27 @@ describe('withAlttext', () => {
 		expect(withAlttext('<math alttext="old"><mi>x</mi></math>', '')).toBe(
 			'<math><mi>x</mi></math>',
 		);
+	});
+});
+
+describe('stripBlockIds', () => {
+	it('removes a data-block-id injected into the math root', () => {
+		const input =
+			'<math display="block" data-block-id="block-123"><semantics><mrow><mi>y</mi></mrow><annotation encoding="application/x-tex">y=2</annotation></semantics></math>';
+		expect(stripBlockIds(input)).toBe(
+			'<math display="block"><semantics><mrow><mi>y</mi></mrow><annotation encoding="application/x-tex">y=2</annotation></semantics></math>',
+		);
+	});
+
+	it('handles single-quoted ids and leaves the annotation intact', () => {
+		const input = "<math display='inline' data-block-id='b1'><mi>x</mi></math>";
+		const out = stripBlockIds(input);
+		expect(out).not.toContain('data-block-id');
+		expect(out).toContain('<mi>x</mi>');
+	});
+
+	it('returns clean MathML unchanged', () => {
+		const input = '<math display="inline"><mi>x</mi></math>';
+		expect(stripBlockIds(input)).toBe(input);
 	});
 });

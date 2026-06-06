@@ -14,7 +14,7 @@ import {
 	setFormulaFontSize,
 } from './FormulaRendering.js';
 import { DISPLAY_MATH_TYPE } from './FormulaTypes.js';
-import { extractTexAnnotation } from './mathml/MathMLDocument.js';
+import { extractTexAnnotation, stripBlockIds } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
 
 /** Builds the display math `NodeSpec` (selectable void block). */
@@ -47,7 +47,7 @@ export function createDisplayMathNodeSpec(): NodeSpec<typeof DISPLAY_MATH_TYPE> 
 				tag: 'math',
 				getAttrs(el: HTMLElement): Record<string, unknown> | false {
 					if (el.getAttribute('display') !== 'block') return false;
-					const mathml: string = el.outerHTML;
+					const mathml: string = stripBlockIds(el.outerHTML);
 					return {
 						mathml,
 						latex: extractTexAnnotation(mathml) ?? '',
