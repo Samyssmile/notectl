@@ -3,6 +3,7 @@
  * with NodeSpec, insert command, input rule, keyboard shortcut, and toolbar button.
  */
 
+import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { createBlockNode } from '../../model/Document.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
@@ -147,21 +148,20 @@ export class HorizontalRulePlugin implements Plugin {
 	 */
 	private insertHorizontalRule(context: PluginContext): boolean {
 		const state: EditorState = context.getState();
-		if (!isTextSelection(state.selection)) return false;
-		const blockIndex: number = findBlockIndexForCursor(state);
-		if (blockIndex === -1) return false;
+		const sel = state.selection;
+		if (!isTextSelection(sel)) return false;
 
-		const hrBlock = createBlockNode(nodeType('horizontal_rule'));
-		const newParagraph = createBlockNode(nodeType('paragraph'));
+		const builder = state.transaction('command');
+		const trailing = insertBlockObjectOnOwnLine(
+			state,
+			builder,
+			sel.anchor.blockId,
+			createBlockNode(nodeType('horizontal_rule')),
+		);
+		if (!trailing) return false;
 
-		const tr = state
-			.transaction('command')
-			.insertNode([], blockIndex + 1, hrBlock)
-			.insertNode([], blockIndex + 2, newParagraph)
-			.setSelection(createCollapsedSelection(newParagraph.id, 0))
-			.build();
-
-		context.dispatch(tr);
+		builder.setSelection(createCollapsedSelection(trailing.id, 0));
+		context.dispatch(builder.build());
 		return true;
 	}
 }

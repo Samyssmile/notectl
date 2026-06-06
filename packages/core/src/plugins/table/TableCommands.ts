@@ -7,13 +7,9 @@
  * by both commands (via PluginContext) and controls (via getState/dispatch).
  */
 
+import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { createSelectionForBlockBoundary } from '../../commands/CommandHelpers.js';
-import {
-	createBlockNode,
-	createEmptyParagraph,
-	generateBlockId,
-	getBlockChildren,
-} from '../../model/Document.js';
+import { createEmptyParagraph, generateBlockId, getBlockChildren } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -21,8 +17,7 @@ import {
 	isNodeSelection,
 	isTextSelection,
 } from '../../model/Selection.js';
-import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
-import { nodeType } from '../../model/TypeBrands.js';
+import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
@@ -218,36 +213,10 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 	const sel = state.selection;
 	if (!isTextSelection(sel)) return false;
 
-	const currentBlockId: BlockId = sel.anchor.blockId;
-
-	// Find which root-level block contains the current selection
-	let rootIndex = -1;
-	for (let i = 0; i < state.doc.children.length; i++) {
-		const rootBlock = state.doc.children[i];
-		if (!rootBlock) continue;
-		if (rootBlock.id === currentBlockId) {
-			rootIndex = i;
-			break;
-		}
-		// Check if current block is nested inside this root block
-		const path = state.getNodePath(currentBlockId);
-		if (path && path[0] === rootBlock.id) {
-			rootIndex = i;
-			break;
-		}
-	}
-
-	if (rootIndex === -1) rootIndex = state.doc.children.length - 1;
-
 	const tableNode = createTable(rows, cols);
-	const paragraphAfter = createBlockNode(nodeType('paragraph') as NodeTypeName);
-
-	// Insert table after current block, then paragraph after table
-	const insertIndex: number = rootIndex + 1;
-	const tr = state
-		.transaction('command')
-		.insertNode([], insertIndex, tableNode)
-		.insertNode([], insertIndex + 1, paragraphAfter);
+	const builder = state.transaction('command');
+	const trailing = insertBlockObjectOnOwnLine(state, builder, sel.anchor.blockId, tableNode);
+	if (!trailing) return false;
 
 	// Set cursor in first paragraph inside first cell
 	const firstRow = getBlockChildren(tableNode)[0];
@@ -255,12 +224,12 @@ export function insertTable(context: PluginContext, rows: number, cols: number):
 	const firstParagraph = firstCell ? getBlockChildren(firstCell)[0] : undefined;
 
 	if (firstParagraph) {
-		tr.setSelection(createCollapsedSelection(firstParagraph.id, 0));
+		builder.setSelection(createCollapsedSelection(firstParagraph.id, 0));
 	} else if (firstCell) {
-		tr.setSelection(createCollapsedSelection(firstCell.id, 0));
+		builder.setSelection(createCollapsedSelection(firstCell.id, 0));
 	}
 
-	context.dispatch(tr.build());
+	context.dispatch(builder.build());
 	return true;
 }
 

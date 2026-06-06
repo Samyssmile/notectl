@@ -1,9 +1,11 @@
 /**
- * Block insertion utilities for paste and clipboard operations.
+ * Block insertion utilities for paste/clipboard operations and block-object
+ * commands (table, image, horizontal rule, display formula).
  *
  * Provides context resolution (parent path, anchor index, empty detection)
  * for inserting blocks into the document tree — both at root level and
- * inside table cells. Also contains pure helpers for block cloning,
+ * inside table cells — plus the shared primitive that drops a block-level
+ * object onto its own line. Also contains pure helpers for block cloning,
  * recursive lookup, and attribute sanitization against a NodeSpec.
  */
 
@@ -18,6 +20,7 @@ import {
 	createInlineNode,
 	createTextNode,
 	generateBlockId,
+	getBlockLength,
 	getBlockText,
 	isBlockNode,
 } from '../model/Document.js';
@@ -162,6 +165,66 @@ export function insertBlockAfterAnchor(
 	}
 
 	return true;
+}
+
+/**
+ * Document-root index of the top-level block that contains `blockId` — the block
+ * itself when it already lives at the document root. Returns -1 when the block is
+ * not part of the document. Block-level objects always live at the root, so an
+ * insertion triggered from inside a container (e.g. a table cell) escapes to the
+ * top level via this lookup.
+ */
+export function topLevelBlockIndex(state: EditorState, blockId: BlockId): number {
+	const path: readonly string[] | undefined = findNodePath(state.doc, blockId);
+	const topId: BlockId = path && path.length > 0 ? (path[0] as BlockId) : blockId;
+	return state.doc.children.findIndex((b) => b.id === topId);
+}
+
+/**
+ * True when the block is a blank-line paragraph. Inline-aware: a paragraph that
+ * holds only an atomic inline node (e.g. an inline formula) has width > 0 and is
+ * therefore never treated as blank, so it is never silently removed.
+ */
+function isEmptyParagraph(block: BlockNode): boolean {
+	return block.type === 'paragraph' && getBlockLength(block) === 0;
+}
+
+/**
+ * Places a block-level object on its own line at the document root: the object
+ * followed by a trailing empty paragraph, so a void/atomic object always has an
+ * editable line after it. The object is inserted after the top-level ancestor of
+ * the current selection; when that ancestor is a blank-line paragraph it is
+ * consumed, so the object is never preceded by a stray empty paragraph (#152).
+ *
+ * Only an empty *paragraph* is consumed — an empty heading or list item is
+ * deliberate structure — and the emptiness test is inline-aware (see
+ * {@link isEmptyParagraph}). This is intentionally stricter than
+ * {@link insertBlockAfterAnchor}, which the paste pipeline uses with a text-only
+ * emptiness notion.
+ *
+ * Selection is the caller's concern, since objects differ (a cursor inside a new
+ * table vs. a node selection on an image or display formula). Returns the
+ * appended trailing paragraph, or undefined when the selection has no resolvable
+ * anchor.
+ */
+export function insertBlockObjectOnOwnLine(
+	state: EditorState,
+	builder: TransactionBuilder,
+	anchorBlockId: BlockId,
+	object: BlockNode,
+): BlockNode | undefined {
+	const topIndex: number = topLevelBlockIndex(state, anchorBlockId);
+	if (topIndex === -1) return undefined;
+
+	const trailing: BlockNode = createBlockNode(nodeType('paragraph'));
+	builder.insertNode([], topIndex + 1, object).insertNode([], topIndex + 2, trailing);
+
+	const anchor: BlockNode | undefined = state.doc.children[topIndex];
+	if (anchor && isEmptyParagraph(anchor)) {
+		builder.removeNode([], topIndex);
+	}
+
+	return trailing;
 }
 
 /** Recursively clones a block tree, assigning new IDs to all block nodes. */
