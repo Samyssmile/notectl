@@ -3,6 +3,7 @@
  * Supports both root-level and nested contexts (e.g. images inside table cells).
  */
 
+import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { createBlockNode, getBlockChildren, isBlockNode } from '../../model/Document.js';
@@ -61,27 +62,20 @@ function findTableCellAncestor(state: EditorState, bid: BlockId): BlockId | unde
 	return undefined;
 }
 
-/** Inserts an image at document root after the anchor block. */
+/** Inserts an image on its own line at document root, after the anchor block. */
 function insertImageAtRoot(
 	state: EditorState,
 	context: PluginContext,
 	anchorBlockId: BlockId,
 	imageAttrs: BlockAttrs,
 ): boolean {
-	const blockIndex: number = state.doc.children.findIndex((b) => b.id === anchorBlockId);
-	if (blockIndex === -1) return false;
-
 	const imageBlock: BlockNode = createBlockNode(nodeType('image'), [], undefined, imageAttrs);
-	const newParagraph: BlockNode = createBlockNode(nodeType('paragraph'));
+	const builder = state.transaction('command');
+	const trailing = insertBlockObjectOnOwnLine(state, builder, anchorBlockId, imageBlock);
+	if (!trailing) return false;
 
-	const tr = state
-		.transaction('command')
-		.insertNode([], blockIndex + 1, imageBlock)
-		.insertNode([], blockIndex + 2, newParagraph)
-		.setSelection(createNodeSelection(imageBlock.id, []))
-		.build();
-
-	context.dispatch(tr);
+	builder.setSelection(createNodeSelection(imageBlock.id, []));
+	context.dispatch(builder.build());
 	return true;
 }
 
