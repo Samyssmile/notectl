@@ -67,6 +67,7 @@ interface StateBuilderConfig {
 		nodeTypes?: string[];
 		markTypes?: string[];
 		getNodeSpec?: Schema['getNodeSpec'];
+		getMarkSpec?: Schema['getMarkSpec'];
 	};
 }
 
@@ -197,8 +198,13 @@ export class StateBuilder {
 	}
 
 	/** Configure schema node types and mark types. */
-	schema(nodeTypes: string[], markTypes: string[], getNodeSpec?: Schema['getNodeSpec']): this {
-		this.config.schema = { nodeTypes, markTypes, getNodeSpec };
+	schema(
+		nodeTypes: string[],
+		markTypes: string[],
+		getNodeSpec?: Schema['getNodeSpec'],
+		getMarkSpec?: Schema['getMarkSpec'],
+	): this {
+		this.config.schema = { nodeTypes, markTypes, getNodeSpec, getMarkSpec };
 		return this;
 	}
 
@@ -228,6 +234,7 @@ export class StateBuilder {
 						nodeTypes: this.config.schema.nodeTypes ?? ['paragraph'],
 						markTypes: this.config.schema.markTypes ?? ['bold', 'italic', 'underline'],
 						getNodeSpec: this.config.schema.getNodeSpec,
+						getMarkSpec: this.config.schema.getMarkSpec,
 					}
 				: undefined,
 		});
