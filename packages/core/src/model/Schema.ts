@@ -4,6 +4,7 @@
  */
 
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
+import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { SchemaRegistry } from './SchemaRegistry.js';
 
@@ -14,6 +15,8 @@ export interface Schema {
 	readonly getNodeSpec?: (type: string) => NodeSpec | undefined;
 	/** Looks up the full InlineNodeSpec for a given type. Available via schemaFromRegistry. */
 	readonly getInlineNodeSpec?: (type: string) => InlineNodeSpec | undefined;
+	/** Looks up the full MarkSpec for a given type. Available via schemaFromRegistry. */
+	readonly getMarkSpec?: (type: string) => MarkSpec | undefined;
 }
 
 /** Creates the default schema with paragraph nodes and bold/italic/underline marks. */
@@ -32,6 +35,7 @@ export function schemaFromRegistry(registry: SchemaRegistry): Schema {
 		markTypes: registry.getMarkTypes(),
 		getNodeSpec: (type: string) => registry.getNodeSpec(type),
 		getInlineNodeSpec: (type: string) => registry.getInlineNodeSpec(type),
+		getMarkSpec: (type: string) => registry.getMarkSpec(type),
 	};
 }
 

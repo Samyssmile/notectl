@@ -7,7 +7,6 @@ import {
 	type BlockNode,
 	type Mark,
 	getBlockLength,
-	getBlockMarksAtOffset,
 	getInlineChildren,
 	hasMark,
 	isTextNode,
@@ -18,6 +17,7 @@ import type { MarkTypeName } from '../model/TypeBrands.js';
 import { markType as mkType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { resolveCursorMarks } from './CursorMarks.js';
 import { forEachBlockInRange } from './RangeIterator.js';
 
 // --- Feature Configuration ---
@@ -50,7 +50,7 @@ export function toggleMark(
 		// Toggle stored marks
 		const anchorBlock = state.getBlock(sel.anchor.blockId);
 		if (!anchorBlock) return null;
-		const currentMarks = state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
+		const currentMarks = resolveCursorMarks(state);
 		const hasIt = hasMark(currentMarks, markType);
 		const newMarks = hasIt
 			? currentMarks.filter((m) => m.type !== markType)
@@ -100,13 +100,7 @@ export function isMarkActive(state: EditorState, markType: MarkTypeName): boolea
 	if (!isTextSelection(sel)) return false;
 
 	if (isCollapsed(sel)) {
-		if (state.storedMarks) {
-			return hasMark(state.storedMarks, markType);
-		}
-		const block = state.getBlock(sel.anchor.blockId);
-		if (!block) return false;
-		const marks = getBlockMarksAtOffset(block, sel.anchor.offset);
-		return hasMark(marks, markType);
+		return hasMark(resolveCursorMarks(state), markType);
 	}
 
 	return isMarkActiveInRange(state, markType);

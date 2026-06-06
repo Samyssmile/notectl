@@ -12,6 +12,7 @@ import {
 	generateBlockId,
 	getBlockLength,
 	getBlockMarksAtOffset,
+	getCursorMarks,
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import {
@@ -35,6 +36,7 @@ import {
 import type { Transaction } from '../state/Transaction.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import { resolveInsertPoint } from './CommandHelpers.js';
+import { isMarkInclusive } from './CursorMarks.js';
 import { insertParagraphAtGap, insertTextAtGap } from './GapCursorCommands.js';
 import {
 	deleteNodeSelection,
@@ -325,12 +327,18 @@ export function selectAll(state: EditorState): Transaction {
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
-	if (!isTextSelection(state.selection)) return [];
 
-	const block = state.getBlock(state.selection.anchor.blockId);
+	const sel = state.selection;
+	if (!isTextSelection(sel)) return [];
+
+	const block = state.getBlock(sel.anchor.blockId);
 	if (!block) return [];
 
-	return getBlockMarksAtOffset(block, state.selection.anchor.offset);
+	// A range replaced by typing inherits the marks at its anchor (raw content
+	// marks); only a collapsed cursor honors right-boundary inclusivity.
+	if (!isCollapsed(sel)) return getBlockMarksAtOffset(block, sel.anchor.offset);
+
+	return getCursorMarks(block, sel.anchor.offset, (type) => isMarkInclusive(state.schema, type));
 }
 
 /**

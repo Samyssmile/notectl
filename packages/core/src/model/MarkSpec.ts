@@ -14,6 +14,12 @@ export interface MarkSpec<T extends string = string> {
 	toDOM(mark: Omit<Mark, 'attrs'> & { readonly attrs: MarkAttrsFor<T> }): HTMLElement;
 	/** Nesting priority — lower rank renders closer to the text content. */
 	readonly rank?: number;
+	/**
+	 * Whether the mark extends onto text typed at its right boundary.
+	 * Defaults to `true` (e.g. bold continues as you type). Set `false` for
+	 * marks that must not bleed onto following text, such as links.
+	 */
+	readonly inclusive?: boolean;
 	readonly attrs?: Readonly<Record<string, AttrSpec>>;
 	/** Serializes the mark as an HTML wrapper. `content` is the pre-serialized inner HTML. */
 	readonly toHTMLString?: (mark: Mark, content: string, ctx?: HTMLExportContext) => string;
