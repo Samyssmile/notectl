@@ -5,6 +5,7 @@
  * free from the transaction system.
  */
 
+import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { resolveInsertPoint } from '../../commands/CommandHelpers.js';
 import { addDeleteSelectionSteps } from '../../commands/Commands.js';
 import { createBlockNode, createInlineNode } from '../../model/Document.js';
@@ -74,7 +75,7 @@ export function appendDisplayMathSteps(
 		.setSelection(createNodeSelection(block.id, []));
 }
 
-/** Builds a transaction inserting a display math block after the current top-level block. */
+/** Builds a transaction placing a display math block on its own line at the cursor. */
 export function buildInsertDisplayMathTr(
 	state: EditorState,
 	attrs: FormulaAttrs,
@@ -82,14 +83,12 @@ export function buildInsertDisplayMathTr(
 	const anchorId: BlockId | undefined = getSelectedBlockId(state);
 	if (!anchorId) return null;
 
-	// Display equations live at the top level; anchor on the top-level ancestor.
-	const path: readonly BlockId[] | undefined = state.getNodePath(anchorId);
-	const topId: BlockId = path && path.length > 0 ? (path[0] as BlockId) : anchorId;
-	const topIndex: number = state.doc.children.findIndex((b) => b.id === topId);
-	const insertAt: number = topIndex === -1 ? state.doc.children.length : topIndex + 1;
-
+	const block = createBlockNode(nodeType(DISPLAY_MATH_TYPE), [], undefined, toNodeAttrs(attrs));
 	const builder: TransactionBuilder = state.transaction('command');
-	appendDisplayMathSteps(builder, insertAt, attrs);
+	const trailing = insertBlockObjectOnOwnLine(state, builder, anchorId, block);
+	if (!trailing) return null;
+
+	builder.setSelection(createNodeSelection(block.id, []));
 	return builder.build();
 }
 
