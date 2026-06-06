@@ -88,6 +88,17 @@ export function findAllMathElements(html: string): string[] {
 	return matches.map((m) => m[0]);
 }
 
+/**
+ * Strips editor-internal `data-block-id` attributes from a `<math>` string so the
+ * stored canonical MathML stays clean. The document serializer injects block ids
+ * into each block's first opening tag, which for a bare `<math>` is the math root
+ * itself; that id must never become part of the persisted formula markup (it would
+ * also suppress re-injection of the block's current id on the next serialization).
+ */
+export function stripBlockIds(mathml: string): string {
+	return mathml.replace(/^(<math\b[^>]*?)\s+data-block-id=(?:"[^"]*"|'[^']*')/i, '$1');
+}
+
 /** Returns the canonical `<math>` with its `alttext` set to the given label. */
 export function withAlttext(mathml: string, alt: string): string {
 	const stripped: string = mathml.replace(/^(<math\b[^>]*?)\s+alttext=["'][^"']*["']/i, '$1');

@@ -313,6 +313,41 @@ export function getBlockMarksAtOffset(block: BlockNode, offset: number): readonl
 	return [];
 }
 
+/** Returns the marks of the text content immediately to the right of `offset`. */
+function getMarksAfterOffset(block: BlockNode, offset: number): readonly Mark[] {
+	for (const { child, from, to } of walkInlineContent(getInlineChildren(block))) {
+		if (isInlineNode(child)) {
+			if (offset === from) return [];
+			continue;
+		}
+		if (offset >= from && offset < to) return child.marks;
+	}
+	return [];
+}
+
+/**
+ * Returns the marks that text typed at a collapsed cursor should carry.
+ *
+ * Marks are derived from the content around `offset` (via
+ * {@link getBlockMarksAtOffset}). A mark whose spec is non-inclusive
+ * (`isMarkInclusive` returns `false`) is only kept when it also covers the
+ * content to the right of the cursor, so it never bleeds past its right
+ * boundary onto newly typed text. Inclusive marks (the default) are unaffected.
+ */
+export function getCursorMarks(
+	block: BlockNode,
+	offset: number,
+	isMarkInclusive: (type: MarkTypeName) => boolean,
+): readonly Mark[] {
+	const marks: readonly Mark[] = getBlockMarksAtOffset(block, offset);
+	if (marks.length === 0) return marks;
+
+	const after: readonly Mark[] = getMarksAfterOffset(block, offset);
+	return marks.filter(
+		(mark) => isMarkInclusive(mark.type) || after.some((a) => marksEqual(a, mark)),
+	);
+}
+
 /** Checks whether two marks are equal by type and attrs. */
 export function marksEqual(a: Mark, b: Mark): boolean {
 	if (a.type !== b.type) return false;

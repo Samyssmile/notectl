@@ -25,6 +25,7 @@ import { markType } from '../model/TypeBrands.js';
 import type { MarkTypeName } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { resolveCursorMarks } from './CursorMarks.js';
 import { forEachBlockInRange } from './RangeIterator.js';
 
 /**
@@ -46,8 +47,7 @@ export function applyAttributedMark(state: EditorState, mark: Mark): Transaction
 	if (isCollapsed(sel)) {
 		const anchorBlock = state.getBlock(sel.anchor.blockId);
 		if (!anchorBlock) return null;
-		const currentMarks: readonly Mark[] =
-			state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
+		const currentMarks: readonly Mark[] = resolveCursorMarks(state);
 		const withoutMark: readonly Mark[] = currentMarks.filter((m) => m.type !== typeName);
 		const newMarks: readonly Mark[] = [...withoutMark, mark];
 
@@ -96,8 +96,7 @@ export function removeAttributedMark(
 	if (isCollapsed(sel)) {
 		const anchorBlock = state.getBlock(sel.anchor.blockId);
 		if (!anchorBlock) return null;
-		const currentMarks: readonly Mark[] =
-			state.storedMarks ?? getBlockMarksAtOffset(anchorBlock, sel.anchor.offset);
+		const currentMarks: readonly Mark[] = resolveCursorMarks(state);
 		if (!hasMark(currentMarks, markTypeName)) return null;
 
 		const newMarks: readonly Mark[] = currentMarks.filter((m) => m.type !== markTypeName);
@@ -140,14 +139,17 @@ export function getMarkAttrAtSelection<K extends keyof MarkAttrRegistry, V>(
 	const sel = state.selection;
 	if (!isTextSelection(sel)) return null;
 
-	if (isCollapsed(sel) && state.storedMarks) {
-		const found = state.storedMarks.find((m) => (m.type as string) === markTypeName);
-		return found && isMarkOfType(found, markTypeName) ? extractFn(found) : null;
+	// Collapsed cursor honors stored marks and right-boundary inclusivity; a
+	// range reads the raw content marks at its anchor.
+	let marks: readonly Mark[];
+	if (isCollapsed(sel)) {
+		marks = resolveCursorMarks(state);
+	} else {
+		const block = state.getBlock(sel.anchor.blockId);
+		if (!block) return null;
+		marks = getBlockMarksAtOffset(block, sel.anchor.offset);
 	}
 
-	const block = state.getBlock(sel.anchor.blockId);
-	if (!block) return null;
-	const marks: readonly Mark[] = getBlockMarksAtOffset(block, sel.anchor.offset);
 	const found = marks.find((m) => (m.type as string) === markTypeName);
 	return found && isMarkOfType(found, markTypeName) ? extractFn(found) : null;
 }
