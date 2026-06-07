@@ -6,6 +6,7 @@ import {
 	getBlockChildren,
 	getBlockText,
 } from '../../model/Document.js';
+import type { NodeSpec } from '../../model/NodeSpec.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -64,6 +65,12 @@ function selectedVideoState(attrs: VideoAttrs = VIDEO_ATTRS): EditorState {
 	});
 }
 
+/** Reports the given node types as void, mirroring how the production schema does. */
+function voidNodeSpec(voidTypes: readonly string[]): (type: string) => NodeSpec | undefined {
+	return (type: string): NodeSpec | undefined =>
+		voidTypes.includes(type) ? ({ isVoid: true } as unknown as NodeSpec) : undefined;
+}
+
 describe('insertVideo', () => {
 	it('inserts a video and trailing paragraph at root, selecting the node', () => {
 		const state = stateBuilder()
@@ -97,6 +104,37 @@ describe('insertVideo', () => {
 		expect(insertVideo(ctx, VIDEO_ATTRS)).toBe(true);
 		const updatedCell = getState().getBlock(cell.id);
 		expect(getBlockChildren(updatedCell as BlockNode)[0]?.type).toBe('video');
+	});
+
+	it('reuses a void block trailing paragraph instead of stacking a blank line (#158)', () => {
+		// After inserting an image the selection rests on that void block as a node
+		// selection, and the image already owns a trailing empty paragraph as its
+		// escape line. Inserting a video next must reuse that paragraph rather than
+		// append a second one, so no stray blank line stacks up.
+		const state = stateBuilder()
+			.voidBlock('image', 'img1')
+			.paragraph('', 'p1')
+			.nodeSelection('img1')
+			.schema(['paragraph', 'video', 'image'], [], voidNodeSpec(['image', 'video']))
+			.build();
+		const { ctx, getState } = harness(state);
+
+		expect(insertVideo(ctx, VIDEO_ATTRS)).toBe(true);
+		expect(getState().doc.children.map((b) => b.type)).toEqual(['image', 'video', 'paragraph']);
+	});
+
+	it('consumes an empty-paragraph anchor instead of leaving a leading blank line', () => {
+		// Inserting into an empty paragraph places the video on that line rather than
+		// below it, matching how image insertion already behaves (#152).
+		const state = stateBuilder()
+			.paragraph('', 'b1')
+			.cursor('b1', 0)
+			.schema(['paragraph', 'video'], [], voidNodeSpec(['video']))
+			.build();
+		const { ctx, getState } = harness(state);
+
+		expect(insertVideo(ctx, VIDEO_ATTRS)).toBe(true);
+		expect(getState().doc.children.map((b) => b.type)).toEqual(['video', 'paragraph']);
 	});
 });
 
