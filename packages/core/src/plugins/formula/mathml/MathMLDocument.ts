@@ -105,3 +105,24 @@ export function withAlttext(mathml: string, alt: string): string {
 	if (!alt) return stripped;
 	return stripped.replace(/^<math\b/i, `<math alttext="${escapeAttr(alt)}"`);
 }
+
+/**
+ * Strips any `mathsize` attribute from the root `<math>` so the canonical stored
+ * markup never carries a baked-in font size; the size lives solely in the node's
+ * `fontSize` attribute (single source of truth). Mirrors {@link stripBlockIds}.
+ */
+export function stripMathsize(mathml: string): string {
+	return mathml.replace(/^(<math\b[^>]*?)\s+mathsize=(?:"[^"]*"|'[^']*')/i, '$1');
+}
+
+/**
+ * Returns the canonical `<math>` with its native `mathsize` set to `size`, the
+ * idiomatic MathML way to scale a whole formula. Any existing `mathsize` is
+ * replaced; an empty `size` clears it. Mirrors {@link withAlttext} so a
+ * toolbar-set size that was never baked into the markup still serializes (#160).
+ */
+export function withMathsize(mathml: string, size: string): string {
+	const stripped: string = stripMathsize(mathml);
+	if (!size) return stripped;
+	return stripped.replace(/^<math\b/i, `<math mathsize="${escapeAttr(size)}"`);
+}

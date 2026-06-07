@@ -6,14 +6,9 @@
 
 import type { InlineNode } from '../../model/Document.js';
 import type { InlineNodeSpec } from '../../model/InlineNodeSpec.js';
-import {
-	mathMarkup,
-	readFormulaAttrs,
-	renderFormulaInto,
-	setFormulaFontSize,
-} from './FormulaRendering.js';
+import { readFormulaAttrs, renderFormulaInto, setFormulaFontSize } from './FormulaRendering.js';
+import { formulaToHTMLString, parseFormulaElement } from './FormulaSerialization.js';
 import { INLINE_MATH_TYPE } from './FormulaTypes.js';
-import { extractTexAnnotation, stripBlockIds } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
 
 /** Builds the inline math `InlineNodeSpec`. */
@@ -36,21 +31,14 @@ export function createInlineMathNodeSpec(): InlineNodeSpec<typeof INLINE_MATH_TY
 			return span;
 		},
 		toHTMLString(node: InlineNode): string {
-			return mathMarkup(readFormulaAttrs(node.attrs));
+			return formulaToHTMLString(readFormulaAttrs(node.attrs));
 		},
 		parseHTML: [
 			{
 				tag: 'math',
-				getAttrs(el: HTMLElement): Record<string, unknown> | false {
-					// Block display is claimed by the display-math node spec.
-					if (el.getAttribute('display') === 'block') return false;
-					const mathml: string = stripBlockIds(el.outerHTML);
-					return {
-						mathml,
-						latex: extractTexAnnotation(mathml) ?? '',
-						alt: el.getAttribute('alttext') ?? '',
-					};
-				},
+				// Block display is claimed by the display-math node spec.
+				getAttrs: (el: HTMLElement): Record<string, unknown> | false =>
+					parseFormulaElement(el, false),
 			},
 		],
 		sanitize: { tags: [...MATHML_TAGS], attrs: [...MATHML_ATTRS] },

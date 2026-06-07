@@ -468,4 +468,89 @@ test.describe('Formula plugin', () => {
 		await palette.locator('button').first().click();
 		await expect(input).not.toHaveValue('');
 	});
+
+	test('a formula font size survives a getContentHTML → setContentHTML round-trip (issue #160)', async ({
+		editor,
+		page,
+	}) => {
+		const displayFontSize = (): Promise<string> =>
+			page.evaluate(() => {
+				const host = document
+					.querySelector('notectl-editor')
+					?.shadowRoot?.querySelector('.notectl-math--display') as HTMLElement | null;
+				return host ? getComputedStyle(host).fontSize : 'none';
+			});
+
+		// Author a display formula sized to 48px via the editor's own size control.
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		const input = page.locator('.notectl-formula-editor__input');
+		await input.waitFor({ state: 'visible' });
+		await page.locator('.notectl-formula-editor__toggle input[type="checkbox"]').check();
+		await input.fill('\\frac{2}{3}');
+		await page.locator('.notectl-formula-editor__size').selectOption('48px');
+		await page.locator('.notectl-formula-editor__btn--primary').click();
+		await page.waitForTimeout(150);
+		expect(await displayFontSize()).toBe('48px');
+
+		// The exported HTML carries the size as native mathsize...
+		const html = await editor.getContentHTML();
+		expect(html).toContain('mathsize="48px"');
+
+		// ...and reloading that HTML keeps the size (the round-trip the bug broke).
+		await editor.setContentHTML(html);
+		await page.waitForTimeout(150);
+		expect(await displayFontSize()).toBe('48px');
+	});
+
+	test('pasting external MathML with a mathsize preserves the formula size (issue #160)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// Foreign tools (KaTeX/MathJax/Word) express a formula's size as native mathsize.
+		const html =
+			'<math mathsize="40px"><semantics><mrow><mi>x</mi></mrow>' +
+			'<annotation encoding="application/x-tex">x</annotation></semantics></math>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x' });
+
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(1);
+		await page.waitForTimeout(100);
+		const renderedSize = await page.evaluate(() => {
+			const host = document
+				.querySelector('notectl-editor')
+				?.shadowRoot?.querySelector('.notectl-math--inline') as HTMLElement | null;
+			return host ? getComputedStyle(host).fontSize : 'none';
+		});
+		expect(renderedSize).toBe('40px');
+		// It also re-exports with the size intact.
+		expect(await editor.getContentHTML()).toContain('mathsize="40px"');
+	});
+
+	test('a formula font size also survives CSS-class export mode (issue #160)', async ({
+		editor,
+		page,
+	}) => {
+		// Author a display formula sized to 48px.
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		const input = page.locator('.notectl-formula-editor__input');
+		await input.waitFor({ state: 'visible' });
+		await page.locator('.notectl-formula-editor__toggle input[type="checkbox"]').check();
+		await input.fill('\\frac{2}{3}');
+		await page.locator('.notectl-formula-editor__size').selectOption('48px');
+		await page.locator('.notectl-formula-editor__btn--primary').click();
+		await page.waitForTimeout(150);
+
+		// Class mode strips inline `style`, but the size rides on the native `mathsize`
+		// attribute, so it survives where a `style="font-size"` would have been dropped.
+		const classHtml = await page.evaluate(async () => {
+			const ed = document.querySelector('notectl-editor') as unknown as {
+				getContentHTML(options: { cssMode: 'classes' }): Promise<{ html: string }>;
+			};
+			return (await ed.getContentHTML({ cssMode: 'classes' })).html;
+		});
+		expect(classHtml).toContain('mathsize="48px"');
+		expect(classHtml).not.toContain('font-size');
+	});
 });

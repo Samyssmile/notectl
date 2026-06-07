@@ -23,8 +23,9 @@ import type { PasteInterceptor } from '../../model/PasteInterceptor.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { buildInsertDisplayFormulasTr, buildInsertInlineFormulasTr } from './FormulaCommands.js';
+import { readFormulaFontSize } from './FormulaSerialization.js';
 import type { FormulaAttrs } from './FormulaTypes.js';
-import { extractTexAnnotation, isDisplayMath } from './mathml/MathMLDocument.js';
+import { extractTexAnnotation, isDisplayMath, stripMathsize } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
 
 /**
@@ -84,9 +85,17 @@ function sanitizeMath(source: string): string | null {
 
 /** Sanitizes one parsed `<math>` element into canonical formula attrs, or null. */
 function toFormulaAttrs(math: Element): FormulaAttrs | null {
-	const mathml: string | null = sanitizeMath(math.outerHTML);
-	if (!mathml) return null;
-	return { mathml, latex: extractTexAnnotation(mathml) ?? '', alt: '', fontSize: '' };
+	const sanitized: string | null = sanitizeMath(math.outerHTML);
+	if (!sanitized) return null;
+	// Lift the native `mathsize` into the `fontSize` attr (single source of truth)
+	// so a sized formula pasted from KaTeX/MathJax/Word keeps its size (#160).
+	const mathml: string = stripMathsize(sanitized);
+	return {
+		mathml,
+		latex: extractTexAnnotation(mathml) ?? '',
+		alt: '',
+		fontSize: readFormulaFontSize(math),
+	};
 }
 
 /** Creates the MathML paste interceptor. */
