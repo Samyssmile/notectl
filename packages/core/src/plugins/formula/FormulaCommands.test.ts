@@ -1,14 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBlockNode, createDocument, createInlineNode } from '../../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createInlineNode,
+	createTextNode,
+} from '../../model/Document.js';
 import { createCollapsedSelection, createNodeSelection } from '../../model/Selection.js';
 import { blockId, inlineType, nodeType } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import { mockPluginContext } from '../../test/TestUtils.js';
-import { updateDisplayMath, updateInlineMath } from './FormulaCommands.js';
+import {
+	buildInsertDisplayFormulasTr,
+	buildInsertInlineFormulasTr,
+	updateDisplayMath,
+	updateInlineMath,
+} from './FormulaCommands.js';
+import { DISPLAY_MATH_TYPE, type FormulaAttrs, INLINE_MATH_TYPE } from './FormulaTypes.js';
 
 interface AttrStep {
 	readonly type: string;
 	readonly attrs: Record<string, string>;
+}
+
+function formulaAttrs(latex: string, display = false): FormulaAttrs {
+	const displayAttr: string = display ? 'block' : 'inline';
+	return {
+		mathml: `<math display="${displayAttr}"><mi>${latex}</mi></math>`,
+		latex,
+		alt: '',
+		fontSize: '',
+	};
+}
+
+function emptyParagraphState(): EditorState {
+	const block = createBlockNode(nodeType('paragraph'), [createTextNode('')], blockId('b1'));
+	return EditorState.create({
+		doc: createDocument([block]),
+		selection: createCollapsedSelection(blockId('b1'), 0),
+	});
 }
 
 // The editor's size control round-trips the current fontSize (initialFontSize →
@@ -71,5 +100,41 @@ describe('updateDisplayMath', () => {
 		const step = tr.steps.find((s: AttrStep) => s.type === 'setNodeAttr') as AttrStep;
 		expect(step.attrs.fontSize).toBe('48px');
 		expect(step.attrs.mathml).toBe('<math>new</math>');
+	});
+});
+
+// Multiple standalone formulas pasted at once must all be inserted, not just the
+// first one (issue #159). The interceptor routes all-inline runs here and any run
+// containing a display formula to buildInsertDisplayFormulasTr.
+describe('buildInsertInlineFormulasTr', () => {
+	it('inserts every inline formula, advancing the offset (issue #159)', () => {
+		const tr = buildInsertInlineFormulasTr(emptyParagraphState(), [
+			formulaAttrs('x'),
+			formulaAttrs('y'),
+		]);
+
+		const inlineTypes = (tr?.steps ?? [])
+			.filter((s) => s.type === 'insertInlineNode')
+			.map((s) => (s.type === 'insertInlineNode' ? s.node.inlineType : undefined));
+		expect(inlineTypes).toEqual([inlineType(INLINE_MATH_TYPE), inlineType(INLINE_MATH_TYPE)]);
+	});
+
+	it('preserves the single-formula behaviour for one formula', () => {
+		const tr = buildInsertInlineFormulasTr(emptyParagraphState(), [formulaAttrs('x')]);
+		expect((tr?.steps ?? []).filter((s) => s.type === 'insertInlineNode')).toHaveLength(1);
+	});
+});
+
+describe('buildInsertDisplayFormulasTr', () => {
+	it('inserts every display formula as its own block (issue #159)', () => {
+		const tr = buildInsertDisplayFormulasTr(emptyParagraphState(), [
+			formulaAttrs('x', true),
+			formulaAttrs('y', true),
+		]);
+
+		const blockSteps = (tr?.steps ?? []).filter(
+			(s) => s.type === 'insertNode' && s.node.type === nodeType(DISPLAY_MATH_TYPE),
+		);
+		expect(blockSteps).toHaveLength(2);
 	});
 });

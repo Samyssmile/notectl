@@ -219,20 +219,56 @@ export function insertBlockObjectOnOwnLine(
 	anchorBlockId: BlockId,
 	object: BlockNode,
 ): BlockNode | undefined {
+	return insertBlockObjectsOnOwnLines(state, builder, anchorBlockId, [object]);
+}
+
+/**
+ * Places a sequence of block-level objects on their own lines at the document
+ * root, sharing a single trailing empty paragraph. Generalizes
+ * {@link insertBlockObjectOnOwnLine} for inserting several objects at once (e.g.
+ * pasting two or more standalone formulas, #159); for a single object the two
+ * behave identically. The anchor-consumption (#152) and void-anchor trailing
+ * reuse (#158) rules apply once, around the whole run.
+ *
+ * Returns the trailing paragraph after the last object, or undefined when the
+ * anchor or object list is empty.
+ */
+export function insertBlockObjectsOnOwnLines(
+	state: EditorState,
+	builder: TransactionBuilder,
+	anchorBlockId: BlockId,
+	objects: readonly BlockNode[],
+): BlockNode | undefined {
+	if (objects.length === 0) return undefined;
+
 	const topIndex: number = topLevelBlockIndex(state, anchorBlockId);
 	if (topIndex === -1) return undefined;
 
 	const anchor: BlockNode | undefined = state.doc.children[topIndex];
 	const following: BlockNode | undefined = state.doc.children[topIndex + 1];
 
-	if (anchor && isVoidBlock(state, anchor.id) && following && isEmptyParagraph(following)) {
-		builder.insertNode([], topIndex + 1, object);
-		return following;
+	let insertAt: number = topIndex + 1;
+	for (const object of objects) {
+		builder.insertNode([], insertAt, object);
+		insertAt++;
 	}
 
-	const trailing: BlockNode = createBlockNode(nodeType('paragraph'));
-	builder.insertNode([], topIndex + 1, object).insertNode([], topIndex + 2, trailing);
+	// A void anchor already owns a trailing empty paragraph as its escape line;
+	// reuse it so a second blank line never stacks up (#158). Otherwise add one.
+	const reusableTrailing: BlockNode | undefined =
+		anchor && isVoidBlock(state, anchor.id) && following && isEmptyParagraph(following)
+			? following
+			: undefined;
+	let trailing: BlockNode;
+	if (reusableTrailing) {
+		trailing = reusableTrailing;
+	} else {
+		trailing = createBlockNode(nodeType('paragraph'));
+		builder.insertNode([], insertAt, trailing);
+	}
 
+	// Drop a blank-line paragraph anchor so the objects are not preceded by a
+	// stray empty paragraph (#152).
 	if (anchor && isEmptyParagraph(anchor)) {
 		builder.removeNode([], topIndex);
 	}
