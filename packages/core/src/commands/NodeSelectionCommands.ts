@@ -3,6 +3,7 @@
  * after void blocks, and navigating arrow keys into/out of void blocks.
  */
 
+import type { BlockNode, ChildNode } from '../model/Document.js';
 import {
 	createEmptyParagraph,
 	generateBlockId,
@@ -23,6 +24,7 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { Transaction } from '../state/Transaction.js';
+import { isEmptyParagraph } from './BlockInsertion.js';
 import { createSelectionForBlockBoundary, resolveSiblingContext } from './CommandHelpers.js';
 
 export { findFirstLeafBlockId, findLastLeafBlockId } from './CommandHelpers.js';
@@ -70,13 +72,42 @@ export function deleteNodeSelection(state: EditorState, sel: NodeSelection): Tra
 	return null;
 }
 
-/** Inserts a new paragraph after a NodeSelection-targeted void block. */
+/**
+ * The void block's trailing escape line, when it already exists as an empty
+ * paragraph. A void block at the document root always owns such a paragraph
+ * (#152/#158), so reusing it stops a second blank line from stacking up when
+ * text or a paragraph is inserted while the void is node-selected (#163).
+ * Returns undefined when there is no reusable line (a non-empty sibling, or the
+ * void is the last block), so callers fall back to creating one.
+ */
+function trailingEscapeParagraph(
+	siblings: readonly ChildNode[],
+	index: number,
+): BlockNode | undefined {
+	if (index < 0) return undefined;
+	const next: ChildNode | undefined = siblings[index + 1];
+	return next && isBlockNode(next) && isEmptyParagraph(next) ? next : undefined;
+}
+
+/**
+ * Places a collapsed cursor on an empty paragraph after a node-selected void
+ * block (Enter). Reuses the void's existing trailing escape line when present so
+ * no blank line stacks up (#163); otherwise inserts a fresh paragraph.
+ */
 export function insertParagraphAfterNodeSelection(
 	state: EditorState,
 	sel: NodeSelection,
 ): Transaction | null {
-	const { parentPath, index } = resolveSiblingContext(state, sel.nodeId);
+	const { parentPath, siblings, index } = resolveSiblingContext(state, sel.nodeId);
 	if (index < 0) return null;
+
+	const trailing: BlockNode | undefined = trailingEscapeParagraph(siblings, index);
+	if (trailing) {
+		return state
+			.transaction('input')
+			.setSelection(createCollapsedSelection(trailing.id, 0))
+			.build();
+	}
 
 	const newId = generateBlockId();
 	const builder = state.transaction('input');
@@ -85,7 +116,11 @@ export function insertParagraphAfterNodeSelection(
 	return builder.build();
 }
 
-/** Inserts text in a new paragraph after a NodeSelection-targeted void block. */
+/**
+ * Inserts text on a paragraph after a node-selected void block (typing). Reuses
+ * the void's existing trailing escape line when present so no blank line stacks
+ * up (#163); otherwise inserts a fresh paragraph to hold the text.
+ */
 export function insertTextAfterNodeSelection(
 	state: EditorState,
 	sel: NodeSelection,
@@ -93,10 +128,16 @@ export function insertTextAfterNodeSelection(
 	origin: 'input' | 'paste',
 ): Transaction {
 	const { parentPath, siblings, index } = resolveSiblingContext(state, sel.nodeId);
-
-	const newId = generateBlockId();
 	const builder = state.transaction(origin);
 
+	const trailing: BlockNode | undefined = trailingEscapeParagraph(siblings, index);
+	if (trailing) {
+		builder.insertText(trailing.id, 0, text, []);
+		builder.setSelection(createCollapsedSelection(trailing.id, text.length));
+		return builder.build();
+	}
+
+	const newId = generateBlockId();
 	const insertIdx = index >= 0 ? index + 1 : siblings.length;
 	builder.insertNode(parentPath, insertIdx, createEmptyParagraph(newId));
 	builder.insertText(newId, 0, text, []);

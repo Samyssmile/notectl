@@ -186,7 +186,7 @@ export function topLevelBlockIndex(state: EditorState, blockId: BlockId): number
  * holds only an atomic inline node (e.g. an inline formula) has width > 0 and is
  * therefore never treated as blank, so it is never silently removed.
  */
-function isEmptyParagraph(block: BlockNode): boolean {
+export function isEmptyParagraph(block: BlockNode): boolean {
 	return block.type === 'paragraph' && getBlockLength(block) === 0;
 }
 
