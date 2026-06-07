@@ -114,6 +114,48 @@ test.describe('Formula plugin', () => {
 		expect(json).toContain('\\\\frac{1}{2}');
 	});
 
+	test('pasting two standalone inline formulas inserts both (issue #159)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// Two formulas separated only by whitespace: the interceptor used to claim the
+		// paste but insert only the first, silently dropping the rest.
+		const html = '<math><mi>x</mi></math> <math><mi>y</mi></math>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x y' });
+
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(2);
+	});
+
+	test('pasting two standalone display formulas inserts both blocks (issue #159)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		const html = '<math display="block"><mi>x</mi></math> <math display="block"><mi>y</mi></math>';
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x y' });
+
+		await expect(page.locator('.notectl-math--display')).toHaveCount(2);
+	});
+
+	test('pasting two MathJax formulas inserts two, not four (issue #159)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		// Each MathJax formula ships the real <math> plus an aria-hidden assistive copy.
+		// Both formulas must appear exactly once: the hidden duplicates are not inserted.
+		const formula = (value: string): string => {
+			const math = `<math><mi>${value}</mi></math>`;
+			const assistive = `<mjx-assistive-mml aria-hidden="true">${math}</mjx-assistive-mml>`;
+			return `<mjx-container class="MathJax">${math}${assistive}</mjx-container>`;
+		};
+		const html = `${formula('x')} ${formula('y')}`;
+		await editor.pasteClipboardData({ 'text/html': html, 'text/plain': 'x y' });
+
+		await expect(page.locator('.notectl-math--inline')).toHaveCount(2);
+	});
+
 	test('pasting mixed HTML with inline math amid text preserves the formula (issue A1)', async ({
 		editor,
 		page,

@@ -1,15 +1,18 @@
 /**
  * Paste interceptor for incoming MathML.
  *
- * Reads the RAW `text/html` (before the editor's own DOMPurify pass), extracts a
- * standalone `<math>` (native, KaTeX, or MathJax), sanitizes it against the
- * MathML allowlist, reads any embedded LaTeX (`<annotation
- * encoding="application/x-tex">`), and inserts it as a formula node.
+ * Reads the RAW `text/html` (before the editor's own DOMPurify pass), extracts
+ * every standalone `<math>` (native, KaTeX, or MathJax), sanitizes each against
+ * the MathML allowlist, reads any embedded LaTeX (`<annotation
+ * encoding="application/x-tex">`), and inserts them as formula nodes.
  *
  * KaTeX/MathJax wrap the `<math>` in an `aria-hidden` visual layer alongside a
- * `katex-mathml`/assistive copy; we treat the paste as a standalone formula when,
+ * `katex-mathml`/assistive copy; we treat the paste as standalone formulas when,
  * after removing the `<math>` and any `aria-hidden` subtrees, only whitespace
- * remains. Genuinely mixed rich content falls through to the default pipeline.
+ * remains. Two or more adjacent formulas qualify too, and all are inserted rather
+ * than just the first (#159). Reading the canonical `<math>` from outside the
+ * `aria-hidden` subtrees also dedups MathJax's assistive copy. Genuinely mixed
+ * rich content falls through to the default pipeline.
  *
  * Note: the editor only runs paste interceptors when `text/plain` is also
  * present (which real math sources always provide).
@@ -19,7 +22,7 @@ import DOMPurify from 'dompurify';
 import type { PasteInterceptor } from '../../model/PasteInterceptor.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { buildInsertDisplayMathTr, buildInsertInlineMathTr } from './FormulaCommands.js';
+import { buildInsertDisplayFormulasTr, buildInsertInlineFormulasTr } from './FormulaCommands.js';
 import type { FormulaAttrs } from './FormulaTypes.js';
 import { extractTexAnnotation, isDisplayMath } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
@@ -38,9 +41,10 @@ function parseFragment(html: string): DocumentFragment {
 }
 
 /**
- * True when the HTML is essentially a single formula: it contains `<math>`, and
- * once the `<math>` and any `aria-hidden` (visual-only) subtrees are removed,
- * nothing but whitespace is left. Exported for unit testing.
+ * True when the HTML is essentially nothing but formulas: it contains at least
+ * one `<math>`, and once the `<math>` and any `aria-hidden` (visual-only)
+ * subtrees are removed, nothing but whitespace is left. Holds for one formula or
+ * for several separated only by whitespace (#159). Exported for unit testing.
  */
 export function isStandaloneMathHtml(html: string): boolean {
 	if (!html) return false;
@@ -53,6 +57,22 @@ export function isStandaloneMathHtml(html: string): boolean {
 	return (clone.textContent ?? '').trim() === '';
 }
 
+/**
+ * Collects the canonical `<math>` elements of a standalone paste in document
+ * order, excluding any inside an `aria-hidden="true"` subtree. KaTeX and MathJax
+ * each emit a hidden duplicate per equation (a visual layer / an assistive
+ * `<math>` copy); dropping those subtrees first counts every formula exactly
+ * once, so the interceptor never double-inserts. Exported for unit testing.
+ */
+export function collectStandaloneMathElements(html: string): Element[] {
+	if (!html) return [];
+	const host: DocumentFragment = parseFragment(html);
+	for (const hidden of Array.from(host.querySelectorAll('[aria-hidden="true"]'))) {
+		hidden.remove();
+	}
+	return Array.from(host.querySelectorAll('math'));
+}
+
 /** Sanitizes a raw `<math>` fragment; returns null if nothing survives. */
 function sanitizeMath(source: string): string | null {
 	const clean: string = DOMPurify.sanitize(source, {
@@ -62,19 +82,28 @@ function sanitizeMath(source: string): string | null {
 	return /<math[\s>]/i.test(clean) ? clean : null;
 }
 
+/** Sanitizes one parsed `<math>` element into canonical formula attrs, or null. */
+function toFormulaAttrs(math: Element): FormulaAttrs | null {
+	const mathml: string | null = sanitizeMath(math.outerHTML);
+	if (!mathml) return null;
+	return { mathml, latex: extractTexAnnotation(mathml) ?? '', alt: '', fontSize: '' };
+}
+
 /** Creates the MathML paste interceptor. */
 export function createFormulaPasteInterceptor(): PasteInterceptor {
 	return (_plainText: string, html: string, state: EditorState): Transaction | null => {
 		if (!isStandaloneMathHtml(html)) return null;
-		const math: Element | null = parseFragment(html).querySelector('math');
-		if (!math) return null;
-		const mathml: string | null = sanitizeMath(math.outerHTML);
-		if (!mathml) return null;
 
-		const latex: string = extractTexAnnotation(mathml) ?? '';
-		const attrs: FormulaAttrs = { mathml, latex, alt: '', fontSize: '' };
-		return isDisplayMath(mathml)
-			? buildInsertDisplayMathTr(state, attrs)
-			: buildInsertInlineMathTr(state, attrs);
+		const formulas: FormulaAttrs[] = collectStandaloneMathElements(html)
+			.map(toFormulaAttrs)
+			.filter((attrs: FormulaAttrs | null): attrs is FormulaAttrs => attrs !== null);
+		if (formulas.length === 0) return null;
+
+		// Inline formulas join the text flow; a run that contains any display
+		// formula is laid out as blocks (the safe context for display math).
+		const allInline: boolean = formulas.every((attrs) => !isDisplayMath(attrs.mathml));
+		return allInline
+			? buildInsertInlineFormulasTr(state, formulas)
+			: buildInsertDisplayFormulasTr(state, formulas);
 	};
 }
