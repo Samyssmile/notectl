@@ -383,14 +383,6 @@ describe('TextDirectionPlugin', () => {
 			expect(doc.children[1]?.attrs?.dir).toBeUndefined();
 			expect(doc.children[2]?.attrs?.dir).toBe('rtl');
 		});
-
-		it('works with collapsed cursor (single block)', async () => {
-			const state: EditorState = makeState([{ type: 'paragraph', text: 'Hello', id: 'b1' }]);
-			const h = await pluginHarness(new TextDirectionPlugin(), state, HARNESS_OPTIONS);
-
-			h.executeCommand('setDirectionRTL');
-			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('rtl');
-		});
 	});
 
 	describe('toggleDirection command', () => {

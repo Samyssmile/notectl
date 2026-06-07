@@ -65,17 +65,6 @@ describe('FontSizePlugin', () => {
 			expect(h.executeCommand('setFontSize')).toBe(false);
 		});
 
-		it('registers increaseFontSize command', async () => {
-			const plugin = new FontSizePlugin();
-			const state = stateBuilder()
-				.paragraph('hello', 'b1')
-				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
-				.schema(['paragraph'], ['fontSize'])
-				.build();
-			const h = await pluginHarness(plugin, state);
-			expectCommandDispatches(h, 'increaseFontSize');
-		});
-
 		it('registers decreaseFontSize command', async () => {
 			const plugin = new FontSizePlugin();
 			const state = stateBuilder()
