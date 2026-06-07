@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Inserting a block object right after an image or display formula no longer drops the insert or leaves a blank line (#158)** — After inserting an image or display formula the selection rests on that void block as a node selection. Inserting the next object right away exposed two defects sharing that root cause. First, `insertHorizontalRule` and `insertTable` bailed out on any non-text selection (`if (!isTextSelection(sel)) return false;`), so clicking "Insert table" or "Insert horizontal rule" while a void block was selected silently discarded the action and the document stayed `[image, paragraph]`. Both commands now resolve the anchor through `getSelectedBlockId`, which handles node selections the same way the image and formula commands already do, so the object lands after the selected block. Second, a void object already owns a trailing empty paragraph as its escape line, but `insertBlockObjectOnOwnLine` always appended a fresh trailing paragraph and only consumed a blank-line *anchor*, so a second object stacked up a stray blank line (`[image, image, paragraph, paragraph]`). The primitive now detects a void anchor already followed by an empty paragraph and reuses that paragraph as the new object's trailing line instead of appending another, so the result is `[image, image, paragraph]`. Covered by new unit tests across image, table, horizontal rule, and display formula insertion.
+
 ### Internal
 
 - **Unit test suite cleanup.** Removed 9 redundant unit tests, each a byte-identical or strict-subset duplicate of a surviving test in the same file (`DocumentSerializer`, `CaretNavigation`, `Platform`, `CodeBlockPlugin`, `MathAlphabet`, `XmlDetector`, `FontSizePlugin`, `FontPlugin`, `TextDirectionPlugin`). No behaviour coverage was lost and the suite stays green.

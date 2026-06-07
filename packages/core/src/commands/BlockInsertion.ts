@@ -33,6 +33,7 @@ import { isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { inlineType, nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import { extractParentPath, findSiblingIndex, getSiblings } from './CommandHelpers.js';
 
@@ -202,10 +203,15 @@ function isEmptyParagraph(block: BlockNode): boolean {
  * {@link insertBlockAfterAnchor}, which the paste pipeline uses with a text-only
  * emptiness notion.
  *
+ * A void anchor (image, display formula) already owns a trailing empty paragraph
+ * as its escape line. In that case the object is placed before that paragraph and
+ * the paragraph is reused as the object's trailing line, so a second blank line
+ * never stacks up (#158).
+ *
  * Selection is the caller's concern, since objects differ (a cursor inside a new
  * table vs. a node selection on an image or display formula). Returns the
- * appended trailing paragraph, or undefined when the selection has no resolvable
- * anchor.
+ * trailing paragraph after the object, or undefined when the selection has no
+ * resolvable anchor.
  */
 export function insertBlockObjectOnOwnLine(
 	state: EditorState,
@@ -216,10 +222,17 @@ export function insertBlockObjectOnOwnLine(
 	const topIndex: number = topLevelBlockIndex(state, anchorBlockId);
 	if (topIndex === -1) return undefined;
 
+	const anchor: BlockNode | undefined = state.doc.children[topIndex];
+	const following: BlockNode | undefined = state.doc.children[topIndex + 1];
+
+	if (anchor && isVoidBlock(state, anchor.id) && following && isEmptyParagraph(following)) {
+		builder.insertNode([], topIndex + 1, object);
+		return following;
+	}
+
 	const trailing: BlockNode = createBlockNode(nodeType('paragraph'));
 	builder.insertNode([], topIndex + 1, object).insertNode([], topIndex + 2, trailing);
 
-	const anchor: BlockNode | undefined = state.doc.children[topIndex];
 	if (anchor && isEmptyParagraph(anchor)) {
 		builder.removeNode([], topIndex);
 	}
