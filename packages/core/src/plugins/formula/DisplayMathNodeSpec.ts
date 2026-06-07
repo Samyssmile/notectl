@@ -7,14 +7,9 @@
 import type { BlockNode } from '../../model/Document.js';
 import type { NodeSpec } from '../../model/NodeSpec.js';
 import { createBlockElement } from '../../view/DomUtils.js';
-import {
-	mathMarkup,
-	readFormulaAttrs,
-	renderFormulaInto,
-	setFormulaFontSize,
-} from './FormulaRendering.js';
+import { readFormulaAttrs, renderFormulaInto, setFormulaFontSize } from './FormulaRendering.js';
+import { formulaToHTMLString, parseFormulaElement } from './FormulaSerialization.js';
 import { DISPLAY_MATH_TYPE } from './FormulaTypes.js';
-import { extractTexAnnotation, stripBlockIds } from './mathml/MathMLDocument.js';
 import { MATHML_ATTRS, MATHML_TAGS } from './mathml/MathMLSanitize.js';
 
 /** Builds the display math `NodeSpec` (selectable void block). */
@@ -40,20 +35,13 @@ export function createDisplayMathNodeSpec(): NodeSpec<typeof DISPLAY_MATH_TYPE> 
 			return host;
 		},
 		toHTML(node: BlockNode): string {
-			return mathMarkup(readFormulaAttrs(node.attrs));
+			return formulaToHTMLString(readFormulaAttrs(node.attrs));
 		},
 		parseHTML: [
 			{
 				tag: 'math',
-				getAttrs(el: HTMLElement): Record<string, unknown> | false {
-					if (el.getAttribute('display') !== 'block') return false;
-					const mathml: string = stripBlockIds(el.outerHTML);
-					return {
-						mathml,
-						latex: extractTexAnnotation(mathml) ?? '',
-						alt: el.getAttribute('alttext') ?? '',
-					};
-				},
+				getAttrs: (el: HTMLElement): Record<string, unknown> | false =>
+					parseFormulaElement(el, true),
 			},
 		],
 		sanitize: { tags: [...MATHML_TAGS], attrs: [...MATHML_ATTRS] },

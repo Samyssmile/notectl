@@ -7,7 +7,9 @@ import {
 	findMathElement,
 	isDisplayMath,
 	stripBlockIds,
+	stripMathsize,
 	withAlttext,
+	withMathsize,
 } from './MathMLDocument.js';
 
 describe('buildMathML', () => {
@@ -124,5 +126,43 @@ describe('stripBlockIds', () => {
 	it('returns clean MathML unchanged', () => {
 		const input = '<math display="inline"><mi>x</mi></math>';
 		expect(stripBlockIds(input)).toBe(input);
+	});
+});
+
+describe('withMathsize', () => {
+	it('adds mathsize to a math root', () => {
+		expect(withMathsize('<math display="inline"><mi>x</mi></math>', '48px')).toBe(
+			'<math mathsize="48px" display="inline"><mi>x</mi></math>',
+		);
+	});
+
+	it('replaces an existing mathsize', () => {
+		const input = '<math mathsize="16px"><mi>x</mi></math>';
+		expect(withMathsize(input, '64px')).toBe('<math mathsize="64px"><mi>x</mi></math>');
+	});
+
+	it('removes mathsize when given an empty size', () => {
+		expect(withMathsize('<math mathsize="16px"><mi>x</mi></math>', '')).toBe(
+			'<math><mi>x</mi></math>',
+		);
+	});
+});
+
+describe('stripMathsize', () => {
+	it('removes a mathsize attribute from the math root', () => {
+		expect(stripMathsize('<math display="block" mathsize="64px"><mi>y</mi></math>')).toBe(
+			'<math display="block"><mi>y</mi></math>',
+		);
+	});
+
+	it('handles single-quoted values', () => {
+		expect(stripMathsize("<math mathsize='24px'><mi>x</mi></math>")).toBe(
+			'<math><mi>x</mi></math>',
+		);
+	});
+
+	it('returns size-free MathML unchanged', () => {
+		const input = '<math display="inline"><mi>x</mi></math>';
+		expect(stripMathsize(input)).toBe(input);
 	});
 });
