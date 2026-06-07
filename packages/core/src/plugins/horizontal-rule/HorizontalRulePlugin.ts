@@ -10,7 +10,7 @@ import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
-import { resolveLocale } from '../shared/PluginHelpers.js';
+import { getSelectedBlockId, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
 	HORIZONTAL_RULE_LOCALE_EN,
@@ -148,14 +148,14 @@ export class HorizontalRulePlugin implements Plugin {
 	 */
 	private insertHorizontalRule(context: PluginContext): boolean {
 		const state: EditorState = context.getState();
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
+		const anchorBlockId = getSelectedBlockId(state);
+		if (!anchorBlockId) return false;
 
 		const builder = state.transaction('command');
 		const trailing = insertBlockObjectOnOwnLine(
 			state,
 			builder,
-			sel.anchor.blockId,
+			anchorBlockId,
 			createBlockNode(nodeType('horizontal_rule')),
 		);
 		if (!trailing) return false;

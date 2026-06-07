@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { NodeSpec } from '../../model/NodeSpec.js';
 import { isNodeSelection } from '../../model/Selection.js';
 import {
 	expectCommandDispatches,
@@ -94,16 +95,24 @@ describe('HorizontalRulePlugin', () => {
 			expect(newState.doc.children[2]?.type).toBe('paragraph');
 		});
 
-		it('returns false on NodeSelection', async () => {
+		it('inserts after a node-selected void block, reusing its trailing line (#158)', async () => {
 			const builder = stateBuilder();
-			builder.block('horizontal_rule', '', 'hr1');
+			builder.voidBlock('horizontal_rule', 'hr1');
 			builder.block('paragraph', '', 'b2');
-			builder.schema(['paragraph', 'horizontal_rule'], []);
+			builder.schema(['paragraph', 'horizontal_rule'], [], (type) =>
+				type === 'horizontal_rule' ? ({ isVoid: true } as unknown as NodeSpec) : undefined,
+			);
 			const state = builder.nodeSelection('hr1').build();
 
 			const h = await pluginHarness(new HorizontalRulePlugin(), state);
 			const result: boolean = h.executeCommand('insertHorizontalRule');
-			expect(result).toBe(false);
+
+			expect(result).toBe(true);
+			expect(h.getState().doc.children.map((c) => c.type)).toEqual([
+				'horizontal_rule',
+				'horizontal_rule',
+				'paragraph',
+			]);
 		});
 	});
 
