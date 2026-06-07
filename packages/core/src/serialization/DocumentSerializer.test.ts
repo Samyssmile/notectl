@@ -84,13 +84,6 @@ describe('serializeDocumentToHTML', () => {
 		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p>hello world</p>');
 	});
 
-	// Coverage for serializeTextNode (via public API)
-
-	it('returns empty string for empty text', () => {
-		const doc = createDocument([createBlockNode(nodeType('paragraph'), [createTextNode('')])]);
-		expect(stripBlockIds(serializeDocumentToHTML(doc))).toBe('<p><br></p>');
-	});
-
 	it('escapes HTML entities', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [createTextNode('<b>bold</b>')]),

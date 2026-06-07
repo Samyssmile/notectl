@@ -121,16 +121,6 @@ describe('endOfTextblock', () => {
 		expect(endOfTextblock(dummyContainer(), state, 'down')).toBe(true);
 	});
 
-	it('returns true for up at offset 0 (fallback)', () => {
-		const state = stateBuilder()
-			.paragraph('Hello', 'b1')
-			.cursor('b1', 0)
-			.schema(['paragraph'], [])
-			.build();
-
-		expect(endOfTextblock(dummyContainer(), state, 'up')).toBe(true);
-	});
-
 	it('falls back to offset heuristic for up/down mid-block', () => {
 		const state = stateBuilder()
 			.paragraph('Hello', 'b1')

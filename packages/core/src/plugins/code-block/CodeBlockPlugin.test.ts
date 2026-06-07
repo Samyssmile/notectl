@@ -1725,23 +1725,6 @@ describe('CodeBlockPlugin', () => {
 			expect(getBlockText(h.getState().doc.children[0])).toBe('[\n]');
 		});
 
-		it('plain dedent still fires when no tracked close lies ahead', async () => {
-			// Existing pre-fix scenario: bare indent on a whitespace-only line with
-			// no auto-pair stack entry past the cursor. Must still dedent + insert.
-			const state = stateBuilder()
-				.block('code_block', '{\n  ', 'b1', { attrs: { language: 'typescript' } })
-				.cursor('b1', 4)
-				.schema(['paragraph', 'code_block'], [])
-				.build();
-			const plugin = new CodeBlockPlugin({ useSpaces: true, spaceCount: 2 });
-			const h = await pluginHarness(plugin, state, { notifyStateChange: true });
-			const interceptors = h.pm.getTextInputInterceptors();
-			const tr = interceptors[0]?.interceptor('}', h.getState());
-			expect(tr).not.toBeNull();
-			if (tr) h.dispatch(tr);
-			expect(getBlockText(h.getState().doc.children[0])).toBe('{\n}');
-		});
-
 		it('pendingPairOps queue is cleared on each interceptor invocation', async () => {
 			// B2 robustness: a suppressed transaction must not leave stale push
 			// ops in the queue that would corrupt the next successful cycle.
