@@ -12,7 +12,7 @@ import {
 	isInlineNode,
 	isTextNode,
 } from '../model/Document.js';
-import type { InlineNode } from '../model/Document.js';
+import type { ContentSegment, InlineNode } from '../model/Document.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import { inlineType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
@@ -62,7 +62,9 @@ describe('Transaction', () => {
 				.build();
 
 			const step = tr.steps[0] as DeleteTextStep;
-			expect(step.deletedSegments).toEqual([{ text: 'hello', marks: [{ type: 'bold' }] }]);
+			expect(step.deletedSegments).toEqual([
+				{ kind: 'text', text: 'hello', marks: [{ type: 'bold' }] },
+			]);
 		});
 
 		it('deleteText auto-derives segments from workingDoc when no explicit segments provided', () => {
@@ -81,15 +83,19 @@ describe('Transaction', () => {
 
 			const step = tr.steps[0] as DeleteTextStep;
 			expect(step.deletedSegments).toHaveLength(2);
-			expect(step.deletedSegments[0]).toEqual({ text: 'bold', marks: [{ type: 'bold' }] });
-			expect(step.deletedSegments[1]).toEqual({ text: 'plain', marks: [] });
+			expect(step.deletedSegments[0]).toEqual({
+				kind: 'text',
+				text: 'bold',
+				marks: [{ type: 'bold' }],
+			});
+			expect(step.deletedSegments[1]).toEqual({ kind: 'text', text: 'plain', marks: [] });
 		});
 
 		it('deleteText preserves explicit segments when provided', () => {
 			const sel = createCollapsedSelection('b1', 0);
-			const segments = [
-				{ text: 'he', marks: [{ type: 'bold' }] },
-				{ text: 'llo', marks: [] },
+			const segments: ContentSegment[] = [
+				{ kind: 'text', text: 'he', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: 'llo', marks: [] },
 			];
 			const tr = new TransactionBuilder(sel, null, 'input')
 				.deleteText('b1', 0, 5, 'hello', [{ type: 'bold' }], segments)
@@ -114,7 +120,9 @@ describe('Transaction', () => {
 			expect(inverted.type).toBe('deleteText');
 			expect((inverted as DeleteTextStep).from).toBe(0);
 			expect((inverted as DeleteTextStep).to).toBe(5);
-			expect((inverted as DeleteTextStep).deletedSegments).toEqual([{ text: 'hello', marks: [] }]);
+			expect((inverted as DeleteTextStep).deletedSegments).toEqual([
+				{ kind: 'text', text: 'hello', marks: [] },
+			]);
 		});
 
 		it('inverts deleteText to insertText with segments always present', () => {
@@ -125,14 +133,14 @@ describe('Transaction', () => {
 				to: 5,
 				deletedText: 'hello',
 				deletedMarks: [{ type: 'bold' }],
-				deletedSegments: [{ text: 'hello', marks: [{ type: 'bold' }] }],
+				deletedSegments: [{ kind: 'text', text: 'hello', marks: [{ type: 'bold' }] }],
 			};
 			const inverted = invertStep(step);
 			expect(inverted.type).toBe('insertText');
 			expect((inverted as InsertTextStep).text).toBe('hello');
 			expect((inverted as InsertTextStep).marks).toEqual([{ type: 'bold' }]);
 			expect((inverted as InsertTextStep).segments).toEqual([
-				{ text: 'hello', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: 'hello', marks: [{ type: 'bold' }] },
 			]);
 		});
 
@@ -145,15 +153,15 @@ describe('Transaction', () => {
 				deletedText: 'boldnormal',
 				deletedMarks: [{ type: 'bold' }],
 				deletedSegments: [
-					{ text: 'bold', marks: [{ type: 'bold' }] },
-					{ text: 'normal', marks: [] },
+					{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+					{ kind: 'text', text: 'normal', marks: [] },
 				],
 			};
 			const inverted = invertStep(step);
 			const insertStep = inverted as InsertTextStep;
 			expect(insertStep.segments).toEqual([
-				{ text: 'bold', marks: [{ type: 'bold' }] },
-				{ text: 'normal', marks: [] },
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: 'normal', marks: [] },
 			]);
 		});
 
@@ -232,8 +240,12 @@ describe('Transaction', () => {
 			const step = tr.steps[0] as DeleteTextStep;
 			expect(step.deletedSegments).toBeDefined();
 			expect(step.deletedSegments).toHaveLength(2);
-			expect(step.deletedSegments[0]).toEqual({ text: 'bold', marks: [{ type: 'bold' }] });
-			expect(step.deletedSegments[1]).toEqual({ text: 'plain', marks: [] });
+			expect(step.deletedSegments[0]).toEqual({
+				kind: 'text',
+				text: 'bold',
+				marks: [{ type: 'bold' }],
+			});
+			expect(step.deletedSegments[1]).toEqual({ kind: 'text', text: 'plain', marks: [] });
 
 			// Verify undo fully restores marks
 			const children = getTextChildren(afterUndo.doc.children[0]);
@@ -259,9 +271,9 @@ describe('Transaction', () => {
 			});
 
 			// Use deleteText() with explicit segments (as deleteTextAt would provide)
-			const segments = [
-				{ text: 'bold', marks: [{ type: 'bold' }] as const },
-				{ text: 'plain', marks: [] as const },
+			const segments: ContentSegment[] = [
+				{ kind: 'text', text: 'bold', marks: [{ type: 'bold' }] },
+				{ kind: 'text', text: 'plain', marks: [] },
 			];
 			const tr = state
 				.transaction('command')
@@ -311,11 +323,16 @@ describe('Transaction', () => {
 			const step = tr.steps[0] as DeleteTextStep;
 			expect(step.deletedSegments).toHaveLength(3);
 			expect(step.deletedSegments[0]).toEqual({
+				kind: 'text',
 				text: 'AB',
 				marks: [{ type: 'bold' }, { type: 'italic' }],
 			});
-			expect(step.deletedSegments[1]).toEqual({ text: 'CD', marks: [{ type: 'italic' }] });
-			expect(step.deletedSegments[2]).toEqual({ text: 'EF', marks: [] });
+			expect(step.deletedSegments[1]).toEqual({
+				kind: 'text',
+				text: 'CD',
+				marks: [{ type: 'italic' }],
+			});
+			expect(step.deletedSegments[2]).toEqual({ kind: 'text', text: 'EF', marks: [] });
 
 			// Full roundtrip: delete → undo → verify
 			const afterDelete = state.apply(tr);
@@ -526,7 +543,7 @@ describe('Transaction', () => {
 					to: 4,
 					deletedText: 'bc',
 					deletedMarks: [],
-					deletedSegments: [{ text: 'bc', marks: [] }],
+					deletedSegments: [{ kind: 'text', text: 'bc', marks: [] }],
 				};
 				const result = applyStep(doc, step);
 				const block = result.children[0];

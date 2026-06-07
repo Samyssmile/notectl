@@ -79,21 +79,6 @@ export function inlineSegment(node: InlineNode): ContentSegment {
 	return { kind: 'inline', node };
 }
 
-/** Extracts TextNode segments within a block for the given offset range. */
-export function getBlockSegmentsInRange(
-	block: BlockNode,
-	from: number,
-	to: number,
-): readonly TextSegment[] {
-	const segments: TextSegment[] = [];
-	forEachInlineChildInRange(block, from, to, {
-		onText(text: string, marks: readonly Mark[]): void {
-			segments.push({ text, marks });
-		},
-	});
-	return segments;
-}
-
 /** Returns content segments (text and inline) for a block range. */
 export function getBlockContentSegmentsInRange(
 	block: BlockNode,
@@ -458,6 +443,11 @@ export function normalizeInlineContent(
 	return cleaned;
 }
 
+/** Materializes a single {@link ContentSegment} into its inline child node. */
+export function contentSegmentToInlineNode(segment: ContentSegment): TextNode | InlineNode {
+	return segment.kind === 'inline' ? segment.node : createTextNode(segment.text, segment.marks);
+}
+
 /**
  * Materializes content segments (text + inline) into normalized inline children.
  * Inverse of {@link getBlockContentSegmentsInRange}: used when turning a range of
@@ -466,11 +456,7 @@ export function normalizeInlineContent(
 export function segmentsToInlineChildren(
 	segments: readonly ContentSegment[],
 ): readonly (TextNode | InlineNode)[] {
-	return normalizeInlineContent(
-		segments.map((segment) =>
-			segment.kind === 'inline' ? segment.node : createTextNode(segment.text, segment.marks),
-		),
-	);
+	return normalizeInlineContent(segments.map(contentSegmentToInlineNode));
 }
 
 /** Yields each inline child with its offset range. InlineNodes have width 1. */

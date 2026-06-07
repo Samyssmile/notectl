@@ -11,7 +11,7 @@ import {
 	generateBlockId,
 	segmentsToInlineChildren,
 } from '../model/Document.js';
-import type { ContentSegment, TextSegment } from '../model/Document.js';
+import type { ContentSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { GapCursorSelection, Selection } from '../model/Selection.js';
 import {
@@ -95,11 +95,11 @@ function insertSegmentsAt(
 	segments: readonly ContentSegment[],
 ): number {
 	let offset: number = startOffset;
-	let textRun: TextSegment[] = [];
+	let textRun: ContentSegment[] = [];
 
 	const flushTextRun = (): void => {
 		if (textRun.length === 0) return;
-		const text: string = textRun.map((s: TextSegment) => s.text).join('');
+		const text: string = textRun.map((s) => (s.kind === 'text' ? s.text : '')).join('');
 		if (text.length > 0) {
 			builder.insertText(blockId, offset, text, [], textRun);
 			offset += text.length;
@@ -113,7 +113,7 @@ function insertSegmentsAt(
 			builder.insertInlineNode(blockId, offset, segment.node);
 			offset += 1;
 		} else {
-			textRun.push({ text: segment.text, marks: segment.marks });
+			textRun.push(segment);
 		}
 	}
 	flushTextRun();

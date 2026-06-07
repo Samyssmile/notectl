@@ -3,7 +3,8 @@
  * Each step represents an atomic, invertible change to the document.
  */
 
-import type { BlockAttrs, BlockNode, InlineNode, Mark, TextSegment } from '../model/Document.js';
+import { segmentsLength } from '../model/ContentSlice.js';
+import type { BlockAttrs, BlockNode, ContentSegment, InlineNode, Mark } from '../model/Document.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 
 export interface InsertTextStep {
@@ -12,7 +13,13 @@ export interface InsertTextStep {
 	readonly offset: number;
 	readonly text: string;
 	readonly marks: readonly Mark[];
-	readonly segments?: readonly TextSegment[];
+	/**
+	 * Optional per-segment payload (text with marks, or atomic inline nodes).
+	 * When present it supersedes `text`/`marks` on apply, so it must carry the
+	 * full content, including any inline nodes, for paste and delete-undo to
+	 * round-trip faithfully.
+	 */
+	readonly segments?: readonly ContentSegment[];
 	readonly path?: readonly BlockId[];
 }
 
@@ -23,7 +30,8 @@ export interface DeleteTextStep {
 	readonly to: number;
 	readonly deletedText: string;
 	readonly deletedMarks: readonly Mark[];
-	readonly deletedSegments: readonly TextSegment[];
+	/** Full deleted content (text and inline nodes) so undo restores both. */
+	readonly deletedSegments: readonly ContentSegment[];
 	readonly path?: readonly BlockId[];
 }
 
@@ -182,3 +190,16 @@ export type Step =
 	| SetInlineNodeAttrStep;
 
 export type TransactionOrigin = 'input' | 'paste' | 'command' | 'history' | 'api';
+
+/**
+ * Block-space width an {@link InsertTextStep} occupies once applied. When the
+ * step carries `segments` (which may include inline nodes, each width 1), the
+ * width is the segment span, not the plain-text length, because `applyInsertText`
+ * inserts the segments verbatim. The inverse delete range ({@link invertInsertText})
+ * and the forward position map ({@link getMapInsertText}) must both use this so
+ * undo/redo of a deletion that removed inline content round-trips without
+ * corrupting positions.
+ */
+export function insertTextStepWidth(step: InsertTextStep): number {
+	return step.segments ? segmentsLength(step.segments) : step.text.length;
+}
