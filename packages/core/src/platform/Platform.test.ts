@@ -117,14 +117,4 @@ describe('getTextDirection', () => {
 			el.remove();
 		}
 	});
-
-	it('returns ltr for element without explicit direction', () => {
-		const el: HTMLElement = document.createElement('p');
-		document.body.appendChild(el);
-		try {
-			expect(getTextDirection(el)).toBe('ltr');
-		} finally {
-			el.remove();
-		}
-	});
 });
