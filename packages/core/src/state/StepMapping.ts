@@ -34,9 +34,9 @@
 
 import type { BlockNode, Document, InlineNode } from '../model/Document.js';
 import {
+	getBlockContentSegmentsInRange,
 	getBlockLength,
 	getBlockMarksAtOffset,
-	getBlockSegmentsInRange,
 	getBlockText,
 	getContentAtOffset,
 	isInlineNode,
@@ -152,7 +152,7 @@ export function mapDeleteText(step: DeleteTextStep, mapping: Mapping, doc: Docum
 	if (!block) return null;
 	const deletedText = getBlockText(block).slice(mapped.from, mapped.to);
 	const deletedMarks = getBlockMarksAtOffset(block, mapped.from);
-	const deletedSegments = getBlockSegmentsInRange(block, mapped.from, mapped.to);
+	const deletedSegments = getBlockContentSegmentsInRange(block, mapped.from, mapped.to);
 
 	return {
 		type: 'deleteText',

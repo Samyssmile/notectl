@@ -5,11 +5,12 @@
 
 import {
 	type ChildNode,
+	type ContentSegment,
 	type InlineNode,
 	type Mark,
 	type TextNode,
-	type TextSegment,
 	addMarkToSet,
+	contentSegmentToInlineNode,
 	createTextNode,
 	isInlineNode,
 	isTextNode,
@@ -32,16 +33,16 @@ export function insertTextIntoInlineContent(
 }
 
 /**
- * Inserts segments into mixed inline content at the given offset.
+ * Inserts content segments (text and inline nodes) into mixed inline content
+ * at the given offset. Inline segments are restored as atomic nodes, so this
+ * round-trips the payload captured by `getBlockContentSegmentsInRange`.
  */
 export function insertSegmentsIntoInlineContent(
 	nodes: readonly (TextNode | InlineNode)[],
 	offset: number,
-	segments: readonly TextSegment[],
+	segments: readonly ContentSegment[],
 ): (TextNode | InlineNode)[] {
-	return insertIntoInlineContent(nodes, offset, () =>
-		segments.map((seg) => createTextNode(seg.text, seg.marks)),
-	);
+	return insertIntoInlineContent(nodes, offset, () => segments.map(contentSegmentToInlineNode));
 }
 
 /** Shared insertion logic for text and segments into mixed inline content. */

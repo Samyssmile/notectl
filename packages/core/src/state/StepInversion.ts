@@ -6,7 +6,9 @@
  */
 
 import type { Mark } from '../model/Document.js';
+import { textSegment } from '../model/Document.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { insertTextStepWidth } from './Steps.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -38,10 +40,10 @@ export function invertInsertText(step: InsertTextStep): Step {
 		type: 'deleteText',
 		blockId: step.blockId,
 		from: step.offset,
-		to: step.offset + step.text.length,
+		to: step.offset + insertTextStepWidth(step),
 		deletedText: step.text,
 		deletedMarks: step.marks,
-		deletedSegments: step.segments ?? [{ text: step.text, marks: [...step.marks] }],
+		deletedSegments: step.segments ?? [textSegment(step.text, [...step.marks])],
 		...optionalPath(step),
 	};
 }

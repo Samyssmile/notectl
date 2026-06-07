@@ -158,7 +158,7 @@ describe('mapStep', () => {
 			to: 8,
 			deletedText: ' wo',
 			deletedMarks: [],
-			deletedSegments: [{ text: ' wo', marks: [] }],
+			deletedSegments: [{ kind: 'text', text: ' wo', marks: [] }],
 		};
 
 		it('passes through unchanged on empty mapping', () => {
@@ -770,7 +770,7 @@ describe('mapStep', () => {
 				to: 8,
 				deletedText: 'wor',
 				deletedMarks: [],
-				deletedSegments: [{ text: 'wor', marks: [] }],
+				deletedSegments: [{ kind: 'text', text: 'wor', marks: [] }],
 			};
 			const m = Mapping.from([shift(B1, 0, 0, 2), shift(B1, 10, 10, 3)]);
 			const doc = docWith(paragraphBlock('xxhelloXXX world'));

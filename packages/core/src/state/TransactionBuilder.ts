@@ -6,19 +6,20 @@
 import type {
 	BlockAttrs,
 	BlockNode,
+	ContentSegment,
 	Document,
 	InlineNode,
 	Mark,
-	TextSegment,
 } from '../model/Document.js';
 import {
+	getBlockContentSegmentsInRange,
 	getBlockLength,
 	getBlockMarksAtOffset,
-	getBlockSegmentsInRange,
 	getBlockText,
 	getContentAtOffset,
 	getInlineChildren,
 	isInlineNode,
+	textSegment,
 } from '../model/Document.js';
 import { findNode, resolveChildAt, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
@@ -76,7 +77,7 @@ export class TransactionBuilder {
 		offset: number,
 		text: string,
 		marks: readonly Mark[],
-		segments?: readonly TextSegment[],
+		segments?: readonly ContentSegment[],
 	): this {
 		const step: InsertTextStep = {
 			type: 'insertText',
@@ -98,18 +99,18 @@ export class TransactionBuilder {
 		to: number,
 		deletedText: string,
 		deletedMarks: readonly Mark[],
-		deletedSegments?: readonly TextSegment[],
+		deletedSegments?: readonly ContentSegment[],
 	): this {
-		let segments: readonly TextSegment[];
+		let segments: readonly ContentSegment[];
 		if (deletedSegments) {
 			segments = deletedSegments;
 		} else if (this.workingDoc) {
 			const block = findNode(this.workingDoc, blockId);
 			segments = block
-				? getBlockSegmentsInRange(block, from, to)
-				: [{ text: deletedText, marks: [...deletedMarks] }];
+				? getBlockContentSegmentsInRange(block, from, to)
+				: [textSegment(deletedText, [...deletedMarks])];
 		} else {
-			segments = [{ text: deletedText, marks: [...deletedMarks] }];
+			segments = [textSegment(deletedText, [...deletedMarks])];
 		}
 		const step: DeleteTextStep = {
 			type: 'deleteText',
@@ -136,7 +137,7 @@ export class TransactionBuilder {
 		const text = getBlockText(block);
 		const deletedText = text.slice(from, to);
 		const deletedMarks = getBlockMarksAtOffset(block, from);
-		const deletedSegments = getBlockSegmentsInRange(block, from, to);
+		const deletedSegments = getBlockContentSegmentsInRange(block, from, to);
 
 		return this.deleteText(blockId, from, to, deletedText, deletedMarks, deletedSegments);
 	}
