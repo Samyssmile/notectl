@@ -43,7 +43,8 @@
 			"test-results/**",
 			"playwright-report/**",
 			"scripts/**",
-			"examples/angular/**"
+			"examples/angular/**",
+			"e2e/bugfinder/**"
 		]
 	}
 }
