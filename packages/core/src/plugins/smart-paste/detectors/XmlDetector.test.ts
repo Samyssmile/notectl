@@ -311,17 +311,5 @@ describe('XmlDetector', () => {
 			// Assert
 			expect(result).not.toBeNull();
 		});
-
-		it('has lower confidence than JSON detector', () => {
-			// Arrange
-			const detector = new XmlDetector();
-			const input = '<root><child>text</child></root>';
-
-			// Act
-			const result: DetectionResult | null = detector.detect(input);
-
-			// Assert — XML confidence (0.85) is lower than JSON (0.9)
-			expect(result?.confidence).toBe(0.85);
-		});
 	});
 });

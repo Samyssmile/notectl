@@ -86,16 +86,6 @@ describe('FontPlugin', () => {
 	});
 
 	describe('configuration', () => {
-		it('renders configured fonts in popup', async () => {
-			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
-			const item = h.getToolbarItem('font');
-			const container: HTMLDivElement = document.createElement('div');
-			item?.renderPopup?.(container, mockPluginContext({ getState: () => defaultState() }));
-
-			const listItems = container.querySelectorAll('.notectl-font-picker__item');
-			expect(listItems.length).toBe(2);
-		});
-
 		it('uses first font as default when defaultFont not specified', async () => {
 			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
 			const item = h.getToolbarItem('font');

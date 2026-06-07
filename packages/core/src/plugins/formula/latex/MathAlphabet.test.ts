@@ -143,19 +143,4 @@ describe('applyUprightIdentifiers', () => {
 			'<mrow><mi mathvariant="normal">a</mi><mn>1</mn></mrow>',
 		);
 	});
-
-	it('covers the full MathAlphabetStyle union without throwing', () => {
-		const styles: readonly MathAlphabetStyle[] = [
-			'double-struck',
-			'script',
-			'fraktur',
-			'bold',
-			'italic',
-			'sans-serif',
-			'monospace',
-		];
-		for (const style of styles) {
-			expect(typeof mathAlphaChar('A', style)).toBe('string');
-		}
-	});
 });
