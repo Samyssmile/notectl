@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- **Unit test suite cleanup.** Removed 9 redundant unit tests, each a byte-identical or strict-subset duplicate of a surviving test in the same file (`DocumentSerializer`, `CaretNavigation`, `Platform`, `CodeBlockPlugin`, `MathAlphabet`, `XmlDetector`, `FontSizePlugin`, `FontPlugin`, `TextDirectionPlugin`). No behaviour coverage was lost and the suite stays green.
+- **E2E test suite cleanup.** Removed the redundant `print-font` e2e spec (3 tests). Its assertions only checked CSS property-name presence in the print HTML string and exercised no real-browser behaviour, so the same coverage already exists, more thoroughly, in the `PrintServiceImpl`, `FullPreset`, and `PrintPlugin` unit tests.
+
 ## [2.2.1] - 2026-06-07
 
 ### Fixed
