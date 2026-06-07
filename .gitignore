@@ -52,6 +52,10 @@ Desktop.ini
 # Claude Code
 .claude/
 
+# Bug-finder harness (disposable, out-of-band probes)
+/e2e/bugfinder/
+/playwright.bugfinder.config.ts
+
 # Misc
 .cache/
 code-style-requirements.md

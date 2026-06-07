@@ -21,6 +21,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
+import { getSelectedBlockId } from '../shared/PluginHelpers.js';
 import {
 	type TableContext,
 	createTable,
@@ -210,12 +211,12 @@ interface TableDeletionTarget {
  */
 export function insertTable(context: PluginContext, rows: number, cols: number): boolean {
 	const state = context.getState();
-	const sel = state.selection;
-	if (!isTextSelection(sel)) return false;
+	const anchorBlockId = getSelectedBlockId(state);
+	if (!anchorBlockId) return false;
 
 	const tableNode = createTable(rows, cols);
 	const builder = state.transaction('command');
-	const trailing = insertBlockObjectOnOwnLine(state, builder, sel.anchor.blockId, tableNode);
+	const trailing = insertBlockObjectOnOwnLine(state, builder, anchorBlockId, tableNode);
 	if (!trailing) return false;
 
 	// Set cursor in first paragraph inside first cell
