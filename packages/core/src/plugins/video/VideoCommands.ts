@@ -5,6 +5,7 @@
  * plugin's command shape for nested-context support.
  */
 
+import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import {
@@ -135,26 +136,28 @@ export function insertVideo(context: PluginContext, attrs: VideoAttrs): boolean 
 	return insertVideoAtRoot(state, context, anchorBlockId, blockAttrs);
 }
 
-/** Inserts a video at document root after the anchor block, with a trailing paragraph. */
+/**
+ * Inserts a video on its own line at document root, after the anchor block.
+ *
+ * Delegates placement to {@link insertBlockObjectOnOwnLine}, the shared primitive
+ * the image and formula plugins use, so a video never stacks a stray blank line
+ * after a node-selected void anchor and consumes an empty-paragraph anchor instead
+ * of leaving a leading blank line (#158, #152). The freshly inserted video is left
+ * node-selected, matching image insertion.
+ */
 function insertVideoAtRoot(
 	state: EditorState,
 	context: PluginContext,
 	anchorBlockId: BlockId,
 	blockAttrs: BlockAttrs,
 ): boolean {
-	const blockIndex: number = state.doc.children.findIndex((b) => b.id === anchorBlockId);
-	if (blockIndex === -1) return false;
-
 	const videoBlock: BlockNode = createBlockNode(nodeType(VIDEO_TYPE), [], undefined, blockAttrs);
-	const trailingParagraph: BlockNode = createBlockNode(nodeType('paragraph'));
+	const builder = state.transaction('command');
+	const trailing = insertBlockObjectOnOwnLine(state, builder, anchorBlockId, videoBlock);
+	if (!trailing) return false;
 
-	const tr = state
-		.transaction('command')
-		.insertNode([], blockIndex + 1, videoBlock)
-		.insertNode([], blockIndex + 2, trailingParagraph)
-		.setSelection(createNodeSelection(videoBlock.id, []))
-		.build();
-	context.dispatch(tr);
+	builder.setSelection(createNodeSelection(videoBlock.id, []));
+	context.dispatch(builder.build());
 	return true;
 }
 
