@@ -6,8 +6,11 @@
 
 import DOMPurify from 'dompurify';
 import {
+	type InsertionContext,
+	canContainerHoldBlocks,
 	cloneBlockWithNewIds,
 	findBlockRecursive,
+	resolveRootEscapeContext,
 	resolveRootInsertionContext,
 } from '../commands/BlockInsertion.js';
 import {
@@ -196,22 +199,40 @@ export class PasteHTMLHandler {
 		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
 		if (!ctx) return;
 
+		// Schema guard (#166): a container such as a table cell does not allow every
+		// block type. When the parsed blocks do not fit the target container, escape
+		// the insertion to the document root, placing them after the top-level
+		// ancestor (e.g. the outer table) rather than producing schema-invalid
+		// nesting like a table inside a table cell.
+		const containerId: BlockId | undefined = ctx.parentPath[ctx.parentPath.length - 1];
+		const containerType: string | undefined = containerId
+			? state.getBlock(containerId)?.type
+			: undefined;
+		const targetCtx: InsertionContext | undefined = canContainerHoldBlocks(
+			this.schemaRegistry,
+			containerType,
+			doc.children,
+		)
+			? ctx
+			: resolveRootEscapeContext(state, anchorBlockId);
+		if (!targetCtx) return;
+
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		let insertIndex: number = ctx.anchorIndex + insertOffset;
+		let insertIndex: number = targetCtx.anchorIndex + insertOffset;
 		let lastBlockId: BlockId | undefined;
 		let lastClonedRoot: BlockNode | undefined;
 
 		for (const block of doc.children) {
 			const newId: BlockId = generateBlockId();
 			const cloned: BlockNode = cloneBlockWithNewIds(block, newId);
-			builder.insertNode(ctx.parentPath, insertIndex, cloned);
+			builder.insertNode(targetCtx.parentPath, insertIndex, cloned);
 			insertIndex++;
 			lastBlockId = findLastLeafBlockId(cloned);
 			lastClonedRoot = cloned;
 		}
 
-		if (ctx.isAnchorEmpty && !isGapCursor(sel)) {
-			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
+		if (targetCtx.isAnchorEmpty && !isGapCursor(sel)) {
+			builder.removeNode(targetCtx.parentPath, targetCtx.anchorIndex);
 		}
 
 		if (lastBlockId && lastClonedRoot) {

@@ -9,6 +9,7 @@
  * recursive lookup, and attribute sanitization against a NodeSpec.
  */
 
+import { canContain } from '../model/ContentModel.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
@@ -183,6 +184,38 @@ export function topLevelBlockIndex(state: EditorState, blockId: BlockId): number
 	const path: readonly string[] | undefined = findNodePath(state.doc, blockId);
 	const topId: BlockId = path && path.length > 0 ? (path[0] as BlockId) : blockId;
 	return state.doc.children.findIndex((b) => b.id === topId);
+}
+
+/**
+ * True when a container of `containerType` may hold every block in `blocks`,
+ * per its {@link import('../model/NodeSpec.js').NodeSpec} content rule. An
+ * undefined `containerType` denotes the document root, which imposes no
+ * restriction. Used to keep paste from creating schema-invalid nesting, such as
+ * a `table` dropped into a `table_cell` (#166).
+ */
+export function canContainerHoldBlocks(
+	registry: SchemaRegistry,
+	containerType: string | undefined,
+	blocks: readonly BlockNode[],
+): boolean {
+	if (!containerType) return true;
+	return blocks.every((block) => canContain(registry, containerType, block.type));
+}
+
+/**
+ * Insertion context that escapes to the document root: blocks are placed after
+ * the top-level ancestor of `anchorBlockId` (e.g. the outer table when the caret
+ * sits inside a cell). The anchor is never treated as empty, so the originating
+ * container keeps its own content. Returns undefined when the anchor is not part
+ * of the document.
+ */
+export function resolveRootEscapeContext(
+	state: EditorState,
+	anchorBlockId: BlockId,
+): InsertionContext | undefined {
+	const topIndex: number = topLevelBlockIndex(state, anchorBlockId);
+	if (topIndex === -1) return undefined;
+	return { parentPath: [], anchorIndex: topIndex, isAnchorEmpty: false };
 }
 
 /**

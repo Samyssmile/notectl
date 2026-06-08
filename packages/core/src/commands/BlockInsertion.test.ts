@@ -2,20 +2,26 @@ import { describe, expect, it } from 'vitest';
 import {
 	type BlockNode,
 	createBlockNode,
+	createDocument,
 	createTextNode,
 	getBlockText,
 	isBlockNode,
 } from '../model/Document.js';
 import type { AttrSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createCollapsedSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { blockId, nodeType } from '../model/TypeBrands.js';
-import { stateBuilder } from '../test/TestUtils.js';
+import { TablePlugin } from '../plugins/table/TablePlugin.js';
+import { EditorState } from '../state/EditorState.js';
+import { pluginHarness, stateBuilder } from '../test/TestUtils.js';
 import {
+	canContainerHoldBlocks,
 	cloneBlockWithNewIds,
 	findBlockRecursive,
 	findTableCellAncestor,
 	resolveCellInsertionContext,
+	resolveRootEscapeContext,
 	resolveRootInsertionContext,
 	sanitizeAttrs,
 } from './BlockInsertion.js';
@@ -257,5 +263,80 @@ describe('sanitizeAttrs', () => {
 	it('returns undefined when no keys match', () => {
 		const emptySpec: Readonly<Record<string, AttrSpec>> = {};
 		expect(sanitizeAttrs({ level: 1 }, emptySpec)).toBeUndefined();
+	});
+});
+
+// --- canContainerHoldBlocks ---
+
+function tableBlock(): BlockNode {
+	const cell: BlockNode = createBlockNode(
+		nodeType('table_cell') as NodeTypeName,
+		[createBlockNode(nodeType('paragraph') as NodeTypeName, [createTextNode('x')], blockId('p1'))],
+		blockId('cell1'),
+	);
+	const row: BlockNode = createBlockNode(
+		nodeType('table_row') as NodeTypeName,
+		[cell],
+		blockId('row1'),
+	);
+	return createBlockNode(nodeType('table') as NodeTypeName, [row], blockId('table1'));
+}
+
+describe('canContainerHoldBlocks', () => {
+	it('allows any block at the document root (undefined container)', async () => {
+		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
+		expect(canContainerHoldBlocks(h.pm.schemaRegistry, undefined, [tableBlock()])).toBe(true);
+	});
+
+	it('rejects a table inside a table cell (schema-invalid nesting)', async () => {
+		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
+		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [tableBlock()])).toBe(false);
+	});
+
+	it('allows a paragraph inside a table cell', async () => {
+		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
+		const para: BlockNode = createBlockNode(
+			nodeType('paragraph') as NodeTypeName,
+			[createTextNode('hi')],
+			blockId('pp'),
+		);
+		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [para])).toBe(true);
+	});
+
+	it('rejects the whole run when any block is disallowed', async () => {
+		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
+		const para: BlockNode = createBlockNode(
+			nodeType('paragraph') as NodeTypeName,
+			[createTextNode('hi')],
+			blockId('pp'),
+		);
+		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [para, tableBlock()])).toBe(
+			false,
+		);
+	});
+});
+
+// --- resolveRootEscapeContext ---
+
+describe('resolveRootEscapeContext', () => {
+	function stateWithTable(): EditorState {
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph') as NodeTypeName,
+				[createTextNode('before')],
+				blockId('b0'),
+			),
+			tableBlock(),
+		]);
+		return EditorState.create({ doc, selection: createCollapsedSelection(blockId('p1'), 0) });
+	}
+
+	it('escapes a cell anchor to the document root after its top-level table', () => {
+		const ctx = resolveRootEscapeContext(stateWithTable(), blockId('p1'));
+		expect(ctx).toEqual({ parentPath: [], anchorIndex: 1, isAnchorEmpty: false });
+	});
+
+	it('returns undefined for a block outside the document', () => {
+		expect(resolveRootEscapeContext(stateWithTable(), blockId('nope'))).toBeUndefined();
 	});
 });
