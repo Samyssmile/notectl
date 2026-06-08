@@ -1088,3 +1088,148 @@ describe('PasteHandler XSS prevention', () => {
 		expect(heading).toBeDefined();
 	});
 });
+
+describe('PasteHandler rich paste cross-block splice (#165)', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	function paragraphRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: () => document.createElement('p'),
+		});
+		return registry;
+	}
+
+	function dispatchRichPaste(
+		handlerEl: HTMLElement,
+		blocks: readonly Record<string, unknown>[],
+	): void {
+		const json: string = JSON.stringify(blocks);
+		const html: string = `<div data-notectl-rich='${json}'></div>`;
+		handlerEl.dispatchEvent(createPasteEvent({ html }));
+	}
+
+	function blockTexts(state: EditorState): string[] {
+		return state.doc.children.map((b) => (isBlockNode(b) ? getBlockText(b) : ''));
+	}
+
+	it('splices multi-block clipboard content at the caret instead of appending siblings', () => {
+		element = document.createElement('div');
+		// Post-cut state of a cross-block cut: the two paragraphs merged into one,
+		// with the caret sitting between the surviving fragments ("Hello " | " bar").
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('Hello  bar')], B1)]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(B1, 6),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: paragraphRegistry(),
+		});
+
+		// Clipboard payload from the original cut: "world" and "Foo".
+		dispatchRichPaste(element, [
+			{ type: 'paragraph', text: 'world' },
+			{ type: 'paragraph', text: 'Foo' },
+		]);
+
+		// The clipboard must splice back into the caret block, restoring the original.
+		expect(blockTexts(currentState)).toEqual(['Hello world', 'Foo bar']);
+	});
+
+	it('inserts middle blocks between the split caret-block fragments', () => {
+		element = document.createElement('div');
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('AB')], B1)]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(B1, 1),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: paragraphRegistry(),
+		});
+
+		dispatchRichPaste(element, [
+			{ type: 'paragraph', text: 'X' },
+			{ type: 'paragraph', text: 'MID' },
+			{ type: 'paragraph', text: 'Y' },
+		]);
+
+		// First slice merges into the caret block, middle stays standalone, last
+		// slice prefixes the tail fragment.
+		expect(blockTexts(currentState)).toEqual(['AX', 'MID', 'YB']);
+	});
+
+	it('keeps middle blocks nested when the caret sits inside a container', () => {
+		element = document.createElement('div');
+		// A blockquote container (#136) holding a single paragraph. The caret is in
+		// the nested paragraph, which is NOT a direct child of the document root, so
+		// the blocks must be inserted inside the blockquote, never leaked to root.
+		const paraId: ReturnType<typeof blockId> = blockId('p1');
+		const bqId: ReturnType<typeof blockId> = blockId('bq1');
+		const nestedPara = createBlockNode('paragraph', [createTextNode('quote')], paraId);
+		const blockquote = createBlockNode('blockquote', [nestedPara], bqId);
+		const doc = createDocument([blockquote]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createCollapsedSelection(paraId, 5),
+		});
+
+		const registry: SchemaRegistry = paragraphRegistry();
+		registry.registerNodeSpec({
+			type: 'blockquote',
+			content: { allow: ['paragraph'] },
+			toDOM: () => document.createElement('blockquote'),
+		});
+
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		dispatchRichPaste(element, [
+			{ type: 'paragraph', text: 'X' },
+			{ type: 'paragraph', text: 'MID' },
+			{ type: 'paragraph', text: 'Y' },
+		]);
+
+		// Nothing leaked to the document root: the blockquote is still the only root
+		// block and it contains the pasted paragraphs (middle block stays nested).
+		expect(currentState.doc.children).toHaveLength(1);
+		const root = currentState.doc.children[0];
+		expect(root && isBlockNode(root) && root.type).toBe('blockquote');
+		if (root && isBlockNode(root)) {
+			const nestedTexts: string[] = root.children.map((c) =>
+				isBlockNode(c) ? getBlockText(c) : '',
+			);
+			expect(nestedTexts).toContain('MID');
+		}
+	});
+});

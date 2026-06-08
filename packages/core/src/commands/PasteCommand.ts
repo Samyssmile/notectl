@@ -193,14 +193,20 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	// 1. Insert first slice's segments into current block
 	const firstEnd: number = insertSegmentsAt(builder, blockId, offset, firstSlice.segments);
 
-	// 2. Change block type if first slice is not a paragraph
+	// 2. Split first, before any retyping, so the tail inherits the caret block's
+	//    ORIGINAL type and attrs. Retyping the prefix before the split would leak
+	//    the first slice's type into the tail (e.g. a heading-first multi-block
+	//    slice would wrongly leave the tail a heading), and a neutral paragraph
+	//    boundary slice would strip a non-paragraph caret block (list item,
+	//    heading) of its type. setBlockType does not shift offsets, so moving it
+	//    past the split is position-neutral.
+	const tailBlockId = generateBlockId();
+	builder.splitBlock(blockId, firstEnd, tailBlockId);
+
+	// 3. Change the prefix block type if the first slice is not a paragraph.
 	if (firstSlice.type !== nodeType('paragraph')) {
 		builder.setBlockType(blockId, firstSlice.type, firstSlice.attrs);
 	}
-
-	// 3. Split current block after the inserted content
-	const tailBlockId = generateBlockId();
-	builder.splitBlock(blockId, firstEnd, tailBlockId);
 
 	// 4. Insert middle blocks between first and tail
 	let insertAt: number = blockIdx + 1;

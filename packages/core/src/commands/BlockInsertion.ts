@@ -9,20 +9,24 @@
  * recursive lookup, and attribute sanitization against a NodeSpec.
  */
 
+import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
 	type ChildNode,
+	type ContentSegment,
 	type InlineNode,
 	type Mark,
 	type TextNode,
 	createBlockNode,
 	createInlineNode,
-	createTextNode,
 	generateBlockId,
 	getBlockLength,
 	getBlockText,
+	inlineSegment,
 	isBlockNode,
+	segmentsToInlineChildren,
+	textSegment,
 } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { AttrSpec } from '../model/NodeSpec.js';
@@ -376,11 +380,8 @@ export function validateRichBlockData(
  */
 export function createBlockFromRichData(blockData: RichBlockData): BlockNode {
 	const newId: BlockId = generateBlockId();
-	const text: string = blockData.text ?? '';
-	const children: readonly (TextNode | InlineNode)[] | undefined = createChildrenFromRichBlock(
-		blockData,
-		text,
-	);
+	const children: readonly (TextNode | InlineNode)[] | undefined =
+		createChildrenFromRichBlock(blockData);
 	const attrs: BlockAttrs | undefined = blockData.attrs
 		? (blockData.attrs as BlockAttrs)
 		: undefined;
@@ -391,28 +392,69 @@ export function createBlockFromRichData(blockData: RichBlockData): BlockNode {
 /**
  * Creates inline children from rich block data.
  * Uses mark-preserving segments when available, falls back to plain text.
+ * Returns undefined for content-free blocks (e.g. void blocks).
  */
 function createChildrenFromRichBlock(
 	blockData: RichBlockData,
-	text: string,
 ): readonly (TextNode | InlineNode)[] | undefined {
-	if (blockData.segments && blockData.segments.length > 0) {
-		return createChildrenFromSegments(blockData.segments);
-	}
-	return text ? [createTextNode(text)] : undefined;
+	const segments: readonly ContentSegment[] = richBlockToContentSegments(blockData);
+	if (segments.length === 0) return undefined;
+	return segmentsToInlineChildren(segments);
 }
 
-/** Converts rich segments into TextNode children with marks. */
-function createChildrenFromSegments(
+/**
+ * Converts rich block data into a paste {@link ContentSlice}. Blocks that fail
+ * schema validation (unknown type or filtered attributes) are dropped, so the
+ * resulting slice can be fed straight into the canonical paste strategy
+ * ({@link import('./PasteCommand.js').pasteSlice}).
+ */
+export function richBlocksToSlice(
+	blocks: readonly RichBlockData[],
+	schemaRegistry?: SchemaRegistry,
+): ContentSlice {
+	const sliceBlocks: SliceBlock[] = [];
+	for (const raw of blocks) {
+		const blockData: RichBlockData | undefined = validateRichBlockData(raw, schemaRegistry);
+		if (!blockData) continue;
+		sliceBlocks.push(richBlockToSliceBlock(blockData));
+	}
+	return { blocks: sliceBlocks };
+}
+
+/** Converts a single validated rich block into a {@link SliceBlock}. */
+function richBlockToSliceBlock(blockData: RichBlockData): SliceBlock {
+	const attrs: BlockAttrs | undefined = blockData.attrs
+		? (blockData.attrs as BlockAttrs)
+		: undefined;
+	return {
+		type: nodeType(blockData.type) as NodeTypeName,
+		...(attrs ? { attrs } : {}),
+		segments: richBlockToContentSegments(blockData),
+	};
+}
+
+/** Builds content segments from a rich block, falling back to plain text. */
+function richBlockToContentSegments(blockData: RichBlockData): readonly ContentSegment[] {
+	if (blockData.segments && blockData.segments.length > 0) {
+		return richSegmentsToContentSegments(blockData.segments);
+	}
+	const text: string = blockData.text ?? '';
+	return text ? [textSegment(text)] : [];
+}
+
+/** Converts rich segments into content segments (marked text and inline nodes). */
+function richSegmentsToContentSegments(
 	segments: readonly RichSegment[],
-): readonly (TextNode | InlineNode)[] {
-	const children: (TextNode | InlineNode)[] = [];
+): readonly ContentSegment[] {
+	const result: ContentSegment[] = [];
 	for (const seg of segments) {
 		if (seg.kind === 'inline') {
-			children.push(
-				createInlineNode(
-					inlineType(seg.inlineType),
-					seg.attrs as Readonly<Record<string, string | number | boolean>> | undefined,
+			result.push(
+				inlineSegment(
+					createInlineNode(
+						inlineType(seg.inlineType),
+						seg.attrs as Readonly<Record<string, string | number | boolean>> | undefined,
+					),
 				),
 			);
 			continue;
@@ -422,9 +464,9 @@ function createChildrenFromSegments(
 			type: m.type as Mark['type'],
 			...(m.attrs ? { attrs: m.attrs as Mark['attrs'] } : {}),
 		}));
-		children.push(createTextNode(seg.text, marks));
+		result.push(textSegment(seg.text, marks));
 	}
-	return children;
+	return result;
 }
 
 function sanitizeRichSegments(

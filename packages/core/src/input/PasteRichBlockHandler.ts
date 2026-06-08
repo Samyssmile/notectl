@@ -9,17 +9,21 @@ import {
 	type InsertionContext,
 	createBlockFromRichData,
 	findTableCellAncestor,
+	resolveAnchorBlockId,
 	resolveCellInsertionContext,
 	resolveRootInsertionContext,
+	richBlocksToSlice,
 	sanitizeAttrs,
 	validateRichBlockData,
 } from '../commands/BlockInsertion.js';
 import { addDeleteSelectionSteps } from '../commands/Commands.js';
+import { pasteSlice } from '../commands/PasteCommand.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
 	createBlockNode,
 	generateBlockId,
+	getBlockLength,
 } from '../model/Document.js';
 import type { RichBlockData } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -28,7 +32,6 @@ import {
 	createNodeSelection,
 	isCollapsed,
 	isGapCursor,
-	isNodeSelection,
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
@@ -60,11 +63,7 @@ export class PasteRichBlockHandler {
 
 		const state = this.getState();
 		const sel = state.selection;
-		const anchorBlockId: BlockId = isNodeSelection(sel)
-			? sel.nodeId
-			: isGapCursor(sel)
-				? sel.blockId
-				: sel.anchor.blockId;
+		const anchorBlockId: BlockId = resolveAnchorBlockId(sel);
 
 		const newBlockId: BlockId = generateBlockId();
 		const attrs: BlockAttrs | undefined = sanitizeAttrs(parsed.attrs, spec?.attrs) as
@@ -131,6 +130,30 @@ export class PasteRichBlockHandler {
 
 		let state = this.getState();
 		const sel = state.selection;
+		const anchorBlockId: BlockId = resolveAnchorBlockId(sel);
+
+		// The canonical split-insert-merge paste strategy (PasteCommand) splits the
+		// caret block at the offset and merges the boundary fragments back in, which
+		// is what restores a cross-block cut/paste round-trip (#165). It only fits a
+		// collapsed caret in a NON-EMPTY block at the document root:
+		//  - an empty anchor has no content to split, so whole-block insertion below
+		//    (which removes the empty anchor and drops the clipboard blocks verbatim)
+		//    round-trips more faithfully and preserves their block types;
+		//  - the strategy inserts middle blocks at the document root keyed by flat
+		//    block order, so a nested anchor (table cell, blockquote) is out of reach;
+		//  - node selections and gap cursors have no text caret to split.
+		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
+		const isRootChild: boolean = state.doc.children.some((c) => c.id === anchorBlockId);
+		const splitsAtCaret: boolean =
+			isTextSelection(sel) &&
+			isCollapsed(sel) &&
+			isRootChild &&
+			anchorBlock !== undefined &&
+			getBlockLength(anchorBlock) > 0;
+		if (splitsAtCaret) {
+			this.dispatch(pasteSlice(state, richBlocksToSlice(blocks, this.schemaRegistry)));
+			return true;
+		}
 
 		if (isTextSelection(sel) && !isCollapsed(sel)) {
 			const delBuilder = state.transaction('paste');
@@ -142,12 +165,6 @@ export class PasteRichBlockHandler {
 				return this.resolveAndInsertRichBlocks(blocks, state, landingId);
 			}
 		}
-
-		const anchorBlockId: BlockId = isNodeSelection(sel)
-			? sel.nodeId
-			: isGapCursor(sel)
-				? sel.blockId
-				: sel.anchor.blockId;
 
 		return this.resolveAndInsertRichBlocks(blocks, state, anchorBlockId);
 	}

@@ -215,7 +215,43 @@ describe('PasteCommand', () => {
 			expect(getBlockText(newState.doc.children[0])).toBe('ATitle');
 			expect(newState.doc.children[1]?.type).toBe('paragraph');
 			expect(getBlockText(newState.doc.children[1])).toBe('middle');
+			// The tail must reflect the last slice's type, not leak the first slice's
+			// heading type through the split (the prefix is retyped after the split).
+			expect(newState.doc.children[2]?.type).toBe('paragraph');
 			expect(getBlockText(newState.doc.children[2])).toBe('endB');
+		});
+
+		it('keeps the caret block type and attrs on both split fragments', () => {
+			// A neutral (paragraph) boundary slice must not impose its type on a
+			// non-paragraph caret block: both fragments of a list item stay list
+			// items and keep their list attrs.
+			const listItem = createBlockNode(nt('list_item'), [createTextNode('ABC')], 'li1', {
+				listType: 'bullet',
+				indent: 0,
+			});
+			const state = EditorState.create({
+				doc: createDocument([listItem]),
+				selection: createCollapsedSelection('li1', 1),
+				schema: {
+					nodeTypes: ['paragraph', 'list_item'],
+					markTypes: [],
+				},
+			});
+			const slice: ContentSlice = {
+				blocks: [
+					{ type: nt('paragraph'), segments: [{ kind: 'text', text: 'X', marks: [] }] },
+					{ type: nt('paragraph'), segments: [{ kind: 'text', text: 'Y', marks: [] }] },
+				],
+			};
+
+			const newState = state.apply(pasteSlice(state, slice));
+
+			expect(newState.doc.children.length).toBe(2);
+			expect(newState.doc.children[0]?.type).toBe('list_item');
+			expect(newState.doc.children[1]?.type).toBe('list_item');
+			expect(getBlockText(newState.doc.children[0])).toBe('AX');
+			expect(getBlockText(newState.doc.children[1])).toBe('YBC');
+			expect(newState.doc.children[1]?.attrs).toEqual({ listType: 'bullet', indent: 0 });
 		});
 	});
 
