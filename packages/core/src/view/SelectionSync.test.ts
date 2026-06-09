@@ -789,3 +789,130 @@ describe('SelectionSync InlineNode support', () => {
 		});
 	});
 });
+
+describe('SelectionSync view-widget (data-widget) support', () => {
+	function makeBlockEl(id: string): HTMLElement {
+		const el = document.createElement('li');
+		el.setAttribute('data-block-id', id);
+		return el;
+	}
+
+	// A view-chrome widget (e.g. the checklist checkbox marker): rendered
+	// contenteditable="false" but NOT part of the document — it must carry zero
+	// width in offset space so it never shifts the caret inside the text.
+	function makeWidgetEl(): HTMLElement {
+		const el = document.createElement('span');
+		el.setAttribute('role', 'checkbox');
+		el.setAttribute('contenteditable', 'false');
+		el.setAttribute('data-widget', 'true');
+		return el;
+	}
+
+	describe('statePositionToDOM ignores widgets', () => {
+		it('places the caret at the start of the text, not before a leading widget', () => {
+			const container = document.createElement('div');
+			const block = makeBlockEl('b1');
+			const textNode = document.createTextNode('hello');
+			block.appendChild(makeWidgetEl());
+			block.appendChild(textNode);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			// Offset 0 = start of "hello". The widget is zero-width, so the caret
+			// must land in the text, not at the block index before the widget.
+			syncSelectionToDOM(container, createCollapsedSelection('b1', 0));
+
+			const sel = window.getSelection();
+			expect(sel?.anchorNode).toBe(textNode);
+			expect(sel?.anchorOffset).toBe(0);
+
+			document.body.removeChild(container);
+		});
+
+		it('maps a mid-text offset without counting the leading widget', () => {
+			const container = document.createElement('div');
+			const block = makeBlockEl('b1');
+			const textNode = document.createTextNode('hello');
+			block.appendChild(makeWidgetEl());
+			block.appendChild(textNode);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			// Offset 3 = inside "hello" at index 3. If the widget were counted as
+			// width 1 this would land at index 2 (off by one).
+			syncSelectionToDOM(container, createCollapsedSelection('b1', 3));
+
+			const sel = window.getSelection();
+			expect(sel?.anchorNode).toBe(textNode);
+			expect(sel?.anchorOffset).toBe(3);
+
+			document.body.removeChild(container);
+		});
+
+		it('places the caret after a leading widget in an empty block', () => {
+			const container = document.createElement('div');
+			const block = makeBlockEl('b1');
+			const widget = makeWidgetEl();
+			const br = document.createElement('br');
+			block.appendChild(widget);
+			block.appendChild(br);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			// Empty block rendered as [widget, <br>]: the editable caret position is
+			// between the widget and the <br> (block index 1), not before the widget.
+			syncSelectionToDOM(container, createCollapsedSelection('b1', 0));
+
+			const sel = window.getSelection();
+			expect(sel?.anchorNode).toBe(block);
+			expect(sel?.anchorOffset).toBe(1);
+
+			document.body.removeChild(container);
+		});
+	});
+
+	describe('readSelectionFromDOM ignores widgets', () => {
+		it('reads a text position back to state without counting the widget', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			const block = makeBlockEl('b1');
+			const textNode = document.createTextNode('hello');
+			block.appendChild(makeWidgetEl());
+			block.appendChild(textNode);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			const sel = window.getSelection();
+			sel?.collapse(textNode, 3);
+
+			const result = readSelectionFromDOM(container);
+			expect(result).not.toBeNull();
+			expect(result?.anchor.blockId).toBe('b1');
+			// Pure text offset 3 — the widget contributes nothing.
+			expect(result?.anchor.offset).toBe(3);
+
+			document.body.removeChild(container);
+		});
+
+		it('reads an element position just after the widget as offset 0', () => {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			const block = makeBlockEl('b1');
+			const textNode = document.createTextNode('hello');
+			block.appendChild(makeWidgetEl());
+			block.appendChild(textNode);
+			container.appendChild(block);
+			document.body.appendChild(container);
+
+			// Element-level selection at block index 1 (between widget and text).
+			const sel = window.getSelection();
+			sel?.collapse(block, 1);
+
+			const result = readSelectionFromDOM(container);
+			expect(result).not.toBeNull();
+			expect(result?.anchor.offset).toBe(0);
+
+			document.body.removeChild(container);
+		});
+	});
+});

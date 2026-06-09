@@ -12,6 +12,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { buildListItemAttrs } from './ListAttrsFactory.js';
 import type { ListTypeDefinition } from './ListDefinitions.js';
+import type { ListLocale } from './ListLocale.js';
 import type { ListConfig, ListType } from './ListPlugin.js';
 
 /** Registers all list commands (toggleList:*, indent, outdent, toggleChecklistItem). */
@@ -19,6 +20,7 @@ export function registerListCommands(
 	context: PluginContext,
 	config: ListConfig,
 	enabledTypes: readonly ListTypeDefinition[],
+	locale: ListLocale,
 ): void {
 	for (const def of enabledTypes) {
 		context.registerCommand(`toggleList:${def.type}`, () => {
@@ -31,7 +33,8 @@ export function registerListCommands(
 	context.registerCommand('outdentListItem', () => changeIndent(context, -1, config.maxIndent));
 
 	if (config.types.includes('checklist')) {
-		const toggleChecklistItem = (): boolean => toggleChecked(context, config.interactiveCheckboxes);
+		const toggleChecklistItem = (): boolean =>
+			toggleChecked(context, { interactiveCheckboxes: config.interactiveCheckboxes, locale });
 
 		context.registerCommand('toggleChecklistItem', toggleChecklistItem, {
 			readonlyAllowed: true,
@@ -193,12 +196,22 @@ function changeIndentRange(
 
 // --- Checklist Toggle ---
 
-/** Toggles the checked state of a checklist item. Exported for use in checkbox click handler. */
-export function toggleChecked(
-	context: PluginContext,
-	interactiveCheckboxes?: boolean,
-	targetId?: BlockId,
-): boolean {
+/** Options for {@link toggleChecked}. */
+export interface ToggleCheckedOptions {
+	/** When true, the toggle is allowed even in read-only mode. */
+	readonly interactiveCheckboxes?: boolean;
+	/** Specific checklist item to toggle. Defaults to the selection's block. */
+	readonly targetId?: BlockId;
+	/** Locale used for the screen-reader announcement of the new state. */
+	readonly locale: ListLocale;
+}
+
+/**
+ * Toggles the checked state of a checklist item and announces the new state to
+ * screen readers. Exported for use in the checkbox click handler.
+ */
+export function toggleChecked(context: PluginContext, options: ToggleCheckedOptions): boolean {
+	const { interactiveCheckboxes, targetId, locale } = options;
 	if (context.isReadOnly() && !interactiveCheckboxes) return false;
 
 	const state: EditorState = context.getState();
@@ -211,7 +224,8 @@ export function toggleChecked(
 		return false;
 	}
 
-	const attrs = buildListItemAttrs(block.attrs.listType, block.attrs.indent, !block.attrs.checked);
+	const nextChecked: boolean = !block.attrs.checked;
+	const attrs = buildListItemAttrs(block.attrs.listType, block.attrs.indent, nextChecked);
 
 	const tr = state
 		.transaction('command')
@@ -219,6 +233,10 @@ export function toggleChecked(
 		.setSelection(state.selection)
 		.build();
 	context.dispatch(tr);
+
+	// The marker is not focused while editing, so the aria-checked change alone is
+	// not spoken — announce the new state explicitly (WCAG 4.1.3).
+	context.announce(nextChecked ? locale.checkedAnnouncement : locale.uncheckedAnnouncement);
 	return true;
 }
 
