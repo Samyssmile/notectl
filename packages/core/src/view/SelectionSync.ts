@@ -25,6 +25,33 @@ function isInlineNodeEl(node: Node | null | undefined): node is HTMLElement {
 	return node instanceof HTMLElement && node.getAttribute('contenteditable') === 'false';
 }
 
+/**
+ * True when `node` is a view-chrome widget (`data-widget`), such as the checklist
+ * checkbox marker. Widgets are rendered into the editable DOM for accessibility
+ * but are not document content, so they count as zero width in offset space.
+ */
+function isWidgetEl(node: Node | null | undefined): node is HTMLElement {
+	return node instanceof HTMLElement && node.hasAttribute('data-widget');
+}
+
+/**
+ * Returns the lone `<br>` placeholder of an empty block, ignoring view-chrome
+ * widgets. Returns null when the block holds real inline content.
+ */
+function findPlaceholderBr(contentEl: Element): Node | null {
+	let br: Node | null = null;
+	for (const child of Array.from(contentEl.childNodes)) {
+		if (isWidgetEl(child)) continue;
+		if (br) return null;
+		if (child.nodeName === 'BR') {
+			br = child;
+		} else {
+			return null;
+		}
+	}
+	return br;
+}
+
 /** Gets the selection object for writing (collapse, setBaseAndExtent). */
 export function getSelection(): globalThis.Selection | null {
 	return window.getSelection();
@@ -210,9 +237,12 @@ function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition 
 	// Use contentDOM if available (NodeView blocks like code_block)
 	const contentEl: Element = resolveContentRoot(blockEl);
 
-	// Handle empty paragraphs with <br>
-	if (contentEl.childNodes.length === 1 && contentEl.firstChild?.nodeName === 'BR') {
-		return { node: contentEl, offset: 0 };
+	// Handle empty blocks rendered as a single <br> placeholder. View-chrome
+	// widgets (e.g. the checklist marker) are ignored, so the caret lands after
+	// the widget and before the <br> rather than at the very start of the block.
+	const placeholderBr = findPlaceholderBr(contentEl);
+	if (placeholderBr) {
+		return { node: contentEl, offset: childIndexOf(contentEl, placeholderBr) };
 	}
 
 	// Walk through text nodes and inline elements to find the correct position
@@ -379,6 +409,10 @@ function createInlineContentWalker(blockEl: Element): TreeWalker {
 			if (n instanceof HTMLElement && n.hasAttribute('data-cursor-wrapper')) {
 				return NodeFilter.FILTER_REJECT;
 			}
+			// Skip view-chrome widgets (e.g. the checklist checkbox marker). They are
+			// contentEditable="false" but not document content, so they carry zero
+			// width in offset space and must never become a caret position.
+			if (isWidgetEl(n)) return NodeFilter.FILTER_REJECT;
 			// Skip anything inside an inline element (contentEditable="false")
 			if (isInsideInlineElement(n, blockEl)) return NodeFilter.FILTER_REJECT;
 			// Skip nested block elements and their descendants
@@ -421,6 +455,10 @@ function resolveContentRoot(blockEl: Element): Element {
 function inlineContentWidth(node: Node): number {
 	if (node.nodeType === Node.TEXT_NODE) {
 		return node.textContent?.length ?? 0;
+	}
+	// View-chrome widgets (e.g. the checklist marker) are not document content.
+	if (isWidgetEl(node)) {
+		return 0;
 	}
 	if (isInlineNodeEl(node)) {
 		return 1;

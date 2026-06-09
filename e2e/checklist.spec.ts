@@ -206,6 +206,27 @@ test.describe('Checklist', () => {
 		await expect(listItem).toHaveAttribute('data-checked', 'false');
 	});
 
+	test('toggling announces the new state to the live region (#168)', async ({ editor, page }) => {
+		await editor.typeText('Announce me');
+
+		const checklistBtn = editor.markButton('list-checklist');
+		await checklistBtn.click();
+
+		const listItem = editor.content.locator('.notectl-list-item--checklist');
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+
+		// The toggle dispatches a setBlockType step, which the editor's announcer
+		// would otherwise narrate as "List Item". The explicit state announcement
+		// must win, so a screen reader hears the checked state, not the block type.
+		await page.keyboard.press('Control+Enter');
+		await expect(listItem).toHaveAttribute('data-checked', 'true');
+		await expect(editor.announcer()).toHaveText('Checked');
+
+		await page.keyboard.press('Control+Enter');
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+		await expect(editor.announcer()).toHaveText('Unchecked');
+	});
+
 	test('clicking text area does not toggle checked state', async ({ editor, page }) => {
 		await editor.typeText('Do not toggle');
 

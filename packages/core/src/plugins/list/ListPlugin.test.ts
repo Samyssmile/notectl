@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createTextNode, getBlockText } from '../../model/Document.js';
 import {
 	expectKeyBinding,
@@ -86,7 +86,7 @@ describe('ListPlugin', () => {
 			expect(el?.style.marginLeft).toBe('');
 		});
 
-		it('creates DOM with checked attribute for checklist', async () => {
+		it('exposes the checked state via a role=checkbox marker, not via the listitem (#168)', async () => {
 			const h = await pluginHarness(new ListPlugin());
 			const spec = h.getNodeSpec('list_item');
 			const node = createBlockNode('list_item', [createTextNode('task')], 'test', {
@@ -96,8 +96,48 @@ describe('ListPlugin', () => {
 			});
 			const el = spec?.toDOM(node);
 
+			// data-checked still drives the CSS glyph.
 			expect(el?.getAttribute('data-checked')).toBe('true');
-			expect(el?.getAttribute('aria-checked')).toBe('true');
+			// aria-checked is invalid on role="listitem" and must not be on the <li>.
+			expect(el?.hasAttribute('aria-checked')).toBe(false);
+
+			// The state lives on a real checkbox in the accessibility tree.
+			const marker = el?.querySelector('[role="checkbox"]');
+			expect(marker).not.toBeNull();
+			expect(marker?.getAttribute('aria-checked')).toBe('true');
+			expect(marker?.getAttribute('aria-label')).toBeTruthy();
+			// Non-editable view chrome, zero-width in offset space.
+			expect(marker?.getAttribute('contenteditable')).toBe('false');
+			expect(marker?.getAttribute('data-widget')).toBe('true');
+			// First child so reconciled inline content is appended after it.
+			expect(el?.firstChild).toBe(marker);
+		});
+
+		it('marker reflects the unchecked state', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+			const node = createBlockNode('list_item', [createTextNode('task')], 'test', {
+				listType: 'checklist',
+				indent: 0,
+				checked: false,
+			});
+			const el = spec?.toDOM(node);
+
+			expect(el?.getAttribute('data-checked')).toBe('false');
+			expect(el?.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')).toBe('false');
+		});
+
+		it('does not render a checkbox marker for non-checklist list items', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+			const node = createBlockNode('list_item', [createTextNode('item')], 'test', {
+				listType: 'bullet',
+				indent: 0,
+			});
+			const el = spec?.toDOM(node);
+
+			expect(el?.querySelector('[role="checkbox"]')).toBeNull();
+			expect(el?.querySelector('[data-widget]')).toBeNull();
 		});
 
 		it('wrapper returns ul for bullet list', async () => {
@@ -371,6 +411,25 @@ describe('ListPlugin', () => {
 
 			h.executeCommand('toggleChecklistItem');
 			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
+
+		it('announces the new state to screen readers on toggle (#168)', async () => {
+			const announce = vi.fn();
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin(), state, { announce });
+
+			h.executeCommand('toggleChecklistItem');
+			expect(announce).toHaveBeenLastCalledWith('Checked');
+
+			h.executeCommand('toggleChecklistItem');
+			expect(announce).toHaveBeenLastCalledWith('Unchecked');
 		});
 	});
 

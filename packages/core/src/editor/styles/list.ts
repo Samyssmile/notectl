@@ -52,18 +52,33 @@ export const LIST_CSS = `
 	font-size: 14px;
 }
 
-/* Checklist */
-.notectl-list-item--checklist::before {
-	content: '\\2610';
+/* Checklist — the marker is a real role="checkbox" element (see ListMarker.ts)
+   positioned over the reserved marker zone. inline-block keeps the parent's
+   line-through (on checked items) from striking the glyph. */
+.notectl-checklist-marker {
+	position: absolute;
+	inset-inline-start: 0;
+	display: inline-block;
+	width: ${LIST_MARKER_WIDTH}px;
+	text-align: center;
 	font-size: 16px;
 	color: var(--notectl-fg-muted);
 	cursor: pointer;
-	pointer-events: auto;
+	text-decoration: none;
+	-webkit-user-select: none;
+	user-select: none;
 }
 
-.notectl-list-item--checklist[data-checked="true"]::before {
-	content: '\\2611';
+.notectl-checklist-marker::before {
+	content: '\\2610';
+}
+
+.notectl-list-item--checklist[data-checked="true"] .notectl-checklist-marker {
 	color: var(--notectl-success);
+}
+
+.notectl-list-item--checklist[data-checked="true"] .notectl-checklist-marker::before {
+	content: '\\2611';
 }
 
 .notectl-list-item--checklist[data-checked="true"] {

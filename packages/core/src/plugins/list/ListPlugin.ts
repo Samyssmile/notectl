@@ -21,6 +21,7 @@ import { LIST_TYPE_DEFINITIONS, type ListTypeDefinition } from './ListDefinition
 import { registerListInputRules } from './ListInputRules.js';
 import { registerListKeymaps } from './ListKeyboardHandlers.js';
 import { LIST_LOCALE_EN, type ListLocale, loadListLocale } from './ListLocale.js';
+import { CHECKLIST_MARKER_CLASS, createChecklistMarker } from './ListMarker.js';
 import { registerListToolbarItems } from './ListToolbarItems.js';
 
 // --- Attribute Registry Augmentation ---
@@ -76,7 +77,7 @@ export class ListPlugin implements Plugin {
 
 		context.registerStyleSheet(LIST_CSS);
 		this.registerNodeSpec(context);
-		registerListCommands(context, this.config, enabledTypes);
+		registerListCommands(context, this.config, enabledTypes, this.locale);
 		registerListKeymaps(context);
 		registerListInputRules(context, enabledTypes);
 		registerListToolbarItems(context, enabledTypes, this.locale);
@@ -93,6 +94,8 @@ export class ListPlugin implements Plugin {
 	}
 
 	private registerNodeSpec(context: PluginContext): void {
+		const checkboxLabel: string = this.locale.checkboxLabel;
+
 		context.registerNodeSpec({
 			type: 'list_item',
 			group: 'block',
@@ -118,8 +121,12 @@ export class ListPlugin implements Plugin {
 				}
 
 				if (listType === 'checklist') {
+					// `data-checked` drives the CSS glyph; the checked state is exposed to
+					// assistive technology via the marker's own role="checkbox", not via an
+					// (invalid) aria-checked on the listitem. The marker is the first child
+					// so reconciled inline content is appended after it.
 					li.setAttribute('data-checked', String(checked));
-					li.setAttribute('aria-checked', String(checked));
+					li.appendChild(createChecklistMarker(checked, checkboxLabel));
 				}
 				li.setAttribute('aria-level', String(indent + 1));
 
@@ -168,20 +175,24 @@ export class ListPlugin implements Plugin {
 			const target: EventTarget | null = e.target;
 			if (!(target instanceof HTMLElement)) return;
 
-			const li: HTMLElement | null = target.closest('.notectl-list-item--checklist');
-			if (!li) return;
+			// Toggle only when the checkbox marker itself is clicked. The marker is a
+			// real element, so this is precise — no geometry/RTL math needed.
+			const marker: Element | null = target.closest(`.${CHECKLIST_MARKER_CLASS}`);
+			if (!marker) return;
 
-			const rect: DOMRect = li.getBoundingClientRect();
-			const isRtl: boolean = getComputedStyle(li).direction === 'rtl';
-			const markerDistance: number = isRtl ? rect.right - e.clientX : e.clientX - rect.left;
-			if (markerDistance >= LIST_MARKER_WIDTH) return;
+			const li: Element | null = marker.closest('.notectl-list-item--checklist');
+			if (!li) return;
 
 			e.preventDefault();
 
 			const bid: string | null = li.getAttribute('data-block-id');
 			if (!bid) return;
 
-			toggleChecked(context, this.config.interactiveCheckboxes, blockId(bid));
+			toggleChecked(context, {
+				interactiveCheckboxes: this.config.interactiveCheckboxes,
+				targetId: blockId(bid),
+				locale: this.locale,
+			});
 		};
 
 		const container: HTMLElement = context.getContainer();

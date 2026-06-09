@@ -4,6 +4,9 @@ const locale: ListLocale = {
 	bulletList: 'बुलेट सूची',
 	numberedList: 'क्रमांकित सूची',
 	checklist: 'चेकलिस्ट',
+	checkboxLabel: 'कार्य',
+	checkedAnnouncement: 'चयनित',
+	uncheckedAnnouncement: 'अचयनित',
 };
 
 export default locale;

@@ -366,6 +366,8 @@ export interface PluginHarnessOptions {
 	readonly builtinSpecs?: boolean;
 	/** When true, dispatch notifies plugins via `pm.notifyStateChange()`. */
 	readonly notifyStateChange?: boolean;
+	/** Sink for `context.announce()` calls (screen-reader announcements). */
+	readonly announce?: (text: string) => void;
 }
 
 /**
@@ -424,6 +426,7 @@ export async function pluginHarness(
 		dispatch: trackingDispatch,
 		getContainer: () => document.createElement('div'),
 		getPluginContainer: () => document.createElement('div'),
+		announce: options?.announce,
 	});
 
 	return {
