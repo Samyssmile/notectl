@@ -29,6 +29,18 @@ function makeState(
 	return builder.build();
 }
 
+/** Resolves a registered keymap handler in dispatch priority order (first match wins). */
+function keymapHandler(
+	h: Awaited<ReturnType<typeof pluginHarness>>,
+	descriptor: string,
+): (() => boolean) | undefined {
+	for (const km of h.getKeymaps()) {
+		const handler = km[descriptor];
+		if (handler) return handler;
+	}
+	return undefined;
+}
+
 // --- Tests ---
 
 describe('ListPlugin', () => {
@@ -359,6 +371,76 @@ describe('ListPlugin', () => {
 
 			h.executeCommand('toggleChecklistItem');
 			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
+	});
+
+	describe('checklist keyboard operability (#167)', () => {
+		it('binds Mod-Enter so a keyboard-only user can toggle a checklist item', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'Task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin(), state);
+
+			expectKeyBinding(h, 'Mod-Enter');
+
+			const toggle = keymapHandler(h, 'Mod-Enter');
+			expect(toggle).toBeDefined();
+
+			expect(toggle?.()).toBe(true);
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+
+			expect(toggle?.()).toBe(true);
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(false);
+		});
+
+		it('Mod-Enter declines on a non-checklist block so it falls through', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'item',
+					id: 'b1',
+					attrs: { listType: 'bullet', indent: 0 },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin(), state);
+
+			const toggle = keymapHandler(h, 'Mod-Enter');
+			expect(toggle?.()).toBe(false);
+		});
+
+		it('registers Mod-Enter at navigation priority so it reaches read-only interactive checkboxes', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const navigation = h.pm.keymapRegistry.getKeymapsByPriority().navigation;
+			const found: boolean = navigation.some((km) => km['Mod-Enter'] !== undefined);
+			expect(found).toBe(true);
+		});
+
+		it('toggles a checklist item by keyboard in read-only mode with interactiveCheckboxes', async () => {
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'Task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const h = await pluginHarness(new ListPlugin({ interactiveCheckboxes: true }), state);
+			h.pm.setReadOnly(true);
+
+			const toggle = keymapHandler(h, 'Mod-Enter');
+			expect(toggle?.()).toBe(true);
+			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
+
+		it('does not bind Mod-Enter when checklist is disabled', async () => {
+			const h = await pluginHarness(new ListPlugin({ types: ['bullet', 'ordered'] }));
+			const found: boolean = h.getKeymaps().some((km) => km['Mod-Enter'] !== undefined);
+			expect(found).toBe(false);
 		});
 	});
 

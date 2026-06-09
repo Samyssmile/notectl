@@ -187,6 +187,25 @@ test.describe('Checklist', () => {
 		await expect(listItem).toHaveAttribute('data-checked', 'true');
 	});
 
+	test('Mod+Enter toggles the checked state from the keyboard (#167)', async ({ editor, page }) => {
+		await editor.typeText('Toggle by keyboard');
+
+		const checklistBtn = editor.markButton('list-checklist');
+		await checklistBtn.click();
+
+		const listItem = editor.content.locator('.notectl-list-item--checklist');
+		await expect(listItem).toBeVisible();
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+
+		// Caret is in the item; toggle it with the keyboard only.
+		await page.keyboard.press('Control+Enter');
+		await expect(listItem).toHaveAttribute('data-checked', 'true');
+
+		// Toggling again flips it back.
+		await page.keyboard.press('Control+Enter');
+		await expect(listItem).toHaveAttribute('data-checked', 'false');
+	});
+
 	test('clicking text area does not toggle checked state', async ({ editor, page }) => {
 		await editor.typeText('Do not toggle');
 

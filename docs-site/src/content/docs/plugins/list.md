@@ -104,6 +104,7 @@ editor.executeCommand('toggleChecklistItem');
 | `Backspace` | Convert to paragraph when cursor is collapsed at start of item |
 | `Tab` | Indent list item (increase nesting) |
 | `Shift+Tab` | Outdent list item (decrease nesting) |
+| `Mod+Enter` | Toggle the checked state of a checklist item (`Mod` is `Ctrl` on Windows/Linux, `Cmd` on macOS) |
 
 ## Input Rules
 

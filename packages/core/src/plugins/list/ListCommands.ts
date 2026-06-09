@@ -31,11 +31,18 @@ export function registerListCommands(
 	context.registerCommand('outdentListItem', () => changeIndent(context, -1, config.maxIndent));
 
 	if (config.types.includes('checklist')) {
-		context.registerCommand(
-			'toggleChecklistItem',
-			() => toggleChecked(context, config.interactiveCheckboxes),
-			{ readonlyAllowed: true },
-		);
+		const toggleChecklistItem = (): boolean => toggleChecked(context, config.interactiveCheckboxes);
+
+		context.registerCommand('toggleChecklistItem', toggleChecklistItem, {
+			readonlyAllowed: true,
+		});
+
+		// Mod-Enter gives keyboard-only users a way to toggle a checklist item
+		// (WCAG 2.1.1). The handler declines on non-checklist blocks, so it falls
+		// through to other Mod-Enter bindings (e.g. code-block insert-after).
+		// Registered at navigation priority so it stays reachable in read-only mode
+		// when interactiveCheckboxes is enabled, matching the mouse handler.
+		context.registerKeymap({ 'Mod-Enter': toggleChecklistItem }, { priority: 'navigation' });
 	}
 
 	context.registerKeymap({
