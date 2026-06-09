@@ -73,3 +73,7 @@ editor.executeCommand('toggleChecklistItem');
 // Read the full document state
 const doc = editor.getJSON();
 ```
+
+## Keyboard Access
+
+Keyboard-only users toggle a checklist item with `Mod+Enter` (`Ctrl+Enter` on Windows/Linux, `Cmd+Enter` on macOS) while the caret is inside the item. The binding is registered at navigation priority, so it stays reachable in read-only mode when `interactiveCheckboxes` is enabled, giving keyboard users the same toggle access as a mouse click. This satisfies WCAG 2.1.1 (Keyboard).
