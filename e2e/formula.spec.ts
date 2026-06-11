@@ -553,4 +553,48 @@ test.describe('Formula plugin', () => {
 		expect(classHtml).toContain('mathsize="48px"');
 		expect(classHtml).not.toContain('font-size');
 	});
+
+	test('reaches and activates the integral symbol from the palette with the keyboard only (no mouse)', async ({
+		editor,
+		page,
+	}) => {
+		// Reads the truly-focused element's aria-label, piercing shadow boundaries so
+		// it works wherever the popup is mounted (host shadow DOM or browser top layer).
+		const activeAriaLabel = (): Promise<string | null> =>
+			page.evaluate(() => {
+				let el: Element | null = document.activeElement;
+				while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+				return el?.getAttribute('aria-label') ?? null;
+			});
+
+		const input = page.locator('.notectl-formula-editor__input');
+		await editor.focus();
+		// Opening via the toolbar is the only mouse use; everything below is keyboard.
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		// The popup auto-focuses the LaTeX field; waiting on that is more robust than a sleep.
+		await expect(input).toBeFocused();
+
+		// The palette is the keyboard stop before the LaTeX field, so Shift+Tab enters it.
+		await page.keyboard.press('Shift+Tab');
+		expect(await activeAriaLabel()).toBeTruthy(); // focus now sits on a palette button
+
+		// Walk the roving-tabindex toolbar with ArrowRight until the integral holds focus.
+		// The palette wraps at its end, so the integral is reachable from any start within
+		// one full lap. Item aria-labels are universal (not localized), hence the literal.
+		const buttonCount = await page.locator('.notectl-math-palette button').count();
+		let steps = 0;
+		while ((await activeAriaLabel()) !== 'Integral with limits') {
+			await page.keyboard.press('ArrowRight');
+			steps += 1;
+			expect(steps, 'integral must be reachable by arrow keys').toBeLessThanOrEqual(buttonCount);
+		}
+
+		// Activate it with the keyboard alone (no mouse). Enter must insert the snippet.
+		await page.keyboard.press('Enter');
+
+		// The integral snippet (`\int_{$0}^{}` with the caret marker stripped) landed in the
+		// field, and focus returned to the LaTeX input. All achieved without a mouse.
+		await expect(input).toHaveValue('\\int_{}^{}');
+		await expect(input).toBeFocused();
+	});
 });
