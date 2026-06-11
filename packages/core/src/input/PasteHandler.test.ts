@@ -1089,6 +1089,175 @@ describe('PasteHandler XSS prevention', () => {
 	});
 });
 
+describe('PasteHandler cell schema guard (#166 sibling: internal copy paths)', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+	let dispatch: DispatchFn;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	const TABLE: ReturnType<typeof blockId> = blockId('table');
+	const ROW: ReturnType<typeof blockId> = blockId('row');
+	const CELL: ReturnType<typeof blockId> = blockId('cell');
+	const CELL_PARA: ReturnType<typeof blockId> = blockId('cellpara');
+
+	/** Registry whose table_cell allows paragraph + image, but not code_block/math_display. */
+	function createTableRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			group: 'block',
+			toDOM: () => document.createElement('p'),
+		});
+		registry.registerNodeSpec({
+			type: 'code_block',
+			group: 'block',
+			content: { allow: ['text'] },
+			selectable: true,
+			attrs: { language: { default: '' } },
+			toDOM: () => document.createElement('pre'),
+		});
+		registry.registerNodeSpec({
+			type: 'image',
+			group: 'block',
+			isVoid: true,
+			selectable: true,
+			attrs: { src: { default: '' } },
+			toDOM: () => document.createElement('img'),
+		});
+		registry.registerNodeSpec({
+			type: 'math_display',
+			group: 'block',
+			isVoid: true,
+			selectable: true,
+			attrs: { latex: { default: '' } },
+			toDOM: () => document.createElement('div'),
+		});
+		registry.registerNodeSpec({
+			type: 'table',
+			content: { allow: ['table_row'], min: 1 },
+			toDOM: () => document.createElement('table'),
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			content: { allow: ['table_cell'], min: 1 },
+			toDOM: () => document.createElement('tr'),
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			content: { allow: ['paragraph', 'image'] },
+			toDOM: () => document.createElement('td'),
+		});
+		return registry;
+	}
+
+	/** Document with a single table whose only cell holds one paragraph; caret in that paragraph. */
+	function createTableState(): EditorState {
+		const para = createBlockNode('paragraph', [createTextNode('')], CELL_PARA);
+		const cell = createBlockNode('table_cell', [para], CELL);
+		const row = createBlockNode('table_row', [cell], ROW);
+		const table = createBlockNode('table', [row], TABLE);
+		const doc = createDocument([table]);
+		return EditorState.create({ doc, selection: createCollapsedSelection(CELL_PARA, 0) });
+	}
+
+	function mountWith(registry: SchemaRegistry, state: EditorState): () => EditorState {
+		element = document.createElement('div');
+		let currentState: EditorState = state;
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+		return () => currentState;
+	}
+
+	function cellOf(state: EditorState): BlockNode | undefined {
+		const table = state.doc.children[0];
+		if (!table || !isBlockNode(table)) return undefined;
+		const row = table.children[0];
+		if (!row || !isBlockNode(row)) return undefined;
+		const cell = row.children[0];
+		return cell && isBlockNode(cell) ? cell : undefined;
+	}
+
+	it('escapes a code_block rich paste out of a cell to the document root', () => {
+		const getCurrent = mountWith(createTableRegistry(), createTableState());
+
+		const json: string = JSON.stringify([
+			{ type: 'code_block', text: 'const x = 1;', attrs: { language: 'ts' } },
+		]);
+		element.dispatchEvent(createPasteEvent({ html: `<div data-notectl-rich='${json}'></div>` }));
+
+		const state: EditorState = getCurrent();
+		// The disallowed block escapes to the root, placed after the outer table.
+		expect(state.doc.children).toHaveLength(2);
+		const escaped = state.doc.children[1];
+		expect(escaped && isBlockNode(escaped) && escaped.type).toBe('code_block');
+		// The cell is untouched: still just its original paragraph, no nested code_block.
+		const cell = cellOf(state);
+		expect(cell?.children.map((c) => (isBlockNode(c) ? c.type : 'text'))).toEqual(['paragraph']);
+	});
+
+	it('keeps an allowed paragraph rich paste nested inside the cell', () => {
+		const getCurrent = mountWith(createTableRegistry(), createTableState());
+
+		const json: string = JSON.stringify([
+			{ type: 'paragraph', text: 'A' },
+			{ type: 'paragraph', text: 'B' },
+		]);
+		element.dispatchEvent(createPasteEvent({ html: `<div data-notectl-rich='${json}'></div>` }));
+
+		const state: EditorState = getCurrent();
+		// Nothing leaked to the root; the paragraphs stayed in the cell.
+		expect(state.doc.children).toHaveLength(1);
+		const cell = cellOf(state);
+		const texts: string[] = (cell?.children ?? []).map((c) =>
+			isBlockNode(c) ? getBlockText(c) : '',
+		);
+		expect(texts).toEqual(['A', 'B']);
+	});
+
+	it('escapes a math_display block paste out of a cell to the document root', () => {
+		const getCurrent = mountWith(createTableRegistry(), createTableState());
+
+		const blockJson: string = JSON.stringify({ type: 'math_display', attrs: { latex: 'x^2' } });
+		element.dispatchEvent(
+			createPasteEvent({ extraData: { 'application/x-notectl-block': blockJson } }),
+		);
+
+		const state: EditorState = getCurrent();
+		expect(state.doc.children).toHaveLength(2);
+		const escaped = state.doc.children[1];
+		expect(escaped && isBlockNode(escaped) && escaped.type).toBe('math_display');
+		expect(isNodeSelection(state.selection)).toBe(true);
+		const cell = cellOf(state);
+		expect(cell?.children.map((c) => (isBlockNode(c) ? c.type : 'text'))).toEqual(['paragraph']);
+	});
+
+	it('keeps an allowed image block paste nested inside the cell', () => {
+		const getCurrent = mountWith(createTableRegistry(), createTableState());
+
+		const blockJson: string = JSON.stringify({ type: 'image', attrs: { src: 'x.png' } });
+		element.dispatchEvent(
+			createPasteEvent({ extraData: { 'application/x-notectl-block': blockJson } }),
+		);
+
+		const state: EditorState = getCurrent();
+		expect(state.doc.children).toHaveLength(1);
+		const cell = cellOf(state);
+		expect(cell?.children.map((c) => (isBlockNode(c) ? c.type : 'text'))).toEqual([
+			'paragraph',
+			'image',
+		]);
+	});
+});
+
 describe('PasteHandler rich paste cross-block splice (#165)', () => {
 	let element: HTMLElement;
 	let handler: PasteHandler;
