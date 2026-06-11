@@ -730,6 +730,17 @@ test.describe('Documentation screenshots', () => {
 		await shot(page, 'plugin-formula.png');
 	});
 
+	test('plugin-formula-palette', async ({ page }) => {
+		await setMinHeight(page, '160px');
+		// Open the insert-formula popup, which carries the structural palette.
+		await page.locator('notectl-editor').locator('[aria-label="Insert formula"]').click();
+		const panel = page.locator('.notectl-formula-editor');
+		await panel.waitFor({ state: 'visible' });
+		await page.locator('.notectl-math-palette').waitFor({ state: 'visible' });
+		await page.waitForTimeout(200);
+		await panel.screenshot({ path: `${DIR}/plugin-formula-palette.png` });
+	});
+
 	test('plugin-font', async ({ page }) => {
 		await setMinHeight(page, '120px');
 		await setEditorJSON(page, FONT_CONTENT);

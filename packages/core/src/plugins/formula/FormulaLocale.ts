@@ -39,11 +39,17 @@ export interface FormulaLocale {
 	readonly groupFractions: string;
 	readonly groupScripts: string;
 	readonly groupRoots: string;
+	readonly groupAccents: string;
 	readonly groupOperators: string;
+	readonly groupFunctions: string;
 	readonly groupGreek: string;
 	readonly groupRelations: string;
-	readonly groupMatrices: string;
+	readonly groupSets: string;
+	readonly groupLogic: string;
 	readonly groupArrows: string;
+	readonly groupDelimiters: string;
+	readonly groupDots: string;
+	readonly groupMatrices: string;
 }
 
 // --- Default English Locale ---
@@ -73,11 +79,17 @@ export const FORMULA_LOCALE_EN: FormulaLocale = {
 	groupFractions: 'Fractions',
 	groupScripts: 'Scripts',
 	groupRoots: 'Roots',
+	groupAccents: 'Accents',
 	groupOperators: 'Operators',
+	groupFunctions: 'Functions',
 	groupGreek: 'Greek letters',
 	groupRelations: 'Relations',
-	groupMatrices: 'Matrices',
+	groupSets: 'Sets',
+	groupLogic: 'Logic',
 	groupArrows: 'Arrows',
+	groupDelimiters: 'Brackets',
+	groupDots: 'Dots',
+	groupMatrices: 'Matrices',
 };
 
 // --- Lazy Locale Loader ---

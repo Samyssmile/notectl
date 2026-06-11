@@ -210,9 +210,11 @@ export const FORMULA_EDITOR_CSS = `
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	padding: 2px 0 8px;
+	padding: 2px 2px 8px;
 	border-bottom: 1px solid var(--notectl-border);
 	margin-bottom: 2px;
+	max-height: 216px;
+	overflow-y: auto;
 }
 
 .notectl-math-palette__group {

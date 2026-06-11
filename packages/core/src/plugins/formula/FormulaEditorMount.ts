@@ -47,11 +47,17 @@ function paletteFor(locale: FormulaLocale): MathPaletteGroup[] {
 		fractions: locale.groupFractions,
 		scripts: locale.groupScripts,
 		roots: locale.groupRoots,
+		accents: locale.groupAccents,
 		operators: locale.groupOperators,
+		functions: locale.groupFunctions,
 		greek: locale.groupGreek,
 		relations: locale.groupRelations,
-		matrices: locale.groupMatrices,
+		sets: locale.groupSets,
+		logic: locale.groupLogic,
 		arrows: locale.groupArrows,
+		delimiters: locale.groupDelimiters,
+		dots: locale.groupDots,
+		matrices: locale.groupMatrices,
 	});
 }
 

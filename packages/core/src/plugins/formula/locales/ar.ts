@@ -25,11 +25,17 @@ const locale: FormulaLocale = {
 	groupFractions: 'الكسور',
 	groupScripts: 'الأسس والدلائل',
 	groupRoots: 'الجذور',
+	groupAccents: 'العلامات العلوية',
 	groupOperators: 'المؤثّرات',
+	groupFunctions: 'الدوال',
 	groupGreek: 'الحروف اليونانية',
 	groupRelations: 'العلاقات',
-	groupMatrices: 'المصفوفات',
+	groupSets: 'المجموعات',
+	groupLogic: 'المنطق',
 	groupArrows: 'الأسهم',
+	groupDelimiters: 'الأقواس',
+	groupDots: 'علامات الحذف',
+	groupMatrices: 'المصفوفات',
 };
 
 export default locale;

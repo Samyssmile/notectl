@@ -66,7 +66,9 @@ The primary authoring surface is a LaTeX text field with a live MathML preview. 
 
 ### Structural palette
 
-For non-experts, an accessible palette (an ARIA toolbar with a roving tabindex) inserts common structures at the caret: fractions, roots, scripts, big operators, Greek letters, relations, arrows, and matrices. Every button has an accessible label and is reachable by keyboard alone.
+For non-experts, an accessible palette (an ARIA toolbar with a roving tabindex) inserts common structures at the caret, grouped by purpose: fractions, scripts, roots, accents (vector, hat, bar, dot, tilde), operators (sums, integrals, derivatives), named functions (`sin`, `cos`, `log`, …), the full Greek alphabet, relations, set theory with the number sets (ℝ, ℕ, ℤ, ℚ, ℂ), logic and quantifiers, arrows, auto-sized brackets (including absolute value, norm, floor, and ceiling), ellipses, and matrices. Every button has an accessible label and is reachable by keyboard alone.
+
+![The formula editor popup with its structural palette of fractions, accents, operators, functions, and Greek letters](../../../assets/screenshots/plugin-formula-palette.png)
 
 ## Storage and interoperability
 
