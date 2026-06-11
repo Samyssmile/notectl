@@ -25,11 +25,17 @@ const locale: FormulaLocale = {
 	groupFractions: '分数',
 	groupScripts: '上下标',
 	groupRoots: '根式',
+	groupAccents: '标注符号',
 	groupOperators: '运算符',
+	groupFunctions: '函数',
 	groupGreek: '希腊字母',
 	groupRelations: '关系符',
-	groupMatrices: '矩阵',
+	groupSets: '集合',
+	groupLogic: '逻辑',
 	groupArrows: '箭头',
+	groupDelimiters: '括号',
+	groupDots: '省略号',
+	groupMatrices: '矩阵',
 };
 
 export default locale;

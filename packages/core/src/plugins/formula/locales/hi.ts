@@ -25,11 +25,17 @@ const locale: FormulaLocale = {
 	groupFractions: 'भिन्न',
 	groupScripts: 'घातांक और निम्नांक',
 	groupRoots: 'मूल',
+	groupAccents: 'ऊपरी चिह्न',
 	groupOperators: 'संकारक',
+	groupFunctions: 'फलन',
 	groupGreek: 'ग्रीक अक्षर',
 	groupRelations: 'संबंध',
-	groupMatrices: 'आव्यूह',
+	groupSets: 'समुच्चय',
+	groupLogic: 'तर्क',
 	groupArrows: 'तीर',
+	groupDelimiters: 'कोष्ठक',
+	groupDots: 'बिंदु',
+	groupMatrices: 'आव्यूह',
 };
 
 export default locale;

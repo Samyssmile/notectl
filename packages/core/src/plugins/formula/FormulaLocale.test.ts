@@ -45,11 +45,17 @@ const STRING_KEYS: ReadonlyArray<keyof FormulaLocale> = [
 	'groupFractions',
 	'groupScripts',
 	'groupRoots',
+	'groupAccents',
 	'groupOperators',
+	'groupFunctions',
 	'groupGreek',
 	'groupRelations',
-	'groupMatrices',
+	'groupSets',
+	'groupLogic',
 	'groupArrows',
+	'groupDelimiters',
+	'groupDots',
+	'groupMatrices',
 ];
 
 describe('FormulaLocale', () => {
