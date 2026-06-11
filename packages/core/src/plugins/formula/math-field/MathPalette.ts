@@ -3,9 +3,10 @@
  *
  * Renders grouped buttons that insert LaTeX snippets at the caret. Implements
  * the WAI-ARIA toolbar pattern with a roving tabindex: one button is tabbable,
- * arrow keys move focus across the whole palette, Home/End jump to the ends.
- * Mouse clicks use mousedown+preventDefault so the LaTeX field keeps focus and
- * caret position; activation inserts the snippet and returns focus to the field.
+ * arrow keys move focus across the whole palette, Home/End jump to the ends, and
+ * Enter/Space activate the focused button. Mouse clicks use mousedown+preventDefault
+ * so the LaTeX field keeps focus and caret position; activation inserts the snippet
+ * and returns focus to the field.
  */
 
 import type { MathPaletteGroup } from './MathFieldTypes.js';
@@ -69,6 +70,17 @@ export class MathPalette {
 	}
 
 	private onKeydown(e: KeyboardEvent): void {
+		// The palette fully owns its keyboard (the WAI-ARIA toolbar pattern), mirroring
+		// the color grid: it activates the focused button on Enter/Space and stops every
+		// key it handles from bubbling, so the host toolbar popup never re-handles it
+		// (which would otherwise advance focus a second time on Arrow keys).
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			e.stopPropagation();
+			this.buttons[this.activeIndex]?.click();
+			return;
+		}
+
 		const last: number = this.buttons.length - 1;
 		let next: number = this.activeIndex;
 		switch (e.key) {
@@ -90,6 +102,7 @@ export class MathPalette {
 				return;
 		}
 		e.preventDefault();
+		e.stopPropagation();
 		this.setActive(next);
 		this.buttons[next]?.focus();
 	}
