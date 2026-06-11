@@ -31,6 +31,7 @@ import {
   ThemePreset,
 } from '@notectl/angular';
 import { STARTER_FONTS } from '@notectl/core/fonts';
+import {FormulaPlugin} from '@notectl/core/plugins/formula';
 import {PrintPlugin} from '@notectl/core/plugins/print';
 import {ToolbarOverflowBehavior} from '@notectl/core/plugins/toolbar';
 
@@ -119,6 +120,7 @@ export class App {
       [new AlignmentPlugin(), new TextDirectionPlugin()],
       [new ListPlugin()],
       [new LinkPlugin(), new TablePlugin(), new HorizontalRulePlugin(), new ImagePlugin()],
+      [new FormulaPlugin()],
       [new PrintPlugin()],
     ],
     overflow: ToolbarOverflowBehavior.Flow,
