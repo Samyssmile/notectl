@@ -7,10 +7,12 @@
 
 import {
 	type InsertionContext,
+	canContainerHoldBlocks,
 	createBlockFromRichData,
 	findTableCellAncestor,
 	resolveAnchorBlockId,
 	resolveCellInsertionContext,
+	resolveRootEscapeContext,
 	resolveRootInsertionContext,
 	richBlocksToSlice,
 	sanitizeAttrs,
@@ -76,18 +78,23 @@ export class PasteRichBlockHandler {
 			attrs,
 		);
 
-		// Table cell: insert as last child
+		// Table cell: insert as last child, unless the cell's content rule forbids
+		// the block type (e.g. a math_display copied into a cell). When it does not
+		// fit, escape to the document root after the outer table rather than nesting
+		// schema-invalidly — mirrors the HTML paste guard (#166).
 		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
 		if (cellId) {
-			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
-			if (!ctx) return;
 			const cell: BlockNode | undefined = state.getBlock(cellId);
-			if (!cell) return;
+			if (this.cellRejects(cell, [newBlock])) {
+				const escapeCtx = resolveRootEscapeContext(state, anchorBlockId);
+				if (!escapeCtx) return;
+				this.dispatchNodeInsert(state, escapeCtx.parentPath, escapeCtx.anchorIndex + 1, newBlock);
+				return;
+			}
 
-			const builder = state.transaction('paste');
-			builder.insertNode(ctx.parentPath, cell.children.length, newBlock);
-			builder.setSelection(createNodeSelection(newBlockId, [...ctx.parentPath, newBlockId]));
-			this.dispatch(builder.build());
+			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
+			if (!ctx || !cell) return;
+			this.dispatchNodeInsert(state, ctx.parentPath, cell.children.length, newBlock);
 			return;
 		}
 
@@ -96,10 +103,30 @@ export class PasteRichBlockHandler {
 		if (!ctx) return;
 
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
+		this.dispatchNodeInsert(state, ctx.parentPath, ctx.anchorIndex + insertOffset, newBlock);
+	}
+
+	/** Inserts a single block at the position and node-selects it. */
+	private dispatchNodeInsert(
+		state: EditorState,
+		parentPath: readonly BlockId[],
+		index: number,
+		block: BlockNode,
+	): void {
 		const builder = state.transaction('paste');
-		builder.insertNode(ctx.parentPath, ctx.anchorIndex + insertOffset, newBlock);
-		builder.setSelection(createNodeSelection(newBlockId, [...ctx.parentPath, newBlockId]));
+		builder.insertNode(parentPath, index, block);
+		builder.setSelection(createNodeSelection(block.id, [...parentPath, block.id]));
 		this.dispatch(builder.build());
+	}
+
+	/**
+	 * True when the container's content rule forbids any of the given blocks, so
+	 * the paste must not nest them there. Undefined cell or absent registry cannot
+	 * be checked, so they are treated as accepting (graceful degradation).
+	 */
+	private cellRejects(cell: BlockNode | undefined, blocks: readonly BlockNode[]): boolean {
+		if (!cell || !this.schemaRegistry) return false;
+		return !canContainerHoldBlocks(this.schemaRegistry, cell.type, blocks);
 	}
 
 	/** Parses JSON and delegates to handleRichPaste (for HTML-embedded data). */
@@ -169,39 +196,60 @@ export class PasteRichBlockHandler {
 		return this.resolveAndInsertRichBlocks(blocks, state, anchorBlockId);
 	}
 
-	/** Resolves insertion context (cell or root) and inserts rich blocks. */
+	/**
+	 * Validates and builds the clipboard blocks, resolves the insertion context
+	 * (cell or root), and inserts them. When the caret is in a table cell whose
+	 * content rule forbids one of the blocks (e.g. a copied code_block, which is a
+	 * leaf block not in the cell's allow-list), the whole run escapes to the
+	 * document root after the outer table instead of nesting schema-invalidly. This
+	 * mirrors the HTML paste guard (#166) for the internal-copy path.
+	 *
+	 * Blocks built here are always leaf blocks (rich clipboard data carries inline
+	 * children only), so the trailing collapsed caret in {@link insertNodes} is
+	 * always valid.
+	 */
 	private resolveAndInsertRichBlocks(
 		blocks: readonly RichBlockData[],
 		state: EditorState,
 		anchorBlockId: BlockId,
 	): boolean {
+		const nodes: BlockNode[] = [];
+		for (const raw of blocks) {
+			const blockData: RichBlockData | undefined = validateRichBlockData(raw, this.schemaRegistry);
+			if (blockData) nodes.push(createBlockFromRichData(blockData));
+		}
+		if (nodes.length === 0) return false;
+
 		const sel = state.selection;
 		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
 
 		if (cellId) {
+			const cell: BlockNode | undefined = state.getBlock(cellId);
+			if (this.cellRejects(cell, nodes)) {
+				const escapeCtx: InsertionContext | undefined = resolveRootEscapeContext(
+					state,
+					anchorBlockId,
+				);
+				if (!escapeCtx) return false;
+				return this.insertNodes(nodes, state, escapeCtx, escapeCtx.anchorIndex + 1, false);
+			}
+
 			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
 			if (!ctx) return false;
-			const cell: BlockNode | undefined = state.getBlock(cellId);
 			const startIndex: number =
 				ctx.anchorIndex >= 0 ? ctx.anchorIndex + 1 : (cell?.children.length ?? 0);
-			return this.insertRichBlocks(blocks, state, ctx, startIndex, true);
+			return this.insertNodes(nodes, state, ctx, startIndex, true);
 		}
 
 		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
 		if (!ctx) return false;
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		return this.insertRichBlocks(
-			blocks,
-			state,
-			ctx,
-			ctx.anchorIndex + insertOffset,
-			!isGapCursor(sel),
-		);
+		return this.insertNodes(nodes, state, ctx, ctx.anchorIndex + insertOffset, !isGapCursor(sel));
 	}
 
-	/** Inserts validated rich blocks at the resolved position. */
-	private insertRichBlocks(
-		blocks: readonly RichBlockData[],
+	/** Inserts pre-built block nodes at the resolved position. */
+	private insertNodes(
+		nodes: readonly BlockNode[],
 		state: EditorState,
 		context: InsertionContext,
 		startIndex: number,
@@ -209,26 +257,20 @@ export class PasteRichBlockHandler {
 	): boolean {
 		const builder = state.transaction('paste');
 		let insertIndex: number = startIndex;
-		let lastBlockId: BlockId | undefined;
-		let lastTextLen = 0;
+		let lastBlock: BlockNode | undefined;
 
-		for (const raw of blocks) {
-			const blockData = validateRichBlockData(raw, this.schemaRegistry);
-			if (!blockData) continue;
-
-			const newBlock: BlockNode = createBlockFromRichData(blockData);
-			builder.insertNode(context.parentPath, insertIndex, newBlock);
+		for (const node of nodes) {
+			builder.insertNode(context.parentPath, insertIndex, node);
 			insertIndex++;
-			lastBlockId = newBlock.id;
-			lastTextLen = (blockData.text ?? '').length;
+			lastBlock = node;
 		}
 
 		if (removeEmptyAnchor && context.isAnchorEmpty && context.anchorIndex >= 0) {
 			builder.removeNode(context.parentPath, context.anchorIndex);
 		}
 
-		if (lastBlockId) {
-			builder.setSelection(createCollapsedSelection(lastBlockId, lastTextLen));
+		if (lastBlock) {
+			builder.setSelection(createCollapsedSelection(lastBlock.id, getBlockLength(lastBlock)));
 		}
 
 		this.dispatch(builder.build());
