@@ -25,11 +25,17 @@ const locale: FormulaLocale = {
 	groupFractions: 'Frações',
 	groupScripts: 'Índices',
 	groupRoots: 'Raízes',
+	groupAccents: 'Acentos',
 	groupOperators: 'Operadores',
+	groupFunctions: 'Funções',
 	groupGreek: 'Letras gregas',
 	groupRelations: 'Relações',
-	groupMatrices: 'Matrizes',
+	groupSets: 'Conjuntos',
+	groupLogic: 'Lógica',
 	groupArrows: 'Setas',
+	groupDelimiters: 'Delimitadores',
+	groupDots: 'Reticências',
+	groupMatrices: 'Matrizes',
 };
 
 export default locale;
