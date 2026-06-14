@@ -16,6 +16,7 @@ import {
 	selectAll,
 	splitBlockCommand,
 } from '../commands/Commands.js';
+import type { Keymap } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -23,6 +24,7 @@ import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
+import { normalizeKeyDescriptor, physicalBaseKey, physicalKeyDescriptor } from './KeyDescriptor.js';
 
 type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
 type GapCursorNavigateFn = (
@@ -94,34 +96,17 @@ export class KeyboardHandler {
 		// Readonly mode: allow navigation keymaps + escape, block everything else
 		if (this.isReadOnly()) {
 			if (this.keymapRegistry) {
-				const descriptor: string = normalizeKeyDescriptor(e);
-				const navKeymaps = this.keymapRegistry.getKeymapsByPriority().navigation;
-				for (let i = navKeymaps.length - 1; i >= 0; i--) {
-					const handler = navKeymaps[i]?.[descriptor];
-					if (handler?.()) {
-						e.preventDefault();
-						return;
-					}
-				}
+				const groups = this.keymapRegistry.getKeymapsByPriority();
+				if (this.dispatchKeymaps(e, [groups.navigation])) return;
 			}
 			if (this.handleEscape(e)) return;
 			return;
 		}
 
 		// Normal mode: try plugin keymaps in priority order (context > navigation > default).
-		// Within each priority, iterate in reverse so later-registered keymaps take precedence.
 		if (this.keymapRegistry) {
-			const descriptor: string = normalizeKeyDescriptor(e);
 			const groups = this.keymapRegistry.getKeymapsByPriority();
-			for (const keymaps of [groups.context, groups.navigation, groups.default]) {
-				for (let i = keymaps.length - 1; i >= 0; i--) {
-					const handler = keymaps[i]?.[descriptor];
-					if (handler?.()) {
-						e.preventDefault();
-						return;
-					}
-				}
-			}
+			if (this.dispatchKeymaps(e, [groups.context, groups.navigation, groups.default])) return;
 		}
 
 		// GapCursor arrow fallback: if no plugin keymap handled the arrow,
@@ -134,34 +119,83 @@ export class KeyboardHandler {
 		// Escape fallback: exit editor when no plugin handled it (WCAG 2.1.2)
 		if (this.handleEscape(e)) return;
 
-		// Fall back to built-in structural shortcuts
+		// Fall back to built-in structural shortcuts (undo, redo, select all).
 		const mod = e.metaKey || e.ctrlKey;
 		if (!mod) return;
 
-		const key = e.key.toLowerCase();
-		const state = this.getState();
-		let tr: Transaction | null = null;
+		// Mirror the keymap dispatch precedence: resolve by the layout-aware key
+		// first, then by the physical key position (Cyrillic Ctrl+я -> 'z') only when
+		// the layout key matched no built-in. This keeps Latin layouts whose key and
+		// physical position diverge correct (QWERTZ Ctrl+Z stays undo, not redo) while
+		// fixing non-Latin layouts where the layout key matches nothing.
+		let action = this.resolveBuiltinShortcut(e.key.toLowerCase(), e.shiftKey);
+		if (action === null) {
+			const physical: string | null = physicalBaseKey(e);
+			if (physical !== null) {
+				action = this.resolveBuiltinShortcut(physical.toLowerCase(), e.shiftKey);
+			}
+		}
+		if (action === null) return;
 
-		if (key === 'z' && !e.shiftKey) {
-			e.preventDefault();
+		e.preventDefault();
+		if (action === 'undo') {
 			this.undo();
 			return;
 		}
-
-		if ((key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey)) {
-			e.preventDefault();
+		if (action === 'redo') {
 			this.redo();
 			return;
 		}
+		const tr: Transaction | null = selectAll(this.getState());
+		if (tr) this.dispatch(tr);
+	}
 
-		if (key === 'a' && !e.shiftKey) {
-			e.preventDefault();
-			tr = selectAll(state);
-		}
+	/**
+	 * Maps a resolved shortcut letter to the built-in structural action it
+	 * triggers, or `null` when it is not a built-in shortcut. The letter is
+	 * already lowercased and resolved against the relevant layout.
+	 */
+	private resolveBuiltinShortcut(
+		key: string,
+		shiftKey: boolean,
+	): 'undo' | 'redo' | 'selectAll' | null {
+		if (key === 'z' && !shiftKey) return 'undo';
+		if ((key === 'z' && shiftKey) || (key === 'y' && !shiftKey)) return 'redo';
+		if (key === 'a' && !shiftKey) return 'selectAll';
+		return null;
+	}
 
-		if (tr) {
-			this.dispatch(tr);
+	/**
+	 * Dispatches a key event against the given keymap groups, trying the
+	 * layout-aware descriptor first and a physical-position fallback (command
+	 * shortcuts only) second, so shortcuts resolve regardless of keyboard layout.
+	 */
+	private dispatchKeymaps(e: KeyboardEvent, groups: readonly (readonly Keymap[])[]): boolean {
+		if (this.runDescriptor(e, groups, normalizeKeyDescriptor(e))) return true;
+		const physical: string | null = physicalKeyDescriptor(e);
+		if (physical !== null && this.runDescriptor(e, groups, physical)) return true;
+		return false;
+	}
+
+	/**
+	 * Runs the first matching handler for a descriptor across the keymap groups.
+	 * Within each group, later-registered keymaps take precedence (reverse order).
+	 */
+	private runDescriptor(
+		e: KeyboardEvent,
+		groups: readonly (readonly Keymap[])[],
+		descriptor: string,
+	): boolean {
+		for (const keymaps of groups) {
+			for (let i = keymaps.length - 1; i >= 0; i--) {
+				const handler = keymaps[i]?.[descriptor];
+				if (handler?.()) {
+					e.preventDefault();
+					return true;
+				}
+			}
 		}
+		return false;
 	}
 
 	/** Handles arrow keys, Enter, Backspace, Delete, Escape when a NodeSelection is active. */
@@ -369,24 +403,4 @@ export class KeyboardHandler {
 	destroy(): void {
 		this.element.removeEventListener('keydown', this.handleKeydown);
 	}
-}
-
-/**
- * Normalizes a KeyboardEvent into a consistent key descriptor string.
- * Format: `"Mod-Shift-Alt-Key"` where Mod = Ctrl/Cmd.
- */
-export function normalizeKeyDescriptor(e: KeyboardEvent): string {
-	const parts: string[] = [];
-	if (e.metaKey || e.ctrlKey) parts.push('Mod');
-	if (e.shiftKey) parts.push('Shift');
-	if (e.altKey) parts.push('Alt');
-
-	let key = e.key;
-	// Normalize common keys
-	if (key === ' ') key = 'Space';
-	else if (key.length === 1) key = key.toUpperCase();
-	// For special keys like Enter, Tab, Backspace, keep as-is
-
-	parts.push(key);
-	return parts.join('-');
 }
