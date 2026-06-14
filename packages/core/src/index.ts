@@ -277,7 +277,7 @@ export {
 // --- Input ---
 export type { InputRule } from './model/InputRule.js';
 export type { Keymap, KeymapHandler, KeymapPriority, KeymapOptions } from './model/Keymap.js';
-export { normalizeKeyDescriptor } from './input/KeyboardHandler.js';
+export { normalizeKeyDescriptor } from './input/KeyDescriptor.js';
 export { ClipboardHandler } from './input/ClipboardHandler.js';
 export { CompositionTracker } from './input/CompositionTracker.js';
 export { InputManager } from './input/InputManager.js';
