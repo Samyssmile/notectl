@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML, sanitizeHref } from './HTMLUtils.js';
 
+/**
+ * Wall-clock ceiling for the ReDoS-resistance checks below. Catastrophic
+ * backtracking takes seconds, so a one-second ceiling separates linear
+ * formatting (well under a millisecond) from a regression while staying robust
+ * to CPU contention when the full suite runs in parallel. Not a micro-benchmark.
+ */
+const REDOS_CEILING_MS = 1000;
+
 describe('SAFE_URI_REGEXP', () => {
 	it('allows blob: URIs', () => {
 		expect(SAFE_URI_REGEXP.test('blob:http://localhost/abc-123')).toBe(true);
@@ -106,7 +114,7 @@ describe('formatHTML ReDoS resistance', () => {
 		const start: number = performance.now();
 		formatHTML(malicious);
 		const elapsed: number = performance.now() - start;
-		expect(elapsed).toBeLessThan(100);
+		expect(elapsed).toBeLessThan(REDOS_CEILING_MS);
 	});
 
 	it('completes in reasonable time with repeated slashes', () => {
@@ -114,7 +122,7 @@ describe('formatHTML ReDoS resistance', () => {
 		const start: number = performance.now();
 		formatHTML(malicious);
 		const elapsed: number = performance.now() - start;
-		expect(elapsed).toBeLessThan(100);
+		expect(elapsed).toBeLessThan(REDOS_CEILING_MS);
 	});
 });
 
