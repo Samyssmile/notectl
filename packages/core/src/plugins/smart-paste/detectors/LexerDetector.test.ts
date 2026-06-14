@@ -10,6 +10,14 @@ import { LexerDetector } from './LexerDetector.js';
 const javaDetector: ContentDetector = JAVA_SUPPORT.detection as ContentDetector;
 const typescriptDetector: ContentDetector = TYPESCRIPT_SUPPORT.detection as ContentDetector;
 
+/**
+ * Wall-clock ceiling for the ReDoS-resistance check. Catastrophic backtracking
+ * on a 50k-character input takes seconds, so a one-second ceiling separates
+ * linear scanning (tens of ms) from a regression while staying robust to CPU
+ * contention when the full suite runs in parallel.
+ */
+const REDOS_CEILING_MS = 1000;
+
 function detectBoth(text: string): { java: DetectionResult | null; ts: DetectionResult | null } {
 	return {
 		java: javaDetector.detect(text),
@@ -212,14 +220,18 @@ describe('LexerDetector', () => {
 	});
 
 	describe('ReDoS resistance', () => {
-		it('handles 50k whitespace runs in under 150ms', () => {
+		it('handles 50k whitespace runs without catastrophic backtracking', () => {
 			const input: string = `interface${' '.repeat(50_000)}\nfoo`;
 
 			const start: number = performance.now();
 			typescriptDetector.detect(input);
 			const elapsed: number = performance.now() - start;
 
-			expect(elapsed).toBeLessThan(150);
+			// Linear scanning finishes in tens of milliseconds; this is a ReDoS
+			// guard, so the ceiling only needs to sit far below the seconds that
+			// catastrophic backtracking would take. Kept generous so it never flakes
+			// under parallel CPU load — it is not a micro-benchmark.
+			expect(elapsed).toBeLessThan(REDOS_CEILING_MS);
 		});
 
 		it('returns null beyond the default 100k length cap', () => {
