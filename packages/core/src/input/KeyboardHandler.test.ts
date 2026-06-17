@@ -864,4 +864,52 @@ describe('KeyboardHandler: non-Latin keyboard layout fallback (#176)', () => {
 		expect(undo).toHaveBeenCalledOnce();
 		handler.destroy();
 	});
+
+	// Shifted-digit and shifted-punctuation bindings resolve by the physical key
+	// position too, so heading/blockquote/font-size shortcuts work on every layout.
+	// On a real browser even a US Ctrl+Shift+1 reports key='!', so these also lock
+	// in the shifted-glyph repair the layout-aware descriptor alone never matched.
+
+	function registryFor(descriptor: string, log: string[]): KeymapRegistry {
+		const registry = new KeymapRegistry();
+		registry.registerKeymap({
+			[descriptor]: () => {
+				log.push(descriptor);
+				return true;
+			},
+		});
+		return registry;
+	}
+
+	it('resolves a Mod-Shift-1 heading binding for Ctrl+Shift+1 (real key="!")', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift-1', log));
+		element.dispatchEvent(makeKeyEvent('!', { code: 'Digit1', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift-1']);
+		handler.destroy();
+	});
+
+	it('resolves a Mod-Shift-> blockquote binding for Cyrillic Ctrl+Shift+Period', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift->', log));
+		element.dispatchEvent(makeKeyEvent('Ю', { code: 'Period', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift->']);
+		handler.destroy();
+	});
+
+	it('resolves a Mod-Shift-+ font-size binding for Cyrillic Ctrl+Shift+Equal', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift-+', log));
+		element.dispatchEvent(makeKeyEvent('Ъ', { code: 'Equal', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift-+']);
+		handler.destroy();
+	});
+
+	it('keeps the layout-aware shifted glyph winning on US (Mod-Shift-> via key=">")', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift->', log));
+		element.dispatchEvent(makeKeyEvent('>', { code: 'Period', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift->']);
+		handler.destroy();
+	});
 });
