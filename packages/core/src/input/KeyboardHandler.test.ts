@@ -8,14 +8,21 @@ import type { EditorState } from '../state/EditorState.js';
 import { stateBuilder } from '../test/TestUtils.js';
 import { navigateFromGapCursor } from '../view/CaretNavigation.js';
 import { CompositionTracker } from './CompositionTracker.js';
-import { KeyboardHandler, normalizeKeyDescriptor } from './KeyboardHandler.js';
+import { KeyboardHandler } from './KeyboardHandler.js';
 
 function makeKeyEvent(
 	key: string,
-	opts: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean; altKey?: boolean } = {},
+	opts: {
+		code?: string;
+		ctrlKey?: boolean;
+		metaKey?: boolean;
+		shiftKey?: boolean;
+		altKey?: boolean;
+	} = {},
 ): KeyboardEvent {
 	return new KeyboardEvent('keydown', {
 		key,
+		code: opts.code ?? '',
 		ctrlKey: opts.ctrlKey ?? false,
 		metaKey: opts.metaKey ?? false,
 		shiftKey: opts.shiftKey ?? false,
@@ -24,53 +31,6 @@ function makeKeyEvent(
 		cancelable: true,
 	});
 }
-
-describe('normalizeKeyDescriptor', () => {
-	it('normalizes Ctrl+B to Mod-B', () => {
-		const e = makeKeyEvent('b', { ctrlKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Mod-B');
-	});
-
-	it('normalizes Meta+B to Mod-B', () => {
-		const e = makeKeyEvent('b', { metaKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Mod-B');
-	});
-
-	it('normalizes Ctrl+Shift+1 to Mod-Shift-1', () => {
-		const e = makeKeyEvent('1', { ctrlKey: true, shiftKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Mod-Shift-1');
-	});
-
-	it('normalizes Enter without modifiers', () => {
-		const e = makeKeyEvent('Enter');
-		expect(normalizeKeyDescriptor(e)).toBe('Enter');
-	});
-
-	it('normalizes Tab', () => {
-		const e = makeKeyEvent('Tab');
-		expect(normalizeKeyDescriptor(e)).toBe('Tab');
-	});
-
-	it('normalizes Space', () => {
-		const e = makeKeyEvent(' ');
-		expect(normalizeKeyDescriptor(e)).toBe('Space');
-	});
-
-	it('normalizes Alt+Shift+A', () => {
-		const e = makeKeyEvent('a', { altKey: true, shiftKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Shift-Alt-A');
-	});
-
-	it('normalizes Mod+Shift+Alt+K', () => {
-		const e = makeKeyEvent('k', { ctrlKey: true, shiftKey: true, altKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Mod-Shift-Alt-K');
-	});
-
-	it('uppercases single-character keys', () => {
-		const e = makeKeyEvent('z', { ctrlKey: true });
-		expect(normalizeKeyDescriptor(e)).toBe('Mod-Z');
-	});
-});
 
 describe('KeyboardHandler: NodeSelection modifier guard', () => {
 	function createHandlerWithNodeSelection(): {
@@ -755,6 +715,201 @@ describe('KeyboardHandler: GapCursor arrow fallback (without plugin)', () => {
 
 		element.dispatchEvent(makeKeyEvent('ArrowRight'));
 		expect(dispatched).toHaveLength(0);
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: non-Latin keyboard layout fallback (#176)', () => {
+	function createHandler(registry?: KeymapRegistry): {
+		element: HTMLDivElement;
+		handler: KeyboardHandler;
+		dispatched: unknown[];
+		undo: ReturnType<typeof vi.fn>;
+		redo: ReturnType<typeof vi.fn>;
+	} {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		const dispatched: unknown[] = [];
+		const undo = vi.fn();
+		const redo = vi.fn();
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: (tr) => {
+				dispatched.push(tr);
+			},
+			undo,
+			redo,
+			keymapRegistry: registry,
+		});
+
+		return { element, handler, dispatched, undo, redo };
+	}
+
+	it('resolves a Mod-A plugin keymap when Cyrillic Ctrl+ф (KeyA) is pressed', () => {
+		const registry = new KeymapRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			'Mod-A': () => {
+				log.push('mod-a');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandler(registry);
+		const e = makeKeyEvent('ф', { code: 'KeyA', ctrlKey: true });
+		element.dispatchEvent(e);
+
+		expect(log).toEqual(['mod-a']);
+		expect(e.defaultPrevented).toBe(true);
+		handler.destroy();
+	});
+
+	it('keeps layout-aware key precedence for Latin Ctrl+B', () => {
+		const registry = new KeymapRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			'Mod-B': () => {
+				log.push('mod-b');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandler(registry);
+		element.dispatchEvent(makeKeyEvent('b', { code: 'KeyB', ctrlKey: true }));
+
+		expect(log).toEqual(['mod-b']);
+		handler.destroy();
+	});
+
+	it('does not hijack AltGr combinations (Ctrl+Alt) into a Mod-A fallback', () => {
+		const registry = new KeymapRegistry();
+		const log: string[] = [];
+		registry.registerKeymap({
+			'Mod-A': () => {
+				log.push('mod-a');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandler(registry);
+		element.dispatchEvent(makeKeyEvent('ф', { code: 'KeyA', ctrlKey: true, altKey: true }));
+
+		expect(log).toEqual([]);
+		handler.destroy();
+	});
+
+	it('triggers built-in undo for Cyrillic Ctrl+я (KeyZ)', () => {
+		const { element, handler, undo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('я', { code: 'KeyZ', ctrlKey: true }));
+		expect(undo).toHaveBeenCalledOnce();
+		handler.destroy();
+	});
+
+	it('triggers built-in redo for Cyrillic Ctrl+Shift+я (KeyZ)', () => {
+		const { element, handler, redo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('я', { code: 'KeyZ', ctrlKey: true, shiftKey: true }));
+		expect(redo).toHaveBeenCalledOnce();
+		handler.destroy();
+	});
+
+	it('dispatches built-in select-all for Cyrillic Ctrl+ф (KeyA)', () => {
+		const { element, handler, dispatched } = createHandler();
+		element.dispatchEvent(makeKeyEvent('ф', { code: 'KeyA', ctrlKey: true }));
+		expect(dispatched).toHaveLength(1);
+		handler.destroy();
+	});
+
+	it('does not regress built-in undo on Latin Ctrl+z', () => {
+		const { element, handler, undo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('z', { code: 'KeyZ', ctrlKey: true }));
+		expect(undo).toHaveBeenCalledOnce();
+		handler.destroy();
+	});
+
+	// On Latin layouts where the produced character and physical position diverge
+	// (German QWERTZ swaps Z/Y, French AZERTY moves A/Z/W), the layout-aware key must
+	// win so the physical fallback never overrides a character that already resolves.
+
+	it('QWERTZ Ctrl+Z (key z at code KeyY) undoes, not redoes', () => {
+		const { element, handler, undo, redo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('z', { code: 'KeyY', ctrlKey: true }));
+		expect(undo).toHaveBeenCalledOnce();
+		expect(redo).not.toHaveBeenCalled();
+		handler.destroy();
+	});
+
+	it('QWERTZ Ctrl+Y (key y at code KeyZ) redoes, not undoes', () => {
+		const { element, handler, undo, redo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('y', { code: 'KeyZ', ctrlKey: true }));
+		expect(redo).toHaveBeenCalledOnce();
+		expect(undo).not.toHaveBeenCalled();
+		handler.destroy();
+	});
+
+	it('AZERTY Ctrl+A (key a at code KeyQ) still selects all', () => {
+		const { element, handler, dispatched } = createHandler();
+		element.dispatchEvent(makeKeyEvent('a', { code: 'KeyQ', ctrlKey: true }));
+		expect(dispatched).toHaveLength(1);
+		handler.destroy();
+	});
+
+	it('AZERTY Ctrl+Z (key z at code KeyW) still undoes', () => {
+		const { element, handler, undo } = createHandler();
+		element.dispatchEvent(makeKeyEvent('z', { code: 'KeyW', ctrlKey: true }));
+		expect(undo).toHaveBeenCalledOnce();
+		handler.destroy();
+	});
+
+	// Shifted-digit and shifted-punctuation bindings resolve by the physical key
+	// position too, so heading/blockquote/font-size shortcuts work on every layout.
+	// On a real browser even a US Ctrl+Shift+1 reports key='!', so these also lock
+	// in the shifted-glyph repair the layout-aware descriptor alone never matched.
+
+	function registryFor(descriptor: string, log: string[]): KeymapRegistry {
+		const registry = new KeymapRegistry();
+		registry.registerKeymap({
+			[descriptor]: () => {
+				log.push(descriptor);
+				return true;
+			},
+		});
+		return registry;
+	}
+
+	it('resolves a Mod-Shift-1 heading binding for Ctrl+Shift+1 (real key="!")', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift-1', log));
+		element.dispatchEvent(makeKeyEvent('!', { code: 'Digit1', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift-1']);
+		handler.destroy();
+	});
+
+	it('resolves a Mod-Shift-> blockquote binding for Cyrillic Ctrl+Shift+Period', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift->', log));
+		element.dispatchEvent(makeKeyEvent('Ю', { code: 'Period', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift->']);
+		handler.destroy();
+	});
+
+	it('resolves a Mod-Shift-+ font-size binding for Cyrillic Ctrl+Shift+Equal', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift-+', log));
+		element.dispatchEvent(makeKeyEvent('Ъ', { code: 'Equal', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift-+']);
+		handler.destroy();
+	});
+
+	it('keeps the layout-aware shifted glyph winning on US (Mod-Shift-> via key=">")', () => {
+		const log: string[] = [];
+		const { element, handler } = createHandler(registryFor('Mod-Shift->', log));
+		element.dispatchEvent(makeKeyEvent('>', { code: 'Period', ctrlKey: true, shiftKey: true }));
+		expect(log).toEqual(['Mod-Shift->']);
 		handler.destroy();
 	});
 });
