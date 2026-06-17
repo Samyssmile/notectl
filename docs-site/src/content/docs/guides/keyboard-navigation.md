@@ -14,7 +14,7 @@ Command shortcuts (anything held with `Ctrl` or `Cmd`, such as `Ctrl+A`, `Ctrl+Z
 The layout-aware character is always tried first and wins whenever it matches a shortcut, so normal typing, IME composition, and dead keys are never affected. AltGr combinations (`Ctrl+Alt`) are left untouched so layouts that compose characters with AltGr keep working.
 
 <Aside type="note">
-  Letter, digit, and `Mod+.` / `Mod+,` shortcuts are covered on every layout. Shortcuts bound to a *shifted* punctuation glyph, such as `Mod+Shift+>` for blockquote, still resolve by the base glyph, a residual shared with editors like ProseMirror.
+  Letter, digit, and punctuation shortcuts are all covered on every layout, including shifted bindings such as `Mod+Shift+1` to `Mod+Shift+6` (headings), `Mod+Shift+>` (blockquote), and `Mod+Shift++` / `Mod+Shift+_` (font size). When a shortcut holds `Shift`, both the physical key's base glyph and its US-QWERTY shifted glyph are tried, so these resolve regardless of the active layout.
 </Aside>
 
 ## Selection Types

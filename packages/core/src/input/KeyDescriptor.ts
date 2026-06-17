@@ -26,6 +26,38 @@ const CODE_PUNCTUATION: Readonly<Record<string, string>> = {
 };
 
 /**
+ * US-QWERTY shifted glyph for each digit and punctuation base character. Used
+ * so shortcuts bound to a *shifted* glyph (e.g. `Mod-Shift->` for blockquote,
+ * `Mod-Shift-+` / `Mod-Shift-_` for font size) also resolve on non-Latin
+ * layouts, where the physical key reports a different character. Letters are
+ * absent: their shifted form is just the uppercase letter the base map already
+ * produces.
+ */
+const SHIFTED_US: Readonly<Record<string, string>> = {
+	'1': '!',
+	'2': '@',
+	'3': '#',
+	'4': '$',
+	'5': '%',
+	'6': '^',
+	'7': '&',
+	'8': '*',
+	'9': '(',
+	'0': ')',
+	'`': '~',
+	'-': '_',
+	'=': '+',
+	'[': '{',
+	']': '}',
+	'\\': '|',
+	';': ':',
+	"'": '"',
+	',': '<',
+	'.': '>',
+	'/': '?',
+};
+
+/**
  * Builds the physical `KeyboardEvent.code` to US-QWERTY base-character map:
  * the 26 letters, the 10 digit keys (main row and numpad), and common
  * punctuation. Named keys (Enter, Tab, Arrow*, Home, End) are intentionally
@@ -92,12 +124,27 @@ export function physicalBaseKey(e: KeyboardEvent): string | null {
 }
 
 /**
- * Physical-position key descriptor for command shortcuts, or `null` when not
- * applicable (no command modifier, AltGr, or a named key absent from the base
- * map). Same `"Mod-Shift-Alt-Key"` format as {@link normalizeKeyDescriptor}.
+ * Physical-position key descriptors to try for a command shortcut, in priority
+ * order, or an empty array when not applicable (no command modifier, AltGr, or
+ * a named key absent from the base map).
+ *
+ * The US-QWERTY base glyph comes first. When Shift is held, the US-QWERTY
+ * *shifted* glyph is appended as a second candidate so shortcuts bound to a
+ * shifted glyph (e.g. `Mod-Shift->` for blockquote) also resolve on layouts
+ * where that physical key reports a different character. Same
+ * `"Mod-Shift-Alt-Key"` format as {@link normalizeKeyDescriptor}.
  */
-export function physicalKeyDescriptor(e: KeyboardEvent): string | null {
+export function physicalKeyDescriptors(e: KeyboardEvent): string[] {
 	const base: string | null = physicalBaseKey(e);
-	if (base === null) return null;
-	return [...modifierPrefix(e), base].join('-');
+	if (base === null) return [];
+
+	const prefix: string[] = modifierPrefix(e);
+	const descriptors: string[] = [[...prefix, base].join('-')];
+
+	if (e.shiftKey) {
+		const shifted: string | undefined = SHIFTED_US[base];
+		if (shifted !== undefined) descriptors.push([...prefix, shifted].join('-'));
+	}
+
+	return descriptors;
 }

@@ -88,4 +88,21 @@ test.describe('Keyboard shortcuts on non-Latin layouts (#176)', () => {
 			expect(await editor.getContentHTML()).toContain('<strong>');
 		}).toPass({ timeout: 5_000 });
 	});
+
+	test('Cyrillic Ctrl+Shift+. toggles blockquote (shifted-punctuation binding)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.typeText('Quote me');
+
+		// Mod-Shift-> (blockquote) is bound to the *shifted* glyph. On a Russian
+		// layout the physical Period key reports a Cyrillic char, so the binding
+		// resolves through the physical position plus its US-QWERTY shifted glyph.
+		await dispatchKey(page, 'Ю', 'Period', { ctrlKey: true, shiftKey: true });
+
+		await expect(async () => {
+			const json = await editor.getJSON();
+			expect(json.children[0]?.type).toBe('blockquote');
+		}).toPass({ timeout: 5_000 });
+	});
 });

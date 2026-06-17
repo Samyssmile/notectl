@@ -24,7 +24,11 @@ import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 import type { DispatchFn, GetStateFn, RedoFn, UndoFn } from './InputHandler.js';
-import { normalizeKeyDescriptor, physicalBaseKey, physicalKeyDescriptor } from './KeyDescriptor.js';
+import {
+	normalizeKeyDescriptor,
+	physicalBaseKey,
+	physicalKeyDescriptors,
+} from './KeyDescriptor.js';
 
 type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
 type GapCursorNavigateFn = (
@@ -172,8 +176,9 @@ export class KeyboardHandler {
 	 */
 	private dispatchKeymaps(e: KeyboardEvent, groups: readonly (readonly Keymap[])[]): boolean {
 		if (this.runDescriptor(e, groups, normalizeKeyDescriptor(e))) return true;
-		const physical: string | null = physicalKeyDescriptor(e);
-		if (physical !== null && this.runDescriptor(e, groups, physical)) return true;
+		for (const physical of physicalKeyDescriptors(e)) {
+			if (this.runDescriptor(e, groups, physical)) return true;
+		}
 		return false;
 	}
 
