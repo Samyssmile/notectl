@@ -7,6 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 notectl provides comprehensive keyboard navigation that mirrors native text editing behavior across platforms. This guide covers all movement, selection, and deletion shortcuts.
 
+## Keyboard Layouts
+
+Command shortcuts (anything held with `Ctrl` or `Cmd`, such as `Ctrl+A`, `Ctrl+Z`, or `Ctrl+B`) resolve by **physical key position**, so they work the same across Latin and non-Latin layouts. On a Russian (JCUKEN) layout, for example, the physical `A` key produces the character `ф`, yet `Ctrl+A` still selects all because the shortcut falls back to the key's physical position when the typed character matches no binding.
+
+The layout-aware character is always tried first and wins whenever it matches a shortcut, so normal typing, IME composition, and dead keys are never affected. AltGr combinations (`Ctrl+Alt`) are left untouched so layouts that compose characters with AltGr keep working.
+
+<Aside type="note">
+  Letter, digit, and punctuation shortcuts are all covered on every layout, including shifted bindings such as `Mod+Shift+1` to `Mod+Shift+6` (headings), `Mod+Shift+>` (blockquote), and `Mod+Shift++` / `Mod+Shift+_` (font size). When a shortcut holds `Shift`, both the physical key's base glyph and its US-QWERTY shifted glyph are tried, so these resolve regardless of the active layout.
+</Aside>
+
 ## Selection Types
 
 notectl uses three selection types to represent the cursor position:
