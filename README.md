@@ -299,6 +299,8 @@ notectl ships plugins for:
 - Tables
 - Code blocks
 - Images
+- Math and formulas (MathML)
+- Video embeds
 - Text color and highlight
 - Alignment and text direction
 - Fonts and font sizes
