@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Selecting the whole document and deleting it now clears the editor back to the placeholder, even when the first block is a title or heading (#183).** With a centered title as the first block, pressing Ctrl+A then Backspace (or Delete, or Cut) emptied the text but left the cursor inside an empty, still-centered title block, so the document was never considered empty and the "Start typing..." placeholder never returned. The range-merge deletion correctly preserves the first block's type for partial cross-block deletes (standard rich-text behavior), but when the selection spans the entire document the result must be the canonical empty state, a single empty paragraph. `deleteSelectionCommand` now detects a full-document selection (the start of the first leaf block to the end of the last leaf block, the same range `selectAll` produces) and replaces the whole document with one fresh empty paragraph, inserting the new paragraph before removing the originals so the document never passes through a zero-children state. Typing or pasting over a full selection is unaffected (those keep replace semantics and the first block's type), and the operation is a single undo step that restores the original blocks, types, alignment, and text. Covered by new unit tests in `Commands.test.ts` (title plus paragraph, single title, a partial cross-block delete that must keep the title, and a whole-document clear containing a table) and an e2e spec that reproduces the reported flow through real user gestures plus an undo round-trip.
+
 ## [2.2.2] - 2026-06-17
 
 ### Added

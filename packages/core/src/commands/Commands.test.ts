@@ -400,6 +400,136 @@ describe('Commands', () => {
 		});
 	});
 
+	describe('deleteSelectionCommand clears the whole document', () => {
+		it('resets a fully selected title + paragraph to one empty paragraph', () => {
+			const state = stateBuilder()
+				.block('title', 'Hello World', 'b1', { attrs: { align: 'center' } })
+				.paragraph('The Beginning', 'b2')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b2', offset: 13 })
+				.schema(['paragraph', 'title'], [])
+				.build();
+
+			const tr = deleteSelectionCommand(state);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			const block = newState.doc.children[0];
+			if (!block) {
+				expect.unreachable('should have one block');
+				return;
+			}
+			// The surviving block is a default empty paragraph, not the centered title.
+			expect(block.type).toBe('paragraph');
+			expect(block.attrs?.align).toBeUndefined();
+			expect(getBlockText(block)).toBe('');
+			expect(newState.selection.anchor.blockId).toBe(block.id);
+			expect(newState.selection.anchor.offset).toBe(0);
+		});
+
+		it('resets a fully selected single title to one empty paragraph', () => {
+			const state = stateBuilder()
+				.block('title', 'Hello World', 'b1', { attrs: { align: 'center' } })
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 11 })
+				.schema(['paragraph', 'title'], [])
+				.build();
+
+			const tr = deleteSelectionCommand(state);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			const block = newState.doc.children[0];
+			if (!block) {
+				expect.unreachable('should have one block');
+				return;
+			}
+			expect(block.type).toBe('paragraph');
+			expect(getBlockText(block)).toBe('');
+		});
+
+		it('keeps the first block type for a partial cross-block delete', () => {
+			// Selection does not reach the end of the last block, so this is not a
+			// whole-document clear: the merge keeps the title (rich-text convention).
+			const state = stateBuilder()
+				.block('title', 'Hello World', 'b1', { attrs: { align: 'center' } })
+				.paragraph('The Beginning', 'b2')
+				.selection({ blockId: 'b1', offset: 2 }, { blockId: 'b2', offset: 3 })
+				.schema(['paragraph', 'title'], [])
+				.build();
+
+			const tr = deleteSelectionCommand(state);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = state.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			const block = newState.doc.children[0];
+			if (!block) {
+				expect.unreachable('should have one block');
+				return;
+			}
+			expect(block.type).toBe('title');
+			expect(getBlockText(block)).toBe('He Beginning');
+		});
+
+		it('clears a whole-document selection that contains a table', () => {
+			const table: BlockNode = createBlockNode(
+				'table' as never,
+				[
+					createBlockNode(
+						'table_row' as never,
+						[
+							createBlockNode(
+								'table_cell' as never,
+								[createBlockNode('paragraph' as never, [createTextNode('A1')], 'p0_0' as never)],
+								'c0_0' as never,
+							),
+						],
+						'row0' as never,
+					),
+				],
+				't1' as never,
+			);
+			const doc = createDocument([
+				createBlockNode('paragraph' as never, [createTextNode('Before')], 'b1' as never),
+				table,
+				createBlockNode('paragraph' as never, [createTextNode('After')], 'b2' as never),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1' as never, 0),
+				schema: { nodeTypes: ['paragraph', 'table', 'table_row', 'table_cell'], markTypes: [] },
+			});
+
+			// Select the entire document (Ctrl+A) then delete it.
+			const selected = state.apply(selectAll(state));
+			const tr = deleteSelectionCommand(selected);
+			if (!tr) {
+				expect.unreachable('deleteSelectionCommand should return a transaction');
+				return;
+			}
+
+			const newState = selected.apply(tr);
+			expect(newState.doc.children).toHaveLength(1);
+			const block = newState.doc.children[0];
+			if (!block) {
+				expect.unreachable('should have one block');
+				return;
+			}
+			expect(block.type).toBe('paragraph');
+			expect(getBlockText(block)).toBe('');
+		});
+	});
+
 	describe('forEachBlockInRange', () => {
 		it('invokes callback with correct offsets for single-block range', () => {
 			const state = stateBuilder()
