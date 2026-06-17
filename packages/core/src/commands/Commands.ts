@@ -8,6 +8,7 @@
 
 import {
 	type Mark,
+	createEmptyParagraph,
 	createInlineNode,
 	generateBlockId,
 	getBlockLength,
@@ -150,6 +151,14 @@ export function deleteSelectionCommand(state: EditorState): Transaction | null {
 	}
 	if (isGapCursor(state.selection)) return null;
 	if (isCollapsed(state.selection)) return null;
+
+	// Deleting a selection that spans the whole document resets it to the
+	// canonical empty state (a single empty paragraph). Without this, the range
+	// merge keeps the first block's type and attributes, leaving e.g. an empty
+	// centered title behind so the placeholder never returns.
+	if (selectionCoversDocument(state)) {
+		return clearDocument(state);
+	}
 
 	const builder = state.transaction('input');
 	const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
@@ -301,29 +310,80 @@ function mergeAdjacentBlock(
 
 /** Selects all content in the editor, using leaf block endpoints. */
 export function selectAll(state: EditorState): Transaction {
+	const docRange = documentRange(state);
+	if (!docRange) return state.transaction('command').setSelection(state.selection).build();
+
+	return state
+		.transaction('command')
+		.setSelection(createSelection(docRange.from, docRange.to))
+		.build();
+}
+
+// --- Internal Helpers ---
+
+interface DocumentPosition {
+	readonly blockId: BlockId;
+	readonly offset: number;
+}
+
+/**
+ * Endpoints of a full-document selection: the start of the first leaf block to
+ * the end of the last leaf block. Returns `null` for an empty document.
+ */
+function documentRange(
+	state: EditorState,
+): { from: DocumentPosition; to: DocumentPosition } | null {
 	const blocks = state.doc.children;
 	const firstBlock = blocks[0];
 	const lastBlock = blocks[blocks.length - 1];
-	if (!firstBlock || !lastBlock)
-		return state.transaction('command').setSelection(state.selection).build();
+	if (!firstBlock || !lastBlock) return null;
 
 	const firstLeafId: BlockId = findFirstLeafBlockId(firstBlock);
 	const lastLeafId: BlockId = findLastLeafBlockId(lastBlock);
 	const lastLeaf = state.getBlock(lastLeafId);
 	const lastLeafLen: number = lastLeaf ? getBlockLength(lastLeaf) : 0;
 
-	return state
-		.transaction('command')
-		.setSelection(
-			createSelection(
-				{ blockId: firstLeafId, offset: 0 },
-				{ blockId: lastLeafId, offset: lastLeafLen },
-			),
-		)
-		.build();
+	return {
+		from: { blockId: firstLeafId, offset: 0 },
+		to: { blockId: lastLeafId, offset: lastLeafLen },
+	};
 }
 
-// --- Internal Helpers ---
+/** True when the current text selection spans the entire document. */
+function selectionCoversDocument(state: EditorState): boolean {
+	if (!isTextSelection(state.selection)) return false;
+	const docRange = documentRange(state);
+	if (!docRange) return false;
+
+	const range = selectionRange(state.selection, state.getBlockOrder());
+	return (
+		range.from.blockId === docRange.from.blockId &&
+		range.from.offset === docRange.from.offset &&
+		range.to.blockId === docRange.to.blockId &&
+		range.to.offset === docRange.to.offset
+	);
+}
+
+/**
+ * Replaces the whole document with a single empty paragraph and places the
+ * cursor inside it. The fresh paragraph is inserted before the originals are
+ * removed so the document never passes through a zero-children state.
+ */
+function clearDocument(state: EditorState): Transaction {
+	const newBlockId: BlockId = generateBlockId();
+	const builder = state.transaction('input');
+	const originalCount: number = state.doc.children.length;
+
+	builder.insertNode([], 0, createEmptyParagraph(newBlockId));
+	// The originals shifted to indices 1..originalCount; remove them descending
+	// so each index stays valid as the document shrinks.
+	for (let i = originalCount; i >= 1; i--) {
+		builder.removeNode([], i);
+	}
+	builder.setSelection(createCollapsedSelection(newBlockId, 0));
+
+	return builder.build();
+}
 
 function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
