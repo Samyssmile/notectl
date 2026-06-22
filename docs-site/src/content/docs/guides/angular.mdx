@@ -341,6 +341,30 @@ if (editor.isEmpty()) {
 }
 ```
 
+The Angular `getContentHTML()` accepts the same options as the core editor's
+[`getContentHTML(options?)`](/notectl/api/editor/#getcontenthtmloptions-promisestring--contentcssresult).
+Most importantly, pass `{ includeBlockIds: false }` for clean export HTML with no
+`data-block-id` attributes (database storage, server-side validation, handoff to
+another system):
+
+```ts
+import type { ContentCSSResult } from '@notectl/angular';
+
+// Clean export HTML, no data-block-id
+const clean: string = await editor.getContentHTML({ includeBlockIds: false });
+
+// Pretty-printed
+const pretty: string = await editor.getContentHTML({ pretty: true });
+
+// Class-based CSS extraction
+const { html, css }: ContentCSSResult = await editor.getContentHTML({ cssMode: 'classes' });
+```
+
+The default keeps `data-block-id` so the `[formControl]` / `[formField]` value
+sync round-trips preserve block identity and the caret. Use `includeBlockIds: false`
+only for the final exported artifact, not for content you intend to load back
+into the editor.
+
 ## Programmatic Commands
 
 ```ts

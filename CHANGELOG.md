@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The Angular wrapper's `getContentHTML()` now forwards serialization options to core (#185).** Core's `NotectlEditor.getContentHTML()` accepts a `ContentHTMLOptions` argument (`includeBlockIds`, `pretty`, `cssMode`), most importantly `{ includeBlockIds: false }` to produce clean export HTML with no `data-block-id` attributes for database storage or handoff to another system. The `@notectl/angular` `NotectlEditorComponent.getContentHTML()` was declared with no parameters and forwarded none, so an Angular consumer calling `editor.getContentHTML({ includeBlockIds: false })` got a compile error and, if forced through, still received block ids. The component method now mirrors core's three overloads exactly (the no-arg string form, the `cssMode: 'inline'` string form, and the `cssMode: 'classes'` `ContentCSSResult` form) and forwards the options through to the underlying editor, so `includeBlockIds`, `pretty`, and `cssMode` are all reachable from the wrapper. The option types `ContentHTMLOptions` and `ContentCSSResult` are re-exported from `@notectl/angular`, and the `NotectlTestHarness.getContentHTML()` testing helper mirrors the same overloads. The signal-forms `[formField]`, classic `[formControl]`, and value-sync paths are intentionally left on the default (block ids kept), because those round-trips rely on `data-block-id` to preserve block identity and the caret across external sync. Note that class-mode round-trip re-import (passing a `styleMap` back through the Angular wrapper's `setContentHTML`) is still not exposed on the Angular wrapper. Covered by new unit tests that assert the component forwards `includeBlockIds: false`, `cssMode: 'classes'`, and the no-arg call to the core editor, plus an Angular e2e spec that confirms the default export keeps `data-block-id` while `{ includeBlockIds: false }` strips it from real editor output.
+
 ## [2.2.3] - 2026-06-17
 
 ### Fixed

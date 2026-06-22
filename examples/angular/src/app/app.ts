@@ -180,6 +180,12 @@ export class App {
     this.output.set(await editorRef.getContentHTML());
   }
 
+  async getContentHTMLNoIds(): Promise<void> {
+    const editorRef = this.editor();
+    if (!editorRef) return;
+    this.output.set(await editorRef.getContentHTML({ includeBlockIds: false }));
+  }
+
   getText(): void {
     const editorRef = this.editor();
     if (!editorRef) return;
