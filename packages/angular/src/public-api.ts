@@ -57,6 +57,9 @@ export { ThemePreset, LIGHT_THEME, DARK_THEME, createTheme } from '@notectl/core
 // Editor config
 export type { NotectlEditorConfig } from '@notectl/core';
 
+// HTML serialization option types (from sub-path export)
+export type { ContentCSSResult, ContentHTMLOptions } from '@notectl/core/html';
+
 // Plugin config types (from sub-path exports)
 export type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting';
 export type { FontDefinition } from '@notectl/core/plugins/font';

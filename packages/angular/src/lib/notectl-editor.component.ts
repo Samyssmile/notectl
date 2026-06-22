@@ -30,6 +30,7 @@ import type {
 } from '@notectl/core';
 import { NotectlEditor, ThemePreset } from '@notectl/core';
 import type { Locale } from '@notectl/core';
+import type { ContentCSSResult, ContentHTMLOptions } from '@notectl/core/html';
 import type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting';
 
 import { EditorValueController } from './EditorValueController';
@@ -254,8 +255,28 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		void this.valueController.setDocument(doc);
 	}
 
-	async getContentHTML(): Promise<string> {
-		return this.requireEditor().getContentHTML();
+	/**
+	 * Returns the document as sanitized HTML. Mirrors {@link NotectlEditor.getContentHTML}.
+	 *
+	 * By default each block carries a `data-block-id` attribute so that
+	 * `setContentHTML(getContentHTML())` preserves block identity (and the caret)
+	 * across external sync. Pass `{ includeBlockIds: false }` for clean export HTML
+	 * without `data-block-id`, or `{ cssMode: 'classes' }` to extract a CSS class map.
+	 */
+	async getContentHTML(): Promise<string>;
+	async getContentHTML(options: ContentHTMLOptions & { cssMode?: 'inline' }): Promise<string>;
+	async getContentHTML(
+		options: ContentHTMLOptions & { cssMode: 'classes' },
+	): Promise<ContentCSSResult>;
+	async getContentHTML(options?: ContentHTMLOptions): Promise<string | ContentCSSResult> {
+		const editor: NotectlEditor = this.requireEditor();
+		if (!options) {
+			return editor.getContentHTML();
+		}
+		if (options.cssMode === 'classes') {
+			return editor.getContentHTML({ ...options, cssMode: 'classes' });
+		}
+		return editor.getContentHTML({ ...options, cssMode: 'inline' });
 	}
 
 	async setContentHTML(html: string): Promise<void> {

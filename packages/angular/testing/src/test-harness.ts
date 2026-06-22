@@ -1,5 +1,9 @@
 import type { ComponentFixture } from '@angular/core/testing';
-import type { NotectlEditorComponent } from '@notectl/angular';
+import type {
+	ContentCSSResult,
+	ContentHTMLOptions,
+	NotectlEditorComponent,
+} from '@notectl/angular';
 
 /**
  * Test harness for `NotectlEditorComponent` in consumer tests.
@@ -43,9 +47,20 @@ export class NotectlTestHarness {
 		this.fixture.detectChanges();
 	}
 
-	/** Returns the current HTML content. */
-	async getContentHTML(): Promise<string> {
-		return this.component.getContentHTML();
+	/** Returns the current HTML content. Mirrors {@link NotectlEditorComponent.getContentHTML}. */
+	async getContentHTML(): Promise<string>;
+	async getContentHTML(options: ContentHTMLOptions & { cssMode?: 'inline' }): Promise<string>;
+	async getContentHTML(
+		options: ContentHTMLOptions & { cssMode: 'classes' },
+	): Promise<ContentCSSResult>;
+	async getContentHTML(options?: ContentHTMLOptions): Promise<string | ContentCSSResult> {
+		if (!options) {
+			return this.component.getContentHTML();
+		}
+		if (options.cssMode === 'classes') {
+			return this.component.getContentHTML({ ...options, cssMode: 'classes' });
+		}
+		return this.component.getContentHTML({ ...options, cssMode: 'inline' });
 	}
 
 	/** Returns the current plain text content. */

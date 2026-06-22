@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { NotectlEditorComponent } from './notectl-editor.component.js';
 
@@ -36,5 +36,42 @@ describe('NotectlEditorComponent', () => {
 		expect(typeof proto.registerOnChange).toBe('function');
 		expect(typeof proto.registerOnTouched).toBe('function');
 		expect(typeof proto.setDisabledState).toBe('function');
+	});
+});
+
+describe('NotectlEditorComponent.getContentHTML — option forwarding (#185)', () => {
+	function harnessWithEditor(): {
+		ctx: NotectlEditorComponent;
+		getContentHTML: ReturnType<typeof vi.fn>;
+	} {
+		const getContentHTML = vi.fn(async () => '<p>x</p>');
+		const ctx = { requireEditor: () => ({ getContentHTML }) } as unknown as NotectlEditorComponent;
+		return { ctx, getContentHTML };
+	}
+
+	it('calls the core editor with no arguments when no options are given', async () => {
+		const { ctx, getContentHTML } = harnessWithEditor();
+
+		await NotectlEditorComponent.prototype.getContentHTML.call(ctx);
+
+		expect(getContentHTML).toHaveBeenCalledWith();
+	});
+
+	it('forwards includeBlockIds: false to the core editor', async () => {
+		const { ctx, getContentHTML } = harnessWithEditor();
+
+		await NotectlEditorComponent.prototype.getContentHTML.call(ctx, { includeBlockIds: false });
+
+		expect(getContentHTML).toHaveBeenCalledWith(
+			expect.objectContaining({ includeBlockIds: false }),
+		);
+	});
+
+	it('forwards cssMode: classes to the core editor', async () => {
+		const { ctx, getContentHTML } = harnessWithEditor();
+
+		await NotectlEditorComponent.prototype.getContentHTML.call(ctx, { cssMode: 'classes' });
+
+		expect(getContentHTML).toHaveBeenCalledWith(expect.objectContaining({ cssMode: 'classes' }));
 	});
 });
