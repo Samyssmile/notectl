@@ -267,6 +267,21 @@ function buildTable(
 		return createBlockNode(nodeType('table_row'), tableCells);
 	};
 
-	const tableRows: BlockNode[] = [buildRow(header), ...rows.map(buildRow)];
+	// GFM normalizes every body row to the header's column count: overlong rows
+	// drop their extra cells, short rows are padded with empty cells. Keeping rows
+	// ragged would break the per-column model invariant the table tools rely on
+	// (column insert/delete and cell navigation index by a fixed colIndex per row).
+	const columnCount: number = header.length;
+	const normalizeRow = (cells: readonly string[]): readonly string[] => {
+		if (cells.length === columnCount) return cells;
+		const normalized: string[] = cells.slice(0, columnCount);
+		while (normalized.length < columnCount) normalized.push('');
+		return normalized;
+	};
+
+	const tableRows: BlockNode[] = [
+		buildRow(header),
+		...rows.map((row) => buildRow(normalizeRow(row))),
+	];
 	return createBlockNode(nodeType('table'), tableRows);
 }
