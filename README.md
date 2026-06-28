@@ -35,6 +35,18 @@ Build a real editor in plain HTML, React, Vue, Svelte, or Angular without lockin
 - CSP-safe styling with `adoptedStyleSheets`
 - A fast path for "just give me a full editor" and a granular path for "I only want these plugins"
 
+## In a team collaboration app
+
+notectl is built to live inside real products. Here it powers the card description editor in a Trello-style board, sitting naturally next to checklists, due dates, labels, and assignees:
+
+<div align="center">
+
+<img src="media/notectl-team-collab-card.png" alt="notectl as the description editor inside a Trello-style team collaboration card" width="720" />
+
+</div>
+
+Because the editor is a Web Component, dropping it into an existing card, ticket, or comment surface is just mounting one custom element. You get a full rich-text toolbar, keyboard shortcuts, and accessible markup without pulling a framework-specific editor runtime into your app.
+
 ## Install
 
 ```bash
