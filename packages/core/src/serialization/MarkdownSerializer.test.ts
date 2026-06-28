@@ -7,6 +7,7 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockText,
 	getInlineChildren,
 } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -351,6 +352,46 @@ describe('serializeDocumentToMarkdown — images & tables', () => {
 			),
 		]);
 		expect(md(doc, createRegistry())).toBe('| H1 | H2 |\n| --- | --- |\n| a | b |');
+	});
+});
+
+describe('serializeDocumentToMarkdown — code block content fidelity (#192 bug #2)', () => {
+	it('preserves blank lines and trailing spaces inside a code block byte-exactly', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('code_block'), [createTextNode('a\n\n\nb  ')], undefined, {
+				language: '',
+			}),
+		]);
+		// Global output normalization must not reach into code bodies: the two
+		// blank lines and the trailing spaces are significant and stay verbatim.
+		expect(serializeDocumentToMarkdown(doc)).toBe('```\na\n\n\nb  \n```\n');
+	});
+
+	it('round-trips code block content through serialize → parse without loss', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('code_block'), [createTextNode('a\n\n\nb  ')], undefined, {
+				language: 'ts',
+			}),
+		]);
+		const reparsed = parseMarkdownToDocument(serializeDocumentToMarkdown(doc));
+		const block = reparsed.children[0];
+		if (!block) throw new Error('expected a block');
+		expect(getBlockText(block)).toBe('a\n\n\nb  ');
+	});
+
+	it('preserves code content when nested inside a blockquote', () => {
+		const code = createBlockNode(
+			nodeType('code_block'),
+			[createTextNode('x\n\n\ny  ')],
+			undefined,
+			{
+				language: '',
+			},
+		);
+		const doc = createDocument([createBlockNode(nodeType('blockquote'), [code], undefined, {})]);
+		// Line prefixing puts `> ` ahead of each fence/body line; the body bytes
+		// (blank lines, trailing spaces) survive at this nesting depth too.
+		expect(serializeDocumentToMarkdown(doc)).toBe('> ```\n> x\n>\n>\n> y  \n> ```\n');
 	});
 });
 
