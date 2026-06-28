@@ -94,6 +94,46 @@ test.describe('Markdown — import', () => {
 		expect(types).toContain('code_block');
 	});
 
+	test('pasting a Markdown document auto-converts it (D11 paste branch)', async ({ editor }) => {
+		// Per D11 the Markdown branch defers to plugin paste interceptors. The full
+		// preset's smart-paste (and code-block) claim structured/fenced text first,
+		// so isolate the Markdown branch with an editor that omits them.
+		await editor.recreateWithPlugins({
+			toolbar: [
+				[
+					{ name: 'HeadingPlugin' },
+					{ name: 'ListPlugin' },
+					{ name: 'TablePlugin' },
+					{ name: 'TextFormattingPlugin' },
+					{ name: 'LinkPlugin' },
+				],
+			],
+			autofocus: true,
+		});
+		await editor.focus();
+		await editor.pasteText('# Heading\n\n- one\n- two\n\n| H1 | H2 |\n| --- | --- |\n| a | b |');
+
+		// The Markdown paste branch is async (dynamic import + parse + dispatch).
+		await expect
+			.poll(async () => (await editor.getJSON()).children.map((b: { type: string }) => b.type))
+			.toContain('table');
+
+		const types = (await editor.getJSON()).children.map((b: { type: string }) => b.type);
+		expect(types).toContain('heading');
+		expect(types).toContain('list_item');
+	});
+
+	test('pasting ordinary prose with a stray asterisk is NOT markdownified', async ({ editor }) => {
+		await editor.focus();
+		await editor.pasteText('Just some prose with a * stray asterisk and an _ underscore.');
+
+		const json = await editor.getJSON();
+		expect(json.children).toHaveLength(1);
+		const text = await editor.getText();
+		expect(text).toContain('* stray asterisk');
+		expect(text).toContain('_ underscore');
+	});
+
 	test('round-trip getContentMarkdown(setContentMarkdown(md)) is stable', async ({
 		editor,
 		page,
