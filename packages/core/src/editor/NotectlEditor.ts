@@ -18,6 +18,7 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
+import type { MarkdownSerializeOptions } from '../serialization/MarkdownTypes.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -28,6 +29,7 @@ import type { Transaction } from '../state/Transaction.js';
 import type { EditorView } from '../view/EditorView.js';
 import {
 	getEditorContentHTML,
+	getEditorContentMarkdown,
 	getEditorJSON,
 	getEditorText,
 	isEditorEmpty,
@@ -220,6 +222,25 @@ export class NotectlEditor extends HTMLElement {
 			html,
 			this.pluginManager?.schemaRegistry,
 			(s) => this.replaceState(s),
+			options,
+		);
+	}
+
+	/**
+	 * Returns a Markdown representation of the document.
+	 *
+	 * Async and genuinely lazy: unlike {@link getContentHTML} (statically bundled),
+	 * the Markdown engine is reached only via dynamic `import()`, so it is
+	 * code-split out of the core bundle and builds that never touch Markdown pay
+	 * nothing (D13). Standard CommonMark/GFM constructs serialize directly;
+	 * superset features emit raw HTML by default (`htmlFallback`), or degrade
+	 * gracefully when it is disabled.
+	 */
+	async getContentMarkdown(options?: MarkdownSerializeOptions): Promise<string> {
+		if (!this.view) throw new Error('Editor not initialized');
+		return getEditorContentMarkdown(
+			this.view.getState(),
+			this.pluginManager?.schemaRegistry,
 			options,
 		);
 	}

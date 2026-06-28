@@ -42,6 +42,7 @@ declare module '../../model/AttrRegistry.js' {
 		image: {
 			src: string;
 			alt: string;
+			title?: string;
 			width?: number;
 			height?: number;
 			align: 'start' | 'center' | 'end';
@@ -125,6 +126,7 @@ export class ImagePlugin implements Plugin {
 			attrs: {
 				src: { default: '' },
 				alt: { default: '' },
+				title: { default: '' },
 				align: { default: 'center' },
 			},
 			toDOM(node) {
@@ -144,6 +146,8 @@ export class ImagePlugin implements Plugin {
 				img.className = 'notectl-image__img';
 				img.src = (node.attrs?.src as string | undefined) ?? '';
 				img.alt = alt;
+				const titleAttr: string = (node.attrs?.title as string | undefined) ?? '';
+				if (titleAttr) img.title = titleAttr;
 				img.draggable = false;
 
 				if (width !== undefined) setStyleProperty(img, 'width', `${width}px`);
@@ -175,7 +179,9 @@ export class ImagePlugin implements Plugin {
 
 				// Alignment is handled by the serializer's alignment injection,
 				// which works in both inline-style and CSS-class modes.
-				return `<figure><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
+				const titleValue: string = (node.attrs?.title as string | undefined) ?? '';
+				const titleHTML: string = titleValue ? ` title="${escapeHTML(titleValue)}"` : '';
+				return `<figure><img src="${src}" alt="${alt}"${titleHTML}${sizeAttrs}></figure>`;
 			},
 			parseHTML: [
 				{
@@ -192,6 +198,9 @@ export class ImagePlugin implements Plugin {
 						const height: string | null = img.getAttribute('height');
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
+
+						const title: string | null = img.getAttribute('title');
+						if (title) attrs.title = title;
 
 						// Check inline style first, then class names (new + legacy)
 						const textAlign: string = el.style?.textAlign ?? '';
@@ -233,13 +242,15 @@ export class ImagePlugin implements Plugin {
 						const height: string | null = el.getAttribute('height');
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
+						const title: string | null = el.getAttribute('title');
+						if (title) attrs.title = title;
 						return attrs;
 					},
 				},
 			],
 			sanitize: {
 				tags: ['figure', 'img'],
-				attrs: ['src', 'alt', 'width', 'height', 'class', 'style'],
+				attrs: ['src', 'alt', 'title', 'width', 'height', 'class', 'style'],
 			},
 		});
 	}

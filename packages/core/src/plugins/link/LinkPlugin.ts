@@ -23,7 +23,7 @@ import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js
 
 declare module '../../model/AttrRegistry.js' {
 	interface MarkAttrRegistry {
-		link: { href: string };
+		link: { href: string; title?: string };
 	}
 }
 
@@ -70,11 +70,14 @@ export class LinkPlugin implements Plugin {
 			inclusive: false,
 			attrs: {
 				href: { default: '' },
+				title: { default: '' },
 			},
 			toDOM(mark) {
 				const a = document.createElement('a');
 				const href: string = sanitizeHref(String(mark.attrs?.href ?? ''));
 				a.setAttribute('href', href);
+				const title: string = String(mark.attrs?.title ?? '');
+				if (title) a.setAttribute('title', title);
 				if (openInNewTab) {
 					a.setAttribute('target', '_blank');
 					a.setAttribute('rel', 'noopener noreferrer');
@@ -84,10 +87,12 @@ export class LinkPlugin implements Plugin {
 			toHTMLString: (mark, content) => {
 				const safeHref: string = sanitizeHref(String(mark.attrs?.href ?? ''));
 				const href: string = escapeHTML(safeHref);
+				const titleValue: string = String(mark.attrs?.title ?? '');
+				const titleAttr: string = titleValue ? ` title="${escapeHTML(titleValue)}"` : '';
 				if (openInNewTab) {
-					return `<a href="${href}" target="_blank" rel="noopener noreferrer">${content}</a>`;
+					return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${content}</a>`;
 				}
-				return `<a href="${href}">${content}</a>`;
+				return `<a href="${href}"${titleAttr}>${content}</a>`;
 			},
 			parseHTML: [
 				{
@@ -97,11 +102,12 @@ export class LinkPlugin implements Plugin {
 						// applied so the parser does not fall back to the core HTMLParser's
 						// raw-href default; the empty value renders as a no-op anchor.
 						const href: string = sanitizeHref(el.getAttribute('href') ?? '');
-						return { href };
+						const title: string = el.getAttribute('title') ?? '';
+						return title ? { href, title } : { href };
 					},
 				},
 			],
-			sanitize: { tags: ['a'], attrs: ['href', 'target', 'rel'] },
+			sanitize: { tags: ['a'], attrs: ['href', 'title', 'target', 'rel'] },
 		});
 	}
 
