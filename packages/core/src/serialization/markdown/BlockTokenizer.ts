@@ -94,8 +94,11 @@ const BLOCKQUOTE = /^ {0,3}>[ ]?/;
 const BULLET_ITEM = /^( *)([-*+])([ \t]+)(.*)$/;
 const ORDERED_ITEM = /^( *)(\d{1,9})([.)])([ \t]+)(.*)$/;
 const TASK_PREFIX = /^\[([ xX])\][ \t]+(.*)$/;
-const SETEXT_H1 = /^ {0,3}=+[ \t]*$/;
-const SETEXT_H2 = /^ {0,3}-+[ \t]*$/;
+// Exported alongside the other grammar patterns so the serializer's line-start
+// escaping re-parses paragraph lines with the exact same rules (single source of
+// truth: a line the tokenizer would read as a setext underline gets escaped).
+export const SETEXT_H1 = /^ {0,3}=+[ \t]*$/;
+export const SETEXT_H2 = /^ {0,3}-+[ \t]*$/;
 const HTML_BLOCK_START = /^ {0,3}<(\/?)([a-zA-Z][a-zA-Z0-9-]*)|^ {0,3}<!--/;
 
 const SPACES_PER_INDENT = 2;

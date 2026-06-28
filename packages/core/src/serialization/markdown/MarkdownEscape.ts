@@ -4,9 +4,11 @@
  * Escaping is contextual: inline text backslash-escapes characters that would
  * otherwise start emphasis/code/links, while the start of a line additionally
  * escapes block markers (`#`, `>`, `-`, …) so prose never accidentally becomes
- * a heading or list on re-parse. Output stays minimal — we do not escape every
+ * a heading or list on re-parse. Output stays minimal: we do not escape every
  * punctuation character, only those that are actually ambiguous in context.
  */
+
+import { FENCE_OPEN, SETEXT_H1, SETEXT_H2, THEMATIC_BREAK } from './BlockTokenizer.js';
 
 /** Inline specials that always need escaping in text content. */
 const ALWAYS_ESCAPE = new Set(['\\', '`', '*', '[', ']', '<', '>']);
@@ -57,8 +59,26 @@ const LINE_START_BULLET = /^(\s*)([-*+])(\s)/;
 const LINE_START_ORDERED = /^(\s*)(\d{1,9})([.)])(\s)/;
 
 /**
+ * Whether a whole line would re-parse as a block construct that spans the entire
+ * line: a thematic break, a setext underline, or an opening code fence. These
+ * carry no trailing content marker (unlike `#`/`-`/`1.`), so they slip past the
+ * leading-marker rules above. Backtick fences and `*`/`_`/`~` breaks are already
+ * neutralized by inline escaping (they arrive backslash-prefixed); what reaches
+ * here is `-`/`=` runs and, under CommonMark, `~~~` fences.
+ */
+function reparsesAsBlockLine(line: string): boolean {
+	return (
+		THEMATIC_BREAK.test(line) ||
+		SETEXT_H1.test(line) ||
+		SETEXT_H2.test(line) ||
+		FENCE_OPEN.test(line)
+	);
+}
+
+/**
  * Escapes leading block markers at the start of a paragraph line so the text
- * does not re-parse as a heading, blockquote, list, or thematic break.
+ * does not re-parse as a heading, blockquote, list, thematic break, setext
+ * underline, or code fence.
  */
 export function escapeLineStart(line: string): string {
 	if (LINE_START_MARKER.test(line)) {
@@ -75,6 +95,11 @@ export function escapeLineStart(line: string): string {
 			LINE_START_ORDERED,
 			(_m, ws: string, num: string, marker: string, sp: string) => `${ws}${num}\\${marker}${sp}`,
 		);
+	}
+	if (reparsesAsBlockLine(line)) {
+		// Backslash the first non-space character: that breaks the run so the line
+		// stays a paragraph, and `\-` / `\=` / `\~` decode back to the literal char.
+		return line.replace(/\S/, (ch) => `\\${ch}`);
 	}
 	return line;
 }
