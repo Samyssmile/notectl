@@ -266,6 +266,33 @@ describe('parseMarkdownToDocument — tables & images', () => {
 		const out = serializeDocumentToMarkdown(parseMarkdownToDocument(md)).trimEnd();
 		expect(out).toBe(md);
 	});
+
+	it('normalizes ragged body rows to the header column count', () => {
+		const doc = parseMarkdownToDocument('| A | B |\n| --- | --- |\n| 1 | 2 | 3 |\n| x |');
+		const rows = getBlockChildren(firstBlock(doc));
+		// Header plus two body rows, every row exactly two cells (overlong row
+		// truncated, short row padded with an empty cell).
+		expect(rows.map((r) => getBlockChildren(r as BlockNode).length)).toEqual([2, 2, 2]);
+		const cellText = (row: BlockNode, col: number): string =>
+			getBlockText(getBlockChildren(getBlockChildren(row)[col] as BlockNode)[0] as BlockNode);
+		expect([cellText(rows[1] as BlockNode, 0), cellText(rows[1] as BlockNode, 1)]).toEqual([
+			'1',
+			'2',
+		]);
+		expect([cellText(rows[2] as BlockNode, 0), cellText(rows[2] as BlockNode, 1)]).toEqual([
+			'x',
+			'',
+		]);
+	});
+
+	it('keeps per-column alignment when padding short rows', () => {
+		const doc = parseMarkdownToDocument('| L | R |\n| :-- | --: |\n| only |');
+		const shortRow = getBlockChildren(firstBlock(doc))[1] as BlockNode;
+		const cells = getBlockChildren(shortRow);
+		const align = (cell: BlockNode): unknown =>
+			(getBlockChildren(cell)[0] as BlockNode).attrs?.align;
+		expect([align(cells[0] as BlockNode), align(cells[1] as BlockNode)]).toEqual(['start', 'end']);
+	});
 });
 
 // --- Block-only round-trip (tables/images via registry are exercised in e2e) ---
