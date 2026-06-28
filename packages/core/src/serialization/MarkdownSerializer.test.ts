@@ -395,6 +395,68 @@ describe('serializeDocumentToMarkdown — code block content fidelity (#192 bug 
 	});
 });
 
+describe('serializeDocumentToMarkdown — whole-line block constructs (#192 bug #3)', () => {
+	const firstBlockType = (markdown: string): string => {
+		const block = parseMarkdownToDocument(markdown).children[0];
+		if (!block) throw new Error('expected a block');
+		return block.type;
+	};
+
+	const roundTripTypes = (doc: ReturnType<typeof createDocument>, options?: object): string[] =>
+		parseMarkdownToDocument(serializeDocumentToMarkdown(doc, undefined, options)).children.map(
+			(b) => b.type,
+		);
+
+	// --- Real regressions: red before the fix (paragraph re-parsed as a block) ---
+
+	it('escapes a lone `---` so it round-trips as a paragraph, not a thematic break', () => {
+		const doc = createDocument([para('---')]);
+		expect(md(doc)).toBe('\\---');
+		expect(roundTripTypes(doc)).toEqual(['paragraph']);
+		const block = parseMarkdownToDocument(md(doc)).children[0];
+		expect(block && getBlockText(block)).toBe('---');
+	});
+
+	it('escapes a `---` continuation line so a multi-line paragraph is not a setext h2', () => {
+		const doc = createDocument([para('foo\n---')]);
+		expect(roundTripTypes(doc)).toEqual(['paragraph']);
+		// The dashes survive as literal text (soft-break whitespace is a separate concern).
+		const block = parseMarkdownToDocument(md(doc)).children[0];
+		expect(block && getBlockText(block)).toContain('---');
+	});
+
+	it('escapes a `===` continuation line so a multi-line paragraph is not a setext h1', () => {
+		const doc = createDocument([para('foo\n===')]);
+		expect(roundTripTypes(doc)).toEqual(['paragraph']);
+		const block = parseMarkdownToDocument(md(doc)).children[0];
+		expect(block && getBlockText(block)).toContain('===');
+	});
+
+	it('escapes a lone `~~~` under commonmark so it is not a code fence', () => {
+		const doc = createDocument([para('~~~')]);
+		const opts = { flavor: 'commonmark' };
+		expect(md(doc, undefined, opts)).toBe('\\~~~');
+		expect(roundTripTypes(doc, opts)).toEqual(['paragraph']);
+	});
+
+	// --- Guards: already safe via inline escaping, asserted so they stay safe ---
+
+	it('keeps `***` and `___` paragraphs intact (inline-escape guard)', () => {
+		expect(firstBlockType(md(createDocument([para('***')])))).toBe('paragraph');
+		expect(firstBlockType(md(createDocument([para('___')])))).toBe('paragraph');
+	});
+
+	it('keeps a single-line `===` paragraph intact (no preceding line, guard)', () => {
+		expect(firstBlockType(md(createDocument([para('===')])))).toBe('paragraph');
+	});
+
+	it('keeps a `~~~` paragraph intact under gfm (inline-escape guard)', () => {
+		expect(firstBlockType(md(createDocument([para('~~~')]), undefined, { flavor: 'gfm' }))).toBe(
+			'paragraph',
+		);
+	});
+});
+
 describe('serializeDocumentToMarkdown — options', () => {
 	it('honors bullet, emphasis, and codeFence style knobs', () => {
 		const doc = createDocument([
