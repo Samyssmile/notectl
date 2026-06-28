@@ -46,42 +46,9 @@ export interface MarkdownSerializeOptions {
 	readonly listIndent?: number;
 }
 
-/**
- * A plugin-contributed Markdown grammar extension (D4). Registered via
- * `PluginContext.registerMarkdownSyntax(...)` and threaded into the parser
- * through {@link MarkdownParseOptions.syntaxExtensions}, so the core grammar
- * never hard-codes plugin syntax such as `$...$` (formula).
- */
-export interface MarkdownSyntaxExtension {
-	/** Stable id for the contributing plugin (e.g. `formula`). */
-	readonly id: string;
-	/**
-	 * Matches a plugin inline construct starting at `index` in `text`. Returns the
-	 * produced inline-node descriptor plus the number of characters consumed, or
-	 * `null` if no match. Must be linear-time (no backtracking regex).
-	 */
-	readonly matchInline?: (
-		text: string,
-		index: number,
-	) => {
-		readonly type: string;
-		readonly attrs: Record<string, string | number | boolean>;
-		readonly length: number;
-	} | null;
-	/**
-	 * Matches a plugin block construct given the full source lines and the current
-	 * line index. Returns the produced block descriptor plus the number of lines
-	 * consumed, or `null` if no match.
-	 */
-	readonly matchBlock?: (
-		lines: readonly string[],
-		lineIndex: number,
-	) => {
-		readonly type: string;
-		readonly attrs: Record<string, string | number | boolean>;
-		readonly linesConsumed: number;
-	} | null;
-}
+/** Re-exported from `model/` so the extension type sits at the dependency floor (D4). */
+export type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
+import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 
 /** Options for {@link parseMarkdownToDocument} / {@link NotectlEditor.setContentMarkdown}. */
 export interface MarkdownParseOptions {

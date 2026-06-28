@@ -73,6 +73,11 @@ export class PasteHTMLHandler {
 		}
 	}
 
+	/** Inserts a pre-built HTML string through the standard paste pipeline. */
+	pasteHTMLString(html: string): void {
+		this.handleHTML(html, this.getState());
+	}
+
 	/** Sanitizes and processes pasted HTML content. */
 	private handleHTML(html: string, state: EditorState): void {
 		// The pre-sanitize pass scrubs active content while keeping DOMPurify's

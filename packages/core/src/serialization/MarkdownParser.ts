@@ -51,7 +51,7 @@ export function parseMarkdownToDocument(
 		linkRefs,
 	};
 
-	const tokens: BlockToken[] = tokenizeBlocks(source, ctx.opts.gfm);
+	const tokens: BlockToken[] = tokenizeBlocks(source, ctx.opts.gfm, ctx.opts.syntaxExtensions);
 	const blocks: BlockNode[] = tokensToBlocks(tokens, ctx);
 	if (blocks.length === 0) return createDocument();
 	return createDocument(blocks);
@@ -103,6 +103,9 @@ function appendToken(token: BlockToken, blocks: BlockNode[], ctx: ParseContext):
 		}
 		case 'table':
 			blocks.push(buildTable(token.aligns, token.header, token.rows, ctx));
+			return;
+		case 'extension_block':
+			blocks.push(makeBlock(token.nodeType, [createTextNode('')], ctx, token.attrs));
 			return;
 		case 'code_block':
 			blocks.push(

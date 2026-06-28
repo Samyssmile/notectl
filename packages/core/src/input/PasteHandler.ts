@@ -4,11 +4,22 @@
  */
 
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { serializeDocumentToHTML } from '../serialization/DocumentSerializer.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
+import { looksLikeMarkdown } from './MarkdownPasteDetector.js';
 import { PasteHTMLHandler } from './PasteHTMLHandler.js';
 import { PasteRichBlockHandler } from './PasteRichBlockHandler.js';
+
+/** Markdown auto-detection mode for the paste pipeline. */
+export type PasteMarkdownMode = 'auto' | 'never';
+
+/** Whether the clipboard `text/html` payload carries real markup worth preferring. */
+function hasUsableHtml(html: string): boolean {
+	return html.trim() !== '' && /<\w/.test(html);
+}
 
 export interface PasteHandlerOptions {
 	readonly getState: GetStateFn;
@@ -17,14 +28,21 @@ export interface PasteHandlerOptions {
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
 	readonly isReadOnly?: () => boolean;
 	readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
+	/** Markdown paste auto-detection. Default `auto`. */
+	readonly pasteMarkdown?: PasteMarkdownMode;
+	/** Supplies plugin-contributed Markdown syntax extensions (formula `$...$`). */
+	readonly getMarkdownSyntaxExtensions?: () => readonly MarkdownSyntaxExtension[];
 }
 
 export class PasteHandler {
 	private readonly getState: GetStateFn;
 	private readonly dispatch: DispatchFn;
+	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly fileHandlerRegistry?: FileHandlerRegistry;
 	private readonly isReadOnly: () => boolean;
 	private readonly getPasteInterceptors: () => readonly PasteInterceptorEntry[];
+	private readonly pasteMarkdown: PasteMarkdownMode;
+	private readonly getMarkdownSyntaxExtensions: () => readonly MarkdownSyntaxExtension[];
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 	private readonly htmlHandler: PasteHTMLHandler;
 	private readonly richBlockHandler: PasteRichBlockHandler;
@@ -35,9 +53,12 @@ export class PasteHandler {
 	) {
 		this.getState = options.getState;
 		this.dispatch = options.dispatch;
+		this.schemaRegistry = options.schemaRegistry;
 		this.fileHandlerRegistry = options.fileHandlerRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.getPasteInterceptors = options.getPasteInterceptors ?? (() => []);
+		this.pasteMarkdown = options.pasteMarkdown ?? 'auto';
+		this.getMarkdownSyntaxExtensions = options.getMarkdownSyntaxExtensions ?? (() => []);
 
 		this.richBlockHandler = new PasteRichBlockHandler(
 			options.getState,
@@ -78,7 +99,40 @@ export class PasteHandler {
 			return;
 		}
 
+		// Markdown branch (D11): after the synchronous interceptor loop, only when
+		// there is no usable HTML (the pipeline prefers HTML), ahead of the
+		// plain-text fallback, and only on a positive cheap synchronous detection.
+		// Clipboard strings are captured before any `await`; `preventDefault()` has
+		// already run, so the async tail (import, parse, dispatch) is safe.
+		if (
+			plainText &&
+			this.pasteMarkdown !== 'never' &&
+			!hasUsableHtml(html) &&
+			looksLikeMarkdown(plainText)
+		) {
+			void this.handleMarkdownPaste(plainText);
+			return;
+		}
+
 		this.htmlHandler.handleHTMLOrTextPaste(clipboardData, plainText);
+	}
+
+	/**
+	 * Dynamically imports the Markdown engine, parses the captured text, and
+	 * routes the result through the HTML paste pipeline (which owns block
+	 * splicing at the caret). Only the heavy parser is lazy-loaded; the detector
+	 * stayed synchronous in the base bundle.
+	 */
+	private async handleMarkdownPaste(text: string): Promise<void> {
+		const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
+		const doc = parseMarkdownToDocument(text, this.schemaRegistry, {
+			syntaxExtensions: this.getMarkdownSyntaxExtensions(),
+		});
+		// Fresh ids for pasted content (no identity to preserve from the clipboard).
+		const html: string = serializeDocumentToHTML(doc, this.schemaRegistry, {
+			includeBlockIds: false,
+		});
+		this.htmlHandler.pasteHTMLString(html);
 	}
 
 	/** Runs paste interceptors in priority order. Returns true if one claimed the paste. */
