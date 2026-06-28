@@ -11,13 +11,19 @@
  */
 
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
-import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import {
+	createBlockNode,
+	createDocument,
+	createTextNode,
+	isInlineNode,
+} from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type NodeTypeName, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import type { MarkdownParseOptions } from './MarkdownTypes.js';
 import type { BlockToken } from './markdown/BlockTokenizer.js';
 import { tokenizeBlocks } from './markdown/BlockTokenizer.js';
+import type { ColumnAlign } from './markdown/GfmTableParser.js';
 import { parseInline } from './markdown/InlineTokenizer.js';
 import { type ParseContext, resolveParseOptions } from './markdown/MarkdownParseContext.js';
 
@@ -45,7 +51,7 @@ export function parseMarkdownToDocument(
 		linkRefs,
 	};
 
-	const tokens: BlockToken[] = tokenizeBlocks(source);
+	const tokens: BlockToken[] = tokenizeBlocks(source, ctx.opts.gfm);
 	const blocks: BlockNode[] = tokensToBlocks(tokens, ctx);
 	if (blocks.length === 0) return createDocument();
 	return createDocument(blocks);
@@ -89,8 +95,14 @@ function appendToken(token: BlockToken, blocks: BlockNode[], ctx: ParseContext):
 		case 'heading':
 			blocks.push(makeBlock('heading', parseInline(token.text, ctx), ctx, { level: token.level }));
 			return;
-		case 'paragraph':
-			blocks.push(makeBlock('paragraph', parseInline(token.text, ctx), ctx));
+		case 'paragraph': {
+			const inline: (TextNode | InlineNode)[] = parseInline(token.text, ctx);
+			const image: BlockNode | null = promoteStandaloneImage(inline, ctx);
+			blocks.push(image ?? makeBlock('paragraph', inline, ctx));
+			return;
+		}
+		case 'table':
+			blocks.push(buildTable(token.aligns, token.header, token.rows, ctx));
 			return;
 		case 'code_block':
 			blocks.push(
@@ -157,4 +169,58 @@ function makeContainer(type: string, children: readonly BlockNode[], ctx: ParseC
 function resolveType(type: string, ctx: ParseContext): NodeTypeName {
 	if (ctx.registry && !ctx.registry.getNodeSpec(type)) return nodeType('paragraph');
 	return nodeType(type);
+}
+
+/**
+ * Promotes a paragraph holding only a single inline image to a block `image`
+ * node, matching the serializer (a standalone-image line becomes a block image).
+ * Returns null when the paragraph is not a lone image or `image` is unavailable.
+ */
+function promoteStandaloneImage(
+	inline: readonly (TextNode | InlineNode)[],
+	ctx: ParseContext,
+): BlockNode | null {
+	if (inline.length !== 1) return null;
+	const only = inline[0];
+	if (!only || !isInlineNode(only) || only.inlineType !== 'image_inline') return null;
+	if (ctx.registry && !ctx.registry.getNodeSpec('image')) return null;
+
+	const attrs: Record<string, string | number | boolean> = {
+		src: String(only.attrs.src ?? ''),
+		alt: String(only.attrs.alt ?? ''),
+		align: 'center',
+	};
+	if (only.attrs.title) attrs.title = String(only.attrs.title);
+	return createBlockNode(nodeType('image'), [createTextNode('')], undefined, attrs);
+}
+
+/** Builds a GFM table node (table → table_row → table_cell → paragraph). */
+function buildTable(
+	aligns: readonly ColumnAlign[],
+	header: readonly string[],
+	rows: readonly (readonly string[])[],
+	ctx: ParseContext,
+): BlockNode {
+	if (ctx.registry && !ctx.registry.getNodeSpec('table')) {
+		// No table support: degrade to a paragraph per row so content is never lost.
+		const lines: string = [header, ...rows].map((r) => r.join(' | ')).join('\n');
+		return makeBlock('paragraph', parseInline(lines, ctx), ctx);
+	}
+
+	const buildRow = (cells: readonly string[]): BlockNode => {
+		const tableCells: BlockNode[] = cells.map((cell, col) => {
+			const align: ColumnAlign = aligns[col] ?? null;
+			const paragraph: BlockNode = createBlockNode(
+				nodeType('paragraph'),
+				parseInline(cell, ctx),
+				undefined,
+				align ? { align } : undefined,
+			);
+			return createBlockNode(nodeType('table_cell'), [paragraph]);
+		});
+		return createBlockNode(nodeType('table_row'), tableCells);
+	};
+
+	const tableRows: BlockNode[] = [buildRow(header), ...rows.map(buildRow)];
+	return createBlockNode(nodeType('table'), tableRows);
 }

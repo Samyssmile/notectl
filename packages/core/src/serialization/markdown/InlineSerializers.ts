@@ -134,9 +134,10 @@ function renderTextContent(node: TextNode, ctx: SerContext): string {
 	return escapeInline(node.text, gfm);
 }
 
-/** Serializes a single inline node (hard break, math, image, plugin extensions). */
+/** Serializes a single inline node (hard break, inline image, math, plugin extensions). */
 function serializeInlineNode(node: InlineNode, ctx: SerContext): string {
 	if (node.inlineType === 'hard_break') return '\\\n';
+	if (node.inlineType === 'image_inline') return serializeInlineImage(node, ctx);
 
 	const spec = ctx.registry?.getInlineNodeSpec(node.inlineType);
 	const md: string | null | undefined = spec?.toMarkdown?.(node, exportContext(ctx.opts));
@@ -144,6 +145,15 @@ function serializeInlineNode(node: InlineNode, ctx: SerContext): string {
 
 	if (ctx.opts.htmlFallback && spec?.toHTMLString) return spec.toHTMLString(node);
 	return '';
+}
+
+/** Serializes an inline image node to `![alt](src "title")` (engine-owned standard construct). */
+function serializeInlineImage(node: InlineNode, ctx: SerContext): string {
+	const src: string = String(node.attrs.src ?? '');
+	const alt: string = String(node.attrs.alt ?? '');
+	const title: string = String(node.attrs.title ?? '');
+	const titlePart: string = title ? ` "${escapeLinkTitle(title)}"` : '';
+	return `![${escapeInline(alt, ctx.opts.gfm)}](${escapeLinkDestination(src)}${titlePart})`;
 }
 
 /** Merges adjacent text nodes with identical mark sets; inline nodes are boundaries. */

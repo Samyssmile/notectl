@@ -14,6 +14,8 @@
  * (fenced code is). GFM tables and `$$` math arrive in Phase 3.
  */
 
+import { type ColumnAlign, type TableData, matchTable } from './GfmTableParser.js';
+
 /** A parsed block-level token. Inline text is left raw for the inline parser. */
 export type BlockToken =
 	| { readonly type: 'heading'; readonly level: number; readonly text: string }
@@ -28,7 +30,13 @@ export type BlockToken =
 			readonly checked: boolean;
 			readonly text: string;
 	  }
-	| { readonly type: 'html'; readonly html: string };
+	| { readonly type: 'html'; readonly html: string }
+	| {
+			readonly type: 'table';
+			readonly aligns: readonly ColumnAlign[];
+			readonly header: readonly string[];
+			readonly rows: readonly (readonly string[])[];
+	  };
 
 /** Block-level HTML tags that begin an HTML block; inline tags fall through to paragraphs. */
 const BLOCK_HTML_TAGS: ReadonlySet<string> = new Set([
@@ -89,12 +97,12 @@ function isBlank(line: string): boolean {
 }
 
 /** Tokenizes a full Markdown source string into block tokens. */
-export function tokenizeBlocks(source: string): BlockToken[] {
+export function tokenizeBlocks(source: string, gfm = true): BlockToken[] {
 	const lines: string[] = source.replace(/\r\n?/g, '\n').split('\n');
-	return tokenizeLines(lines);
+	return tokenizeLines(lines, gfm);
 }
 
-function tokenizeLines(lines: readonly string[]): BlockToken[] {
+function tokenizeLines(lines: readonly string[], gfm: boolean): BlockToken[] {
 	const tokens: BlockToken[] = [];
 	let i = 0;
 
@@ -104,6 +112,20 @@ function tokenizeLines(lines: readonly string[]): BlockToken[] {
 		if (isBlank(line)) {
 			i++;
 			continue;
+		}
+
+		if (gfm) {
+			const table: TableData | null = matchTable(lines, i);
+			if (table) {
+				tokens.push({
+					type: 'table',
+					aligns: table.aligns,
+					header: table.header,
+					rows: table.rows,
+				});
+				i += table.linesConsumed;
+				continue;
+			}
 		}
 
 		const fence: RegExpMatchArray | null = line.match(FENCE_OPEN);
@@ -126,7 +148,7 @@ function tokenizeLines(lines: readonly string[]): BlockToken[] {
 		}
 
 		if (BLOCKQUOTE.test(line)) {
-			i = consumeBlockquote(lines, i, tokens);
+			i = consumeBlockquote(lines, i, tokens, gfm);
 			continue;
 		}
 
@@ -176,7 +198,12 @@ function consumeFencedCode(
 }
 
 /** Consumes consecutive `>`-prefixed lines and recurses into their content. */
-function consumeBlockquote(lines: readonly string[], start: number, tokens: BlockToken[]): number {
+function consumeBlockquote(
+	lines: readonly string[],
+	start: number,
+	tokens: BlockToken[],
+	gfm: boolean,
+): number {
 	const inner: string[] = [];
 	let i: number = start;
 	while (i < lines.length) {
@@ -185,7 +212,7 @@ function consumeBlockquote(lines: readonly string[], start: number, tokens: Bloc
 		inner.push(line.replace(BLOCKQUOTE, ''));
 		i++;
 	}
-	tokens.push({ type: 'blockquote', children: tokenizeLines(inner) });
+	tokens.push({ type: 'blockquote', children: tokenizeLines(inner, gfm) });
 	return i;
 }
 

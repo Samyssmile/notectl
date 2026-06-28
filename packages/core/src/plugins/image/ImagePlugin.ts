@@ -48,6 +48,9 @@ declare module '../../model/AttrRegistry.js' {
 			align: 'start' | 'center' | 'end';
 		};
 	}
+	interface InlineNodeAttrRegistry {
+		image_inline: { src: string; alt: string; title?: string };
+	}
 }
 
 // --- Plugin ---
@@ -80,6 +83,7 @@ export class ImagePlugin implements Plugin {
 		context.registerStyleSheet(IMAGE_POPUP_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
+		this.registerInlineImageNodeSpec(context);
 		this.registerNodeView(context);
 		registerImageCommands(context);
 		this.registerResizeCommands(context);
@@ -252,6 +256,56 @@ export class ImagePlugin implements Plugin {
 				tags: ['figure', 'img'],
 				attrs: ['src', 'alt', 'title', 'width', 'height', 'class', 'style'],
 			},
+		});
+	}
+
+	/**
+	 * Registers a minimal inline image node (D7) so mid-paragraph images (badge
+	 * rows, inline icons) round-trip faithfully without splitting the paragraph.
+	 * Atomic and `contenteditable="false"`, mirroring other inline nodes.
+	 */
+	private registerInlineImageNodeSpec(context: PluginContext): void {
+		context.registerInlineNodeSpec({
+			type: 'image_inline',
+			group: 'inline',
+			attrs: {
+				src: { default: '' },
+				alt: { default: '' },
+				title: { default: '' },
+			},
+			toDOM(node) {
+				const img: HTMLImageElement = document.createElement('img');
+				img.className = 'notectl-image-inline';
+				img.setAttribute('contenteditable', 'false');
+				img.src = String(node.attrs.src ?? '');
+				img.alt = String(node.attrs.alt ?? '');
+				const title: string = String(node.attrs.title ?? '');
+				if (title) img.title = title;
+				img.draggable = false;
+				return img;
+			},
+			toHTMLString(node) {
+				const src: string = escapeHTML(String(node.attrs.src ?? ''));
+				const alt: string = escapeHTML(String(node.attrs.alt ?? ''));
+				const title: string = String(node.attrs.title ?? '');
+				const titleAttr: string = title ? ` title="${escapeHTML(title)}"` : '';
+				return `<img src="${src}" alt="${alt}"${titleAttr}>`;
+			},
+			parseHTML: [
+				{
+					tag: 'img',
+					getAttrs: (el: HTMLElement) => {
+						const attrs: Record<string, string> = {
+							src: el.getAttribute('src') ?? '',
+							alt: el.getAttribute('alt') ?? '',
+						};
+						const title: string | null = el.getAttribute('title');
+						if (title) attrs.title = title;
+						return attrs;
+					},
+				},
+			],
+			sanitize: { tags: ['img'], attrs: ['src', 'alt', 'title'] },
 		});
 	}
 
