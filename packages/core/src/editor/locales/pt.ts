@@ -4,6 +4,7 @@ const locale: EditorLocale = {
 	ariaLabel: 'Editor de texto formatado',
 	ariaDescription: 'Pressione Escape para sair do editor',
 	defaultPlaceholder: 'Comece a digitar...',
+	markdownImported: 'Markdown importado',
 };
 
 export default locale;

@@ -32,6 +32,10 @@ export interface PasteHandlerOptions {
 	readonly pasteMarkdown?: PasteMarkdownMode;
 	/** Supplies plugin-contributed Markdown syntax extensions (formula `$...$`). */
 	readonly getMarkdownSyntaxExtensions?: () => readonly MarkdownSyntaxExtension[];
+	/** Writes a message to the screen-reader live region after a successful Markdown paste. */
+	readonly announce?: (text: string) => void;
+	/** Localized announcement made after Markdown is imported. Defaults to `'Markdown imported'`. */
+	readonly markdownImportedMessage?: string;
 }
 
 export class PasteHandler {
@@ -43,6 +47,8 @@ export class PasteHandler {
 	private readonly getPasteInterceptors: () => readonly PasteInterceptorEntry[];
 	private readonly pasteMarkdown: PasteMarkdownMode;
 	private readonly getMarkdownSyntaxExtensions: () => readonly MarkdownSyntaxExtension[];
+	private readonly announce?: (text: string) => void;
+	private readonly markdownImportedMessage: string;
 	private readonly handlePaste: (e: ClipboardEvent) => void;
 	private readonly htmlHandler: PasteHTMLHandler;
 	private readonly richBlockHandler: PasteRichBlockHandler;
@@ -59,6 +65,8 @@ export class PasteHandler {
 		this.getPasteInterceptors = options.getPasteInterceptors ?? (() => []);
 		this.pasteMarkdown = options.pasteMarkdown ?? 'auto';
 		this.getMarkdownSyntaxExtensions = options.getMarkdownSyntaxExtensions ?? (() => []);
+		this.announce = options.announce;
+		this.markdownImportedMessage = options.markdownImportedMessage ?? 'Markdown imported';
 
 		this.richBlockHandler = new PasteRichBlockHandler(
 			options.getState,
@@ -143,7 +151,11 @@ export class PasteHandler {
 			this.htmlHandler.pastePlainText(text);
 			return;
 		}
+		// `pasteHTMLString` dispatches synchronously, so the state-change handler has
+		// already cleared the live region by the time we announce; announcing here
+		// (not before the paste) ensures the import message is the surviving text.
 		this.htmlHandler.pasteHTMLString(html);
+		this.announce?.(this.markdownImportedMessage);
 	}
 
 	/** Runs paste interceptors in priority order. Returns true if one claimed the paste. */

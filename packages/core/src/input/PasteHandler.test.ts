@@ -1445,3 +1445,67 @@ describe('PasteHandler markdown fallback', () => {
 		expect(allText).toContain('x');
 	});
 });
+
+describe('PasteHandler markdown announce (a11y, #192 Bug #8)', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('announces the import message after a successful Markdown paste', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const announce = vi.fn();
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			markdownImportedMessage: 'Markdown imported',
+		});
+
+		// Two block markers (`# ` and `- `) trip looksLikeMarkdown, so the async
+		// markdown branch runs, parses, and dispatches a real paste.
+		element.dispatchEvent(createPasteEvent({ text: '# Heading\n\n- one\n- two' }));
+
+		await vi.waitFor(() => expect(announce).toHaveBeenCalledWith('Markdown imported'));
+		// The announcement fires after the paste committed, never before.
+		expect(dispatch).toHaveBeenCalled();
+	});
+
+	it('does not announce when the markdown engine throws (plain-text fallback)', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const announce = vi.fn();
+
+		const throwing: MarkdownSyntaxExtension = {
+			id: 'boom',
+			matchBlock: () => {
+				throw new Error('boom');
+			},
+		};
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			markdownImportedMessage: 'Markdown imported',
+			getMarkdownSyntaxExtensions: () => [throwing],
+		});
+
+		element.dispatchEvent(createPasteEvent({ text: '```\nx\n```' }));
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalled());
+		// The fallback path committed the plain text but must stay silent: nothing
+		// was imported as Markdown, so no "Markdown imported" announcement.
+		expect(announce).not.toHaveBeenCalled();
+	});
+});
