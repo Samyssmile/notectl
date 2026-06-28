@@ -67,10 +67,14 @@ export class PasteHTMLHandler {
 			return;
 		}
 
-		if (plainText) {
-			const slice = plainTextSlice(plainText);
-			this.dispatch(pasteSlice(this.getState(), slice));
-		}
+		if (plainText) this.pastePlainText(plainText);
+	}
+
+	/** Inserts plain text through the standard paste pipeline (no HTML interpretation). */
+	pastePlainText(text: string): void {
+		if (!text) return;
+		const slice = plainTextSlice(text);
+		this.dispatch(pasteSlice(this.getState(), slice));
 	}
 
 	/** Inserts a pre-built HTML string through the standard paste pipeline. */

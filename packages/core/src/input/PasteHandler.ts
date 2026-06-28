@@ -122,16 +122,27 @@ export class PasteHandler {
 	 * routes the result through the HTML paste pipeline (which owns block
 	 * splicing at the caret). Only the heavy parser is lazy-loaded; the detector
 	 * stayed synchronous in the base bundle.
+	 *
+	 * `preventDefault()` has already run, so the clipboard would be lost if the
+	 * lazy import, parse, or serialize fails (offline split chunk, strict CSP, a
+	 * parser throw). The whole conversion is guarded; on any failure it degrades
+	 * to a plain-text insertion of the already-captured text. Only the conversion
+	 * is inside the `try` — a throw from the committed paste must not double-fire
+	 * the fallback.
 	 */
 	private async handleMarkdownPaste(text: string): Promise<void> {
-		const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
-		const doc = parseMarkdownToDocument(text, this.schemaRegistry, {
-			syntaxExtensions: this.getMarkdownSyntaxExtensions(),
-		});
-		// Fresh ids for pasted content (no identity to preserve from the clipboard).
-		const html: string = serializeDocumentToHTML(doc, this.schemaRegistry, {
-			includeBlockIds: false,
-		});
+		let html: string;
+		try {
+			const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
+			const doc = parseMarkdownToDocument(text, this.schemaRegistry, {
+				syntaxExtensions: this.getMarkdownSyntaxExtensions(),
+			});
+			// Fresh ids for pasted content (no identity to preserve from the clipboard).
+			html = serializeDocumentToHTML(doc, this.schemaRegistry, { includeBlockIds: false });
+		} catch {
+			this.htmlHandler.pastePlainText(text);
+			return;
+		}
 		this.htmlHandler.pasteHTMLString(html);
 	}
 

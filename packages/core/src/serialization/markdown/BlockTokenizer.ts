@@ -98,6 +98,15 @@ const HTML_BLOCK_START = /^ {0,3}<(\/?)([a-zA-Z][a-zA-Z0-9-]*)|^ {0,3}<!--/;
 
 const SPACES_PER_INDENT = 2;
 
+/**
+ * Maximum blockquote nesting before `>` prefixes are treated as literal text.
+ * Each level recurses (`tokenizeLines` → `consumeBlockquote` → `tokenizeLines`),
+ * so an adversarial paste of thousands of `>` would overflow the stack. The cap
+ * keeps recursion bounded; deeper content degrades to a paragraph (no data loss,
+ * the `>` characters are preserved). Real documents never nest this deep.
+ */
+const MAX_BLOCKQUOTE_DEPTH = 32;
+
 function isBlank(line: string): boolean {
 	return line.trim() === '';
 }
@@ -116,6 +125,7 @@ function tokenizeLines(
 	lines: readonly string[],
 	gfm: boolean,
 	extensions: readonly MarkdownSyntaxExtension[],
+	depth = 0,
 ): BlockToken[] {
 	const tokens: BlockToken[] = [];
 	let i = 0;
@@ -168,7 +178,13 @@ function tokenizeLines(
 		}
 
 		if (BLOCKQUOTE.test(line)) {
-			i = consumeBlockquote(lines, i, tokens, gfm, extensions);
+			// Depth guard: past the cap, stop recursing and keep the `>` lines as
+			// literal paragraph text rather than overflowing the stack.
+			if (depth >= MAX_BLOCKQUOTE_DEPTH) {
+				i = consumeParagraph(lines, i, tokens);
+				continue;
+			}
+			i = consumeBlockquote(lines, i, tokens, gfm, extensions, depth);
 			continue;
 		}
 
@@ -241,6 +257,7 @@ function consumeBlockquote(
 	tokens: BlockToken[],
 	gfm: boolean,
 	extensions: readonly MarkdownSyntaxExtension[],
+	depth: number,
 ): number {
 	const inner: string[] = [];
 	let i: number = start;
@@ -250,7 +267,7 @@ function consumeBlockquote(
 		inner.push(line.replace(BLOCKQUOTE, ''));
 		i++;
 	}
-	tokens.push({ type: 'blockquote', children: tokenizeLines(inner, gfm, extensions) });
+	tokens.push({ type: 'blockquote', children: tokenizeLines(inner, gfm, extensions, depth + 1) });
 	return i;
 }
 

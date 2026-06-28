@@ -79,6 +79,19 @@ const FIXTURES: readonly Fixture[] = [
 	{ name: 'emphasis', md: '*x*', want: 'paragraph{x[italic]}' },
 	{ name: 'strong+em', md: '***x***', want: 'paragraph{x[bold+italic]}' },
 	{ name: 'emphasis mid', md: 'a *b* c', want: 'paragraph{a b[italic] c}' },
+	// Rule-of-three + openers_bottom bucketing: bold spans the whole run while a
+	// nested single-delimiter emphasis applies in the middle. Char-only bucketing
+	// of openers_bottom drops all of these.
+	{
+		name: 'bold around italic middle',
+		md: '**a*b*c**',
+		want: 'paragraph{a[bold]b[bold+italic]c[bold]}',
+	},
+	{
+		name: 'italic around bold middle',
+		md: '*a**b**c*',
+		want: 'paragraph{a[italic]b[bold+italic]c[italic]}',
+	},
 	{ name: 'inline code', md: '`code`', want: 'paragraph{code[code]}' },
 	{ name: 'gfm strike', md: '~~gone~~', want: 'paragraph{gone[strikethrough]}' },
 	// Links + images

@@ -387,16 +387,23 @@ class InlineParser {
 		// Reference link: [label][ref], [label][], or shortcut [label].
 		const label: string = this.text.slice(opener.index, this.pos - 1);
 		let ref: string = label;
+		// Position to advance to *only* when the reference resolves. A failed
+		// lookup must leave `this.pos` at the `]` so the trailing `[ref]` re-parses
+		// as literal text — otherwise `[text][missing]` silently drops `[missing]`.
+		let resolvedEnd: number = this.pos;
 		if (this.text[this.pos] === '[') {
 			const close: number = this.text.indexOf(']', this.pos + 1);
 			if (close !== -1) {
 				const explicit: string = this.text.slice(this.pos + 1, close);
 				if (explicit.trim() !== '') ref = explicit;
-				this.pos = close + 1;
+				resolvedEnd = close + 1;
 			}
 		}
 		const found = this.ctx.linkRefs.get(ref.trim().toLowerCase());
-		if (found) return { href: found.href, title: found.title ?? '' };
+		if (found) {
+			this.pos = resolvedEnd;
+			return { href: found.href, title: found.title ?? '' };
+		}
 		return null;
 	}
 
@@ -532,9 +539,21 @@ class InlineParser {
 	/**
 	 * The CommonMark emphasis algorithm: walk closers, match against openers,
 	 * wrap the enclosed nodes, honoring the rule-of-three for `*` / `_`.
+	 *
+	 * `openersBottom` is the CommonMark "lower bound for opener searches" cache.
+	 * It must be keyed by `(delimiter char, canOpen, origdelims % 3)` — exactly
+	 * the bucketing used by the reference implementation — because the rule-of-
+	 * three test depends on both flags. Keying by the character alone lets a
+	 * `canOpen=false` closer that fails lower the bound for a later `canOpen=true`
+	 * closer of a different length class, silently dropping valid emphasis (e.g.
+	 * `**a*b*c**` would lose all of its bold/italic).
 	 */
 	private processEmphasis(stackBottom: Delimiter | null): void {
-		const openersBottom: Record<string, Delimiter | null> = {};
+		const openersBottom = new Map<string, Delimiter | null>();
+		const bottomFor = (d: Delimiter): Delimiter | null => {
+			const key: string = emphBottomKey(d);
+			return openersBottom.has(key) ? (openersBottom.get(key) ?? null) : stackBottom;
+		};
 
 		let closer: Delimiter | null = stackBottom ? stackBottom.next : this.firstDelimiter();
 		while (closer) {
@@ -545,7 +564,7 @@ class InlineParser {
 			const cc: string = closer.cc;
 			let opener: Delimiter | null = closer.prev;
 			let openerFound = false;
-			const bottom: Delimiter | null = openersBottom[cc] ?? stackBottom;
+			const bottom: Delimiter | null = bottomFor(closer);
 			while (opener && opener !== stackBottom && opener !== bottom) {
 				if (opener.cc === cc && opener.canOpen && this.emphMatches(opener, closer)) {
 					openerFound = true;
@@ -555,7 +574,7 @@ class InlineParser {
 			}
 
 			if (!openerFound) {
-				openersBottom[cc] = closer.prev;
+				openersBottom.set(emphBottomKey(closer), closer.prev);
 				if (!closer.canOpen) this.removeDelimiter(closer);
 				closer = closer.next;
 				continue;
@@ -653,6 +672,16 @@ class InlineParser {
 		if (delim.next) delim.next.prev = delim.prev;
 		if (!delim.next) this.delimiters = delim.prev;
 	}
+}
+
+/**
+ * The `openersBottom` bucket key for a closer: `(char, canOpen, origdelims % 3)`,
+ * mirroring the CommonMark reference implementation's index (`base + (canOpen ?
+ * 3 : 0) + (origdelims % 3)`). `origdelims` is used, not the live `numdelims`, so
+ * the key is stable across the delimiter's consumption.
+ */
+function emphBottomKey(d: Delimiter): string {
+	return `${d.cc}${d.canOpen ? 1 : 0}${d.origdelims % 3}`;
 }
 
 /** Collects the sibling list after the synthetic root into an array. */

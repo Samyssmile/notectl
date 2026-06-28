@@ -12,7 +12,7 @@ import {
 	getInlineChildren,
 	isLeafBlock,
 } from '../model/Document.js';
-import { nodeType } from '../model/TypeBrands.js';
+import { markType, nodeType } from '../model/TypeBrands.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
 
@@ -315,5 +315,91 @@ describe('doc → md → doc round-trip (block-only)', () => {
 			]),
 		];
 		expect(roundTrip(blocks)).toEqual(shapeDoc(createDocument(blocks)));
+	});
+});
+
+// --- Regressions (#192 markdown support) ---
+
+/** Inline content with marks sorted, so assertions don't depend on nesting order. */
+function inlineSorted(markdown: string): InlineShape[] {
+	return inlineOf(markdown).map((c) =>
+		'text' in c ? { text: c.text, marks: [...c.marks].sort() } : c,
+	);
+}
+
+describe('emphasis: openers_bottom bucketing (#192)', () => {
+	it('keeps bold around a partially-italic run', () => {
+		// `**a*b*c**` must yield bold over a/b/c with italic only on b. A char-only
+		// openers_bottom key (vs. the CommonMark `(char, canOpen, len%3)` bucket)
+		// would drop every emphasis here, leaving literal asterisks.
+		expect(inlineSorted('**a*b*c**')).toEqual([
+			{ text: 'a', marks: ['bold'] },
+			{ text: 'b', marks: ['bold', 'italic'] },
+			{ text: 'c', marks: ['bold'] },
+		]);
+	});
+
+	it('round-trips bold-with-italic-middle through serialize → parse', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('a', [{ type: markType('bold') }]),
+				createTextNode('b', [{ type: markType('bold') }, { type: markType('italic') }]),
+				createTextNode('c', [{ type: markType('bold') }]),
+			]),
+		]);
+		const md: string = serializeDocumentToMarkdown(doc);
+		expect(inlineSorted(md)).toEqual([
+			{ text: 'a', marks: ['bold'] },
+			{ text: 'b', marks: ['bold', 'italic'] },
+			{ text: 'c', marks: ['bold'] },
+		]);
+	});
+});
+
+describe('reference links: undefined ref preserves text (#192)', () => {
+	it('keeps the bracketed text literally when the reference is undefined', () => {
+		// No `[missing]: ...` definition: the whole thing is not a link and must
+		// survive as literal text — `parseLinkTarget` must not consume `[missing]`.
+		expect(inlineOf('[text][missing]')).toEqual([{ text: '[text][missing]', marks: [] }]);
+	});
+
+	it('still resolves a defined collapsed/shortcut reference', () => {
+		const block = parseMarkdownToDocument('[text][ref]\n\n[ref]: https://x.io')
+			.children[0] as BlockNode;
+		const node = getInlineChildren(block)[0] as TextNode;
+		expect(node.text).toBe('text');
+		expect(node.marks[0]?.type).toBe('link');
+	});
+});
+
+describe('link reference definitions inside fenced code (#192)', () => {
+	it('keeps a definition-shaped line inside a code fence as code', () => {
+		const md = '```\n[a]: https://x.io\n```';
+		const block = parseMarkdownToDocument(md).children[0] as BlockNode;
+		expect(block.type).toBe('code_block');
+		expect(getBlockText(block)).toBe('[a]: https://x.io');
+	});
+
+	it('still extracts a real definition outside any fence', () => {
+		const md = '[a]\n\n[a]: https://x.io';
+		const block = parseMarkdownToDocument(md).children[0] as BlockNode;
+		const node = getInlineChildren(block)[0] as TextNode;
+		expect(node.marks[0]?.type).toBe('link');
+		expect(node.marks[0]?.attrs).toEqual({ href: 'https://x.io' });
+	});
+});
+
+describe('blockquote depth guard (#192)', () => {
+	it('does not overflow the stack on thousands of `>` and preserves content', () => {
+		const md = `${'>'.repeat(5000)} x`;
+		let doc: Document | undefined;
+		expect(() => {
+			doc = parseMarkdownToDocument(md);
+		}).not.toThrow();
+		// Content is preserved: the deep `>` run degrades to literal text, so both
+		// the trailing `x` and the `>` characters themselves survive (never dropped).
+		const serialized: string = JSON.stringify(doc);
+		expect(serialized).toContain('x');
+		expect(serialized).toContain('>');
 	});
 });
