@@ -389,6 +389,64 @@ describe('link reference definitions inside fenced code (#192)', () => {
 	});
 });
 
+describe('link reference definitions do not interrupt a paragraph (#192)', () => {
+	const hasLinkMark = (block: BlockNode): boolean =>
+		getInlineChildren(block).some(
+			(child) => 'marks' in child && child.marks.some((m) => m.type === markType('link')),
+		);
+
+	it('keeps a def-shaped line as paragraph text when it follows paragraph text', () => {
+		// CommonMark: a link reference definition cannot interrupt a paragraph, so the
+		// second line is a soft continuation of the paragraph, not a definition.
+		const doc = parseMarkdownToDocument('foo\n[bar]: /url');
+		expect(shapeDoc(doc)).toEqual([{ type: 'paragraph', attrs: {}, text: 'foo [bar]: /url' }]);
+	});
+
+	it('does not register a soft-continued def, so a later reference stays literal', () => {
+		const doc = parseMarkdownToDocument('foo\n[bar]: /url\n\nsee [bar]');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'paragraph', attrs: {}, text: 'foo [bar]: /url' },
+			{ type: 'paragraph', attrs: {}, text: 'see [bar]' },
+		]);
+		// The continuation was never a definition: `[bar]` must carry no link mark.
+		const second = doc.children[1] as BlockNode;
+		expect(hasLinkMark(second)).toBe(false);
+	});
+
+	it('preserves a def-shaped line directly under a list item', () => {
+		const doc = parseMarkdownToDocument('- item\n[bar]: /url');
+		expect(shapeDoc(doc)).toEqual([
+			{
+				type: 'list_item',
+				attrs: { listType: 'bullet', indent: 0, checked: false },
+				text: 'item',
+			},
+			{ type: 'paragraph', attrs: {}, text: '[bar]: /url' },
+		]);
+	});
+
+	it('still resolves a real definition that begins at a block boundary', () => {
+		const block = parseMarkdownToDocument('[bar]: /url\n\nsee [bar]').children[0] as BlockNode;
+		const link = getInlineChildren(block).find(
+			(child): child is TextNode =>
+				'marks' in child && child.marks.some((m) => m.type === markType('link')),
+		);
+		expect(link?.text).toBe('bar');
+		expect(link?.marks[0]?.attrs).toEqual({ href: '/url' });
+	});
+
+	it('registers consecutive definitions at the document start', () => {
+		const block = parseMarkdownToDocument('[a]: /u1\n[b]: /u2\n\n[a] and [b]')
+			.children[0] as BlockNode;
+		const hrefs = getInlineChildren(block)
+			.filter((child): child is TextNode => 'marks' in child)
+			.flatMap((child) => child.marks)
+			.filter((m) => m.type === markType('link'))
+			.map((m) => m.attrs);
+		expect(hrefs).toEqual([{ href: '/u1' }, { href: '/u2' }]);
+	});
+});
+
 describe('blockquote depth guard (#192)', () => {
 	it('does not overflow the stack on thousands of `>` and preserves content', () => {
 		const md = `${'>'.repeat(5000)} x`;

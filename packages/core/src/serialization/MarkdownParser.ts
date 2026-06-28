@@ -22,7 +22,12 @@ import { type NodeTypeName, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import type { MarkdownParseOptions } from './MarkdownTypes.js';
 import type { BlockToken } from './markdown/BlockTokenizer.js';
-import { tokenizeBlocks } from './markdown/BlockTokenizer.js';
+import {
+	ATX_HEADING,
+	FENCE_OPEN,
+	THEMATIC_BREAK,
+	tokenizeBlocks,
+} from './markdown/BlockTokenizer.js';
 import type { ColumnAlign } from './markdown/GfmTableParser.js';
 import { parseInline } from './markdown/InlineTokenizer.js';
 import { type ParseContext, resolveParseOptions } from './markdown/MarkdownParseContext.js';
@@ -36,8 +41,6 @@ interface LinkRef {
 const LINK_REF_DEF =
 	/^ {0,3}\[([^\]]+)\]:[ \t]*(?:<([^>]*)>|(\S+))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?[ \t]*$/;
 
-/** Opening of a fenced code block (3+ backticks/tildes). */
-const FENCE_OPEN_LINE = /^ {0,3}(`{3,}|~{3,})/;
 /** A bare closing fence (no info string). */
 const FENCE_CLOSE_LINE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 
@@ -72,22 +75,36 @@ function extractLinkReferences(source: string): {
 	// Track fenced-code state: a reference-definition-shaped line inside a code
 	// fence is code, not a definition, and must survive verbatim (D3 data loss).
 	let fence: { char: string; len: number } | null = null;
+	// Whether a paragraph is open above the next line. CommonMark forbids a link
+	// reference definition from interrupting a paragraph, so a def-shaped line that
+	// lazily continues an open paragraph is paragraph text and must not be stripped.
+	// A definition is only recognized at a block boundary: document start, after a
+	// blank line, a heading, a thematic break, a fence, or another definition.
+	let openParagraph = false;
 	for (const line of source.split('\n')) {
 		if (fence) {
 			kept.push(line);
 			const close: RegExpMatchArray | null = line.match(FENCE_CLOSE_LINE);
 			const run: string | undefined = close?.[1];
 			if (run && run[0] === fence.char && run.length >= fence.len) fence = null;
+			openParagraph = false;
 			continue;
 		}
-		const open: RegExpMatchArray | null = line.match(FENCE_OPEN_LINE);
+		const open: RegExpMatchArray | null = line.match(FENCE_OPEN);
 		if (open?.[1]) {
 			fence = { char: open[1][0] ?? '`', len: open[1].length };
 			kept.push(line);
+			openParagraph = false;
 			continue;
 		}
 		const match: RegExpMatchArray | null = line.match(LINK_REF_DEF);
 		if (match) {
+			// Inside an open paragraph this is a lazy continuation, not a definition:
+			// keep it as text and leave the paragraph open.
+			if (openParagraph) {
+				kept.push(line);
+				continue;
+			}
 			const label: string = (match[1] ?? '').trim().toLowerCase();
 			const href: string = match[2] ?? match[3] ?? '';
 			const title: string | undefined = match[4] ?? match[5] ?? match[6];
@@ -97,6 +114,11 @@ function extractLinkReferences(source: string): {
 			continue;
 		}
 		kept.push(line);
+		// A blank line or a complete block (heading, thematic break) closes any open
+		// paragraph; every other non-blank line keeps one open. Deliberate keep-bias:
+		// a def-shaped line after, e.g., a table row or setext underline is preserved
+		// as text rather than registered, which never drops content (D3).
+		openParagraph = line.trim() !== '' && !ATX_HEADING.test(line) && !THEMATIC_BREAK.test(line);
 	}
 	return { source: kept.join('\n'), linkRefs };
 }
