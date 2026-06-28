@@ -40,22 +40,22 @@ const SETTLE: number = 100;
 
 // ── Low-level Interaction Helpers ───────────────────────────────
 
-async function typeText(page: Page, text: string): Promise<void> {
+export async function typeText(page: Page, text: string): Promise<void> {
 	await page.keyboard.type(text, { delay: DELAY });
 }
 
-async function selectBack(page: Page, chars: number): Promise<void> {
+export async function selectBack(page: Page, chars: number): Promise<void> {
 	for (let i = 0; i < chars; i++) {
 		await page.keyboard.press('Shift+ArrowLeft');
 	}
 	await page.waitForTimeout(50);
 }
 
-async function clickButton(editor: InteractionEditor, id: string): Promise<void> {
+export async function clickButton(editor: InteractionEditor, id: string): Promise<void> {
 	await editor.markButton(id).click();
 }
 
-async function pickHeading(editor: InteractionEditor, label: string): Promise<void> {
+export async function pickHeading(editor: InteractionEditor, label: string): Promise<void> {
 	await clickButton(editor, 'heading');
 	const picker: Locator = editor.root.locator('.notectl-heading-picker');
 	await picker.waitFor({ state: 'visible' });
@@ -63,7 +63,7 @@ async function pickHeading(editor: InteractionEditor, label: string): Promise<vo
 	await picker.waitFor({ state: 'hidden' });
 }
 
-async function pickDropdownItem(
+export async function pickDropdownItem(
 	editor: InteractionEditor,
 	buttonId: string,
 	itemText: string,
@@ -75,7 +75,7 @@ async function pickDropdownItem(
 	await popup.waitFor({ state: 'hidden' });
 }
 
-async function pickFirstColor(
+export async function pickFirstColor(
 	editor: InteractionEditor,
 	page: Page,
 	buttonId: string,
@@ -88,7 +88,7 @@ async function pickFirstColor(
 	await page.waitForTimeout(SETTLE);
 }
 
-async function pickFont(editor: InteractionEditor, page: Page): Promise<void> {
+export async function pickFont(editor: InteractionEditor, page: Page): Promise<void> {
 	await clickButton(editor, 'font');
 	const picker: Locator = editor.root.locator('.notectl-font-picker');
 	await picker.waitFor({ state: 'visible' });
@@ -97,7 +97,7 @@ async function pickFont(editor: InteractionEditor, page: Page): Promise<void> {
 	await page.waitForTimeout(SETTLE);
 }
 
-async function pickFontSize(editor: InteractionEditor, page: Page): Promise<void> {
+export async function pickFontSize(editor: InteractionEditor, page: Page): Promise<void> {
 	await clickButton(editor, 'fontSize');
 	const picker: Locator = editor.root.locator('.notectl-font-size-picker');
 	await picker.waitFor({ state: 'visible' });
@@ -106,7 +106,7 @@ async function pickFontSize(editor: InteractionEditor, page: Page): Promise<void
 	await page.waitForTimeout(SETTLE);
 }
 
-async function applyLink(editor: InteractionEditor, page: Page, url: string): Promise<void> {
+export async function applyLink(editor: InteractionEditor, page: Page, url: string): Promise<void> {
 	await clickButton(editor, 'link');
 	const urlInput: Locator = editor.root.locator('input[aria-label="Link URL"]');
 	await urlInput.waitFor({ state: 'visible' });
@@ -125,7 +125,7 @@ async function insertImage(editor: InteractionEditor, page: Page): Promise<void>
 	await page.waitForTimeout(SETTLE);
 }
 
-async function insertTable(editor: InteractionEditor, page: Page): Promise<void> {
+export async function insertTable(editor: InteractionEditor, page: Page): Promise<void> {
 	await clickButton(editor, 'table');
 	const picker: Locator = editor.root.locator('.notectl-grid-picker');
 	await picker.waitFor({ state: 'visible' });
@@ -135,7 +135,7 @@ async function insertTable(editor: InteractionEditor, page: Page): Promise<void>
 
 // ── Marks Paragraph Builder ─────────────────────────────────────
 
-async function buildMarksParagraph(editor: InteractionEditor, page: Page): Promise<void> {
+export async function buildMarksParagraph(editor: InteractionEditor, page: Page): Promise<void> {
 	await typeText(page, 'This has ');
 
 	// Simple toggle marks: activate → type → deactivate
