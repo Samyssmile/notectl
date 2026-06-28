@@ -64,3 +64,30 @@ export function getSelectedBlockId(state: EditorState): BlockId | undefined {
 	if (isTextSelection(sel)) return sel.anchor.blockId;
 	return undefined;
 }
+
+/**
+ * Returns every leaf-block ID covered by the current selection, in document
+ * order. A NodeSelection yields its single node; a collapsed or single-block
+ * TextSelection yields one ID; a multi-block TextSelection yields the full
+ * inclusive range from anchor to head. Used by block-attribute commands
+ * (alignment, text direction) that must apply to the whole selection.
+ */
+export function getSelectedBlockIds(state: EditorState): BlockId[] {
+	const sel = state.selection;
+
+	if (isNodeSelection(sel)) return [sel.nodeId];
+	if (!isTextSelection(sel)) return [];
+
+	const anchorId: BlockId = sel.anchor.blockId;
+	const headId: BlockId = sel.head.blockId;
+	if (anchorId === headId) return [anchorId];
+
+	const order: readonly BlockId[] = state.getBlockOrder();
+	const anchorIdx: number = order.indexOf(anchorId);
+	const headIdx: number = order.indexOf(headId);
+	if (anchorIdx === -1 || headIdx === -1) return [];
+
+	const from: number = Math.min(anchorIdx, headIdx);
+	const to: number = Math.max(anchorIdx, headIdx);
+	return order.slice(from, to + 1) as BlockId[];
+}

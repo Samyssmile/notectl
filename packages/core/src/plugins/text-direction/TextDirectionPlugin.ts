@@ -13,13 +13,17 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import { isNodeSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { isMac } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { patchNodeSpecAttr } from '../shared/NodeSpecPatching.js';
-import { dispatchIfPresent, getSelectedBlock, resolveLocale } from '../shared/PluginHelpers.js';
+import {
+	dispatchIfPresent,
+	getSelectedBlock,
+	getSelectedBlockIds,
+	resolveLocale,
+} from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { getBlockDir } from './DirectionDetection.js';
 import { DIRECTION_ICONS } from './DirectionIcons.js';
@@ -190,7 +194,7 @@ export class TextDirectionPlugin implements Plugin {
 
 	private setDirection(context: PluginContext, direction: TextDirection): boolean {
 		const state = context.getState();
-		const blockIds: BlockId[] = this.getSelectedBlockIds(state);
+		const blockIds: BlockId[] = getSelectedBlockIds(state);
 		if (blockIds.length === 0) return false;
 
 		const tb = state.transaction('command');
@@ -210,30 +214,6 @@ export class TextDirectionPlugin implements Plugin {
 		if (!changed) return false;
 
 		return dispatchIfPresent(context, tb.setSelection(state.selection).build());
-	}
-
-	private getSelectedBlockIds(state: EditorState): BlockId[] {
-		const sel = state.selection;
-
-		if (isNodeSelection(sel)) {
-			return [sel.nodeId];
-		}
-
-		if (!isTextSelection(sel)) return [];
-
-		const anchorId: BlockId = sel.anchor.blockId;
-		const headId: BlockId = sel.head.blockId;
-
-		if (anchorId === headId) return [anchorId];
-
-		const order: readonly BlockId[] = state.getBlockOrder();
-		const anchorIdx: number = order.indexOf(anchorId);
-		const headIdx: number = order.indexOf(headId);
-		if (anchorIdx === -1 || headIdx === -1) return [];
-
-		const from: number = Math.min(anchorIdx, headIdx);
-		const to: number = Math.max(anchorIdx, headIdx);
-		return order.slice(from, to + 1) as BlockId[];
 	}
 
 	private isNonDefaultDirection(state: EditorState): boolean {
