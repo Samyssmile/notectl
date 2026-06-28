@@ -210,7 +210,7 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerContext): strin
 			marker = ctx.opts.bullet;
 		}
 
-		lines.push(`${pad}${marker} ${content}`);
+		lines.push(content ? `${pad}${marker} ${content}` : `${pad}${marker}`);
 	}
 
 	return lines.join('\n');

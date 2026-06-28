@@ -32,16 +32,20 @@ export function serializeDocumentToMarkdown(
 		markOrder: registry ? buildMarkOrder(registry) : undefined,
 	};
 	const body: string = serializeBlocks(doc.children, ctx);
-	return normalizeOutput(body);
+	return finalizeDocument(body);
 }
 
-/** Trims trailing whitespace per line and collapses to a single trailing newline. */
-function normalizeOutput(markdown: string): string {
-	const trimmed: string = markdown
-		.split('\n')
-		.map((line) => line.replace(/[ \t]+$/, ''))
-		.join('\n')
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
+/**
+ * Closes the assembled document with a single trailing newline, dropping any
+ * leading/trailing blank lines. It intentionally does NOT touch the interior:
+ * each block serializer is responsible for emitting clean lines, and
+ * `serializeBlocks` already joins blocks with exactly one blank line. Trimming
+ * only the document boundaries is provably code-safe, since a document never
+ * begins or ends inside a code body (blocks open and close on their own
+ * delimiters), so significant blank lines and trailing spaces inside a
+ * `code_block` survive verbatim at any nesting depth.
+ */
+function finalizeDocument(markdown: string): string {
+	const trimmed: string = markdown.trim();
 	return trimmed.length > 0 ? `${trimmed}\n` : '';
 }
