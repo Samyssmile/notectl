@@ -9,9 +9,10 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
+import type { BlockNode } from '../../model/Document.js';
 import { hasMark } from '../../model/Document.js';
 import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
-import { isCollapsed, isTextSelection } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -32,12 +33,19 @@ declare module '../../model/AttrRegistry.js' {
 export interface LinkConfig {
 	/** Whether to add rel="noopener noreferrer" and target="_blank" by default. */
 	readonly openInNewTab: boolean;
+	/** Live Markdown shortcuts: `[text](url "title")` and `<url>` autolink. Default true. */
+	readonly inputRule?: boolean;
 	readonly locale?: LinkLocale;
 }
 
 const DEFAULT_CONFIG: LinkConfig = {
 	openInNewTab: true,
 };
+
+/** `[text](url "optional title")`, not preceded by `!` (which would be an image). */
+const LINK_RULE = /(?:^|[^!])(\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\))$/;
+/** `<scheme:...>` autolink. */
+const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]+)>)$/;
 
 // --- Plugin ---
 
@@ -59,6 +67,73 @@ export class LinkPlugin implements Plugin {
 		this.registerCommands(context);
 		this.registerKeymap(context);
 		this.registerToolbarItem(context);
+		if (this.config.inputRule !== false) {
+			this.registerInputRules(context);
+		}
+	}
+
+	/**
+	 * Live Markdown link rules: `[text](url "title")` and `<url>` autolink. Bespoke
+	 * (not the shared wrapping-mark helper) because links carry an `href`/`title`
+	 * attribute and two capture groups (D6).
+	 */
+	private registerInputRules(context: PluginContext): void {
+		const buildLink = (
+			state: EditorState,
+			blockId: BlockNode['id'],
+			start: number,
+			end: number,
+			text: string,
+			href: string,
+			title?: string,
+		) => {
+			const attrs: Record<string, string> = { href };
+			if (title) attrs.title = title;
+			return state
+				.transaction('input')
+				.deleteTextAt(blockId, start, end)
+				.insertText(blockId, start, text, [{ type: markType('link'), attrs }])
+				.setSelection(createCollapsedSelection(blockId, start + text.length))
+				.build();
+		};
+
+		context.registerInputRule({
+			pattern: LINK_RULE,
+			handler(state, match, _start, end) {
+				const sel = state.selection;
+				if (!isTextSelection(sel) || !isCollapsed(sel)) return null;
+				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+				if (!block || block.type === 'code_block') return null;
+
+				const expr = match[1];
+				const text = match[2];
+				const rawHref = match[3];
+				const title = match[4];
+				if (!expr || !text || !rawHref) return null;
+				const href: string = sanitizeHref(rawHref);
+				if (href === '') return null;
+
+				return buildLink(state, sel.anchor.blockId, end - expr.length, end, text, href, title);
+			},
+		});
+
+		context.registerInputRule({
+			pattern: AUTOLINK_RULE,
+			handler(state, match, _start, end) {
+				const sel = state.selection;
+				if (!isTextSelection(sel) || !isCollapsed(sel)) return null;
+				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+				if (!block || block.type === 'code_block') return null;
+
+				const expr = match[1];
+				const url = match[2];
+				if (!expr || !url) return null;
+				const href: string = sanitizeHref(url);
+				if (href === '') return null;
+
+				return buildLink(state, sel.anchor.blockId, end - expr.length, end, url, href);
+			},
+		});
 	}
 
 	private registerMarkSpec(context: PluginContext): void {

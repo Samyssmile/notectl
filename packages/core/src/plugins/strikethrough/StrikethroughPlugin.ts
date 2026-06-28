@@ -4,6 +4,7 @@
  */
 
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { createMarkInputRule } from '../shared/MarkInputRule.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { registerSimpleMark } from '../shared/SimpleMark.js';
@@ -24,6 +25,8 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface StrikethroughConfig {
+	/** Live Markdown shortcut: `~~x~~` to strikethrough. Default true. */
+	readonly inputRule?: boolean;
 	readonly locale?: StrikethroughLocale;
 }
 
@@ -84,5 +87,9 @@ export class StrikethroughPlugin implements Plugin {
 				tooltip: this.locale.tooltip(formatShortcut('Mod-Shift-X')),
 			},
 		});
+
+		if (this.config.inputRule !== false) {
+			context.registerInputRule(createMarkInputRule('strikethrough', '~~'));
+		}
 	}
 }
