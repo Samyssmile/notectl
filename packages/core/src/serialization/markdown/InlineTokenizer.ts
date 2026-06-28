@@ -449,17 +449,45 @@ class InlineParser {
 
 		while (this.text[i] === ' ' || this.text[i] === '\n') i++;
 		let title = '';
-		const quote: string = this.text[i] ?? '';
-		if (quote === '"' || quote === "'") {
-			const end: number = this.text.indexOf(quote, i + 1);
-			if (end === -1) return null;
-			title = this.text.slice(i + 1, end);
-			i = end + 1;
+		const open: string = this.text[i] ?? '';
+		if (open === '"' || open === "'" || open === '(') {
+			const parsed: { title: string; next: number } | null = this.parseLinkTitle(i);
+			if (!parsed) return null;
+			title = parsed.title;
+			i = parsed.next;
 		}
 		while (this.text[i] === ' ' || this.text[i] === '\n') i++;
 		if (this.text[i] !== ')') return null;
 		this.pos = i + 1;
 		return { href, title };
+	}
+
+	/**
+	 * Parses a link/image title that starts at its opening delimiter (`"`, `'`,
+	 * or `(`), honoring backslash escapes so an escaped closing delimiter stays
+	 * part of the title (e.g. `"a\"b"` is the title `a"b`). Mirrors the serializer
+	 * which escapes the delimiter on output, so titles round-trip losslessly.
+	 * Returns the unescaped title and the index just past the closing delimiter,
+	 * or null if it is never closed within the scan bound (D1 ReDoS guard).
+	 */
+	private parseLinkTitle(start: number): { title: string; next: number } | null {
+		const open: string = this.text[start] ?? '';
+		const close: string = open === '(' ? ')' : open;
+		let title = '';
+		let i: number = start + 1;
+		const limit: number = Math.min(this.len, start + 1 + MAX_DESTINATION_LENGTH);
+		while (i < limit) {
+			const ch: string = this.text[i] ?? '';
+			if (ch === '\\' && ESCAPABLE.test(this.text[i + 1] ?? '')) {
+				title += this.text[i + 1];
+				i += 2;
+				continue;
+			}
+			if (ch === close) return { title, next: i + 1 };
+			title += ch;
+			i++;
+		}
+		return null;
 	}
 
 	/** `&`: decodes an HTML entity reference, or emits a literal `&`. */
