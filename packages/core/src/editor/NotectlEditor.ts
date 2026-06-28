@@ -261,12 +261,17 @@ export class NotectlEditor extends HTMLElement {
 	async setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void> {
 		this.assertInitialized();
 		if (!this.view) return;
+		const syntaxExtensions = this.pluginManager?.markdownSyntaxRegistry.getExtensions();
+		const merged: MarkdownParseOptions = {
+			...options,
+			syntaxExtensions: options?.syntaxExtensions ?? syntaxExtensions,
+		};
 		return setEditorContentMarkdown(
 			markdown,
 			this.view.getState(),
 			this.pluginManager?.schemaRegistry,
 			(s) => this.replaceState(s),
-			options,
+			merged,
 		);
 	}
 

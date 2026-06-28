@@ -37,6 +37,9 @@ export function createDisplayMathNodeSpec(): NodeSpec<typeof DISPLAY_MATH_TYPE> 
 		toHTML(node: BlockNode): string {
 			return formulaToHTMLString(readFormulaAttrs(node.attrs));
 		},
+		toMarkdown(node: BlockNode): string {
+			return `$$\n${String(node.attrs?.latex ?? '')}\n$$`;
+		},
 		parseHTML: [
 			{
 				tag: 'math',

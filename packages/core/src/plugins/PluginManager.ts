@@ -11,6 +11,7 @@ import type { CompositionState } from '../model/CompositionState.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
+import { MarkdownSyntaxRegistry } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
@@ -71,6 +72,7 @@ export class PluginManager {
 	readonly schemaRegistry = new SchemaRegistry();
 	readonly keymapRegistry = new KeymapRegistry();
 	readonly inputRuleRegistry = new InputRuleRegistry();
+	readonly markdownSyntaxRegistry = new MarkdownSyntaxRegistry();
 	readonly fileHandlerRegistry = new FileHandlerRegistry();
 	readonly nodeViewRegistry = new NodeViewRegistry();
 	readonly toolbarRegistry = new ToolbarRegistry();
@@ -219,6 +221,7 @@ export class PluginManager {
 		this.schemaRegistry.clear();
 		this.keymapRegistry.clear();
 		this.inputRuleRegistry.clear();
+		this.markdownSyntaxRegistry.clear();
 		this.fileHandlerRegistry.clear();
 		this.nodeViewRegistry.clear();
 		this.toolbarRegistry.clear();
@@ -250,6 +253,7 @@ export class PluginManager {
 			schemaRegistry: this.schemaRegistry,
 			keymapRegistry: this.keymapRegistry,
 			inputRuleRegistry: this.inputRuleRegistry,
+			markdownSyntaxRegistry: this.markdownSyntaxRegistry,
 			toolbarRegistry: this.toolbarRegistry,
 			blockTypePickerRegistry: this.blockTypePickerRegistry,
 			fileHandlerRegistry: this.fileHandlerRegistry,

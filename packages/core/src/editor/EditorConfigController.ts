@@ -114,6 +114,11 @@ export class EditorConfigController {
 		return this.config.readonly ?? false;
 	}
 
+	/** Markdown paste auto-detection mode (`auto` by default). */
+	get pasteMarkdown(): 'auto' | 'never' {
+		return this.config.pasteMarkdown ?? 'auto';
+	}
+
 	/** Returns the currently configured paper size. */
 	getPaperSize(): PaperSize | undefined {
 		return this.config.paperSize;

@@ -14,6 +14,7 @@
  * (fenced code is). GFM tables and `$$` math arrive in Phase 3.
  */
 
+import type { MarkdownSyntaxExtension } from '../../model/MarkdownSyntaxRegistry.js';
 import { type ColumnAlign, type TableData, matchTable } from './GfmTableParser.js';
 
 /** A parsed block-level token. Inline text is left raw for the inline parser. */
@@ -36,6 +37,11 @@ export type BlockToken =
 			readonly aligns: readonly ColumnAlign[];
 			readonly header: readonly string[];
 			readonly rows: readonly (readonly string[])[];
+	  }
+	| {
+			readonly type: 'extension_block';
+			readonly nodeType: string;
+			readonly attrs: Record<string, string | number | boolean>;
 	  };
 
 /** Block-level HTML tags that begin an HTML block; inline tags fall through to paragraphs. */
@@ -97,12 +103,20 @@ function isBlank(line: string): boolean {
 }
 
 /** Tokenizes a full Markdown source string into block tokens. */
-export function tokenizeBlocks(source: string, gfm = true): BlockToken[] {
+export function tokenizeBlocks(
+	source: string,
+	gfm = true,
+	extensions: readonly MarkdownSyntaxExtension[] = [],
+): BlockToken[] {
 	const lines: string[] = source.replace(/\r\n?/g, '\n').split('\n');
-	return tokenizeLines(lines, gfm);
+	return tokenizeLines(lines, gfm, extensions);
 }
 
-function tokenizeLines(lines: readonly string[], gfm: boolean): BlockToken[] {
+function tokenizeLines(
+	lines: readonly string[],
+	gfm: boolean,
+	extensions: readonly MarkdownSyntaxExtension[],
+): BlockToken[] {
 	const tokens: BlockToken[] = [];
 	let i = 0;
 
@@ -111,6 +125,12 @@ function tokenizeLines(lines: readonly string[], gfm: boolean): BlockToken[] {
 
 		if (isBlank(line)) {
 			i++;
+			continue;
+		}
+
+		const extension: number = tryExtensionBlock(extensions, lines, i, tokens);
+		if (extension > 0) {
+			i += extension;
 			continue;
 		}
 
@@ -148,7 +168,7 @@ function tokenizeLines(lines: readonly string[], gfm: boolean): BlockToken[] {
 		}
 
 		if (BLOCKQUOTE.test(line)) {
-			i = consumeBlockquote(lines, i, tokens, gfm);
+			i = consumeBlockquote(lines, i, tokens, gfm, extensions);
 			continue;
 		}
 
@@ -197,12 +217,30 @@ function consumeFencedCode(
 	return i;
 }
 
+/** Tries each extension's `matchBlock`; pushes a token and returns lines consumed (0 = no match). */
+function tryExtensionBlock(
+	extensions: readonly MarkdownSyntaxExtension[],
+	lines: readonly string[],
+	lineIndex: number,
+	tokens: BlockToken[],
+): number {
+	for (const ext of extensions) {
+		const match = ext.matchBlock?.(lines, lineIndex);
+		if (match && match.linesConsumed > 0) {
+			tokens.push({ type: 'extension_block', nodeType: match.type, attrs: match.attrs });
+			return match.linesConsumed;
+		}
+	}
+	return 0;
+}
+
 /** Consumes consecutive `>`-prefixed lines and recurses into their content. */
 function consumeBlockquote(
 	lines: readonly string[],
 	start: number,
 	tokens: BlockToken[],
 	gfm: boolean,
+	extensions: readonly MarkdownSyntaxExtension[],
 ): number {
 	const inner: string[] = [];
 	let i: number = start;
@@ -212,7 +250,7 @@ function consumeBlockquote(
 		inner.push(line.replace(BLOCKQUOTE, ''));
 		i++;
 	}
-	tokens.push({ type: 'blockquote', children: tokenizeLines(inner, gfm) });
+	tokens.push({ type: 'blockquote', children: tokenizeLines(inner, gfm, extensions) });
 	return i;
 }
 

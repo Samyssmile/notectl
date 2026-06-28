@@ -11,6 +11,7 @@ import type { InputRule } from '../model/InputRule.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { MarkdownSyntaxRegistry } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
@@ -87,6 +88,7 @@ export interface ContextFactoryDeps {
 	readonly schemaRegistry: SchemaRegistry;
 	readonly keymapRegistry: KeymapRegistry;
 	readonly inputRuleRegistry: InputRuleRegistry;
+	readonly markdownSyntaxRegistry: MarkdownSyntaxRegistry;
 	readonly toolbarRegistry: ToolbarRegistry;
 	readonly blockTypePickerRegistry: BlockTypePickerRegistry;
 	readonly fileHandlerRegistry: FileHandlerRegistry;
@@ -259,6 +261,7 @@ function createExtensionRegistrar(
 		| 'nodeViewRegistry'
 		| 'keymapRegistry'
 		| 'inputRuleRegistry'
+		| 'markdownSyntaxRegistry'
 		| 'toolbarRegistry'
 		| 'blockTypePickerRegistry'
 		| 'fileHandlerRegistry'
@@ -270,6 +273,7 @@ function createExtensionRegistrar(
 	| 'registerNodeView'
 	| 'registerKeymap'
 	| 'registerInputRule'
+	| 'registerMarkdownSyntax'
 	| 'registerToolbarItem'
 	| 'registerBlockTypePickerEntry'
 	| 'registerFileHandler'
@@ -287,6 +291,9 @@ function createExtensionRegistrar(
 		registerInputRule: (rule) => {
 			deps.inputRuleRegistry.registerInputRule(rule);
 			reg.inputRules.push(rule);
+		},
+		registerMarkdownSyntax: (extension) => {
+			deps.markdownSyntaxRegistry.register(extension);
 		},
 		registerToolbarItem: (item) => {
 			deps.toolbarRegistry.registerToolbarItem(item, pluginId);

@@ -61,6 +61,12 @@ export interface NotectlEditorConfig {
 	readonly?: boolean;
 	autofocus?: boolean;
 	maxHistoryDepth?: number;
+	/**
+	 * Markdown paste auto-detection. `auto` (default) converts pasted text with
+	 * strong block-level Markdown signals (fenced code, GFM table, a run of
+	 * list/heading/quote markers) into rich content; `never` always pastes raw.
+	 */
+	pasteMarkdown?: 'auto' | 'never';
 	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
 	theme?: ThemePreset | Theme;
 	/** Optional nonce for fallback runtime `<style>` elements when strict mode cannot use adopted sheets. */

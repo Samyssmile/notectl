@@ -25,6 +25,7 @@ import {
 } from './FormulaEditTrigger.js';
 import { createFormulaInputRules } from './FormulaInputRules.js';
 import { FORMULA_LOCALE_EN, type FormulaLocale, loadFormulaLocale } from './FormulaLocale.js';
+import { createFormulaMarkdownSyntax } from './FormulaMarkdownSyntax.js';
 import { FormulaOverlay } from './FormulaOverlay.js';
 import { createFormulaPasteInterceptor } from './FormulaPasteInterceptor.js';
 import { FORMULA_CSS, FORMULA_EDITOR_CSS } from './FormulaStyles.js';
@@ -87,6 +88,7 @@ export class FormulaPlugin implements Plugin {
 			}),
 		);
 		for (const rule of createFormulaInputRules()) context.registerInputRule(rule);
+		context.registerMarkdownSyntax(createFormulaMarkdownSyntax());
 		// Priority below smart-paste (50) so standalone <math> is claimed first.
 		context.registerPasteInterceptor(createFormulaPasteInterceptor(), {
 			name: 'formula',

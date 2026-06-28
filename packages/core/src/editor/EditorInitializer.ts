@@ -248,6 +248,8 @@ class EditorInitSession {
 			fileHandlerRegistry: pm.fileHandlerRegistry,
 			isReadOnly: () => this.deps.configController.isReadOnly,
 			getPasteInterceptors: () => pm.getPasteInterceptors(),
+			pasteMarkdown: this.deps.configController.pasteMarkdown,
+			getMarkdownSyntaxExtensions: () => pm.markdownSyntaxRegistry.getExtensions(),
 			getTextInputInterceptors: () => pm.getTextInputInterceptors(),
 			getTextDirection,
 			navigateFromGapCursor,
