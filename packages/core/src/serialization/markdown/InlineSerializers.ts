@@ -10,7 +10,7 @@
  */
 
 import type { InlineNode, Mark, TextNode } from '../../model/Document.js';
-import { isInlineNode, markSetsEqual } from '../../model/Document.js';
+import { createTextNode, isInlineNode, markSetsEqual } from '../../model/Document.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { serializeMarksToHTML } from '../MarkSerializer.js';
 import { type SerContext, exportContext } from './MarkdownContext.js';
@@ -175,13 +175,111 @@ function mergeAdjacent(children: readonly (TextNode | InlineNode)[]): (TextNode 
 	return result;
 }
 
+/** A flanking-sensitive emphasis mark (bold/italic/strike) whose delimiters must hug non-whitespace. */
+function isFlankingMark(mark: Mark, gfm: boolean): boolean {
+	return isStackMark(mark, gfm) && mark.type !== 'link';
+}
+
+/** Whether a sibling carries a mark equal to `mark` (false for inline nodes / no sibling). */
+function siblingHasMark(node: TextNode | InlineNode | undefined, mark: Mark): boolean {
+	if (!node || isInlineNode(node)) return false;
+	return node.marks.some((m) => marksEqual(m, mark));
+}
+
+/** Length of the leading run of ASCII/Unicode whitespace in `text`. */
+function leadingWhitespace(text: string): number {
+	let i = 0;
+	while (i < text.length && /\s/.test(text[i] as string)) i++;
+	return i;
+}
+
+/** Length of the trailing run of whitespace in `text`. */
+function trailingWhitespace(text: string): number {
+	let i: number = text.length;
+	while (i > 0 && /\s/.test(text[i - 1] as string)) i--;
+	return text.length - i;
+}
+
+/** Returns `marks` with every mark in `strip` removed. */
+function withoutMarks(marks: readonly Mark[], strip: readonly Mark[]): Mark[] {
+	if (strip.length === 0) return [...marks];
+	return marks.filter((m) => !strip.some((s) => marksEqual(s, m)));
+}
+
+/** Splits one text node's edge whitespace out of its flanking emphasis marks. */
+function expelNodeWhitespace(
+	node: TextNode,
+	prev: TextNode | InlineNode | undefined,
+	next: TextNode | InlineNode | undefined,
+	gfm: boolean,
+	out: (TextNode | InlineNode)[],
+): void {
+	const flanking: Mark[] = node.marks.filter((m) => isFlankingMark(m, gfm));
+	if (flanking.length === 0) {
+		out.push(node);
+		return;
+	}
+
+	const text: string = node.text;
+	const leadLen: number = leadingWhitespace(text);
+
+	// All whitespace: a flanking mark survives only when interior on BOTH sides
+	// (a same-mark neighbor before and after); otherwise it is expelled.
+	if (leadLen === text.length) {
+		const strip: Mark[] = flanking.filter(
+			(m) => !(siblingHasMark(prev, m) && siblingHasMark(next, m)),
+		);
+		out.push(createTextNode(text, withoutMarks(node.marks, strip)));
+		return;
+	}
+
+	const trailLen: number = trailingWhitespace(text);
+	const lead: string = text.slice(0, leadLen);
+	const core: string = text.slice(leadLen, text.length - trailLen);
+	const trail: string = text.slice(text.length - trailLen);
+
+	if (lead) {
+		const strip: Mark[] = flanking.filter((m) => !siblingHasMark(prev, m));
+		out.push(createTextNode(lead, withoutMarks(node.marks, strip)));
+	}
+	out.push(createTextNode(core, node.marks));
+	if (trail) {
+		const strip: Mark[] = flanking.filter((m) => !siblingHasMark(next, m));
+		out.push(createTextNode(trail, withoutMarks(node.marks, strip)));
+	}
+}
+
+/**
+ * Expels whitespace from the edges of flanking-sensitive emphasis spans
+ * (bold/italic/strikethrough). A `**` delimiter that hugs whitespace
+ * (`**end **`) is not flanking, so CommonMark — and this engine's own parser —
+ * read it literally, breaking the round-trip. Whitespace at a mark's span
+ * boundary is moved outside the mark; whitespace interior to a span is kept.
+ */
+function expelEdgeWhitespace(
+	children: readonly (TextNode | InlineNode)[],
+	gfm: boolean,
+): (TextNode | InlineNode)[] {
+	const out: (TextNode | InlineNode)[] = [];
+	for (let i = 0; i < children.length; i++) {
+		const child = children[i];
+		if (!child) continue;
+		if (isInlineNode(child)) {
+			out.push(child);
+			continue;
+		}
+		expelNodeWhitespace(child, children[i - 1], children[i + 1], gfm, out);
+	}
+	return mergeAdjacent(out);
+}
+
 /** Serializes inline children of a leaf block to a Markdown string. */
 export function serializeInlineContent(
 	children: readonly (TextNode | InlineNode)[],
 	ctx: SerContext,
 ): string {
-	const merged: (TextNode | InlineNode)[] = mergeAdjacent(children);
 	const gfm: boolean = ctx.opts.gfm;
+	const merged: (TextNode | InlineNode)[] = expelEdgeWhitespace(mergeAdjacent(children), gfm);
 	let out = '';
 	let active: Mark[] = [];
 

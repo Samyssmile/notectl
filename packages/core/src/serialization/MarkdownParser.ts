@@ -36,6 +36,11 @@ interface LinkRef {
 const LINK_REF_DEF =
 	/^ {0,3}\[([^\]]+)\]:[ \t]*(?:<([^>]*)>|(\S+))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?[ \t]*$/;
 
+/** Opening of a fenced code block (3+ backticks/tildes). */
+const FENCE_OPEN_LINE = /^ {0,3}(`{3,}|~{3,})/;
+/** A bare closing fence (no info string). */
+const FENCE_CLOSE_LINE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+
 /** Parses a Markdown string into a Document. */
 export function parseMarkdownToDocument(
 	markdown: string,
@@ -64,7 +69,23 @@ function extractLinkReferences(source: string): {
 } {
 	const linkRefs = new Map<string, LinkRef>();
 	const kept: string[] = [];
+	// Track fenced-code state: a reference-definition-shaped line inside a code
+	// fence is code, not a definition, and must survive verbatim (D3 data loss).
+	let fence: { char: string; len: number } | null = null;
 	for (const line of source.split('\n')) {
+		if (fence) {
+			kept.push(line);
+			const close: RegExpMatchArray | null = line.match(FENCE_CLOSE_LINE);
+			const run: string | undefined = close?.[1];
+			if (run && run[0] === fence.char && run.length >= fence.len) fence = null;
+			continue;
+		}
+		const open: RegExpMatchArray | null = line.match(FENCE_OPEN_LINE);
+		if (open?.[1]) {
+			fence = { char: open[1][0] ?? '`', len: open[1].length };
+			kept.push(line);
+			continue;
+		}
 		const match: RegExpMatchArray | null = line.match(LINK_REF_DEF);
 		if (match) {
 			const label: string = (match[1] ?? '').trim().toLowerCase();

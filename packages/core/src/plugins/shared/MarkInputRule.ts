@@ -10,7 +10,7 @@
  */
 
 import type { BlockNode } from '../../model/Document.js';
-import type { InputRule } from '../../model/InputRule.js';
+import { INLINE_NODE_PLACEHOLDER, type InputRule } from '../../model/InputRule.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 
@@ -28,7 +28,10 @@ function escapeRegExp(value: string): string {
 export function createMarkInputRule(markTypeName: string, delimiter: string): InputRule {
 	const delim: string = escapeRegExp(delimiter);
 	const guard: string = escapeRegExp(delimiter[0] ?? '');
-	const pattern = new RegExp(`(?:^|[^${guard}])(${delim}([^${guard}\\n]+)${delim})$`);
+	// The inner run excludes the inline-node placeholder so the rule never wraps
+	// across an inline node nor re-inserts the sentinel as literal text.
+	const ph: string = INLINE_NODE_PLACEHOLDER;
+	const pattern = new RegExp(`(?:^|[^${guard}])(${delim}([^${guard}\\n${ph}]+)${delim})$`);
 
 	return {
 		pattern,

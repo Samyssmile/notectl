@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockText,
+	getInlineChildren,
 } from '../model/Document.js';
+import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
+import { blockId, inlineType, nodeType } from '../model/TypeBrands.js';
+import { createMarkInputRule } from '../plugins/shared/MarkInputRule.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { CompositionTracker } from './CompositionTracker.js';
@@ -298,6 +302,73 @@ describe('InputHandler', () => {
 
 			expect(interceptor).not.toHaveBeenCalled();
 			expect(dispatch).not.toHaveBeenCalled();
+		});
+	});
+
+	// The bug lives in `checkInputRules` (offset-space mismatch), so these tests
+	// drive the real engine — building the block with a genuine inline node and
+	// computing offsets through the code under test — not a hand-built start/end.
+	describe('input rules compute model offsets (#192)', () => {
+		function boldRuleRegistry(): InputRuleRegistry {
+			const registry = new InputRuleRegistry();
+			registry.registerInputRule(createMarkInputRule('bold', '**'));
+			return registry;
+		}
+
+		it('preserves a preceding inline node and marks the right run', () => {
+			element = document.createElement('div');
+			const image = createInlineNode(inlineType('image_inline'), { src: 'x', alt: '' });
+			// Model offsets: the image occupies [0,1); the text begins at offset 1.
+			let state = EditorState.create({
+				doc: createDocument([
+					createBlockNode(nodeType('paragraph'), [image, createTextNode('**bold*')], B1),
+				]),
+				selection: createCollapsedSelection(B1, 8),
+			});
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch: (tr: Transaction) => {
+					state = state.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				inputRuleRegistry: boldRuleRegistry(),
+			});
+
+			// Typing the final `*` completes `**bold**` and fires the rule.
+			element.dispatchEvent(createBeforeInputEvent('insertText', '*'));
+
+			const children = getInlineChildren(state.doc.children[0]);
+			expect(children).toHaveLength(2);
+			const [img, txt] = children;
+			expect(img && 'inlineType' in img ? img.inlineType : '').toBe('image_inline');
+			expect(txt && 'text' in txt ? txt.text : '').toBe('bold');
+			expect(txt && 'text' in txt ? txt.marks.map((m) => m.type) : []).toEqual(['bold']);
+		});
+
+		it('still fires when no inline node precedes the match', () => {
+			element = document.createElement('div');
+			let state = EditorState.create({
+				doc: createDocument([
+					createBlockNode(nodeType('paragraph'), [createTextNode('**bold*')], B1),
+				]),
+				selection: createCollapsedSelection(B1, 7),
+			});
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch: (tr: Transaction) => {
+					state = state.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				inputRuleRegistry: boldRuleRegistry(),
+			});
+
+			element.dispatchEvent(createBeforeInputEvent('insertText', '*'));
+
+			const children = getInlineChildren(state.doc.children[0]);
+			expect(children).toHaveLength(1);
+			const [txt] = children;
+			expect(txt && 'text' in txt ? txt.text : '').toBe('bold');
+			expect(txt && 'text' in txt ? txt.marks.map((m) => m.type) : []).toEqual(['bold']);
 		});
 	});
 });

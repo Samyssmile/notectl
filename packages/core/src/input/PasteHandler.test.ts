@@ -9,6 +9,7 @@ import {
 	isInlineNode,
 } from '../model/Document.js';
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
@@ -1400,5 +1401,47 @@ describe('PasteHandler rich paste cross-block splice (#165)', () => {
 			);
 			expect(nestedTexts).toContain('MID');
 		}
+	});
+});
+
+describe('PasteHandler markdown fallback', () => {
+	let element: HTMLElement;
+	let handler: PasteHandler;
+
+	afterEach(() => {
+		handler.destroy();
+	});
+
+	it('falls back to a plain-text paste when the markdown engine throws', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+
+		// A syntax extension that throws forces parseMarkdownToDocument to reject,
+		// exercising the catch path. `preventDefault()` has already run, so the
+		// captured text must still land — never a silent clipboard loss.
+		const throwing: MarkdownSyntaxExtension = {
+			id: 'boom',
+			matchBlock: () => {
+				throw new Error('boom');
+			},
+		};
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			getMarkdownSyntaxExtensions: () => [throwing],
+		});
+
+		// A fenced block passes `looksLikeMarkdown`, so the async markdown branch runs.
+		element.dispatchEvent(createPasteEvent({ text: '```\nx\n```' }));
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalled());
+
+		const allText: string = state.doc.children.map((b) => getBlockText(b)).join('\n');
+		expect(allText).toContain('```');
+		expect(allText).toContain('x');
 	});
 });

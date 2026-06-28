@@ -42,10 +42,13 @@ const DEFAULT_CONFIG: LinkConfig = {
 	openInNewTab: true,
 };
 
+// The inline-node placeholder (U+FFFC) is excluded from every re-inserted
+// capture so a live link rule never spans an inline node nor writes the
+// sentinel back as literal text.
 /** `[text](url "optional title")`, not preceded by `!` (which would be an image). */
-const LINK_RULE = /(?:^|[^!])(\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\))$/;
+const LINK_RULE = /(?:^|[^!])(\[([^\]\uFFFC]+)\]\(([^)\s\uFFFC]+)(?:\s+"([^"\uFFFC]*)")?\))$/;
 /** `<scheme:...>` autolink. */
-const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s]+)>)$/;
+const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s\uFFFC]+)>)$/;
 
 // --- Plugin ---
 

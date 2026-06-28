@@ -7,9 +7,11 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getInlineChildren,
 } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
 
 // --- Helpers ---
@@ -239,6 +241,45 @@ describe('serializeDocumentToMarkdown — inline marks', () => {
 			]),
 		]);
 		expect(md(doc)).toBe('line one\\\nline two');
+	});
+});
+
+describe('serializeDocumentToMarkdown — emphasis whitespace expulsion (#192)', () => {
+	function bolded(text: string, after = ''): ReturnType<typeof createBlockNode> {
+		const kids = [createTextNode(text, [mark('bold')])];
+		if (after) kids.push(createTextNode(after, []));
+		return createBlockNode(nodeType('paragraph'), kids);
+	}
+
+	it('moves trailing whitespace outside the closing delimiter', () => {
+		// `**end **next` is not right-flanking and parses literally; the space must
+		// land after the closing `**`.
+		expect(md(createDocument([bolded('end ', 'next')]))).toBe('**end** next');
+	});
+
+	it('moves leading whitespace outside the opening delimiter', () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [
+				createTextNode('a', []),
+				createTextNode(' b', [mark('bold')]),
+			]),
+		]);
+		expect(md(doc)).toBe('a **b**');
+	});
+
+	it('keeps whitespace interior to a bold span', () => {
+		expect(md(createDocument([bolded('a b')]))).toBe('**a b**');
+	});
+
+	it('round-trips a trailing-space bold run through serialize → parse', () => {
+		const serialized: string = md(createDocument([bolded('end ', 'next')]));
+		const block = parseMarkdownToDocument(serialized).children[0];
+		if (!block) throw new Error('expected a block');
+		const [first, second] = getInlineChildren(block);
+		expect(first && 'text' in first ? first.text : '').toBe('end');
+		expect(first && 'text' in first ? first.marks.map((m) => m.type) : []).toEqual(['bold']);
+		expect(second && 'text' in second ? second.text : '').toBe(' next');
+		expect(second && 'text' in second ? second.marks : []).toEqual([]);
 	});
 });
 
