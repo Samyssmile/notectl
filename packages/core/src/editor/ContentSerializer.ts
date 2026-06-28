@@ -26,7 +26,10 @@ import {
 	serializeDocumentToCSS,
 	serializeDocumentToHTML,
 } from '../serialization/DocumentSerializer.js';
-import type { MarkdownSerializeOptions } from '../serialization/MarkdownTypes.js';
+import type {
+	MarkdownParseOptions,
+	MarkdownSerializeOptions,
+} from '../serialization/MarkdownTypes.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -139,6 +142,35 @@ export async function getEditorContentMarkdown(
 ): Promise<string> {
 	const { serializeDocumentToMarkdown } = await import('../serialization/MarkdownSerializer.js');
 	return serializeDocumentToMarkdown(state.doc, registry, options);
+}
+
+/**
+ * Replaces editor content from Markdown.
+ *
+ * Reuses existing top-level block IDs in document order (exactly as
+ * {@link setEditorText}), so `setContentMarkdown(getContentMarkdown())`
+ * preserves block identity and keeps the caret stable for unchanged blocks per
+ * the round-trip identity contract (ARCHITECTURE §9.2, D10). Async + lazy: the
+ * parser is reached only via dynamic `import()` to keep the engine code-split
+ * out of the core bundle (D13).
+ */
+export async function setEditorContentMarkdown(
+	markdown: string,
+	currentState: EditorState,
+	registry: SchemaRegistry | undefined,
+	replaceState: (state: EditorState) => void,
+	options?: MarkdownParseOptions,
+): Promise<void> {
+	const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
+	const parsed: Document = parseMarkdownToDocument(markdown, registry, options);
+
+	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
+	const reIdentified: readonly BlockNode[] = parsed.children.map((block, idx) => {
+		const existing: BlockId | undefined = existingIds[idx];
+		return existing ? createBlockNode(block.type, block.children, existing, block.attrs) : block;
+	});
+
+	setEditorJSON({ children: reIdentified }, registry, replaceState);
 }
 
 /** Returns plain text content, descending into container blocks (e.g. blockquote). */

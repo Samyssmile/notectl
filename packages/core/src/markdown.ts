@@ -24,3 +24,4 @@ export type {
 } from './serialization/MarkdownTypes.js';
 
 export { serializeDocumentToMarkdown } from './serialization/MarkdownSerializer.js';
+export { parseMarkdownToDocument } from './serialization/MarkdownParser.js';
