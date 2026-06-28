@@ -5,6 +5,7 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockText,
 } from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
@@ -16,6 +17,7 @@ import {
 	getEditorText,
 	isEditorEmpty,
 	normalizeCompositeBlocks,
+	setEditorContentMarkdown,
 	setEditorJSON,
 	setEditorText,
 } from './ContentSerializer.js';
@@ -54,6 +56,28 @@ describe('getEditorContentMarkdown', () => {
 		const markdown: string = await getEditorContentMarkdown(state, undefined);
 
 		expect(markdown).toBe('# Hi\n\nbody\n');
+	});
+});
+
+describe('setEditorContentMarkdown', () => {
+	it('reuses top-level block IDs by position (round-trip identity, D10)', async () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('heading'), [createTextNode('Hi')], blockId('h1'), { level: 1 }),
+			createBlockNode(nodeType('paragraph'), [createTextNode('body')], blockId('b1')),
+		]);
+		const state: EditorState = EditorState.create({ doc });
+		const markdown: string = await getEditorContentMarkdown(state, undefined);
+
+		let next: EditorState | undefined;
+		await setEditorContentMarkdown(markdown, state, undefined, (s) => {
+			next = s;
+		});
+
+		expect(next).toBeDefined();
+		const result = next as EditorState;
+		expect(result.doc.children.map((b) => b.id)).toEqual(['h1', 'b1']);
+		expect(getBlockText(result.doc.children[0] as never)).toBe('Hi');
+		expect(getBlockText(result.doc.children[1] as never)).toBe('body');
 	});
 });
 

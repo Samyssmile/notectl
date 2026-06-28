@@ -18,7 +18,10 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
-import type { MarkdownSerializeOptions } from '../serialization/MarkdownTypes.js';
+import type {
+	MarkdownParseOptions,
+	MarkdownSerializeOptions,
+} from '../serialization/MarkdownTypes.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -34,6 +37,7 @@ import {
 	getEditorText,
 	isEditorEmpty,
 	setEditorContentHTML,
+	setEditorContentMarkdown,
 	setEditorJSON,
 	setEditorText,
 } from './ContentSerializer.js';
@@ -241,6 +245,27 @@ export class NotectlEditor extends HTMLElement {
 		return getEditorContentMarkdown(
 			this.view.getState(),
 			this.pluginManager?.schemaRegistry,
+			options,
+		);
+	}
+
+	/**
+	 * Replaces the document content from Markdown (CommonMark + GFM).
+	 *
+	 * Async and lazy like {@link getContentMarkdown}. Existing top-level block IDs
+	 * are reused in document order so `setContentMarkdown(getContentMarkdown())`
+	 * preserves block identity and keeps the caret stable for unchanged blocks
+	 * (ARCHITECTURE §9.2, D10). Raw HTML embedded in the Markdown is parsed back
+	 * via the HTML parser so superset features survive the round-trip.
+	 */
+	async setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void> {
+		this.assertInitialized();
+		if (!this.view) return;
+		return setEditorContentMarkdown(
+			markdown,
+			this.view.getState(),
+			this.pluginManager?.schemaRegistry,
+			(s) => this.replaceState(s),
 			options,
 		);
 	}
