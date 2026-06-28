@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
 	type BlockNode,
 	type Document,
+	type InlineNode,
+	type TextNode,
 	createBlockNode,
 	createDocument,
 	createTextNode,
 	getBlockChildren,
 	getBlockText,
+	getInlineChildren,
 	isLeafBlock,
 } from '../model/Document.js';
 import { nodeType } from '../model/TypeBrands.js';
@@ -137,7 +140,135 @@ describe('parseMarkdownToDocument — blocks', () => {
 	});
 });
 
-// --- Block-only round-trip (inline marks/links/tables/images are Phase 3) ---
+// --- Inline parsing (Phase 3) ---
+
+type InlineShape =
+	| { text: string; marks: string[] }
+	| { node: string; attrs: Record<string, unknown> };
+
+function inlineOf(markdown: string): InlineShape[] {
+	const block = parseMarkdownToDocument(markdown).children[0];
+	if (!block) return [];
+	return getInlineChildren(block).map((child: TextNode | InlineNode) =>
+		'text' in child
+			? { text: child.text, marks: child.marks.map((m) => m.type as string) }
+			: { node: child.inlineType as string, attrs: child.attrs },
+	);
+}
+
+describe('parseMarkdownToDocument — inline', () => {
+	it('parses bold, italic, and inline code', () => {
+		expect(inlineOf('**b**')).toEqual([{ text: 'b', marks: ['bold'] }]);
+		expect(inlineOf('*i*')).toEqual([{ text: 'i', marks: ['italic'] }]);
+		expect(inlineOf('`c`')).toEqual([{ text: 'c', marks: ['code'] }]);
+	});
+
+	it('parses nested strong+emphasis', () => {
+		expect(inlineOf('***x***')).toEqual([{ text: 'x', marks: ['italic', 'bold'] }]);
+	});
+
+	it('parses emphasis amid plain text', () => {
+		expect(inlineOf('a **b** c')).toEqual([
+			{ text: 'a ', marks: [] },
+			{ text: 'b', marks: ['bold'] },
+			{ text: ' c', marks: [] },
+		]);
+	});
+
+	it('parses GFM strikethrough', () => {
+		expect(inlineOf('~~gone~~')).toEqual([{ text: 'gone', marks: ['strikethrough'] }]);
+	});
+
+	it('parses an inline link with title', () => {
+		expect(inlineOf('[text](https://x.io "T")')).toEqual([{ text: 'text', marks: ['link'] }]);
+		const block = parseMarkdownToDocument('[text](https://x.io "T")').children[0] as BlockNode;
+		const link = (getInlineChildren(block)[0] as TextNode).marks[0];
+		expect(link?.attrs).toEqual({ href: 'https://x.io', title: 'T' });
+	});
+
+	it('resolves reference links', () => {
+		const md = '[text][ref]\n\n[ref]: https://x.io "T"';
+		const block = parseMarkdownToDocument(md).children[0] as BlockNode;
+		const node = getInlineChildren(block)[0] as TextNode;
+		expect(node.text).toBe('text');
+		expect(node.marks[0]?.type).toBe('link');
+		expect(node.marks[0]?.attrs).toEqual({ href: 'https://x.io', title: 'T' });
+	});
+
+	it('parses an autolink', () => {
+		const block = parseMarkdownToDocument('<https://x.io>').children[0] as BlockNode;
+		const node = getInlineChildren(block)[0] as TextNode;
+		expect(node.marks[0]?.type).toBe('link');
+		expect(node.marks[0]?.attrs).toEqual({ href: 'https://x.io' });
+	});
+
+	it('parses an inline image to an image_inline node', () => {
+		expect(inlineOf('a ![alt](pic.png) b')).toEqual([
+			{ text: 'a ', marks: [] },
+			{ node: 'image_inline', attrs: { src: 'pic.png', alt: 'alt' } },
+			{ text: ' b', marks: [] },
+		]);
+	});
+
+	it('honors backslash escapes (no emphasis)', () => {
+		expect(inlineOf('\\*not italic\\*')).toEqual([{ text: '*not italic*', marks: [] }]);
+	});
+
+	it('does not create emphasis across intraword underscores', () => {
+		expect(inlineOf('a_b_c')).toEqual([{ text: 'a_b_c', marks: [] }]);
+	});
+
+	it('parses a hard break inside a paragraph', () => {
+		const result = inlineOf('line one\\\nline two');
+		expect(result[0]).toEqual({ text: 'line one', marks: [] });
+		expect(result[1]).toEqual({ node: 'hard_break', attrs: {} });
+		expect(result[2]).toEqual({ text: 'line two', marks: [] });
+	});
+});
+
+// --- GFM tables & standalone images ---
+
+describe('parseMarkdownToDocument — tables & images', () => {
+	it('parses a GFM table into table/row/cell structure', () => {
+		const doc = parseMarkdownToDocument('| H1 | H2 |\n| --- | --- |\n| a | b |');
+		const table = firstBlock(doc);
+		expect(table.type).toBe('table');
+		const rows = getBlockChildren(table);
+		expect(rows).toHaveLength(2);
+		const headerCells = getBlockChildren(rows[0] as BlockNode);
+		expect(headerCells).toHaveLength(2);
+		expect(headerCells[0]?.type).toBe('table_cell');
+		const headerText = getBlockText(getBlockChildren(headerCells[0] as BlockNode)[0] as BlockNode);
+		expect(headerText).toBe('H1');
+	});
+
+	it('derives column alignment from the delimiter row', () => {
+		const doc = parseMarkdownToDocument('| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |');
+		const cells = getBlockChildren(getBlockChildren(firstBlock(doc))[0] as BlockNode);
+		const align = (cell: BlockNode): unknown =>
+			(getBlockChildren(cell)[0] as BlockNode).attrs?.align;
+		expect([
+			align(cells[0] as BlockNode),
+			align(cells[1] as BlockNode),
+			align(cells[2] as BlockNode),
+		]).toEqual(['start', 'center', 'end']);
+	});
+
+	it('promotes a standalone-image line to a block image', () => {
+		const doc = parseMarkdownToDocument('![Alt](pic.png "Cap")');
+		const block = firstBlock(doc);
+		expect(block.type).toBe('image');
+		expect(block.attrs).toMatchObject({ src: 'pic.png', alt: 'Alt', title: 'Cap' });
+	});
+
+	it('round-trips a GFM table with alignment', () => {
+		const md = '| H1 | H2 |\n| :--- | ---: |\n| a | b |';
+		const out = serializeDocumentToMarkdown(parseMarkdownToDocument(md)).trimEnd();
+		expect(out).toBe(md);
+	});
+});
+
+// --- Block-only round-trip (tables/images via registry are exercised in e2e) ---
 
 describe('doc → md → doc round-trip (block-only)', () => {
 	function roundTrip(blocks: BlockNode[]): Shape[] {

@@ -238,14 +238,35 @@ function serializeTable(block: BlockNode, ctx: SerContext): string {
 		return `| ${padded.join(' | ')} |`;
 	};
 
+	const headerRow: BlockNode | undefined = rows[0];
+	const delimiters: string[] = Array.from({ length: columns }, (_v, col) =>
+		alignMarker(columnAlign(headerRow, col)),
+	);
+
 	const out: string[] = [];
-	const header: string[] = matrix[0] ?? [];
-	out.push(renderRow(header));
-	out.push(`| ${Array.from({ length: columns }, () => '---').join(' | ')} |`);
+	out.push(renderRow(matrix[0] ?? []));
+	out.push(`| ${delimiters.join(' | ')} |`);
 	for (let i = 1; i < matrix.length; i++) {
 		out.push(renderRow(matrix[i] ?? []));
 	}
 	return out.join('\n');
+}
+
+/** Reads the column alignment from a header cell's paragraph `align` attribute. */
+function columnAlign(headerRow: BlockNode | undefined, col: number): string | undefined {
+	if (!headerRow) return undefined;
+	const cell: BlockNode | undefined = getBlockChildren(headerRow)[col];
+	if (!cell) return undefined;
+	const paragraph: BlockNode | undefined = getBlockChildren(cell)[0];
+	return paragraph?.attrs?.align as string | undefined;
+}
+
+/** Maps a logical alignment to its GFM delimiter marker. */
+function alignMarker(align: string | undefined): string {
+	if (align === 'start') return ':---';
+	if (align === 'center') return ':---:';
+	if (align === 'end') return '---:';
+	return '---';
 }
 
 /** Whether any cell in the rows carries a colspan/rowspan > 1. */
