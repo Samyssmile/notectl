@@ -85,9 +85,11 @@ const BLOCK_HTML_TAGS: ReadonlySet<string> = new Set([
 	'video',
 ]);
 
-const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$/;
-const THEMATIC_BREAK = /^ {0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
+// Exported so the parser's link-reference pre-pass can reuse the exact grammar
+// when deciding block boundaries (single source of truth for the syntax).
+export const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+export const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$/;
+export const THEMATIC_BREAK = /^ {0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
 const BLOCKQUOTE = /^ {0,3}>[ ]?/;
 const BULLET_ITEM = /^( *)([-*+])([ \t]+)(.*)$/;
 const ORDERED_ITEM = /^( *)(\d{1,9})([.)])([ \t]+)(.*)$/;
