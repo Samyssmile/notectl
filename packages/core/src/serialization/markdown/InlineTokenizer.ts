@@ -42,6 +42,9 @@ interface Bracket {
 	active: boolean;
 }
 
+/** Upper bound on an inline link destination scan (ReDoS guard; real URLs are short). */
+const MAX_DESTINATION_LENGTH = 8192;
+
 const PUNCTUATION = /[!-/:-@[-`{-~]/;
 const ESCAPABLE = /[!-/:-@[-`{-~]/;
 const INLINE_HTML_TAGS: ReadonlySet<string> = new Set([
@@ -410,7 +413,10 @@ class InlineParser {
 			i = end + 1;
 		} else {
 			let depth = 0;
-			while (i < this.len) {
+			// Bound the destination scan: real URLs are short, and an unbounded scan
+			// over adversarial input (`](](]( …` with no closing paren) is quadratic.
+			const limit: number = Math.min(this.len, i + MAX_DESTINATION_LENGTH);
+			while (i < limit) {
 				const ch: string = this.text[i] ?? '';
 				if (ch === '\\' && ESCAPABLE.test(this.text[i + 1] ?? '')) {
 					href += this.text[i + 1];
@@ -421,10 +427,17 @@ class InlineParser {
 				else if (ch === ')') {
 					if (depth === 0) break;
 					depth--;
-				} else if (/\s/.test(ch)) break;
+				} else if (/\s/.test(ch) || ch === '[' || ch === ']') {
+					// Whitespace ends a bare destination; `[`/`]` are not valid there
+					// (real URLs percent-encode them) and bailing here keeps degenerate
+					// `](](]( …` input linear instead of quadratic (D1 ReDoS guard).
+					break;
+				}
 				href += ch;
 				i++;
 			}
+			// Scan hit the length cap without resolving a closing paren: not a link.
+			if (i >= limit && this.text[i] !== ')') return null;
 		}
 
 		while (this.text[i] === ' ' || this.text[i] === '\n') i++;
