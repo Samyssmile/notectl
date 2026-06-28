@@ -253,6 +253,42 @@ describe('AlignmentPlugin', () => {
 		});
 	});
 
+	describe('multi-block alignment', () => {
+		it('sets alignment on all blocks in a range selection', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.paragraph('World', 'b2')
+				.paragraph('Foo', 'b3')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 3 })
+				.schema(['paragraph', 'heading'], ['bold', 'italic', 'underline'])
+				.build();
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+
+			h.executeCommand('alignCenter');
+			const doc = h.getState().doc;
+			expect(doc.children[0]?.attrs?.align).toBe('center');
+			expect(doc.children[1]?.attrs?.align).toBe('center');
+			expect(doc.children[2]?.attrs?.align).toBe('center');
+		});
+
+		it('only changes alignable blocks in a range selection', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.block('list_item', 'Item', 'b2', { attrs: { listType: 'bullet', indent: 0 } })
+				.paragraph('World', 'b3')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b3', offset: 5 })
+				.schema(['paragraph', 'heading', 'list_item'], ['bold', 'italic', 'underline'])
+				.build();
+			const h = await pluginHarness(new AlignmentPlugin(), state, HARNESS_OPTIONS);
+
+			h.executeCommand('alignEnd');
+			const doc = h.getState().doc;
+			expect(doc.children[0]?.attrs?.align).toBe('end');
+			expect(doc.children[1]?.attrs?.align).toBeUndefined();
+			expect(doc.children[2]?.attrs?.align).toBe('end');
+		});
+	});
+
 	describe('NodeSelection support', () => {
 		it('sets alignment on image via NodeSelection', async () => {
 			const state = stateBuilder()

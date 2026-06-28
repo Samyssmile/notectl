@@ -16,8 +16,9 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { patchNodeSpecAttr } from '../shared/NodeSpecPatching.js';
 import {
 	capitalize,
+	dispatchIfPresent,
 	getSelectedBlock,
-	getSelectedBlockId,
+	getSelectedBlockIds,
 	resolveLocale,
 } from '../shared/PluginHelpers.js';
 import {
@@ -206,27 +207,33 @@ export class AlignmentPlugin implements Plugin {
 
 	// --- Alignment Logic ---
 
+	/**
+	 * Applies `alignment` to every alignable block in the current selection in
+	 * a single transaction. A multi-block selection aligns all of its blocks,
+	 * not just the anchor; non-alignable blocks in the range are left untouched.
+	 */
 	private setAlignment(context: PluginContext, alignment: BlockAlignment): boolean {
 		const state = context.getState();
-		const block = getSelectedBlock(state);
-		if (!block || !this.alignableTypes.has(block.type)) return false;
+		const blockIds: BlockId[] = getSelectedBlockIds(state);
+		if (blockIds.length === 0) return false;
 
-		const id = getSelectedBlockId(state);
-		if (!id) return false;
+		const tb = state.transaction('command');
+		let changed = false;
 
-		const path = state.getNodePath(id);
-		if (!path) return false;
+		for (const id of blockIds) {
+			const block = state.getBlock(id);
+			if (!block || !this.alignableTypes.has(block.type)) continue;
 
-		const newAttrs = { ...block.attrs, align: alignment };
+			const path = state.getNodePath(id);
+			if (!path) continue;
 
-		const tr = state
-			.transaction('command')
-			.setNodeAttr(path as BlockId[], newAttrs)
-			.setSelection(state.selection)
-			.build();
+			tb.setNodeAttr(path, { ...block.attrs, align: alignment });
+			changed = true;
+		}
 
-		context.dispatch(tr);
-		return true;
+		if (!changed) return false;
+
+		return dispatchIfPresent(context, tb.setSelection(state.selection).build());
 	}
 
 	private isNonDefaultAlignment(state: EditorState): boolean {
