@@ -71,7 +71,10 @@ export class EditorPage {
 	}
 
 	announcer(): Locator {
-		return this.root.locator('[aria-live="polite"]');
+		// The editor's own live region is a direct child of the `.notectl-editor`
+		// wrapper. Scoping to it keeps this unambiguous when content adds its own
+		// live regions (a table renders a nested `[aria-live="polite"]`).
+		return this.root.locator('.notectl-editor > [aria-live="polite"]');
 	}
 
 	popup(): Locator {

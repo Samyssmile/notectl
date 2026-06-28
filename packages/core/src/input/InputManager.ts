@@ -46,6 +46,10 @@ export interface InputManagerDeps {
 	readonly getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 	readonly getTextDirection?: TextDirectionFn;
 	readonly navigateFromGapCursor?: GapCursorNavigateFn;
+	/** Writes a message to the screen-reader live region (for the Markdown paste path). */
+	readonly announce?: (text: string) => void;
+	/** Localized "Markdown imported" announcement for the auto-detect paste path. */
+	readonly markdownImportedMessage?: string;
 }
 
 export class InputManager {
@@ -89,6 +93,8 @@ export class InputManager {
 			getPasteInterceptors: deps.getPasteInterceptors,
 			pasteMarkdown: deps.pasteMarkdown,
 			getMarkdownSyntaxExtensions: deps.getMarkdownSyntaxExtensions,
+			announce: deps.announce,
+			markdownImportedMessage: deps.markdownImportedMessage,
 		});
 
 		this.clipboardHandler = new ClipboardHandler(contentElement, {

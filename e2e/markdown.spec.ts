@@ -94,6 +94,17 @@ test.describe('Markdown — import', () => {
 		expect(types).toContain('code_block');
 	});
 
+	test('setContentMarkdown announces the import to screen readers (#192 Bug #8)', async ({
+		editor,
+		page,
+	}) => {
+		await setMarkdown(page, '# Doc\n\n- one\n- two');
+
+		// The import writes a polite live-region message so screen-reader users learn
+		// the document was replaced from Markdown (issue #192 a11y acceptance criterion).
+		await expect(editor.announcer()).toHaveText('Markdown imported');
+	});
+
 	test('pasting a Markdown document auto-converts it (D11 paste branch)', async ({ editor }) => {
 		// Per D11 the Markdown branch defers to plugin paste interceptors. The full
 		// preset's smart-paste (and code-block) claim structured/fenced text first,
@@ -121,6 +132,9 @@ test.describe('Markdown — import', () => {
 		const types = (await editor.getJSON()).children.map((b: { type: string }) => b.type);
 		expect(types).toContain('heading');
 		expect(types).toContain('list_item');
+
+		// The Markdown paste branch announces the import for screen readers (#192 Bug #8).
+		await expect(editor.announcer()).toHaveText('Markdown imported');
 	});
 
 	test('pasting ordinary prose with a stray asterisk is NOT markdownified', async ({ editor }) => {

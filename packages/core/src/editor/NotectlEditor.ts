@@ -73,6 +73,8 @@ export class NotectlEditor extends HTMLElement {
 	private autoInitQueued = false;
 	private initVersion = 0;
 	private releaseInit: (() => void) | null = null;
+	private announce: ((text: string) => void) | null = null;
+	private markdownImportedMessage = 'Markdown imported';
 
 	constructor() {
 		super();
@@ -150,6 +152,8 @@ export class NotectlEditor extends HTMLElement {
 			this.domElements = result.domElements;
 			this.themeController = result.themeController;
 			this.paperLayout = result.paperLayout;
+			this.announce = result.announce;
+			this.markdownImportedMessage = result.markdownImportedMessage;
 			this.releaseInit = result.release;
 
 			this.lifecycle.resolveReady();
@@ -266,13 +270,17 @@ export class NotectlEditor extends HTMLElement {
 			...options,
 			syntaxExtensions: options?.syntaxExtensions ?? syntaxExtensions,
 		};
-		return setEditorContentMarkdown(
+		await setEditorContentMarkdown(
 			markdown,
 			this.view.getState(),
 			this.pluginManager?.schemaRegistry,
 			(s) => this.replaceState(s),
 			merged,
 		);
+		// `replaceState` ran synchronously above and cleared the live region (its
+		// api-origin no-step transaction yields no announcement), so this is the
+		// surviving message for screen readers.
+		this.announce?.(this.markdownImportedMessage);
 	}
 
 	/** Returns plain text content. */
@@ -447,6 +455,7 @@ export class NotectlEditor extends HTMLElement {
 		this.pendingInitPromise = null;
 		this.releaseInit?.();
 		this.releaseInit = null;
+		this.announce = null;
 		this.paperLayout?.destroy();
 		this.paperLayout = null;
 		this.styleCoordinator.teardown(this.shadowRoot, this.themeController);

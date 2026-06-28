@@ -55,6 +55,10 @@ export interface InitResult {
 	readonly domElements: EditorDOMElements;
 	readonly themeController: EditorThemeController;
 	readonly paperLayout: PaperLayoutController | null;
+	/** Writes a message to the screen-reader live region (no-op after teardown). */
+	readonly announce: (text: string) => void;
+	/** Localized "Markdown imported" announcement, resolved from the editor locale. */
+	readonly markdownImportedMessage: string;
 	/** Nulls closure-captured references to prevent stale dispatches after destroy. */
 	readonly release: () => void;
 }
@@ -82,10 +86,17 @@ class EditorInitSession {
 	private pluginManager: PluginManager | null = null;
 	private inputManager: InputManager | null = null;
 	private view: EditorView | null = null;
+	private locale: EditorLocale = EDITOR_LOCALE_EN;
 	private cleanedUp = false;
 
 	constructor(private readonly deps: InitializerDeps) {
 		this.cfg = deps.config;
+	}
+
+	/** Writes a message to the screen-reader live region. No-op once the DOM is gone. */
+	private announce(text: string): void {
+		const announcer: HTMLElement | undefined = this.domElements?.announcer;
+		if (announcer) announcer.textContent = text;
 	}
 
 	/** Orchestrates the full initialization sequence. */
@@ -96,6 +107,7 @@ class EditorInitSession {
 
 			const locale: EditorLocale = await resolveLocale(this.cfg);
 			if (this.isCancelled()) return this.abort();
+			this.locale = locale;
 
 			this.setupDOM(locale);
 			this.setupPlugins();
@@ -127,6 +139,8 @@ class EditorInitSession {
 				domElements,
 				themeController,
 				paperLayout: this.paperLayout,
+				announce: (text: string): void => this.announce(text),
+				markdownImportedMessage: this.locale.markdownImported,
 				release: (): void => {
 					this.view = null;
 				},
@@ -207,9 +221,7 @@ class EditorInitSession {
 			getContainer: () => dom.content,
 			getPluginContainer: (position) =>
 				position === 'top' ? dom.topPluginContainer : dom.bottomPluginContainer,
-			announce: (text: string) => {
-				if (dom.announcer) dom.announcer.textContent = text;
-			},
+			announce: (text: string) => this.announce(text),
 			hasAnnouncement: () => !!dom.announcer?.textContent,
 			getCompositionState: () => {
 				const tracker = this.inputManager?.compositionTracker;
@@ -253,6 +265,8 @@ class EditorInitSession {
 			getTextInputInterceptors: () => pm.getTextInputInterceptors(),
 			getTextDirection,
 			navigateFromGapCursor,
+			announce: (text: string) => this.announce(text),
+			markdownImportedMessage: this.locale.markdownImported,
 		});
 
 		this.view = new EditorView(dom.content, {
