@@ -11,6 +11,7 @@ import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js'
 import { EditorState } from '../state/EditorState.js';
 import {
 	getEditorContentHTML,
+	getEditorContentMarkdown,
 	getEditorJSON,
 	getEditorText,
 	isEditorEmpty,
@@ -39,6 +40,20 @@ describe('getEditorJSON', () => {
 		const result = getEditorJSON(state);
 
 		expect(result).toBe(doc);
+	});
+});
+
+describe('getEditorContentMarkdown', () => {
+	it('lazily serializes the document to Markdown', async () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('heading'), [createTextNode('Hi')], blockId('h1'), { level: 1 }),
+			createBlockNode(nodeType('paragraph'), [createTextNode('body')], blockId('b1')),
+		]);
+		const state: EditorState = EditorState.create({ doc });
+
+		const markdown: string = await getEditorContentMarkdown(state, undefined);
+
+		expect(markdown).toBe('# Hi\n\nbody\n');
 	});
 });
 

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Built-in Markdown export as a core capability (#192, phase 1).** notectl can now serialize its document to Markdown, mirroring the existing HTML interop but for Markdown. A new web-component method `getContentMarkdown(options?)` (async) and a standalone `serializeDocumentToMarkdown(doc, registry?, options?)` from the new `@notectl/core/markdown` subpath produce CommonMark + GFM output: headings (ATX or setext), paragraphs, ordered/unordered/checklist lists with nesting, blockquotes (recursively prefixed), fenced code blocks with language, horizontal rules, standalone images, GFM tables, and the inline marks bold, italic, strikethrough, inline code, and links (with the new optional `title`). The engine is zero-dependency and hand-written next to the HTML serializer, decomposed into small tokenizer/serializer modules. Emphasis is emitted with a delimiter reconciliation that keeps shared marks open across runs, so output never produces ambiguous adjacent delimiters that would mis-parse on round-trip. Features with no portable Markdown form (underline, highlight, color, font, super/subscript, video, table cell spans, sized or aligned images, title/subtitle) serialize as valid raw HTML by default (`htmlFallback: true`) so the round-trip stays lossless, or degrade gracefully to clean portable Markdown when `htmlFallback: false`. Plugin-owned nodes contribute their own emit through a new optional `toMarkdown` hook on `NodeSpec` / `MarkSpec` / `InlineNodeSpec` (containers stay engine-owned). The engine is referenced only via dynamic `import()` from the async method, so the bundler genuinely code-splits it out of the core chunk: a `size-limit` guard confirms the core bundle does not grow and the Markdown engine ships as its own roughly 3 KB chunk that builds never touching Markdown pay nothing for. Import (parse and paste), live Markdown typing, and the CommonMark conformance suite follow in subsequent phases.
+
 ## [2.2.4] - 2026-06-22
 
 ### Fixed

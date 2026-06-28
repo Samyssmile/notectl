@@ -26,6 +26,7 @@ import {
 	serializeDocumentToCSS,
 	serializeDocumentToHTML,
 } from '../serialization/DocumentSerializer.js';
+import type { MarkdownSerializeOptions } from '../serialization/MarkdownTypes.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -121,6 +122,23 @@ export function setEditorContentHTML(
 ): void {
 	const doc: Document = parseHTMLToDocument(html, registry, options);
 	setEditorJSON(doc, registry, replaceState);
+}
+
+/**
+ * Returns a Markdown representation of the document.
+ *
+ * The engine is loaded via dynamic `import()` so it stays code-split out of the
+ * core bundle (D13) — this helper lives in `editor/`, which is statically
+ * reachable from the web component, so a static import here would defeat the
+ * split. Hence `async`.
+ */
+export async function getEditorContentMarkdown(
+	state: EditorState,
+	registry: SchemaRegistry | undefined,
+	options?: MarkdownSerializeOptions,
+): Promise<string> {
+	const { serializeDocumentToMarkdown } = await import('../serialization/MarkdownSerializer.js');
+	return serializeDocumentToMarkdown(state.doc, registry, options);
 }
 
 /** Returns plain text content, descending into container blocks (e.g. blockquote). */
