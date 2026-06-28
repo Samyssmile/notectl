@@ -3,6 +3,7 @@ import {
 	type BlockNode,
 	type InlineNode,
 	type Mark,
+	type TextNode,
 	createBlockNode,
 	createDocument,
 	createInlineNode,
@@ -430,6 +431,17 @@ describe('serializeDocumentToMarkdown — whole-line block constructs (#192 bug 
 		expect(roundTripTypes(doc)).toEqual(['paragraph']);
 		const block = parseMarkdownToDocument(md(doc)).children[0];
 		expect(block && getBlockText(block)).toContain('===');
+	});
+
+	it('round-trips a link title containing a double quote without losing the link', () => {
+		// Before the fix the serializer emitted `\"` but the parser stopped at the
+		// escaped quote, so the whole link degraded to literal text (silent loss).
+		const doc = createDocument([para('x', [mark('link', { href: '/u', title: 'a"b' })])]);
+		const block = parseMarkdownToDocument(md(doc)).children[0];
+		if (!block) throw new Error('expected a block');
+		const link = (getInlineChildren(block)[0] as TextNode).marks[0];
+		expect(link?.type).toBe('link');
+		expect(link?.attrs).toEqual({ href: '/u', title: 'a"b' });
 	});
 
 	it('escapes a lone `~~~` under commonmark so it is not a code fence', () => {

@@ -186,6 +186,15 @@ describe('parseMarkdownToDocument — inline', () => {
 		expect(link?.attrs).toEqual({ href: 'https://x.io', title: 'T' });
 	});
 
+	it('parses a backslash-escaped quote inside a link title (round-trip with the serializer)', () => {
+		// The serializer escapes an embedded `"` as `\"`; the parser must honor that
+		// escape so the title round-trips instead of the whole link collapsing to text.
+		const block = parseMarkdownToDocument('[x](/u "a\\"b")').children[0] as BlockNode;
+		const link = (getInlineChildren(block)[0] as TextNode).marks[0];
+		expect(link?.type).toBe('link');
+		expect(link?.attrs).toEqual({ href: '/u', title: 'a"b' });
+	});
+
 	it('resolves reference links', () => {
 		const md = '[text][ref]\n\n[ref]: https://x.io "T"';
 		const block = parseMarkdownToDocument(md).children[0] as BlockNode;
