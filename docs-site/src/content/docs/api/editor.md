@@ -45,6 +45,13 @@ interface NotectlEditorConfig {
   autofocus?: boolean;
   /** Maximum undo history depth. */
   maxHistoryDepth?: number;
+  /**
+   * Implicit Markdown behavior: live "shorthand" typing transforms (`# ` -> heading,
+   * `**bold**` -> bold, ...) and Markdown auto-detection on paste. `true` (default)
+   * enables both; `false` keeps typed and pasted Markdown literal; the object form
+   * controls each axis independently. See the Markdown guide.
+   */
+  markdown?: boolean | { shorthand?: boolean; paste?: 'auto' | 'never' };
   /** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
   theme?: ThemePreset | Theme;
   /** Optional nonce for fallback runtime <style> elements. */
@@ -180,6 +187,25 @@ The default (`true`) keeps the current behavior; this is intentional, since flip
 Parses HTML and sets it as the editor content.
 
 By default each serialized block carries a `data-block-id` attribute (part of the wire format). When `setContentHTML` parses HTML produced by `getContentHTML`, those IDs are adopted so block identity round-trips — this is what keeps the caret stable when an external owner (Angular signal form, RxJS pipe, …) writes back the same content on every keystroke. Externally pasted HTML without `data-block-id` (including output of `getContentHTML({ includeBlockIds: false })`) works as before; fresh IDs are generated. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
+
+### `getContentMarkdown(options?: MarkdownSerializeOptions): Promise<string>`
+
+Serializes the document to Markdown (CommonMark + GFM). Async and lazy: the Markdown engine is dynamically imported only on first use, so editors that never call it pay no bundle cost.
+
+```ts
+const md = await editor.getContentMarkdown();
+const gfm = await editor.getContentMarkdown({ flavor: 'gfm', bullet: '-' });
+```
+
+### `setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void>`
+
+Parses Markdown and sets it as the editor content. Async and lazy like `getContentMarkdown`. Existing top-level block IDs are reused in document order, so `setContentMarkdown(await getContentMarkdown())` preserves block identity and keeps the caret stable for unchanged blocks (see [Round-Trip Identity](/notectl/guides/content/#round-trip-identity)).
+
+```ts
+await editor.setContentMarkdown('# Title\n\nA **bold** paragraph.');
+```
+
+These explicit methods are always available regardless of the [`markdown`](#markdown-config-option) config option, which only governs implicit shorthand typing and paste auto-detection. See the [Markdown guide](/notectl/guides/markdown/) for serialize/parse options and the full feature matrix.
 
 ### `getText(): string`
 
@@ -366,6 +392,26 @@ const editor = await createEditor({
 ```
 
 See the [Internationalization guide](/notectl/guides/internationalization/) for full details on global and per-plugin locale configuration, custom locales, and available languages.
+
+## Markdown API
+
+### `markdown` Config Option
+
+Controls notectl's *implicit* Markdown behavior: the live "shorthand" typing transforms (`# ` to heading, `**bold**` to bold, `- ` to list, and so on) and Markdown auto-detection on paste. Defaults to `true` (both on).
+
+```ts
+import { createEditor } from '@notectl/core';
+
+// Literal authoring: typed and pasted Markdown stays as plain text
+await createEditor({ markdown: false });
+
+// Keep literal typing, but still auto-detect pasted Markdown
+await createEditor({ markdown: { shorthand: false } });
+```
+
+This option only affects *automatic* interpretation. The explicit `getContentMarkdown()` / `setContentMarkdown()` methods, the toolbar, and keyboard shortcuts such as `Mod-B` stay available regardless, so `markdown: false` removes the typed shorthand, not the bold or heading capability itself. For per-feature control, every shorthand-registering plugin also accepts an `inputRule` flag.
+
+See the [Markdown guide](/notectl/guides/markdown/#editor-configuration) for the full resolution table and per-plugin control.
 
 ## Lifecycle
 

@@ -25,6 +25,8 @@ interface ListConfig {
   readonly types: ListType[];
   /** Maximum nesting level. Default: 4 */
   readonly maxIndent: number;
+  /** Live Markdown shortcuts `- `/`* ` (bullet), `1. ` (ordered), `[ ] ` (checklist). Default: true */
+  readonly inputRule?: boolean;
   /** Allow checkbox toggling in read-only mode. Default: false */
   readonly interactiveCheckboxes?: boolean;
   /** Override the plugin locale independently from the global editor locale. */

@@ -19,6 +19,8 @@ new HorizontalRulePlugin()
 
 ```ts
 interface HorizontalRuleConfig {
+  /** Live Markdown shortcut `--- ` to insert a horizontal rule. Default: true */
+  readonly inputRule?: boolean;
   /** Custom locale strings. */
   readonly locale?: HorizontalRuleLocale;
 }

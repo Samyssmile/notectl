@@ -113,6 +113,8 @@ Unknown commands render as a visible, announced error marker so nothing fails si
 
 ```ts
 interface FormulaPluginConfig {
+  /** Live Markdown shortcuts `$...$` (inline) and `$$...$$` (display) math. Default: true */
+  readonly inputRule?: boolean;
   /** Locale override for user-facing strings. */
   readonly locale?: FormulaLocale;
   /** Keyboard shortcut overrides. */
