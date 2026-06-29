@@ -518,6 +518,11 @@ describe('ListPlugin', () => {
 			expect(rules.length).toBe(3);
 		});
 
+		it('does not register input rules when inputRule is false', async () => {
+			const h = await pluginHarness(new ListPlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
+		});
+
 		it('"- " triggers bullet list', async () => {
 			const h = await pluginHarness(new ListPlugin());
 			const rules = h.getInputRules();

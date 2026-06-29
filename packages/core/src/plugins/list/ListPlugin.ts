@@ -41,6 +41,8 @@ export interface ListConfig {
 	readonly types: readonly ListType[];
 	/** Maximum indent depth. Defaults to 4. */
 	readonly maxIndent: number;
+	/** Live Markdown shortcuts: `- `/`* ` (bullet), `1. ` (ordered), `[ ] ` (checklist). Default true. */
+	readonly inputRule?: boolean;
 	/**
 	 * When true, checklist checkboxes remain interactive even in read-only mode.
 	 * Defaults to false (checkboxes are fully read-only).
@@ -79,7 +81,7 @@ export class ListPlugin implements Plugin {
 		this.registerNodeSpec(context);
 		registerListCommands(context, this.config, enabledTypes, this.locale);
 		registerListKeymaps(context);
-		registerListInputRules(context, enabledTypes);
+		if (this.config.inputRule !== false) registerListInputRules(context, enabledTypes);
 		registerListToolbarItems(context, enabledTypes, this.locale);
 		this.registerCheckboxClickHandler(context);
 	}

@@ -29,6 +29,8 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface HorizontalRuleConfig {
+	/** Live Markdown shortcut: `--- ` to insert a horizontal rule. Default true. */
+	readonly inputRule?: boolean;
 	/** Locale override for user-facing strings. */
 	readonly locale?: HorizontalRuleLocale;
 }
@@ -68,7 +70,7 @@ export class HorizontalRulePlugin implements Plugin {
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
-		this.registerInputRule(context);
+		if (this.config.inputRule !== false) this.registerInputRule(context);
 		this.registerToolbarItem(context);
 	}
 

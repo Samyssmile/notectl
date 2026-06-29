@@ -371,4 +371,42 @@ describe('InputHandler', () => {
 			expect(txt && 'text' in txt ? txt.marks.map((m) => m.type) : []).toEqual(['bold']);
 		});
 	});
+
+	// The global `markdown` config gate (markdown: false) routes through
+	// `shouldApplyInputRules`. When disabled, typed shorthand must stay literal.
+	describe('shouldApplyInputRules gate', () => {
+		function boldRuleRegistry(): InputRuleRegistry {
+			const registry = new InputRuleRegistry();
+			registry.registerInputRule(createMarkInputRule('bold', '**'));
+			return registry;
+		}
+
+		it('leaves typed Markdown shorthand literal when the gate is closed', () => {
+			element = document.createElement('div');
+			let state = EditorState.create({
+				doc: createDocument([
+					createBlockNode(nodeType('paragraph'), [createTextNode('**bold*')], B1),
+				]),
+				selection: createCollapsedSelection(B1, 7),
+			});
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch: (tr: Transaction) => {
+					state = state.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				inputRuleRegistry: boldRuleRegistry(),
+				shouldApplyInputRules: () => false,
+			});
+
+			// Completes `**bold**`; the rule would fire if the gate were open.
+			element.dispatchEvent(createBeforeInputEvent('insertText', '*'));
+
+			const children = getInlineChildren(state.doc.children[0]);
+			expect(children).toHaveLength(1);
+			const [txt] = children;
+			expect(txt && 'text' in txt ? txt.text : '').toBe('**bold**');
+			expect(txt && 'text' in txt ? txt.marks.map((m) => m.type) : []).toEqual([]);
+		});
+	});
 });

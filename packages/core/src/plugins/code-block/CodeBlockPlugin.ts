@@ -106,7 +106,7 @@ export class CodeBlockPlugin implements Plugin {
 			pairStack: this.autoPair.pairStack,
 			locale: () => this.locale,
 		});
-		registerCodeBlockInputRule(context);
+		if (this.config.inputRule !== false) registerCodeBlockInputRule(context);
 		registerCodeBlockToolbarItem(context, this.locale, this.resolvedKeymap.toggle);
 		registerCodeBlockMarkGuard(context);
 		registerCodeBlockService(
