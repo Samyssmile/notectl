@@ -209,7 +209,12 @@ class InlineParser {
 		return false;
 	}
 
-	/** A newline: hard break (preceded by `\` or two spaces) or soft break. */
+	/**
+	 * A bare newline always produces a soft break. The hard-break forms are
+	 * handled elsewhere: the backslash form (`\` before the newline) in
+	 * `parseBackslash`; the two-trailing-spaces form is not yet implemented on
+	 * import (tracked in #193).
+	 */
 	private parseNewline(): InlineAstNode {
 		this.pos++;
 		// Skip leading spaces of the next line.
