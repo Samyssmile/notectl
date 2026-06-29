@@ -245,6 +245,11 @@ class EditorInitSession {
 		const schema = schemaFromRegistry(pm.schemaRegistry);
 		const state: EditorState = EditorState.create({ schema });
 
+		// Resolved once at init (config-time), mirroring `pasteMarkdown` below.
+		// Runtime toggling of `markdown` is intentionally not supported, so both
+		// axes of the markdown gate stay consistent.
+		const markdownShorthand: boolean = this.deps.configController.markdownShorthand;
+
 		this.inputManager = new InputManager(dom.content, {
 			getState: () => {
 				if (!this.view) throw new Error('View not initialized');
@@ -259,6 +264,7 @@ class EditorInitSession {
 			inputRuleRegistry: pm.inputRuleRegistry,
 			fileHandlerRegistry: pm.fileHandlerRegistry,
 			isReadOnly: () => this.deps.configController.isReadOnly,
+			shouldApplyInputRules: () => markdownShorthand,
 			getPasteInterceptors: () => pm.getPasteInterceptors(),
 			pasteMarkdown: this.deps.configController.pasteMarkdown,
 			getMarkdownSyntaxExtensions: () => pm.markdownSyntaxRegistry.getExtensions(),

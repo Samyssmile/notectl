@@ -129,6 +129,11 @@ describe('HorizontalRulePlugin', () => {
 			expect(h.getInputRules().length).toBe(1);
 		});
 
+		it('does not register an input rule when inputRule is false', async () => {
+			const h = await pluginHarness(new HorizontalRulePlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
+		});
+
 		it('pattern matches "--- "', async () => {
 			const h = await pluginHarness(new HorizontalRulePlugin());
 			const rule = h.getInputRules()[0];

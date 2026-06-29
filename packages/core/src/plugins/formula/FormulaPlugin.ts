@@ -87,7 +87,9 @@ export class FormulaPlugin implements Plugin {
 				onSelect: () => context.announce(this.locale.selected),
 			}),
 		);
-		for (const rule of createFormulaInputRules()) context.registerInputRule(rule);
+		if (this.config.inputRule !== false) {
+			for (const rule of createFormulaInputRules()) context.registerInputRule(rule);
+		}
 		context.registerMarkdownSyntax(createFormulaMarkdownSyntax());
 		// Priority below smart-paste (50) so standalone <math> is claimed first.
 		context.registerPasteInterceptor(createFormulaPasteInterceptor(), {

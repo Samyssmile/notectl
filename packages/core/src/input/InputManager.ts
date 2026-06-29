@@ -40,6 +40,8 @@ export interface InputManagerDeps {
 	readonly inputRuleRegistry?: InputRuleRegistry;
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
 	readonly isReadOnly: () => boolean;
+	/** Live gate for Markdown shorthand input rules. Defaults to always enabled. */
+	readonly shouldApplyInputRules?: () => boolean;
 	readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
 	readonly pasteMarkdown?: PasteMarkdownMode;
 	readonly getMarkdownSyntaxExtensions?: () => readonly MarkdownSyntaxExtension[];
@@ -68,6 +70,7 @@ export class InputManager {
 			syncSelection: deps.syncSelection,
 			inputRuleRegistry: deps.inputRuleRegistry,
 			isReadOnly: deps.isReadOnly,
+			shouldApplyInputRules: deps.shouldApplyInputRules,
 			compositionTracker: this.compositionTracker,
 			getTextInputInterceptors: deps.getTextInputInterceptors,
 		});

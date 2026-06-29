@@ -128,6 +128,8 @@ export interface CodeBlockConfig {
 	readonly textColor?: string;
 	/** Default header/label text color (overrides --notectl-code-block-header-color). */
 	readonly headerColor?: string;
+	/** Live Markdown shortcut: ```` ``` ```` (optionally with a language) to start a code block. Default true. */
+	readonly inputRule?: boolean;
 	/** Customize keyboard bindings for code block actions. */
 	readonly keymap?: CodeBlockKeymap;
 	/** Locale override for user-facing strings. */

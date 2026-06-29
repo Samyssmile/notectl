@@ -11,6 +11,7 @@ import type { Logger } from '../plugins/Logger.js';
 import type { Plugin } from '../plugins/Plugin.js';
 import type { TextFormattingConfig } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import type { ToolbarOverflowBehavior } from '../plugins/toolbar/ToolbarOverflowBehavior.js';
+import type { MarkdownConfig } from './MarkdownMode.js';
 import type { Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /**
@@ -62,11 +63,21 @@ export interface NotectlEditorConfig {
 	autofocus?: boolean;
 	maxHistoryDepth?: number;
 	/**
-	 * Markdown paste auto-detection. `auto` (default) converts pasted text with
-	 * strong block-level Markdown signals (fenced code, GFM table, a run of
-	 * list/heading/quote markers) into rich content; `never` always pastes raw.
+	 * Controls notectl's *implicit* Markdown behavior: the live "shorthand"
+	 * typing transforms (`# ` -> heading, `**bold**` -> bold, `- ` -> list, ...)
+	 * and Markdown auto-detection on paste.
+	 *
+	 * - `true` (default): shorthand typing and paste auto-detect are both on.
+	 * - `false`: typed and pasted Markdown stays literal text.
+	 * - object: control each axis independently, e.g. `{ shorthand: false }`
+	 *   keeps literal typing while still auto-detecting pasted Markdown.
+	 *
+	 * This does NOT affect the explicit `getContentMarkdown()` /
+	 * `setContentMarkdown()` API, the toolbar, or keyboard shortcuts (`Mod-B`):
+	 * `markdown: false` removes the typed shorthand, not the bold/heading
+	 * capability itself.
 	 */
-	pasteMarkdown?: 'auto' | 'never';
+	markdown?: boolean | MarkdownConfig;
 	/** Theme preset or custom Theme object. Defaults to ThemePreset.Light. */
 	theme?: ThemePreset | Theme;
 	/** Optional nonce for fallback runtime `<style>` elements when strict mode cannot use adopted sheets. */

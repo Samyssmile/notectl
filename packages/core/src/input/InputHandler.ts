@@ -37,6 +37,12 @@ export interface InputHandlerOptions {
 	syncSelection: SyncSelectionFn;
 	inputRuleRegistry?: InputRuleRegistry;
 	isReadOnly?: () => boolean;
+	/**
+	 * Gate for live input-rule (Markdown shorthand) processing. When it returns
+	 * `false`, typed shorthand like `# ` or `**bold**` stays literal. Evaluated on
+	 * each keystroke. Defaults to always enabled.
+	 */
+	shouldApplyInputRules?: () => boolean;
 	compositionTracker?: CompositionTracker;
 	getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 }
@@ -47,6 +53,7 @@ export class InputHandler {
 	private readonly syncSelection: SyncSelectionFn;
 	private readonly inputRuleRegistry?: InputRuleRegistry;
 	private readonly isReadOnly: () => boolean;
+	private readonly shouldApplyInputRules: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
 	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
 	private compositionCommitHandled = false;
@@ -64,6 +71,7 @@ export class InputHandler {
 		this.syncSelection = options.syncSelection;
 		this.inputRuleRegistry = options.inputRuleRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.shouldApplyInputRules = options.shouldApplyInputRules ?? (() => true);
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
 
@@ -231,6 +239,7 @@ export class InputHandler {
 	}
 
 	private checkInputRules(): void {
+		if (!this.shouldApplyInputRules()) return;
 		if (!this.inputRuleRegistry) return;
 		const rules = this.inputRuleRegistry.getInputRules();
 		if (rules.length === 0) return;

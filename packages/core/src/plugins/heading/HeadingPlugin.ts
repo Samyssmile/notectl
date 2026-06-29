@@ -38,6 +38,8 @@ export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export interface HeadingConfig {
 	/** Which heading levels to enable. Defaults to [1, 2, 3, 4, 5, 6]. */
 	readonly levels: readonly HeadingLevel[];
+	/** Live Markdown shortcut: `# ` ... `###### ` to set a heading. Default true. */
+	readonly inputRule?: boolean;
 	readonly locale?: HeadingLocale;
 }
 
@@ -82,7 +84,7 @@ export class HeadingPlugin implements Plugin {
 		this.registerNodeSpecs(context);
 		registerHeadingCommands(context, this.config);
 		registerHeadingKeymaps(context, this.config);
-		registerHeadingInputRules(context, this.config);
+		if (this.config.inputRule !== false) registerHeadingInputRules(context, this.config);
 		registerHeadingPickerEntries(context, this.config, this.locale);
 		registerHeadingToolbarItem(context, this.locale);
 	}
