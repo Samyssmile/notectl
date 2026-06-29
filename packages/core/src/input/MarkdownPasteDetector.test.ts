@@ -33,6 +33,15 @@ describe('looksLikeMarkdown', () => {
 		expect(looksLikeMarkdown('')).toBe(false);
 	});
 
+	// Accepted false positive (documented waiver, #192): code copied from a
+	// terminal whose `# ` comments read as ATX headings is treated as Markdown.
+	// The run-of-markers signal cannot be tightened without breaking genuine
+	// Markdown (a two-item list, consecutive headings), so this is intentional.
+	// Pinned as a regression guard, not a bug. Escape hatch: pasteMarkdown: 'never'.
+	it('intentionally treats >=2 plain-text comment/list lines as Markdown', () => {
+		expect(looksLikeMarkdown('# disable feature flag\n# bump the timeout')).toBe(true);
+	});
+
 	it('does NOT treat a pipe-containing prose line as a table', () => {
 		expect(looksLikeMarkdown('the command is `a | b` piping output')).toBe(false);
 	});
