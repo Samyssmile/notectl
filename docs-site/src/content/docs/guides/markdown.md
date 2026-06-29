@@ -97,6 +97,8 @@ const editor = await createEditor({
 
 The detector is synchronous and stays in the base bundle. The heavy parser is dynamically imported only when a positive match is found.
 
+Auto-detection only inspects the plain-text clipboard when there is no usable `text/html`. Code copied from a GUI editor or browser carries HTML and is never reinterpreted. The narrow exception is plain-text code copied from a terminal whose `# ` comments or list-like lines read as Markdown: this is converted as a single, undoable paste. If a field is primarily for pasting plain-text code, set `pasteMarkdown: 'never'`.
+
 ## Block mapping table
 
 | Markdown syntax | Block type | Notes |
