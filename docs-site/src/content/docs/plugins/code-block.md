@@ -36,6 +36,8 @@ interface CodeBlockConfig {
   readonly spaceCount?: number;
   /** Show the copy button in the header (default: true). */
   readonly showCopyButton?: boolean;
+  /** Live Markdown shortcut ```` ``` ```` (optionally with a language) to start a code block. Default: true */
+  readonly inputRule?: boolean;
   /** Body background color (overrides --notectl-code-block-bg). */
   readonly background?: string;
   /** Header background color (overrides --notectl-code-block-header-bg). */

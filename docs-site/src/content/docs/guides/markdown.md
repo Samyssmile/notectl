@@ -76,28 +76,69 @@ Both functions accept an optional `SchemaRegistry` (for plugin-owned node types)
 
 ### Editor configuration
 
-Markdown paste auto-detection is controlled by the `pasteMarkdown` option passed to `createEditor` or `editor.init`:
+notectl's *implicit* Markdown behaviour is controlled by a single `markdown` option passed to `createEditor` or `editor.init`. It governs two things:
+
+1. **Shorthand typing** (input rules): `# ` becomes a heading, `**bold**` becomes bold, `- ` starts a list, `> ` a quote, and so on.
+2. **Paste auto-detection**: pasted plain text with strong Markdown signals is converted to rich content.
+
+Some users want their input to stay literal, so that typing `# Hello` or `**bold**` keeps the characters verbatim instead of transforming. Pass `markdown: false`:
 
 ```ts
 import { createEditor } from '@notectl/core';
 
-// Disable Markdown paste — always paste plain text
+// Literal mode: typed and pasted Markdown stays as plain text
 const editor = await createEditor({
-  pasteMarkdown: 'never',
+  markdown: false,
   placeholder: 'Start typing...',
 });
 ```
 
-`pasteMarkdown: 'auto'` is the default and requires no configuration.
+`markdown: true` is the default and requires no configuration.
 
-| Value | Behaviour |
-|-------|-----------|
+For finer control, pass an object. Each axis resolves independently: an unspecified key keeps its default (shorthand on, paste auto).
+
+```ts
+// Keep literal typing, but still auto-detect pasted Markdown
+await createEditor({ markdown: { shorthand: false } });
+
+// Allow shorthand typing, but never reinterpret pasted text
+await createEditor({ markdown: { paste: 'never' } });
+```
+
+| `markdown` value | Shorthand typing | Paste detection |
+|------------------|------------------|-----------------|
+| `true` / unset | on | `auto` |
+| `false` | off | `never` |
+| `{ shorthand: false }` | off | `auto` |
+| `{ paste: 'never' }` | on | `never` |
+| `{ shorthand: false, paste: 'never' }` | off | `never` |
+
+This option only affects *automatic* interpretation. The explicit [`getContentMarkdown()` / `setContentMarkdown()`](#api) API, the toolbar buttons, and keyboard shortcuts such as `Mod-B` stay available regardless. In other words, `markdown: false` removes the typed shorthand, not the bold or heading capability itself.
+
+#### Per-feature control
+
+When `markdown` shorthand is enabled, you can still disable individual shorthands at the plugin level via each plugin's `inputRule` option. This is useful to keep most shorthands while turning off one or two:
+
+```ts
+import { HeadingPlugin, ListPlugin, BlockquotePlugin } from '@notectl/core';
+
+// Headings via `# ` stay on; list and quote shorthands are off
+new ListPlugin({ inputRule: false });
+new BlockquotePlugin({ inputRule: false });
+```
+
+`inputRule` is supported on every shorthand-registering plugin: `TextFormattingPlugin`, `StrikethroughPlugin`, `InlineCodePlugin`, `LinkPlugin`, `HeadingPlugin`, `ListPlugin`, `BlockquotePlugin`, `HorizontalRulePlugin`, `CodeBlockPlugin`, and `FormulaPlugin`. The global `markdown: false` switch is the outer gate: when it is off, no shorthand fires regardless of per-plugin settings.
+
+#### Paste detection details
+
+| `paste` value | Behaviour |
+|---------------|-----------|
 | `'auto'` (default) | Detects strong block-level Markdown signals in the plain-text clipboard (fenced code, GFM table, a run of two or more list/heading/blockquote markers) and converts to rich content. Stray inline `*` or `_` does not trigger conversion. |
 | `'never'` | Always pastes plain text unchanged. |
 
 The detector is synchronous and stays in the base bundle. The heavy parser is dynamically imported only when a positive match is found.
 
-Auto-detection only inspects the plain-text clipboard when there is no usable `text/html`. Code copied from a GUI editor or browser carries HTML and is never reinterpreted. The narrow exception is plain-text code copied from a terminal whose `# ` comments or list-like lines read as Markdown: this is converted as a single, undoable paste. If a field is primarily for pasting plain-text code, set `pasteMarkdown: 'never'`.
+Auto-detection only inspects the plain-text clipboard when there is no usable `text/html`. Code copied from a GUI editor or browser carries HTML and is never reinterpreted. The narrow exception is plain-text code copied from a terminal whose `# ` comments or list-like lines read as Markdown: this is converted as a single, undoable paste. If a field is primarily for pasting plain-text code, set `markdown: { paste: 'never' }`.
 
 ## Block mapping table
 
@@ -169,7 +210,7 @@ Several feature plugins register input rules that transform Markdown shorthand a
 | `$formula$` | `$` to close | Inline math (formula plugin) |
 | `$$` | newline | Display math (formula plugin) |
 
-These rules are owned by each feature plugin and controlled by each plugin's `inputRule` config flag (set to `false` to disable). They are best-effort single-line transforms and may diverge from the full import parser in edge cases — the full parser handles multi-line constructs, reference links, and complex nesting that single-line rules cannot.
+To turn off all of these at once, set [`markdown: false`](#editor-configuration) (or `markdown: { shorthand: false }` to keep paste detection). For finer control, each rule is owned by its feature plugin and gated by that plugin's `inputRule` config flag (set to `false` to disable just that one). They are best-effort single-line transforms and may diverge from the full import parser in edge cases: the full parser handles multi-line constructs, reference links, and complex nesting that single-line rules cannot.
 
 ## Round-trip identity
 
@@ -248,7 +289,19 @@ const doc = parseMarkdownToDocument(markdownSource, registry, {
 import { createEditor } from '@notectl/core';
 
 const editor = await createEditor({
-  pasteMarkdown: 'never',
+  markdown: { paste: 'never' },
+  placeholder: 'Start typing...',
+});
+```
+
+### Literal mode: no shorthand transforms at all
+
+```ts
+import { createEditor } from '@notectl/core';
+
+// `# Hello` and `**bold**` stay as typed; nothing is auto-converted.
+const editor = await createEditor({
+  markdown: false,
   placeholder: 'Start typing...',
 });
 ```
