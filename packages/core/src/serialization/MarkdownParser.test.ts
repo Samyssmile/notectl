@@ -12,6 +12,7 @@ import {
 	getInlineChildren,
 	isLeafBlock,
 } from '../model/Document.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { markType, nodeType } from '../model/TypeBrands.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
@@ -480,6 +481,74 @@ describe('link reference definitions do not interrupt a paragraph (#192)', () =>
 			.filter((m) => m.type === markType('link'))
 			.map((m) => m.attrs);
 		expect(hrefs).toEqual([{ href: '/u1' }, { href: '/u2' }]);
+	});
+});
+
+describe('htmlFallback round-trip — raw-HTML seam (#192)', () => {
+	// The default export mode is `htmlFallback: true`: a superset block the
+	// Markdown grammar cannot express is emitted as raw HTML. This pins the seam
+	// where the Markdown parser recognizes that embedded raw-HTML block and
+	// delegates to `parseHTMLToDocument`, reconstructing the original block.
+	// A regression here would silently drop superset content on the default path.
+	function createFallbackRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			group: 'block',
+			toDOM(node) {
+				const el = document.createElement('p');
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+		});
+		// A superset leaf block with no Markdown representation, so the serializer
+		// falls through to its raw-HTML fallback. `div` is both a base-allowed tag
+		// and a recognized block-HTML tag, so the parser re-tokenizes it as an HTML
+		// block; `sanitize.attrs` keeps `class` alive through sanitization so the
+		// parse rule can re-identify the block.
+		registry.registerNodeSpec({
+			type: 'callout',
+			group: 'block',
+			sanitize: { attrs: ['class'] },
+			toDOM(node) {
+				const el = document.createElement('div');
+				el.className = 'callout';
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			},
+			toHTML: (_node, content) => `<div class="callout">${content}</div>`,
+			parseHTML: [
+				{
+					tag: 'div',
+					getAttrs: (el) => (el.classList.contains('callout') ? {} : false),
+				},
+			],
+		});
+		return registry;
+	}
+
+	it('round-trips a superset block through markdown via the raw-HTML fallback', () => {
+		const registry = createFallbackRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('paragraph'), [createTextNode('before')]),
+			createBlockNode(nodeType('callout'), [createTextNode('Heads up')]),
+			createBlockNode(nodeType('paragraph'), [createTextNode('after')]),
+		]);
+
+		// Default options => htmlFallback is on.
+		const markdown: string = serializeDocumentToMarkdown(doc, registry);
+		expect(markdown).toContain('<div class="callout">Heads up</div>');
+
+		const reparsed: Document = parseMarkdownToDocument(markdown, registry);
+
+		// Non-vacuous: the middle block must come back as a `callout` (not degrade
+		// to a paragraph) with its text intact, and the surrounding paragraphs
+		// must survive unchanged.
+		expect(shapeDoc(reparsed)).toEqual([
+			{ type: 'paragraph', attrs: {}, text: 'before' },
+			{ type: 'callout', attrs: {}, text: 'Heads up' },
+			{ type: 'paragraph', attrs: {}, text: 'after' },
+		]);
 	});
 });
 
