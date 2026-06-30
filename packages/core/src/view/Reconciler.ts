@@ -222,6 +222,7 @@ function blockChanged(
 		} else if (isInlineNode(oldChild) && isInlineNode(newChild)) {
 			if (oldChild.inlineType !== newChild.inlineType) return true;
 			if (!inlineAttrsEqual(oldChild.attrs, newChild.attrs)) return true;
+			if (!markSetsEqual(oldChild.marks, newChild.marks)) return true;
 		} else if (
 			!isTextNode(oldChild) &&
 			!isTextNode(newChild) &&

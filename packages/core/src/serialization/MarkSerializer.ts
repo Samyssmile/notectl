@@ -26,24 +26,21 @@ export function buildMarkOrder(registry: SchemaRegistry): Map<string, number> {
 }
 
 /**
- * Shared mark-serialization core. Style-based marks (`toHTMLStyle`) are merged
- * and wrapped via `wrapStyleSpan`; tag-based marks (`toHTMLString`) then wrap
- * the result in rank order. The two public entry points differ only in how the
- * merged style declarations become a `<span>`.
+ * Wraps already-rendered inner HTML in its marks. Style-based marks
+ * (`toHTMLStyle`) are merged into a single span via `wrapStyleSpan`; tag-based
+ * marks (`toHTMLString`) then wrap the result in rank order. The inner HTML is
+ * emitted verbatim (callers pre-escape text; rendered inline-node HTML must not
+ * be re-escaped).
  */
-function serializeMarks(
-	text: string,
+function wrapMarks(
+	innerHTML: string,
 	marks: readonly Mark[],
 	registry: SchemaRegistry,
 	markOrder: Map<string, number> | undefined,
 	exportCtx: HTMLExportContext | undefined,
 	wrapStyleSpan: (html: string, declarations: string) => string,
 ): string {
-	if (text === '') return '';
-
-	let html: string = escapeHTML(text);
-
-	if (marks.length === 0) return html;
+	if (marks.length === 0) return innerHTML;
 
 	const order: Map<string, number> = markOrder ?? buildMarkOrder(registry);
 	const sortedMarks: Mark[] = [...marks].sort(
@@ -65,7 +62,8 @@ function serializeMarks(
 		}
 	}
 
-	// Wrap with the merged style span first (closest to text).
+	// Wrap with the merged style span first (closest to content).
+	let html: string = innerHTML;
 	if (styleParts.length > 0) {
 		html = wrapStyleSpan(html, styleParts.join('; '));
 	}
@@ -82,6 +80,41 @@ function serializeMarks(
 }
 
 /**
+ * Shared text mark-serialization core: escapes `text`, then delegates to
+ * {@link wrapMarks}. The two public entry points differ only in how the merged
+ * style declarations become a `<span>`.
+ */
+function serializeMarks(
+	text: string,
+	marks: readonly Mark[],
+	registry: SchemaRegistry,
+	markOrder: Map<string, number> | undefined,
+	exportCtx: HTMLExportContext | undefined,
+	wrapStyleSpan: (html: string, declarations: string) => string,
+): string {
+	if (text === '') return '';
+	return wrapMarks(escapeHTML(text), marks, registry, markOrder, exportCtx, wrapStyleSpan);
+}
+
+/** Builds the inline-style `<span style>` wrapper used by the style-attribute mode. */
+function inlineStyleSpanWrapper(
+	exportCtx: HTMLExportContext | undefined,
+): (html: string, declarations: string) => string {
+	return (html, declarations) => {
+		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
+		return attr ? `<span${attr}>${html}</span>` : html;
+	};
+}
+
+/** Builds the `<span class>` wrapper used by the CSS-class mode. */
+function classSpanWrapper(
+	collector: CSSClassCollector,
+): (html: string, declarations: string) => string {
+	return (html, declarations) =>
+		`<span class="${collector.getClassName(declarations)}">${html}</span>`;
+}
+
+/**
  * Serializes text with marks to HTML.
  * Style-based marks (`toHTMLStyle`) are merged into a single `<span style="...">`.
  * Tag-based marks (`toHTMLString`) wrap the content in rank order.
@@ -93,10 +126,36 @@ export function serializeMarksToHTML(
 	markOrder?: Map<string, number>,
 	exportCtx?: HTMLExportContext,
 ): string {
-	return serializeMarks(text, marks, registry, markOrder, exportCtx, (html, declarations) => {
-		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
-		return attr ? `<span${attr}>${html}</span>` : html;
-	});
+	return serializeMarks(
+		text,
+		marks,
+		registry,
+		markOrder,
+		exportCtx,
+		inlineStyleSpanWrapper(exportCtx),
+	);
+}
+
+/**
+ * Wraps an already-rendered inline-node HTML fragment (e.g. `<img>`) in its marks
+ * using inline-style spans, mirroring {@link serializeMarksToHTML} but without
+ * escaping the fragment. Lets a linked inline image export as `<a …><img …></a>`.
+ */
+export function serializeInlineNodeMarksToHTML(
+	innerHTML: string,
+	marks: readonly Mark[],
+	registry: SchemaRegistry,
+	markOrder?: Map<string, number>,
+	exportCtx?: HTMLExportContext,
+): string {
+	return wrapMarks(
+		innerHTML,
+		marks,
+		registry,
+		markOrder,
+		exportCtx,
+		inlineStyleSpanWrapper(exportCtx),
+	);
 }
 
 /**
@@ -112,12 +171,21 @@ export function serializeMarksToClassHTML(
 	markOrder?: Map<string, number>,
 	exportCtx?: HTMLExportContext,
 ): string {
-	return serializeMarks(
-		text,
-		marks,
-		registry,
-		markOrder,
-		exportCtx,
-		(html, declarations) => `<span class="${collector.getClassName(declarations)}">${html}</span>`,
-	);
+	return serializeMarks(text, marks, registry, markOrder, exportCtx, classSpanWrapper(collector));
+}
+
+/**
+ * Wraps an already-rendered inline-node HTML fragment in its marks using
+ * CSS-class spans, mirroring {@link serializeMarksToClassHTML} but without
+ * escaping the fragment.
+ */
+export function serializeInlineNodeMarksToClassHTML(
+	innerHTML: string,
+	marks: readonly Mark[],
+	registry: SchemaRegistry,
+	collector: CSSClassCollector,
+	markOrder?: Map<string, number>,
+	exportCtx?: HTMLExportContext,
+): string {
+	return wrapMarks(innerHTML, marks, registry, markOrder, exportCtx, classSpanWrapper(collector));
 }

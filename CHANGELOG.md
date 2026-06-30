@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A linked inline image no longer loses its link on Markdown import (#197).** Importing `[![alt](src)](url)` promoted the image to a standalone block `image` and dropped the link destination entirely, a silent data loss that violated the #192 "never silently drop a construct" principle. Inline nodes now carry marks just like text nodes do (a new `marks` field on `InlineNode`), so a linked inline image keeps its `link` mark and stays inline inside its paragraph instead of being promoted. The fix is symmetric across the whole pipeline: the Markdown and HTML importers attach the surrounding marks to the inline node, the standalone-image promotion no longer fires for a marked image, and the Markdown and HTML exporters wrap the inline image in its link so the round-trip is lossless in both directions (`getContentMarkdown` / `getContentHTML` and back). The editor renders the inline image wrapped in its mark elements (e.g. inside an `<a>`). The conformance gate gains a fixture for the linked-image construct. Toggling a link onto an inline image through the toolbar or a command is a separate follow-up; marks on inline nodes are currently produced by import only.
+
 ## [2.3.0] - 2026-06-29
 
 ### Added

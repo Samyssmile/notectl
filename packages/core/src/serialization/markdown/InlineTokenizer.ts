@@ -797,7 +797,9 @@ function flattenNode(
 			return;
 		}
 		case 'inline_node':
-			out.push(createInlineNode(inlineType(node.inlineType) as InlineTypeName, node.attrs));
+			out.push(
+				createInlineNode(inlineType(node.inlineType) as InlineTypeName, node.attrs, [...marks]),
+			);
 			return;
 		case 'html_inline':
 			pushInlineHtml(node.literal, marks, ctx, out);
@@ -837,7 +839,9 @@ function pushImage(
 	if (hasInlineImage) {
 		const attrs: Record<string, string> = { src: node.href, alt: node.alt };
 		if (node.title) attrs.title = node.title;
-		out.push(createInlineNode(inlineType('image_inline'), attrs));
+		// Carry the surrounding marks (e.g. a `link` from `[![alt](src)](url)`) so a
+		// linked inline image keeps its link instead of silently dropping it.
+		out.push(createInlineNode(inlineType('image_inline'), attrs, [...marks]));
 		return;
 	}
 	if (node.alt) out.push(createTextNode(node.alt, [...marks]));
@@ -861,7 +865,7 @@ function pushInlineHtml(
 		if ('text' in child) {
 			out.push(createTextNode(child.text, mergeMarks(marks, child.marks)));
 		} else if ('inlineType' in child) {
-			out.push(child);
+			out.push(createInlineNode(child.inlineType, child.attrs, mergeMarks(marks, child.marks)));
 		}
 	}
 }

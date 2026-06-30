@@ -271,6 +271,34 @@ describe('parseMarkdownToDocument — tables & images', () => {
 		expect(block.attrs).toMatchObject({ src: 'pic.png', alt: 'Alt', title: 'Cap' });
 	});
 
+	// A linked inline image `[![alt](src)](url)` must not lose its link. The image
+	// stays inline inside a paragraph, carrying a `link` mark, rather than being
+	// promoted to a standalone block `image` (which would silently drop the URL).
+	it('keeps a linked inline image inline with a link mark (no data loss, #197)', () => {
+		const block = firstBlock(parseMarkdownToDocument('[![a](p.png)](/u)'));
+		expect(block.type).toBe('paragraph');
+		const children = getInlineChildren(block);
+		expect(children).toHaveLength(1);
+		const img = children[0] as InlineNode;
+		expect(img.inlineType).toBe('image_inline');
+		expect(img.attrs).toMatchObject({ src: 'p.png', alt: 'a' });
+		expect(img.marks.map((m) => m.type)).toEqual(['link']);
+		expect(img.marks[0]?.attrs).toEqual({ href: '/u' });
+	});
+
+	it('still promotes a bare standalone image (no link) to a block image (#197)', () => {
+		expect(firstBlock(parseMarkdownToDocument('![a](p.png)')).type).toBe('image');
+	});
+
+	it('round-trips a linked inline image without dropping the link (#197)', () => {
+		const md = '[![a](p.png)](/u)';
+		const out = serializeDocumentToMarkdown(parseMarkdownToDocument(md)).trim();
+		expect(out).toBe(md);
+		const img = getInlineChildren(firstBlock(parseMarkdownToDocument(out)))[0] as InlineNode;
+		expect(img.marks[0]?.type).toBe('link');
+		expect(img.marks[0]?.attrs).toEqual({ href: '/u' });
+	});
+
 	it('round-trips a GFM table with alignment', () => {
 		const md = '| H1 | H2 |\n| :--- | ---: |\n| a | b |';
 		const out = serializeDocumentToMarkdown(parseMarkdownToDocument(md)).trimEnd();

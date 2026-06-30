@@ -558,12 +558,15 @@ function walkElement(
 				createInlineNode(
 					inlineType(entry.type) as InlineTypeName,
 					attrs as Readonly<Record<string, string | number | boolean>>,
+					[...currentMarks],
 				),
 			);
 			return;
 		}
 
-		result.push(createInlineNode(inlineType(entry.type) as InlineTypeName));
+		result.push(
+			createInlineNode(inlineType(entry.type) as InlineTypeName, undefined, [...currentMarks]),
+		);
 		return;
 	}
 

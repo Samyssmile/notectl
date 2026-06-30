@@ -41,6 +41,12 @@ export interface InlineNode {
 	readonly type: 'inline';
 	readonly inlineType: InlineTypeName;
 	readonly attrs: Readonly<Record<string, string | number | boolean>>;
+	/**
+	 * Marks applied to this atomic node (e.g. a `link` on an inline image). Inline
+	 * nodes carry marks just like text nodes do, so a linked inline image survives
+	 * import, export, and rendering without the link being dropped.
+	 */
+	readonly marks: readonly Mark[];
 }
 
 /** A child of a BlockNode: text, inline element, or nested block. */
@@ -234,11 +240,13 @@ export function createTextNode(text: string, marks?: readonly Mark[]): TextNode 
 export function createInlineNode(
 	inlineType: InlineTypeName,
 	attrs?: Readonly<Record<string, string | number | boolean>>,
+	marks?: readonly Mark[],
 ): InlineNode {
 	return {
 		type: 'inline',
 		inlineType,
 		attrs: attrs ?? {},
+		marks: marks ?? [],
 	};
 }
 

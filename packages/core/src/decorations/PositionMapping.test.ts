@@ -69,7 +69,7 @@ function removeNodeStep(removedId: BlockId): RemoveNodeStep {
 }
 
 function makeInlineNode(): InlineNode {
-	return { type: 'inline', inlineType: inlineType('hard_break'), attrs: {} };
+	return { type: 'inline', inlineType: inlineType('hard_break'), attrs: {}, marks: [] };
 }
 
 function insertInlineNodeStep(bid: BlockId, offset: number): InsertInlineNodeStep {
