@@ -88,6 +88,24 @@ function createTestRegistry(): SchemaRegistry {
 				sanitize: { tags: ['br'] },
 			},
 		],
+		[
+			'image_inline',
+			{
+				type: 'image_inline',
+				toDOM: () => document.createElement('img'),
+				toHTMLString: () => '<img>',
+				parseHTML: [
+					{
+						tag: 'img',
+						getAttrs: (el: HTMLElement) => ({
+							src: el.getAttribute('src') ?? '',
+							alt: el.getAttribute('alt') ?? '',
+						}),
+					},
+				],
+				sanitize: { tags: ['img'], attrs: ['src', 'alt'] },
+			},
+		],
 	]);
 
 	const markSpecs = new Map<
@@ -105,6 +123,15 @@ function createTestRegistry(): SchemaRegistry {
 			{
 				rank: 1,
 				parseHTML: [{ tag: 'strong' }, { tag: 'b' }],
+			},
+		],
+		[
+			'link',
+			{
+				rank: 2,
+				parseHTML: [
+					{ tag: 'a', getAttrs: (el: HTMLElement) => ({ href: el.getAttribute('href') ?? '' }) },
+				],
 			},
 		],
 	]);
@@ -174,8 +201,10 @@ function createTestRegistry(): SchemaRegistry {
 			'ol',
 			'li',
 			'input',
+			'a',
+			'img',
 		],
-		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class'],
+		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class', 'href', 'src', 'alt'],
 	} as unknown as SchemaRegistry;
 }
 
@@ -754,6 +783,25 @@ describe('parseHTMLToDocument', () => {
 			expect(children).toHaveLength(2);
 			expect(isInlineNode(children[0])).toBe(true);
 			expect(isInlineNode(children[1])).toBe(true);
+		});
+
+		it('attaches the surrounding link mark to a linked inline image (#197)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<p><a href="/u"><img src="p.png" alt="a"></a></p>',
+				registry,
+			);
+
+			const block = doc.children[0];
+			if (!block) return;
+			const children = getInlineChildren(block);
+			expect(children).toHaveLength(1);
+			const img = children[0];
+			if (!img || !isInlineNode(img)) throw new Error('expected an inline node');
+			expect(img.inlineType).toBe('image_inline');
+			expect(img.attrs).toMatchObject({ src: 'p.png', alt: 'a' });
+			expect(img.marks.map((m) => m.type)).toEqual(['link']);
+			expect(img.marks[0]?.attrs).toEqual({ href: '/u' });
 		});
 	});
 

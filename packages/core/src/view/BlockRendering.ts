@@ -156,7 +156,9 @@ export function renderBlockContent(
 			if (isTextNode(child)) {
 				container.appendChild(renderTextNode(child, registry));
 			} else {
-				container.appendChild(renderInlineNode(child, registry));
+				container.appendChild(
+					wrapNodeWithMarks(renderInlineNode(child, registry), child.marks, registry),
+				);
 			}
 		}
 	} else {

@@ -66,8 +66,8 @@ function marksEqual(a: Mark, b: Mark): boolean {
 	return JSON.stringify(a.attrs ?? {}) === JSON.stringify(b.attrs ?? {});
 }
 
-/** Collects the stack (delimiter) marks of a text node, link outermost. */
-function stackMarksOf(node: TextNode, gfm: boolean): Mark[] {
+/** Collects the stack (delimiter) marks of a text or inline node, link outermost. */
+function stackMarksOf(node: TextNode | InlineNode, gfm: boolean): Mark[] {
 	const link: Mark[] = [];
 	const emphasis: Mark[] = [];
 	for (const mark of node.marks) {
@@ -292,12 +292,9 @@ export function serializeInlineContent(
 	};
 
 	for (const child of merged) {
-		if (isInlineNode(child)) {
-			closeFrom(0);
-			out += serializeInlineNode(child, ctx);
-			continue;
-		}
-
+		// Inline nodes carry stack marks too (e.g. a `link` on an inline image), so
+		// they flow through the same open/close reconciliation as text. The only
+		// difference is the literal content emitted between the delimiters.
 		const target: Mark[] = reorderToActive(stackMarksOf(child, gfm), active);
 
 		let keep = 0;
@@ -316,7 +313,7 @@ export function serializeInlineContent(
 			active.push(mark);
 		}
 
-		out += renderTextContent(child, ctx);
+		out += isInlineNode(child) ? serializeInlineNode(child, ctx) : renderTextContent(child, ctx);
 	}
 
 	closeFrom(0);

@@ -221,6 +221,8 @@ function resolveType(type: string, ctx: ParseContext): NodeTypeName {
  * Promotes a paragraph holding only a single inline image to a block `image`
  * node, matching the serializer (a standalone-image line becomes a block image).
  * Returns null when the paragraph is not a lone image or `image` is unavailable.
+ * A marked image (e.g. a linked `[![alt](src)](url)`) is never promoted: the
+ * block `image` node cannot hold a mark, so promotion would drop the link.
  */
 function promoteStandaloneImage(
 	inline: readonly (TextNode | InlineNode)[],
@@ -229,6 +231,7 @@ function promoteStandaloneImage(
 	if (inline.length !== 1) return null;
 	const only = inline[0];
 	if (!only || !isInlineNode(only) || only.inlineType !== 'image_inline') return null;
+	if (only.marks.length > 0) return null;
 	if (ctx.registry && !ctx.registry.getNodeSpec('image')) return null;
 
 	const attrs: Record<string, string | number | boolean> = {

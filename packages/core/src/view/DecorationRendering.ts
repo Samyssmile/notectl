@@ -33,8 +33,11 @@ export function renderDecoratedContent(
 
 	for (const child of inlineChildren) {
 		if (isInlineNode(child)) {
-			// InlineNodes are rendered directly, not wrapped by decorations
-			container.appendChild(renderInlineNode(child, registry));
+			// InlineNodes are rendered directly (not wrapped by decorations), but their
+			// own marks (e.g. a link on an inline image) still wrap the node.
+			container.appendChild(
+				wrapNodeWithMarks(renderInlineNode(child, registry), child.marks, registry),
+			);
 			globalOffset += 1;
 			continue;
 		}

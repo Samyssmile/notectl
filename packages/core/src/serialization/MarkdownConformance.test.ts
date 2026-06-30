@@ -20,9 +20,10 @@ import { parseMarkdownToDocument } from './MarkdownParser.js';
  * Known not-yet-supported constructs are intentionally excluded from this set:
  * lazy continuation, indented code blocks, multi-block list items (D9),
  * two-space hard breaks, and GFM bare-URL / www autolinks (only the angle-form
- * `<url>` and `<email>` autolinks are covered). Emphasis nested with links or
- * images is likewise not exercised here, as the live delimiter run and the link
- * scanner do not yet compose for those cases.
+ * `<url>` and `<email>` autolinks are covered). A link wrapping an inline image
+ * (`[![alt](src)](url)`) is covered and keeps its link mark (#197). Emphasis
+ * (bold/italic) composed with links or images is still not exercised here, as the
+ * live delimiter run and the link scanner do not yet compose for those cases.
  *
  * The gate is a ratchet: every curated in-scope fixture must pass (100% of the
  * supported set). Add fixtures as coverage grows; never lower the bar.
@@ -43,17 +44,24 @@ function renderAttrs(attrs: Record<string, unknown>): string {
 	return `<${keys.map((k) => `${k}=${String(attrs[k])}`).join(',')}>`;
 }
 
+function renderMarks(marks: readonly { type: string; attrs?: Record<string, unknown> }[]): string {
+	return marks
+		.map((m) => (m.attrs ? `${m.type}(${renderAttrs(m.attrs)})` : m.type))
+		.sort()
+		.join('+');
+}
+
 function renderInline(children: readonly (TextNode | InlineNode)[]): string {
 	return children
 		.map((child) => {
 			if ('text' in child) {
-				const marks: string = child.marks
-					.map((m) => (m.attrs ? `${m.type}(${renderAttrs(m.attrs)})` : m.type))
-					.sort()
-					.join('+');
+				const marks: string = renderMarks(child.marks);
 				return marks ? `${child.text}[${marks}]` : child.text;
 			}
-			return `<${child.inlineType}:${renderAttrs(child.attrs)}>`;
+			// Inline nodes carry marks too (e.g. a link on an inline image).
+			const marks: string = renderMarks(child.marks);
+			const node = `<${child.inlineType}:${renderAttrs(child.attrs)}>`;
+			return marks ? `${node}[${marks}]` : node;
 		})
 		.join('');
 }
@@ -230,6 +238,13 @@ const FIXTURES: readonly Fixture[] = [
 		name: 'standalone image with title becomes a block',
 		md: '![alt](p.png "T")',
 		want: 'image<align=center,alt=alt,src=p.png,title=T>{}',
+	},
+	{
+		// A linked inline image keeps its link (#197): the image stays inline inside
+		// a paragraph carrying a `link` mark, instead of being promoted to a block.
+		name: 'linked inline image keeps its link',
+		md: '[![alt](p.png)](/u)',
+		want: 'paragraph{<image_inline:<alt=alt,src=p.png>>[link(<href=/u>)]}',
 	},
 	// Lists (marker variants, ordered paren, task, deeper nesting, mixed)
 	{

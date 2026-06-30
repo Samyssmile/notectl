@@ -22,6 +22,8 @@ import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
 import {
 	buildMarkOrder,
+	serializeInlineNodeMarksToClassHTML,
+	serializeInlineNodeMarksToHTML,
 	serializeMarksToClassHTML,
 	serializeMarksToHTML,
 } from './MarkSerializer.js';
@@ -386,7 +388,30 @@ function serializeInlineContent(block: BlockNode, ctx: SerializerContext): strin
 		if (isInlineNode(child)) {
 			const inlineSpec = ctx.registry?.getInlineNodeSpec(child.inlineType);
 			if (inlineSpec?.toHTMLString) {
-				parts.push(inlineSpec.toHTMLString(child));
+				const inlineHTML: string = inlineSpec.toHTMLString(child);
+				// Wrap the atomic node in its marks (e.g. a linked inline image → <a><img></a>).
+				if (ctx.registry && child.marks.length > 0) {
+					parts.push(
+						ctx.collector
+							? serializeInlineNodeMarksToClassHTML(
+									inlineHTML,
+									child.marks,
+									ctx.registry,
+									ctx.collector,
+									markOrder,
+									ctx.exportCtx,
+								)
+							: serializeInlineNodeMarksToHTML(
+									inlineHTML,
+									child.marks,
+									ctx.registry,
+									markOrder,
+									ctx.exportCtx,
+								),
+					);
+				} else {
+					parts.push(inlineHTML);
+				}
 			}
 		} else if (ctx.registry && ctx.collector) {
 			parts.push(
