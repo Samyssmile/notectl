@@ -113,6 +113,8 @@ class InlineParser {
 	private readonly ctx: ParseContext;
 	private delimiters: Delimiter | null = null;
 	private brackets: Bracket | null = null;
+	/** Tail of the output sibling list, so self-linking tokens can extend it. */
+	private tail: InlineAstNode | null = null;
 
 	constructor(text: string, ctx: ParseContext) {
 		this.text = text;
@@ -123,19 +125,21 @@ class InlineParser {
 	/** Parses the inline string into a list of top-level AST nodes. */
 	parse(): InlineAstNode[] {
 		const root: InlineAstNode = makeNode('text');
-		let last: InlineAstNode = root;
-		const append = (node: InlineAstNode): void => {
-			insertAfter(last, node);
-			last = node;
-		};
+		this.tail = root;
 
 		while (this.pos < this.len) {
 			const node: InlineAstNode | null = this.parseToken();
-			if (node) append(node);
+			if (node) this.appendNode(node);
 		}
 
 		this.processEmphasis(null);
 		return collectSiblings(root);
+	}
+
+	/** Links a freshly produced token at the tail of the sibling list. */
+	private appendNode(node: InlineAstNode): void {
+		if (this.tail) insertAfter(this.tail, node);
+		this.tail = node;
 	}
 
 	/** Dispatches on the current character, returning the produced node (already linked for delims). */
@@ -336,7 +340,7 @@ class InlineParser {
 	}
 
 	/** `]`: resolve a link/image against the open bracket, or emit literal `]`. */
-	private parseCloseBracket(): InlineAstNode {
+	private parseCloseBracket(): InlineAstNode | null {
 		this.pos++;
 		const opener: Bracket | null = this.brackets;
 		if (!opener || !opener.active) {
@@ -354,7 +358,12 @@ class InlineParser {
 		wrapper.href = dest.href;
 		wrapper.title = dest.title;
 
-		// Move the nodes between the opener and now into the wrapper.
+		// Resolve emphasis inside the bracketed range first. The emphasis algorithm
+		// walks the sibling linked list, so it must run while the bracket contents
+		// are still linked, before they are detached into the wrapper's children.
+		this.processEmphasis(opener.prevDelim);
+
+		// Move the (now emphasis-resolved) nodes between the opener and now into the wrapper.
 		let node: InlineAstNode | null = opener.node.next;
 		while (node) {
 			const next: InlineAstNode | null = node.next;
@@ -367,9 +376,12 @@ class InlineParser {
 			wrapper.children = [];
 		}
 
+		// The wrapper takes the opener's place and becomes the new tail. It is linked
+		// here, so the parse loop must not append it again (returning null prevents the
+		// double-link that would otherwise corrupt the wrapper's sibling pointers).
 		insertAfter(opener.node, wrapper);
 		unlink(opener.node);
-		this.processEmphasis(opener.prevDelim);
+		this.tail = wrapper;
 
 		// Links cannot contain other links.
 		if (!opener.image) {
@@ -380,7 +392,7 @@ class InlineParser {
 			}
 		}
 		this.brackets = opener.prev;
-		return wrapper;
+		return null;
 	}
 
 	/** Parses an inline `(dest "title")` or a reference `[label]` target. */
