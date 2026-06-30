@@ -421,6 +421,36 @@ describe('emphasis: openers_bottom bucketing (#192)', () => {
 	});
 });
 
+describe('emphasis composes with links and images (#198)', () => {
+	it('does not duplicate text when a link sits inside emphasis', () => {
+		// `**[t](/u)**` previously emitted `t` twice (the wrapper was appended a second
+		// time, corrupting its sibling pointers). It must be a single linked, bold `t`.
+		expect(inlineSorted('**[t](/u)**')).toEqual([{ text: 't', marks: ['bold', 'link'] }]);
+	});
+
+	it('keeps emphasis inside link text', () => {
+		// `[**t**](/u)` previously dropped the bold (emphasis was resolved after the
+		// bracket contents were detached). The bold must survive alongside the link.
+		expect(inlineSorted('[**t**](/u)')).toEqual([{ text: 't', marks: ['bold', 'link'] }]);
+	});
+
+	it('resolves emphasis that spans a link boundary', () => {
+		expect(inlineSorted('*a [b](/u) c*')).toEqual([
+			{ text: 'a ', marks: ['italic'] },
+			{ text: 'b', marks: ['italic', 'link'] },
+			{ text: ' c', marks: ['italic'] },
+		]);
+	});
+
+	it('flattens emphasis inside an image alt to plain text', () => {
+		expect(inlineOf('a ![**b**](p.png) c')).toEqual([
+			{ text: 'a ', marks: [] },
+			{ node: 'image_inline', attrs: { src: 'p.png', alt: 'b' } },
+			{ text: ' c', marks: [] },
+		]);
+	});
+});
+
 describe('reference links: undefined ref preserves text (#192)', () => {
 	it('keeps the bracketed text literally when the reference is undefined', () => {
 		// No `[missing]: ...` definition: the whole thing is not a link and must

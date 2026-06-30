@@ -22,8 +22,8 @@ import { parseMarkdownToDocument } from './MarkdownParser.js';
  * two-space hard breaks, and GFM bare-URL / www autolinks (only the angle-form
  * `<url>` and `<email>` autolinks are covered). A link wrapping an inline image
  * (`[![alt](src)](url)`) is covered and keeps its link mark (#197). Emphasis
- * (bold/italic) composed with links or images is still not exercised here, as the
- * live delimiter run and the link scanner do not yet compose for those cases.
+ * (bold/italic) composed with links or images is covered too (#198): the delimiter
+ * run and the link scanner compose, with no duplicated text and no dropped mark.
  *
  * The gate is a ratchet: every curated in-scope fixture must pass (100% of the
  * supported set). Add fixtures as coverage grows; never lower the bar.
@@ -341,6 +341,20 @@ const FIXTURES: readonly Fixture[] = [
 	},
 	// Mixed inline
 	{ name: 'code span inside link', md: '[`c`](/u)', want: 'paragraph{c[code+link(<href=/u>)]}' },
+	// Emphasis composed with links/images (#198): the delimiter run and the link
+	// scanner must compose, with no duplicated text and no dropped mark.
+	{ name: 'link inside emphasis', md: '**[t](/u)**', want: 'paragraph{t[bold+link(<href=/u>)]}' },
+	{ name: 'emphasis inside link', md: '[**t**](/u)', want: 'paragraph{t[bold+link(<href=/u>)]}' },
+	{
+		name: 'emphasis spanning a link',
+		md: '*a [b](/u) c*',
+		want: 'paragraph{a [italic]b[italic+link(<href=/u>)] c[italic]}',
+	},
+	{
+		name: 'emphasis inside image alt collapses to plain alt',
+		md: 'a ![**b**](p.png) c',
+		want: 'paragraph{a <image_inline:<alt=b,src=p.png>> c}',
+	},
 ];
 
 describe('Markdown conformance (curated in-scope set, ratcheted)', () => {
