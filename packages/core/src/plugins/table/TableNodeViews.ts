@@ -39,6 +39,7 @@ export function createTableNodeViewFactory(
 		// Table wrapper: provides overflow scrolling
 		const wrapper: HTMLDivElement = document.createElement('div');
 		wrapper.className = 'notectl-table-wrapper';
+		wrapper.setAttribute('part', 'table');
 
 		const table: HTMLTableElement = document.createElement('table');
 		table.className = 'notectl-table';
@@ -164,6 +165,7 @@ export function createTableRowNodeViewFactory(_registry: SchemaRegistry): NodeVi
 		const tr: HTMLTableRowElement = document.createElement('tr');
 		tr.setAttribute('data-block-id', node.id);
 		tr.setAttribute('role', 'row');
+		tr.setAttribute('part', 'table-row');
 
 		return {
 			dom: tr,
@@ -193,6 +195,7 @@ export function createTableCellNodeViewFactory(_registry: SchemaRegistry): NodeV
 		const td: HTMLTableCellElement = document.createElement('td');
 		td.setAttribute('data-block-id', node.id);
 		td.setAttribute('role', 'cell');
+		td.setAttribute('part', 'table-cell');
 
 		const colspan: number = (node.attrs?.colspan as number | undefined) ?? 1;
 		const rowspan: number = (node.attrs?.rowspan as number | undefined) ?? 1;
