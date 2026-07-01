@@ -58,6 +58,17 @@ describe('Markdown parser — ReDoS / pathological input', () => {
 		parseWithin('&'.repeat(50_000), BUDGET);
 	});
 
+	it('handles adversarial GFM autolink candidates', () => {
+		// Long local-part-shaped runs: an `X+@`-style regex would backtrack
+		// quadratically here (regression guard for the @-anchored email scan).
+		parseWithin(`${'a_.+-'.repeat(10_000)}@`, BUDGET);
+		parseWithin('@'.repeat(50_000), BUDGET);
+		parseWithin(' www.'.repeat(10_000), BUDGET);
+		parseWithin(` mailto:${'a'.repeat(40_000)}`, BUDGET);
+		parseWithin(`www.example.com/${'&amp;'.repeat(8_000)}`, BUDGET);
+		parseWithin(`www.example.com/${')'.repeat(40_000)}`, BUDGET);
+	});
+
 	it('scales sub-quadratically as input doubles', () => {
 		const build = (n: number): string => '*a '.repeat(n);
 		const time = (s: string): number => {

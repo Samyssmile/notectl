@@ -58,9 +58,17 @@ function cellAlign(cell: string): ColumnAlign {
 
 /**
  * Attempts to parse a GFM table beginning at `start`. Returns the table data or
- * null when the two leading lines are not a header + delimiter pair.
+ * null when the two leading lines are not a header + delimiter pair. The body
+ * extends until a blank line or the start of another block (`interrupts`); a
+ * plain paragraph-like line inside that range is a lazy single-cell row, per
+ * the GFM spec ("the table is broken at the first empty line or beginning of
+ * another block-level structural element").
  */
-export function matchTable(lines: readonly string[], start: number): TableData | null {
+export function matchTable(
+	lines: readonly string[],
+	start: number,
+	interrupts?: (line: string) => boolean,
+): TableData | null {
 	const headerLine: string = lines[start] ?? '';
 	const delimLine: string = lines[start + 1] ?? '';
 	if (!headerLine.includes('|')) return null;
@@ -74,7 +82,8 @@ export function matchTable(lines: readonly string[], start: number): TableData |
 	let i: number = start + 2;
 	while (i < lines.length) {
 		const line: string = lines[i] ?? '';
-		if (line.trim() === '' || !line.includes('|')) break;
+		if (line.trim() === '') break;
+		if (!line.includes('|') && (!interrupts || interrupts(line))) break;
 		rows.push(splitRow(line));
 		i++;
 	}
