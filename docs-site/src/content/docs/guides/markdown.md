@@ -151,6 +151,7 @@ Auto-detection only inspects the plain-text clipboard when there is no usable `t
 | `1. item`, `2. item`, ... | `list_item` (ordered) | Counters are reset when nesting depth steps back. |
 | `- [ ] item`, `- [x] item` | `list_item` (checklist) | Checkbox state is preserved on both import and export. GFM flavor only. |
 | `` ``` ``lang`\n...\n` ``` `` | `code_block` | Language string preserved. Fence is widened automatically if code contains the fence character. |
+| 4-space / tab indented lines | `code_block` | Import only; export always emits fenced code. |
 | `---`, `***`, `___` | `horizontal_rule` | Serialized as `---`. |
 | `![alt](src "title")` | `image` (block) | Standalone image line. Title optional. Images with explicit width, height, or non-center alignment use an HTML fallback. |
 | GFM pipe table | `table` | Column alignment (`left`, `center`, `right`) is read from the delimiter row and preserved on export. Tables with colspan or rowspan cells fall back to raw HTML. |
@@ -166,6 +167,7 @@ Auto-detection only inspects the plain-text clipboard when there is no usable `t
 | `[text](url "title")` | `link` | No |
 | `[text][ref]` / `[ref]` | `link` (reference) | No (import only; exported as inline links) |
 | `<https://example.com>` | autolink | No (import only; exported as inline links) |
+| `https://example.com`, `www.example.com`, `user@example.com` | `link` (GFM extended autolink) | Yes (import only; follows the GFM boundary, domain, and punctuation-trimming rules) |
 | `![alt](src)` | `image_inline` | No (mid-paragraph images only; standalone images become block images) |
 | `\n` (two trailing spaces or `\` before newline) | `hard_break` | No |
 | `$formula$` | `math_inline` (formula plugin) | Plugin must be loaded |
@@ -233,15 +235,20 @@ Clean Markdown (without embedded block IDs) is the normal case: notectl generate
 | `getContentMarkdown` / `setContentMarkdown` | Position order (IDs matched by index) |
 | `getText` / `setText` | Position order |
 
+## Conformance
+
+Import and export are gated against the official CommonMark 0.31.2 spec (652 examples) plus the GFM extension examples (tables, task lists, strikethrough, autolinks), compared through a normalized structural AST. Every example inside notectl's supported construct set must pass at 100%, and the small set of documented deviations (below) is pinned in a shrink-only skip list, so coverage can only ratchet up. A second gate asserts that every construct outside the set, raw HTML above all, parses safely and survives a serialize/re-parse round-trip byte-identically, so nothing is ever silently dropped.
+
 ## Known boundaries
 
-The parser is a pragmatic linear-time scanner, not a complete CommonMark implementation. The following constructs are out of scope:
+The parser is a linear-time scanner (a ReDoS-safety guarantee for pasted, untrusted input). A few constructs deviate from CommonMark by design:
 
-- **Lazy continuation** — a blockquote or list item whose continuation line omits the leading `> ` or indent marker is not recognized.
-- **Indented code blocks** — the four-space indent syntax is not supported; use fenced code blocks instead.
-- **Multi-block list items** — a single list item containing multiple paragraphs (blank-line continuation) is not supported. The item body is a single inline content line. Multi-paragraph list items are tracked as a follow-up (#D9).
+- **Multi-block list items** are not supported: a single list item containing multiple paragraphs or nested blocks flattens; the item body is one inline content line. Plain continuation lines fold into the item text; blank-line-separated content becomes following blocks. Full fidelity is the list container refactor (#194).
+- **List indent** derives from leading columns (2 per level, matching the serializer), not from CommonMark's marker-relative content columns. Documents round-trip exactly; imports of unusually indented third-party lists can differ in nesting depth.
+- **Link reference definitions** spanning multiple lines are supported for the destination-on-next-line and title-on-next-line forms; multi-line labels and multi-line titles stay paragraph text (kept, never dropped).
+- **Tabs inside container markers** (for example a tab directly after `>`) do not expand to 4-column tab stops.
 
-These boundaries are stable trade-offs of the flat-with-indent list model and the linear-time guarantee. They affect import only; the serializer always produces output that the parser can read back.
+These boundaries affect import only; the serializer always produces output that the parser reads back identically.
 
 <!-- Screenshot: live Markdown typing GIF would go here.
      Generate via: docs-site/screenshots/markdown-live-typing.spec.ts
