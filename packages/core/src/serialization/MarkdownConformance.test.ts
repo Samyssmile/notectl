@@ -1,74 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import {
-	type BlockNode,
-	type Document,
-	type InlineNode,
-	type TextNode,
-	getBlockChildren,
-	getInlineChildren,
-	isLeafBlock,
-} from '../model/Document.js';
+import { documentStructure } from '../test/MarkdownConformanceUtils.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 
 /**
  * CommonMark + GFM conformance gate (D1, in-scope correctness).
  *
- * HONEST SCOPE: this is a **curated** fixture set covering notectl's supported
- * construct matrix, compared via a normalized structural AST (not byte-exact
- * HTML, and not the full ~650-example `spec.json`). notectl's parser is a
- * pragmatic, linear-time scanner, not a complete CommonMark implementation.
- * Known not-yet-supported constructs are intentionally excluded from this set:
- * lazy continuation, indented code blocks, multi-block list items (D9),
- * two-space hard breaks, and GFM bare-URL / www autolinks (only the angle-form
- * `<url>` and `<email>` autolinks are covered). A link wrapping an inline image
- * (`[![alt](src)](url)`) is covered and keeps its link mark (#197). Emphasis
+ * SCOPE: this is a **curated** fixture set covering notectl's supported
+ * construct matrix, compared via a normalized structural AST. The official
+ * CommonMark `spec.json` gate lives in `MarkdownSpecConformance.test.ts`; this
+ * set stays as a fast, readable construct matrix and carries the GFM extension
+ * coverage (tables, strikethrough, task lists, autolinks) that the CommonMark
+ * spec file does not contain. Known not-yet-supported constructs are
+ * intentionally excluded: multi-block list items (D9, #194) and the deviations
+ * pinned in the spec gate. Two-space hard breaks (#193), indented code blocks (#195),
+ * and GFM bare-URL / www / email autolinks (#199) are covered. A link wrapping
+ * an inline image (`[![alt](src)](url)`) keeps its link mark (#197). Emphasis
  * (bold/italic) composed with links or images is covered too (#198): the delimiter
  * run and the link scanner compose, with no duplicated text and no dropped mark.
  *
  * The gate is a ratchet: every curated in-scope fixture must pass (100% of the
  * supported set). Add fixtures as coverage grows; never lower the bar.
  */
-
-/** A compact structural rendering of a block, for normalized comparison. */
-function renderBlock(block: BlockNode): string {
-	const attrs: string = block.attrs ? renderAttrs(block.attrs) : '';
-	if (isLeafBlock(block)) {
-		return `${block.type}${attrs}{${renderInline(getInlineChildren(block))}}`;
-	}
-	return `${block.type}${attrs}[${getBlockChildren(block).map(renderBlock).join(',')}]`;
-}
-
-function renderAttrs(attrs: Record<string, unknown>): string {
-	const keys: string[] = Object.keys(attrs).sort();
-	if (keys.length === 0) return '';
-	return `<${keys.map((k) => `${k}=${String(attrs[k])}`).join(',')}>`;
-}
-
-function renderMarks(marks: readonly { type: string; attrs?: Record<string, unknown> }[]): string {
-	return marks
-		.map((m) => (m.attrs ? `${m.type}(${renderAttrs(m.attrs)})` : m.type))
-		.sort()
-		.join('+');
-}
-
-function renderInline(children: readonly (TextNode | InlineNode)[]): string {
-	return children
-		.map((child) => {
-			if ('text' in child) {
-				const marks: string = renderMarks(child.marks);
-				return marks ? `${child.text}[${marks}]` : child.text;
-			}
-			// Inline nodes carry marks too (e.g. a link on an inline image).
-			const marks: string = renderMarks(child.marks);
-			const node = `<${child.inlineType}:${renderAttrs(child.attrs)}>`;
-			return marks ? `${node}[${marks}]` : node;
-		})
-		.join('');
-}
-
-function normalize(doc: Document): string {
-	return doc.children.map(renderBlock).join('\n');
-}
 
 interface Fixture {
 	readonly name: string;
@@ -310,8 +262,47 @@ const FIXTURES: readonly Fixture[] = [
 	{ name: 'escaped backtick', md: '\\`', want: 'paragraph{`}' },
 	{ name: 'escaped brackets', md: '\\[not a link\\]', want: 'paragraph{[not a link]}' },
 	{ name: 'numeric character reference', md: '&#35;', want: 'paragraph{#}' },
-	// Hard break (backslash form)
+	// Hard breaks (backslash + two-trailing-spaces forms, #193)
 	{ name: 'backslash hard break', md: 'a\\\nb', want: 'paragraph{a<hard_break:>b}' },
+	{ name: 'two-space hard break', md: 'a  \nb', want: 'paragraph{a<hard_break:>b}' },
+	{ name: 'single trailing space is a soft break', md: 'a \nb', want: 'paragraph{a b}' },
+	// Indented code blocks (#195)
+	{
+		name: 'indented code block',
+		md: '    code here',
+		want: 'code_block<language=>{code here}',
+	},
+	{
+		name: 'indented code keeps interior blank lines',
+		md: '    a\n\n    b',
+		want: 'code_block<language=>{a\n\nb}',
+	},
+	{
+		name: 'indented line continues a paragraph (lazy continuation)',
+		md: 'para\n    lazy',
+		want: 'paragraph{para lazy}',
+	},
+	// GFM extended autolinks (#199)
+	{
+		name: 'bare http autolink',
+		md: 'see http://commonmark.org now',
+		want: 'paragraph{see http://commonmark.org[link(<href=http://commonmark.org>)] now}',
+	},
+	{
+		name: 'www autolink gains an http scheme',
+		md: 'at www.example.com end',
+		want: 'paragraph{at www.example.com[link(<href=http://www.example.com>)] end}',
+	},
+	{
+		name: 'autolink trims trailing punctuation',
+		md: 'visit www.example.com.',
+		want: 'paragraph{visit www.example.com[link(<href=http://www.example.com>)].}',
+	},
+	{
+		name: 'bare email autolink',
+		md: 'mail foo@bar.example now',
+		want: 'paragraph{mail foo@bar.example[link(<href=mailto:foo@bar.example>)] now}',
+	},
 	// GFM tables (alignment, multi-column, inline formatting in cells)
 	{
 		name: 'gfm table with alignment',
@@ -360,14 +351,14 @@ const FIXTURES: readonly Fixture[] = [
 describe('Markdown conformance (curated in-scope set, ratcheted)', () => {
 	for (const fx of FIXTURES) {
 		it(`parses: ${fx.name}`, () => {
-			expect(normalize(parseMarkdownToDocument(fx.md))).toBe(fx.want);
+			expect(documentStructure(parseMarkdownToDocument(fx.md))).toBe(fx.want);
 		});
 	}
 
 	it('the curated in-scope set passes at 100% (ratchet floor)', () => {
 		let passed = 0;
 		for (const fx of FIXTURES) {
-			if (normalize(parseMarkdownToDocument(fx.md)) === fx.want) passed++;
+			if (documentStructure(parseMarkdownToDocument(fx.md)) === fx.want) passed++;
 		}
 		// Ratchet: the supported set is 100%. Never lower this; only add fixtures.
 		expect(passed).toBe(FIXTURES.length);

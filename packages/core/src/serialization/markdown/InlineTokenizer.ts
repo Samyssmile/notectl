@@ -17,7 +17,20 @@ import type { InlineNode, Mark, TextNode } from '../../model/Document.js';
 import { createInlineNode, createTextNode } from '../../model/Document.js';
 import { type InlineTypeName, inlineType, markType } from '../../model/TypeBrands.js';
 import { parseHTMLToDocument } from '../DocumentParser.js';
+import {
+	type GfmAutolinkMatch,
+	applyGfmEmailAutolinks,
+	isGfmAutolinkCandidate,
+	matchGfmAutolinkAt,
+} from './GfmAutolink.js';
 import { type InlineAstNode, type InlineKind, insertAfter, makeNode, unlink } from './InlineAst.js';
+import { foldReferenceLabel } from './LinkReferenceExtractor.js';
+import {
+	decodeEntitiesOnly,
+	decodeEntity,
+	decodeEscapesAndEntities,
+	matchEntityAt,
+} from './MarkdownEntities.js';
 import type { ParseContext } from './MarkdownParseContext.js';
 
 // --- Delimiter / bracket stacks ---
@@ -45,7 +58,9 @@ interface Bracket {
 /** Upper bound on an inline link destination scan (ReDoS guard; real URLs are short). */
 const MAX_DESTINATION_LENGTH = 8192;
 
-const PUNCTUATION = /[!-/:-@[-`{-~]/;
+/** Unicode punctuation + symbols, per CommonMark 0.30+ flanking rules. */
+const UNICODE_PUNCTUATION = /[\p{P}\p{S}]/u;
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
 const ESCAPABLE = /[!-/:-@[-`{-~]/;
 const INLINE_HTML_TAGS: ReadonlySet<string> = new Set([
 	'u',
@@ -66,43 +81,15 @@ const INLINE_HTML_TAGS: ReadonlySet<string> = new Set([
 	'a',
 ]);
 
-const NAMED_ENTITIES: Readonly<Record<string, string>> = {
-	amp: '&',
-	lt: '<',
-	gt: '>',
-	quot: '"',
-	apos: "'",
-	nbsp: ' ',
-	copy: '©',
-	reg: '®',
-	hellip: '…',
-	mdash: '—',
-	ndash: '–',
-};
-
-/** Decodes a single HTML entity body (without `&`/`;`), or returns it verbatim. */
-function decodeEntity(body: string): string {
-	if (body[0] === '#') {
-		const isHex: boolean = body[1] === 'x' || body[1] === 'X';
-		const code: number = Number.parseInt(body.slice(isHex ? 2 : 1), isHex ? 16 : 10);
-		if (Number.isFinite(code) && code > 0 && code <= 0x10ffff) {
-			try {
-				return String.fromCodePoint(code);
-			} catch {
-				return `&${body};`;
-			}
-		}
-		return `&${body};`;
-	}
-	return NAMED_ENTITIES[body] ?? `&${body};`;
-}
-
 function isWhitespace(ch: string): boolean {
 	return ch === '' || /\s/.test(ch);
 }
 
+/** Flanking punctuation test; ASCII fast path, Unicode classes beyond it. */
 function isPunct(ch: string): boolean {
-	return ch !== '' && PUNCTUATION.test(ch);
+	if (ch === '') return false;
+	if (ch.charCodeAt(0) < 128) return ASCII_PUNCTUATION.test(ch);
+	return UNICODE_PUNCTUATION.test(ch);
 }
 
 /** The inline parser. One instance per inline string. */
@@ -171,6 +158,8 @@ class InlineParser {
 			case '&':
 				return this.parseEntity();
 			default: {
+				const auto: InlineAstNode | null = this.parseGfmAutolink();
+				if (auto) return auto;
 				const ext: InlineAstNode | null = this.parseExtension();
 				if (ext) return ext;
 				return this.parseString();
@@ -185,10 +174,34 @@ class InlineParser {
 		while (this.pos < this.len) {
 			const ch: string = this.text[this.pos] ?? '';
 			if ('\n\\`*_~=^[]!<&'.includes(ch)) break;
+			if (this.matchesGfmAutolinkStart()) break;
 			if (this.matchesExtensionStart()) break;
 			this.pos++;
 		}
 		return makeNode('text', this.text.slice(start, this.pos));
+	}
+
+	/**
+	 * GFM extended autolink (`www.`, `http(s)://`, `mailto:`/`xmpp:`) at the
+	 * current position, scanned on the raw source (#199). Skipped inside an open
+	 * bracket: explicit `[text](url)` syntax wins there, and a link must never
+	 * nest inside another link. Bare emails are handled in a post-pass instead
+	 * (see `applyGfmEmailAutolinks`).
+	 */
+	private parseGfmAutolink(): InlineAstNode | null {
+		if (!this.ctx.opts.gfm || this.brackets) return null;
+		const match: GfmAutolinkMatch | null = matchGfmAutolinkAt(this.text, this.pos);
+		if (!match) return null;
+		this.pos += match.length;
+		const node: InlineAstNode = makeNode('link');
+		node.href = match.href;
+		node.children = [makeNode('text', match.display)];
+		return node;
+	}
+
+	private matchesGfmAutolinkStart(): boolean {
+		if (!this.ctx.opts.gfm || this.brackets) return false;
+		return isGfmAutolinkCandidate(this.text, this.pos);
 	}
 
 	/** Plugin syntax extensions (e.g. formula `$...$`). */
@@ -214,15 +227,23 @@ class InlineParser {
 	}
 
 	/**
-	 * A bare newline always produces a soft break. The hard-break forms are
-	 * handled elsewhere: the backslash form (`\` before the newline) in
-	 * `parseBackslash`; the two-trailing-spaces form is not yet implemented on
-	 * import (tracked in #193).
+	 * A newline produces a soft break, unless the line above ends in two or more
+	 * spaces: that is CommonMark's second hard-break form (#193). The trailing
+	 * whitespace lives in the previously emitted text node (the block tokenizer
+	 * preserves interior trailing spaces for exactly this check) and is stripped
+	 * either way — line-end whitespace is never content. The backslash form is
+	 * handled in `parseBackslash`.
 	 */
 	private parseNewline(): InlineAstNode {
 		this.pos++;
 		// Skip leading spaces of the next line.
 		while (this.text[this.pos] === ' ') this.pos++;
+		const prev: InlineAstNode | null = this.tail;
+		if (prev && prev.type === 'text' && prev.literal.endsWith(' ')) {
+			const hard: boolean = prev.literal.endsWith('  ');
+			prev.literal = prev.literal.replace(/[ \t]+$/, '');
+			return makeNode(hard ? 'hardbreak' : 'softbreak');
+		}
 		return makeNode('softbreak');
 	}
 
@@ -404,6 +425,7 @@ class InlineParser {
 		// Reference link: [label][ref], [label][], or shortcut [label].
 		const label: string = this.text.slice(opener.index, this.pos - 1);
 		let ref: string = label;
+		let explicitRef = false;
 		// Position to advance to *only* when the reference resolves. A failed
 		// lookup must leave `this.pos` at the `]` so the trailing `[ref]` re-parses
 		// as literal text — otherwise `[text][missing]` silently drops `[missing]`.
@@ -412,11 +434,18 @@ class InlineParser {
 			const close: number = this.text.indexOf(']', this.pos + 1);
 			if (close !== -1) {
 				const explicit: string = this.text.slice(this.pos + 1, close);
-				if (explicit.trim() !== '') ref = explicit;
+				if (explicit.trim() !== '') {
+					ref = explicit;
+					explicitRef = true;
+				}
 				resolvedEnd = close + 1;
 			}
 		}
-		const found = this.ctx.linkRefs.get(ref.trim().toLowerCase());
+		// CommonMark forbids unescaped `[` inside a reference label. For shortcut
+		// and collapsed forms the bracket text is the label; a full reference
+		// (`[text][ref]`) may hold anything in its text part.
+		if (!explicitRef && ref.includes('[')) return null;
+		const found = this.ctx.linkRefs.get(foldReferenceLabel(ref));
 		if (found) {
 			this.pos = resolvedEnd;
 			return { href: found.href, title: found.title ?? '' };
@@ -431,9 +460,21 @@ class InlineParser {
 
 		let href = '';
 		if (this.text[i] === '<') {
-			const end: number = this.text.indexOf('>', i);
-			if (end === -1) return null;
-			href = this.text.slice(i + 1, end);
+			// Angle destination: ends at the first unescaped `>`; `<` and newlines
+			// are not allowed inside. Escapes and entities decode afterwards.
+			let end: number = i + 1;
+			const angleLimit: number = Math.min(this.len, i + 1 + MAX_DESTINATION_LENGTH);
+			while (end < angleLimit) {
+				const ch: string = this.text[end] ?? '';
+				if (ch === '\\' && ESCAPABLE.test(this.text[end + 1] ?? '')) {
+					end += 2;
+					continue;
+				}
+				if (ch === '>' || ch === '<' || ch === '\n') break;
+				end++;
+			}
+			if (this.text[end] !== '>') return null;
+			href = decodeEscapesAndEntities(this.text.slice(i + 1, end));
 			i = end + 1;
 		} else {
 			let depth = 0;
@@ -451,8 +492,9 @@ class InlineParser {
 				else if (ch === ')') {
 					if (depth === 0) break;
 					depth--;
-				} else if (/\s/.test(ch) || ch === '[' || ch === ']') {
-					// Whitespace ends a bare destination; `[`/`]` are not valid there
+				} else if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '[' || ch === ']') {
+					// Only ASCII whitespace ends a bare destination (a non-breaking
+					// space is part of it, per CommonMark); `[`/`]` are not valid there
 					// (real URLs percent-encode them) and bailing here keeps degenerate
 					// `](](]( …` input linear instead of quadratic (D1 ReDoS guard).
 					break;
@@ -462,6 +504,7 @@ class InlineParser {
 			}
 			// Scan hit the length cap without resolving a closing paren: not a link.
 			if (i >= limit && this.text[i] !== ')') return null;
+			href = decodeEntitiesOnly(href);
 		}
 
 		while (this.text[i] === ' ' || this.text[i] === '\n') i++;
@@ -500,7 +543,7 @@ class InlineParser {
 				i += 2;
 				continue;
 			}
-			if (ch === close) return { title, next: i + 1 };
+			if (ch === close) return { title: decodeEntitiesOnly(title), next: i + 1 };
 			title += ch;
 			i++;
 		}
@@ -509,10 +552,7 @@ class InlineParser {
 
 	/** `&`: decodes an HTML entity reference, or emits a literal `&`. */
 	private parseEntity(): InlineAstNode {
-		const rest: string = this.text.slice(this.pos);
-		const match: RegExpMatchArray | null = rest.match(
-			/^&(#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z][a-zA-Z0-9]{1,31});/,
-		);
+		const match: RegExpExecArray | null = matchEntityAt(this.text, this.pos);
 		if (!match?.[1]) {
 			this.pos++;
 			return makeNode('text', '&');
@@ -562,7 +602,7 @@ class InlineParser {
 			const comment: RegExpMatchArray | null = rest.match(/^<!--[\s\S]*?-->/);
 			if (comment) {
 				this.pos += comment[0].length;
-				return makeNode('html_inline', comment[0]);
+				return makeNode('html_inline', normalizeHtmlLiteral(comment[0]));
 			}
 			return null;
 		}
@@ -574,11 +614,11 @@ class InlineParser {
 				const end: number = closeIdx + closeTag.length;
 				const html: string = this.text.slice(this.pos, end);
 				this.pos = end;
-				return makeNode('html_inline', html);
+				return makeNode('html_inline', normalizeHtmlLiteral(html));
 			}
 		}
 		this.pos += open[0].length;
-		return makeNode('html_inline', open[0]);
+		return makeNode('html_inline', normalizeHtmlLiteral(open[0]));
 	}
 
 	/**
@@ -727,6 +767,15 @@ class InlineParser {
  */
 function emphBottomKey(d: Delimiter): string {
 	return `${d.cc}${d.canOpen ? 1 : 0}${d.origdelims % 3}`;
+}
+
+/**
+ * Normalizes newlines inside a captured raw-HTML run to single spaces. The
+ * literal is opaque to the engine; on re-import the newlines would become soft
+ * breaks (spaces) anyway, so normalizing here keeps `md → doc → md` a fixpoint.
+ */
+function normalizeHtmlLiteral(html: string): string {
+	return html.replace(/\n[ \t]*/g, ' ');
 }
 
 /** Collects the sibling list after the synthetic root into an array. */
@@ -916,6 +965,7 @@ function sameMarkTypes(a: readonly Mark[], b: readonly Mark[]): boolean {
 /** Parses inline Markdown into text/inline nodes (linear-time, ReDoS-safe). */
 export function parseInline(text: string, ctx: ParseContext): (TextNode | InlineNode)[] {
 	const ast: InlineAstNode[] = new InlineParser(text, ctx).parse();
+	if (ctx.opts.gfm) applyGfmEmailAutolinks(ast);
 	const out: (TextNode | InlineNode)[] = [];
 	flatten(ast, [], ctx, out);
 	const merged: (TextNode | InlineNode)[] = mergeAdjacentText(out);

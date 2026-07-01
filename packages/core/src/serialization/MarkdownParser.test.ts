@@ -509,14 +509,16 @@ describe('link reference definitions do not interrupt a paragraph (#192)', () =>
 	});
 
 	it('preserves a def-shaped line directly under a list item', () => {
+		// The line lazily continues the item's paragraph (CommonMark), so it stays
+		// item text; the important part is that it is neither registered as a
+		// definition nor dropped.
 		const doc = parseMarkdownToDocument('- item\n[bar]: /url');
 		expect(shapeDoc(doc)).toEqual([
 			{
 				type: 'list_item',
 				attrs: { listType: 'bullet', indent: 0, checked: false },
-				text: 'item',
+				text: 'item [bar]: /url',
 			},
-			{ type: 'paragraph', attrs: {}, text: '[bar]: /url' },
 		]);
 	});
 
@@ -606,6 +608,274 @@ describe('htmlFallback round-trip — raw-HTML seam (#192)', () => {
 			{ type: 'paragraph', attrs: {}, text: 'before' },
 			{ type: 'callout', attrs: {}, text: 'Heads up' },
 			{ type: 'paragraph', attrs: {}, text: 'after' },
+		]);
+	});
+});
+
+describe('two-trailing-spaces hard break (#193)', () => {
+	it('parses two trailing spaces before a newline as a hard break', () => {
+		expect(inlineOf('foo  \nbar')).toEqual([
+			{ text: 'foo', marks: [] },
+			{ node: 'hard_break', attrs: {} },
+			{ text: 'bar', marks: [] },
+		]);
+	});
+
+	it('parses three or more trailing spaces as a hard break too', () => {
+		expect(inlineOf('foo    \nbar')).toEqual([
+			{ text: 'foo', marks: [] },
+			{ node: 'hard_break', attrs: {} },
+			{ text: 'bar', marks: [] },
+		]);
+	});
+
+	it('keeps a single trailing space as a soft break', () => {
+		expect(inlineOf('foo \nbar')).toEqual([{ text: 'foo bar', marks: [] }]);
+	});
+
+	it('ignores trailing spaces on the final line of a paragraph', () => {
+		expect(inlineOf('foo  ')).toEqual([{ text: 'foo', marks: [] }]);
+	});
+
+	it('keeps the backslash form working', () => {
+		expect(inlineOf('foo\\\nbar')).toEqual([
+			{ text: 'foo', marks: [] },
+			{ node: 'hard_break', attrs: {} },
+			{ text: 'bar', marks: [] },
+		]);
+	});
+
+	it('round-trips a two-space hard break through the serializer', () => {
+		const doc = parseMarkdownToDocument('foo  \nbar');
+		const md = serializeDocumentToMarkdown(doc);
+		expect(shapeDoc(parseMarkdownToDocument(md))).toEqual(shapeDoc(doc));
+	});
+});
+
+describe('indented code blocks (#195)', () => {
+	it('parses a 4-space indented run as a code block', () => {
+		const doc = parseMarkdownToDocument('    const a = 1;\n    const b = 2;');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: 'const a = 1;\nconst b = 2;' },
+		]);
+	});
+
+	it('parses a tab-indented line as a code block', () => {
+		const doc = parseMarkdownToDocument('\tindented');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: 'indented' },
+		]);
+	});
+
+	it('keeps interior blank lines but not trailing ones', () => {
+		const doc = parseMarkdownToDocument('    a\n\n    b\n\nafter');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: 'a\n\nb' },
+			{ type: 'paragraph', attrs: {}, text: 'after' },
+		]);
+	});
+
+	it('preserves extra indentation beyond the first four columns', () => {
+		const doc = parseMarkdownToDocument('    if (x) {\n        deep();\n    }');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: 'if (x) {\n    deep();\n}' },
+		]);
+	});
+
+	it('does not interrupt a paragraph (lazy continuation)', () => {
+		const doc = parseMarkdownToDocument('para\n    still para');
+		expect(shapeDoc(doc)).toEqual([{ type: 'paragraph', attrs: {}, text: 'para still para' }]);
+	});
+
+	it('does not turn indented content after a list item into code (D9 degradation)', () => {
+		// The indented line lazily continues the item's paragraph per CommonMark.
+		const doc = parseMarkdownToDocument('- item\n    continuation');
+		expect(shapeDoc(doc)).toEqual([
+			{
+				type: 'list_item',
+				attrs: { listType: 'bullet', indent: 0, checked: false },
+				text: 'item continuation',
+			},
+		]);
+	});
+
+	it('keeps deeply indented list items as list items (flat-with-indent model)', () => {
+		const doc = parseMarkdownToDocument('- a\n    - deep');
+		expect(shapeDoc(doc).map((s) => s.type)).toEqual(['list_item', 'list_item']);
+	});
+});
+
+describe('GFM bare-URL, www, and email autolinks (#199)', () => {
+	function linkAt(markdown: string, index = 0): { text: string; href: unknown } {
+		const block = parseMarkdownToDocument(markdown).children[0] as BlockNode;
+		const node = getInlineChildren(block)[index] as TextNode;
+		return { text: node.text, href: node.marks.find((m) => m.type === 'link')?.attrs?.href };
+	}
+
+	it('links a bare http URL in running text', () => {
+		expect(linkAt('see http://commonmark.org now', 1)).toEqual({
+			text: 'http://commonmark.org',
+			href: 'http://commonmark.org',
+		});
+	});
+
+	it('links a www URL and prefixes the href with http://', () => {
+		expect(linkAt('at www.example.com end', 1)).toEqual({
+			text: 'www.example.com',
+			href: 'http://www.example.com',
+		});
+	});
+
+	it('trims trailing punctuation from the link', () => {
+		expect(linkAt('go to www.example.com.', 1).text).toBe('www.example.com');
+		expect(linkAt('really, www.example.com!?', 1).text).toBe('www.example.com');
+	});
+
+	it('balances closing parentheses', () => {
+		expect(linkAt('(see www.example.com/a)', 1).text).toBe('www.example.com/a');
+		expect(linkAt('www.example.com/a_(b)').text).toBe('www.example.com/a_(b)');
+	});
+
+	it('strips a trailing entity reference', () => {
+		expect(linkAt('www.example.com/a&copy;').text).toBe('www.example.com/a');
+	});
+
+	it('keeps underscores in the URL path intact (no emphasis fragmentation)', () => {
+		expect(linkAt('http://example.com/a_b_c').text).toBe('http://example.com/a_b_c');
+	});
+
+	it('rejects invalid domains (underscore in the last two segments, no period)', () => {
+		expect(inlineOf('visit www.ex_ample.com now')).toEqual([
+			{ text: 'visit www.ex_ample.com now', marks: [] },
+		]);
+		expect(inlineOf('see http://localhost now')).toEqual([
+			{ text: 'see http://localhost now', marks: [] },
+		]);
+	});
+
+	it('requires a boundary before the autolink', () => {
+		expect(inlineOf('xwww.example.com')).toEqual([{ text: 'xwww.example.com', marks: [] }]);
+	});
+
+	it('links inside emphasis', () => {
+		expect(inlineOf('**www.example.com**')).toEqual([
+			{ text: 'www.example.com', marks: ['bold', 'link'] },
+		]);
+	});
+
+	it('links a bare email as mailto', () => {
+		expect(linkAt('mail foo@bar.example please', 1)).toEqual({
+			text: 'foo@bar.example',
+			href: 'mailto:foo@bar.example',
+		});
+	});
+
+	it('links an email whose local part contains delimiters', () => {
+		expect(linkAt('a_b.c@bar.example', 0)).toEqual({
+			text: 'a_b.c@bar.example',
+			href: 'mailto:a_b.c@bar.example',
+		});
+	});
+
+	it('rejects an email ending in - or _ (GFM rule)', () => {
+		expect(inlineOf('a.b-c_d@a.b_')).toEqual([{ text: 'a.b-c_d@a.b_', marks: [] }]);
+	});
+
+	it('links a mailto: protocol autolink including the scheme', () => {
+		expect(linkAt('mailto:foo@bar.example')).toEqual({
+			text: 'mailto:foo@bar.example',
+			href: 'mailto:foo@bar.example',
+		});
+	});
+
+	it('does not autolink inside explicit link syntax or code spans', () => {
+		expect(inlineOf('[www.example.com](/u)')).toEqual([
+			{ text: 'www.example.com', marks: ['link'] },
+		]);
+		expect(inlineOf('`www.example.com`')).toEqual([{ text: 'www.example.com', marks: ['code'] }]);
+	});
+
+	it('does not autolink under the commonmark flavor', () => {
+		const doc = parseMarkdownToDocument('see www.example.com', undefined, {
+			flavor: 'commonmark',
+		});
+		const block = doc.children[0] as BlockNode;
+		const node = getInlineChildren(block)[0] as TextNode;
+		expect(node.marks).toEqual([]);
+	});
+});
+
+describe('CommonMark edge cases hardened by the spec gate (#200)', () => {
+	it('decodes entities and escapes in link destinations, titles, and fence info', () => {
+		const block = parseMarkdownToDocument('[t](/f&ouml;&ouml; "a&quot;b")')
+			.children[0] as BlockNode;
+		const link = (getInlineChildren(block)[0] as TextNode).marks[0];
+		expect(link?.attrs).toEqual({ href: '/föö', title: 'a"b' });
+
+		const fence = parseMarkdownToDocument('``` foo\\+bar\nx\n```');
+		expect(shapeDoc(fence)).toEqual([
+			{ type: 'code_block', attrs: { language: 'foo+bar' }, text: 'x' },
+		]);
+	});
+
+	it('supports a definition with destination and title on following lines', () => {
+		const doc = parseMarkdownToDocument("[foo]:\n/url\n\n[foo]\n\n[bar]: /b\n  'B'\n\n[bar]");
+		const first = doc.children[0] as BlockNode;
+		const second = doc.children[1] as BlockNode;
+		expect((getInlineChildren(first)[0] as TextNode).marks[0]?.attrs).toEqual({ href: '/url' });
+		expect((getInlineChildren(second)[0] as TextNode).marks[0]?.attrs).toEqual({
+			href: '/b',
+			title: 'B',
+		});
+	});
+
+	it('resolves a definition inside a blockquote and keeps the container', () => {
+		const doc = parseMarkdownToDocument('[foo]\n\n> [foo]: /url');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'paragraph', attrs: {}, text: 'foo' },
+			{ type: 'blockquote', attrs: {}, children: [{ type: 'paragraph', attrs: {}, text: '' }] },
+		]);
+		const para = doc.children[0] as BlockNode;
+		expect((getInlineChildren(para)[0] as TextNode).marks[0]?.type).toBe('link');
+	});
+
+	it('matches reference labels with Unicode case folding (ẞ vs SS)', () => {
+		const doc = parseMarkdownToDocument('[ẞ]\n\n[SS]: /url');
+		const para = doc.children[0] as BlockNode;
+		expect((getInlineChildren(para)[0] as TextNode).marks[0]?.attrs).toEqual({ href: '/url' });
+	});
+
+	it('continues a blockquote paragraph lazily', () => {
+		expect(shapeDoc(parseMarkdownToDocument('> bar\nbaz'))).toEqual([
+			{
+				type: 'blockquote',
+				attrs: {},
+				children: [{ type: 'paragraph', attrs: {}, text: 'bar baz' }],
+			},
+		]);
+	});
+
+	it('parses empty list items and marker chains', () => {
+		expect(shapeDoc(parseMarkdownToDocument('- foo\n-\n- bar')).map((s) => s.text)).toEqual([
+			'foo',
+			'',
+			'bar',
+		]);
+		expect(shapeDoc(parseMarkdownToDocument('- - foo'))).toEqual([
+			{ type: 'list_item', attrs: { listType: 'bullet', indent: 0, checked: false }, text: '' },
+			{ type: 'list_item', attrs: { listType: 'bullet', indent: 1, checked: false }, text: 'foo' },
+		]);
+	});
+
+	it('does not let an ordered item starting above 1 interrupt a paragraph', () => {
+		expect(shapeDoc(parseMarkdownToDocument('is\n14. doors'))).toEqual([
+			{ type: 'paragraph', attrs: {}, text: 'is 14. doors' },
+		]);
+	});
+
+	it('treats a backtick fence with a backtick in the info string as a code span', () => {
+		expect(shapeDoc(parseMarkdownToDocument('``` aa ```\nfoo')).map((s) => s.type)).toEqual([
+			'paragraph',
 		]);
 	});
 });

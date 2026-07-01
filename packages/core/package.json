@@ -227,7 +227,7 @@
 		{
 			"name": "Markdown (serializer/parser)",
 			"path": "dist/markdown.mjs",
-			"limit": "15 KB",
+			"limit": "18 KB",
 			"ignore": ["dompurify"],
 			"gzip": true
 		},
