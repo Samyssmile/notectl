@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The documented `table`, `table-row`, and `table-cell` CSS Shadow Parts are now actually exposed (#201).** The styling guide promises `notectl-editor::part(table-cell) { padding: 12px; }`, but no table part ever reached the live DOM, so `::part()` customization silently did nothing for tables. The part attributes were added (in #123) to the table NodeSpecs' `toDOM()`, yet the table plugin also registers NodeViews for `table`, `table_row`, and `table_cell`, and the renderer always prefers a registered NodeView over `NodeSpec.toDOM()`, so the annotated elements were never created. The NodeViews in `TableNodeViews.ts` now set the parts themselves: `part="table"` on the scrollable `.notectl-table-wrapper` (matching the documented element), `part="table-row"` on each `<tr>`, and `part="table-cell"` on each `<td>`. Blockquote and code-block parts were unaffected (blockquote has no NodeView, and the code-block NodeView already set its parts). The docs' Part Inventory also gains the previously undocumented `toolbar-group` part. Guarded by new unit tests that assert the parts on the NodeView DOM and, to prevent this class of regression, by an integration test that renders a table through the real `renderBlock` path (NodeView precedence included) and asserts all three parts exist in the produced DOM.
+
 ## [2.2.4] - 2026-06-22
 
 ### Fixed

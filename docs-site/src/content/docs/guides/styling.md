@@ -184,6 +184,7 @@ notectl-editor::part(blockquote) {
 | `plugin-container` + `plugin-container-top` | Toolbar host | Two parts on the same element so consumers can target either |
 | `plugin-container` + `plugin-container-bottom` | Below-content slot | |
 | `toolbar` | Toolbar root | |
+| `toolbar-group` | Toolbar button group wrapper | |
 | `toolbar-button` | Any toolbar button | |
 | `toolbar-button` + `toolbar-button-active` | Active toolbar button | Modifier part synced with `aria-pressed` |
 | `toolbar-button` + `toolbar-overflow-button` | The "more" button in burger-menu overflow mode | |
