@@ -81,7 +81,7 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				baseURL: 'http://localhost:3000',
 			},
-			testIgnore: /angular|demo-showcase|touch/,
+			testIgnore: /angular|demo-showcase|markdown-typing-demo|touch/,
 		},
 		...(isCI ? ciOnlyProjects : []),
 	],

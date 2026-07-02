@@ -200,6 +200,8 @@ A node's lossless round-trip also depends on its owning plugin being loaded at i
 
 Several feature plugins register input rules that transform Markdown shorthand as you type, without going through the full import parser.
 
+![Animated recording of live Markdown typing in the notectl editor: a hash and space become a heading, double asterisks become bold text, double tildes become strikethrough, an angle bracket and space become a blockquote, and triple backticks become a code block, each converting instantly as it is typed](../../../assets/screenshots/markdown-live-typing.gif)
+
 | Type this | And then press... | Result |
 |-----------|------------------|--------|
 | `# ` | space (at line start) | Heading level 1 |
@@ -223,6 +225,14 @@ To turn off all of these at once, set [`markdown: false`](#editor-configuration)
 const md = await editor.getContentMarkdown();
 await editor.setContentMarkdown(md);
 ```
+
+The three screenshots below follow that exact round trip on one document: the raw Markdown source, the same source rendered after `setContentMarkdown()`, and the document handed back to `getContentMarkdown()`. The source and the re-exported Markdown are byte-identical.
+
+![Markdown source shown in a code block: a heading, bold text, inline code, a bulleted list, a blockquote, and a link](../../../assets/screenshots/markdown-source.png)
+
+![The same source after `setContentMarkdown()`: a rendered heading, bold text, inline code, a bullet list, a blockquote, and a clickable link](../../../assets/screenshots/markdown-import.png)
+
+![The document re-exported with `getContentMarkdown()`, shown in a code block: identical to the original Markdown source](../../../assets/screenshots/markdown-export.png)
 
 Identity is matched by position, not by content. This is intentional: the cursor stays on the same block index when content is rewritten in place. Plugins that reference blocks by `BlockId` should not assume content stability across `setContentMarkdown` calls.
 
@@ -249,10 +259,6 @@ The parser is a linear-time scanner (a ReDoS-safety guarantee for pasted, untrus
 - **Tabs inside container markers** (for example a tab directly after `>`) do not expand to 4-column tab stops.
 
 These boundaries affect import only; the serializer always produces output that the parser reads back identically.
-
-<!-- Screenshot: live Markdown typing GIF would go here.
-     Generate via: docs-site/screenshots/markdown-live-typing.spec.ts
-     Scenario: type `# `, `**bold**`, `~~strike~~` and capture the transformation in a GIF. -->
 
 ## Examples
 
