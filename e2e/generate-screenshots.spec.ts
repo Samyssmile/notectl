@@ -73,6 +73,10 @@ function hr(): BlockDef {
 	return { id: uid(), type: 'horizontal_rule', children: [txt('')] };
 }
 
+function codeBlock(text: string, language = ''): BlockDef {
+	return { id: uid(), type: 'code_block', attrs: { language }, children: [txt(text)] };
+}
+
 function table(rows: TextDef[][][]): BlockDef {
 	return {
 		id: uid(),
@@ -148,6 +152,29 @@ async function setEditorHTML(page: Page, html: string): Promise<void> {
 		html,
 	);
 	await page.waitForTimeout(500);
+}
+
+async function setEditorMarkdown(page: Page, markdown: string): Promise<void> {
+	await page.evaluate(
+		(md) =>
+			(
+				document.querySelector('notectl-editor') as unknown as {
+					setContentMarkdown(m: string): Promise<void>;
+				}
+			).setContentMarkdown(md),
+		markdown,
+	);
+	await page.waitForTimeout(500);
+}
+
+async function getEditorMarkdown(page: Page): Promise<string> {
+	return page.evaluate(() =>
+		(
+			document.querySelector('notectl-editor') as unknown as {
+				getContentMarkdown(): Promise<string>;
+			}
+		).getContentMarkdown(),
+	);
 }
 
 async function setPaperSize(page: Page, size: string | null): Promise<void> {
@@ -586,6 +613,26 @@ const HR_CONTENT: DocDef = {
 	],
 };
 
+// ── Markdown Guide Content ──────────────────────────────────────
+// Round-trip sample: (1) rendered as a code block to show the raw Markdown
+// source, (2) parsed via `setContentMarkdown()` to show the imported rich
+// result, (3) re-exported via `getContentMarkdown()` to show the output is
+// stable. Exercises heading, bold, inline code, a bullet list, a blockquote,
+// and a link — the constructs covered by the guide's mapping tables.
+const MARKDOWN_SAMPLE: string = [
+	'# Release Notes',
+	'',
+	'The **v2.3** release ships full Markdown import and export, loaded only via `dynamic import()`.',
+	'',
+	'- Zero new dependencies',
+	'- Fully code-split',
+	'- Lossless HTML fallback',
+	'',
+	'> Postel’s law, applied strictly.',
+	'',
+	'Read the [documentation](https://notectl.dev/guides/markdown) for details.',
+].join('\n');
+
 // ── Test Suite ─────────────────────────────────────────────────
 
 test.describe('Documentation screenshots', () => {
@@ -954,5 +1001,29 @@ test.describe('Documentation screenshots', () => {
 		await page.locator('notectl-editor [role="toolbar"]').first().focus();
 		await page.waitForTimeout(300);
 		await shot(page, 'plugin-video-table.png');
+	});
+
+	// ── Markdown Guide Screenshots ─────────────────────────────────
+	// See #196: illustrates the import/export round trip documented in
+	// `docs-site/src/content/docs/guides/markdown.md`.
+
+	test('markdown-source', async ({ page }) => {
+		await setMinHeight(page, '260px');
+		await setEditorJSON(page, { children: [codeBlock(MARKDOWN_SAMPLE, 'markdown')] });
+		await shot(page, 'markdown-source.png');
+	});
+
+	test('markdown-import', async ({ page }) => {
+		await setMinHeight(page, '260px');
+		await setEditorMarkdown(page, MARKDOWN_SAMPLE);
+		await shot(page, 'markdown-import.png');
+	});
+
+	test('markdown-export', async ({ page }) => {
+		await setMinHeight(page, '260px');
+		await setEditorMarkdown(page, MARKDOWN_SAMPLE);
+		const exported: string = await getEditorMarkdown(page);
+		await setEditorJSON(page, { children: [codeBlock(exported.trim(), 'markdown')] });
+		await shot(page, 'markdown-export.png');
 	});
 });
