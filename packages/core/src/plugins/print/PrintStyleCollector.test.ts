@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { PaperSize } from '../../model/PaperSize.js';
+import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
 	collectAll,
-	collectHostPartStyles,
 	extractAdoptedStyles,
 	generateLightThemeTokens,
 	generatePrintCSS,
+	partitionAdoptedStyles,
 	snapshotThemeTokens,
 	snapshotTypography,
-	translatePartSelector,
-	translatePartSelectorList,
 } from './PrintStyleCollector.js';
 
 describe('PrintStyleCollector', () => {
@@ -365,91 +364,46 @@ describe('PrintStyleCollector', () => {
 		});
 	});
 
-	describe('translatePartSelector', () => {
-		it('translates a single ::part() to an attribute selector, dropping the host', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('notectl-editor::part(table-cell)', host)).toBe(
-				'[part~="table-cell"]',
-			);
-		});
+	describe('partitionAdoptedStyles', () => {
+		it('separates runtime style-token sheets from base sheets', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
 
-		it('translates compound parts to chained attribute selectors', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('notectl-editor::part(table cell)', host)).toBe(
-				'[part~="table"][part~="cell"]',
-			);
-		});
+			const base: CSSStyleSheet = new CSSStyleSheet();
+			base.replaceSync('.notectl-table td { padding: 8px 12px; }');
+			const runtime: CSSStyleSheet | null = createRuntimeStyleSheet();
+			if (!runtime) throw new Error('constructable stylesheets unavailable');
+			runtime.replaceSync('[data-notectl-style-token="s0"] { color: red; }');
+			shadow.adoptedStyleSheets = [base, runtime];
 
-		it('preserves trailing pseudo-classes and pseudo-elements', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('notectl-editor::part(table):hover', host)).toBe(
-				'[part~="table"]:hover',
-			);
-		});
-
-		it('matches host selectors with classes', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			host.classList.add('themed');
-			expect(translatePartSelector('notectl-editor.themed::part(table)', host)).toBe(
-				'[part~="table"]',
-			);
-		});
-
-		it('returns null when the host portion does not match this editor', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('.other-widget::part(table)', host)).toBeNull();
-		});
-
-		it('returns null for selectors without ::part()', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('.notectl-table td', host)).toBeNull();
-		});
-
-		it('returns null for chained ::part() pseudo-elements', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('notectl-editor::part(a)::part(b)', host)).toBeNull();
-		});
-
-		it('returns null for an empty part name', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelector('notectl-editor::part()', host)).toBeNull();
+			const result = partitionAdoptedStyles(shadow);
+			expect(result.base).toContain('.notectl-table td');
+			expect(result.base).not.toContain('data-notectl-style-token');
+			expect(result.runtime).toContain('[data-notectl-style-token="s0"]');
+			expect(result.runtime).not.toContain('.notectl-table td');
 		});
 	});
 
-	describe('translatePartSelectorList', () => {
-		it('keeps only the selectors that target this host via ::part()', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			const result: string | null = translatePartSelectorList(
-				'notectl-editor::part(table), .other::part(x), div',
-				host,
-			);
-			expect(result).toBe('[part~="table"]');
-		});
+	describe('collectAll — runtime style-token rules', () => {
+		it('keeps runtime style-token rules outside the base cascade layer', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
 
-		it('translates multiple matching selectors', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			const result: string | null = translatePartSelectorList(
-				'notectl-editor::part(table), notectl-editor::part(table-cell)',
-				host,
-			);
-			expect(result).toBe('[part~="table"], [part~="table-cell"]');
-		});
+			const base: CSSStyleSheet = new CSSStyleSheet();
+			base.replaceSync('.notectl-table td { padding: 8px 12px; }');
+			const runtime: CSSStyleSheet | null = createRuntimeStyleSheet();
+			if (!runtime) throw new Error('constructable stylesheets unavailable');
+			runtime.replaceSync('[data-notectl-style-token="s0"] { color: red; }');
+			shadow.adoptedStyleSheets = [base, runtime];
 
-		it('returns null when no selector qualifies', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
-			expect(translatePartSelectorList('.a, .b td', host)).toBeNull();
-		});
-	});
-
-	describe('collectHostPartStyles', () => {
-		it('returns an empty string when no host stylesheets contain ::part() rules', () => {
-			const host: HTMLElement = document.createElement('notectl-editor');
+			const host: HTMLElement = document.createElement('div');
 			document.body.appendChild(host);
-			// happy-dom's CSS parser drops ::part() rules, so no host part rules are
-			// resolvable here; the end-to-end behaviour is proven by the Playwright
-			// spec e2e/print-part-css.spec.ts. This guards that the reader is safe to
-			// call and never throws on a real document.
-			expect(collectHostPartStyles(host)).toBe('');
+
+			const result: string = collectAll(shadow, host, {});
+			// Base rule sits inside the layer; the token rule follows the layer's
+			// closing brace unlayered, keeping its cascade strength against
+			// customCSS and translated part rules.
+			expect(result).toContain('@layer notectl-base {\n.notectl-table td');
+			expect(result).toContain('}\n\n[data-notectl-style-token="s0"]');
+
 			document.body.removeChild(host);
 		});
 	});

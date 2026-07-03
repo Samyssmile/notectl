@@ -235,7 +235,9 @@ notectl-editor::part(table-cell) {
 }
 ```
 
-Print flattens the editor out of its shadow root, so the plugin translates each host `::part()` rule that targets the editor into the equivalent `[part~="..."]` selector for the print document. Only top-level rules are carried; `::part()` rules nested inside `@media`, `@layer`, or `@supports` are not.
+Print flattens the editor out of its shadow root, so the plugin translates each host `::part()` rule that targets the editor into the equivalent `[part~="..."]` selector for the print document. Rules nested inside `@media` or `@supports` are carried wrapped in the same condition, rules inside `@layer` blocks or CSS nesting are carried flattened, and same-origin `@import` stylesheets are followed. Disabled stylesheets are skipped, stylesheet-level `media` attributes are preserved, and custom properties referenced by carried rules (`var(--...)`) are snapshotted from the live page into the print document.
+
+Not carried: rules in cross-origin stylesheets, rules scoped to `@container` queries, bare `::part(...)` selectors without a host element, rules that reach the editor through a wrapper component's `exportparts`, and rules defined inside an enclosing shadow root.
 
 The editor's own base styles are placed in a `@layer notectl-base` cascade layer in the print output, so your part rules and any `customCSS` override the editor's built-in element styling regardless of selector specificity, exactly as `::part()` does in the live editor.
 
