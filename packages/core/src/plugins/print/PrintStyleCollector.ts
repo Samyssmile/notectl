@@ -10,118 +10,47 @@ import {
 	PAPER_MARGIN_TOP_PX,
 	getPaperCSSSize,
 } from '../../model/PaperSize.js';
+import { isRuntimeStyleSheet } from '../../style/StyleRuntime.js';
+import { collectHostPartStyles } from './PrintHostPartStyles.js';
 import type { PrintOptions } from './PrintTypes.js';
 
 /** Cascade layer that holds the editor's own base styles in print output. */
 const BASE_STYLE_LAYER = 'notectl-base';
 
+/** Adopted shadow styles split by role for print emission. */
+export interface AdoptedStylePartition {
+	/** Editor base styles — emitted inside the print cascade layer. */
+	readonly base: string;
+	/**
+	 * Runtime style-token rules (strict-CSP mode) carrying user-applied content
+	 * formatting — emitted unlayered so they keep their cascade strength.
+	 */
+	readonly runtime: string;
+}
+
 /** Extracts CSS text from all adopted stylesheets on a ShadowRoot. */
 export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
-	const parts: string[] = [];
+	const partition: AdoptedStylePartition = partitionAdoptedStyles(shadowRoot);
+	return [partition.base, partition.runtime].filter(Boolean).join('\n');
+}
+
+/**
+ * Extracts CSS text from all adopted stylesheets on a ShadowRoot, separating
+ * editor base styles from runtime style-token sheets. The distinction matters
+ * for print: base styles go into a cascade layer so consumer overrides win,
+ * but token rules represent user content formatting (inline styles in
+ * non-CSP mode) and must not be demoted with them.
+ */
+export function partitionAdoptedStyles(shadowRoot: ShadowRoot): AdoptedStylePartition {
+	const base: string[] = [];
+	const runtime: string[] = [];
 	for (const sheet of shadowRoot.adoptedStyleSheets) {
+		const target: string[] = isRuntimeStyleSheet(sheet) ? runtime : base;
 		for (const rule of sheet.cssRules) {
-			parts.push(rule.cssText);
+			target.push(rule.cssText);
 		}
 	}
-	return parts.join('\n');
-}
-
-/**
- * Translates a single `::part()` selector authored on the host page into a
- * plain attribute selector usable in the flattened print document.
- *
- * The print document has no shadow host, so `::part()` can never match there;
- * the cloned elements keep their `part="..."` attributes instead. This drops
- * the host prefix and rewrites the parts:
- *
- *   notectl-editor::part(table-cell)        -> [part~="table-cell"]
- *   notectl-editor::part(table cell):hover  -> [part~="table"][part~="cell"]:hover
- *
- * Returns `null` when the selector does not target this `host` via `::part()`,
- * or when it chains multiple `::part()` pseudo-elements (not supported).
- */
-export function translatePartSelector(selector: string, host: HTMLElement): string | null {
-	const match: RegExpExecArray | null = /^(.*?)::part\(([^)]*)\)(.*)$/.exec(selector);
-	if (!match) return null;
-
-	const hostPortion: string = match[1] ?? '';
-	const rawNames: string = match[2] ?? '';
-	const trailing: string = match[3] ?? '';
-	// A second `::part()` in the trailing portion would be left untranslated.
-	if (trailing.includes('::part(')) return null;
-	if (!targetsHost(host, hostPortion.trim())) return null;
-
-	const names: readonly string[] = rawNames.trim().split(/\s+/).filter(Boolean);
-	if (names.length === 0) return null;
-
-	const attributes: string = names.map((name) => `[part~="${name}"]`).join('');
-	return `${attributes}${trailing}`;
-}
-
-/**
- * Translates a full selector list (comma-separated). Keeps only the selectors
- * that target this host via `::part()`. Returns `null` when none qualify.
- */
-export function translatePartSelectorList(selectorText: string, host: HTMLElement): string | null {
-	const translated: string[] = [];
-	for (const selector of selectorText.split(',')) {
-		const one: string | null = translatePartSelector(selector.trim(), host);
-		if (one) translated.push(one);
-	}
-	return translated.length > 0 ? translated.join(', ') : null;
-}
-
-/** True when `host` matches the selector portion preceding `::part()`. */
-function targetsHost(host: HTMLElement, hostPortion: string): boolean {
-	if (!hostPortion) return false;
-	try {
-		return host.matches(hostPortion);
-	} catch {
-		return false; // invalid selector — cannot target this host
-	}
-}
-
-/** Type guard for style rules (rules that expose a `selectorText`). */
-function isStyleRule(rule: CSSRule): rule is CSSStyleRule {
-	return typeof (rule as CSSStyleRule).selectorText === 'string';
-}
-
-/** Collects the host page's own stylesheets, including document-level adopted sheets. */
-function hostStyleSheets(host: HTMLElement): readonly CSSStyleSheet[] {
-	const doc: Document = host.ownerDocument;
-	const sheets: CSSStyleSheet[] = Array.from(doc.styleSheets);
-	const adopted: readonly CSSStyleSheet[] | undefined = doc.adoptedStyleSheets;
-	if (adopted) sheets.push(...adopted);
-	return sheets;
-}
-
-/**
- * Reads the host page's stylesheets and translates every top-level `::part()`
- * rule that targets this editor into an attribute-selector rule, so consumer
- * shadow-part styling survives into print (WYSIWYG).
- *
- * Only top-level style rules are translated; `::part()` rules nested inside
- * `@media`/`@layer`/`@supports` are not carried over. Cross-origin stylesheets
- * are skipped silently because their rules are not readable.
- */
-export function collectHostPartStyles(host: HTMLElement): string {
-	const rules: string[] = [];
-	for (const sheet of hostStyleSheets(host)) {
-		let cssRules: CSSRuleList;
-		try {
-			cssRules = sheet.cssRules;
-		} catch {
-			continue; // cross-origin stylesheet — not readable
-		}
-		for (const rule of cssRules) {
-			if (!isStyleRule(rule)) continue;
-			const selector: string | null = translatePartSelectorList(rule.selectorText, host);
-			if (!selector) continue;
-			const body: string = rule.style.cssText;
-			if (body) rules.push(`${selector} { ${body} }`);
-		}
-	}
-	return rules.join('\n');
+	return { base: base.join('\n'), runtime: runtime.join('\n') };
 }
 
 /**
@@ -259,8 +188,12 @@ export function collectAll(
 	// `::part()` overrides and print-specific rules (all emitted unlayered below)
 	// win over them regardless of specificity. This mirrors the shadow-tree
 	// cascade, where an outer normal declaration beats the shadow tree's own rule.
-	const adopted: string = extractAdoptedStyles(shadowRoot);
-	if (adopted) parts.push(`@layer ${BASE_STYLE_LAYER} {\n${adopted}\n}`);
+	// Runtime style-token rules stay unlayered: they carry user-applied content
+	// formatting (inline styles outside strict-CSP mode) and must not lose to
+	// unlayered customCSS or translated part rules.
+	const adopted: AdoptedStylePartition = partitionAdoptedStyles(shadowRoot);
+	if (adopted.base) parts.push(`@layer ${BASE_STYLE_LAYER} {\n${adopted.base}\n}`);
+	if (adopted.runtime) parts.push(adopted.runtime);
 
 	const forceLightTheme: boolean = options.forceLightTheme !== false;
 

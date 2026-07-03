@@ -23,12 +23,25 @@ const STYLE_ELEMENT_ATTR = 'data-notectl-runtime-styles';
 
 const rootConfigs: WeakMap<StyleRoot, RootConfig> = new WeakMap();
 const strictEngines: WeakMap<StyleRoot, StrictStyleEngine> = new WeakMap();
+const runtimeSheets: WeakSet<CSSStyleSheet> = new WeakSet();
+
+/**
+ * True when the sheet holds runtime style-token rules, i.e. element styling
+ * that would be inline `style` attributes outside strict-CSP mode. Consumers
+ * (e.g. print) can use this to treat such rules as content styling rather
+ * than editor base styles.
+ */
+export function isRuntimeStyleSheet(sheet: CSSStyleSheet): boolean {
+	return runtimeSheets.has(sheet);
+}
 
 /** Creates a constructable stylesheet when the environment supports it. */
 export function createRuntimeStyleSheet(): CSSStyleSheet | null {
 	if (typeof CSSStyleSheet === 'undefined') return null;
 	try {
-		return new CSSStyleSheet();
+		const sheet = new CSSStyleSheet();
+		runtimeSheets.add(sheet);
+		return sheet;
 	} catch {
 		return null;
 	}
@@ -40,6 +53,9 @@ export function registerStyleRoot(root: StyleRoot, options: StyleRootOptions): v
 	if (previous) {
 		previous.destroy();
 		strictEngines.delete(root);
+	}
+	if (options.sheet) {
+		runtimeSheets.add(options.sheet);
 	}
 	rootConfigs.set(root, {
 		nonce: options.nonce,
@@ -321,6 +337,7 @@ class StrictStyleEngine {
 				if ('adoptedStyleSheets' in this.root) {
 					const adopted = this.root.adoptedStyleSheets;
 					this.root.adoptedStyleSheets = [...adopted, sheet];
+					runtimeSheets.add(sheet);
 					this.sheet = sheet;
 					this.ownsAdoptedSheet = true;
 					return sheet;
@@ -332,6 +349,9 @@ class StrictStyleEngine {
 
 		const style = this.ensureFallbackStyleElement();
 		this.sheet = (style.sheet as CSSStyleSheet | null) ?? null;
+		if (this.sheet) {
+			runtimeSheets.add(this.sheet);
+		}
 		return this.sheet;
 	}
 
