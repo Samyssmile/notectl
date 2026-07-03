@@ -12,6 +12,9 @@ import {
 } from '../../model/PaperSize.js';
 import type { PrintOptions } from './PrintTypes.js';
 
+/** Cascade layer that holds the editor's own base styles in print output. */
+const BASE_STYLE_LAYER = 'notectl-base';
+
 /** Extracts CSS text from all adopted stylesheets on a ShadowRoot. */
 export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
 	const parts: string[] = [];
@@ -21,6 +24,104 @@ export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
 		}
 	}
 	return parts.join('\n');
+}
+
+/**
+ * Translates a single `::part()` selector authored on the host page into a
+ * plain attribute selector usable in the flattened print document.
+ *
+ * The print document has no shadow host, so `::part()` can never match there;
+ * the cloned elements keep their `part="..."` attributes instead. This drops
+ * the host prefix and rewrites the parts:
+ *
+ *   notectl-editor::part(table-cell)        -> [part~="table-cell"]
+ *   notectl-editor::part(table cell):hover  -> [part~="table"][part~="cell"]:hover
+ *
+ * Returns `null` when the selector does not target this `host` via `::part()`,
+ * or when it chains multiple `::part()` pseudo-elements (not supported).
+ */
+export function translatePartSelector(selector: string, host: HTMLElement): string | null {
+	const match: RegExpExecArray | null = /^(.*?)::part\(([^)]*)\)(.*)$/.exec(selector);
+	if (!match) return null;
+
+	const hostPortion: string = match[1] ?? '';
+	const rawNames: string = match[2] ?? '';
+	const trailing: string = match[3] ?? '';
+	// A second `::part()` in the trailing portion would be left untranslated.
+	if (trailing.includes('::part(')) return null;
+	if (!targetsHost(host, hostPortion.trim())) return null;
+
+	const names: readonly string[] = rawNames.trim().split(/\s+/).filter(Boolean);
+	if (names.length === 0) return null;
+
+	const attributes: string = names.map((name) => `[part~="${name}"]`).join('');
+	return `${attributes}${trailing}`;
+}
+
+/**
+ * Translates a full selector list (comma-separated). Keeps only the selectors
+ * that target this host via `::part()`. Returns `null` when none qualify.
+ */
+export function translatePartSelectorList(selectorText: string, host: HTMLElement): string | null {
+	const translated: string[] = [];
+	for (const selector of selectorText.split(',')) {
+		const one: string | null = translatePartSelector(selector.trim(), host);
+		if (one) translated.push(one);
+	}
+	return translated.length > 0 ? translated.join(', ') : null;
+}
+
+/** True when `host` matches the selector portion preceding `::part()`. */
+function targetsHost(host: HTMLElement, hostPortion: string): boolean {
+	if (!hostPortion) return false;
+	try {
+		return host.matches(hostPortion);
+	} catch {
+		return false; // invalid selector — cannot target this host
+	}
+}
+
+/** Type guard for style rules (rules that expose a `selectorText`). */
+function isStyleRule(rule: CSSRule): rule is CSSStyleRule {
+	return typeof (rule as CSSStyleRule).selectorText === 'string';
+}
+
+/** Collects the host page's own stylesheets, including document-level adopted sheets. */
+function hostStyleSheets(host: HTMLElement): readonly CSSStyleSheet[] {
+	const doc: Document = host.ownerDocument;
+	const sheets: CSSStyleSheet[] = Array.from(doc.styleSheets);
+	const adopted: readonly CSSStyleSheet[] | undefined = doc.adoptedStyleSheets;
+	if (adopted) sheets.push(...adopted);
+	return sheets;
+}
+
+/**
+ * Reads the host page's stylesheets and translates every top-level `::part()`
+ * rule that targets this editor into an attribute-selector rule, so consumer
+ * shadow-part styling survives into print (WYSIWYG).
+ *
+ * Only top-level style rules are translated; `::part()` rules nested inside
+ * `@media`/`@layer`/`@supports` are not carried over. Cross-origin stylesheets
+ * are skipped silently because their rules are not readable.
+ */
+export function collectHostPartStyles(host: HTMLElement): string {
+	const rules: string[] = [];
+	for (const sheet of hostStyleSheets(host)) {
+		let cssRules: CSSRuleList;
+		try {
+			cssRules = sheet.cssRules;
+		} catch {
+			continue; // cross-origin stylesheet — not readable
+		}
+		for (const rule of cssRules) {
+			if (!isStyleRule(rule)) continue;
+			const selector: string | null = translatePartSelectorList(rule.selectorText, host);
+			if (!selector) continue;
+			const body: string = rule.style.cssText;
+			if (body) rules.push(`${selector} { ${body} }`);
+		}
+	}
+	return rules.join('\n');
 }
 
 /**
@@ -154,8 +255,12 @@ export function collectAll(
 ): string {
 	const parts: string[] = [];
 
+	// The editor's own styles go into a named cascade layer so that host-authored
+	// `::part()` overrides and print-specific rules (all emitted unlayered below)
+	// win over them regardless of specificity. This mirrors the shadow-tree
+	// cascade, where an outer normal declaration beats the shadow tree's own rule.
 	const adopted: string = extractAdoptedStyles(shadowRoot);
-	if (adopted) parts.push(adopted);
+	if (adopted) parts.push(`@layer ${BASE_STYLE_LAYER} {\n${adopted}\n}`);
 
 	const forceLightTheme: boolean = options.forceLightTheme !== false;
 
@@ -176,6 +281,12 @@ export function collectAll(
 
 	const printCSS: string = generatePrintCSS(options);
 	if (printCSS) parts.push(printCSS);
+
+	// Carry host-page `::part()` styling into print, translated to attribute
+	// selectors. Emitted before customCSS so explicit customCSS stays the final
+	// override.
+	const hostParts: string = collectHostPartStyles(host);
+	if (hostParts) parts.push(hostParts);
 
 	if (options.customCSS) {
 		parts.push(options.customCSS);

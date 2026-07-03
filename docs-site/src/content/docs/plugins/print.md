@@ -210,6 +210,7 @@ The plugin automatically prepares content for print:
 - **Clones** the editor content (original DOM is never modified)
 - **Removes** `contenteditable`, selection classes, and placeholder text
 - **Collects** all editor styles including adopted stylesheets and theme tokens
+- **Carries** host page [CSS Shadow Part](/notectl/guides/styling/#shadow-parts) styling into print (see below)
 - **Applies** block filters (exclusion, page breaks)
 - **Inserts** header/footer elements
 
@@ -222,6 +223,21 @@ Use `data-notectl-no-print` on any element to exclude it from print output:
 ```
 
 The plugin generates `@media print` rules that handle code block wrapping, image page breaks, and table layout. Additional styles can be injected via `customCSS`.
+
+### Shadow Part styling in print
+
+Styling you apply through the exposed [CSS Shadow Parts](/notectl/guides/styling/#shadow-parts) is carried into print automatically, so the printed page matches the editor:
+
+```css
+/* Applies both in the editor and in print output. */
+notectl-editor::part(table-cell) {
+  padding: 0;
+}
+```
+
+Print flattens the editor out of its shadow root, so the plugin translates each host `::part()` rule that targets the editor into the equivalent `[part~="..."]` selector for the print document. Only top-level rules are carried; `::part()` rules nested inside `@media`, `@layer`, or `@supports` are not.
+
+The editor's own base styles are placed in a `@layer notectl-base` cascade layer in the print output, so your part rules and any `customCSS` override the editor's built-in element styling regardless of selector specificity, exactly as `::part()` does in the live editor.
 
 ## Requirements
 

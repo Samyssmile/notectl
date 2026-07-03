@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { PaperSize } from '../../model/PaperSize.js';
 import {
 	collectAll,
+	collectHostPartStyles,
 	extractAdoptedStyles,
 	generateLightThemeTokens,
 	generatePrintCSS,
 	snapshotThemeTokens,
 	snapshotTypography,
+	translatePartSelector,
+	translatePartSelectorList,
 } from './PrintStyleCollector.js';
 
 describe('PrintStyleCollector', () => {
@@ -246,6 +249,26 @@ describe('PrintStyleCollector', () => {
 			document.body.removeChild(host);
 		});
 
+		it('wraps the editor base styles in a cascade layer so overrides win', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			const sheet: CSSStyleSheet = new CSSStyleSheet();
+			sheet.replaceSync('.notectl-table td { padding: 8px 12px; }');
+			shadow.adoptedStyleSheets = [sheet];
+
+			const host: HTMLElement = document.createElement('div');
+			document.body.appendChild(host);
+
+			const result: string = collectAll(shadow, host, {});
+			// The adopted rule must sit inside a named layer; print/theme/custom
+			// rules stay unlayered and therefore win regardless of specificity.
+			expect(result).toContain('@layer notectl-base {');
+			expect(result).toContain('.notectl-table td');
+			const layerIndex: number = result.indexOf('@layer notectl-base {');
+			expect(result.indexOf('.notectl-table td')).toBeGreaterThan(layerIndex);
+
+			document.body.removeChild(host);
+		});
+
 		it('works with empty options', () => {
 			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
 			const host: HTMLElement = document.createElement('div');
@@ -338,6 +361,95 @@ describe('PrintStyleCollector', () => {
 			expect(withPaper).toContain('body {');
 			expect(withoutPaper).toContain('body {');
 
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('translatePartSelector', () => {
+		it('translates a single ::part() to an attribute selector, dropping the host', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('notectl-editor::part(table-cell)', host)).toBe(
+				'[part~="table-cell"]',
+			);
+		});
+
+		it('translates compound parts to chained attribute selectors', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('notectl-editor::part(table cell)', host)).toBe(
+				'[part~="table"][part~="cell"]',
+			);
+		});
+
+		it('preserves trailing pseudo-classes and pseudo-elements', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('notectl-editor::part(table):hover', host)).toBe(
+				'[part~="table"]:hover',
+			);
+		});
+
+		it('matches host selectors with classes', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.classList.add('themed');
+			expect(translatePartSelector('notectl-editor.themed::part(table)', host)).toBe(
+				'[part~="table"]',
+			);
+		});
+
+		it('returns null when the host portion does not match this editor', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('.other-widget::part(table)', host)).toBeNull();
+		});
+
+		it('returns null for selectors without ::part()', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('.notectl-table td', host)).toBeNull();
+		});
+
+		it('returns null for chained ::part() pseudo-elements', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('notectl-editor::part(a)::part(b)', host)).toBeNull();
+		});
+
+		it('returns null for an empty part name', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelector('notectl-editor::part()', host)).toBeNull();
+		});
+	});
+
+	describe('translatePartSelectorList', () => {
+		it('keeps only the selectors that target this host via ::part()', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			const result: string | null = translatePartSelectorList(
+				'notectl-editor::part(table), .other::part(x), div',
+				host,
+			);
+			expect(result).toBe('[part~="table"]');
+		});
+
+		it('translates multiple matching selectors', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			const result: string | null = translatePartSelectorList(
+				'notectl-editor::part(table), notectl-editor::part(table-cell)',
+				host,
+			);
+			expect(result).toBe('[part~="table"], [part~="table-cell"]');
+		});
+
+		it('returns null when no selector qualifies', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			expect(translatePartSelectorList('.a, .b td', host)).toBeNull();
+		});
+	});
+
+	describe('collectHostPartStyles', () => {
+		it('returns an empty string when no host stylesheets contain ::part() rules', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			document.body.appendChild(host);
+			// happy-dom's CSS parser drops ::part() rules, so no host part rules are
+			// resolvable here; the end-to-end behaviour is proven by the Playwright
+			// spec e2e/print-part-css.spec.ts. This guards that the reader is safe to
+			// call and never throws on a real document.
+			expect(collectHostPartStyles(host)).toBe('');
 			document.body.removeChild(host);
 		});
 	});

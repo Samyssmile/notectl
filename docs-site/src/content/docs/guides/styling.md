@@ -175,6 +175,8 @@ notectl-editor::part(blockquote) {
 }
 ```
 
+Part styling also carries into print output, so the printed page matches the editor. See [Shadow Part styling in print](/notectl/plugins/print/#shadow-part-styling-in-print).
+
 ### Part Inventory
 
 | Part | Element | Notes |

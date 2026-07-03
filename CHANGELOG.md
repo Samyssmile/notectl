@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Custom CSS applied to the editor's Shadow Parts now survives into print, and `PrintOptions.customCSS` can override the editor's own element styling (#202).** A consumer styling the table from the host page, for example `notectl-editor::part(table-cell) { padding: 0; }`, saw it work in the live editor but silently vanish in print, and passing the same rule through `PrintOptions.customCSS` did not help either. The print pipeline clones `.notectl-content` out of the shadow DOM into a plain iframe document, where `::part()` can never match because there is no shadow host, and it only collected the shadow root's own adopted stylesheets, never the host page's stylesheets, so the consumer's part rules were dropped entirely. Two changes fix this. First, print now reads the host page's stylesheets (including document-level adopted sheets) and translates every top-level `::part()` rule that targets this editor into the equivalent attribute selector, so `notectl-editor::part(table-cell)` becomes `[part~="table-cell"]`, which matches the `part` attributes the clone preserves; cross-origin sheets are skipped and `::part()` rules nested inside `@media`/`@layer`/`@supports` are not carried. Second, the editor's own base styles are now wrapped in a `@layer notectl-base` cascade layer, while the translated host rules and any `PrintOptions.customCSS` stay unlayered, so they win over the editor's built-in element rules regardless of specificity. This mirrors the shadow-tree cascade, where an outer normal declaration beats the shadow tree's own rule irrespective of specificity, and it is what makes the reported case work: a bare `[part~="table-cell"]` (specificity 0,1,0) previously lost to the editor's `.notectl-table td` (0,1,1), so even a correctly written `customCSS` override had no effect. Covered by new unit tests for the selector translation and the cascade-layer wrapping, plus a Playwright spec (because `::part()` cannot be exercised under happy-dom) that proves a host `::part(table-cell) { padding: 0 }` rule and a `PrintOptions.customCSS` override both reach the printed cell, and that the editor's built-in cell padding still applies in print when nothing overrides it.
+
 ## [2.2.5] - 2026-07-01
 
 ### Fixed
