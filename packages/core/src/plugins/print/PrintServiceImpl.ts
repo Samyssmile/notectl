@@ -10,6 +10,7 @@
  */
 
 import { STATIC_HOST_ATTRIBUTE } from '../../editor/StaticHostMarker.js';
+import { escapeAttr, escapeHTML } from '../../model/HTMLUtils.js';
 import { getStyleNonceForNode, setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
@@ -29,20 +30,6 @@ import {
 	type PrintOptions,
 	type PrintService,
 } from './PrintTypes.js';
-
-/** Escapes HTML special characters in a plain-text string. */
-function escapeHTML(text: string): string {
-	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/** Escapes a string for use inside a double-quoted HTML attribute. */
-function escapeAttribute(value: string): string {
-	return value
-		.replace(/&/g, '&amp;')
-		.replace(/"/g, '&quot;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;');
-}
 
 /**
  * Upper bound for waiting on the print iframe's load event. Referenced host
@@ -88,22 +75,27 @@ function escapeStyleText(css: string): string {
 	return css.replace(/<\//g, '<\\/');
 }
 
+/** Serializes an element's attributes matched by `include`, with a leading space. */
+function serializeFilteredAttributes(el: Element, include: (name: string) => boolean): string {
+	const parts: string[] = [];
+	for (const attribute of Array.from(el.attributes)) {
+		if (!include(attribute.name)) continue;
+		parts.push(
+			attribute.value === ''
+				? attribute.name
+				: `${attribute.name}="${escapeAttr(attribute.value)}"`,
+		);
+	}
+	return parts.length > 0 ? ` ${parts.join(' ')}` : '';
+}
+
 /**
  * Serializes an element's attributes for the print document. The `style`
  * attribute is stripped from the host element: element-attached declarations
  * would beat every stylesheet rule, defeating the print host reset.
  */
 function serializeAttributes(el: Element, skip: readonly string[]): string {
-	const parts: string[] = [];
-	for (const attribute of Array.from(el.attributes)) {
-		if (skip.includes(attribute.name)) continue;
-		parts.push(
-			attribute.value === ''
-				? attribute.name
-				: `${attribute.name}="${escapeAttribute(attribute.value)}"`,
-		);
-	}
-	return parts.length > 0 ? ` ${parts.join(' ')}` : '';
+	return serializeFilteredAttributes(el, (name: string): boolean => !skip.includes(name));
 }
 
 /**
@@ -113,12 +105,10 @@ function serializeAttributes(el: Element, skip: readonly string[]): string {
  */
 function serializeThemeContextAttributes(el: Element | null): string {
 	if (!el) return '';
-	const parts: string[] = [];
-	for (const attribute of Array.from(el.attributes)) {
-		if (attribute.name !== 'class' && !attribute.name.startsWith('data-')) continue;
-		parts.push(`${attribute.name}="${escapeAttribute(attribute.value)}"`);
-	}
-	return parts.length > 0 ? ` ${parts.join(' ')}` : '';
+	return serializeFilteredAttributes(
+		el,
+		(name: string): boolean => name === 'class' || name.startsWith('data-'),
+	);
 }
 
 /** Everything needed to assemble the print document. */
@@ -175,16 +165,14 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		hostStyleParts.push(`@layer ${HOST_STYLE_LAYER} {\n${input.hostLayerCSS}\n}`);
 	}
 
-	const nonceAttribute: string = input.styleNonce
-		? ` nonce="${escapeAttribute(input.styleNonce)}"`
-		: '';
+	const nonceAttribute: string = input.styleNonce ? ` nonce="${escapeAttr(input.styleNonce)}"` : '';
 	const head: string[] = ['<meta charset="utf-8">', `<title>${escapeHTML(input.title)}</title>`];
 	head.push(`<style${nonceAttribute}>${escapeStyleText(hostStyleParts.join('\n'))}</style>`);
 	head.push(`<style${nonceAttribute}>${escapeStyleText(input.documentCSS)}</style>`);
 
 	return [
 		'<!DOCTYPE html>',
-		`<html lang="${escapeAttribute(input.lang)}"${htmlContext}>`,
+		`<html lang="${escapeAttr(input.lang)}"${htmlContext}>`,
 		'<head>',
 		...head,
 		'</head>',
