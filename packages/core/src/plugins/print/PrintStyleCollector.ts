@@ -79,12 +79,6 @@ export interface AdoptedStylePartition {
 	readonly runtime: string;
 }
 
-/** Extracts CSS text from all adopted stylesheets on a ShadowRoot. */
-export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
-	const partition: AdoptedStylePartition = partitionAdoptedStyles(shadowRoot);
-	return [partition.base, partition.runtime].filter(Boolean).join('\n');
-}
-
 /**
  * Extracts CSS text from all adopted stylesheets on a ShadowRoot, separating
  * editor base styles from runtime style-token sheets. The distinction matters

@@ -4,7 +4,6 @@ import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
 	buildDocumentCSS,
 	buildShadowCSS,
-	extractAdoptedStyles,
 	generateContentPrintCSS,
 	generateHostResetCSS,
 	generateLightThemeTokens,
@@ -50,27 +49,6 @@ function attachedHost(tag = 'notectl-editor'): HTMLElement {
 }
 
 describe('PrintStyleCollector', () => {
-	describe('extractAdoptedStyles', () => {
-		it('extracts CSS text from adopted stylesheets', () => {
-			const shadow: ShadowRoot = shadowWithSheets('.foo { color: red; }');
-			const result: string = extractAdoptedStyles(shadow);
-			expect(result).toContain('.foo');
-			expect(result).toContain('color');
-		});
-
-		it('returns empty string when no adopted stylesheets', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			expect(extractAdoptedStyles(shadow)).toBe('');
-		});
-
-		it('concatenates rules from multiple stylesheets', () => {
-			const shadow: ShadowRoot = shadowWithSheets('.a { color: red; }', '.b { color: blue; }');
-			const result: string = extractAdoptedStyles(shadow);
-			expect(result).toContain('.a');
-			expect(result).toContain('.b');
-		});
-	});
-
 	describe('partitionAdoptedStyles', () => {
 		it('separates runtime style-token sheets from base sheets', () => {
 			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
