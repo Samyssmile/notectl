@@ -16,10 +16,11 @@
  *   (`@page`, `body`) and inside the earliest `notectl-custom` layer so
  *   consumer `!important` rules outrank the print guards.
  *
- * Document layer order is `notectl-custom, notectl-print, notectl-host`
- * (declared in {@link buildHTMLDocument}). For normal declarations unlayered
- * rules win over all layers; for `!important` declarations the layer order
- * reverses, so earlier layers win: customCSS > print guards > host copy.
+ * Document layer order is `notectl-custom, notectl-print, notectl-theme,
+ * notectl-host` (declared in {@link buildHTMLDocument}). For normal
+ * declarations unlayered rules win over all layers; for `!important`
+ * declarations the layer order reverses, so earlier layers win:
+ * customCSS > print guards > theme snapshot > host copy.
  */
 
 import { generateThemeCSS } from '../../editor/theme/ThemeEngine.js';
@@ -48,6 +49,15 @@ export const PRINT_STYLE_LAYER = 'notectl-print';
  * consumer's escape hatch over the print guards and host rules.
  */
 export const CUSTOM_STYLE_LAYER = 'notectl-custom';
+
+/**
+ * Document-level cascade layer holding the computed theme-token snapshot for
+ * `forceLightTheme: false`. Declared before `notectl-host`, so every natively
+ * carried host-page token rule (later layer wins normal declarations)
+ * outranks the snapshot; it only backfills token sources the stylesheet copy
+ * cannot carry.
+ */
+export const THEME_STYLE_LAYER = 'notectl-theme';
 
 /**
  * Appends `!important` to every declaration of generated CSS. Only safe for
@@ -104,6 +114,34 @@ export function partitionAdoptedStyles(shadowRoot: ShadowRoot): AdoptedStylePart
 export function generateLightThemeTokens(hostSelector: string): string {
 	const css: string = generateThemeCSS(LIGHT_THEME).replace(':host {', `${hostSelector} {`);
 	return markDeclarationsImportant(css);
+}
+
+/**
+ * Snapshots all computed `--notectl-*` tokens from the host element into a
+ * `:root` rule, as a fallback when carrying the live theme
+ * (`forceLightTheme: false`). Tokens set via the host's inline `style`
+ * attribute (stripped from the print replica), via JS `setProperty`, or via
+ * rules scoped to wrapper elements that do not exist in the print document
+ * cannot travel through the stylesheet copy; the computed result pins them at
+ * document level. Emitted inside the `notectl-theme` layer so every natively
+ * carried host rule — including print-conditional ones — still wins.
+ */
+export function snapshotThemeTokens(host: HTMLElement): string {
+	const computed: CSSStyleDeclaration = getComputedStyle(host);
+	const tokens: string[] = [];
+
+	for (let i = 0; i < computed.length; i++) {
+		const prop: string = computed[i] ?? '';
+		if (prop.startsWith('--notectl-')) {
+			const value: string = computed.getPropertyValue(prop).trim();
+			if (value) {
+				tokens.push(`  ${prop}: ${value};`);
+			}
+		}
+	}
+
+	if (tokens.length === 0) return '';
+	return `:root {\n${tokens.join('\n')}\n}`;
 }
 
 /** Computed background-color values that mean "no own background". */
@@ -367,6 +405,13 @@ export function buildDocumentCSS(
 		guards.push(generateLightThemeTokens(hostSelector));
 	}
 	parts.push(`@layer ${PRINT_STYLE_LAYER} {\n${guards.join('\n\n')}\n}`);
+
+	if (!forceLightTheme) {
+		const themeTokens: string = snapshotThemeTokens(host);
+		if (themeTokens) {
+			parts.push(`@layer ${THEME_STYLE_LAYER} {\n${themeTokens}\n}`);
+		}
+	}
 
 	const colorOverride: string | undefined = forceLightTheme
 		? LIGHT_THEME.primitives.foreground

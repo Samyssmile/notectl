@@ -10,13 +10,14 @@
  */
 
 import { STATIC_HOST_ATTRIBUTE } from '../../editor/StaticHostMarker.js';
-import { setStyleText } from '../../style/StyleRuntime.js';
+import { getStyleNonceForNode, setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
 import { HOST_STYLE_LAYER, type HostStyleCopy, collectHostStyleCopy } from './PrintHostStyles.js';
 import {
 	CUSTOM_STYLE_LAYER,
 	PRINT_STYLE_LAYER,
+	THEME_STYLE_LAYER,
 	buildDocumentCSS,
 	buildShadowCSS,
 } from './PrintStyleCollector.js';
@@ -138,6 +139,12 @@ export interface PrintDocumentInput {
 	readonly lang: string;
 	/** Copy html/body theme-context attributes (only when the live theme is carried). */
 	readonly carryThemeContext: boolean;
+	/**
+	 * CSP nonce applied to every embedded `<style>` and `<script>` element, so
+	 * the print document renders under a `style-src`/`script-src` nonce policy
+	 * inherited by the print iframe.
+	 */
+	readonly styleNonce?: string;
 }
 
 /** Builds the complete print document as an HTML string. */
@@ -157,19 +164,23 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 
 	// The layer-order statement must be the document's first style rule: layer
 	// order is fixed by first appearance, and for `!important` declarations
-	// earlier layers win — customCSS > print guards > host copy. It is one of
-	// the few rules allowed to precede the hoisted `@import` statements.
+	// earlier layers win — customCSS > print guards > theme snapshot > host
+	// copy. It is one of the few rules allowed to precede the hoisted
+	// `@import` statements.
 	const hostStyleParts: string[] = [
-		`@layer ${CUSTOM_STYLE_LAYER}, ${PRINT_STYLE_LAYER}, ${HOST_STYLE_LAYER};`,
+		`@layer ${CUSTOM_STYLE_LAYER}, ${PRINT_STYLE_LAYER}, ${THEME_STYLE_LAYER}, ${HOST_STYLE_LAYER};`,
 		...input.hostImports,
 	];
 	if (input.hostLayerCSS) {
 		hostStyleParts.push(`@layer ${HOST_STYLE_LAYER} {\n${input.hostLayerCSS}\n}`);
 	}
 
+	const nonceAttribute: string = input.styleNonce
+		? ` nonce="${escapeAttribute(input.styleNonce)}"`
+		: '';
 	const head: string[] = ['<meta charset="utf-8">', `<title>${escapeHTML(input.title)}</title>`];
-	head.push(`<style>${escapeStyleText(hostStyleParts.join('\n'))}</style>`);
-	head.push(`<style>${escapeStyleText(input.documentCSS)}</style>`);
+	head.push(`<style${nonceAttribute}>${escapeStyleText(hostStyleParts.join('\n'))}</style>`);
+	head.push(`<style${nonceAttribute}>${escapeStyleText(input.documentCSS)}</style>`);
 
 	return [
 		'<!DOCTYPE html>',
@@ -180,11 +191,11 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		`<body${bodyContext}>`,
 		`<${hostTag}${hostAttributes} ${STATIC_HOST_ATTRIBUTE}>`,
 		'<template shadowrootmode="open">',
-		`<style>${escapeStyleText(input.shadowCSS)}</style>`,
+		`<style${nonceAttribute}>${escapeStyleText(input.shadowCSS)}</style>`,
 		input.contentHTML,
 		'</template>',
 		`</${hostTag}>`,
-		`<script>${DSD_FALLBACK_SCRIPT}</script>`,
+		`<script${nonceAttribute}>${DSD_FALLBACK_SCRIPT}</script>`,
 		'</body>',
 		'</html>',
 	].join('\n');
@@ -236,6 +247,7 @@ export function createPrintService(
 			title,
 			lang,
 			carryThemeContext: finalOptions.forceLightTheme === false,
+			styleNonce: getStyleNonceForNode(container),
 		});
 
 		// 5. Emit AFTER_PRINT

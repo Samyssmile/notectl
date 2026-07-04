@@ -789,4 +789,127 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(result.hasTableCell, 'content must be visible after the fallback').toBe(true);
 		expect(result.templateGone).toBe(true);
 	});
+
+	test('rebases relative url() references against the stylesheet location', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// A stylesheet in /print-202-assets/css/ referencing ../img/: copied
+		// verbatim into the print document (whose base is the page URL), the
+		// relative reference would resolve to the wrong path and 404.
+		await page.route('**/print-202-assets/css/theme.css', (route) =>
+			route.fulfill({
+				contentType: 'text/css',
+				body: 'notectl-editor::part(table-cell) { background-image: url(../img/cell.png); }',
+			}),
+		);
+		await page.evaluate(async () => {
+			const link: HTMLLinkElement = document.createElement('link');
+			link.id = 'notectl-202-rebase-css';
+			link.rel = 'stylesheet';
+			link.href = '/print-202-assets/css/theme.css';
+			const loaded: Promise<void> = new Promise((resolve, reject) => {
+				link.onload = (): void => resolve();
+				link.onerror = (): void => reject(new Error('stylesheet failed to load'));
+			});
+			document.head.appendChild(link);
+			await loaded;
+		});
+
+		try {
+			const probe: PrintCellProbeResult = await probePrintCell(page, { properties: [] });
+			expect(probe.html, 'relative url() must be rebased to the stylesheet directory').toContain(
+				'/print-202-assets/img/cell.png',
+			);
+			expect(probe.html).not.toContain('url(../img/cell.png)');
+		} finally {
+			await page.evaluate(() => {
+				document.getElementById('notectl-202-rebase-css')?.remove();
+			});
+		}
+	});
+
+	test('preserves @import layer() and supports() semantics when inlining', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Layered import content loses to unlayered page rules live regardless
+		// of specificity; a supports()-gated import with a false condition never
+		// applies. Both must hold identically in the print document.
+		await page.route('**/print-202-assets/defaults.css', (route) =>
+			route.fulfill({
+				contentType: 'text/css',
+				body: 'notectl-editor:not(.zzz)::part(table-cell) { padding-top: 9px; }',
+			}),
+		);
+		await page.route('**/print-202-assets/unsupported.css', (route) =>
+			route.fulfill({
+				contentType: 'text/css',
+				// Same high specificity as defaults.css: if the supports()
+				// condition were dropped during inlining, this rule would beat
+				// the 2px override on specificity and the probe would catch it.
+				body: 'notectl-editor:not(.zzz)::part(table-cell) { padding-top: 13px; }',
+			}),
+		);
+		await page.evaluate(async () => {
+			const style: HTMLStyleElement = document.createElement('style');
+			style.id = 'notectl-202-layer-import-css';
+			style.textContent = [
+				'@import url("/print-202-assets/defaults.css") layer(defaults);',
+				'@import url("/print-202-assets/unsupported.css") supports(display: no-such-value);',
+				'notectl-editor::part(table-cell) { padding-top: 2px; }',
+			].join('\n');
+			document.head.appendChild(style);
+
+			await new Promise<void>((resolve, reject) => {
+				const deadline: number = Date.now() + 5000;
+				const check = (): void => {
+					try {
+						const rule = style.sheet?.cssRules[0] as CSSImportRule | undefined;
+						if (rule?.styleSheet && rule.styleSheet.cssRules.length > 0) {
+							resolve();
+							return;
+						}
+					} catch {
+						// import not readable yet
+					}
+					if (Date.now() > deadline) {
+						reject(new Error('@import stylesheet did not load'));
+						return;
+					}
+					setTimeout(check, 25);
+				};
+				check();
+			});
+		});
+
+		try {
+			const probe: PrintCellProbeResult = await probePrintCell(page, {
+				properties: ['padding-top'],
+				readLive: true,
+			});
+			// Setup validity: live, the unlayered 2px override beats the more
+			// specific layered 9px rule, and the false supports() stays inactive.
+			expect(
+				probe.liveStyles['padding-top'],
+				'unlayered page rule must beat the layered import live',
+			).toBe('2px');
+			// Without layer preservation the inlined 9px rule would win on
+			// specificity inside notectl-host.
+			expect(
+				probe.printStyles['padding-top'],
+				'print cascade must match the live layered-import result',
+			).toBe('2px');
+		} finally {
+			await page.evaluate(() => {
+				document.getElementById('notectl-202-layer-import-css')?.remove();
+			});
+		}
+	});
 });

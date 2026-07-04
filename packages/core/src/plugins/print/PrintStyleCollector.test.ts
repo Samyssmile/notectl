@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PaperSize } from '../../model/PaperSize.js';
 import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
@@ -12,8 +12,26 @@ import {
 	generatePageResetCSS,
 	partitionAdoptedStyles,
 	resolveCarriedBackground,
+	snapshotThemeTokens,
 	snapshotTypography,
 } from './PrintStyleCollector.js';
+
+/**
+ * happy-dom's getComputedStyle does not iterate custom properties, so token
+ * snapshot tests stub it with an indexable declaration exposing the given
+ * properties.
+ */
+function fakeComputedStyle(props: Record<string, string>): CSSStyleDeclaration {
+	const names: string[] = Object.keys(props);
+	const style: Record<string | number, unknown> = {
+		length: names.length,
+		getPropertyValue: (prop: string): string => props[prop] ?? '',
+	};
+	names.forEach((name: string, index: number): void => {
+		style[index] = name;
+	});
+	return style as unknown as CSSStyleDeclaration;
+}
 
 function shadowWithSheets(...cssTexts: readonly string[]): ShadowRoot {
 	const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
@@ -133,6 +151,35 @@ describe('PrintStyleCollector', () => {
 			const result: string = snapshotTypography(host, undefined, 'rgb(30, 30, 46)');
 			expect(result).toContain('background: rgb(30, 30, 46);');
 			expect(result).not.toContain('#ffffff');
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('snapshotThemeTokens', () => {
+		it('snapshots computed --notectl-* tokens into a :root rule', () => {
+			const host: HTMLElement = attachedHost();
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+				fakeComputedStyle({
+					'--notectl-bg': '#1e1e2e',
+					'--notectl-fg': '#cdd6f4',
+					color: 'red',
+				}),
+			);
+			try {
+				const result: string = snapshotThemeTokens(host);
+				expect(result).toContain(':root {');
+				expect(result).toContain('--notectl-bg: #1e1e2e;');
+				expect(result).toContain('--notectl-fg: #cdd6f4;');
+				expect(result).not.toContain('color: red');
+			} finally {
+				vi.restoreAllMocks();
+				document.body.removeChild(host);
+			}
+		});
+
+		it('returns empty string when no tokens are set', () => {
+			const host: HTMLElement = attachedHost();
+			expect(snapshotThemeTokens(host)).toBe('');
 			document.body.removeChild(host);
 		});
 	});
@@ -306,10 +353,42 @@ describe('PrintStyleCollector', () => {
 		it('carries the live theme when forceLightTheme is false', () => {
 			const host: HTMLElement = attachedHost();
 			const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
-			// No frozen token snapshot: the theme travels natively via the copied
-			// shadow theme sheet and host-page rules.
-			expect(result).not.toContain('--notectl-');
+			// No forced light tokens; the theme travels natively via the copied
+			// shadow theme sheet and host-page rules (plus the snapshot fallback).
+			expect(result).not.toContain('--notectl-bg: #ffffff !important');
 			document.body.removeChild(host);
+		});
+
+		it('emits the token snapshot in the notectl-theme layer when carrying the theme', () => {
+			const host: HTMLElement = attachedHost();
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+				fakeComputedStyle({ '--notectl-bg': '#1e1e2e' }),
+			);
+			try {
+				const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
+				// The snapshot backfills token sources the stylesheet copy cannot
+				// carry (inline style, JS-set, wrapper-scoped); natively carried
+				// host rules in the later notectl-host layer still win.
+				expect(result).toContain('@layer notectl-theme {\n:root {');
+				expect(result).toContain('--notectl-bg: #1e1e2e;');
+			} finally {
+				vi.restoreAllMocks();
+				document.body.removeChild(host);
+			}
+		});
+
+		it('does not emit a token snapshot when forcing the light theme', () => {
+			const host: HTMLElement = attachedHost();
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+				fakeComputedStyle({ '--notectl-bg': '#1e1e2e' }),
+			);
+			try {
+				const result: string = buildDocumentCSS(host, host, {});
+				expect(result).not.toContain('@layer notectl-theme');
+			} finally {
+				vi.restoreAllMocks();
+				document.body.removeChild(host);
+			}
 		});
 
 		it('includes the html/body page reset in the notectl-print layer', () => {

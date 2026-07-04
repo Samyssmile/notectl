@@ -39,6 +39,10 @@ interface CopyState {
 	readonly imports: string[];
 	readonly parts: string[];
 	readonly seen: Set<CSSStyleSheet>;
+	/** Base URL for rules from sheets without an own URL (inline styles). */
+	readonly baseURL: string;
+	/** Counter for naming hoisted anonymous import layers uniquely. */
+	anonymousLayerCount: number;
 }
 
 /**
@@ -69,11 +73,73 @@ function escapeImportURL(url: string): string {
 	return url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-function hoistImport(state: CopyState, href: string, mediaText: string): void {
+/** Matches `url(...)` tokens: double-quoted, single-quoted, or bare. */
+const CSS_URL_PATTERN = /url\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^)"'\s]+))\s*\)/g;
+
+/**
+ * URLs that must not be rebased: fragment-only references stay document-local
+ * (SVG paint servers like `fill: url(#gradient)`), and URLs that already have
+ * a scheme or are protocol-relative resolve identically everywhere.
+ */
+function isRebasableURL(url: string): boolean {
+	if (url.startsWith('#') || url.startsWith('//')) return false;
+	return !/^[a-z][a-z0-9+.-]*:/i.test(url);
+}
+
+/**
+ * Rewrites relative `url()` references to absolute URLs against the source
+ * stylesheet's URL. Copied `cssText` keeps URLs as authored; in the print
+ * document they would re-resolve against the page URL instead of the
+ * stylesheet's location, breaking fonts and images from stylesheets that live
+ * in another directory.
+ */
+function rebaseCSSURLs(cssText: string, baseURL: string): string {
+	if (!cssText.includes('url(')) return cssText;
+	return cssText.replace(
+		CSS_URL_PATTERN,
+		(match: string, doubleQuoted?: string, singleQuoted?: string, bare?: string): string => {
+			const raw: string = doubleQuoted ?? singleQuoted ?? bare ?? '';
+			if (!raw || !isRebasableURL(raw)) return match;
+			try {
+				return `url("${new URL(raw, baseURL).href}")`;
+			} catch {
+				return match;
+			}
+		},
+	);
+}
+
+/** Returns a unique sublayer name for a hoisted anonymous import layer. */
+function anonymousLayerName(state: CopyState): string {
+	state.anonymousLayerCount += 1;
+	return `notectl-anonymous-${state.anonymousLayerCount}`;
+}
+
+/**
+ * Re-references a stylesheet whose rules are not readable. The import's own
+ * cascade-layer assignment survives as a sublayer of `notectl-host` (nested
+ * layers order before the parent's direct rules, mirroring how layered import
+ * content loses to unlayered page rules live), and its `supports()` condition
+ * is carried verbatim.
+ */
+function hoistImport(
+	state: CopyState,
+	href: string,
+	mediaText: string,
+	layerName: string | null,
+	supportsText: string | null,
+): void {
 	const media: string = mediaText.trim();
-	const condition: string = media && media !== 'all' ? ` ${media}` : '';
+	const mediaCondition: string = media && media !== 'all' ? ` ${media}` : '';
+	let layer: string = HOST_STYLE_LAYER;
+	if (layerName === '') {
+		layer = `${HOST_STYLE_LAYER}.${anonymousLayerName(state)}`;
+	} else if (layerName) {
+		layer = `${HOST_STYLE_LAYER}.${layerName}`;
+	}
+	const supports: string = supportsText?.trim() ? ` supports(${supportsText.trim()})` : '';
 	state.imports.push(
-		`@import url("${escapeImportURL(href)}") layer(${HOST_STYLE_LAYER})${condition};`,
+		`@import url("${escapeImportURL(href)}") layer(${layer})${supports}${mediaCondition};`,
 	);
 }
 
@@ -95,17 +161,18 @@ function serializeSheet(sheet: CSSStyleSheet, state: CopyState): void {
 	} catch {
 		// Cross-origin — rules are not readable. Re-reference so the print
 		// document loads the stylesheet itself.
-		if (sheet.href) hoistImport(state, sheet.href, sheet.media.mediaText);
+		if (sheet.href) hoistImport(state, sheet.href, sheet.media.mediaText, null, null);
 		return;
 	}
 
+	const base: string = sheet.href ?? state.baseURL;
 	const body: string[] = [];
 	for (const rule of cssRules) {
 		if (rule.type === IMPORT_RULE_TYPE) {
 			serializeImportRule(rule as CSSImportRule, state, body);
 			continue;
 		}
-		body.push(rule.cssText);
+		body.push(rebaseCSSURLs(rule.cssText, base));
 	}
 
 	const text: string = body.join('\n');
@@ -115,9 +182,14 @@ function serializeSheet(sheet: CSSStyleSheet, state: CopyState): void {
 /**
  * Inlines a readable `@import` target in place; unreadable targets are hoisted
  * as layered `@import` statements (`@import` is not valid inside a layer
- * block, so it cannot be copied verbatim).
+ * block, so it cannot be copied verbatim). The import's own cascade-layer
+ * assignment and `supports()` condition survive inlining as nested `@layer`
+ * and `@supports` blocks — without them, layered import content would compete
+ * on specificity against page rules it loses to live.
  */
 function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string[]): void {
+	const layerName: string | null = rule.layerName ?? null;
+	const supportsText: string | null = rule.supportsText ?? null;
 	const imported: CSSStyleSheet | null = rule.styleSheet;
 	if (imported && !state.seen.has(imported)) {
 		let importedRules: CSSRuleList | null;
@@ -128,21 +200,33 @@ function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string
 		}
 		if (importedRules) {
 			state.seen.add(imported);
+			const base: string = imported.href ?? state.baseURL;
 			const inner: string[] = [];
 			for (const importedRule of importedRules) {
 				if (importedRule.type === IMPORT_RULE_TYPE) {
 					serializeImportRule(importedRule as CSSImportRule, state, inner);
 					continue;
 				}
-				inner.push(importedRule.cssText);
+				inner.push(rebaseCSSURLs(importedRule.cssText, base));
 			}
-			const text: string = inner.join('\n');
-			if (text) body.push(wrapInSheetMedia(text, rule.media.mediaText));
+			let text: string = inner.join('\n');
+			if (text) {
+				if (layerName !== null) {
+					// Anonymous import layers stay anonymous via a nameless block.
+					text = layerName === '' ? `@layer {\n${text}\n}` : `@layer ${layerName} {\n${text}\n}`;
+				}
+				if (supportsText?.trim()) {
+					// supports(display: grid) allows a bare declaration; the @supports
+					// rule grammar does not, so the condition is parenthesized.
+					text = `@supports (${supportsText.trim()}) {\n${text}\n}`;
+				}
+				body.push(wrapInSheetMedia(text, rule.media.mediaText));
+			}
 			return;
 		}
 	}
 	const href: string | null = imported?.href ?? rule.href;
-	if (href) hoistImport(state, href, rule.media.mediaText);
+	if (href) hoistImport(state, href, rule.media.mediaText, layerName, supportsText);
 }
 
 /**
@@ -151,7 +235,13 @@ function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string
  * CSS copy for the print document.
  */
 export function collectHostStyleCopy(host: HTMLElement): HostStyleCopy {
-	const state: CopyState = { imports: [], parts: [], seen: new Set() };
+	const state: CopyState = {
+		imports: [],
+		parts: [],
+		seen: new Set(),
+		baseURL: host.ownerDocument.baseURI ?? '',
+		anonymousLayerCount: 0,
+	};
 	for (const root of styleRootsOf(host)) {
 		for (const sheet of sheetsOfRoot(root)) {
 			serializeSheet(sheet, state);
