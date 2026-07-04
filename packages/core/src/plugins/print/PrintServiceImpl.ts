@@ -13,7 +13,12 @@ import { setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
 import { HOST_STYLE_LAYER, collectHostStyleCopy } from './PrintHostStyles.js';
-import { buildDocumentCSS, buildShadowCSS } from './PrintStyleCollector.js';
+import {
+	CUSTOM_STYLE_LAYER,
+	PRINT_STYLE_LAYER,
+	buildDocumentCSS,
+	buildShadowCSS,
+} from './PrintStyleCollector.js';
 import {
 	AFTER_PRINT,
 	type AfterPrintEvent,
@@ -35,6 +40,16 @@ function escapeAttribute(value: string): string {
 		.replace(/"/g, '&quot;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;');
+}
+
+/**
+ * Escapes `</` in CSS embedded into a `<style>` element. The HTML parser ends
+ * the element at any literal `</style`, even inside a CSS string such as
+ * `content: "</style>"`, which would break the print document. `\/` is a
+ * valid CSS escape for `/`, so the stylesheet semantics are unchanged.
+ */
+function escapeStyleText(css: string): string {
+	return css.replace(/<\//g, '<\\/');
 }
 
 /**
@@ -103,16 +118,21 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		? serializeThemeContextAttributes(doc.body)
 		: '';
 
-	const hostStyleParts: string[] = [...input.hostImports];
+	// The layer-order statement must be the document's first style rule: layer
+	// order is fixed by first appearance, and for `!important` declarations
+	// earlier layers win — customCSS > print guards > host copy. It is one of
+	// the few rules allowed to precede the hoisted `@import` statements.
+	const hostStyleParts: string[] = [
+		`@layer ${CUSTOM_STYLE_LAYER}, ${PRINT_STYLE_LAYER}, ${HOST_STYLE_LAYER};`,
+		...input.hostImports,
+	];
 	if (input.hostLayerCSS) {
 		hostStyleParts.push(`@layer ${HOST_STYLE_LAYER} {\n${input.hostLayerCSS}\n}`);
 	}
 
 	const head: string[] = ['<meta charset="utf-8">', `<title>${escapeHTML(input.title)}</title>`];
-	if (hostStyleParts.length > 0) {
-		head.push(`<style>${hostStyleParts.join('\n')}</style>`);
-	}
-	head.push(`<style>${input.documentCSS}</style>`);
+	head.push(`<style>${escapeStyleText(hostStyleParts.join('\n'))}</style>`);
+	head.push(`<style>${escapeStyleText(input.documentCSS)}</style>`);
 
 	return [
 		'<!DOCTYPE html>',
@@ -123,7 +143,7 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		`<body${bodyContext}>`,
 		`<${hostTag}${hostAttributes}>`,
 		'<template shadowrootmode="open">',
-		`<style>${input.shadowCSS}</style>`,
+		`<style>${escapeStyleText(input.shadowCSS)}</style>`,
 		input.contentHTML,
 		'</template>',
 		`</${hostTag}>`,

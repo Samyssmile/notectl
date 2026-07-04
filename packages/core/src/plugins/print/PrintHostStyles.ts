@@ -9,9 +9,12 @@
  * All copied CSS is wrapped in the `notectl-host` cascade layer. Layering does
  * not weaken it against the editor's shadow styles, because the cascade
  * compares tree context before layers (an outer normal declaration beats a
- * shadow-tree one regardless). It does let the print document's own unlayered
- * rules (page setup, host-element reset, forced light theme) win over copied
- * host rules regardless of specificity.
+ * shadow-tree one regardless). It does keep the print document's own rules in
+ * control: its unlayered rules (page setup, body typography, customCSS) win
+ * over the copy for normal declarations regardless of specificity, and the
+ * print guards (host-element reset, forced light theme) — `!important` inside
+ * the earlier-declared `notectl-print` layer — win even against `!important`
+ * host rules.
  *
  * Stylesheets whose rules are not readable (cross-origin) are re-referenced
  * via hoisted `@import ... layer(notectl-host)` statements so the print

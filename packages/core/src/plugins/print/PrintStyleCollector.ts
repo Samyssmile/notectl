@@ -7,9 +7,17 @@
  * - Shadow scope (inside the template): the editor's own adopted styles
  *   (base styles behind a cascade layer, runtime style-token rules
  *   unlayered), print content rules, and `customCSS`.
- * - Document scope: host-element reset, forced light theme tokens, body
- *   typography snapshot, `@page` setup, and a second `customCSS` copy so
- *   page-level custom rules (`@page`, `body`) keep working.
+ * - Document scope: print guards (host-element reset and forced light theme,
+ *   `!important` inside the `notectl-print` layer so they hold even against
+ *   `!important` host rules), body typography snapshot, `@page` setup, and
+ *   two `customCSS` copies: unlayered for normal-strength page-level rules
+ *   (`@page`, `body`) and inside the earliest `notectl-custom` layer so
+ *   consumer `!important` rules outrank the print guards.
+ *
+ * Document layer order is `notectl-custom, notectl-print, notectl-host`
+ * (declared in {@link buildHTMLDocument}). For normal declarations unlayered
+ * rules win over all layers; for `!important` declarations the layer order
+ * reverses, so earlier layers win: customCSS > print guards > host copy.
  */
 
 import { generateThemeCSS } from '../../editor/theme/ThemeEngine.js';
@@ -24,6 +32,29 @@ import type { PrintOptions } from './PrintTypes.js';
 
 /** Cascade layer that holds the editor's own base styles in print output. */
 const BASE_STYLE_LAYER = 'notectl-base';
+
+/**
+ * Document-level cascade layer holding the print guards (host reset, forced
+ * light theme). Declared before the host-copy layer, so its `!important`
+ * declarations beat `!important` host rules.
+ */
+export const PRINT_STYLE_LAYER = 'notectl-print';
+
+/**
+ * Earliest document-level cascade layer, holding a `customCSS` copy. Its
+ * `!important` declarations are the strongest in the print document — the
+ * consumer's escape hatch over the print guards and host rules.
+ */
+export const CUSTOM_STYLE_LAYER = 'notectl-custom';
+
+/**
+ * Appends `!important` to every declaration of generated CSS. Only safe for
+ * CSS this module generates itself (one declaration per line, no semicolons
+ * inside values).
+ */
+function markDeclarationsImportant(css: string): string {
+	return css.replace(/;$/gm, ' !important;');
+}
 
 /** Adopted shadow styles split by role for print emission. */
 export interface AdoptedStylePartition {
@@ -63,12 +94,14 @@ export function partitionAdoptedStyles(shadowRoot: ShadowRoot): AdoptedStylePart
 
 /**
  * Generates light theme custom properties targeting the print host element.
- * Emitted unlayered at document level, so it beats both copied host-page
- * token overrides (layer order) and the shadow theme sheet (tree context),
- * guaranteeing readable print output regardless of the active editor theme.
+ * Every declaration is `!important`; emitted inside the `notectl-print`
+ * layer, it beats copied host-page token overrides (even `!important` ones)
+ * and the shadow theme sheet (tree context), guaranteeing readable print
+ * output regardless of the active editor theme.
  */
 export function generateLightThemeTokens(hostSelector: string): string {
-	return generateThemeCSS(LIGHT_THEME).replace(':host {', `${hostSelector} {`);
+	const css: string = generateThemeCSS(LIGHT_THEME).replace(':host {', `${hostSelector} {`);
+	return markDeclarationsImportant(css);
 }
 
 /**
@@ -102,38 +135,45 @@ export function snapshotTypography(host: HTMLElement, colorOverride?: string): s
 	return `body {\n${rules.join('\n')}\n}`;
 }
 
+/** Declarations that neutralize screen-widget chrome on the print host. */
+const HOST_RESET_DECLARATIONS: readonly string[] = [
+	'display: block',
+	'position: static',
+	'inset: auto',
+	'width: auto',
+	'height: auto',
+	'min-width: 0',
+	'min-height: 0',
+	'max-width: none',
+	'max-height: none',
+	'margin: 0',
+	'padding: 0',
+	'border: none',
+	'border-radius: 0',
+	'outline: none',
+	'box-shadow: none',
+	'background: transparent',
+	'overflow: visible',
+	'transform: none',
+	'filter: none',
+	'opacity: 1',
+	'contain: none',
+	'float: none',
+];
+
 /**
  * Neutralizes screen-widget chrome on the print host element. Copied
  * host-page rules like `notectl-editor { height: 400px; border: … }` style
- * the live widget but must not constrain the paginated print flow. Emitted
- * unlayered, so it beats the layered host copy regardless of specificity;
- * inherited properties (fonts, color) are deliberately not touched.
+ * the live widget but must not constrain the paginated print flow. Every
+ * declaration is `!important`; emitted inside the `notectl-print` layer, the
+ * reset beats the host copy even against `!important` host rules. Inherited
+ * properties (fonts, color) are deliberately not touched; `customCSS` can
+ * reclaim any of these via `!important` (earlier `notectl-custom` layer).
  */
 export function generateHostResetCSS(hostSelector: string): string {
 	return [
 		`${hostSelector} {`,
-		'  display: block;',
-		'  position: static;',
-		'  inset: auto;',
-		'  width: auto;',
-		'  height: auto;',
-		'  min-width: 0;',
-		'  min-height: 0;',
-		'  max-width: none;',
-		'  max-height: none;',
-		'  margin: 0;',
-		'  padding: 0;',
-		'  border: none;',
-		'  border-radius: 0;',
-		'  outline: none;',
-		'  box-shadow: none;',
-		'  background: transparent;',
-		'  overflow: visible;',
-		'  transform: none;',
-		'  filter: none;',
-		'  opacity: 1;',
-		'  contain: none;',
-		'  float: none;',
+		...HOST_RESET_DECLARATIONS.map((declaration: string): string => `  ${declaration} !important;`),
 		'}',
 	].join('\n');
 }
@@ -227,21 +267,24 @@ export function buildShadowCSS(shadowRoot: ShadowRoot, options: PrintOptions): s
 }
 
 /**
- * Builds the document-level CSS of the print document: host reset, forced
- * light theme, body typography, `@page`, and the document copy of customCSS
- * (page-level custom rules such as `@page` or `body` cannot live inside the
- * shadow scope).
+ * Builds the document-level CSS of the print document: the print guards
+ * (host reset and forced light theme, `!important` inside the
+ * `notectl-print` layer), body typography, `@page`, and two copies of
+ * customCSS. The unlayered copy carries page-level custom rules (`@page`,
+ * `body` — they cannot live inside the shadow scope) at normal strength; the
+ * `notectl-custom` layer copy makes consumer `!important` rules outrank the
+ * print guards and `!important` host rules.
  */
 export function buildDocumentCSS(host: HTMLElement, options: PrintOptions): string {
 	const hostSelector: string = host.tagName.toLowerCase();
 	const parts: string[] = [];
 
-	parts.push(generateHostResetCSS(hostSelector));
-
 	const forceLightTheme: boolean = options.forceLightTheme !== false;
+	const guards: string[] = [generateHostResetCSS(hostSelector)];
 	if (forceLightTheme) {
-		parts.push(generateLightThemeTokens(hostSelector));
+		guards.push(generateLightThemeTokens(hostSelector));
 	}
+	parts.push(`@layer ${PRINT_STYLE_LAYER} {\n${guards.join('\n\n')}\n}`);
 
 	const colorOverride: string | undefined = forceLightTheme
 		? LIGHT_THEME.primitives.foreground
@@ -253,6 +296,7 @@ export function buildDocumentCSS(host: HTMLElement, options: PrintOptions): stri
 
 	if (options.customCSS) {
 		parts.push(options.customCSS);
+		parts.push(`@layer ${CUSTOM_STYLE_LAYER} {\n${options.customCSS}\n}`);
 	}
 
 	return parts.join('\n\n');
