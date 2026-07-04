@@ -9,10 +9,11 @@
  * exactly as in the live editor — nothing is translated or re-emulated.
  */
 
+import { STATIC_HOST_ATTRIBUTE } from '../../editor/StaticHostMarker.js';
 import { setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
-import { HOST_STYLE_LAYER, collectHostStyleCopy } from './PrintHostStyles.js';
+import { HOST_STYLE_LAYER, type HostStyleCopy, collectHostStyleCopy } from './PrintHostStyles.js';
 import {
 	CUSTOM_STYLE_LAYER,
 	PRINT_STYLE_LAYER,
@@ -41,6 +42,40 @@ function escapeAttribute(value: string): string {
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;');
 }
+
+/**
+ * Upper bound for waiting on the print iframe's load event. Referenced host
+ * stylesheets (hoisted cross-origin `@import`) load asynchronously and are
+ * worth a short wait so the first printed paint is styled, but a hanging
+ * stylesheet must never block the print dialog indefinitely.
+ */
+const PRINT_LOAD_TIMEOUT_MS = 4000;
+
+/**
+ * Fallback for consumers that render the print document with a parser that
+ * does not attach declarative shadow roots but does execute scripts (older
+ * WebViews, headless HTML-to-PDF engines). Any template left in the DOM is
+ * attached manually; engines without Shadow DOM get the template content
+ * flattened into the host element so the output stays readable instead of
+ * blank. Native DSD parsing leaves no template behind, making this a no-op.
+ * Kept ES5-safe for legacy engines; must not contain a literal `</`.
+ */
+const DSD_FALLBACK_SCRIPT: string = [
+	'(function () {',
+	"  var templates = document.querySelectorAll('template[shadowrootmode]');",
+	'  for (var i = 0; i < templates.length; i++) {',
+	'    var template = templates[i];',
+	'    var host = template.parentElement;',
+	'    if (!host || host.shadowRoot || !template.content) continue;',
+	'    if (host.attachShadow) {',
+	"      host.attachShadow({ mode: 'open' }).appendChild(template.content);",
+	'    } else {',
+	'      while (template.content.firstChild) host.appendChild(template.content.firstChild);',
+	'    }',
+	'    host.removeChild(template);',
+	'  }',
+	'})();',
+].join('\n');
 
 /**
  * Escapes `</` in CSS embedded into a `<style>` element. The HTML parser ends
@@ -109,7 +144,9 @@ export interface PrintDocumentInput {
 export function buildHTMLDocument(input: PrintDocumentInput): string {
 	const doc: Document = input.host.ownerDocument;
 	const hostTag: string = input.host.tagName.toLowerCase();
-	const hostAttributes: string = serializeAttributes(input.host, ['style']);
+	// The static marker keeps the replica from booting a live editor when the
+	// document is injected into a page where the component is registered.
+	const hostAttributes: string = serializeAttributes(input.host, ['style', STATIC_HOST_ATTRIBUTE]);
 
 	const htmlContext: string = input.carryThemeContext
 		? serializeThemeContextAttributes(doc.documentElement)
@@ -141,12 +178,13 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		...head,
 		'</head>',
 		`<body${bodyContext}>`,
-		`<${hostTag}${hostAttributes}>`,
+		`<${hostTag}${hostAttributes} ${STATIC_HOST_ATTRIBUTE}>`,
 		'<template shadowrootmode="open">',
 		`<style>${escapeStyleText(input.shadowCSS)}</style>`,
 		input.contentHTML,
 		'</template>',
 		`</${hostTag}>`,
+		`<script>${DSD_FALLBACK_SCRIPT}</script>`,
 		'</body>',
 		'</html>',
 	].join('\n');
@@ -177,8 +215,8 @@ export function createPrintService(
 
 		// 2. Collect styles for both scopes
 		const shadowCSS: string = buildShadowCSS(shadowRoot, finalOptions);
-		const documentCSS: string = buildDocumentCSS(host, finalOptions);
-		const hostCopy = collectHostStyleCopy(host);
+		const documentCSS: string = buildDocumentCSS(host, container, finalOptions);
+		const hostCopy: HostStyleCopy = collectHostStyleCopy(host);
 
 		// 3. Prepare content
 		const clone: HTMLElement = prepare(container, finalOptions);
@@ -240,11 +278,22 @@ export function createPrintService(
 
 			// Referenced host stylesheets (cross-origin @import) load
 			// asynchronously; wait for them so the first paint printed is styled.
+			// A hanging stylesheet must not block the dialog forever, so the wait
+			// is bounded — on timeout, printing proceeds with the styles loaded
+			// so far.
 			if (iframeDoc.readyState === 'complete') {
 				triggerPrint();
-			} else {
-				iframeWindow.addEventListener('load', triggerPrint, { once: true });
+				return;
 			}
+			let triggered = false;
+			const triggerOnce = (): void => {
+				if (triggered) return;
+				triggered = true;
+				window.clearTimeout(timeoutId);
+				triggerPrint();
+			};
+			const timeoutId: number = window.setTimeout(triggerOnce, PRINT_LOAD_TIMEOUT_MS);
+			iframeWindow.addEventListener('load', triggerOnce, { once: true });
 		},
 
 		toHTML(options?: PrintOptions): string {

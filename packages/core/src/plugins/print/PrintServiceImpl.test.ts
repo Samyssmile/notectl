@@ -59,11 +59,29 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('<!DOCTYPE html>');
 			expect(html).toContain('<title>Test</title>');
 			expect(html).toContain('<style>.doc {}</style>');
-			expect(html).toContain('<notectl-editor>');
+			expect(html).toContain('<notectl-editor data-notectl-static>');
 			expect(html).toContain('<template shadowrootmode="open">');
 			expect(html).toContain('<style>.shadow {}</style>');
 			expect(html).toContain('<p>hi</p>');
 			expect(html).toContain('</notectl-editor>');
+		});
+
+		it('marks the replicated host as a static replica exactly once', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.setAttribute('data-notectl-static', '');
+			const html: string = buildHTMLDocument(buildInput({ host }));
+
+			// A replica of a replica must not end up with a duplicate attribute.
+			expect(html.match(/data-notectl-static/g)).toHaveLength(1);
+		});
+
+		it('embeds the declarative-shadow-root fallback script after the content', () => {
+			const html: string = buildHTMLDocument(buildInput());
+
+			// Consumers rendering with a non-DSD parser that executes scripts
+			// (older WebViews, HTML-to-PDF engines) still get visible output.
+			expect(html).toContain("querySelectorAll('template[shadowrootmode]')");
+			expect(html.indexOf('<script>')).toBeGreaterThan(html.indexOf('</template>'));
 		});
 
 		it('replicates host attributes but strips the style attribute', () => {
@@ -73,7 +91,7 @@ describe('PrintServiceImpl', () => {
 			host.setAttribute('style', 'height: 400px');
 			const html: string = buildHTMLDocument(buildInput({ host }));
 
-			expect(html).toContain('<notectl-editor id="main" class="themed">');
+			expect(html).toContain('<notectl-editor id="main" class="themed" data-notectl-static>');
 			expect(html).not.toContain('height: 400px');
 		});
 
@@ -139,7 +157,7 @@ describe('PrintServiceImpl', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({ title: '</title><script>alert(1)</script>' }),
 			);
-			expect(html).not.toContain('<script>');
+			expect(html).not.toContain('<script>alert(1)</script>');
 			expect(html).toContain('&lt;script&gt;');
 		});
 
@@ -241,9 +259,11 @@ describe('PrintServiceImpl', () => {
 	});
 
 	describe('print', () => {
-		it('creates an iframe, prints, and defers cleanup to afterprint', () => {
-			const { service } = createTestEnv();
-
+		/** Replaces created iframes with a fake window capturing listeners and print(). */
+		function mockPrintIframe(): {
+			printMock: ReturnType<typeof vi.fn>;
+			listeners: Map<string, EventListenerOrEventListenerObject>;
+		} {
 			const originalCreateElement = document.createElement.bind(document);
 			const printMock = vi.fn();
 			const listeners = new Map<string, EventListenerOrEventListenerObject>();
@@ -266,6 +286,13 @@ describe('PrintServiceImpl', () => {
 				return el;
 			});
 
+			return { printMock, listeners };
+		}
+
+		it('creates an iframe, prints, and defers cleanup to afterprint', () => {
+			const { service } = createTestEnv();
+			const { printMock, listeners } = mockPrintIframe();
+
 			service.print({ title: 'Print Test' });
 
 			// Printing waits for the iframe load event when the document is not
@@ -283,6 +310,46 @@ describe('PrintServiceImpl', () => {
 			expect(document.querySelector('iframe')).toBeNull();
 
 			vi.restoreAllMocks();
+		});
+
+		it('prints after the load timeout when the load event never fires', () => {
+			vi.useFakeTimers();
+			const { service } = createTestEnv();
+			const { printMock, listeners } = mockPrintIframe();
+
+			service.print();
+
+			// A hanging host stylesheet (cross-origin @import) blocks the load
+			// event; the bounded wait must still open the dialog.
+			expect(printMock).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(4000);
+			expect(printMock).toHaveBeenCalledOnce();
+
+			// A late load event must not print a second time.
+			const loadCb = listeners.get('load') as (() => void) | undefined;
+			if (loadCb) loadCb();
+			expect(printMock).toHaveBeenCalledOnce();
+
+			vi.restoreAllMocks();
+			vi.useRealTimers();
+		});
+
+		it('prints only once when the load event fires before the timeout', () => {
+			vi.useFakeTimers();
+			const { service } = createTestEnv();
+			const { printMock, listeners } = mockPrintIframe();
+
+			service.print();
+
+			const loadCb = listeners.get('load') as (() => void) | undefined;
+			if (loadCb) loadCb();
+			expect(printMock).toHaveBeenCalledOnce();
+
+			vi.advanceTimersByTime(10000);
+			expect(printMock).toHaveBeenCalledOnce();
+
+			vi.restoreAllMocks();
+			vi.useRealTimers();
 		});
 	});
 
@@ -365,7 +432,7 @@ describe('PrintServiceImpl', () => {
 
 			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
 
-			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*\}/);
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/(?:^|\n)body\s*\{[^}]*\}/);
 			if (!bodyRuleMatch) {
 				expect.unreachable('Expected body rule in print HTML');
 				return;
@@ -410,7 +477,7 @@ describe('PrintServiceImpl', () => {
 
 			const html: string = service.toHTML({});
 
-			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*\}/);
+			const bodyRuleMatch: RegExpMatchArray | null = html.match(/(?:^|\n)body\s*\{[^}]*\}/);
 			if (!bodyRuleMatch) {
 				expect.unreachable('Expected body rule in print HTML');
 				return;

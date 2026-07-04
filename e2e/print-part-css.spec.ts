@@ -41,6 +41,10 @@ interface PrintCellProbeArgs {
 	readonly readLive?: boolean;
 	/** Computed properties to read from the printed host element. */
 	readonly hostProperties?: readonly string[];
+	/** Computed properties to read from the print document's body. */
+	readonly bodyProperties?: readonly string[];
+	/** Computed properties to read from the printed .notectl-content element. */
+	readonly contentProperties?: readonly string[];
 	/** Class added to the live page's <html> for the duration of the probe. */
 	readonly rootClass?: string;
 }
@@ -49,6 +53,8 @@ interface PrintCellProbeResult {
 	readonly printStyles: Record<string, string>;
 	readonly liveStyles: Record<string, string>;
 	readonly hostStyles: Record<string, string>;
+	readonly bodyStyles: Record<string, string>;
+	readonly contentStyles: Record<string, string>;
 	readonly html: string;
 }
 
@@ -124,7 +130,23 @@ async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<Pri
 					hostStyles[property] = hostComputed.getPropertyValue(property);
 				}
 
-				return { printStyles, liveStyles, hostStyles, html };
+				const bodyComputed: CSSStyleDeclaration = frameWin.getComputedStyle(frameDoc.body);
+				const bodyStyles: Record<string, string> = {};
+				for (const property of input.bodyProperties ?? []) {
+					bodyStyles[property] = bodyComputed.getPropertyValue(property);
+				}
+
+				const contentStyles: Record<string, string> = {};
+				if (input.contentProperties?.length) {
+					const printContent = printShadow.querySelector<HTMLElement>('.notectl-content');
+					if (!printContent) throw new Error('print content element missing');
+					const contentComputed: CSSStyleDeclaration = frameWin.getComputedStyle(printContent);
+					for (const property of input.contentProperties) {
+						contentStyles[property] = contentComputed.getPropertyValue(property);
+					}
+				}
+
+				return { printStyles, liveStyles, hostStyles, bodyStyles, contentStyles, html };
 			} finally {
 				frame.remove();
 			}
@@ -571,5 +593,200 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			liveTheme.printStyles['padding-top'],
 			'carried theme context must activate dark-gated rules',
 		).toBe('13px');
+	});
+
+	test('keeps the printed page visible against host print-hiding CSS', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// The classic "print only one section" host pattern hides everything
+		// (including the replicated editor host) and app shells clip the page;
+		// the print guards must restore visibility and page flow.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [
+				{
+					css: [
+						'body * { visibility: hidden !important; }',
+						'html, body { height: 100%; overflow: hidden; }',
+					].join('\n'),
+				},
+			],
+			properties: ['visibility'],
+			hostProperties: ['visibility'],
+			bodyProperties: ['overflow-y', 'visibility'],
+		});
+
+		expect(probe.hostStyles.visibility, 'host visibility must be restored in print').toBe(
+			'visible',
+		);
+		expect(probe.printStyles.visibility, 'content must stay visible via inheritance').toBe(
+			'visible',
+		);
+		expect(probe.bodyStyles['overflow-y'], 'page clipping must be neutralized').toBe('visible');
+		expect(probe.bodyStyles.visibility).toBe('visible');
+	});
+
+	test('does not clip print content to carried screen height constraints', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Both documented ways to constrain the content area on screen — the
+		// height token and ::part(content) rules — must not scroll-clip print.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [
+				{
+					css: [
+						'notectl-editor { --notectl-content-max-height: 120px; }',
+						'notectl-editor::part(content) { max-height: 100px !important; }',
+					].join('\n'),
+				},
+			],
+			properties: ['padding-top'],
+			contentProperties: ['max-height', 'overflow-y', 'min-height'],
+		});
+
+		expect(probe.contentStyles['max-height'], 'content must not keep a max-height in print').toBe(
+			'none',
+		);
+		expect(probe.contentStyles['overflow-y'], 'content must not scroll in print').toBe('visible');
+		expect(probe.contentStyles['min-height'], 'screen min-height must not pad print output').toBe(
+			'0px',
+		);
+	});
+
+	test('carries the live background onto the printed page when not forcing light', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Dark-themed editor: without a pinned carried background the body would
+		// stay white while the text keeps its light dark-theme color.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(20, 20, 30); }' }],
+			printOptions: { forceLightTheme: false },
+			properties: [],
+			bodyProperties: ['background-color'],
+		});
+
+		expect(
+			probe.bodyStyles['background-color'],
+			'print body must sit on the carried theme background',
+		).toBe('rgb(20, 20, 30)');
+
+		// Forced light (default) keeps pinning white regardless of the live theme.
+		const forcedLight: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(20, 20, 30); }' }],
+			properties: [],
+			bodyProperties: ['background-color'],
+		});
+		expect(forcedLight.bodyStyles['background-color']).toBe('rgb(255, 255, 255)');
+	});
+
+	test('injected print output stays static and never boots a live editor', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(async () => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			const html: string = printService.toHTML({});
+
+			// The documented consumption path: setHTMLUnsafe parses declarative
+			// shadow DOM, and <notectl-editor> is registered in this page, so the
+			// replica upgrades. It must keep its shadow content and stay static.
+			const wrapper: HTMLElement = document.createElement('div');
+			document.body.appendChild(wrapper);
+			try {
+				(wrapper as HTMLElement & { setHTMLUnsafe(markup: string): void }).setHTMLUnsafe(html);
+				const replica = wrapper.querySelector<HTMLElement>('notectl-editor');
+				if (!replica) throw new Error('replica missing after injection');
+				// Give a (wrongly) scheduled auto-init time to run.
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				return {
+					hasStaticMarker: replica.hasAttribute('data-notectl-static'),
+					hasShadow: replica.shadowRoot !== null,
+					hasTableCell: !!replica.shadowRoot?.querySelector('[part~="table-cell"]'),
+					hasToolbar: !!replica.shadowRoot?.querySelector('.notectl-toolbar'),
+					contentEditable:
+						replica.shadowRoot
+							?.querySelector('.notectl-content')
+							?.getAttribute('contenteditable') ?? null,
+				};
+			} finally {
+				wrapper.remove();
+			}
+		});
+
+		expect(result.hasStaticMarker).toBe(true);
+		expect(result.hasShadow, 'upgrade must preserve the declarative shadow root').toBe(true);
+		expect(result.hasTableCell, 'replicated content must survive the upgrade').toBe(true);
+		expect(result.hasToolbar, 'no live editor may boot over the print markup').toBe(false);
+		expect(result.contentEditable, 'print content must stay non-editable').toBeNull();
+	});
+
+	test('fallback script attaches the shadow root for non-DSD parsers', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(() => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			const html: string = printService.toHTML({});
+
+			// Simulate a script-executing engine without DSD parsing: innerHTML
+			// leaves the template inert (and runs no scripts), then the embedded
+			// fallback script is executed manually in the same realm.
+			const frame: HTMLIFrameElement = document.createElement('iframe');
+			frame.style.cssText = 'position:fixed;left:-9999px;width:400px;height:300px;border:none';
+			document.body.appendChild(frame);
+			try {
+				const frameDoc = frame.contentDocument;
+				const frameWin = frame.contentWindow as (Window & { eval(src: string): void }) | null;
+				if (!frameDoc || !frameWin) throw new Error('iframe document missing');
+				frameDoc.body.innerHTML = html;
+
+				const replica = frameDoc.querySelector<HTMLElement>('notectl-editor');
+				if (!replica) throw new Error('replica missing');
+				const inertBefore: boolean = replica.shadowRoot === null;
+
+				const scriptSource: string | undefined = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+				if (!scriptSource) throw new Error('fallback script missing in print output');
+				frameWin.eval(scriptSource);
+
+				return {
+					inertBefore,
+					hasShadowAfter: replica.shadowRoot !== null,
+					hasTableCell: !!replica.shadowRoot?.querySelector('[part~="table-cell"]'),
+					templateGone: !replica.querySelector('template[shadowrootmode]'),
+				};
+			} finally {
+				frame.remove();
+			}
+		});
+
+		expect(result.inertBefore, 'innerHTML must not attach the shadow root itself').toBe(true);
+		expect(result.hasShadowAfter, 'fallback script must attach the shadow root').toBe(true);
+		expect(result.hasTableCell, 'content must be visible after the fallback').toBe(true);
+		expect(result.templateGone).toBe(true);
 	});
 });
