@@ -9,7 +9,9 @@ import {
 	generateHostResetCSS,
 	generateLightThemeTokens,
 	generatePageCSS,
+	generatePageResetCSS,
 	partitionAdoptedStyles,
+	resolveCarriedBackground,
 	snapshotTypography,
 } from './PrintStyleCollector.js';
 
@@ -125,6 +127,69 @@ describe('PrintStyleCollector', () => {
 			expect(result).toContain('color: #111111;');
 			document.body.removeChild(host);
 		});
+
+		it('pins the given background instead of white', () => {
+			const host: HTMLElement = attachedHost('div');
+			const result: string = snapshotTypography(host, undefined, 'rgb(30, 30, 46)');
+			expect(result).toContain('background: rgb(30, 30, 46);');
+			expect(result).not.toContain('#ffffff');
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('generatePageResetCSS', () => {
+		it('restores page-level visibility and geometry with important declarations', () => {
+			const result: string = generatePageResetCSS();
+			expect(result).toContain('html, body {');
+			expect(result).toContain('visibility: visible !important;');
+			expect(result).toContain('display: block !important;');
+			expect(result).toContain('height: auto !important;');
+			expect(result).toContain('overflow: visible !important;');
+		});
+
+		it('does not guard box properties that customCSS should control normally', () => {
+			// margin/padding stay unguarded so plain `body { margin: … }` in
+			// customCSS keeps working without !important.
+			const result: string = generatePageResetCSS();
+			expect(result).not.toContain('margin');
+			expect(result).not.toContain('padding');
+		});
+	});
+
+	describe('resolveCarriedBackground', () => {
+		it('returns the nearest non-transparent background above the content', () => {
+			const host: HTMLElement = attachedHost();
+			const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+			const wrapper: HTMLElement = document.createElement('div');
+			wrapper.style.backgroundColor = 'rgb(30, 30, 46)';
+			const content: HTMLElement = document.createElement('div');
+			wrapper.appendChild(content);
+			shadow.appendChild(wrapper);
+
+			expect(resolveCarriedBackground(host, content)).toBe('rgb(30, 30, 46)');
+			document.body.removeChild(host);
+		});
+
+		it('crosses the shadow boundary to the host element', () => {
+			const host: HTMLElement = attachedHost();
+			host.style.backgroundColor = 'rgb(10, 20, 30)';
+			const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+			const content: HTMLElement = document.createElement('div');
+			shadow.appendChild(content);
+
+			expect(resolveCarriedBackground(host, content)).toBe('rgb(10, 20, 30)');
+			document.body.removeChild(host);
+		});
+
+		it('falls back to white when no ancestor sets a background', () => {
+			const host: HTMLElement = attachedHost();
+			const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+			const content: HTMLElement = document.createElement('div');
+			shadow.appendChild(content);
+
+			expect(resolveCarriedBackground(host, content)).toBe('#ffffff');
+			document.body.removeChild(host);
+		});
 	});
 
 	describe('generatePageCSS', () => {
@@ -175,6 +240,16 @@ describe('PrintStyleCollector', () => {
 			const result: string = generateContentPrintCSS({ paperSize: PaperSize.DINA4 });
 			expect(result).toContain('.notectl-content { padding:');
 		});
+
+		it('unclips the content area from carried screen scroll constraints', () => {
+			// A host-carried --notectl-content-max-height or ::part(content)
+			// height rule must not clip print output to one scroll fold.
+			const result: string = generateContentPrintCSS({});
+			expect(result).toContain(
+				'.notectl-content { height: auto !important; max-height: none !important; ' +
+					'min-height: 0 !important; overflow: visible !important; }',
+			);
+		});
 	});
 
 	describe('buildShadowCSS', () => {
@@ -214,7 +289,7 @@ describe('PrintStyleCollector', () => {
 	describe('buildDocumentCSS', () => {
 		it('wraps the host reset in the notectl-print layer under its own tag name', () => {
 			const host: HTMLElement = attachedHost();
-			const result: string = buildDocumentCSS(host, {});
+			const result: string = buildDocumentCSS(host, host, {});
 			expect(result).toContain(
 				'@layer notectl-print {\nnotectl-editor {\n  display: block !important;',
 			);
@@ -223,23 +298,50 @@ describe('PrintStyleCollector', () => {
 
 		it('forces light theme tokens by default', () => {
 			const host: HTMLElement = attachedHost();
-			const result: string = buildDocumentCSS(host, {});
+			const result: string = buildDocumentCSS(host, host, {});
 			expect(result).toContain('--notectl-');
 			document.body.removeChild(host);
 		});
 
 		it('carries the live theme when forceLightTheme is false', () => {
 			const host: HTMLElement = attachedHost();
-			const result: string = buildDocumentCSS(host, { forceLightTheme: false });
+			const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
 			// No frozen token snapshot: the theme travels natively via the copied
 			// shadow theme sheet and host-page rules.
 			expect(result).not.toContain('--notectl-');
 			document.body.removeChild(host);
 		});
 
+		it('includes the html/body page reset in the notectl-print layer', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, host, {});
+			const layerStart: number = result.indexOf('@layer notectl-print {');
+			const pageReset: number = result.indexOf('html, body {');
+			expect(layerStart).toBeGreaterThanOrEqual(0);
+			expect(pageReset).toBeGreaterThan(layerStart);
+			expect(result).toContain('visibility: visible !important;');
+			document.body.removeChild(host);
+		});
+
+		it('pins the carried theme background when forceLightTheme is false', () => {
+			const host: HTMLElement = attachedHost();
+			host.style.backgroundColor = 'rgb(30, 30, 46)';
+			const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
+			expect(result).toContain('background: rgb(30, 30, 46);');
+			document.body.removeChild(host);
+		});
+
+		it('pins a white body background when forcing the light theme', () => {
+			const host: HTMLElement = attachedHost();
+			host.style.backgroundColor = 'rgb(30, 30, 46)';
+			const result: string = buildDocumentCSS(host, host, {});
+			expect(result).toContain('background: #ffffff;');
+			document.body.removeChild(host);
+		});
+
 		it('includes @page rules and the customCSS document copy', () => {
 			const host: HTMLElement = attachedHost();
-			const result: string = buildDocumentCSS(host, {
+			const result: string = buildDocumentCSS(host, host, {
 				margin: '2cm',
 				customCSS: '@page { size: A5; }',
 			});
@@ -250,7 +352,7 @@ describe('PrintStyleCollector', () => {
 
 		it('adds a customCSS copy in the notectl-custom layer as the important escape hatch', () => {
 			const host: HTMLElement = attachedHost();
-			const result: string = buildDocumentCSS(host, {
+			const result: string = buildDocumentCSS(host, host, {
 				customCSS: 'notectl-editor { border: 1px solid green !important; }',
 			});
 			// Unlayered copy for normal-strength rules plus the layered copy whose

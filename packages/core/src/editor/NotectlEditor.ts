@@ -43,6 +43,7 @@ import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
 import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import type { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
+import { isStaticHostReplica } from './StaticHostMarker.js';
 import type { Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 export type { NotectlEditorConfig, ToolbarConfig } from './EditorConfig.js';
@@ -70,7 +71,11 @@ export class NotectlEditor extends HTMLElement {
 
 	constructor() {
 		super();
-		this.attachShadow({ mode: 'open' });
+		// A declarative shadow root (static print replica parsed via DSD) must
+		// be preserved: attachShadow() on such an element clears its content.
+		if (!this.shadowRoot) {
+			this.attachShadow({ mode: 'open' });
+		}
 	}
 
 	static get observedAttributes(): string[] {
@@ -78,6 +83,7 @@ export class NotectlEditor extends HTMLElement {
 	}
 
 	connectedCallback(): void {
+		if (isStaticHostReplica(this)) return;
 		if (this.lifecycle.isInitialized()) return;
 		this.scheduleAutoInit();
 	}

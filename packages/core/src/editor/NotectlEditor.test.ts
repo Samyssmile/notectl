@@ -50,6 +50,23 @@ describe('NotectlEditor', () => {
 		expect(() => editor.getState()).toThrow('Editor not initialized');
 	});
 
+	it('skips auto-init for a static print replica', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+		const readySpy = vi.fn();
+		editor.on('ready', readySpy);
+
+		document.body.appendChild(editor);
+		editor.connectedCallback();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		// Print output replicates the host element; injected into a page where
+		// the component is registered, the replica must stay static markup.
+		expect(readySpy).not.toHaveBeenCalled();
+		expect(editor.shadowRoot?.querySelector('.notectl-editor')).toBeNull();
+		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
 	it('throws when setJSON is called before initialization', () => {
 		const editor = new NotectlEditor();
 		const doc = createDocument([
