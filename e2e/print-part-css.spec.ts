@@ -431,6 +431,109 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		).toBe('8px');
 	});
 
+	test('neutralizes host widget chrome even against !important host rules', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// For !important declarations the layer order reverses, so the reset in
+		// the earlier notectl-print layer must beat !important host chrome in
+		// the notectl-host layer.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [
+				{
+					css: 'notectl-editor { height: 40px !important; border: 3px solid red !important; padding: 30px !important; }',
+				},
+			],
+			properties: ['padding-top'],
+			hostProperties: ['border-top-width', 'padding-top', 'overflow-y'],
+		});
+
+		expect(
+			probe.hostStyles['border-top-width'],
+			'!important host border must be reset in print',
+		).toBe('0px');
+		expect(probe.hostStyles['padding-top'], '!important host padding must be reset in print').toBe(
+			'0px',
+		);
+		expect(probe.hostStyles['overflow-y'], 'host overflow must stay reset').toBe('visible');
+		expect(probe.printStyles['padding-top'], 'content styling must stay unaffected').toBe('8px');
+	});
+
+	test('forced light theme beats !important host theme-token overrides', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(1, 2, 3) !important; }' }],
+			properties: ['padding-top'],
+			hostProperties: ['--notectl-bg'],
+		});
+
+		expect(
+			probe.hostStyles['--notectl-bg']?.trim(),
+			'forced light theme token must beat the !important host override',
+		).toBe('#ffffff');
+	});
+
+	test('customCSS !important restyles the print host past the reset and host rules', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Escape hatch: customCSS is copied into the earliest layer
+		// (notectl-custom), so its !important declarations outrank both the
+		// print reset and !important host rules.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: 'notectl-editor { border-top: 9px dotted blue !important; }' }],
+			printOptions: {
+				customCSS: 'notectl-editor { border-top: 5px solid rgb(0, 128, 0) !important; }',
+			},
+			properties: ['padding-top'],
+			hostProperties: ['border-top-width', 'border-top-color'],
+		});
+
+		expect(
+			probe.hostStyles['border-top-width'],
+			'customCSS !important must beat the print host reset',
+		).toBe('5px');
+		expect(
+			probe.hostStyles['border-top-color'],
+			'customCSS !important must beat the !important host rule',
+		).toBe('rgb(0, 128, 0)');
+	});
+
+	test('survives a literal </style> sequence inside customCSS', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Without escaping, the raw sequence would close the <style> element
+		// early and every rule after it (including the padding rule below)
+		// would leak into the document as markup instead of applying.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			printOptions: {
+				customCSS: [
+					'.notectl-content::before { content: "</style>"; }',
+					'[part~="table-cell"] { padding-top: 2px; }',
+				].join('\n'),
+			},
+			properties: ['padding-top'],
+		});
+
+		expect(probe.html, 'the </ sequence must be CSS-escaped').toContain('content: "<\\/style>"');
+		expect(
+			probe.printStyles['padding-top'],
+			'rules after the </style> sequence must still apply',
+		).toBe('2px');
+	});
+
 	test('theme-conditional ::part() rules follow forceLightTheme', async ({ editor, page }) => {
 		await editor.focus();
 		await insertTable(page);

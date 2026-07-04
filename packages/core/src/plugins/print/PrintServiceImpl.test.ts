@@ -89,6 +89,47 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('@layer notectl-host {\nnotectl-editor::part(cell)');
 		});
 
+		it('declares the layer order before the hoisted imports', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({
+					hostImports: ['@import url("https://cdn.example/x.css") layer(notectl-host);'],
+					hostLayerCSS: 'notectl-editor::part(cell) { padding: 0px; }',
+				}),
+			);
+
+			const orderIndex: number = html.indexOf(
+				'@layer notectl-custom, notectl-print, notectl-host;',
+			);
+			const importIndex: number = html.indexOf('@import');
+			expect(orderIndex).toBeGreaterThanOrEqual(0);
+			expect(orderIndex).toBeLessThan(importIndex);
+		});
+
+		it('declares the layer order even without any host CSS', () => {
+			const html: string = buildHTMLDocument(buildInput());
+			// Without the statement, first appearance inside the document CSS would
+			// put notectl-print before notectl-custom and invert important priority.
+			expect(html).toContain('@layer notectl-custom, notectl-print, notectl-host;');
+		});
+
+		it('escapes literal </style> sequences in every embedded CSS scope', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({
+					documentCSS: '.a::before { content: "</style><script>alert(1)</script>"; }',
+					shadowCSS: '.b::before { content: "</style>"; }',
+					hostLayerCSS: '.c::before { content: "</style>"; }',
+				}),
+			);
+
+			// No embedded CSS may close the <style> element early; the opening
+			// <script> stays raw text and is inert without a closing tag.
+			expect(html).not.toContain('content: "</style>');
+			// `\/` is a CSS string escape for `/`, so the value is unchanged.
+			expect(html).toContain('content: "<\\/style><script>alert(1)<\\/script>"');
+			expect(html).toContain('.b::before { content: "<\\/style>"; }');
+			expect(html).toContain('.c::before { content: "<\\/style>"; }');
+		});
+
 		it('includes the lang attribute on the html element', () => {
 			const html: string = buildHTMLDocument(buildInput({ lang: 'de' }));
 			expect(html).toContain('<html lang="de">');

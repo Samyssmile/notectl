@@ -77,16 +77,35 @@ describe('PrintStyleCollector', () => {
 			expect(result).not.toContain(':host');
 			expect(result).toContain('--notectl-');
 		});
+
+		it('marks every token declaration important', () => {
+			const result: string = generateLightThemeTokens('notectl-editor');
+			expect(result).toContain('--notectl-bg: #ffffff !important;');
+			// Every declaration line must end important — the tokens must beat
+			// !important host-page overrides from the notectl-print layer.
+			const declarations: string[] = result.split('\n').filter((line) => line.endsWith(';'));
+			expect(declarations.length).toBeGreaterThan(0);
+			for (const declaration of declarations) {
+				expect(declaration.endsWith(' !important;')).toBe(true);
+			}
+		});
 	});
 
 	describe('generateHostResetCSS', () => {
-		it('neutralizes widget chrome on the host selector', () => {
+		it('neutralizes widget chrome on the host selector with important declarations', () => {
 			const result: string = generateHostResetCSS('notectl-editor');
 			expect(result).toContain('notectl-editor {');
-			expect(result).toContain('display: block;');
-			expect(result).toContain('height: auto;');
-			expect(result).toContain('border: none;');
-			expect(result).toContain('overflow: visible;');
+			expect(result).toContain('display: block !important;');
+			expect(result).toContain('height: auto !important;');
+			expect(result).toContain('border: none !important;');
+			expect(result).toContain('overflow: visible !important;');
+			// The reset must beat !important host chrome from the notectl-print
+			// layer, so no declaration may be left non-important.
+			const declarations: string[] = result.split('\n').filter((line) => line.endsWith(';'));
+			expect(declarations.length).toBeGreaterThan(0);
+			for (const declaration of declarations) {
+				expect(declaration.endsWith(' !important;')).toBe(true);
+			}
 		});
 	});
 
@@ -193,10 +212,12 @@ describe('PrintStyleCollector', () => {
 	});
 
 	describe('buildDocumentCSS', () => {
-		it('resets the host element under its own tag name', () => {
+		it('wraps the host reset in the notectl-print layer under its own tag name', () => {
 			const host: HTMLElement = attachedHost();
 			const result: string = buildDocumentCSS(host, {});
-			expect(result).toContain('notectl-editor {\n  display: block;');
+			expect(result).toContain(
+				'@layer notectl-print {\nnotectl-editor {\n  display: block !important;',
+			);
 			document.body.removeChild(host);
 		});
 
@@ -224,6 +245,20 @@ describe('PrintStyleCollector', () => {
 			});
 			expect(result).toContain('margin: 2cm;');
 			expect(result).toContain('@page { size: A5; }');
+			document.body.removeChild(host);
+		});
+
+		it('adds a customCSS copy in the notectl-custom layer as the important escape hatch', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, {
+				customCSS: 'notectl-editor { border: 1px solid green !important; }',
+			});
+			// Unlayered copy for normal-strength rules plus the layered copy whose
+			// !important declarations outrank the print guards and host rules.
+			expect(result).toContain('\n\nnotectl-editor { border: 1px solid green !important; }');
+			expect(result).toContain(
+				'@layer notectl-custom {\nnotectl-editor { border: 1px solid green !important; }\n}',
+			);
 			document.body.removeChild(host);
 		});
 	});
