@@ -235,11 +235,15 @@ notectl-editor::part(table-cell) {
 }
 ```
 
-Print flattens the editor out of its shadow root, so the plugin translates each host `::part()` rule that targets the editor into the equivalent `[part~="..."]` selector for the print document. Rules nested inside `@media` or `@supports` are carried wrapped in the same condition, rules inside `@layer` blocks or CSS nesting are carried flattened, and same-origin `@import` stylesheets are followed. Disabled stylesheets are skipped, stylesheet-level `media` attributes are preserved, and custom properties referenced by carried rules (`var(--...)`) are snapshotted from the live page into the print document.
+The print document preserves the editor's shadow boundary using Declarative Shadow DOM: the cloned content lives in a real shadow root, and the host page's stylesheets are copied verbatim into the print document (inside a `notectl-host` cascade layer). `::part()` selectors, selector specificity, custom properties (`var(--...)`), `@media`/`@supports`/`@layer` conditions, CSS nesting, and `@import` chains therefore behave exactly as in the live editor. Stylesheets from enclosing shadow roots are included, cross-origin stylesheets are re-referenced via `@import` so the print document loads them itself, and disabled stylesheets are skipped.
 
-Not carried: rules in cross-origin stylesheets, rules scoped to `@container` queries, bare `::part(...)` selectors without a host element, rules that reach the editor through a wrapper component's `exportparts`, and rules defined inside an enclosing shadow root.
+Host-page rules that style the editor widget itself (for example `notectl-editor { height: 400px; border: 1px solid }`) are neutralized in print, so screen chrome never constrains the paginated output. With the default `forceLightTheme: true`, theme-conditional rules such as `html.dark notectl-editor::part(...)` stay inactive; with `forceLightTheme: false` the page's theme context (`class` and `data-*` attributes on `<html>` and `<body>`) is carried, so they apply exactly as live.
 
-The editor's own base styles are placed in a `@layer notectl-base` cascade layer in the print output, so your part rules and any `customCSS` override the editor's built-in element styling regardless of selector specificity, exactly as `::part()` does in the live editor.
+The editor's own base styles sit in a `@layer notectl-base` cascade layer inside the shadow root, so `customCSS` overrides the editor's built-in element styling regardless of selector specificity. `customCSS` is applied both at document level (for `@page` or `body` rules) and inside the editor's shadow root (for content rules such as `[part~="table-cell"]`). Host-page `::part()` rules rank above `customCSS` for the same property, exactly as in the live editor.
+
+Not carried: rules that reach the editor through a wrapper component's `exportparts`, and `@container` conditions whose container elements only exist on the host page.
+
+Note for embedding the `toHTML()` output: the returned document uses Declarative Shadow DOM. Rendering it in an iframe (`document.write`, `srcdoc`) or a new window works out of the box; injecting it into an existing page via `innerHTML` does not parse declarative shadow roots, use `setHTMLUnsafe()` there.
 
 ## Requirements
 

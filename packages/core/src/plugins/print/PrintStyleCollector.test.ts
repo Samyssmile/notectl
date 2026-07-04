@@ -2,24 +2,37 @@ import { describe, expect, it } from 'vitest';
 import { PaperSize } from '../../model/PaperSize.js';
 import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
-	collectAll,
+	buildDocumentCSS,
+	buildShadowCSS,
 	extractAdoptedStyles,
+	generateContentPrintCSS,
+	generateHostResetCSS,
 	generateLightThemeTokens,
-	generatePrintCSS,
+	generatePageCSS,
 	partitionAdoptedStyles,
-	snapshotThemeTokens,
 	snapshotTypography,
 } from './PrintStyleCollector.js';
+
+function shadowWithSheets(...cssTexts: readonly string[]): ShadowRoot {
+	const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+	shadow.adoptedStyleSheets = cssTexts.map((css: string): CSSStyleSheet => {
+		const sheet: CSSStyleSheet = new CSSStyleSheet();
+		sheet.replaceSync(css);
+		return sheet;
+	});
+	return shadow;
+}
+
+function attachedHost(tag = 'notectl-editor'): HTMLElement {
+	const host: HTMLElement = document.createElement(tag);
+	document.body.appendChild(host);
+	return host;
+}
 
 describe('PrintStyleCollector', () => {
 	describe('extractAdoptedStyles', () => {
 		it('extracts CSS text from adopted stylesheets', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-
-			const sheet: CSSStyleSheet = new CSSStyleSheet();
-			sheet.replaceSync('.foo { color: red; }');
-			shadow.adoptedStyleSheets = [sheet];
-
+			const shadow: ShadowRoot = shadowWithSheets('.foo { color: red; }');
 			const result: string = extractAdoptedStyles(shadow);
 			expect(result).toContain('.foo');
 			expect(result).toContain('color');
@@ -27,340 +40,14 @@ describe('PrintStyleCollector', () => {
 
 		it('returns empty string when no adopted stylesheets', () => {
 			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-
-			const result: string = extractAdoptedStyles(shadow);
-			expect(result).toBe('');
+			expect(extractAdoptedStyles(shadow)).toBe('');
 		});
 
 		it('concatenates rules from multiple stylesheets', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-
-			const sheet1: CSSStyleSheet = new CSSStyleSheet();
-			sheet1.replaceSync('.a { color: red; }');
-			const sheet2: CSSStyleSheet = new CSSStyleSheet();
-			sheet2.replaceSync('.b { color: blue; }');
-			shadow.adoptedStyleSheets = [sheet1, sheet2];
-
+			const shadow: ShadowRoot = shadowWithSheets('.a { color: red; }', '.b { color: blue; }');
 			const result: string = extractAdoptedStyles(shadow);
 			expect(result).toContain('.a');
 			expect(result).toContain('.b');
-		});
-	});
-
-	describe('snapshotThemeTokens', () => {
-		it('returns empty string when no --notectl- properties exist', () => {
-			const el: HTMLElement = document.createElement('div');
-			document.body.appendChild(el);
-
-			const result: string = snapshotThemeTokens(el);
-			// In happy-dom, getComputedStyle may not iterate custom properties
-			// This test verifies the function handles the empty case
-			expect(typeof result).toBe('string');
-
-			document.body.removeChild(el);
-		});
-	});
-
-	describe('generateLightThemeTokens', () => {
-		it('uses :root selector instead of :host', () => {
-			const css: string = generateLightThemeTokens();
-			expect(css).toContain(':root {');
-			expect(css).not.toContain(':host');
-		});
-
-		it('contains light theme background and foreground values', () => {
-			const css: string = generateLightThemeTokens();
-			expect(css).toContain('--notectl-bg: #ffffff');
-			expect(css).toContain('--notectl-fg: #1a1a1a');
-		});
-
-		it('contains all theme custom properties', () => {
-			const css: string = generateLightThemeTokens();
-			expect(css).toContain('--notectl-primary:');
-			expect(css).toContain('--notectl-border:');
-			expect(css).toContain('--notectl-surface-raised:');
-		});
-	});
-
-	describe('generatePrintCSS', () => {
-		it('generates @page rule with margin', () => {
-			const result: string = generatePrintCSS({ margin: '2cm' });
-			expect(result).toContain('@page');
-			expect(result).toContain('margin: 2cm');
-		});
-
-		it('generates @page rule with orientation', () => {
-			const result: string = generatePrintCSS({ orientation: 'landscape' });
-			expect(result).toContain('@page');
-			expect(result).toContain('size: A4 landscape');
-		});
-
-		it('always includes data-notectl-no-print hide rule', () => {
-			const result: string = generatePrintCSS({});
-			expect(result).toContain('[data-notectl-no-print]');
-			expect(result).toContain('display: none !important');
-		});
-
-		it('includes print-color-adjust by default for WYSIWYG fidelity', () => {
-			const result: string = generatePrintCSS({});
-			expect(result).toContain('print-color-adjust: exact');
-			expect(result).toContain('-webkit-print-color-adjust: exact');
-		});
-
-		it('includes print-color-adjust when printBackground is true', () => {
-			const result: string = generatePrintCSS({ printBackground: true });
-			expect(result).toContain('print-color-adjust: exact');
-		});
-
-		it('does not include print-color-adjust when printBackground is explicitly false', () => {
-			const result: string = generatePrintCSS({ printBackground: false });
-			expect(result).not.toContain('print-color-adjust');
-		});
-
-		it('includes code block and table print rules', () => {
-			const result: string = generatePrintCSS({});
-			expect(result).toContain('.notectl-code-block');
-			expect(result).toContain('pre-wrap');
-			expect(result).toContain('.notectl-table');
-		});
-
-		it('generates @page rule with paperSize', () => {
-			const result: string = generatePrintCSS({ paperSize: PaperSize.USLetter });
-			expect(result).toContain('@page');
-			expect(result).toContain('size: letter');
-		});
-
-		it('generates @page rule with paperSize and orientation', () => {
-			const result: string = generatePrintCSS({
-				paperSize: PaperSize.DINA5,
-				orientation: 'landscape',
-			});
-			expect(result).toContain('size: A5 landscape');
-		});
-
-		it('uses paperSize instead of default A4 when both paperSize and orientation are set', () => {
-			const result: string = generatePrintCSS({
-				paperSize: PaperSize.USLegal,
-				orientation: 'portrait',
-			});
-			expect(result).toContain('size: legal portrait');
-			expect(result).not.toContain('A4');
-		});
-
-		it('falls back to A4 when only orientation is set without paperSize', () => {
-			const result: string = generatePrintCSS({ orientation: 'portrait' });
-			expect(result).toContain('size: A4 portrait');
-		});
-
-		it('sets @page margin to 0 when paperSize is set without custom margin', () => {
-			const result: string = generatePrintCSS({ paperSize: PaperSize.DINA4 });
-			expect(result).toContain('margin: 0');
-		});
-
-		it('uses custom margin over zero default when both paperSize and margin are set', () => {
-			const result: string = generatePrintCSS({
-				paperSize: PaperSize.DINA4,
-				margin: '2cm',
-			});
-			expect(result).toContain('margin: 2cm');
-			expect(result).not.toContain('margin: 0');
-		});
-
-		it('injects paper-mode content padding when paperSize is set', () => {
-			const result: string = generatePrintCSS({ paperSize: PaperSize.DINA4 });
-			expect(result).toContain('.notectl-content');
-			expect(result).toContain('padding: 48px 56px');
-		});
-
-		it('does not inject paper-mode content padding without paperSize', () => {
-			const result: string = generatePrintCSS({});
-			expect(result).not.toContain('padding: 48px 56px');
-		});
-	});
-
-	describe('snapshotTypography', () => {
-		it('generates a body rule with margin reset', () => {
-			const el: HTMLElement = document.createElement('div');
-			document.body.appendChild(el);
-
-			const result: string = snapshotTypography(el);
-			expect(result).toContain('body {');
-			expect(result).toContain('margin: 0');
-
-			document.body.removeChild(el);
-		});
-
-		it('uses colorOverride for the color property when provided', () => {
-			const el: HTMLElement = document.createElement('div');
-			document.body.appendChild(el);
-
-			const result: string = snapshotTypography(el, '#1a1a1a');
-			expect(result).toContain('color: #1a1a1a');
-
-			document.body.removeChild(el);
-		});
-
-		it('uses computed color when no override is provided', () => {
-			const el: HTMLElement = document.createElement('div');
-			document.body.appendChild(el);
-
-			const result: string = snapshotTypography(el);
-			expect(result).toContain('body {');
-			expect(result).toContain('margin: 0');
-
-			document.body.removeChild(el);
-		});
-
-		it('includes font-family and line-height from computed styles', () => {
-			const el: HTMLElement = document.createElement('div');
-			el.style.fontFamily = 'Arial, sans-serif';
-			el.style.lineHeight = '1.6';
-			document.body.appendChild(el);
-
-			const result: string = snapshotTypography(el);
-			expect(result).toContain('font-family:');
-			expect(result).toContain('line-height:');
-
-			document.body.removeChild(el);
-		});
-	});
-
-	describe('collectAll', () => {
-		it('combines adopted styles, print CSS, and custom CSS', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-
-			const sheet: CSSStyleSheet = new CSSStyleSheet();
-			sheet.replaceSync('.editor { font-size: 14px; }');
-			shadow.adoptedStyleSheets = [sheet];
-
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {
-				customCSS: '.custom { color: green; }',
-				margin: '1cm',
-			});
-
-			expect(result).toContain('.editor');
-			expect(result).toContain('@page');
-			expect(result).toContain('.custom');
-
-			document.body.removeChild(host);
-		});
-
-		it('wraps the editor base styles in a cascade layer so overrides win', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const sheet: CSSStyleSheet = new CSSStyleSheet();
-			sheet.replaceSync('.notectl-table td { padding: 8px 12px; }');
-			shadow.adoptedStyleSheets = [sheet];
-
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {});
-			// The adopted rule must sit inside a named layer; print/theme/custom
-			// rules stay unlayered and therefore win regardless of specificity.
-			expect(result).toContain('@layer notectl-base {');
-			expect(result).toContain('.notectl-table td');
-			const layerIndex: number = result.indexOf('@layer notectl-base {');
-			expect(result.indexOf('.notectl-table td')).toBeGreaterThan(layerIndex);
-
-			document.body.removeChild(host);
-		});
-
-		it('works with empty options', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-
-			const result: string = collectAll(shadow, host, {});
-			expect(result).toContain('@media print');
-		});
-
-		it('includes typography snapshot when paperSize is set', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, { paperSize: PaperSize.DINA4 });
-			expect(result).toContain('body {');
-			expect(result).toContain('margin: 0');
-
-			document.body.removeChild(host);
-		});
-
-		it('includes typography snapshot without paperSize', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {});
-			expect(result).toContain('body {');
-			expect(result).toContain('margin: 0');
-
-			document.body.removeChild(host);
-		});
-
-		it('uses light theme tokens by default', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {});
-			expect(result).toContain('--notectl-bg: #ffffff');
-			expect(result).toContain('--notectl-fg: #1a1a1a');
-			expect(result).toContain(':root {');
-
-			document.body.removeChild(host);
-		});
-
-		it('uses light theme tokens when forceLightTheme is true', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, { forceLightTheme: true });
-			expect(result).toContain('--notectl-bg: #ffffff');
-			expect(result).toContain('--notectl-fg: #1a1a1a');
-
-			document.body.removeChild(host);
-		});
-
-		it('snapshots current theme when forceLightTheme is false', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, { forceLightTheme: false });
-			// In happy-dom, snapshotThemeTokens returns empty (no --notectl-* computed props)
-			expect(result).not.toContain('--notectl-bg: #ffffff');
-
-			document.body.removeChild(host);
-		});
-
-		it('overrides body color with light foreground by default', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {});
-			expect(result).toContain('color: #1a1a1a');
-
-			document.body.removeChild(host);
-		});
-
-		it('always includes typography snapshot regardless of options', () => {
-			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-			const host: HTMLElement = document.createElement('div');
-			host.style.fontFamily = 'Georgia, serif';
-			document.body.appendChild(host);
-
-			const withPaper: string = collectAll(shadow, host, { paperSize: PaperSize.DINA4 });
-			const withoutPaper: string = collectAll(shadow, host, {});
-
-			expect(withPaper).toContain('body {');
-			expect(withoutPaper).toContain('body {');
-
-			document.body.removeChild(host);
 		});
 	});
 
@@ -383,10 +70,103 @@ describe('PrintStyleCollector', () => {
 		});
 	});
 
-	describe('collectAll — runtime style-token rules', () => {
+	describe('generateLightThemeTokens', () => {
+		it('targets the given host selector with light theme custom properties', () => {
+			const result: string = generateLightThemeTokens('notectl-editor');
+			expect(result).toContain('notectl-editor {');
+			expect(result).not.toContain(':host');
+			expect(result).toContain('--notectl-');
+		});
+	});
+
+	describe('generateHostResetCSS', () => {
+		it('neutralizes widget chrome on the host selector', () => {
+			const result: string = generateHostResetCSS('notectl-editor');
+			expect(result).toContain('notectl-editor {');
+			expect(result).toContain('display: block;');
+			expect(result).toContain('height: auto;');
+			expect(result).toContain('border: none;');
+			expect(result).toContain('overflow: visible;');
+		});
+	});
+
+	describe('snapshotTypography', () => {
+		it('emits a body rule with margin and white background', () => {
+			const host: HTMLElement = attachedHost('div');
+			const result: string = snapshotTypography(host);
+			expect(result).toContain('body {');
+			expect(result).toContain('margin: 0;');
+			expect(result).toContain('background: #ffffff;');
+			document.body.removeChild(host);
+		});
+
+		it('applies the color override when given', () => {
+			const host: HTMLElement = attachedHost('div');
+			const result: string = snapshotTypography(host, '#111111');
+			expect(result).toContain('color: #111111;');
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('generatePageCSS', () => {
+		it('emits @page margin from options', () => {
+			const result: string = generatePageCSS({ margin: '2cm' });
+			expect(result).toContain('@page');
+			expect(result).toContain('margin: 2cm;');
+		});
+
+		it('emits zero margin and paper size in paper mode', () => {
+			const result: string = generatePageCSS({ paperSize: PaperSize.DINA4 });
+			expect(result).toContain('margin: 0;');
+			expect(result).toContain('size: A4;');
+		});
+
+		it('includes orientation when set', () => {
+			const result: string = generatePageCSS({
+				paperSize: PaperSize.DINA4,
+				orientation: 'landscape',
+			});
+			expect(result).toContain('size: A4 landscape;');
+		});
+
+		it('returns empty string without page options', () => {
+			expect(generatePageCSS({})).toBe('');
+		});
+	});
+
+	describe('generateContentPrintCSS', () => {
+		it('hides non-printable elements and protects blocks from page breaks', () => {
+			const result: string = generateContentPrintCSS({});
+			expect(result).toContain('[data-notectl-no-print] { display: none !important; }');
+			expect(result).toContain('.notectl-code-block');
+			expect(result).toContain('page-break-inside: avoid');
+		});
+
+		it('preserves backgrounds by default', () => {
+			expect(generateContentPrintCSS({})).toContain('print-color-adjust: exact');
+		});
+
+		it('omits color-adjust when printBackground is false', () => {
+			expect(generateContentPrintCSS({ printBackground: false })).not.toContain(
+				'print-color-adjust',
+			);
+		});
+
+		it('applies paper content padding in paper mode', () => {
+			const result: string = generateContentPrintCSS({ paperSize: PaperSize.DINA4 });
+			expect(result).toContain('.notectl-content { padding:');
+		});
+	});
+
+	describe('buildShadowCSS', () => {
+		it('wraps base styles in the cascade layer', () => {
+			const shadow: ShadowRoot = shadowWithSheets('.notectl-table td { padding: 8px 12px; }');
+			const result: string = buildShadowCSS(shadow, {});
+			expect(result).toContain('@layer notectl-base {\n.notectl-table td');
+		});
+
 		it('keeps runtime style-token rules outside the base cascade layer', () => {
 			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
-
 			const base: CSSStyleSheet = new CSSStyleSheet();
 			base.replaceSync('.notectl-table td { padding: 8px 12px; }');
 			const runtime: CSSStyleSheet | null = createRuntimeStyleSheet();
@@ -394,16 +174,56 @@ describe('PrintStyleCollector', () => {
 			runtime.replaceSync('[data-notectl-style-token="s0"] { color: red; }');
 			shadow.adoptedStyleSheets = [base, runtime];
 
-			const host: HTMLElement = document.createElement('div');
-			document.body.appendChild(host);
-
-			const result: string = collectAll(shadow, host, {});
-			// Base rule sits inside the layer; the token rule follows the layer's
-			// closing brace unlayered, keeping its cascade strength against
-			// customCSS and translated part rules.
-			expect(result).toContain('@layer notectl-base {\n.notectl-table td');
+			const result: string = buildShadowCSS(shadow, {});
+			// The token rule follows the layer's closing brace unlayered, keeping
+			// its cascade strength against customCSS.
 			expect(result).toContain('}\n\n[data-notectl-style-token="s0"]');
+		});
 
+		it('appends customCSS as the final same-tree override', () => {
+			const shadow: ShadowRoot = shadowWithSheets('.a { color: red; }');
+			const result: string = buildShadowCSS(shadow, { customCSS: '.custom { color: blue; }' });
+			expect(result.trimEnd().endsWith('.custom { color: blue; }')).toBe(true);
+		});
+
+		it('includes the print content rules', () => {
+			const shadow: ShadowRoot = document.createElement('div').attachShadow({ mode: 'open' });
+			expect(buildShadowCSS(shadow, {})).toContain('[data-notectl-no-print]');
+		});
+	});
+
+	describe('buildDocumentCSS', () => {
+		it('resets the host element under its own tag name', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, {});
+			expect(result).toContain('notectl-editor {\n  display: block;');
+			document.body.removeChild(host);
+		});
+
+		it('forces light theme tokens by default', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, {});
+			expect(result).toContain('--notectl-');
+			document.body.removeChild(host);
+		});
+
+		it('carries the live theme when forceLightTheme is false', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, { forceLightTheme: false });
+			// No frozen token snapshot: the theme travels natively via the copied
+			// shadow theme sheet and host-page rules.
+			expect(result).not.toContain('--notectl-');
+			document.body.removeChild(host);
+		});
+
+		it('includes @page rules and the customCSS document copy', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, {
+				margin: '2cm',
+				customCSS: '@page { size: A5; }',
+			});
+			expect(result).toContain('margin: 2cm;');
+			expect(result).toContain('@page { size: A5; }');
 			document.body.removeChild(host);
 		});
 	});

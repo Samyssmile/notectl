@@ -10,18 +10,16 @@ import { insertTable } from './fixtures/table-utils';
  *
  *   notectl-editor::part(table-cell) { padding: 0; }
  *
- * This works in the live editor because `::part()` pierces the shadow boundary
- * and, per the shadow-tree cascade, an outer normal declaration wins over the
- * shadow tree's own rule regardless of specificity. The print pipeline, however,
- * clones `.notectl-content` out of the shadow DOM into a plain iframe document
- * where `::part()` can no longer match, so the plugin translates host `::part()`
- * rules into `[part~="..."]` attribute selectors and places the editor's own
- * base styles behind a cascade layer so the carried rules win.
+ * The print document preserves the editor's shadow boundary via declarative
+ * shadow DOM and copies the host page's stylesheets verbatim (in the
+ * `notectl-host` cascade layer), so `::part()`, specificity, custom
+ * properties, `@media`/`@layer`/`@supports`, CSS nesting, and `@import` all
+ * behave exactly as in the live editor — no translation, no emulation.
  *
  * The `padding` property is deliberately chosen because the editor's own
- * `.notectl-table td { padding: 8px 12px }` rule (specificity 0,1,1) competes
- * with it: a naive translation to `[part~="table-cell"]` (specificity 0,1,0)
- * would lose that fight without the cascade layer.
+ * `.notectl-table td { padding: 8px 12px }` shadow rule competes with it; per
+ * the shadow-tree cascade an outer normal declaration must win regardless of
+ * specificity.
  *
  * `::part()` cannot be exercised in happy-dom (its CSS parser drops the rule),
  * so this behaviour can only be proven in a real browser.
@@ -41,18 +39,24 @@ interface PrintCellProbeArgs {
 	readonly properties: readonly string[];
 	/** Also read the same properties from the live editor's table cell. */
 	readonly readLive?: boolean;
+	/** Computed properties to read from the printed host element. */
+	readonly hostProperties?: readonly string[];
+	/** Class added to the live page's <html> for the duration of the probe. */
+	readonly rootClass?: string;
 }
 
 interface PrintCellProbeResult {
 	readonly printStyles: Record<string, string>;
 	readonly liveStyles: Record<string, string>;
+	readonly hostStyles: Record<string, string>;
 	readonly html: string;
 }
 
 /**
  * Injects the given host stylesheets, renders the print output into a hidden
- * iframe, and reads computed styles from the printed (and optionally the live)
- * table cell. All injected DOM is cleaned up before returning.
+ * iframe, and reads computed styles from the printed table cell (inside the
+ * declarative shadow root), the printed host element, and optionally the live
+ * editor. All injected DOM is cleaned up before returning.
  */
 async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<PrintCellProbeResult> {
 	return page.evaluate((input: PrintCellProbeArgs): PrintCellProbeResult => {
@@ -70,6 +74,7 @@ async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<Pri
 			if (sheetInit.disabled && style.sheet) style.sheet.disabled = true;
 			styleEls.push(style);
 		}
+		if (input.rootClass) document.documentElement.classList.add(input.rootClass);
 
 		try {
 			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
@@ -100,19 +105,32 @@ async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<Pri
 				frameDoc.write(html);
 				frameDoc.close();
 
-				const printCell = frameDoc.querySelector<HTMLElement>('[part~="table-cell"]');
+				const printHost = frameDoc.querySelector<HTMLElement>('notectl-editor');
+				if (!printHost) throw new Error('print host element missing');
+				const printShadow = printHost.shadowRoot;
+				if (!printShadow) throw new Error('declarative shadow root missing in print output');
+
+				const printCell = printShadow.querySelector<HTMLElement>('[part~="table-cell"]');
 				if (!printCell) throw new Error('print table cell missing');
 				const printComputed: CSSStyleDeclaration = frameWin.getComputedStyle(printCell);
 				const printStyles: Record<string, string> = {};
 				for (const property of input.properties) {
 					printStyles[property] = printComputed.getPropertyValue(property);
 				}
-				return { printStyles, liveStyles, html };
+
+				const hostComputed: CSSStyleDeclaration = frameWin.getComputedStyle(printHost);
+				const hostStyles: Record<string, string> = {};
+				for (const property of input.hostProperties ?? []) {
+					hostStyles[property] = hostComputed.getPropertyValue(property);
+				}
+
+				return { printStyles, liveStyles, hostStyles, html };
 			} finally {
 				frame.remove();
 			}
 		} finally {
 			for (const style of styleEls) style.remove();
+			if (input.rootClass) document.documentElement.classList.remove(input.rootClass);
 		}
 	}, args);
 }
@@ -167,9 +185,6 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		await editor.focus();
 		await insertTable(page);
 
-		// Regression guard for the cascade-layer change: with no host ::part() or
-		// customCSS override, the layered base rule (.notectl-table td { padding: 8px 12px })
-		// must still apply, so the cell keeps its built-in padding.
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
 			properties: ['padding-top'],
 		});
@@ -180,17 +195,28 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		).toBe('8px');
 	});
 
-	test('handles commas inside functional pseudo-classes without corrupting later CSS', async ({
+	test('supports bare ::part() selectors without a host prefix', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: '::part(table-cell) { padding-top: 12px; }' }],
+			properties: ['padding-top'],
+		});
+
+		expect(
+			probe.printStyles['padding-top'],
+			'bare ::part() must match natively in the print document',
+		).toBe('12px');
+	});
+
+	test('handles selector lists with commas inside functional pseudo-classes', async ({
 		editor,
 		page,
 	}) => {
 		await editor.focus();
 		await insertTable(page);
 
-		// The first rule's prefix contains a comma inside :is(); the second rule
-		// carries a comma in a trailing pseudo-class. A naive split(',') would drop
-		// the first rule and emit an unbalanced selector for the second, swallowing
-		// every rule that follows — including customCSS.
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
 			hostSheets: [
 				{
@@ -206,11 +232,11 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 
 		expect(
 			probe.printStyles['padding-top'],
-			'::part() rule with an :is() host prefix must be carried',
+			'::part() rule with an :is() host prefix must apply',
 		).toBe('3px');
 		expect(
 			probe.printStyles['padding-bottom'],
-			'customCSS after a carried rule with commas must stay intact',
+			'customCSS must stay intact alongside copied host rules',
 		).toBe('4px');
 	});
 
@@ -235,17 +261,14 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 
 		expect(
 			probe.printStyles['padding-top'],
-			'@layer-nested ::part() rule must be carried (flattened)',
+			'@layer-nested ::part() rule must apply in print',
 		).toBe('5px');
-		expect(probe.printStyles['padding-left'], 'CSS-nested ::part() rule must be carried').toBe(
+		expect(probe.printStyles['padding-left'], 'CSS-nested ::part() rule must apply in print').toBe(
 			'6px',
 		);
 	});
 
-	test('carries @media-nested ::part() rules wrapped in their condition', async ({
-		editor,
-		page,
-	}) => {
+	test('preserves @media conditions on carried ::part() rules', async ({ editor, page }) => {
 		await editor.focus();
 		await insertTable(page);
 
@@ -261,20 +284,20 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			properties: ['padding-top', 'padding-left'],
 		});
 
-		// The @media print rule is carried but stays wrapped, so it is inactive in
-		// the screen-rendered probe iframe and only activates when printing.
-		expect(probe.html).toContain('@media print { [part~="table-cell"]');
+		// The @media print rule is copied verbatim, so it is inactive in the
+		// screen-rendered probe iframe and only activates when printing.
+		expect(probe.html).toContain('@media print');
 		expect(
 			probe.printStyles['padding-top'],
 			'@media print rule must stay conditional in the print document',
 		).toBe('8px');
 		expect(
 			probe.printStyles['padding-left'],
-			'matching @media rule must be carried and active',
+			'matching @media rule must apply in the print document',
 		).toBe('2px');
 	});
 
-	test('resolves var() references via snapshotted host custom properties', async ({
+	test('resolves var() references against copied host custom properties', async ({
 		editor,
 		page,
 	}) => {
@@ -296,7 +319,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(probe.html).toContain('--cell-pad: 7px');
 		expect(
 			probe.printStyles['padding-top'],
-			'carried var() reference must resolve in the print document',
+			'var() reference must resolve natively in the print document',
 		).toBe('7px');
 	});
 
@@ -321,7 +344,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			properties: ['padding-top'],
 		});
 
-		expect(probe.html, 'disabled stylesheet rules must not be carried').not.toContain(
+		expect(probe.html, 'disabled stylesheet rules must not be copied').not.toContain(
 			'padding-top: 11px',
 		);
 		expect(probe.html, 'stylesheet media must be preserved as a wrapper').toContain(
@@ -375,12 +398,75 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			});
 			expect(
 				probe.printStyles['padding-top'],
-				'::part() rule from an @import stylesheet must be carried',
+				'::part() rule from an @import stylesheet must apply',
 			).toBe('4px');
 		} finally {
 			await page.evaluate(() => {
 				document.getElementById('notectl-202-import-css')?.remove();
 			});
 		}
+	});
+
+	test('neutralizes host widget chrome in the print document', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Host pages style the editor widget (height, border, padding). Those
+		// rules are copied for ::part()/token fidelity, but must not constrain
+		// the paginated print flow.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [
+				{ css: 'notectl-editor { height: 40px; border: 3px solid red; padding: 30px; }' },
+			],
+			properties: ['padding-top'],
+			hostProperties: ['border-top-width', 'padding-top', 'overflow-y'],
+		});
+
+		expect(probe.hostStyles['border-top-width'], 'host border must be reset in print').toBe('0px');
+		expect(probe.hostStyles['padding-top'], 'host padding must be reset in print').toBe('0px');
+		expect(probe.hostStyles['overflow-y'], 'host overflow must be reset in print').toBe('visible');
+		expect(
+			probe.printStyles['padding-top'],
+			'content styling must stay unaffected by the reset',
+		).toBe('8px');
+	});
+
+	test('theme-conditional ::part() rules follow forceLightTheme', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const darkSheet: HostSheetInit = {
+			css: 'html.dark notectl-editor::part(table-cell) { padding-top: 13px; }',
+		};
+
+		// Default (forced light): the print document carries no dark theme
+		// context, so the class-gated dark rule must stay inactive.
+		const forcedLight: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [darkSheet],
+			rootClass: 'dark',
+			properties: ['padding-top'],
+			readLive: true,
+		});
+		expect(
+			forcedLight.liveStyles['padding-top'],
+			'dark-gated rule must apply in the live editor',
+		).toBe('13px');
+		expect(
+			forcedLight.printStyles['padding-top'],
+			'forced light print must not activate dark-gated rules',
+		).toBe('8px');
+
+		// forceLightTheme: false — the live theme context is carried, so the
+		// dark-gated rule applies exactly as in the editor.
+		const liveTheme: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [darkSheet],
+			rootClass: 'dark',
+			printOptions: { forceLightTheme: false },
+			properties: ['padding-top'],
+		});
+		expect(
+			liveTheme.printStyles['padding-top'],
+			'carried theme context must activate dark-gated rules',
+		).toBe('13px');
 	});
 });
