@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PaperSize } from '../../model/PaperSize.js';
+import { registerStyleRoot, unregisterStyleRoot } from '../../style/StyleRuntime.js';
 import { EventBus } from '../EventBus.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { buildHTMLDocument, createPrintService } from './PrintServiceImpl.js';
@@ -116,7 +117,7 @@ describe('PrintServiceImpl', () => {
 			);
 
 			const orderIndex: number = html.indexOf(
-				'@layer notectl-custom, notectl-print, notectl-host;',
+				'@layer notectl-custom, notectl-print, notectl-theme, notectl-host;',
 			);
 			const importIndex: number = html.indexOf('@import');
 			expect(orderIndex).toBeGreaterThanOrEqual(0);
@@ -127,7 +128,7 @@ describe('PrintServiceImpl', () => {
 			const html: string = buildHTMLDocument(buildInput());
 			// Without the statement, first appearance inside the document CSS would
 			// put notectl-print before notectl-custom and invert important priority.
-			expect(html).toContain('@layer notectl-custom, notectl-print, notectl-host;');
+			expect(html).toContain('@layer notectl-custom, notectl-print, notectl-theme, notectl-host;');
 		});
 
 		it('escapes literal </style> sequences in every embedded CSS scope', () => {
@@ -146,6 +147,21 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('content: "<\\/style><script>alert(1)<\\/script>"');
 			expect(html).toContain('.b::before { content: "<\\/style>"; }');
 			expect(html).toContain('.c::before { content: "<\\/style>"; }');
+		});
+
+		it('applies the CSP nonce to every embedded style and script element', () => {
+			const html: string = buildHTMLDocument(buildInput({ styleNonce: 'test-nonce' }));
+
+			// Two document-level styles plus the shadow-template style.
+			expect(html.match(/<style nonce="test-nonce">/g)).toHaveLength(3);
+			expect(html).toContain('<script nonce="test-nonce">');
+			expect(html).not.toContain('<style>');
+			expect(html).not.toContain('<script>');
+		});
+
+		it('emits nonce-less style and script elements without a configured nonce', () => {
+			const html: string = buildHTMLDocument(buildInput());
+			expect(html).not.toContain('nonce=');
 		});
 
 		it('includes the lang attribute on the html element', () => {
@@ -199,6 +215,21 @@ describe('PrintServiceImpl', () => {
 
 			expect(html).toContain('@page');
 			expect(html).toContain('margin: 2cm');
+		});
+
+		it('threads the style-root CSP nonce into the print document', () => {
+			const { service, host } = createTestEnv();
+			const shadow: ShadowRoot | null = host.shadowRoot;
+			if (!shadow) throw new Error('test host has no shadow root');
+			registerStyleRoot(shadow, { nonce: 'csp-nonce' });
+			try {
+				const html: string = service.toHTML();
+				expect(html).toContain('<style nonce="csp-nonce">');
+				expect(html).toContain('<script nonce="csp-nonce">');
+			} finally {
+				unregisterStyleRoot(shadow);
+				document.body.removeChild(host);
+			}
 		});
 
 		it('applies custom CSS', () => {
