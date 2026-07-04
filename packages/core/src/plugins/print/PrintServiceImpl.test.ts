@@ -3,6 +3,7 @@ import { PaperSize } from '../../model/PaperSize.js';
 import { EventBus } from '../EventBus.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { buildHTMLDocument, createPrintService } from './PrintServiceImpl.js';
+import type { PrintDocumentInput } from './PrintServiceImpl.js';
 import type { BeforePrintEvent, PrintService } from './PrintTypes.js';
 import { AFTER_PRINT, BEFORE_PRINT } from './PrintTypes.js';
 
@@ -36,29 +37,90 @@ function createTestEnv(contentHTML?: string): {
 
 describe('PrintServiceImpl', () => {
 	describe('buildHTMLDocument', () => {
-		it('creates a complete HTML document', () => {
-			const html: string = buildHTMLDocument('.foo {}', '<p>hi</p>', 'Test');
+		function buildInput(overrides: Partial<PrintDocumentInput> = {}): PrintDocumentInput {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			return {
+				documentCSS: '.doc {}',
+				hostImports: [],
+				hostLayerCSS: '',
+				shadowCSS: '.shadow {}',
+				host,
+				contentHTML: '<p>hi</p>',
+				title: 'Test',
+				lang: 'en',
+				carryThemeContext: false,
+				...overrides,
+			};
+		}
+
+		it('creates a document with a declarative shadow root on the host element', () => {
+			const html: string = buildHTMLDocument(buildInput());
 
 			expect(html).toContain('<!DOCTYPE html>');
 			expect(html).toContain('<title>Test</title>');
-			expect(html).toContain('<style>.foo {}</style>');
+			expect(html).toContain('<style>.doc {}</style>');
+			expect(html).toContain('<notectl-editor>');
+			expect(html).toContain('<template shadowrootmode="open">');
+			expect(html).toContain('<style>.shadow {}</style>');
 			expect(html).toContain('<p>hi</p>');
+			expect(html).toContain('</notectl-editor>');
 		});
 
-		it('includes lang attribute on html element', () => {
-			const html: string = buildHTMLDocument('', '<p>hi</p>', 'Test', 'de');
+		it('replicates host attributes but strips the style attribute', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.setAttribute('id', 'main');
+			host.setAttribute('class', 'themed');
+			host.setAttribute('style', 'height: 400px');
+			const html: string = buildHTMLDocument(buildInput({ host }));
+
+			expect(html).toContain('<notectl-editor id="main" class="themed">');
+			expect(html).not.toContain('height: 400px');
+		});
+
+		it('wraps copied host CSS in the notectl-host layer and hoists imports', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({
+					hostImports: ['@import url("https://cdn.example/x.css") layer(notectl-host);'],
+					hostLayerCSS: 'notectl-editor::part(cell) { padding: 0px; }',
+				}),
+			);
+
+			expect(html).toContain('@import url("https://cdn.example/x.css") layer(notectl-host);');
+			expect(html).toContain('@layer notectl-host {\nnotectl-editor::part(cell)');
+		});
+
+		it('includes the lang attribute on the html element', () => {
+			const html: string = buildHTMLDocument(buildInput({ lang: 'de' }));
 			expect(html).toContain('<html lang="de">');
 		});
 
-		it('defaults lang to en', () => {
-			const html: string = buildHTMLDocument('', '<p>hi</p>', 'Test');
-			expect(html).toContain('<html lang="en">');
-		});
-
 		it('escapes HTML in title', () => {
-			const html: string = buildHTMLDocument('', '', '</title><script>alert(1)</script>');
+			const html: string = buildHTMLDocument(
+				buildInput({ title: '</title><script>alert(1)</script>' }),
+			);
 			expect(html).not.toContain('<script>');
 			expect(html).toContain('&lt;script&gt;');
+		});
+
+		it('copies theme-context attributes when carrying the live theme', () => {
+			document.documentElement.setAttribute('class', 'dark');
+			try {
+				const html: string = buildHTMLDocument(buildInput({ carryThemeContext: true }));
+				expect(html).toContain('<html lang="en" class="dark">');
+			} finally {
+				document.documentElement.removeAttribute('class');
+			}
+		});
+
+		it('does not copy theme-context attributes when forcing light theme', () => {
+			document.documentElement.setAttribute('class', 'dark');
+			try {
+				const html: string = buildHTMLDocument(buildInput({ carryThemeContext: false }));
+				expect(html).toContain('<html lang="en">');
+				expect(html).not.toContain('class="dark"');
+			} finally {
+				document.documentElement.removeAttribute('class');
+			}
 		});
 	});
 
@@ -164,6 +226,11 @@ describe('PrintServiceImpl', () => {
 			});
 
 			service.print({ title: 'Print Test' });
+
+			// Printing waits for the iframe load event when the document is not
+			// complete yet (referenced host stylesheets load asynchronously).
+			const loadCb = listeners.get('load') as (() => void) | undefined;
+			if (loadCb) loadCb();
 
 			expect(printMock).toHaveBeenCalledOnce();
 			// iframe still present until afterprint fires
