@@ -99,15 +99,38 @@ export function partitionAdoptedStyles(shadowRoot: ShadowRoot): AdoptedStylePart
 }
 
 /**
- * Generates light theme custom properties targeting the print host element.
- * Every declaration is `!important`; emitted inside the `notectl-print`
- * layer, it beats copied host-page token overrides (even `!important` ones)
- * and the shadow theme sheet (tree context), guaranteeing readable print
- * output regardless of the active editor theme.
+ * Generates light theme custom properties targeting `:root` and the print
+ * host element. `:root` makes the tokens inherit document-wide, so page-level
+ * `customCSS` rules (`body { background: var(--notectl-bg) }`) keep resolving;
+ * the host element re-pins them closer than the shadow theme sheet's `:host`
+ * defaults. Every declaration is `!important`; emitted inside the
+ * `notectl-print` layer, it beats copied host-page token overrides (even
+ * `!important` ones) and the shadow theme sheet (tree context), guaranteeing
+ * readable print output regardless of the active editor theme.
  */
 export function generateLightThemeTokens(hostSelector: string): string {
-	const css: string = generateThemeCSS(LIGHT_THEME).replace(':host {', `${hostSelector} {`);
+	const css: string = generateThemeCSS(LIGHT_THEME).replace(':host {', `:root, ${hostSelector} {`);
 	return markDeclarationsImportant(css);
+}
+
+/**
+ * Serializes an element's inline `--notectl-*` declarations. Tokens set via
+ * the `style` attribute or JS `setProperty` (runtime theme switchers) cannot
+ * travel through the stylesheet copy; re-emitting them as inline style on the
+ * print document's corresponding element preserves their live cascade
+ * strength — inline declarations beat every copied stylesheet rule, exactly
+ * as on the live page.
+ */
+export function collectInlineThemeTokens(el: Element | null): string {
+	if (!(el instanceof HTMLElement)) return '';
+	const declarations: string[] = [];
+	for (let i = 0; i < el.style.length; i++) {
+		const prop: string = el.style[i] ?? '';
+		if (!prop.startsWith('--notectl-')) continue;
+		const value: string = el.style.getPropertyValue(prop).trim();
+		if (value) declarations.push(`${prop}: ${value}`);
+	}
+	return declarations.join('; ');
 }
 
 /**
@@ -397,6 +420,15 @@ export function buildDocumentCSS(
 	const guards: string[] = [generateHostResetCSS(hostSelector), generatePageResetCSS()];
 	if (forceLightTheme) {
 		guards.push(generateLightThemeTokens(hostSelector));
+	}
+	// The shadow-scope copy of this guard cannot reach document-tree elements:
+	// without it here, the pinned body background (the carried theme background
+	// for forceLightTheme: false) is stripped by the browser's default
+	// "no background graphics" print behavior.
+	if (options.printBackground !== false) {
+		guards.push(
+			'* {\n  -webkit-print-color-adjust: exact !important;\n  print-color-adjust: exact !important;\n}',
+		);
 	}
 	parts.push(`@layer ${PRINT_STYLE_LAYER} {\n${guards.join('\n\n')}\n}`);
 

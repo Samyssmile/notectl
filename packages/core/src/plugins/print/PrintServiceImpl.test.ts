@@ -4,13 +4,13 @@ import { registerStyleRoot, unregisterStyleRoot } from '../../style/StyleRuntime
 import { EventBus } from '../EventBus.js';
 import type { PluginEventBus } from '../Plugin.js';
 import { buildHTMLDocument, createPrintService } from './PrintServiceImpl.js';
-import type { PrintDocumentInput } from './PrintServiceImpl.js';
-import type { BeforePrintEvent, PrintService } from './PrintTypes.js';
+import type { ManagedPrintService, PrintDocumentInput } from './PrintServiceImpl.js';
+import type { BeforePrintEvent } from './PrintTypes.js';
 import { AFTER_PRINT, BEFORE_PRINT } from './PrintTypes.js';
 
 /** Creates a minimal test environment for PrintService. */
 function createTestEnv(contentHTML?: string): {
-	service: PrintService;
+	service: ManagedPrintService;
 	eventBus: PluginEventBus;
 	container: HTMLElement;
 	host: HTMLElement;
@@ -31,7 +31,7 @@ function createTestEnv(contentHTML?: string): {
 		off: (key, callback) => bus.off(key, callback),
 	};
 
-	const service: PrintService = createPrintService(shadow, hostEl, content, pluginEventBus);
+	const service: ManagedPrintService = createPrintService(shadow, hostEl, content, pluginEventBus);
 
 	return { service, eventBus: pluginEventBus, container: content, host: hostEl };
 }
@@ -42,14 +42,14 @@ describe('PrintServiceImpl', () => {
 			const host: HTMLElement = document.createElement('notectl-editor');
 			return {
 				documentCSS: '.doc {}',
-				hostImports: [],
-				hostLayerCSS: '',
+				hostSegments: [],
 				shadowCSS: '.shadow {}',
 				host,
 				contentHTML: '<p>hi</p>',
 				title: 'Test',
 				lang: 'en',
 				carryThemeContext: false,
+				embedFallback: true,
 				...overrides,
 			};
 		}
@@ -73,7 +73,8 @@ describe('PrintServiceImpl', () => {
 			const html: string = buildHTMLDocument(buildInput({ host }));
 
 			// A replica of a replica must not end up with a duplicate attribute.
-			expect(html.match(/data-notectl-static/g)).toHaveLength(1);
+			const openTag: string = html.match(/<notectl-editor[^>]*>/)?.[0] ?? '';
+			expect(openTag.match(/data-notectl-static/g)).toHaveLength(1);
 		});
 
 		it('embeds the declarative-shadow-root fallback script after the content', () => {
@@ -83,6 +84,31 @@ describe('PrintServiceImpl', () => {
 			// (older WebViews, HTML-to-PDF engines) still get visible output.
 			expect(html).toContain("querySelectorAll('template[shadowrootmode]')");
 			expect(html.indexOf('<script>')).toBeGreaterThan(html.indexOf('</template>'));
+		});
+
+		it('embeds a static light-DOM fallback with the shadow CSS inside the host', () => {
+			const html: string = buildHTMLDocument(buildInput());
+
+			// Consumers injecting via innerHTML get neither DSD parsing nor script
+			// execution; the unslotted light-DOM copy renders readable output.
+			const fallbackIndex: number = html.indexOf('<div data-notectl-print-fallback>');
+			expect(fallbackIndex).toBeGreaterThan(html.indexOf('</template>'));
+			expect(fallbackIndex).toBeLessThan(html.indexOf('</notectl-editor>'));
+			expect(html.match(/<p>hi<\/p>/g)).toHaveLength(2);
+			expect(html.match(/\.shadow \{\}/g)).toHaveLength(2);
+		});
+
+		it('lets the fallback script remove the static fallback once a shadow root exists', () => {
+			const html: string = buildHTMLDocument(buildInput());
+			expect(html).toContain("querySelectorAll('[data-notectl-print-fallback]')");
+		});
+
+		it('omits fallback content and script for the internal print variant', () => {
+			const html: string = buildHTMLDocument(buildInput({ embedFallback: false }));
+
+			expect(html).not.toContain('data-notectl-print-fallback');
+			expect(html).not.toContain('<script');
+			expect(html.match(/<p>hi<\/p>/g)).toHaveLength(1);
 		});
 
 		it('replicates host attributes but strips the style attribute', () => {
@@ -99,20 +125,56 @@ describe('PrintServiceImpl', () => {
 		it('wraps copied host CSS in the notectl-host layer and hoists imports', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({
-					hostImports: ['@import url("https://cdn.example/x.css") layer(notectl-host);'],
-					hostLayerCSS: 'notectl-editor::part(cell) { padding: 0px; }',
+					hostSegments: [
+						{
+							kind: 'import',
+							statement: '@import url("https://cdn.example/x.css") layer(notectl-host);',
+						},
+						{ kind: 'rules', css: 'notectl-editor::part(cell) { padding: 0px; }' },
+					],
 				}),
 			);
 
-			expect(html).toContain('@import url("https://cdn.example/x.css") layer(notectl-host);');
+			expect(html).toContain(
+				'<style>@import url("https://cdn.example/x.css") layer(notectl-host);</style>',
+			);
 			expect(html).toContain('@layer notectl-host {\nnotectl-editor::part(cell)');
+		});
+
+		it('emits host segments as separate style elements in source order', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({
+					hostSegments: [
+						{ kind: 'rules', css: '.before { color: red; }' },
+						{
+							kind: 'import',
+							statement: '@import url("https://cdn.example/x.css") layer(notectl-host);',
+						},
+						{ kind: 'rules', css: '.after { color: blue; }' },
+					],
+				}),
+			);
+
+			// Same-layer source order decides equal-specificity ties: the hoisted
+			// import must stay between its neighbours, exactly as on the live page.
+			const beforeIndex: number = html.indexOf('.before');
+			const importIndex: number = html.indexOf('@import');
+			const afterIndex: number = html.indexOf('.after');
+			expect(beforeIndex).toBeGreaterThanOrEqual(0);
+			expect(beforeIndex).toBeLessThan(importIndex);
+			expect(importIndex).toBeLessThan(afterIndex);
 		});
 
 		it('declares the layer order before the hoisted imports', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({
-					hostImports: ['@import url("https://cdn.example/x.css") layer(notectl-host);'],
-					hostLayerCSS: 'notectl-editor::part(cell) { padding: 0px; }',
+					hostSegments: [
+						{
+							kind: 'import',
+							statement: '@import url("https://cdn.example/x.css") layer(notectl-host);',
+						},
+						{ kind: 'rules', css: 'notectl-editor::part(cell) { padding: 0px; }' },
+					],
 				}),
 			);
 
@@ -136,7 +198,7 @@ describe('PrintServiceImpl', () => {
 				buildInput({
 					documentCSS: '.a::before { content: "</style><script>alert(1)</script>"; }',
 					shadowCSS: '.b::before { content: "</style>"; }',
-					hostLayerCSS: '.c::before { content: "</style>"; }',
+					hostSegments: [{ kind: 'rules', css: '.c::before { content: "</style>"; }' }],
 				}),
 			);
 
@@ -149,14 +211,15 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('.c::before { content: "<\\/style>"; }');
 		});
 
-		it('applies the CSP nonce to every embedded style and script element', () => {
-			const html: string = buildHTMLDocument(buildInput({ styleNonce: 'test-nonce' }));
+		it('applies the CSP nonce to every embedded style of the internal variant', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({ styleNonce: 'test-nonce', embedFallback: false }),
+			);
 
 			// Two document-level styles plus the shadow-template style.
 			expect(html.match(/<style nonce="test-nonce">/g)).toHaveLength(3);
-			expect(html).toContain('<script nonce="test-nonce">');
 			expect(html).not.toContain('<style>');
-			expect(html).not.toContain('<script>');
+			expect(html).not.toContain('<script');
 		});
 
 		it('emits nonce-less style and script elements without a configured nonce', () => {
@@ -197,6 +260,33 @@ describe('PrintServiceImpl', () => {
 				document.documentElement.removeAttribute('class');
 			}
 		});
+
+		it('carries inline --notectl-* tokens when carrying the live theme', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.style.setProperty('--notectl-bg', '#111111');
+			host.style.setProperty('width', '400px');
+			document.documentElement.style.setProperty('--notectl-primary', '#222222');
+			try {
+				const html: string = buildHTMLDocument(buildInput({ host, carryThemeContext: true }));
+
+				// Runtime theme switchers set tokens via setProperty (inline); the
+				// stylesheet copy cannot carry them, so they are re-emitted inline
+				// where they keep beating every copied stylesheet rule — while
+				// non-token inline chrome (width) stays stripped.
+				expect(html).toContain('style="--notectl-bg: #111111"');
+				expect(html).toContain('style="--notectl-primary: #222222"');
+				expect(html).not.toContain('width: 400px');
+			} finally {
+				document.documentElement.style.removeProperty('--notectl-primary');
+			}
+		});
+
+		it('carries no inline tokens when forcing the light theme', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.style.setProperty('--notectl-bg', '#111111');
+			const html: string = buildHTMLDocument(buildInput({ host, carryThemeContext: false }));
+			expect(html).not.toContain('--notectl-bg');
+		});
 	});
 
 	describe('toHTML', () => {
@@ -217,15 +307,18 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('margin: 2cm');
 		});
 
-		it('threads the style-root CSP nonce into the print document', () => {
+		it('never serializes the CSP nonce into the exported document', () => {
 			const { service, host } = createTestEnv();
 			const shadow: ShadowRoot | null = host.shadowRoot;
 			if (!shadow) throw new Error('test host has no shadow root');
 			registerStyleRoot(shadow, { nonce: 'csp-nonce' });
 			try {
+				// The nonce is a per-session secret: persisting it in toHTML()
+				// output (document snapshots, PDF queues, AFTER_PRINT listeners)
+				// would let anyone with read access reuse it against the CSP.
 				const html: string = service.toHTML();
-				expect(html).toContain('<style nonce="csp-nonce">');
-				expect(html).toContain('<script nonce="csp-nonce">');
+				expect(html).not.toContain('csp-nonce');
+				expect(html).not.toContain('nonce=');
 			} finally {
 				unregisterStyleRoot(shadow);
 				document.body.removeChild(host);
@@ -294,10 +387,14 @@ describe('PrintServiceImpl', () => {
 		function mockPrintIframe(): {
 			printMock: ReturnType<typeof vi.fn>;
 			listeners: Map<string, EventListenerOrEventListenerObject>;
+			removedListeners: string[];
+			written: string[];
 		} {
 			const originalCreateElement = document.createElement.bind(document);
 			const printMock = vi.fn();
 			const listeners = new Map<string, EventListenerOrEventListenerObject>();
+			const removedListeners: string[] = [];
+			const written: string[] = [];
 
 			vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
 				const el: HTMLElement = originalCreateElement(tag);
@@ -307,17 +404,33 @@ describe('PrintServiceImpl', () => {
 						addEventListener: (type: string, cb: EventListenerOrEventListenerObject) => {
 							listeners.set(type, cb);
 						},
+						removeEventListener: (type: string) => {
+							removedListeners.push(type);
+						},
+					};
+					const fakeDocument = {
+						readyState: 'loading',
+						open: (): void => {},
+						write: (html: string): void => {
+							written.push(html);
+						},
+						close: (): void => {},
 					};
 					Object.defineProperty(el, 'contentWindow', {
 						get() {
 							return fakeWindow;
 						},
 					});
+					Object.defineProperty(el, 'contentDocument', {
+						get() {
+							return fakeDocument;
+						},
+					});
 				}
 				return el;
 			});
 
-			return { printMock, listeners };
+			return { printMock, listeners, removedListeners, written };
 		}
 
 		it('creates an iframe, prints, and defers cleanup to afterprint', () => {
@@ -381,6 +494,87 @@ describe('PrintServiceImpl', () => {
 
 			vi.restoreAllMocks();
 			vi.useRealTimers();
+		});
+
+		it('writes the nonce-carrying internal variant into the iframe only', () => {
+			const { service, host, eventBus } = createTestEnv();
+			const shadow: ShadowRoot | null = host.shadowRoot;
+			if (!shadow) throw new Error('test host has no shadow root');
+			registerStyleRoot(shadow, { nonce: 'csp-nonce' });
+			const { written } = mockPrintIframe();
+			const afterListener = vi.fn();
+			eventBus.on(AFTER_PRINT, afterListener);
+			try {
+				service.print();
+
+				// The iframe document renders under the page's inherited CSP and
+				// needs the nonce; it is transient and never serialized. It also
+				// skips the fallback — its parser is the same modern browser.
+				expect(written).toHaveLength(1);
+				expect(written[0]).toContain('<style nonce="csp-nonce">');
+				expect(written[0]).not.toContain('data-notectl-print-fallback');
+
+				// The broadcast copy stays nonce-free.
+				const broadcast: string = afterListener.mock.calls[0]?.[0]?.html ?? '';
+				expect(broadcast).not.toContain('nonce=');
+			} finally {
+				unregisterStyleRoot(shadow);
+				vi.restoreAllMocks();
+				document.body.removeChild(host);
+			}
+		});
+
+		/** Removes iframes leaked by earlier bounded-wait tests (no afterprint). */
+		function removeStaleIframes(): void {
+			for (const stale of Array.from(document.querySelectorAll('iframe'))) {
+				stale.remove();
+			}
+		}
+
+		it('dispose() cancels a pending print so no dialog opens after destroy', () => {
+			vi.useFakeTimers();
+			removeStaleIframes();
+			const { service } = createTestEnv();
+			const { printMock, removedListeners } = mockPrintIframe();
+
+			try {
+				service.print();
+				expect(document.querySelector('iframe')).not.toBeNull();
+
+				// Editor destroyed (e.g. SPA navigation) while the iframe still
+				// waits on a hanging stylesheet.
+				service.dispose();
+
+				expect(document.querySelector('iframe')).toBeNull();
+				expect(removedListeners).toContain('load');
+				vi.advanceTimersByTime(10000);
+				expect(printMock).not.toHaveBeenCalled();
+			} finally {
+				vi.restoreAllMocks();
+				vi.useRealTimers();
+			}
+		});
+
+		it('dispose() leaves nothing pending after a completed print', () => {
+			vi.useFakeTimers();
+			removeStaleIframes();
+			const { service } = createTestEnv();
+			const { printMock, listeners } = mockPrintIframe();
+
+			try {
+				service.print();
+				const loadCb = listeners.get('load') as (() => void) | undefined;
+				if (loadCb) loadCb();
+				expect(printMock).toHaveBeenCalledOnce();
+
+				// The triggered print deregisters itself; dispose must not touch
+				// its iframe while the dialog may still be open.
+				service.dispose();
+				expect(document.querySelector('iframe')).not.toBeNull();
+			} finally {
+				vi.restoreAllMocks();
+				vi.useRealTimers();
+			}
 		});
 	});
 

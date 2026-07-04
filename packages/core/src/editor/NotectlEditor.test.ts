@@ -67,6 +67,17 @@ describe('NotectlEditor', () => {
 		expect(() => editor.getState()).toThrow('Editor not initialized');
 	});
 
+	it('rejects init() on a static print replica', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+		editor.shadowRoot?.appendChild(document.createElement('p'));
+
+		// Even a direct consumer init() call must not boot a live editor over
+		// the replicated print content.
+		await expect(editor.init()).rejects.toThrow('static print replica');
+		expect(editor.shadowRoot?.querySelector('p')).not.toBeNull();
+	});
+
 	it('throws when setJSON is called before initialization', () => {
 		const editor = new NotectlEditor();
 		const doc = createDocument([
