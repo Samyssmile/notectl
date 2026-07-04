@@ -71,10 +71,16 @@ export class NotectlEditor extends HTMLElement {
 
 	constructor() {
 		super();
-		// A declarative shadow root (static print replica parsed via DSD) must
-		// be preserved: attachShadow() on such an element clears its content.
+		// A declarative shadow root is preserved only for static print replicas
+		// (marked data-notectl-static): attachShadow() on such an element would
+		// clear the replicated print content. Any other declarative root is
+		// emptied to keep the invariant that an editor boots from a fresh
+		// shadow root — EditorInitializer appends and would otherwise stack a
+		// live editor below leftover markup.
 		if (!this.shadowRoot) {
 			this.attachShadow({ mode: 'open' });
+		} else if (!isStaticHostReplica(this)) {
+			this.shadowRoot.replaceChildren();
 		}
 	}
 
@@ -105,8 +111,18 @@ export class NotectlEditor extends HTMLElement {
 		this.lifecycle.registerPreInitPlugin(plugin);
 	}
 
-	/** Initializes the editor with the given config. */
+	/**
+	 * Initializes the editor with the given config. Throws on static print
+	 * replicas (`data-notectl-static`): they carry replicated print markup and
+	 * must never boot a live editor over it.
+	 */
 	async init(config?: import('./EditorConfig.js').NotectlEditorConfig): Promise<void> {
+		if (isStaticHostReplica(this)) {
+			throw new Error(
+				'Cannot initialize a static print replica (data-notectl-static). ' +
+					'Remove the marker and its shadow content to reuse the element as an editor.',
+			);
+		}
 		this.cancelAutoInit();
 		if (!this.lifecycle.markInitialized()) return;
 		if (config) this.configController.setConfig(config);

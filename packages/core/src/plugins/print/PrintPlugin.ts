@@ -9,7 +9,7 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { PRINT_LOCALE_EN, type PrintLocale, loadPrintLocale } from './PrintLocale.js';
-import { createPrintService } from './PrintServiceImpl.js';
+import { type ManagedPrintService, createPrintService } from './PrintServiceImpl.js';
 import type { PrintOptions, PrintPluginConfig, PrintService } from './PrintTypes.js';
 import { PRINT_SERVICE_KEY } from './PrintTypes.js';
 
@@ -20,11 +20,12 @@ const PRINT_ICON: string =
 	'</svg>';
 
 /** No-op fallback service for environments without ShadowRoot. */
-const NOOP_SERVICE: PrintService = {
+const NOOP_SERVICE: ManagedPrintService = {
 	print(): void {},
 	toHTML(): string {
 		return '';
 	},
+	dispose(): void {},
 };
 
 export class PrintPlugin implements Plugin {
@@ -32,7 +33,7 @@ export class PrintPlugin implements Plugin {
 	readonly name = 'Print';
 
 	private readonly config: PrintPluginConfig;
-	private service: PrintService | null = null;
+	private service: ManagedPrintService | null = null;
 	private locale!: PrintLocale;
 
 	constructor(config?: PrintPluginConfig) {
@@ -91,6 +92,9 @@ export class PrintPlugin implements Plugin {
 	}
 
 	destroy(): void {
+		// A print still waiting on its iframe's load event must not pop the
+		// dialog after the editor is gone (e.g. after an SPA navigation).
+		this.service?.dispose();
 		this.service = null;
 	}
 }

@@ -4,6 +4,7 @@ import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
 	buildDocumentCSS,
 	buildShadowCSS,
+	collectInlineThemeTokens,
 	generateContentPrintCSS,
 	generateHostResetCSS,
 	generateLightThemeTokens,
@@ -69,9 +70,12 @@ describe('PrintStyleCollector', () => {
 	});
 
 	describe('generateLightThemeTokens', () => {
-		it('targets the given host selector with light theme custom properties', () => {
+		it('targets :root and the host selector with light theme custom properties', () => {
 			const result: string = generateLightThemeTokens('notectl-editor');
-			expect(result).toContain('notectl-editor {');
+			// :root makes the tokens inherit document-wide so page-level customCSS
+			// var() references resolve; the host selector re-pins them closer than
+			// the shadow :host defaults.
+			expect(result).toContain(':root, notectl-editor {');
 			expect(result).not.toContain(':host');
 			expect(result).toContain('--notectl-');
 		});
@@ -159,6 +163,25 @@ describe('PrintStyleCollector', () => {
 			const host: HTMLElement = attachedHost();
 			expect(snapshotThemeTokens(host)).toBe('');
 			document.body.removeChild(host);
+		});
+	});
+
+	describe('collectInlineThemeTokens', () => {
+		it('collects only --notectl-* declarations from the inline style', () => {
+			const el: HTMLElement = document.createElement('div');
+			el.style.setProperty('--notectl-bg', '#1e1e2e');
+			el.style.setProperty('--notectl-fg', '#cdd6f4');
+			el.style.setProperty('height', '400px');
+			el.style.setProperty('--other-token', 'red');
+
+			expect(collectInlineThemeTokens(el)).toBe('--notectl-bg: #1e1e2e; --notectl-fg: #cdd6f4');
+		});
+
+		it('returns empty string for elements without inline tokens', () => {
+			const el: HTMLElement = document.createElement('div');
+			el.style.setProperty('height', '400px');
+			expect(collectInlineThemeTokens(el)).toBe('');
+			expect(collectInlineThemeTokens(null)).toBe('');
 		});
 	});
 
@@ -325,6 +348,35 @@ describe('PrintStyleCollector', () => {
 			const host: HTMLElement = attachedHost();
 			const result: string = buildDocumentCSS(host, host, {});
 			expect(result).toContain('--notectl-');
+			document.body.removeChild(host);
+		});
+
+		it('emits the forced light tokens on :root and the host element', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, host, {});
+			// Without :root, page-level customCSS referencing var(--notectl-*)
+			// resolves to guaranteed-invalid in the print document.
+			expect(result).toContain(':root, notectl-editor {');
+			document.body.removeChild(host);
+		});
+
+		it('guards document-scope backgrounds with print-color-adjust', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
+			// The shadow-scope guard cannot reach body/html: without this the
+			// pinned carried background is stripped by the browser's default
+			// "no background graphics" print behavior.
+			const layerStart: number = result.indexOf('@layer notectl-print {');
+			const guard: number = result.indexOf('print-color-adjust: exact !important;');
+			expect(layerStart).toBeGreaterThanOrEqual(0);
+			expect(guard).toBeGreaterThan(layerStart);
+			document.body.removeChild(host);
+		});
+
+		it('omits the document-scope color-adjust guard when printBackground is false', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildDocumentCSS(host, host, { printBackground: false });
+			expect(result).not.toContain('print-color-adjust');
 			document.body.removeChild(host);
 		});
 

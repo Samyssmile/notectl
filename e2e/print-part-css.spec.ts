@@ -687,6 +687,77 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(forcedLight.bodyStyles['background-color']).toBe('rgb(255, 255, 255)');
 	});
 
+	test('forces print-color-adjust at document scope so the page background prints', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// The shadow-scope guard cannot reach body/html: without a document-scope
+		// copy the carried dark background is stripped by the browser's default
+		// "no background graphics" print behavior — near-white text on white
+		// paper.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			printOptions: { forceLightTheme: false },
+			properties: [],
+			bodyProperties: ['print-color-adjust'],
+		});
+		expect(probe.bodyStyles['print-color-adjust']).toBe('exact');
+	});
+
+	test('page-level customCSS can reference forced light theme tokens', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// The forced light tokens must live on :root, not only on the host
+		// element — otherwise a document-level var() reference resolves to
+		// guaranteed-invalid and the declaration collapses (border-top-style
+		// would stay none, computing to 0px width).
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			printOptions: { customCSS: 'body { border-top: 3px solid var(--notectl-primary); }' },
+			properties: [],
+			bodyProperties: ['border-top-width', 'border-top-style'],
+		});
+		expect(probe.bodyStyles['border-top-style']).toBe('solid');
+		expect(probe.bodyStyles['border-top-width']).toBe('3px');
+	});
+
+	test('carries runtime setProperty theme tokens when not forcing light', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Runtime theme switchers set tokens via JS setProperty — inline style on
+		// the editor element, the only page-side declaration that beats the
+		// shadow :host theme defaults for the token. The replica strips the
+		// style attribute, so without the token re-emission the copied
+		// stylesheet default would win in print.
+		await page.evaluate(() => {
+			const editorEl = document.querySelector<HTMLElement>('notectl-editor');
+			editorEl?.style.setProperty('--notectl-bg', 'rgb(10, 20, 30)');
+		});
+		try {
+			const probe: PrintCellProbeResult = await probePrintCell(page, {
+				hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(200, 200, 200); }' }],
+				printOptions: { forceLightTheme: false },
+				properties: [],
+				hostProperties: ['--notectl-bg'],
+			});
+			expect(
+				probe.hostStyles['--notectl-bg'].trim(),
+				'inline token must beat the copied stylesheet default, exactly as live',
+			).toBe('rgb(10, 20, 30)');
+		} finally {
+			await page.evaluate(() => {
+				const editorEl = document.querySelector<HTMLElement>('notectl-editor');
+				editorEl?.style.removeProperty('--notectl-bg');
+			});
+		}
+	});
+
 	test('injected print output stays static and never boots a live editor', async ({
 		editor,
 		page,
@@ -704,6 +775,14 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			const printService = editorEl.getService({ id: 'print' });
 			if (!printService) throw new Error('print service missing');
 			const html: string = printService.toHTML({});
+
+			// A page-level element matching a shadow-scope selector: the fallback
+			// carries a copy of the shadow CSS (including the !important content
+			// unclip rules), which must stay @scope'd to the fallback subtree.
+			const leakProbe: HTMLElement = document.createElement('div');
+			leakProbe.className = 'notectl-content';
+			leakProbe.style.maxHeight = '50px';
+			document.body.appendChild(leakProbe);
 
 			// The documented consumption path: setHTMLUnsafe parses declarative
 			// shadow DOM, and <notectl-editor> is registered in this page, so the
@@ -725,9 +804,11 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 						replica.shadowRoot
 							?.querySelector('.notectl-content')
 							?.getAttribute('contenteditable') ?? null,
+					probeMaxHeight: getComputedStyle(leakProbe).maxHeight,
 				};
 			} finally {
 				wrapper.remove();
+				leakProbe.remove();
 			}
 		});
 
@@ -736,6 +817,10 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(result.hasTableCell, 'replicated content must survive the upgrade').toBe(true);
 		expect(result.hasToolbar, 'no live editor may boot over the print markup').toBe(false);
 		expect(result.contentEditable, 'print content must stay non-editable').toBeNull();
+		expect(
+			result.probeMaxHeight,
+			'embedded fallback styles must not leak onto the embedding page',
+		).toBe('50px');
 	});
 
 	test('fallback script attaches the shadow root for non-DSD parsers', async ({ editor, page }) => {
@@ -778,6 +863,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 					hasShadowAfter: replica.shadowRoot !== null,
 					hasTableCell: !!replica.shadowRoot?.querySelector('[part~="table-cell"]'),
 					templateGone: !replica.querySelector('template[shadowrootmode]'),
+					fallbackGone: !replica.querySelector('[data-notectl-print-fallback]'),
 				};
 			} finally {
 				frame.remove();
@@ -788,6 +874,115 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(result.hasShadowAfter, 'fallback script must attach the shadow root').toBe(true);
 		expect(result.hasTableCell, 'content must be visible after the fallback').toBe(true);
 		expect(result.templateGone).toBe(true);
+		expect(result.fallbackGone, 'script must drop the static fallback to avoid doubled text').toBe(
+			true,
+		);
+	});
+
+	test('innerHTML injection renders the static fallback instead of a blank page', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(() => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			const html: string = printService.toHTML({});
+
+			// The worst-case consumption path: innerHTML gives neither declarative
+			// shadow DOM parsing nor script execution. The unslotted light-DOM
+			// fallback must render readable, statically styled output.
+			const frame: HTMLIFrameElement = document.createElement('iframe');
+			frame.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px;border:none';
+			document.body.appendChild(frame);
+			try {
+				const frameDoc = frame.contentDocument;
+				const frameWin = frame.contentWindow;
+				if (!frameDoc || !frameWin) throw new Error('iframe document missing');
+				frameDoc.body.innerHTML = html;
+
+				const replica = frameDoc.querySelector<HTMLElement>('notectl-editor');
+				if (!replica) throw new Error('replica missing');
+				const fallback = replica.querySelector<HTMLElement>('[data-notectl-print-fallback]');
+				const cell = fallback?.querySelector<HTMLElement>('[part~="table-cell"]');
+				return {
+					hasShadow: replica.shadowRoot !== null,
+					hasFallback: !!fallback,
+					hasCell: !!cell,
+					cellDisplay: cell ? frameWin.getComputedStyle(cell).display : '',
+					cellPaddingTop: cell ? frameWin.getComputedStyle(cell).paddingTop : '',
+				};
+			} finally {
+				frame.remove();
+			}
+		});
+
+		expect(result.hasShadow).toBe(false);
+		expect(result.hasFallback, 'the static fallback must survive innerHTML parsing').toBe(true);
+		expect(result.hasCell, 'the fallback must carry the full content').toBe(true);
+		expect(result.cellDisplay, 'the fallback content must render').not.toBe('none');
+		// The fallback embeds the shadow CSS statically: the editor base rule
+		// .notectl-table td { padding: 8px 12px } applies at document level.
+		expect(result.cellPaddingTop, 'the fallback must be statically styled').toBe('8px');
+	});
+
+	test('a replica with a stripped static marker boots a clean editor, never a stacked one', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(async () => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			// A sanitizer or template pipeline may strip the data-notectl-static
+			// marker from the replica host tag. The upgrade must then restore the
+			// pre-DSD invariant: clear the declarative content and boot a clean
+			// editor — never a live editor stacked below leftover print markup.
+			const html: string = printService.toHTML({}).replace(' data-notectl-static>', '>');
+
+			const wrapper: HTMLElement = document.createElement('div');
+			document.body.appendChild(wrapper);
+			try {
+				(wrapper as HTMLElement & { setHTMLUnsafe(markup: string): void }).setHTMLUnsafe(html);
+				const replica = wrapper.querySelector<HTMLElement>('notectl-editor');
+				if (!replica) throw new Error('replica missing after injection');
+
+				// Wait for the scheduled auto-init to boot the clean editor.
+				const deadline: number = Date.now() + 5000;
+				while (!replica.shadowRoot?.querySelector('.notectl-content')) {
+					if (Date.now() > deadline) break;
+					await new Promise((resolve) => setTimeout(resolve, 50));
+				}
+
+				return {
+					hasStaticMarker: replica.hasAttribute('data-notectl-static'),
+					printCellCount: replica.shadowRoot?.querySelectorAll('[part~="table-cell"]').length ?? -1,
+					contentCount: replica.shadowRoot?.querySelectorAll('.notectl-content').length ?? -1,
+				};
+			} finally {
+				wrapper.remove();
+			}
+		});
+
+		expect(result.hasStaticMarker).toBe(false);
+		expect(result.printCellCount, 'replicated print markup must be cleared on upgrade').toBe(0);
+		expect(result.contentCount, 'exactly one clean live editor must boot').toBe(1);
 	});
 
 	test('rebases relative url() references against the stylesheet location', async ({
@@ -909,6 +1104,104 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		} finally {
 			await page.evaluate(() => {
 				document.getElementById('notectl-202-layer-import-css')?.remove();
+			});
+		}
+	});
+
+	test('keeps cross-origin sheets at their source-order position in the print cascade', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// A cross-origin sheet (no CORS: cssRules throws) is re-referenced via
+		// @import. Live it loads after the local 7px rule and wins the
+		// equal-specificity tie by source order; hoisting it ahead of the copied
+		// rules would flip the tie in print.
+		await page.route('**/notectl-cdn.example/cdn-theme.css', (route) =>
+			route.fulfill({
+				contentType: 'text/css',
+				body: 'notectl-editor::part(table-cell) { padding-top: 3px; }',
+			}),
+		);
+		await page.evaluate(async () => {
+			const local: HTMLStyleElement = document.createElement('style');
+			local.id = 'notectl-202-order-local';
+			local.textContent = 'notectl-editor::part(table-cell) { padding-top: 7px; }';
+			document.head.appendChild(local);
+
+			const link: HTMLLinkElement = document.createElement('link');
+			link.id = 'notectl-202-order-cdn';
+			link.rel = 'stylesheet';
+			link.href = 'https://notectl-cdn.example/cdn-theme.css';
+			const loaded: Promise<void> = new Promise((resolve, reject) => {
+				link.onload = (): void => resolve();
+				link.onerror = (): void => reject(new Error('cdn stylesheet failed to load'));
+			});
+			document.head.appendChild(link);
+			await loaded;
+		});
+
+		try {
+			const result = await page.evaluate(async () => {
+				type PrintService = { toHTML(options: Record<string, unknown>): string };
+				type EditorEl = HTMLElement & {
+					getService(key: { id: string }): PrintService | undefined;
+				};
+				const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+				if (!editorEl) throw new Error('editor element missing');
+				const liveCell = editorEl.shadowRoot?.querySelector<HTMLElement>('[part~="table-cell"]');
+				if (!liveCell) throw new Error('live table cell missing');
+				const livePadding: string = getComputedStyle(liveCell).paddingTop;
+
+				const printService = editorEl.getService({ id: 'print' });
+				if (!printService) throw new Error('print service missing');
+				const html: string = printService.toHTML({});
+
+				const frame: HTMLIFrameElement = document.createElement('iframe');
+				frame.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px;border:none';
+				document.body.appendChild(frame);
+				try {
+					const frameDoc = frame.contentDocument;
+					const frameWin = frame.contentWindow;
+					if (!frameDoc || !frameWin) throw new Error('iframe document missing');
+					frameDoc.open();
+					frameDoc.write(html);
+					frameDoc.close();
+
+					const printHost = frameDoc.querySelector<HTMLElement>('notectl-editor');
+					const printCell =
+						printHost?.shadowRoot?.querySelector<HTMLElement>('[part~="table-cell"]');
+					if (!printCell) throw new Error('print table cell missing');
+
+					// The hoisted @import loads asynchronously in the print frame; the
+					// copied local 7px rule applies immediately, so poll until the
+					// import result (3px) lands. On regression the value stays 7px and
+					// the deadline surfaces it.
+					const deadline: number = Date.now() + 5000;
+					let printPadding: string = frameWin.getComputedStyle(printCell).paddingTop;
+					while (printPadding !== '3px') {
+						if (Date.now() > deadline) break;
+						await new Promise((resolve) => setTimeout(resolve, 25));
+						printPadding = frameWin.getComputedStyle(printCell).paddingTop;
+					}
+					return { livePadding, printPadding };
+				} finally {
+					frame.remove();
+				}
+			});
+
+			// Setup validity: the later cross-origin rule wins the tie live.
+			expect(result.livePadding, 'cdn sheet must win the source-order tie live').toBe('3px');
+			expect(
+				result.printPadding,
+				'print cascade must keep the live source order for hoisted sheets',
+			).toBe('3px');
+		} finally {
+			await page.evaluate(() => {
+				document.getElementById('notectl-202-order-local')?.remove();
+				document.getElementById('notectl-202-order-cdn')?.remove();
 			});
 		}
 	});
