@@ -84,15 +84,26 @@ function appendToken(token: BlockToken, blocks: BlockNode[], ctx: ParseContext):
 		case 'hr':
 			blocks.push(makeBlock('horizontal_rule', [createTextNode('')], ctx));
 			return;
-		case 'list_item':
-			blocks.push(
-				makeBlock('list_item', parseInline(token.text, ctx), ctx, {
-					listType: token.listType,
-					indent: token.indent,
-					checked: token.checked,
-				}),
-			);
+		case 'list_item': {
+			const attrs: Record<string, string | number | boolean> = {
+				listType: token.listType,
+				indent: token.indent,
+				checked: token.checked,
+			};
+			if (token.children && token.children.length > 0) {
+				// Multi-block item (#194): a container whose children are blocks.
+				const children: BlockNode[] = tokensToBlocks(token.children, ctx);
+				if (ctx.registry && !ctx.registry.getNodeSpec('list_item')) {
+					// Type unavailable: degrade to the children as top-level blocks.
+					blocks.push(...children);
+					return;
+				}
+				blocks.push(createBlockNode(nodeType('list_item'), children, undefined, attrs));
+				return;
+			}
+			blocks.push(makeBlock('list_item', parseInline(token.text, ctx), ctx, attrs));
 			return;
+		}
 		case 'blockquote': {
 			const children: BlockNode[] = tokensToBlocks(token.children, ctx);
 			if (children.length === 0) {

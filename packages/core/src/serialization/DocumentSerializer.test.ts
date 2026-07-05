@@ -955,6 +955,45 @@ describe('serializeDocumentToHTML', () => {
 			expect(stripBlockIds(html)).toContain('Todo');
 		});
 
+		it('serializes a container item with block children (#194)', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				createBlockNode(
+					nodeType('list_item'),
+					[
+						createBlockNode(nodeType('paragraph'), [createTextNode('first')]),
+						createBlockNode(nodeType('paragraph'), [createTextNode('second')]),
+					],
+					undefined,
+					{ listType: 'bullet', indent: 0, checked: false },
+				),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(stripBlockIds(html)).toBe('<ul><li><p>first</p><p>second</p></li></ul>');
+		});
+
+		it('serializes a checklist container with the checkbox before the block children (#194)', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				createBlockNode(
+					nodeType('list_item'),
+					[
+						createBlockNode(nodeType('paragraph'), [createTextNode('done')]),
+						createBlockNode(nodeType('paragraph'), [createTextNode('details')]),
+					],
+					undefined,
+					{ listType: 'checklist', indent: 0, checked: true },
+				),
+			]);
+
+			const html: string = stripBlockIds(serializeDocumentToHTML(doc, registry));
+			expect(html).toBe(
+				'<ul><li role="checkbox" aria-checked="true">' +
+					'<input type="checkbox" disabled="" checked=""><p>done</p><p>details</p></li></ul>',
+			);
+		});
+
 		it('serializes mixed ordered/bullet list types', () => {
 			const registry: SchemaRegistry = createListRegistry();
 			const doc = createDocument([

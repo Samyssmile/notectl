@@ -7,13 +7,15 @@
  * cannot be decomposed into per-spec rules (D4). `MarkdownParser` maps these
  * tokens to schema node types by name.
  *
- * Scope notes: list items use the editor's flat-with-indent model (indent =
- * floor(leadingColumns / 2), matching the serializer); multi-block list items
- * degrade to following blocks (D9), while plain lazy continuation lines fold
- * into the item's text. Blockquotes support lazy paragraph continuation.
- * Indented (4-space / tab) code blocks are recognized (#195), except directly
- * after a list item plus blank line, where CommonMark reads them as list
- * continuation content and the flat model degrades to a paragraph (D9).
+ * List items follow CommonMark content-column semantics (#194): each item owns
+ * a content column derived from its marker; subsequent lines indented at least
+ * that far are the item's own content region, dedented and tokenized
+ * recursively. A region that yields a single paragraph keeps the item a leaf;
+ * anything else makes the item a container with block children. Nested list
+ * items are hoisted out of the region into flat siblings (the editor's
+ * flat-with-indent sibling model, indent = nesting level). Markers indented
+ * four or more columns are not markers (indented code / lazy text, per spec).
+ * Blockquotes support lazy paragraph continuation, and so do list items.
  */
 
 import type { MarkdownSyntaxExtension } from '../../model/MarkdownSyntaxRegistry.js';
@@ -32,7 +34,10 @@ export type BlockToken =
 			readonly listType: 'bullet' | 'ordered' | 'checklist';
 			readonly indent: number;
 			readonly checked: boolean;
+			/** Inline text of a leaf item; empty when `children` is present. */
 			readonly text: string;
+			/** Block children of a multi-block (container) item, absent for leaves. */
+			readonly children?: readonly BlockToken[];
 	  }
 	| { readonly type: 'html'; readonly html: string }
 	| {
@@ -97,8 +102,6 @@ const BLOCKQUOTE = /^ {0,3}>[ ]?/;
 const BULLET_ITEM = /^([ \t]*)([-*+])(?:([ \t]+)(.*))?$/;
 const ORDERED_ITEM = /^([ \t]*)(\d{1,9})([.)])(?:([ \t]+)(.*))?$/;
 const TASK_PREFIX = /^\[([ xX])\][ \t]+(.*)$/;
-/** Item content that is itself a list marker (`- - foo` chains nested items). */
-const LIST_MARKER_START = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 // Exported alongside the other grammar patterns so the serializer's line-start
 // escaping re-parses paragraph lines with the exact same rules (single source of
 // truth: a line the tokenizer would read as a setext underline gets escaped).
@@ -106,19 +109,22 @@ export const SETEXT_H1 = /^ {0,3}=+[ \t]*$/;
 export const SETEXT_H2 = /^ {0,3}-+[ \t]*$/;
 const HTML_BLOCK_START = /^ {0,3}<(\/?)([a-zA-Z][a-zA-Z0-9-]*)|^ {0,3}<!--/;
 
-const SPACES_PER_INDENT = 2;
-
 /** Leading-whitespace columns that open an indented code block (CommonMark). */
 const INDENTED_CODE_COLUMNS = 4;
 
+/** Maximum leading columns of a list marker; deeper markers are code/lazy text. */
+const MAX_MARKER_INDENT_COLUMNS = 3;
+
 /**
- * Maximum blockquote nesting before `>` prefixes are treated as literal text.
- * Each level recurses (`tokenizeLines` → `consumeBlockquote` → `tokenizeLines`),
- * so an adversarial paste of thousands of `>` would overflow the stack. The cap
- * keeps recursion bounded; deeper content degrades to a paragraph (no data loss,
- * the `>` characters are preserved). Real documents never nest this deep.
+ * Maximum container nesting (blockquotes, list-item regions) before the
+ * construct is treated as literal text. Each level recurses
+ * (`tokenizeLines` → container consumer → `tokenizeLines`), so an adversarial
+ * paste of thousands of `>`/`-` prefixes would overflow the stack. The cap
+ * keeps recursion bounded; deeper content degrades to a paragraph (no data
+ * loss, the marker characters are preserved). Real documents never nest this
+ * deep.
  */
-const MAX_BLOCKQUOTE_DEPTH = 32;
+const MAX_CONTAINER_DEPTH = 32;
 
 function isBlank(line: string): boolean {
 	return line.trim() === '';
@@ -209,7 +215,7 @@ function tokenizeLines(
 		if (BLOCKQUOTE.test(line)) {
 			// Depth guard: past the cap, stop recursing and keep the `>` lines as
 			// literal paragraph text rather than overflowing the stack.
-			if (depth >= MAX_BLOCKQUOTE_DEPTH) {
+			if (depth >= MAX_CONTAINER_DEPTH) {
 				i = consumeParagraph(lines, i, tokens);
 				continue;
 			}
@@ -217,14 +223,13 @@ function tokenizeLines(
 			continue;
 		}
 
-		const items: BlockToken[] | null = matchListItems(line);
-		if (items) {
-			i = consumeListItemContinuation(lines, i + 1, items, gfm);
-			tokens.push(...items);
+		const marker: ListMarker | null = depth < MAX_CONTAINER_DEPTH ? matchListMarker(line) : null;
+		if (marker) {
+			i = consumeListItem(lines, i, marker, tokens, gfm, extensions, depth);
 			continue;
 		}
 
-		if (canStartIndentedCode(line, tokens)) {
+		if (canStartIndentedCode(line)) {
 			i = consumeIndentedCode(lines, i, tokens);
 			continue;
 		}
@@ -279,16 +284,12 @@ function stripLeadingSpaces(line: string, max: number): string {
 
 /**
  * Whether a line opens an indented code block (#195): at least four columns of
- * leading whitespace (tab-aware). Skipped directly after a list item, where
- * indented content is list continuation in CommonMark; the flat list model
- * degrades that to a paragraph (D9), which must not silently become code.
- * List-shaped and table-shaped lines never reach this check (they match
- * earlier), which keeps the flat-with-indent list round-trip intact.
+ * leading whitespace (tab-aware). Indented content that belongs to an open
+ * list item never reaches this check — it is consumed into the item's content
+ * region first (#194).
  */
-function canStartIndentedCode(line: string, tokens: readonly BlockToken[]): boolean {
-	if (indentColumns(line) < INDENTED_CODE_COLUMNS) return false;
-	const last: BlockToken | undefined = tokens[tokens.length - 1];
-	return last?.type !== 'list_item';
+function canStartIndentedCode(line: string): boolean {
+	return indentColumns(line) >= INDENTED_CODE_COLUMNS;
 }
 
 /** Columns of leading whitespace, with tabs advancing to 4-column tab stops. */
@@ -302,27 +303,23 @@ function indentColumns(line: string): number {
 	return col;
 }
 
-/** Strips up to `columns` columns of leading whitespace (tab-aware). */
+/**
+ * Strips `columns` columns of leading whitespace (tab-aware). The remaining
+ * leading whitespace is re-emitted as spaces measured in absolute columns:
+ * tab stops depend on the column a tab starts in, so dedented lines must not
+ * carry raw tabs whose width would be recomputed in the wrong context.
+ */
 function stripIndent(line: string, columns: number): string {
 	let col = 0;
 	let i = 0;
-	while (i < line.length && col < columns) {
+	while (i < line.length) {
 		const ch: string = line[i] ?? '';
-		if (ch === ' ') {
-			col++;
-			i++;
-			continue;
-		}
-		if (ch === '\t') {
-			col += 4 - (col % 4);
-			i++;
-			// A tab crossing the strip boundary re-expands into the excess spaces.
-			if (col > columns) return ' '.repeat(col - columns) + line.slice(i);
-			continue;
-		}
-		break;
+		if (ch === ' ') col++;
+		else if (ch === '\t') col += 4 - (col % 4);
+		else break;
+		i++;
 	}
-	return line.slice(i);
+	return ' '.repeat(Math.max(0, col - columns)) + line.slice(i);
 }
 
 /**
@@ -413,129 +410,263 @@ function consumeBlockquote(
 	return i;
 }
 
-/** Whether a stripped quote line leaves a paragraph open (at any nesting depth). */
+/**
+ * Whether a stripped container line leaves a paragraph open at its innermost
+ * level: quote prefixes and list markers are peeled off (`> 1. > text` opens a
+ * paragraph two containers deep, which a lazy line may continue).
+ */
 function continuesAsParagraph(stripped: string): boolean {
 	let content: string = stripped;
-	while (BLOCKQUOTE.test(content)) content = content.replace(BLOCKQUOTE, '');
+	for (;;) {
+		if (BLOCKQUOTE.test(content)) {
+			content = content.replace(BLOCKQUOTE, '');
+			continue;
+		}
+		const marker: ListMarker | null = matchListMarker(content);
+		if (marker && marker.firstText !== '') {
+			content = marker.firstText;
+			continue;
+		}
+		break;
+	}
 	if (content.trim() === '' || interruptsParagraph(content)) return false;
 	// An indented-code line is not a paragraph, so nothing can lazily continue it.
 	return indentColumns(content) < INDENTED_CODE_COLUMNS;
 }
 
-/** One parsed list marker: the item token plus chain/interrupt metadata. */
-interface ListMarkerMatch {
-	readonly token: BlockToken & { readonly type: 'list_item' };
-	/** Synthetic line for a nested marker inside the content (`- - foo`), or null. */
-	readonly nestedLine: string | null;
+/** Geometry and metadata of a single list-marker line. */
+interface ListMarker {
+	readonly listType: 'bullet' | 'ordered' | 'checklist';
+	readonly checked: boolean;
+	/** Column where the item's content begins; region lines must reach it. */
+	readonly contentColumn: number;
+	/** The marker line's own content (task prefix stripped), '' for empty items. */
+	readonly firstText: string;
 	/** The ordered start number (1 for bullets). */
 	readonly startNumber: number;
 }
 
-/**
- * Parses the list marker(s) on a line, or null if the line is not a list item.
- * Content that is itself a marker chains into nested items (`- - foo` is an
- * empty bullet holding a nested bullet "foo"), re-parsed at the content column.
- */
-function matchListItems(line: string): BlockToken[] | null {
-	const out: BlockToken[] = [];
-	let current: string = line;
-	for (;;) {
-		const match: ListMarkerMatch | null = matchSingleListItem(current);
-		if (!match) break;
-		out.push(match.token);
-		if (match.nestedLine === null) break;
-		current = match.nestedLine;
+/** Columns spanned by a whitespace run starting at an absolute column. */
+function columnsFrom(start: number, whitespace: string): number {
+	let col: number = start;
+	for (const ch of whitespace) {
+		if (ch === ' ') col++;
+		else if (ch === '\t') col += 4 - (col % 4);
+		else break;
 	}
-	return out.length > 0 ? out : null;
+	return col - start;
 }
 
-/** Parses a single list marker on a line, or null. */
-function matchSingleListItem(line: string): ListMarkerMatch | null {
+/**
+ * Parses a list-marker line into its content-column geometry, or null when the
+ * line is not a valid marker: markers indented four or more columns are
+ * indented code or lazy text, never list items (CommonMark).
+ */
+function matchListMarker(line: string): ListMarker | null {
 	const bullet: RegExpMatchArray | null = line.match(BULLET_ITEM);
 	const ordered: RegExpMatchArray | null = bullet ? null : line.match(ORDERED_ITEM);
 	const match: RegExpMatchArray | null = bullet ?? ordered;
 	if (!match) return null;
 
-	const leading: string = match[1] ?? '';
-	const leadingColumns: number = indentColumns(leading);
-	const indent: number = Math.floor(leadingColumns / SPACES_PER_INDENT);
-	const marker: string = (bullet ? match[2] : `${match[2]}${match[3]}`) ?? '-';
-	const rawContent: string = ((bullet ? match[4] : match[5]) ?? '').trimEnd();
+	const leadingColumns: number = indentColumns(match[1] ?? '');
+	if (leadingColumns > MAX_MARKER_INDENT_COLUMNS) return null;
+
+	const markerText: string = (bullet ? match[2] : `${match[2]}${match[3]}`) ?? '-';
+	const markerEnd: number = leadingColumns + markerText.length;
+	const spacing: string = (bullet ? match[3] : match[4]) ?? '';
+	const spacingColumns: number = columnsFrom(markerEnd, spacing);
+	const rawContent: string = (bullet ? match[4] : match[5]) ?? '';
 	const startNumber: number = ordered ? Number.parseInt(match[2] ?? '1', 10) : 1;
 
-	const task: RegExpMatchArray | null = rawContent.match(TASK_PREFIX);
+	let contentColumn: number;
+	let firstText: string;
+	if (rawContent.trim() === '') {
+		contentColumn = markerEnd + 1;
+		firstText = '';
+	} else if (spacingColumns >= 5) {
+		// Content five or more columns past the marker starts as indented code;
+		// the content column sits one past the marker (CommonMark).
+		contentColumn = markerEnd + 1;
+		firstText = ' '.repeat(spacingColumns - 1) + rawContent;
+	} else {
+		contentColumn = markerEnd + spacingColumns;
+		firstText = rawContent;
+	}
+
+	const task: RegExpMatchArray | null = firstText.match(TASK_PREFIX);
 	if (task) {
 		return {
-			token: {
-				type: 'list_item',
-				listType: 'checklist',
-				indent,
-				checked: (task[1] ?? ' ').toLowerCase() === 'x',
-				text: (task[2] ?? '').trimEnd(),
-			},
-			nestedLine: null,
+			listType: 'checklist',
+			checked: (task[1] ?? ' ').toLowerCase() === 'x',
+			contentColumn,
+			firstText: task[2] ?? '',
 			startNumber,
 		};
 	}
-
-	if (LIST_MARKER_START.test(rawContent)) {
-		// The content column is where the nested marker's own line begins.
-		const contentColumn: number = leadingColumns + marker.length + 1;
-		return {
-			token: {
-				type: 'list_item',
-				listType: ordered ? 'ordered' : 'bullet',
-				indent,
-				checked: false,
-				text: '',
-			},
-			nestedLine: `${' '.repeat(contentColumn)}${rawContent}`,
-			startNumber,
-		};
-	}
-
 	return {
-		token: {
-			type: 'list_item',
-			listType: ordered ? 'ordered' : 'bullet',
-			indent,
-			checked: false,
-			text: rawContent,
-		},
-		nestedLine: null,
+		listType: ordered ? 'ordered' : 'bullet',
+		checked: false,
+		contentColumn,
+		firstText,
 		startNumber,
 	};
 }
 
 /**
- * Consumes lazy continuation lines of the last list item: a plain line that
- * does not start another block continues the item's (tight) paragraph, per
- * CommonMark. Returns the next line index and rewrites the item's text.
+ * Consumes one list item: the marker line plus its content region — every
+ * following line indented to the content column (dedented), interior blank
+ * lines, and lazy paragraph continuation lines. The collected content is
+ * tokenized recursively; nested list items are hoisted into flat siblings.
+ * Returns the next line index.
  */
-function consumeListItemContinuation(
+function consumeListItem(
 	lines: readonly string[],
 	start: number,
-	items: BlockToken[],
+	marker: ListMarker,
+	tokens: BlockToken[],
 	gfm: boolean,
+	extensions: readonly MarkdownSyntaxExtension[],
+	depth: number,
 ): number {
-	const last: BlockToken | undefined = items[items.length - 1];
-	if (!last || last.type !== 'list_item') return start;
-	const collected: string[] = [];
-	let i: number = start;
+	const region: string[] = [];
+	const tracker: (line: string) => boolean = createParagraphTracker();
+	let firstText: string = marker.firstText;
+	let paragraphOpen: boolean = firstText === '' ? false : tracker(firstText);
+	let pendingBlanks = 0;
+	let i: number = start + 1;
+
 	while (i < lines.length) {
 		const line: string = lines[i] ?? '';
-		// Any list-marker line is a sibling item, never lazy text (the
+
+		if (isBlank(line)) {
+			// An item may begin with at most one blank line: a marker with no
+			// content followed by a blank line stays an empty item (CommonMark).
+			if (firstText === '' && region.length === 0) break;
+			pendingBlanks++;
+			paragraphOpen = false;
+			i++;
+			continue;
+		}
+
+		if (indentColumns(line) >= marker.contentColumn) {
+			while (pendingBlanks > 0) {
+				region.push('');
+				pendingBlanks--;
+			}
+			const dedented: string = stripIndent(line, marker.contentColumn);
+			region.push(dedented);
+			paragraphOpen = tracker(dedented);
+			i++;
+			continue;
+		}
+
+		// Under-indented: only a lazy paragraph continuation keeps the item open.
+		// Any valid marker line is a sibling item, never lazy text (the
 		// ordered-must-start-at-1 interrupt rule applies to paragraphs only).
-		if (isBlank(line) || matchSingleListItem(line) || interruptsParagraph(line)) break;
+		if (matchListMarker(line)) break;
+		if (!paragraphOpen) break;
+		if (interruptsParagraph(line)) break;
 		if (gfm && matchTable(lines, i, interruptsParagraph)) break;
-		collected.push(line.trim());
+		// A lazy line belongs textually to the open paragraph: fold it into the
+		// previous logical line so it can never re-parse as a block start in the
+		// item's sub-document (`- d\n    - e` keeps "- e" as paragraph text).
+		const lazy: string = line.trimStart();
+		const lastRegionLine: string | undefined = region[region.length - 1];
+		if (lastRegionLine !== undefined) {
+			region[region.length - 1] = `${lastRegionLine}\n${lazy}`;
+		} else {
+			firstText = firstText === '' ? lazy : `${firstText}\n${lazy}`;
+		}
+		paragraphOpen = tracker(lazy);
 		i++;
 	}
-	if (collected.length > 0) {
-		const parts: string[] = last.text === '' ? collected : [last.text, ...collected];
-		items[items.length - 1] = { ...last, text: parts.join('\n') };
-	}
+
+	appendListItemTokens(marker, firstText, region, tokens, gfm, extensions, depth);
 	return i;
+}
+
+/**
+ * Tracks whether the innermost open block of an item's content region is a
+ * paragraph — the precondition for lazy continuation. Fenced code suspends
+ * laziness until the fence closes; block starters and indented code lines
+ * close the paragraph.
+ */
+function createParagraphTracker(): (line: string) => boolean {
+	let closeRe: RegExp | null = null;
+	return (line: string): boolean => {
+		if (closeRe) {
+			if (closeRe.test(line)) closeRe = null;
+			return false;
+		}
+		const fence: RegExpMatchArray | null = matchFenceOpen(line);
+		if (fence) {
+			const fenceStr: string = fence[1] ?? '```';
+			const fenceChar: string = fenceStr[0] ?? '`';
+			closeRe = new RegExp(`^ {0,3}${`\\${fenceChar}`}{${fenceStr.length},}[ \\t]*$`);
+			return false;
+		}
+		if (isBlank(line)) return false;
+		if (BLOCKQUOTE.test(line) || matchListMarker(line)) return continuesAsParagraph(line);
+		if (indentColumns(line) >= INDENTED_CODE_COLUMNS) return false;
+		return !interruptsParagraph(line);
+	};
+}
+
+/**
+ * Builds the item token(s) from the marker line and its dedented content
+ * region: the content is tokenized recursively; a single-paragraph result
+ * keeps the item a leaf, anything else becomes a container with block
+ * children. Nested list items are hoisted out into flat siblings one indent
+ * deeper (the editor's flat-with-indent sibling model).
+ */
+function appendListItemTokens(
+	marker: ListMarker,
+	firstText: string,
+	region: readonly string[],
+	tokens: BlockToken[],
+	gfm: boolean,
+	extensions: readonly MarkdownSyntaxExtension[],
+	depth: number,
+): void {
+	const subLines: string[] = firstText === '' ? [...region] : [firstText, ...region];
+	const subTokens: BlockToken[] =
+		subLines.length === 0 ? [] : tokenizeLines(subLines, gfm, extensions, depth + 1);
+
+	const lifted: BlockToken[] = [];
+	const own: BlockToken[] = [];
+	for (const token of subTokens) {
+		if (token.type === 'list_item') {
+			lifted.push({ ...token, indent: token.indent + 1 });
+		} else {
+			own.push(token);
+		}
+	}
+
+	const first: BlockToken | undefined = own[0];
+	if (own.length === 1 && first?.type === 'paragraph') {
+		tokens.push(makeListItemToken(marker, first.text));
+	} else if (own.length === 0) {
+		tokens.push(makeListItemToken(marker, ''));
+	} else {
+		tokens.push(makeListItemToken(marker, '', own));
+	}
+	tokens.push(...lifted);
+}
+
+/** Builds a `list_item` token at indent 0 of the current tokenization level. */
+function makeListItemToken(
+	marker: ListMarker,
+	text: string,
+	children?: readonly BlockToken[],
+): BlockToken {
+	const base = {
+		type: 'list_item' as const,
+		listType: marker.listType,
+		indent: 0,
+		checked: marker.checked,
+		text,
+	};
+	return children ? { ...base, children } : base;
 }
 
 /**
@@ -544,14 +675,10 @@ function consumeListItemContinuation(
  * must not begin a list).
  */
 function listItemInterrupts(line: string): boolean {
-	const match: ListMarkerMatch | null = matchSingleListItem(line);
-	if (!match) return false;
-	if (match.token.type === 'list_item' && match.token.text === '' && match.nestedLine === null) {
-		return false;
-	}
-	if (match.token.type === 'list_item' && match.token.listType === 'ordered') {
-		return match.startNumber === 1;
-	}
+	const marker: ListMarker | null = matchListMarker(line);
+	if (!marker) return false;
+	if (marker.firstText.trim() === '') return false;
+	if (marker.listType === 'ordered') return marker.startNumber === 1;
 	return true;
 }
 

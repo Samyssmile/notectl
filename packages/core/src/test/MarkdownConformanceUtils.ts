@@ -208,39 +208,64 @@ function convertList(el: Element, ordered: boolean, indent: number, out: string[
 	}
 }
 
+/**
+ * Converts a `<li>`. Single-paragraph/inline items render as leaves; items
+ * with further block children (second paragraph, code, quote, heading, hr)
+ * render as containers with block children (#194). Nested `<ul>`/`<ol>` are
+ * hoisted into flat siblings one indent deeper (the flat-with-indent sibling
+ * model); block content *after* a nested list cannot keep its item-relative
+ * order in that model and stays unsupported (gate B).
+ */
 function convertListItem(li: Element, ordered: boolean, indent: number, out: string[]): void {
 	const nestedLists: Element[] = [];
+	const blockChildren: string[] = [];
 	const inlineHolder: Element = document.createElement('div');
 	let checked: boolean | null = null;
-	let paragraphCount = 0;
+	let sawLeadingParagraph = false;
 
 	for (const child of Array.from(li.childNodes)) {
-		if (child.nodeType === 1) {
-			const tag: string = (child as Element).tagName.toLowerCase();
-			if (tag === 'ul' || tag === 'ol') {
-				nestedLists.push(child as Element);
-				continue;
+		if (child.nodeType !== 1) {
+			const isWhitespace: boolean = (child.textContent ?? '').trim() === '';
+			if (blockChildren.length > 0 || nestedLists.length > 0) {
+				if (isWhitespace) continue;
+				throw new UnsupportedConstruct('inline content after block content in a list item');
 			}
-			if (tag === 'p') {
-				paragraphCount++;
-				if (paragraphCount > 1) throw new UnsupportedConstruct('multi-block list item (D9)');
-				for (const inner of Array.from(child.childNodes)) {
-					inlineHolder.appendChild(inner.cloneNode(true));
-				}
-				continue;
-			}
-			if (tag === 'input') {
-				// GFM task list checkbox.
-				checked = (child as Element).hasAttribute('checked');
-				continue;
-			}
-			if (isInlineTag(tag)) {
-				inlineHolder.appendChild(child.cloneNode(true));
-				continue;
-			}
-			throw new UnsupportedConstruct(`multi-block list item (D9): <${tag}>`);
+			inlineHolder.appendChild(child.cloneNode(true));
+			continue;
 		}
-		inlineHolder.appendChild(child.cloneNode(true));
+
+		const el = child as Element;
+		const tag: string = el.tagName.toLowerCase();
+		if (tag === 'ul' || tag === 'ol') {
+			nestedLists.push(el);
+			continue;
+		}
+		if (tag === 'input') {
+			// GFM task list checkbox.
+			checked = el.hasAttribute('checked');
+			continue;
+		}
+		const leading: boolean = blockChildren.length === 0 && nestedLists.length === 0;
+		if (tag === 'p' && leading && !sawLeadingParagraph) {
+			sawLeadingParagraph = true;
+			for (const inner of Array.from(el.childNodes)) {
+				inlineHolder.appendChild(inner.cloneNode(true));
+			}
+			continue;
+		}
+		if (isInlineTag(tag)) {
+			if (!leading) {
+				throw new UnsupportedConstruct('inline content after block content in a list item');
+			}
+			inlineHolder.appendChild(child.cloneNode(true));
+			continue;
+		}
+		// A further block child: hoisted nested lists cannot keep block content
+		// that follows them in item-relative order — unsupported (gate B).
+		if (nestedLists.length > 0) {
+			throw new UnsupportedConstruct('block content after a nested list in a list item');
+		}
+		convertBlockNode(child, 0, blockChildren);
 	}
 
 	const listType: string = checked !== null ? 'checklist' : ordered ? 'ordered' : 'bullet';
@@ -251,7 +276,14 @@ function convertListItem(li: Element, ordered: boolean, indent: number, out: str
 	};
 	// Edge whitespace in the expected HTML is formatting (loose-list newlines,
 	// the gap after a task checkbox); the model trims item text.
-	out.push(`list_item${renderAttrs(attrs)}{${convertInline(inlineHolder).trim()}}`);
+	const inline: string = convertInline(inlineHolder).trim();
+	if (blockChildren.length === 0) {
+		out.push(`list_item${renderAttrs(attrs)}{${inline}}`);
+	} else {
+		const children: string[] =
+			inline === '' ? blockChildren : [`paragraph{${inline}}`, ...blockChildren];
+		out.push(`list_item${renderAttrs(attrs)}[${children.join(',')}]`);
+	}
 	for (const nested of nestedLists) {
 		convertList(nested, nested.tagName.toLowerCase() === 'ol', indent + 1, out);
 	}

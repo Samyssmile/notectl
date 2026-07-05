@@ -17,8 +17,9 @@ import type { MarkdownParseOptions } from './MarkdownTypes.js';
  * - Sections "HTML blocks" and "Raw HTML" are out of scope by design (raw HTML
  *   is the `htmlFallback` seam, D3) and run under gate B instead.
  * - Examples whose expected HTML uses constructs the model cannot express
- *   (multi-block list items, D9/#194) are detected by the converter and run
- *   under gate B.
+ *   (raw inline HTML in expected output; bare text or trailing blocks after a
+ *   hoisted nested list inside an `<li>`) are detected by the converter and
+ *   run under gate B. Multi-block list items themselves are in scope (#194).
  * - A small, explicit skip list (below) pins the remaining documented
  *   deviations. Every skipped example is asserted to still fail: the moment
  *   one starts passing, the test demands its removal, so the list only ever
@@ -57,9 +58,6 @@ const GFM_EXTENSIONS: readonly SpecExample[] = loadFixture('gfm-extension-exampl
 /** Raw HTML is the htmlFallback seam (D3); these sections run under gate B. */
 const OUT_OF_SCOPE_SECTIONS: ReadonlySet<string> = new Set(['HTML blocks', 'Raw HTML']);
 
-const FLAT_LIST =
-	'flat-with-indent list model: indent derives from floor(columns / 2), not from ' +
-	'marker-relative content columns (full fidelity is the list container refactor, D9/#194)';
 const MULTILINE_DEF =
 	'link reference definitions with multi-line labels or multi-line titles stay paragraph text';
 const RAW_INLINE_HTML =
@@ -76,20 +74,8 @@ const LAZY_SETEXT = 'a setext underline on a lazy continuation line is read as a
 const SKIPPED: ReadonlyMap<number, string> = new Map([
 	[6, TAB_CONTAINER],
 	[93, LAZY_SETEXT],
-	[109, FLAT_LIST],
 	[196, MULTILINE_DEF],
 	[208, MULTILINE_DEF],
-	[238, FLAT_LIST],
-	[257, FLAT_LIST],
-	[289, FLAT_LIST],
-	[291, FLAT_LIST],
-	[295, FLAT_LIST],
-	[296, FLAT_LIST],
-	[297, FLAT_LIST],
-	[310, FLAT_LIST],
-	[311, FLAT_LIST],
-	[312, FLAT_LIST],
-	[313, FLAT_LIST],
 	[344, RAW_INLINE_HTML],
 	[475, RAW_INLINE_HTML],
 	[476, RAW_INLINE_HTML],
@@ -195,10 +181,13 @@ describe('Markdown official spec conformance (gates A + B, ratcheted)', () => {
 			if (result === null) unsupported++;
 			else if (result) passing++;
 		}
-		// 652 CommonMark examples: 64 raw-HTML (gate B), 23 skipped (documented),
-		// 42 converter-detected out-of-model (gate B, almost all D9 list items),
-		// 523 compared and passing. Never lower these floors.
-		expect(passing).toBeGreaterThanOrEqual(523);
-		expect(unsupported).toBeLessThanOrEqual(42);
+		// 652 CommonMark examples: 64 raw-HTML (gate B), 11 skipped (documented),
+		// 9 converter-detected out-of-model (gate B: 7 raw inline HTML in expected
+		// output, 1 bare text after a block inside an <li>, 1 paragraph after a
+		// nested list inside an <li> — the flat-sibling hoist cannot keep its
+		// item-relative order), 568 compared and passing (#194 brought multi-block
+		// list items in scope). Never lower these floors.
+		expect(passing).toBeGreaterThanOrEqual(568);
+		expect(unsupported).toBeLessThanOrEqual(9);
 	});
 });
