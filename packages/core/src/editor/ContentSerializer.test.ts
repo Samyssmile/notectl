@@ -107,6 +107,63 @@ describe('setEditorJSON', () => {
 		expect(captured?.selection.anchor.offset).toBe(0);
 	});
 
+	it('defaults a missing marks array on inline and text nodes from external JSON (#197)', () => {
+		// Simulates JSON persisted before inline nodes gained marks: no `marks` field.
+		const inlineWithoutMarks = {
+			type: 'inline',
+			inlineType: inlineType('math_inline'),
+			attrs: { mathml: '<math></math>', latex: 'x', alt: '' },
+		};
+		const textWithoutMarks = { type: 'text', text: 'before ' };
+		const doc = {
+			children: [
+				{
+					id: blockId('b1'),
+					type: nodeType('paragraph'),
+					children: [textWithoutMarks, inlineWithoutMarks],
+				},
+			],
+		} as never;
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (s) => {
+			captured = s;
+		});
+
+		const children = (captured as EditorState | null)?.doc.children[0]?.children ?? [];
+		expect(children).toHaveLength(2);
+		for (const child of children) {
+			expect((child as { marks?: readonly Mark[] }).marks).toEqual([]);
+		}
+	});
+
+	it('defaults missing marks inside nested container blocks', () => {
+		const doc = {
+			children: [
+				{
+					id: blockId('q1'),
+					type: nodeType('blockquote'),
+					children: [
+						{
+							id: blockId('p1'),
+							type: nodeType('paragraph'),
+							children: [{ type: 'text', text: 'quoted' }],
+						},
+					],
+				},
+			],
+		} as never;
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (s) => {
+			captured = s;
+		});
+
+		const paragraph = (captured as EditorState | null)?.doc.children[0]?.children[0];
+		const text = (paragraph as { children?: readonly unknown[] })?.children?.[0];
+		expect((text as { marks?: readonly Mark[] })?.marks).toEqual([]);
+	});
+
 	it('sets selection to the first leaf block for nested documents', () => {
 		const doc = createDocument([
 			createBlockNode(

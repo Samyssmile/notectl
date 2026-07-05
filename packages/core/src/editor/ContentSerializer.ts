@@ -48,13 +48,50 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
-	const normalized: Document = registry ? normalizeCompositeBlocks(doc, registry) : doc;
+	const withMarks: Document = defaultMissingMarks(doc);
+	const normalized: Document = registry ? normalizeCompositeBlocks(withMarks, registry) : withMarks;
 	const schema = registry ? schemaFromRegistry(registry) : undefined;
 	const state: EditorState = EditorState.create({
 		doc: normalized,
 		schema,
 	});
 	replaceState(state);
+}
+
+/**
+ * Establishes the model invariant that every text and inline node carries a
+ * `marks` array. External JSON may omit the field — notably documents persisted
+ * before inline nodes gained marks (#197) — and the view layer reads
+ * `child.marks` unconditionally, so a missing array must be defaulted here at
+ * the JSON boundary rather than crash the reconciler later. Untouched nodes
+ * keep their identity; a document that already satisfies the invariant is
+ * returned as-is.
+ */
+function defaultMissingMarks(doc: Document): Document {
+	const children: readonly BlockNode[] = mapPreservingIdentity(doc.children, defaultBlockMarks);
+	return children === doc.children ? doc : { children };
+}
+
+function defaultBlockMarks(block: BlockNode): BlockNode {
+	if (!block.children) return block;
+	const children: readonly ChildNode[] = mapPreservingIdentity(block.children, (child) => {
+		if (isTextNode(child) || isInlineNode(child)) {
+			return child.marks ? child : { ...child, marks: [] };
+		}
+		return defaultBlockMarks(child);
+	});
+	return children === block.children ? block : { ...block, children };
+}
+
+/** Maps an array, returning the original array when no element changed. */
+function mapPreservingIdentity<T>(items: readonly T[], map: (item: T) => T): readonly T[] {
+	let changed = false;
+	const mapped: readonly T[] = items.map((item) => {
+		const next: T = map(item);
+		if (next !== item) changed = true;
+		return next;
+	});
+	return changed ? mapped : items;
 }
 
 /**
