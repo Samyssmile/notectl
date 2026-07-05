@@ -3,6 +3,7 @@ import { PaperSize } from '../../model/PaperSize.js';
 import { createRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import {
 	buildDocumentCSS,
+	buildExportDocumentCSS,
 	buildShadowCSS,
 	collectInlineThemeTokens,
 	generateContentPrintCSS,
@@ -70,11 +71,11 @@ describe('PrintStyleCollector', () => {
 	});
 
 	describe('generateLightThemeTokens', () => {
-		it('targets :root and the host selector with light theme custom properties', () => {
-			const result: string = generateLightThemeTokens('notectl-editor');
-			// :root makes the tokens inherit document-wide so page-level customCSS
-			// var() references resolve; the host selector re-pins them closer than
-			// the shadow :host defaults.
+		it('targets exactly the given selector list with light theme custom properties', () => {
+			// The internal variant passes ':root, <host>' so page-level customCSS
+			// var() references resolve; the export passes only the marker-qualified
+			// replica so nothing leaks into an embedding page.
+			const result: string = generateLightThemeTokens(':root, notectl-editor');
 			expect(result).toContain(':root, notectl-editor {');
 			expect(result).not.toContain(':host');
 			expect(result).toContain('--notectl-');
@@ -138,7 +139,7 @@ describe('PrintStyleCollector', () => {
 	});
 
 	describe('snapshotThemeTokens', () => {
-		it('snapshots computed --notectl-* tokens into a :root rule', () => {
+		it('snapshots computed --notectl-* tokens onto :root and the host selector', () => {
 			const host: HTMLElement = attachedHost();
 			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
 				fakeComputedStyle({
@@ -148,8 +149,11 @@ describe('PrintStyleCollector', () => {
 				}),
 			);
 			try {
-				const result: string = snapshotThemeTokens(host);
-				expect(result).toContain(':root {');
+				const result: string = snapshotThemeTokens(host, ':root, notectl-editor');
+				// Targeting the host element (not just :root) is what lets the
+				// unlayered snapshot beat element-targeted rules in the layered host
+				// copy that match differently without their wrapper ancestors.
+				expect(result).toContain(':root, notectl-editor {');
 				expect(result).toContain('--notectl-bg: #1e1e2e;');
 				expect(result).toContain('--notectl-fg: #cdd6f4;');
 				expect(result).not.toContain('color: red');
@@ -161,7 +165,7 @@ describe('PrintStyleCollector', () => {
 
 		it('returns empty string when no tokens are set', () => {
 			const host: HTMLElement = attachedHost();
-			expect(snapshotThemeTokens(host)).toBe('');
+			expect(snapshotThemeTokens(host, ':root, notectl-editor')).toBe('');
 			document.body.removeChild(host);
 		});
 	});
@@ -214,7 +218,7 @@ describe('PrintStyleCollector', () => {
 			wrapper.appendChild(content);
 			shadow.appendChild(wrapper);
 
-			expect(resolveCarriedBackground(host, content)).toBe('rgb(30, 30, 46)');
+			expect(resolveCarriedBackground(content)).toBe('rgb(30, 30, 46)');
 			document.body.removeChild(host);
 		});
 
@@ -225,8 +229,26 @@ describe('PrintStyleCollector', () => {
 			const content: HTMLElement = document.createElement('div');
 			shadow.appendChild(content);
 
-			expect(resolveCarriedBackground(host, content)).toBe('rgb(10, 20, 30)');
+			expect(resolveCarriedBackground(content)).toBe('rgb(10, 20, 30)');
 			document.body.removeChild(host);
+		});
+
+		it('reads a background painted on the document root element', () => {
+			// Dark themes commonly paint html and leave body transparent; the walk
+			// must not stop at body or the carried background falls back to white
+			// while the carried text color stays light — invisible print output.
+			const host: HTMLElement = attachedHost();
+			const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+			const content: HTMLElement = document.createElement('div');
+			shadow.appendChild(content);
+			document.documentElement.style.backgroundColor = 'rgb(13, 17, 23)';
+
+			try {
+				expect(resolveCarriedBackground(content)).toBe('rgb(13, 17, 23)');
+			} finally {
+				document.documentElement.style.removeProperty('background-color');
+				document.body.removeChild(host);
+			}
 		});
 
 		it('falls back to white when no ancestor sets a background', () => {
@@ -235,7 +257,7 @@ describe('PrintStyleCollector', () => {
 			const content: HTMLElement = document.createElement('div');
 			shadow.appendChild(content);
 
-			expect(resolveCarriedBackground(host, content)).toBe('#ffffff');
+			expect(resolveCarriedBackground(content)).toBe('#ffffff');
 			document.body.removeChild(host);
 		});
 	});
@@ -302,6 +324,8 @@ describe('PrintStyleCollector', () => {
 
 	describe('buildShadowCSS', () => {
 		it('wraps base styles in the cascade layer', () => {
+			// The documented #202 semantic: customCSS overrides the editor's
+			// built-in element styling regardless of selector specificity.
 			const shadow: ShadowRoot = shadowWithSheets('.notectl-table td { padding: 8px 12px; }');
 			const result: string = buildShadowCSS(shadow, {});
 			expect(result).toContain('@layer notectl-base {\n.notectl-table td');
@@ -389,18 +413,18 @@ describe('PrintStyleCollector', () => {
 			document.body.removeChild(host);
 		});
 
-		it('emits the token snapshot in the notectl-theme layer when carrying the theme', () => {
+		it('emits the token snapshot unlayered on :root and the host when carrying the theme', () => {
 			const host: HTMLElement = attachedHost();
 			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
 				fakeComputedStyle({ '--notectl-bg': '#1e1e2e' }),
 			);
 			try {
 				const result: string = buildDocumentCSS(host, host, { forceLightTheme: false });
-				// The snapshot backfills token sources the stylesheet copy cannot
-				// carry (inline style, JS-set, wrapper-scoped); natively carried
-				// host rules in the later notectl-host layer still win.
-				expect(result).toContain('@layer notectl-theme {\n:root {');
-				expect(result).toContain('--notectl-bg: #1e1e2e;');
+				// Unlayered, the computed snapshot beats the layered host copy: a
+				// host rule that matches differently in the print document (its
+				// wrapper ancestors are not replicated) cannot flip the live tokens.
+				expect(result).toContain(':root, notectl-editor {\n  --notectl-bg: #1e1e2e;');
+				expect(result).not.toContain('@layer notectl-theme');
 			} finally {
 				vi.restoreAllMocks();
 				document.body.removeChild(host);
@@ -414,7 +438,7 @@ describe('PrintStyleCollector', () => {
 			);
 			try {
 				const result: string = buildDocumentCSS(host, host, {});
-				expect(result).not.toContain('@layer notectl-theme');
+				expect(result).not.toContain('--notectl-bg: #1e1e2e');
 			} finally {
 				vi.restoreAllMocks();
 				document.body.removeChild(host);
@@ -470,6 +494,100 @@ describe('PrintStyleCollector', () => {
 			expect(result).toContain(
 				'@layer notectl-custom {\nnotectl-editor { border: 1px solid green !important; }\n}',
 			);
+			document.body.removeChild(host);
+		});
+	});
+
+	describe('buildExportDocumentCSS', () => {
+		const MARKER = 'data-notectl-static';
+
+		it('qualifies every active selector with the replica marker', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildExportDocumentCSS(host, host, {}, MARKER);
+			// Embedding the export via innerHTML/setHTMLUnsafe must not restyle
+			// the consumer's page: only marked replicas may ever match. (@scope
+			// cannot express this: its implicit descendant prefix excludes the
+			// scoping root and all shadow content.)
+			expect(result).toContain('notectl-editor[data-notectl-static] {');
+			expect(result).not.toContain(':root');
+			expect(result).not.toMatch(/(?:^|\n)notectl-editor \{/);
+			document.body.removeChild(host);
+		});
+
+		it('omits page-level rules that would leak into an embedding page', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildExportDocumentCSS(host, host, { margin: '2cm' }, MARKER);
+			expect(result).not.toContain('html, body {');
+			expect(result).not.toMatch(/(?:^|\n)body \{/);
+			expect(result).not.toContain('@page');
+			document.body.removeChild(host);
+		});
+
+		it('paints the replica canvas via an important typography snapshot after the reset', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildExportDocumentCSS(host, host, {}, MARKER);
+			// Same layer, later source order: the snapshot's background beats the
+			// host reset's `background: transparent !important`.
+			const reset: number = result.indexOf('background: transparent !important;');
+			const canvas: number = result.indexOf('background: #ffffff !important;');
+			expect(reset).toBeGreaterThanOrEqual(0);
+			expect(canvas).toBeGreaterThan(reset);
+			expect(result).toContain('margin: 0 !important;');
+			document.body.removeChild(host);
+		});
+
+		it('pins the carried theme background on the replica when not forcing light', () => {
+			const host: HTMLElement = attachedHost();
+			host.style.backgroundColor = 'rgb(30, 30, 46)';
+			const result: string = buildExportDocumentCSS(host, host, { forceLightTheme: false }, MARKER);
+			expect(result).toContain('background: rgb(30, 30, 46) !important;');
+			document.body.removeChild(host);
+		});
+
+		it('scopes the color-adjust guard to the replica subtree', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildExportDocumentCSS(host, host, {}, MARKER);
+			// A bare `* { print-color-adjust }` would restyle every element of an
+			// embedding page; the shadow-scope copy covers the print content.
+			expect(result).toContain(
+				'notectl-editor[data-notectl-static], notectl-editor[data-notectl-static] * {',
+			);
+			expect(result).not.toMatch(/(?:^|\n)\* \{/);
+			document.body.removeChild(host);
+		});
+
+		it('includes the marker-targeted token snapshot when carrying the theme', () => {
+			const host: HTMLElement = attachedHost();
+			vi.spyOn(window, 'getComputedStyle').mockReturnValue(
+				fakeComputedStyle({ '--notectl-bg': '#1e1e2e' }),
+			);
+			try {
+				const result: string = buildExportDocumentCSS(
+					host,
+					host,
+					{ forceLightTheme: false },
+					MARKER,
+				);
+				expect(result).toContain('notectl-editor[data-notectl-static] {\n  --notectl-bg: #1e1e2e;');
+			} finally {
+				vi.restoreAllMocks();
+				document.body.removeChild(host);
+			}
+		});
+
+		it('leaves customCSS to the shadow copy and the standalone bundle', () => {
+			const host: HTMLElement = attachedHost();
+			const result: string = buildExportDocumentCSS(
+				host,
+				host,
+				{ customCSS: '.notectl-content p { margin: 4px; }' },
+				MARKER,
+			);
+			// Consumer-authored page-level rules (body, @page) must not act on an
+			// embedding page; the copies live in buildDocumentCSS (bundle/iframe)
+			// and buildShadowCSS (content rules).
+			expect(result).not.toContain('.notectl-content p');
+			expect(result).toContain('--notectl-bg: #ffffff !important;');
 			document.body.removeChild(host);
 		});
 	});

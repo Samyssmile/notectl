@@ -69,21 +69,6 @@ export class NotectlEditor extends HTMLElement {
 	private initVersion = 0;
 	private releaseInit: (() => void) | null = null;
 
-	constructor() {
-		super();
-		// A declarative shadow root is preserved only for static print replicas
-		// (marked data-notectl-static): attachShadow() on such an element would
-		// clear the replicated print content. Any other declarative root is
-		// emptied to keep the invariant that an editor boots from a fresh
-		// shadow root — EditorInitializer appends and would otherwise stack a
-		// live editor below leftover markup.
-		if (!this.shadowRoot) {
-			this.attachShadow({ mode: 'open' });
-		} else if (!isStaticHostReplica(this)) {
-			this.shadowRoot.replaceChildren();
-		}
-	}
-
 	static get observedAttributes(): string[] {
 		return ['placeholder', 'readonly', 'theme', 'paper-size', 'dir'];
 	}
@@ -127,9 +112,10 @@ export class NotectlEditor extends HTMLElement {
 		if (!this.lifecycle.markInitialized()) return;
 		if (config) this.configController.setConfig(config);
 
-		const shadow: ShadowRoot | null = this.shadowRoot;
-		if (!shadow) {
-			const error = new Error('Editor shadow root not available.');
+		let shadow: ShadowRoot;
+		try {
+			shadow = this.ensureFreshShadowRoot();
+		} catch (error) {
 			this.lifecycle.failReady(error);
 			throw error;
 		}
@@ -434,6 +420,24 @@ export class NotectlEditor extends HTMLElement {
 		this.domElements?.wrapper.remove();
 		this.domElements = null;
 		return Promise.all([pluginTeardown, pendingInit]).then(() => undefined);
+	}
+
+	/**
+	 * Returns the shadow root the editor boots into, creating it on first use.
+	 * Attaching is deferred out of the constructor: for parser-created elements
+	 * the constructor runs before attributes and children exist, so an eagerly
+	 * attached (empty) shadow root would block a declarative shadow root in the
+	 * markup from attaching — losing replicated print content on pages that
+	 * register the component before parsing (script in `<head>`). A leftover
+	 * declarative root from unmarked markup is emptied to keep the invariant
+	 * that an editor boots from a fresh shadow root; static print replicas
+	 * never reach this (init() throws on them first).
+	 */
+	private ensureFreshShadowRoot(): ShadowRoot {
+		const existing: ShadowRoot | null = this.shadowRoot;
+		if (!existing) return this.attachShadow({ mode: 'open' });
+		existing.replaceChildren();
+		return existing;
 	}
 
 	private getConfigDeps(): import('./EditorConfigController.js').ConfigControllerDeps {

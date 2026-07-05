@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/editor-page';
 import { insertTable } from './fixtures/table-utils';
@@ -35,6 +37,13 @@ interface HostSheetInit {
 interface PrintCellProbeArgs {
 	readonly hostSheets?: readonly HostSheetInit[];
 	readonly printOptions?: Record<string, unknown>;
+	/**
+	 * Which document variant to probe. `export` (default) renders toHTML()
+	 * output into a scratch iframe; `internal` captures the iframe that
+	 * print() itself writes (page-fidelity CSS: html/body reset, body
+	 * typography, @page, hoisted imports) with the dialog stubbed out.
+	 */
+	readonly variant?: 'export' | 'internal';
 	/** Computed properties (kebab-case) to read from the printed table cell. */
 	readonly properties: readonly string[];
 	/** Also read the same properties from the live editor's table cell. */
@@ -66,7 +75,10 @@ interface PrintCellProbeResult {
  */
 async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<PrintCellProbeResult> {
 	return page.evaluate((input: PrintCellProbeArgs): PrintCellProbeResult => {
-		type PrintService = { toHTML(options: Record<string, unknown>): string };
+		type PrintService = {
+			toHTML(options: Record<string, unknown>): string;
+			print(options: Record<string, unknown>): void;
+		};
 		type EditorEl = HTMLElement & {
 			getService(key: { id: string }): PrintService | undefined;
 		};
@@ -98,18 +110,48 @@ async function probePrintCell(page: Page, args: PrintCellProbeArgs): Promise<Pri
 
 			const printService = editorEl.getService({ id: 'print' });
 			if (!printService) throw new Error('print service missing');
-			const html: string = printService.toHTML(input.printOptions ?? {});
 
-			const frame: HTMLIFrameElement = document.createElement('iframe');
-			frame.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px;border:none';
-			document.body.appendChild(frame);
+			let frame: HTMLIFrameElement;
+			let html: string;
+			if (input.variant === 'internal') {
+				// Capture the iframe print() creates and stub its dialog before the
+				// service writes into it (window expandos survive document.open).
+				const captured: HTMLIFrameElement[] = [];
+				const body = document.body;
+				const originalAppendChild = body.appendChild.bind(body);
+				body.appendChild = <T extends Node>(node: T): T => {
+					const result: T = originalAppendChild(node);
+					if (node instanceof HTMLIFrameElement) {
+						captured.push(node);
+						const win = node.contentWindow as (Window & { print(): void }) | null;
+						if (win) win.print = (): void => {};
+					}
+					return result;
+				};
+				try {
+					printService.print(input.printOptions ?? {});
+				} finally {
+					body.appendChild = originalAppendChild;
+				}
+				const printFrame: HTMLIFrameElement | undefined = captured[0];
+				if (!printFrame) throw new Error('print() created no iframe');
+				frame = printFrame;
+				html = frame.contentDocument?.documentElement.outerHTML ?? '';
+			} else {
+				html = printService.toHTML(input.printOptions ?? {});
+				frame = document.createElement('iframe');
+				frame.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px;border:none';
+				document.body.appendChild(frame);
+			}
 			try {
 				const frameDoc = frame.contentDocument;
 				const frameWin = frame.contentWindow;
 				if (!frameDoc || !frameWin) throw new Error('iframe document missing');
-				frameDoc.open();
-				frameDoc.write(html);
-				frameDoc.close();
+				if (input.variant !== 'internal') {
+					frameDoc.open();
+					frameDoc.write(html);
+					frameDoc.close();
+				}
 
 				const printHost = frameDoc.querySelector<HTMLElement>('notectl-editor');
 				if (!printHost) throw new Error('print host element missing');
@@ -603,6 +645,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		// (including the replicated editor host) and app shells clip the page;
 		// the print guards must restore visibility and page flow.
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
 			hostSheets: [
 				{
 					css: [
@@ -667,6 +710,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		// Dark-themed editor: without a pinned carried background the body would
 		// stay white while the text keeps its light dark-theme color.
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
 			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(20, 20, 30); }' }],
 			printOptions: { forceLightTheme: false },
 			properties: [],
@@ -678,8 +722,19 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 			'print body must sit on the carried theme background',
 		).toBe('rgb(20, 20, 30)');
 
+		// The embed-safe export has no body rule; the replica paints the carried
+		// background itself.
+		const exported: PrintCellProbeResult = await probePrintCell(page, {
+			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(20, 20, 30); }' }],
+			printOptions: { forceLightTheme: false },
+			properties: [],
+			hostProperties: ['background-color'],
+		});
+		expect(exported.hostStyles['background-color']).toBe('rgb(20, 20, 30)');
+
 		// Forced light (default) keeps pinning white regardless of the live theme.
 		const forcedLight: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
 			hostSheets: [{ css: 'notectl-editor { --notectl-bg: rgb(20, 20, 30); }' }],
 			properties: [],
 			bodyProperties: ['background-color'],
@@ -699,6 +754,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		// "no background graphics" print behavior — near-white text on white
 		// paper.
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
 			printOptions: { forceLightTheme: false },
 			properties: [],
 			bodyProperties: ['print-color-adjust'],
@@ -715,6 +771,7 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		// guaranteed-invalid and the declaration collapses (border-top-style
 		// would stay none, computing to 0px width).
 		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
 			printOptions: { customCSS: 'body { border-top: 3px solid var(--notectl-primary); }' },
 			properties: [],
 			bodyProperties: ['border-top-width', 'border-top-style'],
@@ -963,9 +1020,12 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 				const replica = wrapper.querySelector<HTMLElement>('notectl-editor');
 				if (!replica) throw new Error('replica missing after injection');
 
-				// Wait for the scheduled auto-init to boot the clean editor.
+				// Wait for the scheduled auto-init to boot the clean editor. The
+				// static clone already contains .notectl-content, so wait for a
+				// live-only element: the unmarked root is cleared when init() runs,
+				// not synchronously in the upgrade constructor.
 				const deadline: number = Date.now() + 5000;
-				while (!replica.shadowRoot?.querySelector('.notectl-content')) {
+				while (!replica.shadowRoot?.querySelector('.notectl-toolbar')) {
 					if (Date.now() > deadline) break;
 					await new Promise((resolve) => setTimeout(resolve, 50));
 				}
@@ -1145,7 +1205,10 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 
 		try {
 			const result = await page.evaluate(async () => {
-				type PrintService = { toHTML(options: Record<string, unknown>): string };
+				type PrintService = {
+					toHTML(options: Record<string, unknown>): string;
+					print(options: Record<string, unknown>): void;
+				};
 				type EditorEl = HTMLElement & {
 					getService(key: { id: string }): PrintService | undefined;
 				};
@@ -1157,18 +1220,33 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 
 				const printService = editorEl.getService({ id: 'print' });
 				if (!printService) throw new Error('print service missing');
-				const html: string = printService.toHTML({});
 
-				const frame: HTMLIFrameElement = document.createElement('iframe');
-				frame.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px;border:none';
-				document.body.appendChild(frame);
+				// Hoisted cross-origin imports only exist in the internal print()
+				// variant (the embed-safe export must not load foreign sheets into a
+				// consumer page), so capture the iframe print() writes.
+				const captured: HTMLIFrameElement[] = [];
+				const body = document.body;
+				const originalAppendChild = body.appendChild.bind(body);
+				body.appendChild = <T extends Node>(node: T): T => {
+					const result: T = originalAppendChild(node);
+					if (node instanceof HTMLIFrameElement) {
+						captured.push(node);
+						const win = node.contentWindow as (Window & { print(): void }) | null;
+						if (win) win.print = (): void => {};
+					}
+					return result;
+				};
+				try {
+					printService.print({});
+				} finally {
+					body.appendChild = originalAppendChild;
+				}
+				const frame: HTMLIFrameElement | undefined = captured[0];
+				if (!frame) throw new Error('print() created no iframe');
 				try {
 					const frameDoc = frame.contentDocument;
 					const frameWin = frame.contentWindow;
 					if (!frameDoc || !frameWin) throw new Error('iframe document missing');
-					frameDoc.open();
-					frameDoc.write(html);
-					frameDoc.close();
 
 					const printHost = frameDoc.querySelector<HTMLElement>('notectl-editor');
 					const printCell =
@@ -1186,7 +1264,9 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 						await new Promise((resolve) => setTimeout(resolve, 25));
 						printPadding = frameWin.getComputedStyle(printCell).paddingTop;
 					}
-					return { livePadding, printPadding };
+
+					const exportHTML: string = printService.toHTML({});
+					return { livePadding, printPadding, exportHTML };
 				} finally {
 					frame.remove();
 				}
@@ -1198,11 +1278,290 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 				result.printPadding,
 				'print cascade must keep the live source order for hoisted sheets',
 			).toBe('3px');
+			// The embed-safe export may reference the foreign sheet only inside
+			// the inert standalone bundle, never in its active head styles.
+			const exportHead: string = result.exportHTML.slice(0, result.exportHTML.indexOf('</head>'));
+			expect(exportHead).not.toContain('@import');
+			expect(result.exportHTML.indexOf('@import')).toBeGreaterThan(
+				result.exportHTML.indexOf('data-notectl-print-styles'),
+			);
 		} finally {
 			await page.evaluate(() => {
 				document.getElementById('notectl-202-order-local')?.remove();
 				document.getElementById('notectl-202-order-cdn')?.remove();
 			});
 		}
+	});
+
+	test('embedding the export leaves the consumer page unstyled', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(async () => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+
+			// Embedding the export registers the editor's typed custom properties
+			// (@property rules apply document-wide even from inside a shadow
+			// root), which changes the SERIALIZATION of token values without
+			// changing their color. Normalize through a scratch element so the
+			// comparison only fails on real value changes.
+			const scratch: HTMLElement = document.createElement('div');
+			document.body.appendChild(scratch);
+			const normalizeColor = (value: string): string => {
+				scratch.style.color = '';
+				scratch.style.color = value || 'transparent';
+				return getComputedStyle(scratch).color;
+			};
+			const snapshot = (): Record<string, string> => {
+				const body: CSSStyleDeclaration = getComputedStyle(document.body);
+				const root: CSSStyleDeclaration = getComputedStyle(document.documentElement);
+				const live: CSSStyleDeclaration = getComputedStyle(editorEl);
+				return {
+					bodyBackground: body.backgroundColor,
+					bodyMargin: body.marginTop,
+					bodyOverflow: body.overflowY,
+					rootOverflow: root.overflowY,
+					liveHeight: live.height,
+					liveBorder: live.borderTopWidth,
+					liveBackground: live.backgroundColor,
+					liveToken: normalizeColor(live.getPropertyValue('--notectl-bg').trim()),
+				};
+			};
+
+			const before: Record<string, string> = snapshot();
+			const html: string = printService.toHTML({});
+			const wrapper: HTMLElement = document.createElement('div');
+			document.body.appendChild(wrapper);
+			try {
+				(wrapper as HTMLElement & { setHTMLUnsafe(markup: string): void }).setHTMLUnsafe(html);
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				const after: Record<string, string> = snapshot();
+				const replica = wrapper.querySelector<HTMLElement>('notectl-editor');
+				return {
+					before,
+					after,
+					replicaHasShadow: !!replica?.shadowRoot,
+					html,
+				};
+			} finally {
+				wrapper.remove();
+				scratch.remove();
+			}
+		});
+
+		// The old export shipped unscoped html/body/notectl-editor/:root rules
+		// that turned dark consumer apps white and flattened every live editor
+		// on the page. All document-level CSS must now be inert outside the
+		// replica subtree.
+		expect(result.after).toEqual(result.before);
+		expect(result.replicaHasShadow, 'the embedded replica itself must still render').toBe(true);
+		// Page-level CSS may only exist inside the inert standalone bundle.
+		const head: string = result.html.slice(0, result.html.indexOf('</head>'));
+		expect(head).not.toContain('html, body {');
+		expect(head).not.toContain('@page');
+		expect(head).not.toContain('@layer notectl-host {');
+	});
+
+	test('the fallback script ignores consumer DSD templates', async ({ editor, page }) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const result = await page.evaluate(() => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			const html: string = printService.toHTML({});
+
+			// A consumer widget whose framework inserted a DSD template via
+			// fragment parsing (inert) and intends to process it itself.
+			const frame: HTMLIFrameElement = document.createElement('iframe');
+			frame.style.cssText = 'position:fixed;left:-9999px;width:400px;height:300px;border:none';
+			document.body.appendChild(frame);
+			try {
+				const frameDoc = frame.contentDocument;
+				const frameWin = frame.contentWindow as (Window & { eval(src: string): void }) | null;
+				if (!frameDoc || !frameWin) throw new Error('iframe document missing');
+				const consumer: HTMLElement = frameDoc.createElement('div');
+				consumer.innerHTML = '<template shadowrootmode="open"><p>consumer</p></template>';
+				frameDoc.body.appendChild(consumer);
+
+				const embed: HTMLElement = frameDoc.createElement('div');
+				embed.innerHTML = html;
+				frameDoc.body.appendChild(embed);
+
+				const scriptSource: string | undefined = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+				if (!scriptSource) throw new Error('fallback script missing in print output');
+				frameWin.eval(scriptSource);
+
+				const replica = embed.querySelector<HTMLElement>('notectl-editor');
+				return {
+					consumerTemplateIntact: consumer.querySelectorAll('template').length === 1,
+					consumerHasShadow: consumer.shadowRoot !== null,
+					replicaHasShadow: !!replica?.shadowRoot,
+					replicaFallbacks: replica
+						? replica.querySelectorAll('[data-notectl-print-fallback]').length
+						: -1,
+				};
+			} finally {
+				frame.remove();
+			}
+		});
+
+		// A document-wide template sweep would consume the consumer's template
+		// and break their component's own hydration.
+		expect(result.consumerTemplateIntact).toBe(true);
+		expect(result.consumerHasShadow).toBe(false);
+		expect(result.replicaHasShadow, 'the replica template must still be attached').toBe(true);
+		expect(result.replicaFallbacks, 'the replica fallback must still be removed').toBe(0);
+	});
+
+	test('renders replica content when the component is registered before parsing', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		const html: string = await page.evaluate(() => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorEl = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorEl | null;
+			if (!editorEl) throw new Error('editor element missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+			return printService.toHTML({});
+		});
+
+		// A consumer page that loads the notectl bundle as a classic script in
+		// <head>: the custom element is defined before the replica markup is
+		// parsed, so the parser runs the constructor before attributes and
+		// children exist. An eagerly attached shadow root would block the DSD
+		// template from attaching and blank the whole export.
+		const umdSource: string = readFileSync(
+			resolve(process.cwd(), 'packages/core/dist/notectl-core.umd.js'),
+			'utf8',
+		);
+		const hostedPage: string = html.replace(
+			'<head>',
+			'<head>\n<script src="/print-202-umd.js"></script>',
+		);
+		await page.route('**/print-202-static-host.html', (route) =>
+			route.fulfill({ contentType: 'text/html', body: hostedPage }),
+		);
+		await page.route('**/print-202-umd.js', (route) =>
+			route.fulfill({ contentType: 'application/javascript', body: umdSource }),
+		);
+
+		await page.goto('/print-202-static-host.html');
+		const result = await page.evaluate(() => {
+			const host = document.querySelector<HTMLElement>('notectl-editor');
+			return {
+				defined: !!customElements.get('notectl-editor'),
+				hasShadow: !!host?.shadowRoot,
+				hasTableCell: !!host?.shadowRoot?.querySelector('[part~="table-cell"]'),
+				hasToolbar: !!host?.shadowRoot?.querySelector('.notectl-toolbar'),
+				fallbacks: host ? host.querySelectorAll('[data-notectl-print-fallback]').length : -1,
+				leftoverTemplates: host ? host.querySelectorAll('template').length : -1,
+			};
+		});
+
+		expect(result.defined, 'setup: the bundle must register the component').toBe(true);
+		expect(result.hasShadow, 'the declarative shadow root must attach').toBe(true);
+		expect(result.hasTableCell, 'replicated content must render, not a blank page').toBe(true);
+		expect(result.hasToolbar, 'no live editor may boot over the replica').toBe(false);
+		expect(result.fallbacks, 'the fallback must be cleaned up once the root exists').toBe(0);
+		expect(result.leftoverTemplates).toBe(0);
+	});
+
+	test('wrapper-scoped theme tokens survive into print when carrying the theme', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// The live theme comes from a wrapper-scoped rule; the wrapper is not
+		// replicated in the print document, where only the unscoped light
+		// default would match. The unlayered computed snapshot must keep the
+		// live value on the replica.
+		await page.evaluate(() => {
+			const editorEl = document.querySelector<HTMLElement>('notectl-editor');
+			if (!editorEl?.parentElement) throw new Error('editor element missing');
+			const wrapper: HTMLElement = document.createElement('div');
+			wrapper.id = 'notectl-202-theme-wrapper';
+			wrapper.className = 'notectl-202-theme-dark';
+			editorEl.parentElement.insertBefore(wrapper, editorEl);
+			wrapper.appendChild(editorEl);
+		});
+		try {
+			const probe: PrintCellProbeResult = await probePrintCell(page, {
+				hostSheets: [
+					{
+						css: [
+							'.notectl-202-theme-dark notectl-editor { --notectl-bg: rgb(17, 34, 51); }',
+							'notectl-editor { --notectl-bg: rgb(238, 238, 238); }',
+						].join('\n'),
+					},
+				],
+				printOptions: { forceLightTheme: false },
+				properties: [],
+				hostProperties: ['--notectl-bg'],
+			});
+			expect(
+				probe.hostStyles['--notectl-bg'].trim(),
+				'the computed live token must beat the mismatched host-copy default',
+			).toBe('rgb(17, 34, 51)');
+		} finally {
+			await page.evaluate(() => {
+				const wrapper = document.getElementById('notectl-202-theme-wrapper');
+				const editorEl = wrapper?.querySelector<HTMLElement>('notectl-editor');
+				if (wrapper?.parentElement && editorEl) {
+					wrapper.parentElement.insertBefore(editorEl, wrapper);
+				}
+				wrapper?.remove();
+			});
+		}
+	});
+
+	test('carries a background painted on html when body is transparent', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// Dark themes commonly paint html and leave body transparent; stopping
+		// the background walk at body used to fall back to white while the text
+		// stayed light — invisible print output.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
+			hostSheets: [
+				{
+					css: [
+						'html { background: rgb(13, 17, 23); }',
+						'body { background: transparent; }',
+						'notectl-editor { --notectl-bg: transparent; }',
+					].join('\n'),
+				},
+			],
+			printOptions: { forceLightTheme: false },
+			properties: [],
+			bodyProperties: ['background-color'],
+		});
+		expect(probe.bodyStyles['background-color']).toBe('rgb(13, 17, 23)');
 	});
 });
