@@ -46,8 +46,84 @@ describe('NotectlEditor', () => {
 		await Promise.resolve();
 
 		expect(readySpy).not.toHaveBeenCalled();
-		expect(editor.shadowRoot?.querySelector('.notectl-editor')).toBeNull();
+		expect(editor.shadowRoot?.querySelector('.notectl-editor') ?? null).toBeNull();
 		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
+	it('skips auto-init for a static print replica', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+		const readySpy = vi.fn();
+		editor.on('ready', readySpy);
+
+		document.body.appendChild(editor);
+		editor.connectedCallback();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		// Print output replicates the host element; injected into a page where
+		// the component is registered, the replica must stay static markup —
+		// including its declarative shadow root, which the editor never touches.
+		expect(readySpy).not.toHaveBeenCalled();
+		expect(editor.shadowRoot).toBeNull();
+		expect(() => editor.getState()).toThrow('Editor not initialized');
+	});
+
+	it('rejects init() on a static print replica', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+		// Simulates the declarative shadow root the parser attaches for print
+		// replicas (the constructor itself never creates one).
+		const shadow: ShadowRoot = editor.attachShadow({ mode: 'open' });
+		shadow.appendChild(document.createElement('p'));
+
+		// Even a direct consumer init() call must not boot a live editor over
+		// the replicated print content.
+		await expect(editor.init()).rejects.toThrow('static print replica');
+		expect(shadow.querySelector('p')).not.toBeNull();
+	});
+
+	it('rejects whenReady() on a static print replica instead of hanging', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+
+		// A replica never becomes ready. A consumer awaiting readiness of every
+		// editor-tagged element on the page (e.g. Promise.all) must get a
+		// settled rejection, not a promise that hangs forever.
+		const outcome: string = await Promise.race([
+			editor.whenReady().then(
+				() => 'resolved',
+				() => 'rejected',
+			),
+			new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 20)),
+		]);
+		expect(outcome).toBe('rejected');
+		await expect(editor.whenReady()).rejects.toThrow('static print replica');
+	});
+
+	it('defers shadow root creation out of the constructor', () => {
+		// Parser-created custom elements run the constructor before attributes
+		// and children exist: an eagerly attached (empty) shadow root would
+		// block a declarative shadow root in the markup from attaching, losing
+		// replicated print content when the component is registered before the
+		// markup is parsed (script in <head>).
+		const editor = new NotectlEditor();
+		expect(editor.shadowRoot).toBeNull();
+	});
+
+	it('clears an unmarked declarative shadow root when init boots', async () => {
+		const editor = new NotectlEditor();
+		const shadow: ShadowRoot = editor.attachShadow({ mode: 'open' });
+		const leftover: HTMLElement = document.createElement('p');
+		leftover.id = 'leftover';
+		shadow.appendChild(leftover);
+		document.body.appendChild(editor);
+
+		// Without the static marker (e.g. stripped by a sanitizer) the editor
+		// boots from a fresh root instead of stacking below leftover markup.
+		await editor.init({ locale: Locale.EN });
+
+		expect(shadow.querySelector('#leftover')).toBeNull();
+		expect(shadow.querySelector('.notectl-editor')).not.toBeNull();
 	});
 
 	it('throws when setJSON is called before initialization', () => {
