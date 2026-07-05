@@ -18,6 +18,10 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
+import {
+	createStaticReplicaError,
+	isStaticHostReplica,
+} from '../plugins/print/StaticHostMarker.js';
 import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
@@ -43,7 +47,6 @@ import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
 import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import type { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
-import { isStaticHostReplica } from './StaticHostMarker.js';
 import type { Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 export type { NotectlEditorConfig, ToolbarConfig } from './EditorConfig.js';
@@ -103,10 +106,7 @@ export class NotectlEditor extends HTMLElement {
 	 */
 	async init(config?: import('./EditorConfig.js').NotectlEditorConfig): Promise<void> {
 		if (isStaticHostReplica(this)) {
-			throw new Error(
-				'Cannot initialize a static print replica (data-notectl-static). ' +
-					'Remove the marker and its shadow content to reuse the element as an editor.',
-			);
+			throw createStaticReplicaError();
 		}
 		this.cancelAutoInit();
 		if (!this.lifecycle.markInitialized()) return;
@@ -361,8 +361,15 @@ export class NotectlEditor extends HTMLElement {
 
 	// --- Lifecycle ---
 
-	/** Waits for the editor to be ready. */
+	/**
+	 * Waits for the editor to be ready. Rejects immediately on static print
+	 * replicas (`data-notectl-static`): they never boot, so the promise would
+	 * otherwise hang forever.
+	 */
 	whenReady(): Promise<void> {
+		if (isStaticHostReplica(this)) {
+			return Promise.reject(createStaticReplicaError());
+		}
 		return this.lifecycle.whenReady();
 	}
 

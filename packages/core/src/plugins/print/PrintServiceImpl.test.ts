@@ -124,8 +124,31 @@ describe('PrintServiceImpl', () => {
 			host.setAttribute('style', 'height: 400px');
 			const html: string = buildHTMLDocument(buildInput({ host }));
 
-			expect(html).toContain('<notectl-editor id="main" class="themed" data-notectl-static>');
+			expect(html).toContain('class="themed"');
 			expect(html).not.toContain('height: 400px');
+		});
+
+		it('strips the id attribute from the export variant host replica', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.setAttribute('id', 'main');
+			host.setAttribute('class', 'themed');
+			const html: string = buildHTMLDocument(buildInput({ host }));
+
+			// Embedded via innerHTML next to the live editor, a copied id is a
+			// duplicate: getElementById resolves to the static replica and code
+			// that boots the editor by id fails on it.
+			expect(html).not.toContain('id="main"');
+			expect(html).toContain('class="themed"');
+		});
+
+		it('keeps the id attribute in the internal print variant', () => {
+			const host: HTMLElement = document.createElement('notectl-editor');
+			host.setAttribute('id', 'main');
+			const html: string = buildHTMLDocument(buildInput({ host, variant: 'internal' }));
+
+			// The print iframe is its own document, so no collision is possible,
+			// and host rules like `#main::part(cell)` must keep matching.
+			expect(html).toContain('id="main"');
 		});
 
 		it('wraps copied host CSS in the notectl-host layer and hoists imports internally', () => {

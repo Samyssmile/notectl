@@ -28,7 +28,6 @@
  *   guaranteed.
  */
 
-import { STATIC_HOST_ATTRIBUTE } from '../../editor/StaticHostMarker.js';
 import { escapeAttr, escapeHTML } from '../../model/HTMLUtils.js';
 import { getStyleNonceForNode, setStyleText } from '../../style/StyleRuntime.js';
 import type { PluginEventBus } from '../Plugin.js';
@@ -54,6 +53,7 @@ import {
 	type PrintOptions,
 	type PrintService,
 } from './PrintTypes.js';
+import { STATIC_HOST_ATTRIBUTE } from './StaticHostMarker.js';
 
 /**
  * Upper bound for waiting on the print iframe's load event. Referenced host
@@ -245,8 +245,15 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 	const hostTag: string = input.host.tagName.toLowerCase();
 	const isExport: boolean = input.variant === 'export';
 	// The static marker keeps the replica from booting a live editor when the
-	// document is injected into a page where the component is registered.
-	const hostAttributes: string = serializeAttributes(input.host, ['style', STATIC_HOST_ATTRIBUTE]);
+	// document is injected into a page where the component is registered. The
+	// export variant also drops the id: embedded next to the live editor it
+	// would be a duplicate, and getElementById would resolve to the replica.
+	// The internal iframe is its own document, so it keeps the id and host
+	// rules like `#editor::part(cell)` stay matching.
+	const skippedHostAttributes: readonly string[] = isExport
+		? ['style', 'id', STATIC_HOST_ATTRIBUTE]
+		: ['style', STATIC_HOST_ATTRIBUTE];
+	const hostAttributes: string = serializeAttributes(input.host, skippedHostAttributes);
 	const hostTokens: string = input.carryThemeContext ? serializeInlineTokenStyle(input.host) : '';
 
 	const htmlContext: string = input.carryThemeContext
