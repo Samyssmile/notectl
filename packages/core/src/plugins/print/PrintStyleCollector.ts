@@ -1,6 +1,36 @@
 /**
  * Collects and aggregates CSS for print output.
- * Extracts adopted stylesheets, snapshots theme tokens, and generates print-specific CSS.
+ *
+ * The print document preserves the editor's shadow boundary (declarative
+ * shadow DOM), so styles split into two scopes:
+ *
+ * - Shadow scope (inside the template): the editor's own adopted styles
+ *   (base styles behind a cascade layer, runtime style-token rules
+ *   unlayered), print content rules, and `customCSS` as the final same-tree
+ *   override.
+ * - Document scope: print guards (host-element reset, `html`/`body` page
+ *   reset, and forced light theme — `!important` inside the `notectl-print`
+ *   layer so they hold even against `!important` host rules such as
+ *   `@media print { body * { visibility: hidden } }`), the carried
+ *   theme-token snapshot (unlayered, so it beats the layered host copy), body
+ *   typography snapshot, `@page` setup, and two `customCSS` copies: unlayered
+ *   for normal-strength page-level rules (`@page`, `body`) and inside the
+ *   earliest `notectl-custom` layer so consumer `!important` rules outrank
+ *   the print guards.
+ *
+ * Document layer order is `notectl-custom, notectl-print, notectl-host`
+ * (declared in {@link buildHTMLDocument}). For normal declarations unlayered
+ * rules win over all layers; for `!important` declarations the layer order
+ * reverses, so earlier layers win: customCSS > print guards > host copy.
+ *
+ * Two document-scope builders exist: {@link buildDocumentCSS} for the
+ * internal print iframe (full page fidelity — `html`/`body` reset, body
+ * typography, `@page`) and {@link buildExportDocumentCSS} for the export
+ * variant, whose inline rules are all qualified with the replica marker
+ * attribute so embedding the export into a live page (documented
+ * innerHTML/setHTMLUnsafe flow) cannot restyle the consumer's document. The
+ * export regains full page fidelity in standalone documents through the
+ * script-hoisted standalone style bundle (see PrintServiceImpl).
  */
 
 import { generateThemeCSS } from '../../editor/theme/ThemeEngine.js';
@@ -10,30 +40,123 @@ import {
 	PAPER_MARGIN_TOP_PX,
 	getPaperCSSSize,
 } from '../../model/PaperSize.js';
+import { isRuntimeStyleSheet } from '../../style/StyleRuntime.js';
 import type { PrintOptions } from './PrintTypes.js';
 
-/** Extracts CSS text from all adopted stylesheets on a ShadowRoot. */
-export function extractAdoptedStyles(shadowRoot: ShadowRoot): string {
-	const parts: string[] = [];
-	for (const sheet of shadowRoot.adoptedStyleSheets) {
-		for (const rule of sheet.cssRules) {
-			parts.push(rule.cssText);
-		}
-	}
-	return parts.join('\n');
+/** Cascade layer that holds the editor's own base styles in print output. */
+const BASE_STYLE_LAYER = 'notectl-base';
+
+/**
+ * Document-level cascade layer holding the print guards (host reset, forced
+ * light theme). Declared before the host-copy layer, so its `!important`
+ * declarations beat `!important` host rules.
+ */
+export const PRINT_STYLE_LAYER = 'notectl-print';
+
+/**
+ * Earliest document-level cascade layer, holding a `customCSS` copy. Its
+ * `!important` declarations are the strongest in the print document — the
+ * consumer's escape hatch over the print guards and host rules.
+ */
+export const CUSTOM_STYLE_LAYER = 'notectl-custom';
+
+/**
+ * Appends `!important` to every declaration of generated CSS. Only safe for
+ * CSS this module generates itself (one declaration per line, no semicolons
+ * inside values).
+ */
+function markDeclarationsImportant(css: string): string {
+	return css.replace(/;$/gm, ' !important;');
+}
+
+/** Adopted shadow styles split by role for print emission. */
+export interface AdoptedStylePartition {
+	/** Editor base styles — emitted inside the print cascade layer. */
+	readonly base: string;
+	/**
+	 * Runtime style-token rules (strict-CSP mode) carrying user-applied content
+	 * formatting — emitted unlayered so they keep their cascade strength.
+	 */
+	readonly runtime: string;
 }
 
 /**
- * Generates light theme CSS custom properties for print output.
- * Uses the static LIGHT_THEME definition rather than reading computed styles,
- * ensuring print output is always readable on paper regardless of the active editor theme.
+ * Extracts CSS text from all adopted stylesheets on a ShadowRoot, separating
+ * editor base styles from runtime style-token sheets. The distinction matters
+ * for print: base styles go into a cascade layer so consumer overrides win
+ * (the documented #202 semantic: `customCSS` overrides built-in element
+ * styling regardless of selector specificity — the flip side, also
+ * documented, is that broad customCSS resets such as `* { padding: 0 }`
+ * override base styling too), but token rules represent user content
+ * formatting (inline styles in non-CSP mode) and must not be demoted with
+ * them.
  */
-export function generateLightThemeTokens(): string {
-	return generateThemeCSS(LIGHT_THEME).replace(':host {', ':root {');
+export function partitionAdoptedStyles(shadowRoot: ShadowRoot): AdoptedStylePartition {
+	const base: string[] = [];
+	const runtime: string[] = [];
+	for (const sheet of shadowRoot.adoptedStyleSheets) {
+		const target: string[] = isRuntimeStyleSheet(sheet) ? runtime : base;
+		for (const rule of sheet.cssRules) {
+			target.push(rule.cssText);
+		}
+	}
+	return { base: base.join('\n'), runtime: runtime.join('\n') };
 }
 
-/** Snapshots --notectl-* CSS custom properties from the host element into a :root block. */
-export function snapshotThemeTokens(host: HTMLElement): string {
+/**
+ * Generates light theme custom properties targeting `selector` (a full
+ * selector list). The internal print iframe passes `:root` plus the host
+ * element, so page-level `customCSS` rules
+ * (`body { background: var(--notectl-bg) }`) keep resolving while the host
+ * element re-pins the tokens closer than the shadow theme sheet's `:host`
+ * defaults; the export variant passes only the marker-qualified replica so
+ * nothing can leak into an embedding page. Every declaration is `!important`;
+ * emitted inside the `notectl-print` layer, it beats copied host-page token
+ * overrides (even `!important` ones) and the shadow theme sheet (tree
+ * context), guaranteeing readable print output regardless of the active
+ * editor theme.
+ */
+export function generateLightThemeTokens(selector: string): string {
+	const css: string = generateThemeCSS(LIGHT_THEME).replace(':host {', `${selector} {`);
+	return markDeclarationsImportant(css);
+}
+
+/**
+ * Serializes an element's inline `--notectl-*` declarations. Tokens set via
+ * the `style` attribute or JS `setProperty` (runtime theme switchers) cannot
+ * travel through the stylesheet copy; re-emitting them as inline style on the
+ * print document's corresponding element preserves their live cascade
+ * strength — inline declarations beat every copied stylesheet rule, exactly
+ * as on the live page.
+ */
+export function collectInlineThemeTokens(el: Element | null): string {
+	if (!(el instanceof HTMLElement)) return '';
+	const declarations: string[] = [];
+	for (let i = 0; i < el.style.length; i++) {
+		const prop: string = el.style[i] ?? '';
+		if (!prop.startsWith('--notectl-')) continue;
+		const value: string = el.style.getPropertyValue(prop).trim();
+		if (value) declarations.push(`${prop}: ${value}`);
+	}
+	return declarations.join('; ');
+}
+
+/**
+ * Snapshots all computed `--notectl-*` tokens from the host element when
+ * carrying the live theme (`forceLightTheme: false`). The computed values are
+ * the ground truth of what the user saw: tokens set via the host's inline
+ * `style` attribute (stripped from the print replica), via JS `setProperty`,
+ * or via rules scoped to wrapper elements that do not exist in the print
+ * document cannot travel through the stylesheet copy. Targeted at `selector`
+ * (a full selector list: the host element, plus `:root` in the internal
+ * variant so page-level `customCSS` keeps resolving the tokens) and emitted
+ * unlayered: unlayered normal declarations beat the layered host copy, so a
+ * host-page rule that matches differently in the print document (its wrapper
+ * ancestors are not replicated) cannot override the live values.
+ * Print-specific token overrides therefore need `!important` in the host
+ * page or `customCSS`.
+ */
+export function snapshotThemeTokens(host: HTMLElement, selector: string): string {
 	const computed: CSSStyleDeclaration = getComputedStyle(host);
 	const tokens: string[] = [];
 
@@ -48,16 +171,48 @@ export function snapshotThemeTokens(host: HTMLElement): string {
 	}
 
 	if (tokens.length === 0) return '';
-	return `:root {\n${tokens.join('\n')}\n}`;
+	return `${selector} {\n${tokens.join('\n')}\n}`;
+}
+
+/** Computed background-color values that mean "no own background". */
+const TRANSPARENT_BACKGROUNDS: readonly string[] = ['', 'transparent', 'rgba(0, 0, 0, 0)'];
+
+/**
+ * Resolves the background the editor content visually sits on, for carrying
+ * the live theme into print (`forceLightTheme: false`). Walks up from the
+ * content container (crossing shadow boundaries) through the page body up to
+ * the root element — dark themes commonly paint `html` and leave `body`
+ * transparent — returning the first non-transparent computed
+ * background-color. Falls back to white so print output never inherits an
+ * undefined background.
+ */
+export function resolveCarriedBackground(container: HTMLElement): string {
+	let el: HTMLElement | null = container;
+	while (el) {
+		const background: string = getComputedStyle(el).getPropertyValue('background-color').trim();
+		if (!TRANSPARENT_BACKGROUNDS.includes(background)) return background;
+		const root: Node = el.getRootNode();
+		el = el.parentElement ?? (root instanceof ShadowRoot ? (root.host as HTMLElement) : null);
+	}
+	return '#ffffff';
 }
 
 /**
- * Snapshots computed typography from the host element into a `body` rule.
- * In the editor, typography is inherited from `:host` (shadow DOM).
- * The print iframe is a regular document where `:host` doesn't match,
- * so we must apply the same font/line-height explicitly.
+ * Snapshots computed typography from the host element into a rule for
+ * `selector` (the page body in the print iframe, the replica host in the
+ * export variant). Copied host-page styles are layered and `body` rules from
+ * the host page are meant for the host application, so print pins typography
+ * explicitly to what the editor computed live. The background is pinned to
+ * `background` — white when the light theme is forced, the carried theme
+ * background otherwise — so dark-theme output never renders light text on
+ * white paper.
  */
-export function snapshotTypography(host: HTMLElement, colorOverride?: string): string {
+export function snapshotTypography(
+	host: HTMLElement,
+	colorOverride?: string,
+	background = '#ffffff',
+	selector = 'body',
+): string {
 	const computed: CSSStyleDeclaration = getComputedStyle(host);
 	const props: string[] = [
 		'font-family',
@@ -68,7 +223,7 @@ export function snapshotTypography(host: HTMLElement, colorOverride?: string): s
 		'word-spacing',
 		'color',
 	];
-	const rules: string[] = ['  margin: 0;'];
+	const rules: string[] = ['  margin: 0;', `  background: ${background};`];
 	for (const prop of props) {
 		if (prop === 'color' && colorOverride) {
 			rules.push(`  color: ${colorOverride};`);
@@ -79,14 +234,91 @@ export function snapshotTypography(host: HTMLElement, colorOverride?: string): s
 			rules.push(`  ${prop}: ${value};`);
 		}
 	}
-	return `body {\n${rules.join('\n')}\n}`;
+	return `${selector} {\n${rules.join('\n')}\n}`;
 }
 
-/** Generates print-specific CSS rules based on PrintOptions. */
-export function generatePrintCSS(options: PrintOptions): string {
-	const parts: string[] = [];
+/** Declarations that neutralize screen-widget chrome on the print host. */
+const HOST_RESET_DECLARATIONS: readonly string[] = [
+	'display: block',
+	'position: static',
+	'inset: auto',
+	'width: auto',
+	'height: auto',
+	'min-width: 0',
+	'min-height: 0',
+	'max-width: none',
+	'max-height: none',
+	'margin: 0',
+	'padding: 0',
+	'border: none',
+	'border-radius: 0',
+	'outline: none',
+	'box-shadow: none',
+	'background: transparent',
+	'overflow: visible',
+	'transform: none',
+	'filter: none',
+	'opacity: 1',
+	'contain: none',
+	'float: none',
+	'visibility: visible',
+];
 
-	// @page rule
+/**
+ * Declarations that keep the print page itself visible and unclipped. Host
+ * pages commonly hide or clip at the page level — the classic
+ * `@media print { body * { visibility: hidden } }` trick or app-shell
+ * `html, body { height: 100%; overflow: hidden }` — and those rules are
+ * copied verbatim into the host layer. Only hide/clip-capable properties are
+ * guarded; box properties like `margin` stay overridable via plain customCSS.
+ */
+const PAGE_RESET_DECLARATIONS: readonly string[] = [
+	'display: block',
+	'visibility: visible',
+	'opacity: 1',
+	'position: static',
+	'height: auto',
+	'min-height: 0',
+	'max-height: none',
+	'overflow: visible',
+	'transform: none',
+	'filter: none',
+	'contain: none',
+];
+
+/**
+ * Neutralizes page-level hiding and clipping from copied host rules on
+ * `html`/`body`. Every declaration is `!important`; emitted inside the
+ * `notectl-print` layer it beats the host copy even against `!important`
+ * host rules, while `customCSS` (earlier `notectl-custom` layer) still wins.
+ */
+export function generatePageResetCSS(): string {
+	return [
+		'html, body {',
+		...PAGE_RESET_DECLARATIONS.map((declaration: string): string => `  ${declaration} !important;`),
+		'}',
+	].join('\n');
+}
+
+/**
+ * Neutralizes screen-widget chrome on the print host element. Copied
+ * host-page rules like `notectl-editor { height: 400px; border: … }` style
+ * the live widget but must not constrain the paginated print flow. Every
+ * declaration is `!important`; emitted inside the `notectl-print` layer, the
+ * reset beats the host copy even against `!important` host rules. Inherited
+ * properties (fonts, color) are deliberately not touched; `customCSS` can
+ * reclaim any of these via `!important` (earlier `notectl-custom` layer).
+ */
+export function generateHostResetCSS(hostSelector: string): string {
+	return [
+		`${hostSelector} {`,
+		...HOST_RESET_DECLARATIONS.map((declaration: string): string => `  ${declaration} !important;`),
+		'}',
+	].join('\n');
+}
+
+/** Generates the `@page` rule based on PrintOptions. */
+export function generatePageCSS(options: PrintOptions): string {
 	const pageProps: string[] = [];
 	if (options.margin) {
 		pageProps.push(`  margin: ${options.margin};`);
@@ -103,9 +335,24 @@ export function generatePrintCSS(options: PrintOptions): string {
 		}
 		pageProps.push(`  size: ${sizeParts.join(' ')};`);
 	}
-	if (pageProps.length > 0) {
-		parts.push(`@page {\n${pageProps.join('\n')}\n}`);
-	}
+	if (pageProps.length === 0) return '';
+	return `@page {\n${pageProps.join('\n')}\n}`;
+}
+
+/** Generates print-specific content rules; emitted inside the shadow scope. */
+export function generateContentPrintCSS(options: PrintOptions): string {
+	const parts: string[] = [];
+
+	// Print flows the full document: screen scroll constraints on the content
+	// area (the --notectl-content-max-height token or host ::part(content)
+	// height rules) must not clip it to one scroll fold. Shadow-tree
+	// `!important` beats document-tree `!important`, so this holds even
+	// against host `::part()` rules; the shadow customCSS copy is emitted
+	// later in source order and can still override.
+	parts.push(
+		'.notectl-content { height: auto !important; max-height: none !important; ' +
+			'min-height: 0 !important; overflow: visible !important; }',
+	);
 
 	// WYSIWYG: apply paper-mode document margins to print content
 	if (options.paperSize) {
@@ -146,39 +393,139 @@ export function generatePrintCSS(options: PrintOptions): string {
 	return parts.join('\n\n');
 }
 
-/** Collects all CSS needed for print: adopted styles, theme tokens, print CSS, and custom CSS. */
-export function collectAll(
-	shadowRoot: ShadowRoot,
-	host: HTMLElement,
-	options: PrintOptions,
-): string {
+/**
+ * Builds the CSS placed inside the print document's declarative shadow root:
+ * editor base styles behind a cascade layer (so consumer overrides win),
+ * runtime style-token rules unlayered, print content rules, and customCSS as
+ * the final same-tree override.
+ */
+export function buildShadowCSS(shadowRoot: ShadowRoot, options: PrintOptions): string {
 	const parts: string[] = [];
 
-	const adopted: string = extractAdoptedStyles(shadowRoot);
-	if (adopted) parts.push(adopted);
+	const adopted: AdoptedStylePartition = partitionAdoptedStyles(shadowRoot);
+	if (adopted.base) parts.push(`@layer ${BASE_STYLE_LAYER} {\n${adopted.base}\n}`);
+	if (adopted.runtime) parts.push(adopted.runtime);
 
-	const forceLightTheme: boolean = options.forceLightTheme !== false;
-
-	if (forceLightTheme) {
-		parts.push(generateLightThemeTokens());
-	} else {
-		const theme: string = snapshotThemeTokens(host);
-		if (theme) parts.push(theme);
-	}
-
-	// WYSIWYG: snapshot host typography so the print iframe matches the editor.
-	// In the editor, .notectl-content inherits font from :host (shadow DOM).
-	// The print iframe is a regular document where :host doesn't apply.
-	const colorOverride: string | undefined = forceLightTheme
-		? LIGHT_THEME.primitives.foreground
-		: undefined;
-	parts.push(snapshotTypography(host, colorOverride));
-
-	const printCSS: string = generatePrintCSS(options);
-	if (printCSS) parts.push(printCSS);
+	const contentCSS: string = generateContentPrintCSS(options);
+	if (contentCSS) parts.push(contentCSS);
 
 	if (options.customCSS) {
 		parts.push(options.customCSS);
+	}
+
+	return parts.join('\n\n');
+}
+
+/** The print-color-adjust guard; document-level, because the shadow-scope copy cannot reach document-tree elements. */
+const COLOR_ADJUST_GUARD: string =
+	'* {\n  -webkit-print-color-adjust: exact !important;\n  print-color-adjust: exact !important;\n}';
+
+/**
+ * Builds the document-level CSS of the internal print iframe: the print
+ * guards (host reset, `html`/`body` page reset, and forced light theme —
+ * `!important` inside the `notectl-print` layer), the unlayered theme-token
+ * snapshot, body typography, `@page`, and two copies of customCSS. The
+ * unlayered copy carries page-level custom rules (`@page`, `body` — they
+ * cannot live inside the shadow scope) at normal strength; the
+ * `notectl-custom` layer copy makes consumer `!important` rules outrank the
+ * print guards and `!important` host rules.
+ */
+export function buildDocumentCSS(
+	host: HTMLElement,
+	container: HTMLElement,
+	options: PrintOptions,
+): string {
+	const hostSelector: string = host.tagName.toLowerCase();
+	const parts: string[] = [];
+
+	const forceLightTheme: boolean = options.forceLightTheme !== false;
+	const guards: string[] = [generateHostResetCSS(hostSelector), generatePageResetCSS()];
+	if (forceLightTheme) {
+		guards.push(generateLightThemeTokens(`:root, ${hostSelector}`));
+	}
+	// Without the document-level copy of this guard, the pinned body background
+	// (the carried theme background for forceLightTheme: false) is stripped by
+	// the browser's default "no background graphics" print behavior.
+	if (options.printBackground !== false) {
+		guards.push(COLOR_ADJUST_GUARD);
+	}
+	parts.push(`@layer ${PRINT_STYLE_LAYER} {\n${guards.join('\n\n')}\n}`);
+
+	if (!forceLightTheme) {
+		const themeTokens: string = snapshotThemeTokens(host, `:root, ${hostSelector}`);
+		if (themeTokens) parts.push(themeTokens);
+	}
+
+	const colorOverride: string | undefined = forceLightTheme
+		? LIGHT_THEME.primitives.foreground
+		: undefined;
+	const background: string = forceLightTheme ? '#ffffff' : resolveCarriedBackground(container);
+	parts.push(snapshotTypography(host, colorOverride, background));
+
+	const pageCSS: string = generatePageCSS(options);
+	if (pageCSS) parts.push(pageCSS);
+
+	if (options.customCSS) {
+		parts.push(options.customCSS);
+		parts.push(`@layer ${CUSTOM_STYLE_LAYER} {\n${options.customCSS}\n}`);
+	}
+
+	return parts.join('\n\n');
+}
+
+/**
+ * Builds the inline document-level CSS of the export variant (`toHTML()`,
+ * `AFTER_PRINT`). Every selector is qualified with `markerSelector` (the
+ * static-replica marker attribute), so the rules can only ever match a
+ * replica: embedding the export into a live page via the documented
+ * innerHTML/setHTMLUnsafe flow cannot restyle the consumer's document, hide
+ * its live editors, or force them light. (`@scope` cannot express this: its
+ * implicit `:where(:scope)` descendant prefix excludes the scoping root
+ * itself, and shadow content — every `::part()` subject — is outside the
+ * scope.) Page-level rules (`html`/`body` reset, `body` typography, `@page`,
+ * `:root` tokens, the customCSS document copies) are not emitted here; they
+ * ship in the script-gated standalone style bundle and otherwise apply in the
+ * `print()` iframe. Instead the typography and background snapshot is emitted
+ * `!important` after the host reset in the same layer, so the replica paints
+ * its own canvas even without scripts.
+ */
+export function buildExportDocumentCSS(
+	host: HTMLElement,
+	container: HTMLElement,
+	options: PrintOptions,
+	markerAttribute: string,
+): string {
+	const markedSelector: string = `${host.tagName.toLowerCase()}[${markerAttribute}]`;
+	const forceLightTheme: boolean = options.forceLightTheme !== false;
+
+	const guards: string[] = [generateHostResetCSS(markedSelector)];
+	if (forceLightTheme) {
+		// No `:root` copy here: `!important` tokens on the embedding page's root
+		// would force every live editor light (they beat the shadow `:host`
+		// theme sheet). The `:root` copy for page-level customCSS var() support
+		// lives in the standalone bundle.
+		guards.push(generateLightThemeTokens(markedSelector));
+	}
+	if (options.printBackground !== false) {
+		guards.push(
+			`${markedSelector}, ${markedSelector} * {\n  -webkit-print-color-adjust: exact !important;\n  print-color-adjust: exact !important;\n}`,
+		);
+	}
+	const colorOverride: string | undefined = forceLightTheme
+		? LIGHT_THEME.primitives.foreground
+		: undefined;
+	const background: string = forceLightTheme ? '#ffffff' : resolveCarriedBackground(container);
+	// Emitted after the host reset in the same layer: the source-order tie
+	// lets the snapshot's background beat the reset's `background: transparent`.
+	guards.push(
+		markDeclarationsImportant(snapshotTypography(host, colorOverride, background, markedSelector)),
+	);
+
+	const parts: string[] = [`@layer ${PRINT_STYLE_LAYER} {\n${guards.join('\n\n')}\n}`];
+
+	if (!forceLightTheme) {
+		const themeTokens: string = snapshotThemeTokens(host, markedSelector);
+		if (themeTokens) parts.push(themeTokens);
 	}
 
 	return parts.join('\n\n');
