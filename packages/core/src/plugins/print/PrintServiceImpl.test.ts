@@ -42,6 +42,7 @@ describe('PrintServiceImpl', () => {
 			const host: HTMLElement = document.createElement('notectl-editor');
 			return {
 				documentCSS: '.doc {}',
+				standaloneCSS: '.standalone {}',
 				hostSegments: [],
 				shadowCSS: '.shadow {}',
 				host,
@@ -49,7 +50,7 @@ describe('PrintServiceImpl', () => {
 				title: 'Test',
 				lang: 'en',
 				carryThemeContext: false,
-				embedFallback: true,
+				variant: 'export',
 				...overrides,
 			};
 		}
@@ -81,8 +82,13 @@ describe('PrintServiceImpl', () => {
 			const html: string = buildHTMLDocument(buildInput());
 
 			// Consumers rendering with a non-DSD parser that executes scripts
-			// (older WebViews, HTML-to-PDF engines) still get visible output.
-			expect(html).toContain("querySelectorAll('template[shadowrootmode]')");
+			// (older WebViews, HTML-to-PDF engines) still get visible output. The
+			// script must start from the replica marker, never from a document-wide
+			// template sweep that would consume the consumer's own DSD templates,
+			// and it must gate the standalone style bundle on the head meta.
+			expect(html).toContain("querySelectorAll('[data-notectl-static]')");
+			expect(html).not.toContain("querySelectorAll('template[shadowrootmode]')");
+			expect(html).toContain('meta[name="notectl-print-export"]');
 			expect(html.indexOf('<script>')).toBeGreaterThan(html.indexOf('</template>'));
 		});
 
@@ -104,7 +110,7 @@ describe('PrintServiceImpl', () => {
 		});
 
 		it('omits fallback content and script for the internal print variant', () => {
-			const html: string = buildHTMLDocument(buildInput({ embedFallback: false }));
+			const html: string = buildHTMLDocument(buildInput({ variant: 'internal' }));
 
 			expect(html).not.toContain('data-notectl-print-fallback');
 			expect(html).not.toContain('<script');
@@ -122,9 +128,10 @@ describe('PrintServiceImpl', () => {
 			expect(html).not.toContain('height: 400px');
 		});
 
-		it('wraps copied host CSS in the notectl-host layer and hoists imports', () => {
+		it('wraps copied host CSS in the notectl-host layer and hoists imports internally', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({
+					variant: 'internal',
 					hostSegments: [
 						{
 							kind: 'import',
@@ -139,11 +146,42 @@ describe('PrintServiceImpl', () => {
 				'<style>@import url("https://cdn.example/x.css") layer(notectl-host);</style>',
 			);
 			expect(html).toContain('@layer notectl-host {\nnotectl-editor::part(cell)');
+			expect(html).not.toContain('@scope');
+		});
+
+		it('ships host CSS and page CSS only in the inert style bundle of the export', () => {
+			const html: string = buildHTMLDocument(
+				buildInput({
+					hostSegments: [
+						{
+							kind: 'import',
+							statement: '@import url("https://cdn.example/x.css") layer(notectl-host);',
+						},
+						{ kind: 'rules', css: 'notectl-editor::part(cell) { padding: 0px; }' },
+					],
+				}),
+			);
+
+			// An embedding page must not have consumer elements matched by the
+			// copied selectors, nor foreign stylesheets loaded into it: copied
+			// host CSS, hoisted imports, and the page-level CSS live in an inert
+			// template that only the script-gated standalone path activates.
+			const head: string = html.slice(0, html.indexOf('</head>'));
+			const bundleStart: number = html.indexOf('<template data-notectl-print-styles>');
+			expect(bundleStart).toBeGreaterThanOrEqual(0);
+			expect(head).toContain('<meta name="notectl-print-export">');
+			expect(head).not.toContain('@import');
+			expect(head).not.toContain('@layer notectl-host {');
+			expect(head).not.toContain('.standalone {}');
+			expect(html.indexOf('@import')).toBeGreaterThan(bundleStart);
+			expect(html.indexOf('notectl-editor::part(cell)')).toBeGreaterThan(bundleStart);
+			expect(html.indexOf('.standalone {}')).toBeGreaterThan(bundleStart);
 		});
 
 		it('emits host segments as separate style elements in source order', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({
+					variant: 'internal',
 					hostSegments: [
 						{ kind: 'rules', css: '.before { color: red; }' },
 						{
@@ -168,6 +206,7 @@ describe('PrintServiceImpl', () => {
 		it('declares the layer order before the hoisted imports', () => {
 			const html: string = buildHTMLDocument(
 				buildInput({
+					variant: 'internal',
 					hostSegments: [
 						{
 							kind: 'import',
@@ -179,7 +218,7 @@ describe('PrintServiceImpl', () => {
 			);
 
 			const orderIndex: number = html.indexOf(
-				'@layer notectl-custom, notectl-print, notectl-theme, notectl-host;',
+				'@layer notectl-custom, notectl-print, notectl-host;',
 			);
 			const importIndex: number = html.indexOf('@import');
 			expect(orderIndex).toBeGreaterThanOrEqual(0);
@@ -190,7 +229,7 @@ describe('PrintServiceImpl', () => {
 			const html: string = buildHTMLDocument(buildInput());
 			// Without the statement, first appearance inside the document CSS would
 			// put notectl-print before notectl-custom and invert important priority.
-			expect(html).toContain('@layer notectl-custom, notectl-print, notectl-theme, notectl-host;');
+			expect(html).toContain('@layer notectl-custom, notectl-print, notectl-host;');
 		});
 
 		it('escapes literal </style> sequences in every embedded CSS scope', () => {
@@ -213,7 +252,7 @@ describe('PrintServiceImpl', () => {
 
 		it('applies the CSP nonce to every embedded style of the internal variant', () => {
 			const html: string = buildHTMLDocument(
-				buildInput({ styleNonce: 'test-nonce', embedFallback: false }),
+				buildInput({ styleNonce: 'test-nonce', variant: 'internal' }),
 			);
 
 			// Two document-level styles plus the shadow-template style.
@@ -299,12 +338,26 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('Hello World');
 		});
 
-		it('includes print CSS rules', () => {
+		it('keeps @page rules out of the active CSS of the embed-safe export', () => {
 			const { service } = createTestEnv();
 			const html: string = service.toHTML({ margin: '2cm' });
 
-			expect(html).toContain('@page');
-			expect(html).toContain('margin: 2cm');
+			// Active on an embedding page, @page would change the consumer's own
+			// print margins; it ships only inside the inert standalone bundle
+			// (and inline in the print() iframe).
+			const bundleStart: number = html.indexOf('<template data-notectl-print-styles>');
+			expect(bundleStart).toBeGreaterThanOrEqual(0);
+			expect(html.indexOf('@page')).toBeGreaterThan(bundleStart);
+		});
+
+		it('qualifies all active document-level selectors with the replica marker', () => {
+			const { service } = createTestEnv();
+			const html: string = service.toHTML();
+
+			const head: string = html.slice(0, html.indexOf('</head>'));
+			expect(head).toContain('div[data-notectl-static]');
+			expect(head).not.toContain('html, body {');
+			expect(head).not.toContain(':root');
 		});
 
 		it('never serializes the CSP nonce into the exported document', () => {
@@ -382,57 +435,57 @@ describe('PrintServiceImpl', () => {
 		});
 	});
 
+	/** Replaces created iframes with a fake window capturing listeners and print(). */
+	function mockPrintIframe(): {
+		printMock: ReturnType<typeof vi.fn>;
+		listeners: Map<string, EventListenerOrEventListenerObject>;
+		removedListeners: string[];
+		written: string[];
+	} {
+		const originalCreateElement = document.createElement.bind(document);
+		const printMock = vi.fn();
+		const listeners = new Map<string, EventListenerOrEventListenerObject>();
+		const removedListeners: string[] = [];
+		const written: string[] = [];
+
+		vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+			const el: HTMLElement = originalCreateElement(tag);
+			if (tag === 'iframe') {
+				const fakeWindow = {
+					print: printMock,
+					addEventListener: (type: string, cb: EventListenerOrEventListenerObject) => {
+						listeners.set(type, cb);
+					},
+					removeEventListener: (type: string) => {
+						removedListeners.push(type);
+					},
+				};
+				const fakeDocument = {
+					readyState: 'loading',
+					open: (): void => {},
+					write: (html: string): void => {
+						written.push(html);
+					},
+					close: (): void => {},
+				};
+				Object.defineProperty(el, 'contentWindow', {
+					get() {
+						return fakeWindow;
+					},
+				});
+				Object.defineProperty(el, 'contentDocument', {
+					get() {
+						return fakeDocument;
+					},
+				});
+			}
+			return el;
+		});
+
+		return { printMock, listeners, removedListeners, written };
+	}
+
 	describe('print', () => {
-		/** Replaces created iframes with a fake window capturing listeners and print(). */
-		function mockPrintIframe(): {
-			printMock: ReturnType<typeof vi.fn>;
-			listeners: Map<string, EventListenerOrEventListenerObject>;
-			removedListeners: string[];
-			written: string[];
-		} {
-			const originalCreateElement = document.createElement.bind(document);
-			const printMock = vi.fn();
-			const listeners = new Map<string, EventListenerOrEventListenerObject>();
-			const removedListeners: string[] = [];
-			const written: string[] = [];
-
-			vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-				const el: HTMLElement = originalCreateElement(tag);
-				if (tag === 'iframe') {
-					const fakeWindow = {
-						print: printMock,
-						addEventListener: (type: string, cb: EventListenerOrEventListenerObject) => {
-							listeners.set(type, cb);
-						},
-						removeEventListener: (type: string) => {
-							removedListeners.push(type);
-						},
-					};
-					const fakeDocument = {
-						readyState: 'loading',
-						open: (): void => {},
-						write: (html: string): void => {
-							written.push(html);
-						},
-						close: (): void => {},
-					};
-					Object.defineProperty(el, 'contentWindow', {
-						get() {
-							return fakeWindow;
-						},
-					});
-					Object.defineProperty(el, 'contentDocument', {
-						get() {
-							return fakeDocument;
-						},
-					});
-				}
-				return el;
-			});
-
-			return { printMock, listeners, removedListeners, written };
-		}
-
 		it('creates an iframe, prints, and defers cleanup to afterprint', () => {
 			const { service } = createTestEnv();
 			const { printMock, listeners } = mockPrintIframe();
@@ -637,11 +690,25 @@ describe('PrintServiceImpl', () => {
 	});
 
 	describe('print output preserves host typography', () => {
+		/** Captures the internal variant written into the print iframe. */
+		function printedHTML(
+			service: ManagedPrintService,
+			options: Record<string, unknown> = {},
+		): string {
+			const { written } = mockPrintIframe();
+			try {
+				service.print(options);
+				return written[0] ?? '';
+			} finally {
+				vi.restoreAllMocks();
+			}
+		}
+
 		it('includes body rule with font-family when paperSize is set', () => {
 			const { service, host } = createTestEnv();
 			host.style.fontFamily = 'Arial, sans-serif';
 
-			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
+			const html: string = printedHTML(service, { paperSize: PaperSize.DINA4 });
 
 			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
 			expect(bodyRuleMatch).toBeTruthy();
@@ -655,7 +722,7 @@ describe('PrintServiceImpl', () => {
 			host.style.fontSize = '16px';
 			host.style.lineHeight = '1.5';
 
-			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
+			const html: string = printedHTML(service, { paperSize: PaperSize.DINA4 });
 
 			const bodyRuleMatch: RegExpMatchArray | null = html.match(/(?:^|\n)body\s*\{[^}]*\}/);
 			if (!bodyRuleMatch) {
@@ -666,18 +733,6 @@ describe('PrintServiceImpl', () => {
 			const bodyRule: string = bodyRuleMatch[0];
 			expect(bodyRule).toContain('font-size');
 			expect(bodyRule).toContain('line-height');
-
-			document.body.removeChild(host);
-		});
-
-		it('includes body rule with font-family in paper mode', () => {
-			const { service, host } = createTestEnv();
-			host.style.fontFamily = 'Georgia, serif';
-
-			const html: string = service.toHTML({ paperSize: PaperSize.DINA4 });
-
-			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
-			expect(bodyRuleMatch).toBeTruthy();
 
 			document.body.removeChild(host);
 		});
@@ -686,7 +741,7 @@ describe('PrintServiceImpl', () => {
 			const { service, host } = createTestEnv();
 			host.style.fontFamily = 'Arial, sans-serif';
 
-			const html: string = service.toHTML({});
+			const html: string = printedHTML(service);
 
 			const bodyRuleMatch: RegExpMatchArray | null = html.match(/body\s*\{[^}]*font-family[^}]*\}/);
 			expect(bodyRuleMatch).toBeTruthy();
@@ -694,23 +749,27 @@ describe('PrintServiceImpl', () => {
 			document.body.removeChild(host);
 		});
 
-		it('includes font-size and line-height without paperSize', () => {
+		it('writes @page setup into the internal variant', () => {
+			const { service } = createTestEnv();
+
+			const html: string = printedHTML(service, { margin: '2cm' });
+
+			expect(html).toContain('@page');
+			expect(html).toContain('margin: 2cm');
+		});
+
+		it('pins typography on the replica itself in the embed-safe export', () => {
 			const { service, host } = createTestEnv();
 			host.style.fontFamily = 'Arial, sans-serif';
-			host.style.fontSize = '18px';
-			host.style.lineHeight = '1.8';
 
+			// The active export CSS has no body rule (nothing outside the replica
+			// may be styled); the replica paints its own canvas instead, and the
+			// page-level body rule ships only in the inert standalone bundle.
 			const html: string = service.toHTML({});
 
-			const bodyRuleMatch: RegExpMatchArray | null = html.match(/(?:^|\n)body\s*\{[^}]*\}/);
-			if (!bodyRuleMatch) {
-				expect.unreachable('Expected body rule in print HTML');
-				return;
-			}
-
-			const bodyRule: string = bodyRuleMatch[0];
-			expect(bodyRule).toContain('font-size');
-			expect(bodyRule).toContain('line-height');
+			const head: string = html.slice(0, html.indexOf('</head>'));
+			expect(head).not.toMatch(/body\s*\{/);
+			expect(head).toContain('font-family: Arial, sans-serif !important;');
 
 			document.body.removeChild(host);
 		});
