@@ -26,6 +26,12 @@ export interface SerContext {
 	readonly opts: ResolvedSerializeOptions;
 	/** Precomputed mark rank map (built once per pass) for HTML-fallback marks. */
 	readonly markOrder?: Map<string, number>;
+	/**
+	 * True while serializing the block children of a list item (#194): thematic
+	 * breaks emit `***` there, because `---` on an indented continuation line
+	 * would re-parse as a setext underline or a bullet marker.
+	 */
+	readonly inListItem?: boolean;
 }
 
 /** Resolves user-facing options into a complete settings object with defaults. */

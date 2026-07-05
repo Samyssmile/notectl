@@ -253,8 +253,7 @@ Import and export are gated against the official CommonMark 0.31.2 spec (652 exa
 
 The parser is a linear-time scanner (a ReDoS-safety guarantee for pasted, untrusted input). A few constructs deviate from CommonMark by design:
 
-- **Multi-block list items** are not supported: a single list item containing multiple paragraphs or nested blocks flattens; the item body is one inline content line. Plain continuation lines fold into the item text; blank-line-separated content becomes following blocks. Full fidelity is the list container refactor (#194).
-- **List indent** derives from leading columns (2 per level, matching the serializer), not from CommonMark's marker-relative content columns. Documents round-trip exactly; imports of unusually indented third-party lists can differ in nesting depth.
+- **Multi-block list items** are fully supported (#194): a list item may contain several paragraphs, code blocks, blockquotes, headings, and thematic breaks, following CommonMark's marker-relative content columns. Nested lists stay flat siblings with an `indent` attribute; the one residual deviation is block content that follows a nested list *inside the same item* — it cannot keep its item-relative order in the flat sibling model and becomes a following block (content is preserved).
 - **Link reference definitions** spanning multiple lines are supported for the destination-on-next-line and title-on-next-line forms; multi-line labels and multi-line titles stay paragraph text (kept, never dropped).
 - **Tabs inside container markers** (for example a tab directly after `>`) do not expand to 4-column tab stops.
 

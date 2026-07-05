@@ -158,7 +158,10 @@ export class PasteHTMLHandler {
 			.replace(/&amp;/g, '&');
 	}
 
-	/** Checks whether HTML requires the DocumentParser (tables, blockquotes, void blocks). */
+	/**
+	 * Checks whether HTML requires the DocumentParser (tables, blockquotes,
+	 * multi-block list items, void blocks).
+	 */
 	private requiresDocumentParser(html: string, container: DocumentFragment): boolean {
 		if (/<table[\s>]/i.test(html)) return true;
 		// Blockquotes are container blocks (#136): the flat HTMLParser/slice path
@@ -166,7 +169,53 @@ export class PasteHTMLHandler {
 		// container-aware DocumentParser to preserve nesting (and to wrap inline
 		// content in a paragraph rather than producing an invalid flat blockquote).
 		if (/<blockquote[\s>]/i.test(html)) return true;
+		// Multi-block list items are containers too (#194): the slice path would
+		// silently flatten a second paragraph or a nested code block into the
+		// item's inline text.
+		if (/<li[\s>]/i.test(html) && this.containsMultiBlockListItem(container)) return true;
 		return this.containsVoidBlockElements(container);
+	}
+
+	/**
+	 * Whether any `<li>` carries block content beyond a single paragraph: two or
+	 * more block-level children, a non-paragraph block child (code, quote,
+	 * heading, rule), or a block child mixed with inline content. Nested lists
+	 * and the checklist checkbox stay on the flat path — the slice model
+	 * represents those losslessly.
+	 */
+	private containsMultiBlockListItem(container: DocumentFragment): boolean {
+		const nonParagraphBlockTags: ReadonlySet<string> = new Set([
+			'PRE',
+			'BLOCKQUOTE',
+			'TABLE',
+			'HR',
+			'H1',
+			'H2',
+			'H3',
+			'H4',
+			'H5',
+			'H6',
+		]);
+		for (const li of Array.from(container.querySelectorAll('li'))) {
+			let paragraphCount = 0;
+			let hasInlineContent = false;
+			for (const child of Array.from(li.childNodes)) {
+				if (child.nodeType === Node.ELEMENT_NODE) {
+					const tag: string = (child as Element).tagName;
+					if (tag === 'UL' || tag === 'OL' || tag === 'INPUT' || tag === 'LI') continue;
+					if (nonParagraphBlockTags.has(tag)) return true;
+					if (tag === 'P' || tag === 'DIV') {
+						paragraphCount++;
+						continue;
+					}
+					hasInlineContent = true;
+				} else if (child.nodeType === Node.TEXT_NODE) {
+					if ((child.textContent ?? '').trim() !== '') hasInlineContent = true;
+				}
+			}
+			if (paragraphCount >= 2 || (paragraphCount >= 1 && hasInlineContent)) return true;
+		}
+		return false;
 	}
 
 	/** Checks whether a DOM fragment contains elements matching void block parse rules. */

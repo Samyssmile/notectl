@@ -8,6 +8,7 @@ import {
 	getBlockText,
 	getInlineChildren,
 	isInlineNode,
+	isLeafBlock,
 } from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
@@ -707,6 +708,84 @@ describe('parseHTMLToDocument', () => {
 			expect(first.attrs?.indent).toBe(0);
 			expect(getBlockText(second)).toBe('B');
 			expect(second.attrs?.indent).toBe(1);
+		});
+
+		it('parses a multi-paragraph <li> into a container item (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<ul><li><p>first</p><p>second</p></li></ul>', registry);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.type).toBe('list_item');
+			expect(item.attrs?.listType).toBe('bullet');
+			const children = getBlockChildren(item);
+			expect(children).toHaveLength(2);
+			expect(children[0]?.type).toBe('paragraph');
+			expect(getBlockText(children[0] as BlockNode)).toBe('first');
+			expect(children[1]?.type).toBe('paragraph');
+			expect(getBlockText(children[1] as BlockNode)).toBe('second');
+		});
+
+		it('keeps a single-paragraph <li> a leaf item (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<ul><li><p>only</p></li></ul>', registry);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.type).toBe('list_item');
+			expect(isLeafBlock(item)).toBe(true);
+			expect(getBlockText(item)).toBe('only');
+		});
+
+		it('lifts a nested list out of a multi-block <li> into flat siblings (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><p>first</p><p>second</p><ul><li>nested</li></ul></li></ul>',
+				registry,
+			);
+
+			expect(doc.children).toHaveLength(2);
+			const container = doc.children[0];
+			const nested = doc.children[1];
+			if (!container || !nested) return;
+			expect(getBlockChildren(container)).toHaveLength(2);
+			expect(nested.type).toBe('list_item');
+			expect(nested.attrs?.indent).toBe(1);
+			expect(getBlockText(nested)).toBe('nested');
+		});
+
+		it('parses a checklist <li> with block children into a checked container (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><input type="checkbox" checked><p>done</p><p>details</p></li></ul>',
+				registry,
+			);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.attrs?.listType).toBe('checklist');
+			expect(item.attrs?.checked).toBe(true);
+			const children = getBlockChildren(item);
+			expect(children).toHaveLength(2);
+			expect(getBlockText(children[0] as BlockNode)).toBe('done');
+			expect(getBlockText(children[1] as BlockNode)).toBe('details');
+		});
+
+		it('round-trips a container item through serialize + parse (#194)', () => {
+			const registry = createTestRegistry();
+			const source = '<ul><li><p>first</p><p>second</p></li><li>leaf</li></ul>';
+			const doc = parseHTMLToDocument(source, registry);
+
+			expect(doc.children).toHaveLength(2);
+			const container = doc.children[0];
+			const leaf = doc.children[1];
+			if (!container || !leaf) return;
+			expect(getBlockChildren(container)).toHaveLength(2);
+			expect(isLeafBlock(leaf)).toBe(true);
+			expect(getBlockText(leaf)).toBe('leaf');
 		});
 
 		it('parses checklist items from input[type=checkbox]', () => {

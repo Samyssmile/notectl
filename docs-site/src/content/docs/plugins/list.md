@@ -102,11 +102,11 @@ editor.executeCommand('toggleChecklistItem');
 
 | Shortcut | Action |
 |----------|--------|
-| `Enter` | Split list item; exit list if the item is empty |
-| `Backspace` | Convert to paragraph when cursor is collapsed at start of item |
-| `Tab` | Indent list item (increase nesting) |
-| `Shift+Tab` | Outdent list item (decrease nesting) |
-| `Mod+Enter` | Toggle the checked state of a checklist item (`Mod` is `Ctrl` on Windows/Linux, `Cmd` on macOS) |
+| `Enter` | Split list item; exit list if the item is empty. Inside a multi-block item, splits the current child paragraph; on an empty trailing child it exits into a new sibling item |
+| `Backspace` | Convert to paragraph when cursor is collapsed at start of item. At the start of a multi-block item's first child it un-lists the whole item into its blocks |
+| `Tab` | Indent list item (increase nesting), also from inside a child block |
+| `Shift+Tab` | Outdent list item (decrease nesting), also from inside a child block |
+| `Mod+Enter` | Toggle the checked state of a checklist item, also from inside a child block (`Mod` is `Ctrl` on Windows/Linux, `Cmd` on macOS) |
 
 ## Input Rules
 
@@ -144,7 +144,23 @@ interface ListItemAttributes {
 }
 ```
 
-notectl uses a flat list model: each `list_item` carries its own `listType` and `indent` level. This avoids the complexity of nested `<ul>/<ol>` structures and simplifies indent/outdent operations.
+notectl uses a flat sibling model: each `list_item` carries its own `listType` and `indent` level, so nesting between items needs no deep tree and indent/outdent stays a simple attribute change.
+
+Item **content** is hybrid: the common single-paragraph item is a leaf holding inline text, while an item with several blocks (a second paragraph, a code block, a blockquote, a heading) is a container whose children are regular blocks. Multi-block items arrive via Markdown import, HTML paste, or the JSON API, and round-trip losslessly through `getContentMarkdown()`, `getContentHTML()`, and `getJSON()`.
+
+```ts
+// A multi-block list item in JSON form
+{
+  type: 'list_item',
+  attrs: { listType: 'bullet', indent: 0, checked: false },
+  children: [
+    { type: 'paragraph', children: [{ text: 'first paragraph' }] },
+    { type: 'code_block', attrs: { language: 'ts' }, children: [{ text: 'const x = 1;' }] },
+  ],
+}
+```
+
+Allowed child blocks: `paragraph`, `heading`, `code_block`, `blockquote`, `horizontal_rule`. A `list_item` cannot nest inside another `list_item` — sibling nesting always goes through the `indent` attribute.
 
 ## Multi-Block Selections
 

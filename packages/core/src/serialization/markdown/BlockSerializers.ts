@@ -63,7 +63,7 @@ export function serializeBlock(block: BlockNode, ctx: SerContext): string {
 	if (type === 'paragraph') return serializeParagraph(block, ctx);
 	if (type === 'heading') return serializeHeading(block, ctx);
 	if (type === 'code_block') return serializeCodeBlock(block, ctx);
-	if (type === 'horizontal_rule') return '---';
+	if (type === 'horizontal_rule') return ctx.inListItem ? '***' : '---';
 	if (type === 'image') return serializeImage(block, ctx);
 	if (type === 'blockquote') return serializeBlockquote(block, ctx);
 	if (type === 'table') return serializeTable(block, ctx);
@@ -182,22 +182,30 @@ function serializeUnknownBlock(block: BlockNode, ctx: SerContext): string {
 	return content;
 }
 
-/** Serializes a run of consecutive list items into Markdown list lines. */
+/**
+ * Serializes a run of consecutive list items into Markdown list lines.
+ *
+ * Indent maps to CommonMark content columns (#194): each level's items are
+ * padded to the content column of the last item one level up, so the parser
+ * reads them back as nested (a `1. ` parent needs three columns, `- ` two).
+ * Container items emit their block children indented to their own content
+ * column, separated by the blank lines `serializeBlocks` produces.
+ */
 function serializeListGroup(items: readonly BlockNode[], ctx: SerContext): string {
 	const lines: string[] = [];
 	const counters: number[] = [];
+	const contentColumns: number[] = [];
 
 	for (const item of items) {
 		const listType: string = String(item.attrs?.listType ?? 'bullet');
 		const indent: number = Math.max(0, (item.attrs?.indent as number | undefined) ?? 0);
-		const content: string = serializeInlineContent(getInlineChildren(item), ctx).replace(
-			/\n/g,
-			' ',
-		);
-		const pad: string = ' '.repeat(indent * ctx.opts.listIndent);
+		const padWidth: number =
+			indent === 0 ? 0 : (contentColumns[indent - 1] ?? indent * ctx.opts.listIndent);
+		const pad: string = ' '.repeat(padWidth);
 
-		// Reset deeper counters when we step back out.
+		// Reset deeper counters/columns when we step back out.
 		counters.length = indent + 1;
+		contentColumns.length = indent + 1;
 
 		let marker: string;
 		if (listType === 'ordered') {
@@ -210,7 +218,35 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerContext): strin
 			marker = ctx.opts.bullet;
 		}
 
-		lines.push(content ? `${pad}${marker} ${content}` : `${pad}${marker}`);
+		// The task marker belongs to the first content line, not the geometry:
+		// continuation lines of `- [x] foo` align to the bullet's content column.
+		const markerWidth: number =
+			listType === 'checklist' ? ctx.opts.bullet.length + 1 : marker.length + 1;
+		contentColumns[indent] = padWidth + markerWidth;
+
+		if (isLeafBlock(item)) {
+			const content: string = serializeInlineContent(getInlineChildren(item), ctx).replace(
+				/\n/g,
+				' ',
+			);
+			lines.push(content ? `${pad}${marker} ${content}` : `${pad}${marker}`);
+			continue;
+		}
+
+		// Container item (#194): serialize the block children, put the first line
+		// on the marker line, and indent the rest to the item's content column.
+		const inner: string = serializeBlocks(getBlockChildren(item), { ...ctx, inListItem: true });
+		if (inner === '') {
+			lines.push(`${pad}${marker}`);
+			continue;
+		}
+		const contentPad: string = ' '.repeat(contentColumns[indent] ?? padWidth + markerWidth);
+		const innerLines: string[] = inner.split('\n');
+		lines.push(`${pad}${marker} ${innerLines[0] ?? ''}`);
+		for (let li = 1; li < innerLines.length; li++) {
+			const innerLine: string = innerLines[li] ?? '';
+			lines.push(innerLine === '' ? '' : `${contentPad}${innerLine}`);
+		}
 	}
 
 	return lines.join('\n');

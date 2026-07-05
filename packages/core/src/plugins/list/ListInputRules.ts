@@ -25,6 +25,11 @@ export function registerListInputRules(
 				const block = state.getBlock(sel.anchor.blockId);
 				if (!block || block.type !== 'paragraph') return null;
 
+				// Inside a container list item (#194) the rule must not fire: it
+				// would nest a list_item into a list_item, which the schema forbids.
+				const parent = state.getParent(sel.anchor.blockId);
+				if (parent?.type === 'list_item') return null;
+
 				const matchStr = match[0] ?? '';
 				const matchLen = matchStr.length;
 				const attrs = buildListItemAttrs(def.type, 0, matchStr.includes('[x]'));

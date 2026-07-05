@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { inline as inlineDeco } from '../decorations/Decoration.js';
 import type { InlineDecoration } from '../decorations/Decoration.js';
 import {
+	type BlockNode,
 	createBlockNode,
 	createDocument,
 	createInlineNode,
@@ -692,6 +693,113 @@ describe('Selectable block rendering', () => {
 		const el = renderBlock(block, registry);
 
 		expect(el.getAttribute('data-selectable')).toBe('true');
+	});
+});
+
+describe('Container list items (#194)', () => {
+	function makeContainerListRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'list_item',
+			content: { allow: ['text', 'paragraph', 'code_block'] },
+			toDOM(node) {
+				const el = createBlockElement('li', node.id);
+				el.setAttribute('data-list-type', String(node.attrs?.listType ?? 'bullet'));
+				return el;
+			},
+			wrapper(node) {
+				const listType = String(node.attrs?.listType ?? 'bullet');
+				return {
+					tag: listType === 'ordered' ? 'ol' : 'ul',
+					key: `list-${listType}`,
+					className: `notectl-list notectl-list--${listType}`,
+					attrs: { role: 'list' },
+				};
+			},
+		});
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM(node) {
+				return createBlockElement('p', node.id);
+			},
+		});
+		return registry;
+	}
+
+	function containerItem(text1: string, text2: string): BlockNode {
+		return createBlockNode(
+			nodeType('list_item'),
+			[
+				createBlockNode(nodeType('paragraph'), [createTextNode(text1)], blockId('c1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode(text2)], blockId('c2')),
+			],
+			blockId('b1'),
+			{ listType: 'bullet', indent: 0, checked: false },
+		);
+	}
+
+	it('renders block children inside the <li> and still wraps it in a <ul>', () => {
+		const registry = makeContainerListRegistry();
+		const state = EditorState.create({
+			doc: createDocument([containerItem('first', 'second')]),
+			selection: createCollapsedSelection(blockId('c1'), 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const wrapper = container.querySelector('ul[data-block-wrapper]');
+		expect(wrapper).not.toBeNull();
+		const li = wrapper?.querySelector('li[data-block-id="b1"]');
+		expect(li).not.toBeNull();
+		const paragraphs = li?.querySelectorAll('p[data-block-id]');
+		expect(paragraphs?.length).toBe(2);
+		expect(paragraphs?.[0]?.textContent).toBe('first');
+		expect(paragraphs?.[1]?.textContent).toBe('second');
+	});
+
+	it('reconciles an edit inside a child paragraph of a container item', () => {
+		const registry = makeContainerListRegistry();
+		const state1 = EditorState.create({
+			doc: createDocument([containerItem('first', 'second')]),
+			selection: createCollapsedSelection(blockId('c1'), 0),
+		});
+		const state2 = EditorState.create({
+			doc: createDocument([containerItem('first', 'changed')]),
+			selection: createCollapsedSelection(blockId('c2'), 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state1, { registry });
+		reconcile(container, state1, state2, { registry });
+
+		const li = container.querySelector('li[data-block-id="b1"]');
+		expect(li?.querySelectorAll('p[data-block-id]').length).toBe(2);
+		expect(li?.querySelector('p[data-block-id="c2"]')?.textContent).toBe('changed');
+		expect(container.querySelectorAll('ul[data-block-wrapper]').length).toBe(1);
+	});
+
+	it('keeps leaf and container items in the same wrapper', () => {
+		const registry = makeContainerListRegistry();
+		const blocks = [
+			createBlockNode(nodeType('list_item'), [createTextNode('leaf')], blockId('l1'), {
+				listType: 'bullet',
+				indent: 0,
+				checked: false,
+			}),
+			containerItem('first', 'second'),
+		];
+		const state = EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection(blockId('l1'), 0),
+		});
+
+		const container = document.createElement('div');
+		reconcile(container, null, state, { registry });
+
+		const wrappers = container.querySelectorAll('ul[data-block-wrapper]');
+		expect(wrappers.length).toBe(1);
+		expect(wrappers[0]?.children.length).toBe(2);
 	});
 });
 
