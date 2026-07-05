@@ -175,6 +175,8 @@ notectl-editor::part(blockquote) {
 }
 ```
 
+Part styling also carries into print output, so the printed page matches the editor. See [Shadow Part styling in print](/notectl/plugins/print/#shadow-part-styling-in-print).
+
 ### Part Inventory
 
 | Part | Element | Notes |
@@ -184,6 +186,7 @@ notectl-editor::part(blockquote) {
 | `plugin-container` + `plugin-container-top` | Toolbar host | Two parts on the same element so consumers can target either |
 | `plugin-container` + `plugin-container-bottom` | Below-content slot | |
 | `toolbar` | Toolbar root | |
+| `toolbar-group` | Toolbar button group wrapper | |
 | `toolbar-button` | Any toolbar button | |
 | `toolbar-button` + `toolbar-button-active` | Active toolbar button | Modifier part synced with `aria-pressed` |
 | `toolbar-button` + `toolbar-overflow-button` | The "more" button in burger-menu overflow mode | |

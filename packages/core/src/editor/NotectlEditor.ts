@@ -18,6 +18,10 @@ import type {
 	ServiceKey,
 } from '../plugins/Plugin.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
+import {
+	createStaticReplicaError,
+	isStaticHostReplica,
+} from '../plugins/print/StaticHostMarker.js';
 import type {
 	MarkdownParseOptions,
 	MarkdownSerializeOptions,
@@ -76,16 +80,12 @@ export class NotectlEditor extends HTMLElement {
 	private announce: ((text: string) => void) | null = null;
 	private markdownImportedMessage = 'Markdown imported';
 
-	constructor() {
-		super();
-		this.attachShadow({ mode: 'open' });
-	}
-
 	static get observedAttributes(): string[] {
 		return ['placeholder', 'readonly', 'theme', 'paper-size', 'dir'];
 	}
 
 	connectedCallback(): void {
+		if (isStaticHostReplica(this)) return;
 		if (this.lifecycle.isInitialized()) return;
 		this.scheduleAutoInit();
 	}
@@ -107,15 +107,23 @@ export class NotectlEditor extends HTMLElement {
 		this.lifecycle.registerPreInitPlugin(plugin);
 	}
 
-	/** Initializes the editor with the given config. */
+	/**
+	 * Initializes the editor with the given config. Throws on static print
+	 * replicas (`data-notectl-static`): they carry replicated print markup and
+	 * must never boot a live editor over it.
+	 */
 	async init(config?: import('./EditorConfig.js').NotectlEditorConfig): Promise<void> {
+		if (isStaticHostReplica(this)) {
+			throw createStaticReplicaError();
+		}
 		this.cancelAutoInit();
 		if (!this.lifecycle.markInitialized()) return;
 		if (config) this.configController.setConfig(config);
 
-		const shadow: ShadowRoot | null = this.shadowRoot;
-		if (!shadow) {
-			const error = new Error('Editor shadow root not available.');
+		let shadow: ShadowRoot;
+		try {
+			shadow = this.ensureFreshShadowRoot();
+		} catch (error) {
 			this.lifecycle.failReady(error);
 			throw error;
 		}
@@ -412,8 +420,15 @@ export class NotectlEditor extends HTMLElement {
 
 	// --- Lifecycle ---
 
-	/** Waits for the editor to be ready. */
+	/**
+	 * Waits for the editor to be ready. Rejects immediately on static print
+	 * replicas (`data-notectl-static`): they never boot, so the promise would
+	 * otherwise hang forever.
+	 */
 	whenReady(): Promise<void> {
+		if (isStaticHostReplica(this)) {
+			return Promise.reject(createStaticReplicaError());
+		}
 		return this.lifecycle.whenReady();
 	}
 
@@ -472,6 +487,24 @@ export class NotectlEditor extends HTMLElement {
 		this.domElements?.wrapper.remove();
 		this.domElements = null;
 		return Promise.all([pluginTeardown, pendingInit]).then(() => undefined);
+	}
+
+	/**
+	 * Returns the shadow root the editor boots into, creating it on first use.
+	 * Attaching is deferred out of the constructor: for parser-created elements
+	 * the constructor runs before attributes and children exist, so an eagerly
+	 * attached (empty) shadow root would block a declarative shadow root in the
+	 * markup from attaching — losing replicated print content on pages that
+	 * register the component before parsing (script in `<head>`). A leftover
+	 * declarative root from unmarked markup is emptied to keep the invariant
+	 * that an editor boots from a fresh shadow root; static print replicas
+	 * never reach this (init() throws on them first).
+	 */
+	private ensureFreshShadowRoot(): ShadowRoot {
+		const existing: ShadowRoot | null = this.shadowRoot;
+		if (!existing) return this.attachShadow({ mode: 'open' });
+		existing.replaceChildren();
+		return existing;
 	}
 
 	private getConfigDeps(): import('./EditorConfigController.js').ConfigControllerDeps {
