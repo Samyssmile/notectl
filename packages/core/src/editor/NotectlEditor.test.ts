@@ -82,6 +82,24 @@ describe('NotectlEditor', () => {
 		expect(shadow.querySelector('p')).not.toBeNull();
 	});
 
+	it('rejects whenReady() on a static print replica instead of hanging', async () => {
+		const editor = new NotectlEditor();
+		editor.setAttribute('data-notectl-static', '');
+
+		// A replica never becomes ready. A consumer awaiting readiness of every
+		// editor-tagged element on the page (e.g. Promise.all) must get a
+		// settled rejection, not a promise that hangs forever.
+		const outcome: string = await Promise.race([
+			editor.whenReady().then(
+				() => 'resolved',
+				() => 'rejected',
+			),
+			new Promise<string>((resolve) => setTimeout(() => resolve('pending'), 20)),
+		]);
+		expect(outcome).toBe('rejected');
+		await expect(editor.whenReady()).rejects.toThrow('static print replica');
+	});
+
 	it('defers shadow root creation out of the constructor', () => {
 		// Parser-created custom elements run the constructor before attributes
 		// and children exist: an eagerly attached (empty) shadow root would
