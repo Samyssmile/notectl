@@ -13,7 +13,7 @@ import {
 import { formatHTML } from '../model/HTMLUtils.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
@@ -650,6 +650,58 @@ describe('parseHTMLToDocument', () => {
 	// --- Nested list parsing ---
 
 	describe('nested list parsing', () => {
+		function createListTableRegistry(): SchemaRegistry {
+			const registry = new SchemaRegistry();
+			const dom = (tag: string) => (node: BlockNode) => {
+				const el = document.createElement(tag);
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			};
+			registry.registerNodeSpec({
+				type: 'paragraph',
+				group: 'block',
+				sanitize: { tags: ['p'] },
+				toDOM: dom('p'),
+				parseHTML: [{ tag: 'p' }],
+			});
+			registry.registerNodeSpec({
+				type: 'list_item',
+				group: 'block',
+				content: {
+					allow: ['text', 'paragraph', 'heading', 'code_block', 'blockquote', 'horizontal_rule'],
+				},
+				attrs: {
+					listType: { default: 'bullet' },
+					indent: { default: 0 },
+					checked: { default: false },
+				},
+				sanitize: { tags: ['ul', 'ol', 'li'] },
+				toDOM: dom('li'),
+				parseHTML: [{ tag: 'li' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table',
+				group: 'block',
+				content: { allow: ['table_row'] },
+				sanitize: { tags: ['table', 'tbody', 'thead', 'tr', 'td', 'th'] },
+				toDOM: dom('table'),
+				parseHTML: [{ tag: 'table' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table_row',
+				content: { allow: ['table_cell'] },
+				toDOM: dom('tr'),
+				parseHTML: [{ tag: 'tr' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table_cell',
+				content: { allow: ['paragraph'] },
+				toDOM: dom('td'),
+				parseHTML: [{ tag: 'td' }, { tag: 'th' }],
+			});
+			return registry;
+		}
+
 		it('parses flat list into list items with indent 0', () => {
 			const registry = createTestRegistry();
 			const doc = parseHTMLToDocument('<ul><li>A</li><li>B</li></ul>', registry);
@@ -786,6 +838,30 @@ describe('parseHTMLToDocument', () => {
 			expect(getBlockChildren(container)).toHaveLength(2);
 			expect(isLeafBlock(leaf)).toBe(true);
 			expect(getBlockText(leaf)).toBe('leaf');
+		});
+
+		// #194 review fix: a pasted <li> holding a <table> must not build the
+		// schema-invalid list_item > table; the table is hoisted out to a sibling.
+		it('hoists a table pasted inside an <li> out to a sibling (#194)', () => {
+			const registry = createListTableRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><p>foo</p><table><tbody><tr><td>x</td></tr></tbody></table></li></ul>',
+				registry,
+			);
+
+			expect(doc.children.map((b) => b.type)).toEqual(['list_item', 'table']);
+			const item = doc.children[0] as BlockNode;
+			expect(isLeafBlock(item)).toBe(true);
+			expect(getBlockText(item)).toBe('foo');
+			// The table content survives (not flattened into the item's text).
+			const cellText = getBlockText(
+				getBlockChildren(
+					getBlockChildren(
+						getBlockChildren(doc.children[1] as BlockNode)[0] as BlockNode,
+					)[0] as BlockNode,
+				)[0] as BlockNode,
+			);
+			expect(cellText).toBe('x');
 		});
 
 		it('parses checklist items from input[type=checkbox]', () => {

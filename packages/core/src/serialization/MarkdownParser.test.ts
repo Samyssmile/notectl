@@ -682,6 +682,22 @@ describe('indented code blocks (#195)', () => {
 		]);
 	});
 
+	// #194 review fix: indented-code content is literal, so a tab past the four
+	// stripped columns must survive as a tab (Makefiles, Go), not be expanded.
+	it('preserves a literal tab beyond the four stripped columns', () => {
+		const doc = parseMarkdownToDocument('\t\techo hi');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: '\techo hi' },
+		]);
+	});
+
+	it('keeps interior tabs verbatim in a space-indented code block', () => {
+		const doc = parseMarkdownToDocument('    a\tb\tc');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'code_block', attrs: { language: '' }, text: 'a\tb\tc' },
+		]);
+	});
+
 	it('does not interrupt a paragraph (lazy continuation)', () => {
 		const doc = parseMarkdownToDocument('para\n    still para');
 		expect(shapeDoc(doc)).toEqual([{ type: 'paragraph', attrs: {}, text: 'para still para' }]);

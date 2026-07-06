@@ -323,6 +323,38 @@ function stripIndent(line: string, columns: number): string {
 }
 
 /**
+ * Strips `columns` columns of leading whitespace from a code line, preserving
+ * literal tabs beyond the strip boundary. Indented-code content is literal, so
+ * tabs are significant (Makefiles, Go) and must survive verbatim — unlike
+ * {@link stripIndent}, which normalizes re-tokenized structural whitespace to
+ * spaces. Only a tab straddling the strip boundary contributes spaces (the part
+ * of its width past `columns`); tabs fully past the boundary are kept as-is.
+ */
+function stripCodeIndent(line: string, columns: number): string {
+	let col = 0;
+	let i = 0;
+	while (i < line.length && col < columns) {
+		const ch: string = line[i] ?? '';
+		if (ch === ' ') {
+			col++;
+			i++;
+		} else if (ch === '\t') {
+			const next: number = col + 4 - (col % 4);
+			if (next > columns) {
+				// Straddling tab: emit only its overflow past the boundary as spaces
+				// and keep the remainder of the line (including later tabs) verbatim.
+				return ' '.repeat(next - columns) + line.slice(i + 1);
+			}
+			col = next;
+			i++;
+		} else {
+			break;
+		}
+	}
+	return line.slice(i);
+}
+
+/**
  * Consumes an indented code block: all subsequent lines indented by at least
  * four columns, keeping interior blank lines but not trailing ones (they
  * separate the block from what follows). Returns the next line index.
@@ -339,13 +371,13 @@ function consumeIndentedCode(
 		const line: string = lines[i] ?? '';
 		if (isBlank(line)) {
 			// Interior blank lines keep their content beyond the stripped columns.
-			pendingBlanks.push(stripIndent(line, INDENTED_CODE_COLUMNS));
+			pendingBlanks.push(stripCodeIndent(line, INDENTED_CODE_COLUMNS));
 			i++;
 			continue;
 		}
 		if (indentColumns(line) < INDENTED_CODE_COLUMNS) break;
 		while (pendingBlanks.length > 0) body.push(pendingBlanks.shift() ?? '');
-		body.push(stripIndent(line, INDENTED_CODE_COLUMNS));
+		body.push(stripCodeIndent(line, INDENTED_CODE_COLUMNS));
 		i++;
 	}
 	tokens.push({ type: 'code_block', language: '', code: body.join('\n') });
@@ -529,9 +561,9 @@ function consumeListItem(
 	depth: number,
 ): number {
 	const region: string[] = [];
-	const tracker: (line: string) => boolean = createParagraphTracker();
+	const tracker: (line: string, paragraphOpen: boolean) => boolean = createParagraphTracker();
 	let firstText: string = marker.firstText;
-	let paragraphOpen: boolean = firstText === '' ? false : tracker(firstText);
+	let paragraphOpen: boolean = firstText === '' ? false : tracker(firstText, false);
 	let pendingBlanks = 0;
 	let i: number = start + 1;
 
@@ -555,7 +587,7 @@ function consumeListItem(
 			}
 			const dedented: string = stripIndent(line, marker.contentColumn);
 			region.push(dedented);
-			paragraphOpen = tracker(dedented);
+			paragraphOpen = tracker(dedented, paragraphOpen);
 			i++;
 			continue;
 		}
@@ -577,7 +609,7 @@ function consumeListItem(
 		} else {
 			firstText = firstText === '' ? lazy : `${firstText}\n${lazy}`;
 		}
-		paragraphOpen = tracker(lazy);
+		paragraphOpen = tracker(lazy, paragraphOpen);
 		i++;
 	}
 
@@ -588,12 +620,15 @@ function consumeListItem(
 /**
  * Tracks whether the innermost open block of an item's content region is a
  * paragraph — the precondition for lazy continuation. Fenced code suspends
- * laziness until the fence closes; block starters and indented code lines
- * close the paragraph.
+ * laziness until the fence closes; block starters close the paragraph. The
+ * caller passes whether a paragraph is currently open, because an indented line
+ * cannot start an indented code block while a paragraph is open (CommonMark): it
+ * continues that paragraph instead, and only opens a code block from a closed
+ * state.
  */
-function createParagraphTracker(): (line: string) => boolean {
+function createParagraphTracker(): (line: string, paragraphOpen: boolean) => boolean {
 	let closeRe: RegExp | null = null;
-	return (line: string): boolean => {
+	return (line: string, paragraphOpen: boolean): boolean => {
 		if (closeRe) {
 			if (closeRe.test(line)) closeRe = null;
 			return false;
@@ -607,7 +642,9 @@ function createParagraphTracker(): (line: string) => boolean {
 		}
 		if (isBlank(line)) return false;
 		if (BLOCKQUOTE.test(line) || matchListMarker(line)) return continuesAsParagraph(line);
-		if (indentColumns(line) >= INDENTED_CODE_COLUMNS) return false;
+		// Indented code cannot interrupt an open paragraph: an indented line keeps
+		// the paragraph open, and only opens a code block when none is open.
+		if (indentColumns(line) >= INDENTED_CODE_COLUMNS) return paragraphOpen;
 		return !interruptsParagraph(line);
 	};
 }

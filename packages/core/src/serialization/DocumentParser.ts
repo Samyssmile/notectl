@@ -4,6 +4,7 @@
  */
 
 import DOMPurify from 'dompurify';
+import { hoistDisallowedBlocks } from '../model/ContentModel.js';
 import type { BlockNode, Document, InlineNode, Mark, TextNode } from '../model/Document.js';
 import {
 	createBlockNode,
@@ -77,7 +78,11 @@ export function parseHTMLToDocument(
 	}
 
 	if (blocks.length === 0) return createDocument();
-	return createDocument(blocks);
+	const doc: Document = createDocument(blocks);
+	// Repair schema-invalid nesting an importer may have produced (e.g. a `<table>`
+	// inside an `<li>` builds `list_item > table`, which the flat-with-indent item
+	// model forbids): the disallowed block is hoisted to a valid ancestor (#194).
+	return registry ? hoistDisallowedBlocks(doc, registry) : doc;
 }
 
 /**
