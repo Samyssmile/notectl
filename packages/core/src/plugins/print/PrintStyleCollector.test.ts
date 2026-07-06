@@ -110,6 +110,15 @@ describe('PrintStyleCollector', () => {
 				expect(declaration.endsWith(' !important;')).toBe(true);
 			}
 		});
+
+		it('neutralizes clip-path, clip, and content-visibility hiding utilities (#203)', () => {
+			// sr-only/visually-hidden helpers on an app-shell ancestor hide the
+			// widget via clip-path/clip/content-visibility just like visibility.
+			const result: string = generateHostResetCSS('notectl-editor');
+			expect(result).toContain('clip-path: none !important;');
+			expect(result).toContain('clip: auto !important;');
+			expect(result).toContain('content-visibility: visible !important;');
+		});
 	});
 
 	describe('snapshotTypography', () => {
@@ -205,6 +214,16 @@ describe('PrintStyleCollector', () => {
 			const result: string = generatePageResetCSS();
 			expect(result).not.toContain('margin');
 			expect(result).not.toContain('padding');
+		});
+
+		it('unclips the page against clip-path, clip, and content-visibility (#203)', () => {
+			// `@media print { body * { clip-path: inset(50%) } }` and legacy
+			// `clip: rect(0,0,0,0)` sr-only patterns clip the whole page just like
+			// the guarded overflow/visibility cases.
+			const result: string = generatePageResetCSS();
+			expect(result).toContain('clip-path: none !important;');
+			expect(result).toContain('clip: auto !important;');
+			expect(result).toContain('content-visibility: visible !important;');
 		});
 	});
 

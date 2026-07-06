@@ -434,6 +434,91 @@ describe('collectHostStyleSegments', () => {
 		]);
 	});
 
+	it('carries the enclosing sheet media onto a hoisted cross-origin import (#204)', () => {
+		// A readable sheet included with media="screen" that contains a
+		// cross-origin @import: its own rule chunk is wrapped in @media screen,
+		// so the re-referenced sheet must carry the same screen condition or a
+		// screen-only cross-origin stylesheet would apply in print.
+		const crossOrigin: CSSStyleSheet = fakeSheet({
+			unreadable: true,
+			href: 'https://cdn.example/x.css',
+		});
+		const host: HTMLElement = fakeHost([
+			fakeSheet({
+				media: 'screen',
+				rules: [fakeRule({ cssText: '@import url(x.css);', type: 3, styleSheet: crossOrigin })],
+			}),
+		]);
+		expect(importStatements(collectHostStyleSegments(host))).toEqual([
+			'@import url("https://cdn.example/x.css") layer(notectl-host) screen;',
+		]);
+	});
+
+	it('ANDs the enclosing sheet media with the import media on a hoist (#204)', () => {
+		const crossOrigin: CSSStyleSheet = fakeSheet({
+			unreadable: true,
+			href: 'https://cdn.example/x.css',
+		});
+		const host: HTMLElement = fakeHost([
+			fakeSheet({
+				media: 'screen',
+				rules: [
+					fakeRule({
+						cssText: '@import url(x.css) (min-width: 400px);',
+						type: 3,
+						styleSheet: crossOrigin,
+						media: '(min-width: 400px)',
+					}),
+				],
+			}),
+		]);
+		expect(importStatements(collectHostStyleSegments(host))).toEqual([
+			'@import url("https://cdn.example/x.css") layer(notectl-host) screen and (min-width: 400px);',
+		]);
+	});
+
+	it('carries the parent import chain layer/supports/media onto a nested hoist (#204)', () => {
+		// `@import url(a.css) layer(x) supports(...) screen` where a.css is
+		// readable and inlined, but itself imports a cross-origin sheet with its
+		// own layer(y)/supports/media. The inner hoisted import must land in
+		// notectl-host.x.y, under the ANDed supports and ANDed media of the chain.
+		const crossOrigin: CSSStyleSheet = fakeSheet({
+			unreadable: true,
+			href: 'https://cdn.example/inner.css',
+		});
+		const aCss: CSSStyleSheet = fakeSheet({
+			href: 'https://app.example/a.css',
+			rules: [
+				fakeRule({
+					cssText: '@import url(inner.css) layer(y) supports(color: red) (min-width: 400px);',
+					type: 3,
+					styleSheet: crossOrigin,
+					layerName: 'y',
+					supportsText: 'color: red',
+					media: '(min-width: 400px)',
+				}),
+			],
+		});
+		const host: HTMLElement = fakeHost([
+			fakeSheet({
+				rules: [
+					fakeRule({
+						cssText: '@import url(a.css) layer(x) supports(display: grid) screen;',
+						type: 3,
+						styleSheet: aCss,
+						layerName: 'x',
+						supportsText: 'display: grid',
+						media: 'screen',
+					}),
+				],
+			}),
+		]);
+		expect(importStatements(collectHostStyleSegments(host))).toEqual([
+			'@import url("https://cdn.example/inner.css") layer(notectl-host.x.y) ' +
+				'supports((display: grid) and (color: red)) screen and (min-width: 400px);',
+		]);
+	});
+
 	it('returns no segments for a host document without stylesheets', () => {
 		const host: HTMLElement = fakeHost([]);
 		expect(collectHostStyleSegments(host)).toEqual([]);
