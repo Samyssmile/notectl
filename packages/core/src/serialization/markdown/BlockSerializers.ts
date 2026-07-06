@@ -190,17 +190,30 @@ function serializeUnknownBlock(block: BlockNode, ctx: SerContext): string {
  * reads them back as nested (a `1. ` parent needs three columns, `- ` two).
  * Container items emit their block children indented to their own content
  * column, separated by the blank lines `serializeBlocks` produces.
+ *
+ * A nesting level is valid only when the level above it has a preceding item to
+ * anchor the content column. An item whose stored indent skips a level (an
+ * orphan, e.g. a first item the user tabbed in) is clamped to one deeper than
+ * the previous item's effective level. This keeps every marker at a content
+ * column an actual parent established, so the emitted pad never lands at four or
+ * more columns — which the parser would read as indented code, merging the item
+ * into its predecessor or dropping its marker (grammar disagreement). The stored
+ * indent is preserved in the model; only its Markdown rendering normalizes.
  */
 function serializeListGroup(items: readonly BlockNode[], ctx: SerContext): string {
 	const lines: string[] = [];
 	const counters: number[] = [];
 	const contentColumns: number[] = [];
+	let previousIndent = -1;
 
 	for (const item of items) {
 		const listType: string = String(item.attrs?.listType ?? 'bullet');
-		const indent: number = Math.max(0, (item.attrs?.indent as number | undefined) ?? 0);
-		const padWidth: number =
-			indent === 0 ? 0 : (contentColumns[indent - 1] ?? indent * ctx.opts.listIndent);
+		const storedIndent: number = Math.max(0, (item.attrs?.indent as number | undefined) ?? 0);
+		// Clamp to at most one level deeper than the previous item so a parent
+		// content column always exists (no orphan levels, no >=4-column pad).
+		const indent: number = Math.min(storedIndent, previousIndent + 1);
+		previousIndent = indent;
+		const padWidth: number = indent === 0 ? 0 : (contentColumns[indent - 1] ?? 0);
 		const pad: string = ' '.repeat(padWidth);
 
 		// Reset deeper counters/columns when we step back out.
@@ -225,9 +238,11 @@ function serializeListGroup(items: readonly BlockNode[], ctx: SerContext): strin
 		contentColumns[indent] = padWidth + markerWidth;
 
 		if (isLeafBlock(item)) {
-			const content: string = serializeInlineContent(getInlineChildren(item), ctx).replace(
-				/\n/g,
-				' ',
+			// The item content is now block-tokenized on re-import, so a leaf whose
+			// text begins with a block marker (`# `, `- `, `> `, `1. `) must be
+			// line-start escaped or it reimports as a heading/nested-item child.
+			const content: string = escapeLineStart(
+				serializeInlineContent(getInlineChildren(item), ctx).replace(/\n/g, ' '),
 			);
 			lines.push(content ? `${pad}${marker} ${content}` : `${pad}${marker}`);
 			continue;

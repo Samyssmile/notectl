@@ -10,6 +10,7 @@
  * via `options.syntaxExtensions`, never hard-coded here.
  */
 
+import { hoistDisallowedBlocks } from '../model/ContentModel.js';
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
 	createBlockNode,
@@ -46,7 +47,11 @@ export function parseMarkdownToDocument(
 	const tokens: BlockToken[] = tokenizeBlocks(source, ctx.opts.gfm, ctx.opts.syntaxExtensions);
 	const blocks: BlockNode[] = tokensToBlocks(tokens, ctx);
 	if (blocks.length === 0) return createDocument();
-	return createDocument(blocks);
+	const doc: Document = createDocument(blocks);
+	// A container item can only hold the block types its schema allows; an
+	// importer that nested (say) a table under an item is repaired by hoisting the
+	// disallowed block up to a valid ancestor (#194).
+	return registry ? hoistDisallowedBlocks(doc, registry) : doc;
 }
 
 /** Converts a list of block tokens into Document block nodes. */

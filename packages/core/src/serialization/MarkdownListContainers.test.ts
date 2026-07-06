@@ -9,6 +9,7 @@ import {
 	getBlockText,
 	isLeafBlock,
 } from '../model/Document.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { nodeType } from '../model/TypeBrands.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
@@ -253,5 +254,135 @@ describe('markdown export — container list items (#194)', () => {
 		const md3 = serializeDocumentToMarkdown(parseMarkdownToDocument(md2));
 		expect(md3).toBe(md2);
 		expect(shapeDoc(parseMarkdownToDocument(md2))).toEqual(shapeDoc(doc));
+	});
+});
+
+// --- Review fixes (#194 hardening): grammar agreement, escaping, laziness ---
+
+describe('markdown list hardening (#194 review fixes)', () => {
+	function li(listType: string, indent: number, content: BlockNode[] | string): BlockNode {
+		const children = typeof content === 'string' ? [createTextNode(content)] : content;
+		return createBlockNode(nodeType('list_item'), children, undefined, {
+			listType,
+			indent,
+			checked: false,
+		});
+	}
+
+	// Defect 1: the serializer must not emit a marker at >= 4 leading columns (the
+	// parser reads that as indented code, merging the item into its predecessor or
+	// dropping its marker). Orphan indents normalize a level; content is preserved.
+	it('round-trips an orphan-indent item without merging it into its predecessor', () => {
+		const doc = createDocument([li('bullet', 0, 'a'), li('bullet', 3, 'c')]);
+		const md = serializeDocumentToMarkdown(doc);
+		expect(md).toBe('- a\n  - c\n');
+		expect(shapeDoc(parseMarkdownToDocument(md))).toEqual([
+			item('bullet', 0, 'a'),
+			item('bullet', 1, 'c'),
+		]);
+		// Serialization fixpoint: a second round-trip is stable.
+		expect(serializeDocumentToMarkdown(parseMarkdownToDocument(md))).toBe(md);
+	});
+
+	it('serializes a single orphan indent-2 item as a valid top-level marker', () => {
+		const doc = createDocument([li('bullet', 2, 'x')]);
+		const md = serializeDocumentToMarkdown(doc);
+		expect(md).toBe('- x\n');
+		expect(shapeDoc(parseMarkdownToDocument(md))).toEqual([item('bullet', 0, 'x')]);
+	});
+
+	// Defect 2: leaf item content is block-tokenized on re-import, so a leaf whose
+	// text opens with a block marker must be line-start escaped to stay a leaf.
+	it.each([['# not a heading'], ['- not a sublist'], ['1. not ordered'], ['> not a quote']])(
+		'keeps leaf text %j a leaf across a round-trip',
+		(text) => {
+			const doc = createDocument([li('bullet', 0, text)]);
+			const md = serializeDocumentToMarkdown(doc);
+			expect(shapeDoc(parseMarkdownToDocument(md))).toEqual([item('bullet', 0, text)]);
+		},
+	);
+
+	// Defect 4: an indented line cannot start a code block while a paragraph is
+	// open, so it continues the paragraph — and a following column-zero line lazily
+	// continues it too, rather than leaking out of the list.
+	it('keeps a lazy continuation after an over-indented line inside the item', () => {
+		const doc = parseMarkdownToDocument('- foo\n      bar\nbaz');
+		expect(shapeDoc(doc)).toEqual([item('bullet', 0, 'foo bar baz')]);
+	});
+});
+
+// --- Review fix (#194): schema-invalid nesting is repaired, not produced ---
+
+describe('markdown list schema repair (#194 review fix)', () => {
+	function createListTableRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		const dom = (tag: string) => (node: BlockNode) => {
+			const el = document.createElement(tag);
+			el.setAttribute('data-block-id', node.id);
+			return el;
+		};
+		registry.registerNodeSpec({ type: 'paragraph', group: 'block', toDOM: dom('p') });
+		registry.registerNodeSpec({
+			type: 'list_item',
+			group: 'block',
+			content: {
+				allow: ['text', 'paragraph', 'heading', 'code_block', 'blockquote', 'horizontal_rule'],
+			},
+			attrs: {
+				listType: { default: 'bullet' },
+				indent: { default: 0 },
+				checked: { default: false },
+			},
+			toDOM: dom('li'),
+		});
+		registry.registerNodeSpec({
+			type: 'blockquote',
+			group: 'block',
+			content: { allow: ['paragraph', 'list_item', 'blockquote', 'horizontal_rule', 'code_block'] },
+			toDOM: dom('blockquote'),
+		});
+		registry.registerNodeSpec({
+			type: 'table',
+			group: 'block',
+			content: { allow: ['table_row'] },
+			toDOM: dom('table'),
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			content: { allow: ['table_cell'] },
+			toDOM: dom('tr'),
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			content: { allow: ['paragraph'] },
+			toDOM: dom('td'),
+		});
+		return registry;
+	}
+
+	// Defect 5: a table indented under a list item does not fit the flat item
+	// model; it is hoisted to a valid sibling instead of building list_item > table.
+	it('hoists a table nested under an item out to a sibling', () => {
+		const src = '- foo\n\n  | a | b |\n  | --- | --- |\n  | 1 | 2 |';
+		const doc = parseMarkdownToDocument(src, createListTableRegistry());
+		expect(doc.children.map((b) => b.type)).toEqual(['list_item', 'table']);
+		// The item keeps its text and holds no table.
+		const item0 = doc.children[0] as BlockNode;
+		expect(isLeafBlock(item0)).toBe(true);
+		expect(getBlockText(item0)).toBe('foo');
+		expect(shape(doc.children[1] as BlockNode).children?.[0]?.type).toBe('table_row');
+	});
+
+	// Compound case: the table must bubble past a container that also forbids it
+	// (blockquote), all the way to a valid ancestor (the document root).
+	it('bubbles a table out of a list item nested in a blockquote to the root', () => {
+		const src = '> - foo\n>\n>   | a | b |\n>   | --- | --- |\n>   | 1 | 2 |';
+		const doc = parseMarkdownToDocument(src, createListTableRegistry());
+		expect(doc.children.map((b) => b.type)).toEqual(['blockquote', 'table']);
+		const quote = doc.children[0] as BlockNode;
+		const nestedTypes = getBlockChildren(quote).flatMap((c) =>
+			getBlockChildren(c).map((g) => g.type),
+		);
+		expect(nestedTypes).not.toContain('table');
 	});
 });

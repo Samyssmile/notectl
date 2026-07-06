@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Mark } from '../model/Document.js';
+import type { BlockNode, Mark } from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockChildren,
 	getBlockText,
+	isLeafBlock,
 } from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
@@ -604,5 +606,73 @@ describe('normalizeCompositeBlocks', () => {
 		expect(result.children[0]?.type).toBe('heading');
 		expect(result.children[0]?.children).toHaveLength(1);
 		expect(result.children[0]?.children[0]).toMatchObject({ type: 'text', text: 'Title' });
+	});
+
+	// #194: list_item is a hybrid leaf/container. Its content rule allows both
+	// `text` (leaf) and block types (container), so the composite-recursion must
+	// still descend into a container item to normalize its nested composites.
+	function createHybridListRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		const dom = (tag: string) => (node: BlockNode) => {
+			const el = document.createElement(tag);
+			el.setAttribute('data-block-id', node.id);
+			return el;
+		};
+		registry.registerNodeSpec({ type: 'paragraph', group: 'block', toDOM: dom('p') });
+		registry.registerNodeSpec({
+			type: 'blockquote',
+			group: 'block',
+			content: { allow: ['paragraph', 'list_item', 'blockquote'] },
+			toDOM: dom('blockquote'),
+		});
+		registry.registerNodeSpec({
+			type: 'list_item',
+			group: 'block',
+			content: { allow: ['text', 'paragraph', 'blockquote', 'code_block', 'horizontal_rule'] },
+			attrs: {
+				listType: { default: 'bullet' },
+				indent: { default: 0 },
+				checked: { default: false },
+			},
+			toDOM: dom('li'),
+		});
+		return registry;
+	}
+
+	it('leaves a single-paragraph (leaf) list_item untouched (#194)', () => {
+		const registry = createHybridListRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('list_item'), [createTextNode('hi')], blockId('li1'), {
+				listType: 'bullet',
+				indent: 0,
+				checked: false,
+			}),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		expect(isLeafBlock(result.children[0] as BlockNode)).toBe(true);
+		expect(getBlockText(result.children[0] as BlockNode)).toBe('hi');
+	});
+
+	it('recurses into a container list_item and wraps a nested blockquote’s bare inline (#194)', () => {
+		const registry = createHybridListRegistry();
+		const badQuote = createBlockNode(nodeType('blockquote'), [createTextNode('quoted')]);
+		const para = createBlockNode(nodeType('paragraph'), [createTextNode('foo')]);
+		const item = createBlockNode(nodeType('list_item'), [para, badQuote], blockId('li1'), {
+			listType: 'bullet',
+			indent: 0,
+			checked: false,
+		});
+
+		const result = normalizeCompositeBlocks(createDocument([item]), registry);
+
+		const li = result.children[0] as BlockNode;
+		const quote = getBlockChildren(li).find((c) => c.type === 'blockquote') as BlockNode;
+		expect(quote).toBeDefined();
+		// The blockquote's bare text is now wrapped in a paragraph.
+		expect(isLeafBlock(quote)).toBe(false);
+		expect(getBlockChildren(quote).map((c) => c.type)).toEqual(['paragraph']);
+		expect(getBlockText(getBlockChildren(quote)[0] as BlockNode)).toBe('quoted');
 	});
 });

@@ -107,26 +107,33 @@ export function normalizeCompositeBlocks(doc: Document, registry: SchemaRegistry
 	return { children };
 }
 
-/** Leaf blocks use `content: { allow: ['text'] }`; composite blocks allow block types. */
-function isCompositeContentRule(content: { readonly allow: readonly string[] }): boolean {
-	return content.allow.length > 0 && !content.allow.includes('text');
+/** Whether a content rule permits block-level children (beyond bare `text`). */
+function allowsBlockChildren(content: { readonly allow: readonly string[] }): boolean {
+	return content.allow.some((entry) => entry !== 'text');
 }
 
 function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 	const spec = registry.getNodeSpec(block.type);
 
-	// No content rule, or content allows 'text' → leaf block, no normalization needed
-	if (!spec?.content || !isCompositeContentRule(spec.content)) return block;
+	// No content rule, or a rule permitting only inline text → pure leaf, nothing
+	// to normalize.
+	if (!spec?.content || !allowsBlockChildren(spec.content)) return block;
 
-	// Composite block with all-inline children → wrap in paragraph
+	const allowsInline: boolean = spec.content.allow.includes('text');
+
 	if (isLeafBlock(block)) {
+		// A hybrid block (list_item, #194) with inline children is already a valid
+		// leaf; only a pure composite (table_cell, blockquote) must wrap its inline
+		// children in a paragraph to satisfy the block-only invariant.
+		if (allowsInline) return block;
 		const children: readonly ChildNode[] | undefined =
 			block.children.length > 0 ? block.children : undefined;
 		const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
 		return createBlockNode(block.type, [paragraph], block.id, block.attrs);
 	}
 
-	// Composite block with block children → recurse
+	// Block children → recurse, so nested composites (e.g. a blockquote inside a
+	// container list_item) get their own inline children wrapped as well (#194).
 	const normalized: readonly ChildNode[] = block.children.map((child) => {
 		if (isTextNode(child) || isInlineNode(child)) return child;
 		return normalizeBlock(child, registry);

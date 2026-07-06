@@ -3,7 +3,16 @@
  * Validates whether a parent node type can contain given child types.
  */
 
+import type { BlockNode, ChildNode, Document } from './Document.js';
+import {
+	createBlockNode,
+	createTextNode,
+	getInlineChildren,
+	isBlockNode,
+	isLeafBlock,
+} from './Document.js';
 import type { SchemaRegistry } from './SchemaRegistry.js';
+import { nodeType } from './TypeBrands.js';
 
 /**
  * Checks if a parent node type can contain a child node type,
@@ -53,4 +62,96 @@ export function validateContent(
 	}
 
 	return true;
+}
+
+/**
+ * Repairs a parsed document so no container holds a block its content rule
+ * forbids. A disallowed block (e.g. a `table` a Markdown/HTML importer nested
+ * under a `list_item`, whose flat-with-indent model cannot hold it, #194)
+ * bubbles up to the nearest ancestor that allows it, and to the document root
+ * otherwise — the root imposes no content rule, so relocation is always
+ * lossless. Order is preserved: a hoisted block lands immediately after the
+ * subtree it escaped from. Runs only with a registry; identity is preserved when
+ * nothing moves so callers can skip needless work.
+ */
+export function hoistDisallowedBlocks(doc: Document, registry: SchemaRegistry): Document {
+	const children: BlockNode[] = [];
+	let changed = false;
+	for (const block of doc.children) {
+		const { node, hoisted } = repairContainer(block, registry);
+		if (node !== block || hoisted.length > 0) changed = true;
+		children.push(node, ...hoisted);
+	}
+	return changed ? { children } : doc;
+}
+
+/**
+ * Repairs one block's subtree, returning the repaired node and any descendant
+ * blocks that could not be placed within it (to be hoisted by the caller).
+ */
+function repairContainer(
+	block: BlockNode,
+	registry: SchemaRegistry,
+): { readonly node: BlockNode; readonly hoisted: readonly BlockNode[] } {
+	if (isLeafBlock(block)) return { node: block, hoisted: [] };
+
+	const kept: ChildNode[] = [];
+	const hoisted: BlockNode[] = [];
+	let changed = false;
+
+	const place = (candidate: BlockNode): void => {
+		if (canContain(registry, block.type, candidate.type)) {
+			kept.push(candidate);
+		} else {
+			hoisted.push(candidate);
+			changed = true;
+		}
+	};
+
+	for (const child of block.children) {
+		if (!isBlockNode(child)) {
+			kept.push(child);
+			continue;
+		}
+		const repaired = repairContainer(child, registry);
+		if (repaired.node !== child) changed = true;
+		place(repaired.node);
+		for (const bubbled of repaired.hoisted) place(bubbled);
+	}
+
+	if (!changed) return { node: block, hoisted: [] };
+
+	const finalChildren: readonly ChildNode[] = resolveRepairedChildren(block, kept, registry);
+	return {
+		node: createBlockNode(block.type, finalChildren, block.id, block.attrs),
+		hoisted,
+	};
+}
+
+/**
+ * Settles a repaired container's children: an emptied container gets a valid
+ * placeholder, and a hybrid (leaf-capable) container reduced to a single plain
+ * paragraph collapses back to the canonical leaf shape — mirroring how the
+ * importers keep a lone single-paragraph item a leaf (#194).
+ */
+function resolveRepairedChildren(
+	block: BlockNode,
+	kept: readonly ChildNode[],
+	registry: SchemaRegistry,
+): readonly ChildNode[] {
+	const allow: readonly string[] | undefined = registry.getNodeSpec(block.type)?.content?.allow;
+	const leafCapable: boolean = allow?.includes('text') ?? false;
+
+	if (kept.length === 0) {
+		return leafCapable
+			? [createTextNode('')]
+			: [createBlockNode(nodeType('paragraph'), [createTextNode('')])];
+	}
+
+	const only: ChildNode | undefined = kept.length === 1 ? kept[0] : undefined;
+	if (leafCapable && only && isBlockNode(only) && only.type === 'paragraph' && !only.attrs) {
+		const inline = getInlineChildren(only);
+		return inline.length > 0 ? [...inline] : [createTextNode('')];
+	}
+	return kept;
 }
