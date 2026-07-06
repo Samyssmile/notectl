@@ -7,6 +7,10 @@
  * schema-invalid `table_cell > table` nesting (`table_cell.content.allow` does
  * not list `table`). The fix escapes a container-disallowed paste to the
  * document root, placing the pasted table right after the outer table.
+ *
+ * Also covers issue #194 — multi-block `<li>` HTML must route through the
+ * container-aware DocumentParser: the flat slice path cannot represent a list
+ * item holding several blocks and would silently flatten it.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,6 +24,7 @@ import {
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
+import { ListPlugin } from '../plugins/list/ListPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { EditorState } from '../state/EditorState.js';
 import { pluginHarness } from '../test/TestUtils.js';
@@ -112,5 +117,48 @@ describe('issue #166 — pasting a table while the caret is inside a table cell'
 		const c1: BlockNode | undefined = h.getState().getBlock(blockId('c1'));
 		expect(c1?.children).toHaveLength(1);
 		expect(c1 ? getBlockText(c1.children[0] as BlockNode) : '').toBe('A');
+	});
+});
+
+describe('issue #194 — pasting multi-block list items', () => {
+	function paragraphState(): EditorState {
+		const doc = createDocument([
+			createBlockNode('paragraph', [createTextNode('x')], blockId('p1')),
+		]);
+		return EditorState.create({ doc, selection: createCollapsedSelection(blockId('p1'), 1) });
+	}
+
+	it('routes a multi-paragraph <li> through the container-aware DocumentParser', async () => {
+		const h = await pluginHarness(new ListPlugin(), paragraphState(), { builtinSpecs: true });
+		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
+
+		handler.handleHTMLOrTextPaste(
+			clipboard('<ul><li><p>first</p><p>second</p></li></ul>', 'first\nsecond'),
+			'first\nsecond',
+		);
+
+		const doc = h.getState().doc;
+		const item: BlockNode | undefined = doc.children.find((b) => b.type === 'list_item');
+		expect(item).toBeDefined();
+		const children: BlockNode[] = item ? item.children.filter(isBlockNode) : [];
+		expect(children).toHaveLength(2);
+		expect(children.map((c) => getBlockText(c))).toEqual(['first', 'second']);
+	});
+
+	it('routes an <li> holding a code block through the DocumentParser', async () => {
+		const h = await pluginHarness(new ListPlugin(), paragraphState(), { builtinSpecs: true });
+		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
+
+		handler.handleHTMLOrTextPaste(
+			clipboard('<ul><li><p>intro</p><pre><code>code</code></pre></li></ul>', 'intro\ncode'),
+			'intro\ncode',
+		);
+
+		const doc = h.getState().doc;
+		const item: BlockNode | undefined = doc.children.find((b) => b.type === 'list_item');
+		expect(item).toBeDefined();
+		const children: BlockNode[] = item ? item.children.filter(isBlockNode) : [];
+		expect(children.length).toBeGreaterThanOrEqual(2);
+		expect(children[0] ? getBlockText(children[0]) : '').toBe('intro');
 	});
 });

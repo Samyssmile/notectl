@@ -18,6 +18,7 @@ import type { ParseRule } from '../../model/ParseRule.js';
 import type { SanitizeConfig } from '../../model/SanitizeConfig.js';
 import { markType as mkType } from '../../model/TypeBrands.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
+import { createMarkInputRule } from '../shared/MarkInputRule.js';
 import { dispatchIfPresent, resolveLocale, toCommandName } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
@@ -40,6 +41,8 @@ export interface TextFormattingConfig {
 	readonly bold: boolean;
 	readonly italic: boolean;
 	readonly underline: boolean;
+	/** Live Markdown shortcuts: `**x**` to bold, `*x*` to italic. Default true. */
+	readonly inputRule?: boolean;
 	readonly toolbar?: TextFormattingToolbarConfig;
 	readonly locale?: TextFormattingLocale;
 }
@@ -54,7 +57,7 @@ const DEFAULT_CONFIG: TextFormattingConfig = {
 
 interface MarkDefinition {
 	readonly type: string;
-	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale'>;
+	readonly configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale' | 'inputRule'>;
 	readonly rank: number;
 	readonly tag: string;
 	readonly icon: string;
@@ -172,6 +175,7 @@ export class TextFormattingPlugin implements Plugin {
 		}
 
 		this.registerKeymaps(context, enabledMarks);
+		this.registerInputRules(context);
 
 		// Register disabled placeholder buttons for marks that are disabled
 		// as features but explicitly requested in the toolbar config
@@ -223,6 +227,18 @@ export class TextFormattingPlugin implements Plugin {
 	}
 
 	/**
+	 * Registers live Markdown input rules: `**x**` to bold and `*x*` to italic,
+	 * each gated on its feature being enabled. Bold is registered first so it
+	 * wins over italic when both could match. Underscore variants are left to the
+	 * full parser (import/paste) to avoid intra-word `snake_case` false positives.
+	 */
+	private registerInputRules(context: PluginContext): void {
+		if (this.config.inputRule === false) return;
+		if (this.config.bold) context.registerInputRule(createMarkInputRule('bold', '**'));
+		if (this.config.italic) context.registerInputRule(createMarkInputRule('italic', '*'));
+	}
+
+	/**
 	 * Registers disabled toolbar buttons for marks whose feature is disabled
 	 * but whose toolbar button is explicitly requested.
 	 */
@@ -253,7 +269,7 @@ export class TextFormattingPlugin implements Plugin {
 
 	/** Checks if a toolbar button should be visible for a given mark. */
 	private isToolbarVisible(
-		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale'>,
+		configKey: keyof Omit<TextFormattingConfig, 'toolbar' | 'locale' | 'inputRule'>,
 	): boolean {
 		if (!this.config.toolbar) return true;
 		return this.config.toolbar[configKey] ?? true;

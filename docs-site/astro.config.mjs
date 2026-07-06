@@ -54,6 +54,7 @@ export default defineConfig({
 						{ label: 'Custom Fonts', slug: 'guides/custom-fonts' },
 						{ label: 'Theming', slug: 'guides/styling' },
 						{ label: 'Working with Content', slug: 'guides/content' },
+						{ label: 'Markdown Support', slug: 'guides/markdown' },
 						{ label: 'Events & Lifecycle', slug: 'guides/events' },
 						{ label: 'Paper Size', slug: 'guides/paper-size' },
 						{ label: 'Read-Only Checklist', slug: 'guides/readonly-checklist' },

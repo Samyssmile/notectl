@@ -42,10 +42,14 @@ declare module '../../model/AttrRegistry.js' {
 		image: {
 			src: string;
 			alt: string;
+			title?: string;
 			width?: number;
 			height?: number;
 			align: 'start' | 'center' | 'end';
 		};
+	}
+	interface InlineNodeAttrRegistry {
+		image_inline: { src: string; alt: string; title?: string };
 	}
 }
 
@@ -79,6 +83,7 @@ export class ImagePlugin implements Plugin {
 		context.registerStyleSheet(IMAGE_POPUP_CSS);
 		this.context = context;
 		this.registerNodeSpec(context);
+		this.registerInlineImageNodeSpec(context);
 		this.registerNodeView(context);
 		registerImageCommands(context);
 		this.registerResizeCommands(context);
@@ -125,6 +130,7 @@ export class ImagePlugin implements Plugin {
 			attrs: {
 				src: { default: '' },
 				alt: { default: '' },
+				title: { default: '' },
 				align: { default: 'center' },
 			},
 			toDOM(node) {
@@ -144,6 +150,8 @@ export class ImagePlugin implements Plugin {
 				img.className = 'notectl-image__img';
 				img.src = (node.attrs?.src as string | undefined) ?? '';
 				img.alt = alt;
+				const titleAttr: string = (node.attrs?.title as string | undefined) ?? '';
+				if (titleAttr) img.title = titleAttr;
 				img.draggable = false;
 
 				if (width !== undefined) setStyleProperty(img, 'width', `${width}px`);
@@ -175,7 +183,9 @@ export class ImagePlugin implements Plugin {
 
 				// Alignment is handled by the serializer's alignment injection,
 				// which works in both inline-style and CSS-class modes.
-				return `<figure><img src="${src}" alt="${alt}"${sizeAttrs}></figure>`;
+				const titleValue: string = (node.attrs?.title as string | undefined) ?? '';
+				const titleHTML: string = titleValue ? ` title="${escapeHTML(titleValue)}"` : '';
+				return `<figure><img src="${src}" alt="${alt}"${titleHTML}${sizeAttrs}></figure>`;
 			},
 			parseHTML: [
 				{
@@ -192,6 +202,9 @@ export class ImagePlugin implements Plugin {
 						const height: string | null = img.getAttribute('height');
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
+
+						const title: string | null = img.getAttribute('title');
+						if (title) attrs.title = title;
 
 						// Check inline style first, then class names (new + legacy)
 						const textAlign: string = el.style?.textAlign ?? '';
@@ -233,14 +246,66 @@ export class ImagePlugin implements Plugin {
 						const height: string | null = el.getAttribute('height');
 						if (width) attrs.width = Number.parseInt(width, 10);
 						if (height) attrs.height = Number.parseInt(height, 10);
+						const title: string | null = el.getAttribute('title');
+						if (title) attrs.title = title;
 						return attrs;
 					},
 				},
 			],
 			sanitize: {
 				tags: ['figure', 'img'],
-				attrs: ['src', 'alt', 'width', 'height', 'class', 'style'],
+				attrs: ['src', 'alt', 'title', 'width', 'height', 'class', 'style'],
 			},
+		});
+	}
+
+	/**
+	 * Registers a minimal inline image node (D7) so mid-paragraph images (badge
+	 * rows, inline icons) round-trip faithfully without splitting the paragraph.
+	 * Atomic and `contenteditable="false"`, mirroring other inline nodes.
+	 */
+	private registerInlineImageNodeSpec(context: PluginContext): void {
+		context.registerInlineNodeSpec({
+			type: 'image_inline',
+			group: 'inline',
+			attrs: {
+				src: { default: '' },
+				alt: { default: '' },
+				title: { default: '' },
+			},
+			toDOM(node) {
+				const img: HTMLImageElement = document.createElement('img');
+				img.className = 'notectl-image-inline';
+				img.setAttribute('contenteditable', 'false');
+				img.src = String(node.attrs.src ?? '');
+				img.alt = String(node.attrs.alt ?? '');
+				const title: string = String(node.attrs.title ?? '');
+				if (title) img.title = title;
+				img.draggable = false;
+				return img;
+			},
+			toHTMLString(node) {
+				const src: string = escapeHTML(String(node.attrs.src ?? ''));
+				const alt: string = escapeHTML(String(node.attrs.alt ?? ''));
+				const title: string = String(node.attrs.title ?? '');
+				const titleAttr: string = title ? ` title="${escapeHTML(title)}"` : '';
+				return `<img src="${src}" alt="${alt}"${titleAttr}>`;
+			},
+			parseHTML: [
+				{
+					tag: 'img',
+					getAttrs: (el: HTMLElement) => {
+						const attrs: Record<string, string> = {
+							src: el.getAttribute('src') ?? '',
+							alt: el.getAttribute('alt') ?? '',
+						};
+						const title: string | null = el.getAttribute('title');
+						if (title) attrs.title = title;
+						return attrs;
+					},
+				},
+			],
+			sanitize: { tags: ['img'], attrs: ['src', 'alt', 'title'] },
 		});
 	}
 

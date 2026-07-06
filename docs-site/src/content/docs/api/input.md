@@ -28,6 +28,9 @@ interface InputManagerDeps {
   readonly inputRuleRegistry?: InputRuleRegistry;
   readonly fileHandlerRegistry?: FileHandlerRegistry;
   readonly isReadOnly: () => boolean;
+  /** Gate for live input-rule (Markdown shorthand) processing. Resolved from the
+   *  editor's `markdown` config option; when it returns `false`, no input rule fires. */
+  readonly shouldApplyInputRules?: () => boolean;
   readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
   readonly getTextDirection?: (element: HTMLElement) => 'ltr' | 'rtl';
   readonly navigateFromGapCursor?: (
@@ -161,6 +164,10 @@ interface InputRule {
 ```
 
 Input rules are matched against text as the user types. When a pattern matches, the handler is called with the match and can return a transaction to apply.
+
+:::note[Disabling input rules]
+All registered input rules are gated by the editor's [`markdown`](/notectl/api/editor/#markdown-config-option) config option. Set `markdown: false` (or `markdown: { shorthand: false }`) to keep typed Markdown literal across the whole editor, regardless of which plugins registered rules. For per-feature control, each shorthand-registering plugin also accepts an `inputRule` flag. See the [Markdown guide](/notectl/guides/markdown/#editor-configuration).
+:::
 
 **Example** — auto-convert `# ` to heading:
 

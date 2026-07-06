@@ -56,6 +56,8 @@ export const DEFAULT_FORMULA_FONT_SIZES: readonly number[] = [12, 16, 20, 24, 32
 // --- Configuration ---
 
 export interface FormulaPluginConfig {
+	/** Live Markdown shortcuts: `$...$` (inline) and `$$...$$` (display) math. Default true. */
+	readonly inputRule?: boolean;
 	/** Locale override for user-facing strings. */
 	readonly locale?: FormulaLocale;
 	/** Keyboard shortcut overrides. */

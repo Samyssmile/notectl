@@ -1,6 +1,6 @@
 {
 	"name": "@notectl/core",
-	"version": "2.2.6",
+	"version": "2.3.0",
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
@@ -21,6 +21,10 @@
 		"./html": {
 			"types": "./dist/html.d.ts",
 			"import": "./dist/html.mjs"
+		},
+		"./markdown": {
+			"types": "./dist/markdown.d.ts",
+			"import": "./dist/markdown.mjs"
 		},
 		"./presets": {
 			"types": "./dist/presets.d.ts",
@@ -198,6 +202,7 @@
 			"name": "Core (main entry)",
 			"path": "dist/notectl-core.mjs",
 			"limit": "76 KB",
+			"ignore": ["dompurify", "./MarkdownSerializer-*", "./MarkdownParser-*"],
 			"gzip": true
 		},
 		{
@@ -216,6 +221,14 @@
 			"name": "HTML (serializer/parser)",
 			"path": "dist/html.mjs",
 			"limit": "15 KB",
+			"ignore": ["dompurify"],
+			"gzip": true
+		},
+		{
+			"name": "Markdown (serializer/parser)",
+			"path": "dist/markdown.mjs",
+			"limit": "18 KB",
+			"ignore": ["dompurify"],
 			"gzip": true
 		},
 		{

@@ -17,8 +17,11 @@ import { INLINE_MATH_TYPE } from './FormulaTypes.js';
 import { latexToMathML } from './latex/index.js';
 import { buildMathML } from './mathml/index.js';
 
-const INLINE_PATTERN = /(?<!\$)\$([^$\n]+)\$$/;
-const DISPLAY_PATTERN = /\$\$([^$\n]+)\$\$$/;
+// The inline-node placeholder (U+FFFC, substituted by the input-rule engine for
+// inline atoms) is excluded so a `$...$` run never spans an inline node nor
+// captures the sentinel into the LaTeX; such a span simply does not transform.
+const INLINE_PATTERN = /(?<!\$)\$([^$\n\uFFFC]+)\$$/;
+const DISPLAY_PATTERN = /\$\$([^$\n\uFFFC]+)\$\$$/;
 
 /** Returns true when the block under the cursor accepts inline-flow transforms. */
 function isTransformable(state: EditorState, blockId: BlockId): boolean {

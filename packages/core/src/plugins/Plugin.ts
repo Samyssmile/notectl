@@ -11,6 +11,7 @@ import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
+import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -120,6 +121,12 @@ export interface PluginContext {
 	registerInputRule(rule: InputRule): void;
 	registerToolbarItem(item: ToolbarItem): void;
 	registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
+	/**
+	 * Contributes a Markdown grammar extension (e.g. the formula plugin's
+	 * `$...$`). Read by the Markdown engine via the `syntaxExtensions` parse
+	 * option, so the core grammar never hard-codes plugin syntax (D4).
+	 */
+	registerMarkdownSyntax(extension: MarkdownSyntaxExtension): void;
 	registerFileHandler(pattern: string, handler: FileHandler): void;
 	registerBlockTypePickerEntry(entry: BlockTypePickerEntry): void;
 	registerPasteInterceptor(interceptor: PasteInterceptor, options?: PasteInterceptorOptions): void;

@@ -1,9 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Locale } from '../i18n/Locale.js';
 import { createBlockNode, createDocument, createTextNode } from '../model/Document.js';
+import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId, nodeType } from '../model/TypeBrands.js';
 import type { Plugin } from '../plugins/Plugin.js';
+import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { NotectlEditor } from './NotectlEditor.js';
+
+/** Dispatches a real `beforeinput` insertText on the editor's content element. */
+function typeInsertText(editor: NotectlEditor, data: string): void {
+	const content = editor.shadowRoot?.querySelector('.notectl-content');
+	if (!content) throw new Error('content element not found');
+	const event = new InputEvent('beforeinput', { bubbles: true, cancelable: true, data });
+	Object.defineProperty(event, 'inputType', { value: 'insertText' });
+	content.dispatchEvent(event);
+}
 
 function deferred(): {
 	promise: Promise<void>;
@@ -310,5 +321,45 @@ describe('NotectlEditor', () => {
 		expect(pluginStateChange).toHaveBeenCalledTimes(1);
 		expect(stateChange).toHaveBeenCalledTimes(1);
 		expect(stateChange.mock.calls[0]?.[0]?.transaction.metadata.origin).toBe('api');
+	});
+
+	// End-to-end through the real editor stack: confirms the `markdown` config
+	// option is wired through EditorInitializer -> InputManager -> InputHandler.
+	describe('markdown config gates live shorthand typing', () => {
+		async function setupHashCaret(markdown: boolean): Promise<NotectlEditor> {
+			const editor = new NotectlEditor();
+			document.body.appendChild(editor);
+			await editor.init({ locale: Locale.EN, plugins: [new HeadingPlugin()], markdown });
+			await editor.whenReady();
+
+			editor.setText('#');
+			const block = editor.getState().doc.children[0];
+			if (!block) throw new Error('no block after setText');
+			// Place the caret right after the "#" so typing a space completes "# ".
+			const tr = editor
+				.getState()
+				.transaction('api')
+				.setSelection(createCollapsedSelection(block.id, 1))
+				.build();
+			editor.dispatch(tr);
+			return editor;
+		}
+
+		it('keeps typed "# " literal as a paragraph when markdown is false', async () => {
+			const editor = await setupHashCaret(false);
+			typeInsertText(editor, ' ');
+
+			const block = editor.getState().doc.children[0];
+			expect(block?.type).toBe('paragraph');
+			expect(editor.getText()).toBe('# ');
+		});
+
+		it('converts typed "# " to a heading when markdown is on (default)', async () => {
+			const editor = await setupHashCaret(true);
+			typeInsertText(editor, ' ');
+
+			const block = editor.getState().doc.children[0];
+			expect(block?.type).toBe('heading');
+		});
 	});
 });

@@ -33,6 +33,9 @@ export function createInlineMathNodeSpec(): InlineNodeSpec<typeof INLINE_MATH_TY
 		toHTMLString(node: InlineNode): string {
 			return formulaToHTMLString(readFormulaAttrs(node.attrs));
 		},
+		toMarkdown(node: InlineNode): string {
+			return `$${String(node.attrs.latex ?? '')}$`;
+		},
 		parseHTML: [
 			{
 				tag: 'math',

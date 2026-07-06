@@ -35,6 +35,8 @@ declare module '../../model/AttrRegistry.js' {
 // --- Configuration ---
 
 export interface BlockquoteConfig {
+	/** Live Markdown shortcut: `> ` to start a blockquote. Default true. */
+	readonly inputRule?: boolean;
 	readonly locale?: BlockquoteLocale;
 }
 
@@ -65,7 +67,7 @@ export class BlockquotePlugin implements Plugin {
 		this.registerNodeSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
-		this.registerInputRule(context);
+		if (this.config.inputRule !== false) this.registerInputRule(context);
 		this.registerToolbarItem(context);
 	}
 

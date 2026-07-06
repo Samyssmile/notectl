@@ -220,32 +220,81 @@ function pushRules(state: CopyState, css: string): void {
 }
 
 /**
- * Re-references a stylesheet whose rules are not readable. The import's own
- * cascade-layer assignment survives as a sublayer of `notectl-host` (nested
- * layers order before the parent's direct rules, mirroring how layered import
- * content loses to unlayered page rules live), and its `supports()` condition
- * is carried verbatim. The statement is pushed as an ordered segment so the
- * re-referenced sheet keeps its live source-order position.
+ * Accumulated cascade context enclosing a hoisted cross-origin `@import`: the
+ * media, cascade-layer, and `supports()` conditions of every stylesheet and
+ * import rule between the `notectl-host` layer and the re-referenced sheet. A
+ * hoisted `@import` is emitted at the top level, outside the `@layer`/`@media`/
+ * `@supports` wrappers its inlined siblings receive, so it must carry this
+ * context on the statement itself or the re-referenced sheet lands in the wrong
+ * cascade layer and ignores the enclosing conditions.
  */
-function hoistImport(
-	state: CopyState,
-	href: string,
+interface ImportContext {
+	/** Media conditions, outermost first; ANDed on emit. */
+	readonly media: readonly string[];
+	/** Layer chain under `notectl-host`, outermost first; `null` = anonymous. */
+	readonly layers: readonly (string | null)[];
+	/** `supports()` conditions, outermost first; ANDed on emit. */
+	readonly supports: readonly string[];
+}
+
+const EMPTY_IMPORT_CONTEXT: ImportContext = { media: [], layers: [], supports: [] };
+
+/**
+ * Extends a context with one nesting level's own media/layer/supports. `all`
+ * and empty media impose no condition and are dropped; anonymous layers are
+ * kept as `null` placeholders and only named at emit time, so the shared
+ * anonymous-layer counter advances solely on real hoists, not on readable
+ * imports that are inlined.
+ */
+function extendImportContext(
+	parent: ImportContext,
 	mediaText: string,
 	layerName: string | null,
 	supportsText: string | null,
-): void {
+): ImportContext {
 	const media: string = mediaText.trim();
-	const mediaCondition: string = media && media !== 'all' ? ` ${media}` : '';
-	let layer: string = HOST_STYLE_LAYER;
-	if (layerName === '') {
-		layer = `${HOST_STYLE_LAYER}.${anonymousLayerName(state)}`;
-	} else if (layerName) {
-		layer = `${HOST_STYLE_LAYER}.${layerName}`;
+	const supports: string = supportsText?.trim() ?? '';
+	return {
+		media: media && media !== 'all' ? [...parent.media, media] : parent.media,
+		layers:
+			layerName === null ? parent.layers : [...parent.layers, layerName === '' ? null : layerName],
+		supports: supports ? [...parent.supports, supports] : parent.supports,
+	};
+}
+
+/**
+ * Combines accumulated `supports()` conditions into one `@import` supports
+ * clause. A single condition stays bare (`supports(display: grid)`); multiple
+ * conditions are each parenthesized and ANDed, since the `supports()` grammar
+ * only permits `and` between parenthesized conditions.
+ */
+function combineSupports(conditions: readonly string[]): string {
+	if (conditions.length === 0) return '';
+	if (conditions.length === 1) return ` supports(${conditions[0]})`;
+	return ` supports(${conditions.map((condition: string): string => `(${condition})`).join(' and ')})`;
+}
+
+/**
+ * Re-references a stylesheet whose rules are not readable, carrying the
+ * enclosing cascade context (media, layer chain, `supports()`) on the hoisted
+ * statement so the re-referenced sheet keeps the same layer, media, and feature
+ * gating it had live — nested layers order before the parent's direct rules,
+ * mirroring how layered import content loses to unlayered page rules. Media
+ * conditions are ANDed with `and`; a comma-separated media list at one level is
+ * not distributed across the `and` (a rare edge that would need a cartesian
+ * expansion). The statement is pushed as an ordered segment so the sheet keeps
+ * its live source-order position.
+ */
+function hoistImport(state: CopyState, href: string, context: ImportContext): void {
+	const layerChain: string[] = [HOST_STYLE_LAYER];
+	for (const layer of context.layers) {
+		layerChain.push(layer ?? anonymousLayerName(state));
 	}
-	const supports: string = supportsText?.trim() ? ` supports(${supportsText.trim()})` : '';
+	const supports: string = combineSupports(context.supports);
+	const media: string = context.media.length ? ` ${context.media.join(' and ')}` : '';
 	state.segments.push({
 		kind: 'import',
-		statement: `@import url("${escapeImportURL(href)}") layer(${layer})${supports}${mediaCondition};`,
+		statement: `@import url("${escapeImportURL(href)}") layer(${layerChain.join('.')})${supports}${media};`,
 	});
 }
 
@@ -261,13 +310,23 @@ function serializeSheet(sheet: CSSStyleSheet, state: CopyState): void {
 	state.seen.add(sheet);
 	if (sheet.disabled) return;
 
+	// The sheet's own media (from its <link>/@import) is the enclosing context
+	// for any cross-origin import it holds: its readable rules are wrapped in the
+	// same @media below, so a hoisted import must carry it too.
+	const sheetContext: ImportContext = extendImportContext(
+		EMPTY_IMPORT_CONTEXT,
+		sheet.media.mediaText,
+		null,
+		null,
+	);
+
 	let cssRules: CSSRuleList;
 	try {
 		cssRules = sheet.cssRules;
 	} catch {
 		// Cross-origin — rules are not readable. Re-reference so the print
 		// document loads the stylesheet itself.
-		if (sheet.href) hoistImport(state, sheet.href, sheet.media.mediaText, null, null);
+		if (sheet.href) hoistImport(state, sheet.href, sheetContext);
 		return;
 	}
 
@@ -277,7 +336,7 @@ function serializeSheet(sheet: CSSStyleSheet, state: CopyState): void {
 		if (rule.type === IMPORT_RULE_TYPE) {
 			// `@import` precedes every other rule of its sheet, so hoisted
 			// statements emitted now stay ahead of this sheet's rule chunk.
-			serializeImportRule(rule as CSSImportRule, state, body);
+			serializeImportRule(rule as CSSImportRule, state, body, sheetContext);
 			continue;
 		}
 		body.push(rebaseCSSURLs(rule.cssText, base));
@@ -295,9 +354,23 @@ function serializeSheet(sheet: CSSStyleSheet, state: CopyState): void {
  * and `@supports` blocks — without them, layered import content would compete
  * on specificity against page rules it loses to live.
  */
-function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string[]): void {
+function serializeImportRule(
+	rule: CSSImportRule,
+	state: CopyState,
+	body: string[],
+	parentContext: ImportContext,
+): void {
 	const layerName: string | null = rule.layerName ?? null;
 	const supportsText: string | null = rule.supportsText ?? null;
+	// This import's own media/layer/supports extend the parent context. Readable
+	// targets pass it to their nested imports; an unreadable target is hoisted
+	// under it.
+	const context: ImportContext = extendImportContext(
+		parentContext,
+		rule.media.mediaText,
+		layerName,
+		supportsText,
+	);
 	const imported: CSSStyleSheet | null = rule.styleSheet;
 	if (imported && !state.seen.has(imported)) {
 		let importedRules: CSSRuleList | null;
@@ -312,7 +385,7 @@ function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string
 			const inner: string[] = [];
 			for (const importedRule of importedRules) {
 				if (importedRule.type === IMPORT_RULE_TYPE) {
-					serializeImportRule(importedRule as CSSImportRule, state, inner);
+					serializeImportRule(importedRule as CSSImportRule, state, inner, context);
 					continue;
 				}
 				inner.push(rebaseCSSURLs(importedRule.cssText, base));
@@ -334,7 +407,7 @@ function serializeImportRule(rule: CSSImportRule, state: CopyState, body: string
 		}
 	}
 	const href: string | null = imported?.href ?? rule.href;
-	if (href) hoistImport(state, href, rule.media.mediaText, layerName, supportsText);
+	if (href) hoistImport(state, href, context);
 }
 
 /**

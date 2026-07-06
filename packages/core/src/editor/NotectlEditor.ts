@@ -23,6 +23,10 @@ import {
 	isStaticHostReplica,
 } from '../plugins/print/StaticHostMarker.js';
 import type {
+	MarkdownParseOptions,
+	MarkdownSerializeOptions,
+} from '../serialization/MarkdownTypes.js';
+import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
 	SetContentHTMLOptions,
@@ -32,10 +36,12 @@ import type { Transaction } from '../state/Transaction.js';
 import type { EditorView } from '../view/EditorView.js';
 import {
 	getEditorContentHTML,
+	getEditorContentMarkdown,
 	getEditorJSON,
 	getEditorText,
 	isEditorEmpty,
 	setEditorContentHTML,
+	setEditorContentMarkdown,
 	setEditorJSON,
 	setEditorText,
 } from './ContentSerializer.js';
@@ -71,6 +77,8 @@ export class NotectlEditor extends HTMLElement {
 	private autoInitQueued = false;
 	private initVersion = 0;
 	private releaseInit: (() => void) | null = null;
+	private announce: ((text: string) => void) | null = null;
+	private markdownImportedMessage = 'Markdown imported';
 
 	static get observedAttributes(): string[] {
 		return ['placeholder', 'readonly', 'theme', 'paper-size', 'dir'];
@@ -152,6 +160,8 @@ export class NotectlEditor extends HTMLElement {
 			this.domElements = result.domElements;
 			this.themeController = result.themeController;
 			this.paperLayout = result.paperLayout;
+			this.announce = result.announce;
+			this.markdownImportedMessage = result.markdownImportedMessage;
 			this.releaseInit = result.release;
 
 			this.lifecycle.resolveReady();
@@ -230,6 +240,55 @@ export class NotectlEditor extends HTMLElement {
 			(s) => this.replaceState(s),
 			options,
 		);
+	}
+
+	/**
+	 * Returns a Markdown representation of the document.
+	 *
+	 * Async and genuinely lazy: unlike {@link getContentHTML} (statically bundled),
+	 * the Markdown engine is reached only via dynamic `import()`, so it is
+	 * code-split out of the core bundle and builds that never touch Markdown pay
+	 * nothing (D13). Standard CommonMark/GFM constructs serialize directly;
+	 * superset features emit raw HTML by default (`htmlFallback`), or degrade
+	 * gracefully when it is disabled.
+	 */
+	async getContentMarkdown(options?: MarkdownSerializeOptions): Promise<string> {
+		if (!this.view) throw new Error('Editor not initialized');
+		return getEditorContentMarkdown(
+			this.view.getState(),
+			this.pluginManager?.schemaRegistry,
+			options,
+		);
+	}
+
+	/**
+	 * Replaces the document content from Markdown (CommonMark + GFM).
+	 *
+	 * Async and lazy like {@link getContentMarkdown}. Existing top-level block IDs
+	 * are reused in document order so `setContentMarkdown(getContentMarkdown())`
+	 * preserves block identity and keeps the caret stable for unchanged blocks
+	 * (ARCHITECTURE §9.2, D10). Raw HTML embedded in the Markdown is parsed back
+	 * via the HTML parser so superset features survive the round-trip.
+	 */
+	async setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void> {
+		this.assertInitialized();
+		if (!this.view) return;
+		const syntaxExtensions = this.pluginManager?.markdownSyntaxRegistry.getExtensions();
+		const merged: MarkdownParseOptions = {
+			...options,
+			syntaxExtensions: options?.syntaxExtensions ?? syntaxExtensions,
+		};
+		await setEditorContentMarkdown(
+			markdown,
+			this.view.getState(),
+			this.pluginManager?.schemaRegistry,
+			(s) => this.replaceState(s),
+			merged,
+		);
+		// `replaceState` ran synchronously above and cleared the live region (its
+		// api-origin no-step transaction yields no announcement), so this is the
+		// surviving message for screen readers.
+		this.announce?.(this.markdownImportedMessage);
 	}
 
 	/** Returns plain text content. */
@@ -411,6 +470,7 @@ export class NotectlEditor extends HTMLElement {
 		this.pendingInitPromise = null;
 		this.releaseInit?.();
 		this.releaseInit = null;
+		this.announce = null;
 		this.paperLayout?.destroy();
 		this.paperLayout = null;
 		this.styleCoordinator.teardown(this.shadowRoot, this.themeController);

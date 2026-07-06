@@ -55,6 +55,7 @@ export {
 	type PopupPosition,
 	type PositionOptions,
 } from './PopupPositioning.js';
+export { createMarkInputRule } from './MarkInputRule.js';
 export { formatShortcut } from './ShortcutFormatting.js';
 export {
 	loadLocaleModule,

@@ -8,6 +8,8 @@ export interface EditorLocale {
 	readonly ariaLabel: string;
 	readonly ariaDescription: string;
 	readonly defaultPlaceholder: string;
+	/** Live-region announcement made after Markdown is imported (paste or `setContentMarkdown`). */
+	readonly markdownImported: string;
 }
 
 // --- Default English Locale ---
@@ -16,6 +18,7 @@ export const EDITOR_LOCALE_EN: EditorLocale = {
 	ariaLabel: 'Rich text editor',
 	ariaDescription: 'Press Escape to exit the editor',
 	defaultPlaceholder: 'Start typing...',
+	markdownImported: 'Markdown imported',
 };
 
 // --- Lazy Locale Loader ---

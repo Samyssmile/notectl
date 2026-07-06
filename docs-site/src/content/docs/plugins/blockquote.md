@@ -35,6 +35,8 @@ new BlockquotePlugin()
 
 ```ts
 interface BlockquoteConfig {
+  /** Live Markdown shortcut `> ` to start a blockquote. Default: true */
+  readonly inputRule?: boolean;
   /** Custom locale strings. */
   readonly locale?: BlockquoteLocale;
 }

@@ -9,6 +9,7 @@ import { type PaperSize, isValidPaperSize } from '../model/PaperSize.js';
 import type { PluginManager } from '../plugins/PluginManager.js';
 import type { NotectlEditorConfig } from './EditorConfig.js';
 import type { EditorThemeController } from './EditorThemeController.js';
+import { resolveMarkdownMode } from './MarkdownMode.js';
 import { type Theme, ThemePreset } from './theme/ThemeTokens.js';
 
 /** External dependencies the config controller needs to apply changes. */
@@ -112,6 +113,22 @@ export class EditorConfigController {
 	/** Returns whether the editor is read-only. */
 	get isReadOnly(): boolean {
 		return this.config.readonly ?? false;
+	}
+
+	/**
+	 * Whether live Markdown "shorthand" typing transforms are active (`true` by
+	 * default). Resolved from the `markdown` config option.
+	 */
+	get markdownShorthand(): boolean {
+		return resolveMarkdownMode(this.config.markdown).shorthand;
+	}
+
+	/**
+	 * Markdown paste auto-detection mode (`auto` by default). Resolved from the
+	 * `markdown` config option.
+	 */
+	get pasteMarkdown(): 'auto' | 'never' {
+		return resolveMarkdownMode(this.config.markdown).paste;
 	}
 
 	/** Returns the currently configured paper size. */

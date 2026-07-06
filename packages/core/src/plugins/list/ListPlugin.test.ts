@@ -62,6 +62,20 @@ describe('ListPlugin', () => {
 			expect(el?.className).toContain('notectl-list-item--bullet');
 		});
 
+		it('declares a hybrid content model: inline text plus block children (#194)', async () => {
+			const h = await pluginHarness(new ListPlugin());
+			const spec = h.getNodeSpec('list_item');
+
+			expect(spec?.content?.allow).toEqual([
+				'text',
+				'paragraph',
+				'heading',
+				'code_block',
+				'blockquote',
+				'horizontal_rule',
+			]);
+		});
+
 		it('creates DOM with indent margin', async () => {
 			const h = await pluginHarness(new ListPlugin());
 			const spec = h.getNodeSpec('list_item');
@@ -516,6 +530,11 @@ describe('ListPlugin', () => {
 			const h = await pluginHarness(new ListPlugin());
 			const rules = h.getInputRules();
 			expect(rules.length).toBe(3);
+		});
+
+		it('does not register input rules when inputRule is false', async () => {
+			const h = await pluginHarness(new ListPlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
 		});
 
 		it('"- " triggers bullet list', async () => {
