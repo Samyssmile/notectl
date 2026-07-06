@@ -27,6 +27,44 @@ async function getMarkdown(page: import('@playwright/test').Page): Promise<strin
 	});
 }
 
+/**
+ * Sets a DOM selection spanning two paragraphs identified by their exact text,
+ * so a delete gesture crosses a container boundary the way a user's drag would.
+ */
+async function selectAcrossParagraphs(
+	page: import('@playwright/test').Page,
+	fromText: string,
+	fromOffset: number,
+	toText: string,
+	toOffset: number,
+): Promise<void> {
+	await page.evaluate(
+		({ fromText, fromOffset, toText, toOffset }) => {
+			const content = document
+				.querySelector('notectl-editor')
+				?.shadowRoot?.querySelector('.notectl-content');
+			if (!content) return;
+			const firstText = (el: Element): Text | null =>
+				document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode() as Text | null;
+			const paras = [...content.querySelectorAll('p')];
+			const from = paras.find((p) => p.textContent === fromText);
+			const to = paras.find((p) => p.textContent === toText);
+			const fromNode = from && firstText(from);
+			const toNode = to && firstText(to);
+			if (!fromNode || !toNode) return;
+			const range = document.createRange();
+			range.setStart(fromNode, fromOffset);
+			range.setEnd(toNode, toOffset);
+			const sel = window.getSelection();
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+			document.dispatchEvent(new Event('selectionchange'));
+		},
+		{ fromText, fromOffset, toText, toOffset },
+	);
+	await page.waitForTimeout(150);
+}
+
 test.describe('Container list items (#194)', () => {
 	test('markdown with a multi-block item renders block children inside one <li>', async ({
 		editor,
@@ -137,6 +175,31 @@ test.describe('Container list items (#194)', () => {
 			expect(json.children[0]?.type).toBe('list_item');
 			const item = json.children[0] as { children: { type: string }[] };
 			expect(item.children).toHaveLength(2);
+		}).toPass({ timeout: 5_000 });
+	});
+
+	test('range delete from an outside paragraph into an item child preserves the tail and later children', async ({
+		editor,
+		page,
+	}) => {
+		await setMarkdown(page, 'outside\n\n- alpha\n\n  beta\n\n  gamma');
+
+		// Select "out|side" → "be|ta" and delete: the selected span goes, but the
+		// item's tail ("ta") and its untouched third child ("gamma") must survive.
+		await selectAcrossParagraphs(page, 'outside', 3, 'beta', 2);
+		await page.keyboard.press('Delete');
+
+		await expect(async () => {
+			const json = await editor.getJSON();
+			expect(json.children).toHaveLength(2);
+			expect(json.children[0]?.type).toBe('paragraph');
+			expect(json.children[0]?.children?.[0]?.text).toBe('out');
+			const list = json.children[1] as {
+				type: string;
+				children: { children: { text: string }[] }[];
+			};
+			expect(list.type).toBe('list_item');
+			expect(list.children.map((c) => c.children[0]?.text)).toEqual(['ta', 'gamma']);
 		}).toPass({ timeout: 5_000 });
 	});
 
