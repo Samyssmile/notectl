@@ -1,20 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { Mark } from '../model/Document.js';
+import type { BlockNode, Mark } from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockChildren,
+	getBlockText,
+	isLeafBlock,
 } from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import {
 	getEditorContentHTML,
+	getEditorContentMarkdown,
 	getEditorJSON,
 	getEditorText,
 	isEditorEmpty,
 	normalizeCompositeBlocks,
+	setEditorContentMarkdown,
 	setEditorJSON,
 	setEditorText,
 } from './ContentSerializer.js';
@@ -42,6 +47,42 @@ describe('getEditorJSON', () => {
 	});
 });
 
+describe('getEditorContentMarkdown', () => {
+	it('lazily serializes the document to Markdown', async () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('heading'), [createTextNode('Hi')], blockId('h1'), { level: 1 }),
+			createBlockNode(nodeType('paragraph'), [createTextNode('body')], blockId('b1')),
+		]);
+		const state: EditorState = EditorState.create({ doc });
+
+		const markdown: string = await getEditorContentMarkdown(state, undefined);
+
+		expect(markdown).toBe('# Hi\n\nbody\n');
+	});
+});
+
+describe('setEditorContentMarkdown', () => {
+	it('reuses top-level block IDs by position (round-trip identity, D10)', async () => {
+		const doc = createDocument([
+			createBlockNode(nodeType('heading'), [createTextNode('Hi')], blockId('h1'), { level: 1 }),
+			createBlockNode(nodeType('paragraph'), [createTextNode('body')], blockId('b1')),
+		]);
+		const state: EditorState = EditorState.create({ doc });
+		const markdown: string = await getEditorContentMarkdown(state, undefined);
+
+		let next: EditorState | undefined;
+		await setEditorContentMarkdown(markdown, state, undefined, (s) => {
+			next = s;
+		});
+
+		expect(next).toBeDefined();
+		const result = next as EditorState;
+		expect(result.doc.children.map((b) => b.id)).toEqual(['h1', 'b1']);
+		expect(getBlockText(result.doc.children[0] as never)).toBe('Hi');
+		expect(getBlockText(result.doc.children[1] as never)).toBe('body');
+	});
+});
+
 describe('setEditorJSON', () => {
 	it('calls replaceState with a new EditorState', () => {
 		const doc = singleParagraphDoc('new content');
@@ -66,6 +107,63 @@ describe('setEditorJSON', () => {
 
 		expect(captured?.selection.anchor.blockId).toBe('b1');
 		expect(captured?.selection.anchor.offset).toBe(0);
+	});
+
+	it('defaults a missing marks array on inline and text nodes from external JSON (#197)', () => {
+		// Simulates JSON persisted before inline nodes gained marks: no `marks` field.
+		const inlineWithoutMarks = {
+			type: 'inline',
+			inlineType: inlineType('math_inline'),
+			attrs: { mathml: '<math></math>', latex: 'x', alt: '' },
+		};
+		const textWithoutMarks = { type: 'text', text: 'before ' };
+		const doc = {
+			children: [
+				{
+					id: blockId('b1'),
+					type: nodeType('paragraph'),
+					children: [textWithoutMarks, inlineWithoutMarks],
+				},
+			],
+		} as never;
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (s) => {
+			captured = s;
+		});
+
+		const children = (captured as EditorState | null)?.doc.children[0]?.children ?? [];
+		expect(children).toHaveLength(2);
+		for (const child of children) {
+			expect((child as { marks?: readonly Mark[] }).marks).toEqual([]);
+		}
+	});
+
+	it('defaults missing marks inside nested container blocks', () => {
+		const doc = {
+			children: [
+				{
+					id: blockId('q1'),
+					type: nodeType('blockquote'),
+					children: [
+						{
+							id: blockId('p1'),
+							type: nodeType('paragraph'),
+							children: [{ type: 'text', text: 'quoted' }],
+						},
+					],
+				},
+			],
+		} as never;
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (s) => {
+			captured = s;
+		});
+
+		const paragraph = (captured as EditorState | null)?.doc.children[0]?.children[0];
+		const text = (paragraph as { children?: readonly unknown[] })?.children?.[0];
+		expect((text as { marks?: readonly Mark[] })?.marks).toEqual([]);
 	});
 
 	it('sets selection to the first leaf block for nested documents', () => {
@@ -508,5 +606,73 @@ describe('normalizeCompositeBlocks', () => {
 		expect(result.children[0]?.type).toBe('heading');
 		expect(result.children[0]?.children).toHaveLength(1);
 		expect(result.children[0]?.children[0]).toMatchObject({ type: 'text', text: 'Title' });
+	});
+
+	// #194: list_item is a hybrid leaf/container. Its content rule allows both
+	// `text` (leaf) and block types (container), so the composite-recursion must
+	// still descend into a container item to normalize its nested composites.
+	function createHybridListRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		const dom = (tag: string) => (node: BlockNode) => {
+			const el = document.createElement(tag);
+			el.setAttribute('data-block-id', node.id);
+			return el;
+		};
+		registry.registerNodeSpec({ type: 'paragraph', group: 'block', toDOM: dom('p') });
+		registry.registerNodeSpec({
+			type: 'blockquote',
+			group: 'block',
+			content: { allow: ['paragraph', 'list_item', 'blockquote'] },
+			toDOM: dom('blockquote'),
+		});
+		registry.registerNodeSpec({
+			type: 'list_item',
+			group: 'block',
+			content: { allow: ['text', 'paragraph', 'blockquote', 'code_block', 'horizontal_rule'] },
+			attrs: {
+				listType: { default: 'bullet' },
+				indent: { default: 0 },
+				checked: { default: false },
+			},
+			toDOM: dom('li'),
+		});
+		return registry;
+	}
+
+	it('leaves a single-paragraph (leaf) list_item untouched (#194)', () => {
+		const registry = createHybridListRegistry();
+		const doc = createDocument([
+			createBlockNode(nodeType('list_item'), [createTextNode('hi')], blockId('li1'), {
+				listType: 'bullet',
+				indent: 0,
+				checked: false,
+			}),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		expect(isLeafBlock(result.children[0] as BlockNode)).toBe(true);
+		expect(getBlockText(result.children[0] as BlockNode)).toBe('hi');
+	});
+
+	it('recurses into a container list_item and wraps a nested blockquote’s bare inline (#194)', () => {
+		const registry = createHybridListRegistry();
+		const badQuote = createBlockNode(nodeType('blockquote'), [createTextNode('quoted')]);
+		const para = createBlockNode(nodeType('paragraph'), [createTextNode('foo')]);
+		const item = createBlockNode(nodeType('list_item'), [para, badQuote], blockId('li1'), {
+			listType: 'bullet',
+			indent: 0,
+			checked: false,
+		});
+
+		const result = normalizeCompositeBlocks(createDocument([item]), registry);
+
+		const li = result.children[0] as BlockNode;
+		const quote = getBlockChildren(li).find((c) => c.type === 'blockquote') as BlockNode;
+		expect(quote).toBeDefined();
+		// The blockquote's bare text is now wrapped in a paragraph.
+		expect(isLeafBlock(quote)).toBe(false);
+		expect(getBlockChildren(quote).map((c) => c.type)).toEqual(['paragraph']);
+		expect(getBlockText(getBlockChildren(quote)[0] as BlockNode)).toBe('quoted');
 	});
 });

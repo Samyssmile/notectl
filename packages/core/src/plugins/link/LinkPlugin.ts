@@ -9,9 +9,10 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
+import type { BlockNode } from '../../model/Document.js';
 import { hasMark } from '../../model/Document.js';
 import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
-import { isCollapsed, isTextSelection } from '../../model/Selection.js';
+import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -23,7 +24,7 @@ import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js
 
 declare module '../../model/AttrRegistry.js' {
 	interface MarkAttrRegistry {
-		link: { href: string };
+		link: { href: string; title?: string };
 	}
 }
 
@@ -32,12 +33,22 @@ declare module '../../model/AttrRegistry.js' {
 export interface LinkConfig {
 	/** Whether to add rel="noopener noreferrer" and target="_blank" by default. */
 	readonly openInNewTab: boolean;
+	/** Live Markdown shortcuts: `[text](url "title")` and `<url>` autolink. Default true. */
+	readonly inputRule?: boolean;
 	readonly locale?: LinkLocale;
 }
 
 const DEFAULT_CONFIG: LinkConfig = {
 	openInNewTab: true,
 };
+
+// The inline-node placeholder (U+FFFC) is excluded from every re-inserted
+// capture so a live link rule never spans an inline node nor writes the
+// sentinel back as literal text.
+/** `[text](url "optional title")`, not preceded by `!` (which would be an image). */
+const LINK_RULE = /(?:^|[^!])(\[([^\]\uFFFC]+)\]\(([^)\s\uFFFC]+)(?:\s+"([^"\uFFFC]*)")?\))$/;
+/** `<scheme:...>` autolink. */
+const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s\uFFFC]+)>)$/;
 
 // --- Plugin ---
 
@@ -59,6 +70,73 @@ export class LinkPlugin implements Plugin {
 		this.registerCommands(context);
 		this.registerKeymap(context);
 		this.registerToolbarItem(context);
+		if (this.config.inputRule !== false) {
+			this.registerInputRules(context);
+		}
+	}
+
+	/**
+	 * Live Markdown link rules: `[text](url "title")` and `<url>` autolink. Bespoke
+	 * (not the shared wrapping-mark helper) because links carry an `href`/`title`
+	 * attribute and two capture groups (D6).
+	 */
+	private registerInputRules(context: PluginContext): void {
+		const buildLink = (
+			state: EditorState,
+			blockId: BlockNode['id'],
+			start: number,
+			end: number,
+			text: string,
+			href: string,
+			title?: string,
+		) => {
+			const attrs: Record<string, string> = { href };
+			if (title) attrs.title = title;
+			return state
+				.transaction('input')
+				.deleteTextAt(blockId, start, end)
+				.insertText(blockId, start, text, [{ type: markType('link'), attrs }])
+				.setSelection(createCollapsedSelection(blockId, start + text.length))
+				.build();
+		};
+
+		context.registerInputRule({
+			pattern: LINK_RULE,
+			handler(state, match, _start, end) {
+				const sel = state.selection;
+				if (!isTextSelection(sel) || !isCollapsed(sel)) return null;
+				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+				if (!block || block.type === 'code_block') return null;
+
+				const expr = match[1];
+				const text = match[2];
+				const rawHref = match[3];
+				const title = match[4];
+				if (!expr || !text || !rawHref) return null;
+				const href: string = sanitizeHref(rawHref);
+				if (href === '') return null;
+
+				return buildLink(state, sel.anchor.blockId, end - expr.length, end, text, href, title);
+			},
+		});
+
+		context.registerInputRule({
+			pattern: AUTOLINK_RULE,
+			handler(state, match, _start, end) {
+				const sel = state.selection;
+				if (!isTextSelection(sel) || !isCollapsed(sel)) return null;
+				const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
+				if (!block || block.type === 'code_block') return null;
+
+				const expr = match[1];
+				const url = match[2];
+				if (!expr || !url) return null;
+				const href: string = sanitizeHref(url);
+				if (href === '') return null;
+
+				return buildLink(state, sel.anchor.blockId, end - expr.length, end, url, href);
+			},
+		});
 	}
 
 	private registerMarkSpec(context: PluginContext): void {
@@ -70,11 +148,14 @@ export class LinkPlugin implements Plugin {
 			inclusive: false,
 			attrs: {
 				href: { default: '' },
+				title: { default: '' },
 			},
 			toDOM(mark) {
 				const a = document.createElement('a');
 				const href: string = sanitizeHref(String(mark.attrs?.href ?? ''));
 				a.setAttribute('href', href);
+				const title: string = String(mark.attrs?.title ?? '');
+				if (title) a.setAttribute('title', title);
 				if (openInNewTab) {
 					a.setAttribute('target', '_blank');
 					a.setAttribute('rel', 'noopener noreferrer');
@@ -84,10 +165,12 @@ export class LinkPlugin implements Plugin {
 			toHTMLString: (mark, content) => {
 				const safeHref: string = sanitizeHref(String(mark.attrs?.href ?? ''));
 				const href: string = escapeHTML(safeHref);
+				const titleValue: string = String(mark.attrs?.title ?? '');
+				const titleAttr: string = titleValue ? ` title="${escapeHTML(titleValue)}"` : '';
 				if (openInNewTab) {
-					return `<a href="${href}" target="_blank" rel="noopener noreferrer">${content}</a>`;
+					return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${content}</a>`;
 				}
-				return `<a href="${href}">${content}</a>`;
+				return `<a href="${href}"${titleAttr}>${content}</a>`;
 			},
 			parseHTML: [
 				{
@@ -97,11 +180,12 @@ export class LinkPlugin implements Plugin {
 						// applied so the parser does not fall back to the core HTMLParser's
 						// raw-href default; the empty value renders as a no-op anchor.
 						const href: string = sanitizeHref(el.getAttribute('href') ?? '');
-						return { href };
+						const title: string = el.getAttribute('title') ?? '';
+						return title ? { href, title } : { href };
 					},
 				},
 			],
-			sanitize: { tags: ['a'], attrs: ['href', 'target', 'rel'] },
+			sanitize: { tags: ['a'], attrs: ['href', 'title', 'target', 'rel'] },
 		});
 	}
 

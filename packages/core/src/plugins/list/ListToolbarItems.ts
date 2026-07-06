@@ -8,6 +8,7 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { allBlocksMatchListType } from './ListCommands.js';
 import type { ListTypeDefinition } from './ListDefinitions.js';
+import { resolveListItem } from './ListItemContext.js';
 import type { ListLocale } from './ListLocale.js';
 import type { ListType } from './ListPlugin.js';
 
@@ -48,6 +49,7 @@ function isListActive(state: EditorState, listType: ListType): boolean {
 		return allBlocksMatchListType(state, range, listType);
 	}
 
-	const block = state.getBlock(state.selection.anchor.blockId);
+	// Children of container items resolve to their owning item (#194).
+	const block = resolveListItem(state, state.selection.anchor.blockId);
 	return block?.type === 'list_item' && block.attrs?.listType === listType;
 }

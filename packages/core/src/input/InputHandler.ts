@@ -14,7 +14,8 @@ import {
 	insertTextCommand,
 	splitBlockCommand,
 } from '../commands/Commands.js';
-import { getBlockText } from '../model/Document.js';
+import { type BlockNode, getInlineChildren, isTextNode } from '../model/Document.js';
+import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
 import { isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
@@ -36,6 +37,12 @@ export interface InputHandlerOptions {
 	syncSelection: SyncSelectionFn;
 	inputRuleRegistry?: InputRuleRegistry;
 	isReadOnly?: () => boolean;
+	/**
+	 * Gate for live input-rule (Markdown shorthand) processing. When it returns
+	 * `false`, typed shorthand like `# ` or `**bold**` stays literal. Evaluated on
+	 * each keystroke. Defaults to always enabled.
+	 */
+	shouldApplyInputRules?: () => boolean;
 	compositionTracker?: CompositionTracker;
 	getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 }
@@ -46,6 +53,7 @@ export class InputHandler {
 	private readonly syncSelection: SyncSelectionFn;
 	private readonly inputRuleRegistry?: InputRuleRegistry;
 	private readonly isReadOnly: () => boolean;
+	private readonly shouldApplyInputRules: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
 	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
 	private compositionCommitHandled = false;
@@ -63,6 +71,7 @@ export class InputHandler {
 		this.syncSelection = options.syncSelection;
 		this.inputRuleRegistry = options.inputRuleRegistry;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
+		this.shouldApplyInputRules = options.shouldApplyInputRules ?? (() => true);
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
 
@@ -230,6 +239,7 @@ export class InputHandler {
 	}
 
 	private checkInputRules(): void {
+		if (!this.shouldApplyInputRules()) return;
 		if (!this.inputRuleRegistry) return;
 		const rules = this.inputRuleRegistry.getInputRules();
 		if (rules.length === 0) return;
@@ -240,7 +250,11 @@ export class InputHandler {
 		const block = state.getBlock(anchor.blockId);
 		if (!block) return;
 
-		const text = getBlockText(block);
+		// Build the text in MODEL-OFFSET space (inline nodes → one placeholder
+		// char) so `match.index`/`end` are real offsets even when inline nodes
+		// precede the match. Plain `getBlockText` drops inline nodes (width 0),
+		// which desyncs `anchor.offset` (width 1) and corrupts the deleted range.
+		const text = blockTextForRules(block);
 		const textBefore = text.slice(0, anchor.offset);
 
 		for (const rule of rules) {
@@ -262,6 +276,19 @@ export class InputHandler {
 		this.element.removeEventListener('compositionstart', this.handleCompositionStart);
 		this.element.removeEventListener('compositionend', this.handleCompositionEnd);
 	}
+}
+
+/**
+ * Renders a block's inline content in model-offset space: text verbatim, each
+ * inline node as a single {@link INLINE_NODE_PLACEHOLDER}. Indices into the
+ * result equal model offsets, which input-rule handlers feed to step builders.
+ */
+function blockTextForRules(block: BlockNode): string {
+	let text = '';
+	for (const child of getInlineChildren(block)) {
+		text += isTextNode(child) ? child.text : INLINE_NODE_PLACEHOLDER;
+	}
+	return text;
 }
 
 function shouldHandleBeforeInput(inputType: string): boolean {

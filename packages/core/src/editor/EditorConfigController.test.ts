@@ -221,4 +221,33 @@ describe('EditorConfigController', () => {
 			expect(ctrl.isReadOnly).toBe(true);
 		});
 	});
+
+	describe('markdown config resolution', () => {
+		it('defaults to shorthand on and paste auto', () => {
+			const ctrl = new EditorConfigController();
+			expect(ctrl.markdownShorthand).toBe(true);
+			expect(ctrl.pasteMarkdown).toBe('auto');
+		});
+
+		it('markdown: false disables both shorthand and paste', () => {
+			const ctrl = new EditorConfigController();
+			ctrl.setConfig({ markdown: false });
+			expect(ctrl.markdownShorthand).toBe(false);
+			expect(ctrl.pasteMarkdown).toBe('never');
+		});
+
+		it('object form resolves each axis independently', () => {
+			const ctrl = new EditorConfigController();
+			ctrl.setConfig({ markdown: { shorthand: false } });
+			expect(ctrl.markdownShorthand).toBe(false);
+			expect(ctrl.pasteMarkdown).toBe('auto');
+		});
+
+		it('reflects a runtime config merge', () => {
+			const ctrl = new EditorConfigController();
+			ctrl.mergeConfig({ markdown: { paste: 'never' } });
+			expect(ctrl.markdownShorthand).toBe(true);
+			expect(ctrl.pasteMarkdown).toBe('never');
+		});
+	});
 });

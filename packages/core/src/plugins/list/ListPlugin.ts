@@ -6,8 +6,11 @@
  * This file is a thin orchestrator — command logic, input rules, keyboard
  * handlers, and toolbar rendering are delegated to dedicated modules.
  *
- * List items are modeled as flat blocks with a `listType` and `indent` attribute,
- * allowing simple nesting representation without deep tree structures.
+ * Sibling structure is modeled flat: every item carries a `listType` and an
+ * `indent` attribute, so nesting between items needs no deep tree. Item
+ * content is hybrid (#194): a single-paragraph item is a leaf with inline
+ * children, while a multi-block item (second paragraph, code block, quote,
+ * heading) is a container whose children are blocks.
  */
 
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
@@ -41,6 +44,8 @@ export interface ListConfig {
 	readonly types: readonly ListType[];
 	/** Maximum indent depth. Defaults to 4. */
 	readonly maxIndent: number;
+	/** Live Markdown shortcuts: `- `/`* ` (bullet), `1. ` (ordered), `[ ] ` (checklist). Default true. */
+	readonly inputRule?: boolean;
 	/**
 	 * When true, checklist checkboxes remain interactive even in read-only mode.
 	 * Defaults to false (checkboxes are fully read-only).
@@ -79,7 +84,7 @@ export class ListPlugin implements Plugin {
 		this.registerNodeSpec(context);
 		registerListCommands(context, this.config, enabledTypes, this.locale);
 		registerListKeymaps(context);
-		registerListInputRules(context, enabledTypes);
+		if (this.config.inputRule !== false) registerListInputRules(context, enabledTypes);
 		registerListToolbarItems(context, enabledTypes, this.locale);
 		this.registerCheckboxClickHandler(context);
 	}
@@ -99,7 +104,13 @@ export class ListPlugin implements Plugin {
 		context.registerNodeSpec({
 			type: 'list_item',
 			group: 'block',
-			content: { allow: ['text'] },
+			// Hybrid content model (#194): the common single-paragraph item is a
+			// leaf (inline text children); multi-block items are containers with
+			// block children. Sibling nesting stays flat-with-indent, so list_item
+			// itself is deliberately not an allowed child.
+			content: {
+				allow: ['text', 'paragraph', 'heading', 'code_block', 'blockquote', 'horizontal_rule'],
+			},
 			attrs: {
 				listType: { default: 'bullet' },
 				indent: { default: 0 },

@@ -5,7 +5,7 @@ import {
 	createInlineNode,
 	createTextNode,
 } from '../model/Document.js';
-import type { Mark } from '../model/Document.js';
+import type { InlineNode, Mark } from '../model/Document.js';
 import { escapeHTML } from '../model/HTMLUtils.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -434,6 +434,74 @@ describe('serializeDocumentToHTML', () => {
 
 			const html: string = serializeDocumentToHTML(doc, registry);
 			expect(stripBlockIds(html)).toContain('color: rgb(255, 0, 0)');
+		});
+	});
+
+	// --- Inline node marks (#197) ---
+
+	describe('inline node marks', () => {
+		function createLinkedImageRegistry(): SchemaRegistry {
+			const nodeSpecs = new Map<string, { toHTML?: (node: unknown, content: string) => string }>([
+				['paragraph', { toHTML: (_n, c) => `<p>${c || '<br>'}</p>` }],
+			]);
+			const inlineSpecs = new Map<string, { toHTMLString: (node: InlineNode) => string }>([
+				[
+					'image_inline',
+					{
+						toHTMLString: (node: InlineNode) =>
+							`<img src="${escapeHTML(String(node.attrs.src ?? ''))}" alt="${escapeHTML(
+								String(node.attrs.alt ?? ''),
+							)}">`,
+					},
+				],
+			]);
+			const markSpecs = new Map<
+				string,
+				{ rank: number; toHTMLString: (mark: Mark, content: string) => string }
+			>([
+				[
+					'link',
+					{
+						rank: 1,
+						toHTMLString: (mark: Mark, content: string) =>
+							`<a href="${escapeHTML(String((mark.attrs as Record<string, unknown>)?.href ?? ''))}">${content}</a>`,
+					},
+				],
+			]);
+			return {
+				getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+				getInlineNodeSpec: (type: string) => inlineSpecs.get(type) ?? undefined,
+				getMarkSpec: (type: string) => markSpecs.get(type) ?? undefined,
+				getMarkTypes: () => [...markSpecs.keys()],
+				getAllowedTags: () => ['p', 'br', 'a', 'img'],
+				getAllowedAttrs: () => ['href', 'src', 'alt'],
+			} as unknown as SchemaRegistry;
+		}
+
+		it('wraps a linked inline image in its link mark (<a><img></a>)', () => {
+			const registry: SchemaRegistry = createLinkedImageRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createInlineNode(inlineType('image_inline'), { src: 'p.png', alt: 'a' }, [
+						{ type: markType('link'), attrs: { href: '/u' } },
+					]),
+				]),
+			]);
+
+			const html: string = stripBlockIds(serializeDocumentToHTML(doc, registry));
+			expect(html).toBe('<p><a href="/u"><img src="p.png" alt="a"></a></p>');
+		});
+
+		it('emits a bare inline image unchanged when it has no marks', () => {
+			const registry: SchemaRegistry = createLinkedImageRegistry();
+			const doc = createDocument([
+				createBlockNode(nodeType('paragraph'), [
+					createInlineNode(inlineType('image_inline'), { src: 'p.png', alt: 'a' }),
+				]),
+			]);
+
+			const html: string = stripBlockIds(serializeDocumentToHTML(doc, registry));
+			expect(html).toBe('<p><img src="p.png" alt="a"></p>');
 		});
 	});
 
@@ -885,6 +953,45 @@ describe('serializeDocumentToHTML', () => {
 			expect(stripBlockIds(html)).toContain('checked');
 			expect(stripBlockIds(html)).toContain('Done');
 			expect(stripBlockIds(html)).toContain('Todo');
+		});
+
+		it('serializes a container item with block children (#194)', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				createBlockNode(
+					nodeType('list_item'),
+					[
+						createBlockNode(nodeType('paragraph'), [createTextNode('first')]),
+						createBlockNode(nodeType('paragraph'), [createTextNode('second')]),
+					],
+					undefined,
+					{ listType: 'bullet', indent: 0, checked: false },
+				),
+			]);
+
+			const html: string = serializeDocumentToHTML(doc, registry);
+			expect(stripBlockIds(html)).toBe('<ul><li><p>first</p><p>second</p></li></ul>');
+		});
+
+		it('serializes a checklist container with the checkbox before the block children (#194)', () => {
+			const registry: SchemaRegistry = createListRegistry();
+			const doc = createDocument([
+				createBlockNode(
+					nodeType('list_item'),
+					[
+						createBlockNode(nodeType('paragraph'), [createTextNode('done')]),
+						createBlockNode(nodeType('paragraph'), [createTextNode('details')]),
+					],
+					undefined,
+					{ listType: 'checklist', indent: 0, checked: true },
+				),
+			]);
+
+			const html: string = stripBlockIds(serializeDocumentToHTML(doc, registry));
+			expect(html).toBe(
+				'<ul><li role="checkbox" aria-checked="true">' +
+					'<input type="checkbox" disabled="" checked=""><p>done</p><p>details</p></li></ul>',
+			);
 		});
 
 		it('serializes mixed ordered/bullet list types', () => {

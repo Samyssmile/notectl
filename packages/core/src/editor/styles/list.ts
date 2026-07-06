@@ -35,6 +35,17 @@ export const LIST_CSS = `
 	pointer-events: none;
 }
 
+/* Container items (#194): block children inherit the item's start padding.
+   Trim the first/last child paragraph padding so the first text line sits on
+   the marker's line and the item keeps the leaf item's vertical rhythm. */
+.notectl-list-item > p:first-of-type {
+	padding-top: 0;
+}
+
+.notectl-list-item > p:last-of-type {
+	padding-bottom: 0;
+}
+
 /* Bullet List */
 .notectl-list-item--bullet::before {
 	content: '\\2022';

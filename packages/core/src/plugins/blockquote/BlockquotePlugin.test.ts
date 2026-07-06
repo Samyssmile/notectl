@@ -101,6 +101,11 @@ describe('BlockquotePlugin', () => {
 			expect(h.getInputRules().length).toBe(1);
 		});
 
+		it('does not register an input rule when inputRule is false', async () => {
+			const h = await pluginHarness(new BlockquotePlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
+		});
+
 		it('input rule pattern matches "> "', async () => {
 			const h = await pluginHarness(new BlockquotePlugin());
 			const rule = h.getInputRules()[0];

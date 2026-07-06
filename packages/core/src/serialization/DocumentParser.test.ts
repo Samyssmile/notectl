@@ -8,11 +8,12 @@ import {
 	getBlockText,
 	getInlineChildren,
 	isInlineNode,
+	isLeafBlock,
 } from '../model/Document.js';
 import { formatHTML } from '../model/HTMLUtils.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
 import { serializeDocumentToCSS, serializeDocumentToHTML } from './DocumentSerializer.js';
@@ -88,6 +89,24 @@ function createTestRegistry(): SchemaRegistry {
 				sanitize: { tags: ['br'] },
 			},
 		],
+		[
+			'image_inline',
+			{
+				type: 'image_inline',
+				toDOM: () => document.createElement('img'),
+				toHTMLString: () => '<img>',
+				parseHTML: [
+					{
+						tag: 'img',
+						getAttrs: (el: HTMLElement) => ({
+							src: el.getAttribute('src') ?? '',
+							alt: el.getAttribute('alt') ?? '',
+						}),
+					},
+				],
+				sanitize: { tags: ['img'], attrs: ['src', 'alt'] },
+			},
+		],
 	]);
 
 	const markSpecs = new Map<
@@ -105,6 +124,15 @@ function createTestRegistry(): SchemaRegistry {
 			{
 				rank: 1,
 				parseHTML: [{ tag: 'strong' }, { tag: 'b' }],
+			},
+		],
+		[
+			'link',
+			{
+				rank: 2,
+				parseHTML: [
+					{ tag: 'a', getAttrs: (el: HTMLElement) => ({ href: el.getAttribute('href') ?? '' }) },
+				],
 			},
 		],
 	]);
@@ -174,8 +202,10 @@ function createTestRegistry(): SchemaRegistry {
 			'ol',
 			'li',
 			'input',
+			'a',
+			'img',
 		],
-		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class'],
+		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class', 'href', 'src', 'alt'],
 	} as unknown as SchemaRegistry;
 }
 
@@ -620,6 +650,58 @@ describe('parseHTMLToDocument', () => {
 	// --- Nested list parsing ---
 
 	describe('nested list parsing', () => {
+		function createListTableRegistry(): SchemaRegistry {
+			const registry = new SchemaRegistry();
+			const dom = (tag: string) => (node: BlockNode) => {
+				const el = document.createElement(tag);
+				el.setAttribute('data-block-id', node.id);
+				return el;
+			};
+			registry.registerNodeSpec({
+				type: 'paragraph',
+				group: 'block',
+				sanitize: { tags: ['p'] },
+				toDOM: dom('p'),
+				parseHTML: [{ tag: 'p' }],
+			});
+			registry.registerNodeSpec({
+				type: 'list_item',
+				group: 'block',
+				content: {
+					allow: ['text', 'paragraph', 'heading', 'code_block', 'blockquote', 'horizontal_rule'],
+				},
+				attrs: {
+					listType: { default: 'bullet' },
+					indent: { default: 0 },
+					checked: { default: false },
+				},
+				sanitize: { tags: ['ul', 'ol', 'li'] },
+				toDOM: dom('li'),
+				parseHTML: [{ tag: 'li' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table',
+				group: 'block',
+				content: { allow: ['table_row'] },
+				sanitize: { tags: ['table', 'tbody', 'thead', 'tr', 'td', 'th'] },
+				toDOM: dom('table'),
+				parseHTML: [{ tag: 'table' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table_row',
+				content: { allow: ['table_cell'] },
+				toDOM: dom('tr'),
+				parseHTML: [{ tag: 'tr' }],
+			});
+			registry.registerNodeSpec({
+				type: 'table_cell',
+				content: { allow: ['paragraph'] },
+				toDOM: dom('td'),
+				parseHTML: [{ tag: 'td' }, { tag: 'th' }],
+			});
+			return registry;
+		}
+
 		it('parses flat list into list items with indent 0', () => {
 			const registry = createTestRegistry();
 			const doc = parseHTMLToDocument('<ul><li>A</li><li>B</li></ul>', registry);
@@ -678,6 +760,108 @@ describe('parseHTMLToDocument', () => {
 			expect(first.attrs?.indent).toBe(0);
 			expect(getBlockText(second)).toBe('B');
 			expect(second.attrs?.indent).toBe(1);
+		});
+
+		it('parses a multi-paragraph <li> into a container item (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<ul><li><p>first</p><p>second</p></li></ul>', registry);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.type).toBe('list_item');
+			expect(item.attrs?.listType).toBe('bullet');
+			const children = getBlockChildren(item);
+			expect(children).toHaveLength(2);
+			expect(children[0]?.type).toBe('paragraph');
+			expect(getBlockText(children[0] as BlockNode)).toBe('first');
+			expect(children[1]?.type).toBe('paragraph');
+			expect(getBlockText(children[1] as BlockNode)).toBe('second');
+		});
+
+		it('keeps a single-paragraph <li> a leaf item (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument('<ul><li><p>only</p></li></ul>', registry);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.type).toBe('list_item');
+			expect(isLeafBlock(item)).toBe(true);
+			expect(getBlockText(item)).toBe('only');
+		});
+
+		it('lifts a nested list out of a multi-block <li> into flat siblings (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><p>first</p><p>second</p><ul><li>nested</li></ul></li></ul>',
+				registry,
+			);
+
+			expect(doc.children).toHaveLength(2);
+			const container = doc.children[0];
+			const nested = doc.children[1];
+			if (!container || !nested) return;
+			expect(getBlockChildren(container)).toHaveLength(2);
+			expect(nested.type).toBe('list_item');
+			expect(nested.attrs?.indent).toBe(1);
+			expect(getBlockText(nested)).toBe('nested');
+		});
+
+		it('parses a checklist <li> with block children into a checked container (#194)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><input type="checkbox" checked><p>done</p><p>details</p></li></ul>',
+				registry,
+			);
+
+			expect(doc.children).toHaveLength(1);
+			const item = doc.children[0];
+			if (!item) return;
+			expect(item.attrs?.listType).toBe('checklist');
+			expect(item.attrs?.checked).toBe(true);
+			const children = getBlockChildren(item);
+			expect(children).toHaveLength(2);
+			expect(getBlockText(children[0] as BlockNode)).toBe('done');
+			expect(getBlockText(children[1] as BlockNode)).toBe('details');
+		});
+
+		it('round-trips a container item through serialize + parse (#194)', () => {
+			const registry = createTestRegistry();
+			const source = '<ul><li><p>first</p><p>second</p></li><li>leaf</li></ul>';
+			const doc = parseHTMLToDocument(source, registry);
+
+			expect(doc.children).toHaveLength(2);
+			const container = doc.children[0];
+			const leaf = doc.children[1];
+			if (!container || !leaf) return;
+			expect(getBlockChildren(container)).toHaveLength(2);
+			expect(isLeafBlock(leaf)).toBe(true);
+			expect(getBlockText(leaf)).toBe('leaf');
+		});
+
+		// #194 review fix: a pasted <li> holding a <table> must not build the
+		// schema-invalid list_item > table; the table is hoisted out to a sibling.
+		it('hoists a table pasted inside an <li> out to a sibling (#194)', () => {
+			const registry = createListTableRegistry();
+			const doc = parseHTMLToDocument(
+				'<ul><li><p>foo</p><table><tbody><tr><td>x</td></tr></tbody></table></li></ul>',
+				registry,
+			);
+
+			expect(doc.children.map((b) => b.type)).toEqual(['list_item', 'table']);
+			const item = doc.children[0] as BlockNode;
+			expect(isLeafBlock(item)).toBe(true);
+			expect(getBlockText(item)).toBe('foo');
+			// The table content survives (not flattened into the item's text).
+			const cellText = getBlockText(
+				getBlockChildren(
+					getBlockChildren(
+						getBlockChildren(doc.children[1] as BlockNode)[0] as BlockNode,
+					)[0] as BlockNode,
+				)[0] as BlockNode,
+			);
+			expect(cellText).toBe('x');
 		});
 
 		it('parses checklist items from input[type=checkbox]', () => {
@@ -754,6 +938,25 @@ describe('parseHTMLToDocument', () => {
 			expect(children).toHaveLength(2);
 			expect(isInlineNode(children[0])).toBe(true);
 			expect(isInlineNode(children[1])).toBe(true);
+		});
+
+		it('attaches the surrounding link mark to a linked inline image (#197)', () => {
+			const registry = createTestRegistry();
+			const doc = parseHTMLToDocument(
+				'<p><a href="/u"><img src="p.png" alt="a"></a></p>',
+				registry,
+			);
+
+			const block = doc.children[0];
+			if (!block) return;
+			const children = getInlineChildren(block);
+			expect(children).toHaveLength(1);
+			const img = children[0];
+			if (!img || !isInlineNode(img)) throw new Error('expected an inline node');
+			expect(img.inlineType).toBe('image_inline');
+			expect(img.attrs).toMatchObject({ src: 'p.png', alt: 'a' });
+			expect(img.marks.map((m) => m.type)).toEqual(['link']);
+			expect(img.marks[0]?.attrs).toEqual({ href: '/u' });
 		});
 	});
 

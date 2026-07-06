@@ -27,6 +27,10 @@ import {
 	serializeDocumentToHTML,
 } from '../serialization/DocumentSerializer.js';
 import type {
+	MarkdownParseOptions,
+	MarkdownSerializeOptions,
+} from '../serialization/MarkdownTypes.js';
+import type {
 	ContentCSSResult,
 	ContentHTMLOptions,
 	SetContentHTMLOptions,
@@ -44,13 +48,50 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
-	const normalized: Document = registry ? normalizeCompositeBlocks(doc, registry) : doc;
+	const withMarks: Document = defaultMissingMarks(doc);
+	const normalized: Document = registry ? normalizeCompositeBlocks(withMarks, registry) : withMarks;
 	const schema = registry ? schemaFromRegistry(registry) : undefined;
 	const state: EditorState = EditorState.create({
 		doc: normalized,
 		schema,
 	});
 	replaceState(state);
+}
+
+/**
+ * Establishes the model invariant that every text and inline node carries a
+ * `marks` array. External JSON may omit the field — notably documents persisted
+ * before inline nodes gained marks (#197) — and the view layer reads
+ * `child.marks` unconditionally, so a missing array must be defaulted here at
+ * the JSON boundary rather than crash the reconciler later. Untouched nodes
+ * keep their identity; a document that already satisfies the invariant is
+ * returned as-is.
+ */
+function defaultMissingMarks(doc: Document): Document {
+	const children: readonly BlockNode[] = mapPreservingIdentity(doc.children, defaultBlockMarks);
+	return children === doc.children ? doc : { children };
+}
+
+function defaultBlockMarks(block: BlockNode): BlockNode {
+	if (!block.children) return block;
+	const children: readonly ChildNode[] = mapPreservingIdentity(block.children, (child) => {
+		if (isTextNode(child) || isInlineNode(child)) {
+			return child.marks ? child : { ...child, marks: [] };
+		}
+		return defaultBlockMarks(child);
+	});
+	return children === block.children ? block : { ...block, children };
+}
+
+/** Maps an array, returning the original array when no element changed. */
+function mapPreservingIdentity<T>(items: readonly T[], map: (item: T) => T): readonly T[] {
+	let changed = false;
+	const mapped: readonly T[] = items.map((item) => {
+		const next: T = map(item);
+		if (next !== item) changed = true;
+		return next;
+	});
+	return changed ? mapped : items;
 }
 
 /**
@@ -66,26 +107,33 @@ export function normalizeCompositeBlocks(doc: Document, registry: SchemaRegistry
 	return { children };
 }
 
-/** Leaf blocks use `content: { allow: ['text'] }`; composite blocks allow block types. */
-function isCompositeContentRule(content: { readonly allow: readonly string[] }): boolean {
-	return content.allow.length > 0 && !content.allow.includes('text');
+/** Whether a content rule permits block-level children (beyond bare `text`). */
+function allowsBlockChildren(content: { readonly allow: readonly string[] }): boolean {
+	return content.allow.some((entry) => entry !== 'text');
 }
 
 function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 	const spec = registry.getNodeSpec(block.type);
 
-	// No content rule, or content allows 'text' → leaf block, no normalization needed
-	if (!spec?.content || !isCompositeContentRule(spec.content)) return block;
+	// No content rule, or a rule permitting only inline text → pure leaf, nothing
+	// to normalize.
+	if (!spec?.content || !allowsBlockChildren(spec.content)) return block;
 
-	// Composite block with all-inline children → wrap in paragraph
+	const allowsInline: boolean = spec.content.allow.includes('text');
+
 	if (isLeafBlock(block)) {
+		// A hybrid block (list_item, #194) with inline children is already a valid
+		// leaf; only a pure composite (table_cell, blockquote) must wrap its inline
+		// children in a paragraph to satisfy the block-only invariant.
+		if (allowsInline) return block;
 		const children: readonly ChildNode[] | undefined =
 			block.children.length > 0 ? block.children : undefined;
 		const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
 		return createBlockNode(block.type, [paragraph], block.id, block.attrs);
 	}
 
-	// Composite block with block children → recurse
+	// Block children → recurse, so nested composites (e.g. a blockquote inside a
+	// container list_item) get their own inline children wrapped as well (#194).
 	const normalized: readonly ChildNode[] = block.children.map((child) => {
 		if (isTextNode(child) || isInlineNode(child)) return child;
 		return normalizeBlock(child, registry);
@@ -121,6 +169,52 @@ export function setEditorContentHTML(
 ): void {
 	const doc: Document = parseHTMLToDocument(html, registry, options);
 	setEditorJSON(doc, registry, replaceState);
+}
+
+/**
+ * Returns a Markdown representation of the document.
+ *
+ * The engine is loaded via dynamic `import()` so it stays code-split out of the
+ * core bundle (D13) — this helper lives in `editor/`, which is statically
+ * reachable from the web component, so a static import here would defeat the
+ * split. Hence `async`.
+ */
+export async function getEditorContentMarkdown(
+	state: EditorState,
+	registry: SchemaRegistry | undefined,
+	options?: MarkdownSerializeOptions,
+): Promise<string> {
+	const { serializeDocumentToMarkdown } = await import('../serialization/MarkdownSerializer.js');
+	return serializeDocumentToMarkdown(state.doc, registry, options);
+}
+
+/**
+ * Replaces editor content from Markdown.
+ *
+ * Reuses existing top-level block IDs in document order (exactly as
+ * {@link setEditorText}), so `setContentMarkdown(getContentMarkdown())`
+ * preserves block identity and keeps the caret stable for unchanged blocks per
+ * the round-trip identity contract (ARCHITECTURE §9.2, D10). Async + lazy: the
+ * parser is reached only via dynamic `import()` to keep the engine code-split
+ * out of the core bundle (D13).
+ */
+export async function setEditorContentMarkdown(
+	markdown: string,
+	currentState: EditorState,
+	registry: SchemaRegistry | undefined,
+	replaceState: (state: EditorState) => void,
+	options?: MarkdownParseOptions,
+): Promise<void> {
+	const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
+	const parsed: Document = parseMarkdownToDocument(markdown, registry, options);
+
+	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
+	const reIdentified: readonly BlockNode[] = parsed.children.map((block, idx) => {
+		const existing: BlockId | undefined = existingIds[idx];
+		return existing ? createBlockNode(block.type, block.children, existing, block.attrs) : block;
+	});
+
+	setEditorJSON({ children: reIdentified }, registry, replaceState);
 }
 
 /** Returns plain text content, descending into container blocks (e.g. blockquote). */

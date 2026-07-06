@@ -262,6 +262,9 @@ const HOST_RESET_DECLARATIONS: readonly string[] = [
 	'contain: none',
 	'float: none',
 	'visibility: visible',
+	'clip: auto',
+	'clip-path: none',
+	'content-visibility: visible',
 ];
 
 /**
@@ -284,6 +287,9 @@ const PAGE_RESET_DECLARATIONS: readonly string[] = [
 	'transform: none',
 	'filter: none',
 	'contain: none',
+	'clip: auto',
+	'clip-path: none',
+	'content-visibility: visible',
 ];
 
 /**

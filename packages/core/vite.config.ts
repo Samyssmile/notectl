@@ -57,6 +57,7 @@ export default defineConfig({
 				'notectl-core': resolve(__dirname, 'src/index.ts'),
 				full: resolve(__dirname, 'src/full.ts'),
 				html: resolve(__dirname, 'src/html.ts'),
+				markdown: resolve(__dirname, 'src/markdown.ts'),
 				presets: resolve(__dirname, 'src/presets.ts'),
 				'presets/minimal': resolve(__dirname, 'src/presets/minimal.ts'),
 				'presets/full': resolve(__dirname, 'src/presets/full.ts'),

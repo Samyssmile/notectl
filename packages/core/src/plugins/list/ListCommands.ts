@@ -6,12 +6,15 @@
 
 import { forEachBlockIdInRange } from '../../commands/RangeIterator.js';
 import { isNodeOfType } from '../../model/AttrRegistry.js';
+import type { BlockNode } from '../../model/Document.js';
+import { isLeafBlock } from '../../model/Document.js';
 import { isTextSelection, selectionRange } from '../../model/Selection.js';
 import { type BlockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
 import { buildListItemAttrs } from './ListAttrsFactory.js';
 import type { ListTypeDefinition } from './ListDefinitions.js';
+import { dissolveListItem, locateListItem, resolveListItem } from './ListItemContext.js';
 import type { ListLocale } from './ListLocale.js';
 import type { ListConfig, ListType } from './ListPlugin.js';
 
@@ -77,22 +80,33 @@ function toggleListSingleBlock(
 	const block = state.getBlock(sel.anchor.blockId);
 	if (!block) return false;
 
-	if (block.type === 'list_item' && block.attrs?.listType === listType) {
-		const tr = state
-			.transaction('command')
-			.setBlockType(sel.anchor.blockId, nodeType('paragraph'))
-			.setSelection(sel)
-			.build();
-		context.dispatch(tr);
+	// The caret may sit inside a block child of a container item (#194):
+	// toggling always targets the owning item, never the child.
+	const item: BlockNode | undefined = resolveListItem(state, sel.anchor.blockId);
+	const target: BlockNode = item ?? block;
+
+	if (item && item.attrs?.listType === listType) {
+		const builder = state.transaction('command');
+		if (isLeafBlock(item)) {
+			builder.setBlockType(item.id, nodeType('paragraph'));
+		} else {
+			// A container item cannot become a paragraph (its children are
+			// blocks) — dissolve it into those children instead.
+			const location = locateListItem(state, item.id);
+			if (!location) return false;
+			dissolveListItem(builder, location);
+		}
+		builder.setSelection(sel);
+		context.dispatch(builder.build());
 		return true;
 	}
 
-	const existingIndent: number = isNodeOfType(block, 'list_item') ? block.attrs.indent : 0;
+	const existingIndent: number = isNodeOfType(target, 'list_item') ? target.attrs.indent : 0;
 	const attrs = buildListItemAttrs(listType, existingIndent);
 
 	const tr = state
 		.transaction('command')
-		.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
+		.setBlockType(target.id, nodeType('list_item'), attrs)
 		.setSelection(sel)
 		.build();
 	context.dispatch(tr);
@@ -107,29 +121,58 @@ function toggleListRange(context: PluginContext, state: EditorState, listType: L
 	const toggleOff: boolean = allBlocksMatchListType(state, range, listType);
 	const builder = state.transaction('command');
 
-	forEachBlockIdInRange(state, range, (bid: BlockId) => {
-		const block = state.getBlock(bid);
-		if (!block) return;
+	// Children of a container item resolve to their owning item (#194), so a
+	// range over its paragraphs toggles the item once, not each child.
+	const targets: BlockNode[] = collectToggleTargets(state, range);
+
+	// Dissolving replaces one node with several, shifting later sibling
+	// indices — process targets back-to-front so earlier addresses stay valid.
+	for (let i = targets.length - 1; i >= 0; i--) {
+		const target: BlockNode | undefined = targets[i];
+		if (!target) continue;
 
 		if (toggleOff) {
-			builder.setBlockType(bid, nodeType('paragraph'));
+			if (isLeafBlock(target)) {
+				builder.setBlockType(target.id, nodeType('paragraph'));
+			} else {
+				const location = locateListItem(state, target.id);
+				if (location) dissolveListItem(builder, location);
+			}
 		} else {
-			const existingIndent: number = isNodeOfType(block, 'list_item') ? block.attrs.indent : 0;
+			const existingIndent: number = isNodeOfType(target, 'list_item') ? target.attrs.indent : 0;
 			const existingChecked: boolean =
-				isNodeOfType(block, 'list_item') &&
-				block.attrs.listType === 'checklist' &&
-				block.attrs.checked;
+				isNodeOfType(target, 'list_item') &&
+				target.attrs.listType === 'checklist' &&
+				target.attrs.checked;
 			builder.setBlockType(
-				bid,
+				target.id,
 				nodeType('list_item'),
 				buildListItemAttrs(listType, existingIndent, existingChecked),
 			);
 		}
-	});
+	}
 
 	builder.setSelection(sel);
 	context.dispatch(builder.build());
 	return true;
+}
+
+/** Collects unique toggle targets: each leaf block or its owning list item. */
+function collectToggleTargets(
+	state: EditorState,
+	range: ReturnType<typeof selectionRange>,
+): BlockNode[] {
+	const targets: BlockNode[] = [];
+	const seen = new Set<BlockId>();
+	forEachBlockIdInRange(state, range, (bid: BlockId) => {
+		const block = state.getBlock(bid);
+		if (!block) return;
+		const target: BlockNode = resolveListItem(state, bid) ?? block;
+		if (seen.has(target.id)) return;
+		seen.add(target.id);
+		targets.push(target);
+	});
+	return targets;
 }
 
 // --- Indent / Outdent ---
@@ -143,7 +186,7 @@ function changeIndent(context: PluginContext, delta: 1 | -1, maxIndent: number):
 	}
 
 	const sel = state.selection;
-	const block = state.getBlock(sel.anchor.blockId);
+	const block = resolveListItem(state, sel.anchor.blockId);
 	if (!block || !isNodeOfType(block, 'list_item')) return false;
 
 	const newIndent: number = block.attrs.indent + delta;
@@ -152,7 +195,7 @@ function changeIndent(context: PluginContext, delta: 1 | -1, maxIndent: number):
 	const attrs = buildListItemAttrs(block.attrs.listType, newIndent, block.attrs.checked);
 	const tr = state
 		.transaction('command')
-		.setBlockType(sel.anchor.blockId, nodeType('list_item'), attrs)
+		.setBlockType(block.id, nodeType('list_item'), attrs)
 		.setSelection(sel)
 		.build();
 	context.dispatch(tr);
@@ -171,16 +214,19 @@ function changeIndentRange(
 	const range = selectionRange(sel, state.getBlockOrder());
 	const builder = state.transaction('command');
 	let changed = false;
+	const seen = new Set<BlockId>();
 
 	forEachBlockIdInRange(state, range, (bid: BlockId) => {
-		const block = state.getBlock(bid);
+		const block = resolveListItem(state, bid);
 		if (!block || !isNodeOfType(block, 'list_item')) return;
+		if (seen.has(block.id)) return;
+		seen.add(block.id);
 
 		const newIndent: number = block.attrs.indent + delta;
 		if (newIndent < 0 || newIndent > maxIndent) return;
 
 		builder.setBlockType(
-			bid,
+			block.id,
 			nodeType('list_item'),
 			buildListItemAttrs(block.attrs.listType, newIndent, block.attrs.checked),
 		);
@@ -219,7 +265,7 @@ export function toggleChecked(context: PluginContext, options: ToggleCheckedOpti
 		targetId ?? (!isTextSelection(state.selection) ? null : state.selection.anchor.blockId);
 	if (!bid) return false;
 
-	const block = state.getBlock(bid);
+	const block = resolveListItem(state, bid);
 	if (!block || !isNodeOfType(block, 'list_item') || block.attrs.listType !== 'checklist') {
 		return false;
 	}
@@ -229,7 +275,7 @@ export function toggleChecked(context: PluginContext, options: ToggleCheckedOpti
 
 	const tr = state
 		.transaction('command')
-		.setBlockType(bid, nodeType('list_item'), attrs)
+		.setBlockType(block.id, nodeType('list_item'), attrs)
 		.setSelection(state.selection)
 		.build();
 	context.dispatch(tr);
@@ -242,7 +288,11 @@ export function toggleChecked(context: PluginContext, options: ToggleCheckedOpti
 
 // --- Helpers ---
 
-/** Checks whether all blocks in a range are list items of the given type. Exported for toolbar. */
+/**
+ * Checks whether all blocks in a range belong to list items of the given type
+ * (children of container items resolve to their owning item, #194). Exported
+ * for toolbar active-state detection.
+ */
 export function allBlocksMatchListType(
 	state: EditorState,
 	range: ReturnType<typeof selectionRange>,
@@ -250,7 +300,7 @@ export function allBlocksMatchListType(
 ): boolean {
 	let allMatch = true;
 	forEachBlockIdInRange(state, range, (bid: BlockId) => {
-		const block = state.getBlock(bid);
+		const block = resolveListItem(state, bid);
 		if (!block || block.type !== 'list_item' || block.attrs?.listType !== listType) {
 			allMatch = false;
 		}

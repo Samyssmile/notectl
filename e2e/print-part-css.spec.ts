@@ -669,6 +669,40 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		expect(probe.bodyStyles.visibility).toBe('visible');
 	});
 
+	test('keeps the printed page visible against host clip-path/content-visibility hiding (#203)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// sr-only / visually-hidden utilities and app shells hide via clip-path,
+		// clip, and content-visibility just like visibility/overflow; the print
+		// guards must restore all of them.
+		const probe: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
+			hostSheets: [
+				{
+					css: [
+						'notectl-editor { clip-path: inset(50%); }',
+						'html, body { clip-path: inset(100%); content-visibility: hidden; }',
+					].join('\n'),
+				},
+			],
+			properties: [],
+			hostProperties: ['clip-path'],
+			bodyProperties: ['clip-path', 'content-visibility'],
+		});
+
+		expect(probe.hostStyles['clip-path'], 'host clip-path must be reset in print').toBe('none');
+		expect(probe.bodyStyles['clip-path'], 'page clip-path clipping must be neutralized').toBe(
+			'none',
+		);
+		expect(probe.bodyStyles['content-visibility'], 'page content-visibility must be restored').toBe(
+			'visible',
+		);
+	});
+
 	test('does not clip print content to carried screen height constraints', async ({
 		editor,
 		page,
@@ -1291,6 +1325,56 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 				document.getElementById('notectl-202-order-cdn')?.remove();
 			});
 		}
+	});
+
+	test('carries the enclosing sheet media onto a hoisted cross-origin @import (#204)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.focus();
+		await insertTable(page);
+
+		// A cross-origin sheet re-referenced from a media-scoped <style>: the
+		// enclosing sheet media must ride onto the hoisted @import, or the foreign
+		// sheet applies unconditionally instead of only in its media context.
+		await page.route('**/notectl-cdn.example/gated-204.css', (route) =>
+			route.fulfill({
+				contentType: 'text/css',
+				body: 'notectl-editor::part(table-cell) { padding-top: 5px; }',
+			}),
+		);
+
+		// print-gated: the hoisted statement must carry `print`, so the foreign
+		// sheet stays inactive in the screen-rendered probe.
+		const gated: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
+			hostSheets: [
+				{ css: '@import url("https://notectl-cdn.example/gated-204.css");', media: 'print' },
+			],
+			properties: ['padding-top'],
+		});
+		expect(
+			gated.html,
+			'hoisted cross-origin import must carry the enclosing sheet media',
+		).toContain(
+			'@import url("https://notectl-cdn.example/gated-204.css") layer(notectl-host) print;',
+		);
+		expect(
+			gated.printStyles['padding-top'],
+			'print-gated foreign sheet must stay inactive in the screen probe',
+		).toBe('8px');
+
+		// Setup validity: without the media gate the same sheet is hoisted bare,
+		// proving the only difference is the carried condition.
+		const ungated: PrintCellProbeResult = await probePrintCell(page, {
+			variant: 'internal',
+			hostSheets: [{ css: '@import url("https://notectl-cdn.example/gated-204.css");' }],
+			properties: ['padding-top'],
+		});
+		expect(
+			ungated.html,
+			'an ungated cross-origin import is hoisted without a media condition',
+		).toContain('@import url("https://notectl-cdn.example/gated-204.css") layer(notectl-host);');
 	});
 
 	test('embedding the export leaves the consumer page unstyled', async ({ editor, page }) => {

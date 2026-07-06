@@ -5,6 +5,7 @@ const locale: EditorLocale = {
 	ariaDescription:
 		'\u0627\u0636\u063a\u0637 Escape \u0644\u0644\u062e\u0631\u0648\u062c \u0645\u0646 \u0627\u0644\u0645\u062d\u0631\u0631',
 	defaultPlaceholder: '\u0627\u0628\u062f\u0623 \u0627\u0644\u0643\u062a\u0627\u0628\u0629...',
+	markdownImported: '\u062a\u0645 \u0627\u0633\u062a\u064a\u0631\u0627\u062f Markdown',
 };
 
 export default locale;

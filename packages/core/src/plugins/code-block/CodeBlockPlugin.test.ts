@@ -842,6 +842,11 @@ describe('CodeBlockPlugin', () => {
 			expect(h.getInputRules().length).toBe(1);
 		});
 
+		it('does not register an input rule when inputRule is false', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
+		});
+
 		it('input rule pattern matches "``` "', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const rule = h.getInputRules()[0];

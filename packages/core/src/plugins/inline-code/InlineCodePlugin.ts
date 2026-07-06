@@ -156,7 +156,9 @@ export class InlineCodePlugin implements Plugin {
 	}
 
 	private registerInputRule(context: PluginContext): void {
-		const pattern: RegExp = /(?:^|[^`])(`([^`]+)`)$/;
+		// The inline-node placeholder (U+FFFC) is excluded from the span body so
+		// the rule never matches across an inline node nor re-inserts it.
+		const pattern: RegExp = /(?:^|[^`])(`([^`\uFFFC]+)`)$/;
 
 		context.registerInputRule({
 			pattern,

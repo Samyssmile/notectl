@@ -46,6 +46,22 @@ export interface HTMLExportContext {
 	readonly styleAttr: (declarations: string) => string;
 }
 
+/**
+ * Context passed to the optional `toMarkdown()` spec hook during Markdown
+ * serialization. The hook is for **leaf / self-contained** nodes (paragraph,
+ * heading, code_block, image, marks, inline nodes); container/structural nodes
+ * (blockquote, list, table) stay engine-owned because their children need
+ * per-line prefixing/indentation that cannot be composed from a wrapper (D12).
+ * Returning `null` (or omitting the hook) makes the engine fall back to the
+ * spec's `toHTML` output as valid raw-HTML Markdown (D3).
+ */
+export interface MarkdownExportContext {
+	/** Active dialect. */
+	readonly flavor: 'commonmark' | 'gfm';
+	/** Whether unrepresentable content may emit raw HTML (D3). */
+	readonly htmlFallback: boolean;
+}
+
 export interface NodeSpec<T extends string = string> {
 	readonly type: T;
 	/** Renders the block to a DOM element. Must set `data-block-id` on the root. */
@@ -72,6 +88,17 @@ export interface NodeSpec<T extends string = string> {
 	 * The optional `ctx` provides mode-aware helpers (inline style vs. CSS class).
 	 */
 	readonly toHTML?: (node: BlockNode, content: string, ctx?: HTMLExportContext) => string;
+	/**
+	 * Serializes a **leaf/self-contained** block to a Markdown string. `content`
+	 * is the pre-serialized inline children. Return `null` to defer to the
+	 * engine's built-in mapping or the raw-HTML fallback (D4, D12). Container
+	 * blocks must NOT implement this — they are engine-owned.
+	 */
+	readonly toMarkdown?: (
+		node: BlockNode,
+		content: string,
+		ctx: MarkdownExportContext,
+	) => string | null;
 	/** Rules for matching HTML elements to this block type during parsing. */
 	readonly parseHTML?: readonly ParseRule[];
 	/** Tags and attributes this spec needs through DOMPurify sanitization. */

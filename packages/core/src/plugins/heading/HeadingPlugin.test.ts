@@ -319,6 +319,11 @@ describe('HeadingPlugin', () => {
 			expect(h.getInputRules().length).toBe(6);
 		});
 
+		it('does not register input rules when inputRule is false', async () => {
+			const h = await pluginHarness(new HeadingPlugin({ inputRule: false }));
+			expect(h.getInputRules().length).toBe(0);
+		});
+
 		it('input rule pattern matches "# " for H1', async () => {
 			const h = await pluginHarness(new HeadingPlugin());
 			const h1Rule = h.getInputRules()[0];

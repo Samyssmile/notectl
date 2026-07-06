@@ -10,6 +10,7 @@
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
@@ -19,7 +20,7 @@ import { ClipboardHandler } from './ClipboardHandler.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { InputHandler } from './InputHandler.js';
 import { KeyboardHandler } from './KeyboardHandler.js';
-import { PasteHandler } from './PasteHandler.js';
+import { PasteHandler, type PasteMarkdownMode } from './PasteHandler.js';
 
 type TextDirectionFn = (element: HTMLElement) => 'ltr' | 'rtl';
 type GapCursorNavigateFn = (
@@ -39,10 +40,18 @@ export interface InputManagerDeps {
 	readonly inputRuleRegistry?: InputRuleRegistry;
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
 	readonly isReadOnly: () => boolean;
+	/** Live gate for Markdown shorthand input rules. Defaults to always enabled. */
+	readonly shouldApplyInputRules?: () => boolean;
 	readonly getPasteInterceptors?: () => readonly PasteInterceptorEntry[];
+	readonly pasteMarkdown?: PasteMarkdownMode;
+	readonly getMarkdownSyntaxExtensions?: () => readonly MarkdownSyntaxExtension[];
 	readonly getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 	readonly getTextDirection?: TextDirectionFn;
 	readonly navigateFromGapCursor?: GapCursorNavigateFn;
+	/** Writes a message to the screen-reader live region (for the Markdown paste path). */
+	readonly announce?: (text: string) => void;
+	/** Localized "Markdown imported" announcement for the auto-detect paste path. */
+	readonly markdownImportedMessage?: string;
 }
 
 export class InputManager {
@@ -61,6 +70,7 @@ export class InputManager {
 			syncSelection: deps.syncSelection,
 			inputRuleRegistry: deps.inputRuleRegistry,
 			isReadOnly: deps.isReadOnly,
+			shouldApplyInputRules: deps.shouldApplyInputRules,
 			compositionTracker: this.compositionTracker,
 			getTextInputInterceptors: deps.getTextInputInterceptors,
 		});
@@ -84,6 +94,10 @@ export class InputManager {
 			fileHandlerRegistry: deps.fileHandlerRegistry,
 			isReadOnly: deps.isReadOnly,
 			getPasteInterceptors: deps.getPasteInterceptors,
+			pasteMarkdown: deps.pasteMarkdown,
+			getMarkdownSyntaxExtensions: deps.getMarkdownSyntaxExtensions,
+			announce: deps.announce,
+			markdownImportedMessage: deps.markdownImportedMessage,
 		});
 
 		this.clipboardHandler = new ClipboardHandler(contentElement, {

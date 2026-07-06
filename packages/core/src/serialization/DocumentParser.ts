@@ -4,12 +4,14 @@
  */
 
 import DOMPurify from 'dompurify';
+import { hoistDisallowedBlocks } from '../model/ContentModel.js';
 import type { BlockNode, Document, InlineNode, Mark, TextNode } from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getInlineChildren,
 	isInlineNode,
 } from '../model/Document.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
@@ -76,7 +78,11 @@ export function parseHTMLToDocument(
 	}
 
 	if (blocks.length === 0) return createDocument();
-	return createDocument(blocks);
+	const doc: Document = createDocument(blocks);
+	// Repair schema-invalid nesting an importer may have produced (e.g. a `<table>`
+	// inside an `<li>` builds `list_item > table`, which the flat-with-indent item
+	// model forbids): the disallowed block is hoisted to a valid ancestor (#194).
+	return registry ? hoistDisallowedBlocks(doc, registry) : doc;
 }
 
 /**
@@ -189,7 +195,6 @@ function parseListElement(
 
 			const resolvedType: string = isChecklist ? 'checklist' : listType;
 
-			const inlineContent = parseElementToInlineContent(li, registry, true);
 			const attrs: Record<string, string | number | boolean> = {
 				listType: resolvedType,
 				indent: depth,
@@ -204,9 +209,7 @@ function parseListElement(
 				attrs.dir = effectiveDir;
 			}
 
-			blocks.push(
-				createBlockNode(nodeType('list_item'), inlineContent, adoptBlockId(li, adoptedIds), attrs),
-			);
+			blocks.push(parseListItemBlock(li, attrs, adoptedIds, checkbox, registry));
 
 			// Check for nested lists inside this <li>
 			for (const liChild of Array.from(li.children)) {
@@ -244,6 +247,74 @@ function parseListElement(
 			);
 		}
 	}
+}
+
+/**
+ * Parses one `<li>` into its `list_item` block (#194). An item whose children
+ * are inline-only stays a leaf; block-level children other than nested lists
+ * (a second paragraph, code, a quote, a heading) make it a container with
+ * block children. Nested `<ul>`/`<ol>` are excluded here — the caller hoists
+ * them into flat siblings one indent deeper. A lone plain paragraph unwraps
+ * back to a leaf so the common tight/loose single-paragraph item keeps its
+ * inline shape.
+ */
+function parseListItemBlock(
+	li: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+	adoptedIds: Set<string>,
+	checkbox: HTMLInputElement | null,
+	registry?: SchemaRegistry,
+): BlockNode {
+	const blockRules = registry?.getBlockParseRules() ?? [];
+	const isHoistedList = (node: ChildNode): boolean => {
+		if (node.nodeType !== Node.ELEMENT_NODE) return false;
+		const tag: string = (node as Element).tagName.toLowerCase();
+		return tag === 'ul' || tag === 'ol';
+	};
+	const hasBlockContent: boolean = Array.from(li.childNodes).some(
+		(node) => !isHoistedList(node) && isBlockLevelChild(node, blockRules),
+	);
+
+	if (!hasBlockContent) {
+		const inlineContent = parseElementToInlineContent(li, registry, true);
+		return createBlockNode(
+			nodeType('list_item'),
+			inlineContent,
+			adoptBlockId(li, adoptedIds),
+			attrs,
+		);
+	}
+
+	const skip = (node: ChildNode): boolean => isHoistedList(node) || node === checkbox;
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
+		li,
+		blockRules,
+		adoptedIds,
+		registry,
+		skip,
+	);
+
+	// A lone attribute-less paragraph is the leaf shape in disguise.
+	const only: BlockNode | undefined = innerBlocks.length === 1 ? innerBlocks[0] : undefined;
+	if (only && only.type === 'paragraph' && !only.attrs) {
+		return createBlockNode(
+			nodeType('list_item'),
+			getInlineChildren(only),
+			adoptBlockId(li, adoptedIds),
+			attrs,
+		);
+	}
+
+	if (innerBlocks.length === 0) {
+		return createBlockNode(
+			nodeType('list_item'),
+			[createTextNode('')],
+			adoptBlockId(li, adoptedIds),
+			attrs,
+		);
+	}
+
+	return createBlockNode(nodeType('list_item'), innerBlocks, adoptBlockId(li, adoptedIds), attrs);
 }
 
 /**
@@ -428,6 +499,7 @@ function parseBlockContainerChildren(
 	blockRules: BlockParseRules,
 	adoptedIds: Set<string>,
 	registry?: SchemaRegistry,
+	skip?: (node: ChildNode) => boolean,
 ): BlockNode[] {
 	const blocks: BlockNode[] = [];
 	let inlineRun: ChildNode[] = [];
@@ -442,6 +514,7 @@ function parseBlockContainerChildren(
 	};
 
 	for (const child of Array.from(el.childNodes)) {
+		if (skip?.(child)) continue;
 		if (isBlockLevelChild(child, blockRules)) {
 			flushInlineRun();
 			parseChildNode(child, blocks, blockRules, adoptedIds, registry);
@@ -464,7 +537,9 @@ function isBlockLevelChild(node: ChildNode, blockRules: BlockParseRules): boolea
 	if (node.nodeType !== Node.ELEMENT_NODE) return false;
 	const el = node as HTMLElement;
 	const tag: string = el.tagName.toLowerCase();
-	if (tag === 'ul' || tag === 'ol' || tag === 'table' || tag === 'blockquote') return true;
+	if (tag === 'p' || tag === 'ul' || tag === 'ol' || tag === 'table' || tag === 'blockquote') {
+		return true;
+	}
 	return matchBlockParseRule(el, blockRules) !== null;
 }
 
@@ -558,12 +633,15 @@ function walkElement(
 				createInlineNode(
 					inlineType(entry.type) as InlineTypeName,
 					attrs as Readonly<Record<string, string | number | boolean>>,
+					[...currentMarks],
 				),
 			);
 			return;
 		}
 
-		result.push(createInlineNode(inlineType(entry.type) as InlineTypeName));
+		result.push(
+			createInlineNode(inlineType(entry.type) as InlineTypeName, undefined, [...currentMarks]),
+		);
 		return;
 	}
 
