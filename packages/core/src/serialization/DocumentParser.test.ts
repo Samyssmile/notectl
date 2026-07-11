@@ -205,7 +205,17 @@ function createTestRegistry(): SchemaRegistry {
 			'a',
 			'img',
 		],
-		getAllowedAttrs: () => ['style', 'type', 'disabled', 'checked', 'class', 'href', 'src', 'alt'],
+		getAllowedAttrs: () => [
+			'style',
+			'type',
+			'disabled',
+			'checked',
+			'class',
+			'href',
+			'src',
+			'alt',
+			'id',
+		],
 	} as unknown as SchemaRegistry;
 }
 
@@ -227,6 +237,43 @@ describe('parseHTMLToDocument', () => {
 		if (!first || !second) return;
 		expect(getBlockText(first)).toBe('First');
 		expect(getBlockText(second)).toBe('Second');
+	});
+
+	it('keeps semantic HTML IDs separate from internal block identity', () => {
+		const doc = parseHTMLToDocument('<p id="chapter-1" data-block-id="internal-1">Chapter</p>');
+
+		expect(doc.children[0]?.id).toBe('internal-1');
+		expect(doc.children[0]?.htmlId).toBe('chapter-1');
+	});
+
+	it('rejects non-conforming HTML IDs without affecting block content', () => {
+		const doc = parseHTMLToDocument('<div id="two words">Target</div>');
+
+		expect(doc.children[0]?.htmlId).toBeUndefined();
+		expect(getBlockText(doc.children[0] as never)).toBe('Target');
+	});
+
+	it('preserves a fragment link and its block target together', () => {
+		const doc = parseHTMLToDocument(
+			'<p><a href="#target">Jump</a></p><div id="target">Destination</div>',
+			createTestRegistry(),
+		);
+		const link = getInlineChildren(doc.children[0] as never)[0];
+
+		expect(link?.marks[0]?.attrs?.href).toBe('#target');
+		expect(doc.children[1]?.htmlId).toBe('target');
+	});
+
+	it('keeps IDs on a list item and its nested paragraph', () => {
+		const doc = parseHTMLToDocument(
+			'<ul><li id="outer"><p id="inner">First</p><p>Second</p></li></ul>',
+			createTestRegistry(),
+		);
+		const item = doc.children[0];
+
+		expect(item?.type).toBe('list_item');
+		expect(item?.htmlId).toBe('outer');
+		expect(getBlockChildren(item as never)[0]?.htmlId).toBe('inner');
 	});
 
 	it('strips unsupported tags without registry', () => {
@@ -1467,7 +1514,7 @@ describe('table HTML parsing', () => {
 			getMarkParseRules: () => [],
 			getInlineParseRules: () => [],
 			getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'thead', 'tr', 'td', 'th'],
-			getAllowedAttrs: () => ['style', 'dir'],
+			getAllowedAttrs: () => ['style', 'dir', 'id'],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1502,6 +1549,23 @@ describe('table HTML parsing', () => {
 		const cell01 = row0.children[1];
 		if (!cell01 || !('type' in cell01)) return;
 		expect(getBlockText(cell01.children[0] as never)).toBe('B1');
+	});
+
+	it('preserves IDs throughout the represented table tree', () => {
+		const registry = createTableRegistry();
+		const doc = parseHTMLToDocument(
+			'<table id="grid"><tr id="row"><td id="cell"><p id="value">A</p></td></tr></table>',
+			registry,
+		);
+		const table = doc.children[0];
+		const row = table ? getBlockChildren(table)[0] : undefined;
+		const cell = row ? getBlockChildren(row)[0] : undefined;
+		const paragraph = cell ? getBlockChildren(cell)[0] : undefined;
+
+		expect(table?.htmlId).toBe('grid');
+		expect(row?.htmlId).toBe('row');
+		expect(cell?.htmlId).toBe('cell');
+		expect(paragraph?.htmlId).toBe('value');
 	});
 
 	it('parses table with tbody wrapper', () => {
@@ -1682,6 +1746,7 @@ describe('table HTML parsing', () => {
 				'checked',
 				'colspan',
 				'rowspan',
+				'id',
 			],
 		} as unknown as SchemaRegistry;
 	}

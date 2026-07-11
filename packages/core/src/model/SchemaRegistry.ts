@@ -111,7 +111,10 @@ export class SchemaRegistry {
 	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
 	getAllowedAttrs(): string[] {
 		return [
-			...this.collectSanitizeValues(new Set(['style', 'dir']), (spec) => spec.sanitize?.attrs),
+			...this.collectSanitizeValues(
+				new Set(['style', 'dir', 'id']),
+				(spec) => spec.sanitize?.attrs,
+			),
 		];
 	}
 

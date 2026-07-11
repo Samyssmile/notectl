@@ -27,6 +27,7 @@ import { tokenizeBlocks } from './markdown/BlockTokenizer.js';
 import type { ColumnAlign } from './markdown/GfmTableParser.js';
 import { parseInline } from './markdown/InlineTokenizer.js';
 import { extractLinkReferences } from './markdown/LinkReferenceExtractor.js';
+import { resolveMarkdownHTMLRegistry } from './markdown/MarkdownHTMLRegistry.js';
 import { type ParseContext, resolveParseOptions } from './markdown/MarkdownParseContext.js';
 
 /** Parses a Markdown string into a Document. */
@@ -121,7 +122,8 @@ function appendToken(token: BlockToken, blocks: BlockNode[], ctx: ParseContext):
 			// A comment-only block produces no content (and must not leave a stray
 			// empty paragraph between blocks, e.g. two lists split by `<!-- -->`).
 			if (isCommentOnly(token.html)) return;
-			for (const block of parseHTMLToDocument(token.html, ctx.registry).children) {
+			for (const block of parseHTMLToDocument(token.html, resolveMarkdownHTMLRegistry(ctx.registry))
+				.children) {
 				blocks.push(block);
 			}
 			return;

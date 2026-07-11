@@ -24,3 +24,4 @@ export {
 	VALID_DIRECTIONS,
 } from './serialization/index.js';
 export { parseHTMLToDocument, type ParseHTMLOptions } from './serialization/index.js';
+export { normalizeHTMLId } from './model/HTMLUtils.js';

@@ -249,6 +249,7 @@ describe('mapStep', () => {
 			blockId: B1,
 			offset: 5,
 			newBlockId: B3,
+			newBlockHTMLId: 'split-target',
 		};
 
 		it('shifts offset through preceding insertion', () => {
@@ -257,6 +258,7 @@ describe('mapStep', () => {
 			const result = mapStep(baseStep, m, doc) as SplitBlockStep;
 			expect(result.offset).toBe(7);
 			expect(result.newBlockId).toBe(B3);
+			expect(result.newBlockHTMLId).toBe('split-target');
 		});
 
 		it('returns null when the host block was removed', () => {
@@ -280,6 +282,7 @@ describe('mapStep', () => {
 			targetBlockId: B1,
 			sourceBlockId: B2,
 			targetLengthBefore: 5,
+			sourceHTMLId: 'source-target',
 		};
 
 		it('passes through unchanged on empty mapping', () => {
@@ -292,6 +295,7 @@ describe('mapStep', () => {
 			const doc = docWith(paragraphBlock('xxxhello', B1), paragraphBlock('world', B2));
 			const result = mapStep(baseStep, m, doc) as MergeBlocksStep;
 			expect(result.targetLengthBefore).toBe(8);
+			expect(result.sourceHTMLId).toBe('source-target');
 		});
 
 		it('returns null when the target block was removed', () => {

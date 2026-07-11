@@ -33,6 +33,11 @@ import { getStyleNonceForNode, setStyleText } from '../../style/StyleRuntime.js'
 import type { PluginEventBus } from '../Plugin.js';
 import { prepare } from './PrintContentPreparer.js';
 import {
+	type PrintDestinationProjection,
+	namespacePrintFallbackTargets,
+	projectPrintDestinations,
+} from './PrintDestinationBridge.js';
+import {
 	HOST_STYLE_LAYER,
 	type HostStyleSegment,
 	collectHostStyleSegments,
@@ -211,8 +216,12 @@ export interface PrintDocumentInput {
 	readonly shadowCSS: string;
 	/** The live editor host element; its tag and attributes are replicated. */
 	readonly host: HTMLElement;
-	/** Serialized cloned editor content. */
+	/** Serialized print content projected into the declarative shadow root. */
 	readonly contentHTML: string;
+	/** Unmodified prepared content used by the export's no-DSD light-DOM fallback. */
+	readonly fallbackContentHTML: string;
+	/** Slotted document-tree markers for fragment navigation and PDF destinations. */
+	readonly destinationMarkersHTML: string;
 	readonly title: string;
 	readonly lang: string;
 	/** Copy html/body theme-context attributes (only when the live theme is carried). */
@@ -311,7 +320,7 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 	// embeds this document via setHTMLUnsafe. Engines without @scope drop the
 	// block and render the fallback unstyled but readable.
 	const fallback: string = isExport
-		? `<div ${PRINT_FALLBACK_ATTRIBUTE}><style>@scope ([${PRINT_FALLBACK_ATTRIBUTE}]) {\n${escapeStyleText(input.shadowCSS)}\n}</style>${input.contentHTML}</div>`
+		? `<div ${PRINT_FALLBACK_ATTRIBUTE}><style>@scope ([${PRINT_FALLBACK_ATTRIBUTE}]) {\n${escapeStyleText(input.shadowCSS)}\n}</style>${input.fallbackContentHTML}</div>`
 		: '';
 	const fallbackScript: string = isExport ? `<script>${DSD_FALLBACK_SCRIPT}</script>` : '';
 
@@ -322,6 +331,7 @@ export function buildHTMLDocument(input: PrintDocumentInput): string {
 		input.contentHTML,
 		'</template>',
 		...(fallback ? [fallback] : []),
+		...(input.destinationMarkersHTML ? [input.destinationMarkersHTML] : []),
 		`</${hostTag}>`,
 		...(styleBundle ? [styleBundle] : []),
 		...(fallbackScript ? [fallbackScript] : []),
@@ -384,7 +394,14 @@ export function createPrintService(
 
 		// 3. Prepare content
 		const clone: HTMLElement = prepare(container, finalOptions);
+		const fallbackClone: HTMLElement = clone.cloneNode(true) as HTMLElement;
+		namespacePrintFallbackTargets(fallbackClone);
+		const fallbackContentHTML: string = fallbackClone.outerHTML;
+		const projection: PrintDestinationProjection = projectPrintDestinations(clone);
 		const contentHTML: string = clone.outerHTML;
+		const destinationMarkersHTML: string = projection.markers
+			.map((marker: HTMLAnchorElement): string => marker.outerHTML)
+			.join('');
 
 		// 4. Build the export document (no nonce — serialized output must not
 		// persist the page's CSP secret; inline document CSS marker-qualified,
@@ -401,6 +418,8 @@ export function createPrintService(
 			shadowCSS,
 			host,
 			contentHTML,
+			fallbackContentHTML,
+			destinationMarkersHTML,
 			title,
 			lang,
 			carryThemeContext: finalOptions.forceLightTheme === false,

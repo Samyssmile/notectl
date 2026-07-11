@@ -23,6 +23,7 @@ Returns a `Document` object:
     {
       "type": "heading",
       "id": "abc123",
+      "htmlId": "introduction",
       "attrs": { "level": 1 },
       "children": [
         { "type": "text", "text": "Hello ", "marks": [] },
@@ -58,7 +59,7 @@ const pretty = await editor.getContentHTML({ pretty: true });
 The HTML is sanitized with DOMPurify. The allowed tags and attributes are **schema-driven** — each plugin declares which HTML elements it produces. With a full preset, the allowed set includes:
 
 - **Tags**: `p`, `div`, `span`, `br`, `h1`-`h6`, `strong`, `b`, `em`, `i`, `u`, `s`, `a`, `sup`, `sub`, `ul`, `ol`, `li`, `input`, `blockquote`, `hr`, `pre`, `code`, `table`, `tbody`, `tr`, `td`, `figure`, `img`
-- **Attributes**: `style`, `href`, `target`, `rel`, `colspan`, `rowspan`, `src`, `alt`, `width`, `height`, `class`
+- **Attributes**: `id`, `style`, `href`, `target`, `rel`, `colspan`, `rowspan`, `src`, `alt`, `width`, `height`, `class`
 
 If you use a subset of plugins, only the tags relevant to those plugins are allowed.
 
@@ -68,10 +69,15 @@ By default every block element carries a `data-block-id` attribute. It is notect
 
 ```ts
 const clean = await editor.getContentHTML({ includeBlockIds: false });
-// "<h1>Hello <strong>World</strong></h1><p>Some text here.</p>"  — no data-block-id
+// '<h1 id="introduction">Hello <strong>World</strong></h1><p>Some text here.</p>'
+// No data-block-id; semantic id attributes remain.
 ```
 
-This works in every mode, including `cssMode: 'classes'`. The trade-off: round-trips of the cleaned HTML generate fresh IDs, so the caret is no longer preserved. The default (`true`) keeps the identity contract intact.
+This works in every mode, including `cssMode: 'classes'`. `includeBlockIds` controls only the
+internal `data-block-id`; a semantic `id` stored in `BlockNode.htmlId` remains so fragment links keep
+their targets. The trade-off is limited to editor identity: round-trips of cleaned HTML generate
+fresh `BlockNode.id` values, so the caret is no longer preserved. The default (`true`) keeps that
+internal identity contract intact.
 
 ### HTML with CSS Classes (CSP-Compliant)
 
@@ -162,6 +168,11 @@ Inline formatting maps:
 | `<span style="font-size: ...">` | `fontSize` |
 | `<br>` | `hard_break` (InlineNode) |
 
+A conforming `id` on an element represented as a block root is imported as the separate
+`BlockNode.htmlId` field. For example, `<h2 id="installation">` can be targeted by
+`<a href="#installation">`. Wrapper-only and inline elements that have no corresponding block in
+the document model (for example `<ul>`, `<tbody>`, or `<span>`) do not own a `BlockNode.htmlId`.
+
 #### Whitespace handling
 
 HTML whitespace is normalized following the rules a browser uses to render it. Newlines, tabs, and runs of spaces in normal flow content are *insignificant*: they collapse to a single space, and whitespace at block edges is trimmed. Source-formatted or indented HTML therefore imports cleanly, and content copied from another browser (some serialize the clipboard HTML with hard-wrapped lines) is no longer split into extra paragraphs. The same normalization applies to pasted HTML.
@@ -204,7 +215,11 @@ When an external owner (e.g. a form binding) reads the editor content and writes
 
 Externally pasted HTML without `data-block-id` — including the output of [`getContentHTML({ includeBlockIds: false })`](#clean-export-html-includeblockids-false) — continues to receive fresh IDs, so external content imports behave as before. For `setText`, IDs are reused **by position**, not by content match — this is by design (the cursor stays on the same line index when text is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` calls.
 
-This contract enables Angular signal forms, RxJS-driven sync pipelines, and any external state owner to round-trip content on every input event without disturbing the user's cursor. See `ARCHITECTURE.md` §9.1 for the full contract.
+Semantic fragment targets use a separate identity plane: `BlockNode.htmlId` round-trips as the
+ordinary HTML `id` attribute and remains present even in clean export. It belongs to document
+content, not cursor preservation; keep semantic IDs unique within a document.
+
+This contract enables Angular signal forms, RxJS-driven sync pipelines, and any external state owner to round-trip content on every input event without disturbing the user's cursor. See `ARCHITECTURE.md` §9.2 for the full contract.
 
 ## Checking Empty State
 

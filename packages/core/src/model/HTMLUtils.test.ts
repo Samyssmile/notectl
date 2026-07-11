@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML, sanitizeHref } from './HTMLUtils.js';
+import {
+	SAFE_URI_REGEXP,
+	escapeAttr,
+	escapeHTML,
+	formatHTML,
+	fragmentIdentifiers,
+	normalizeHTMLId,
+	sanitizeHref,
+} from './HTMLUtils.js';
 
 /**
  * Wall-clock ceiling for the ReDoS-resistance checks below. Catastrophic
@@ -8,6 +16,56 @@ import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, formatHTML, sanitizeHref } fro
  * to CPU contention when the full suite runs in parallel. Not a micro-benchmark.
  */
 const REDOS_CEILING_MS = 1000;
+
+describe('normalizeHTMLId', () => {
+	it.each(['section', '123', 'überblick', 'chapter.one', 'a:b', 'x#y'])(
+		'keeps conforming ID %s',
+		(value) => {
+			expect(normalizeHTMLId(value)).toBe(value);
+		},
+	);
+
+	it.each(['', 'two words', 'tab\tseparated', 'line\nbreak', 'form\ffeed', 'carriage\rreturn'])(
+		'rejects non-conforming ID %j',
+		(value) => {
+			expect(normalizeHTMLId(value)).toBeUndefined();
+		},
+	);
+
+	it.each([undefined, null, 42, true, {}])('rejects non-string value %j', (value) => {
+		expect(normalizeHTMLId(value)).toBeUndefined();
+	});
+});
+
+describe('fragmentIdentifiers', () => {
+	it('returns the raw fragment before its decoded form', () => {
+		expect(fragmentIdentifiers('#chapter%20one')).toEqual(['chapter%20one', 'chapter one']);
+	});
+
+	it('URL-serializes authored spaces and Unicode before decoding', () => {
+		expect(fragmentIdentifiers('#chapter one')).toEqual(['chapter%20one', 'chapter one']);
+		expect(fragmentIdentifiers('#café')).toEqual(['caf%C3%A9', 'café']);
+	});
+
+	it('does not duplicate an unencoded fragment', () => {
+		expect(fragmentIdentifiers('#section')).toEqual(['section']);
+	});
+
+	it('keeps malformed percent escapes available for raw lookup', () => {
+		expect(fragmentIdentifiers('#bad%zz')).toEqual(['bad%zz']);
+	});
+
+	it('decodes invalid UTF-8 without throwing', () => {
+		expect(fragmentIdentifiers('#%FF')).toEqual(['%FF', '\uFFFD']);
+	});
+
+	it.each(['', '#', '/page#section', 'https://example.com/#section'])(
+		'rejects non-local fragment %j',
+		(value) => {
+			expect(fragmentIdentifiers(value)).toEqual([]);
+		},
+	);
+});
 
 describe('SAFE_URI_REGEXP', () => {
 	it('allows blob: URIs', () => {

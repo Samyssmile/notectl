@@ -14,12 +14,13 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { SAFE_URI_REGEXP, escapeAttr, escapeHTML } from '../model/HTMLUtils.js';
+import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
+import { preserveHTMLIdSanitizeConfig } from './HTMLSanitization.js';
 import {
 	buildMarkOrder,
 	serializeInlineNodeMarksToClassHTML,
@@ -94,6 +95,104 @@ function injectAttrIntoFirstTag(html: string, attr: string, value: string): stri
 	return `${html.slice(0, firstTagRange.start)}${injectedFirstTag}${html.slice(firstTagRange.end + 1)}`;
 }
 
+/** Replaces an attribute on the first opening tag, or adds it when absent. */
+function setAttrOnFirstTag(html: string, attr: string, value: string): string {
+	const firstTagRange: { start: number; end: number } | undefined = findFirstOpeningTagRange(html);
+	if (!firstTagRange) return html;
+	const firstTag: string = html.slice(firstTagRange.start, firstTagRange.end + 1);
+	const replacement: string = ` ${attr}="${value}"`;
+	const withoutExisting: string = removeAttributes(firstTag, attr);
+	const isSelfClosing: boolean = withoutExisting.endsWith('/>');
+	const nextFirstTag: string = isSelfClosing
+		? `${withoutExisting.slice(0, -2)}${replacement}/>`
+		: `${withoutExisting.slice(0, -1)}${replacement}>`;
+	return `${html.slice(0, firstTagRange.start)}${nextFirstTag}${html.slice(firstTagRange.end + 1)}`;
+}
+
+/** Removes real attributes by name without matching attribute-like text inside quoted values. */
+function removeAttributes(openingTag: string, attr: string): string {
+	const ranges: { readonly start: number; readonly end: number }[] = [];
+	let index = 1;
+
+	// Skip the tag name.
+	while (
+		index < openingTag.length &&
+		!isTagWhitespace(openingTag[index] ?? '') &&
+		openingTag[index] !== '>' &&
+		openingTag[index] !== '/'
+	) {
+		index++;
+	}
+
+	while (index < openingTag.length) {
+		while (isTagWhitespace(openingTag[index] ?? '')) index++;
+		if (openingTag[index] === '>' || openingTag[index] === undefined) break;
+		if (openingTag[index] === '/' && openingTag[index + 1] === '>') break;
+
+		const start: number = index;
+		while (
+			index < openingTag.length &&
+			!isTagWhitespace(openingTag[index] ?? '') &&
+			openingTag[index] !== '=' &&
+			openingTag[index] !== '>' &&
+			openingTag[index] !== '/'
+		) {
+			index++;
+		}
+		const name: string = openingTag.slice(start, index);
+		if (name === '') {
+			index++;
+			continue;
+		}
+
+		while (isTagWhitespace(openingTag[index] ?? '')) index++;
+		if (openingTag[index] === '=') {
+			index++;
+			while (isTagWhitespace(openingTag[index] ?? '')) index++;
+			const quote: string | undefined = openingTag[index];
+			if (quote === '"' || quote === "'") {
+				index++;
+				while (index < openingTag.length && openingTag[index] !== quote) index++;
+				if (openingTag[index] === quote) index++;
+			} else {
+				while (
+					index < openingTag.length &&
+					!isTagWhitespace(openingTag[index] ?? '') &&
+					openingTag[index] !== '>' &&
+					!(openingTag[index] === '/' && openingTag[index + 1] === '>')
+				) {
+					index++;
+				}
+			}
+		}
+
+		if (name.toLowerCase() === attr.toLowerCase()) ranges.push({ start, end: index });
+	}
+
+	let result: string = openingTag;
+	for (let rangeIndex = ranges.length - 1; rangeIndex >= 0; rangeIndex--) {
+		const range = ranges[rangeIndex];
+		if (range) result = `${result.slice(0, range.start)}${result.slice(range.end)}`;
+	}
+	return result;
+}
+
+function isTagWhitespace(character: string): boolean {
+	return (
+		character === ' ' ||
+		character === '\t' ||
+		character === '\n' ||
+		character === '\f' ||
+		character === '\r'
+	);
+}
+
+/** Applies a validated semantic HTML ID to the first element emitted for a block. */
+export function setHTMLIdOnFirstTag(html: string, value: unknown): string {
+	const htmlId: string | undefined = normalizeHTMLId(value);
+	return htmlId ? setAttrOnFirstTag(html, 'id', escapeAttr(htmlId)) : html;
+}
+
 /** Finds the first opening tag range, treating `>` inside quotes as attribute text. */
 function findFirstOpeningTagRange(html: string): { start: number; end: number } | undefined {
 	let start: number = html.indexOf('<');
@@ -139,8 +238,11 @@ function firstOpeningTag(html: string): string {
  * injection in `serializeBlock` is merely skipped). Including it needs no special
  * config; the centrally injected attribute passes as a data-* attribute.
  */
-function blockIdSanitizeConfig(includeBlockIds: boolean): { FORBID_ATTR?: string[] } {
-	return includeBlockIds ? {} : { FORBID_ATTR: ['data-block-id'] };
+function blockIdSanitizeConfig(includeBlockIds: boolean): {
+	readonly SANITIZE_DOM: false;
+	readonly FORBID_ATTR?: string[];
+} {
+	return preserveHTMLIdSanitizeConfig(...(includeBlockIds ? [] : ['data-block-id']));
 }
 
 /** Serializes a full document to sanitized HTML, wrapping list items in `<ul>`/`<ol>`. */
@@ -155,7 +257,7 @@ export function serializeDocumentToHTML(
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir', 'id'];
 
 	return DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: allowedTags,
@@ -181,7 +283,9 @@ export function serializeDocumentToCSS(
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const baseAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'class', 'dir'];
+	const baseAttrs: string[] = registry
+		? registry.getAllowedAttrs()
+		: ['style', 'class', 'dir', 'id'];
 
 	// In class mode, allow `class` through DOMPurify (it is not a data-* attr, so
 	// it must be in ALLOWED_ATTR).
@@ -343,6 +447,11 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 			html = injectAttrIntoFirstTag(html, 'data-block-id', escapeAttr(block.id));
 		}
 	}
+
+	// HTML IDs are semantic, document-local targets and therefore independent of
+	// the editor's internal `data-block-id` wire identity. The model value wins
+	// over a NodeSpec-provided `id` so serialization can never emit duplicates.
+	html = setHTMLIdOnFirstTag(html, block.htmlId);
 
 	// Inject alignment into the first opening tag (validated against allowlist).
 	const rawAlign: string | undefined = (block.attrs as Record<string, unknown>)?.align as

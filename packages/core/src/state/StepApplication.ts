@@ -98,6 +98,7 @@ export function applySplitBlock(doc: Document, step: SplitBlockStep): Document {
 			normalizeInlineContent(nodesAfterSplit),
 			step.newBlockId,
 			newAttrs,
+			step.newBlockHTMLId,
 		);
 
 		const result: ChildNode[] = [...children];

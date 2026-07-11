@@ -75,6 +75,63 @@ test.describe('API', () => {
 		expect(html).toContain('<em>');
 	});
 
+	test('semantic local-link targets survive live rendering and clean HTML round-trips', async ({
+		editor,
+		page,
+	}) => {
+		await editor.setContentHTML(
+			'<p><a href="#installation">Installation</a></p>' +
+				'<h2 id="installation">Install notectl</h2>',
+		);
+
+		const result = await page.evaluate(async () => {
+			type BlockJSON = {
+				readonly id: string;
+				readonly htmlId?: string;
+				readonly children: readonly {
+					readonly marks?: readonly { readonly attrs?: { readonly href?: string } }[];
+				}[];
+			};
+			type EditorElement = HTMLElement & {
+				getJSON(): { readonly children: readonly BlockJSON[] };
+				getContentHTML(options?: { readonly includeBlockIds?: boolean }): Promise<string>;
+				setContentHTML(html: string): Promise<void>;
+			};
+			const el = document.querySelector('notectl-editor') as EditorElement | null;
+			if (!el) throw new Error('editor missing');
+
+			const before = el.getJSON();
+			const withBlockIds: string = await el.getContentHTML();
+			const clean: string = await el.getContentHTML({ includeBlockIds: false });
+			const targetBefore = el.shadowRoot?.querySelector<HTMLElement>('#installation');
+
+			await el.setContentHTML(clean);
+			const after = el.getJSON();
+			const targetAfter = el.shadowRoot?.querySelector<HTMLElement>('#installation');
+
+			return {
+				beforeTarget: before.children[1]?.htmlId,
+				afterTarget: after.children[1]?.htmlId,
+				linkHref: before.children[0]?.children[0]?.marks?.[0]?.attrs?.href,
+				internalIdChanged: before.children[1]?.id !== after.children[1]?.id,
+				withBlockIds,
+				clean,
+				renderedBefore: targetBefore?.id,
+				renderedAfter: targetAfter?.id,
+			};
+		});
+
+		expect(result.beforeTarget).toBe('installation');
+		expect(result.afterTarget).toBe('installation');
+		expect(result.linkHref).toBe('#installation');
+		expect(result.internalIdChanged).toBe(true);
+		expect(result.withBlockIds).toContain('data-block-id');
+		expect(result.clean).not.toContain('data-block-id');
+		expect(result.clean).toContain('id="installation"');
+		expect(result.renderedBefore).toBe('installation');
+		expect(result.renderedAfter).toBe('installation');
+	});
+
 	test('getText returns plain text', async ({ editor }) => {
 		await editor.typeText('Hello');
 		const text = await editor.getText();

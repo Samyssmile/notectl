@@ -58,7 +58,7 @@ Both functions accept an optional `SchemaRegistry` (for plugin-owned node types)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `flavor` | `'commonmark' \| 'gfm'` | `'gfm'` | Dialect to emit. `gfm` adds tables, task lists, strikethrough, and autolinks. |
-| `htmlFallback` | `boolean` | `true` | Emit raw HTML for features with no Markdown form (underline, highlight, color, etc.) to keep the round-trip lossless. |
+| `htmlFallback` | `boolean` | `true` | Emit raw HTML for features with no Markdown form (underline, highlight, color, block HTML IDs, etc.) to keep the round-trip lossless. |
 | `headingStyle` | `'atx' \| 'setext'` | `'atx'` | ATX (`# Heading`) or setext (`Heading\n===`) heading style. Setext applies only to levels 1 and 2. |
 | `bullet` | `'-' \| '*' \| '+'` | `'-'` | Bullet marker for unordered list items. |
 | `emphasis` | `'*' \| '_'` | `'*'` | Delimiter for italic and bold. |
@@ -189,10 +189,16 @@ Features that have no portable Markdown form are handled as follows when `htmlFa
 | Sized or aligned image | `<figure><img width="..." ...></figure>` | Plain image `![alt](src)`, styling dropped |
 | Title block | `<h1 class="title">...</h1>` | `# title` (level 1 heading) |
 | Subtitle block | `<h2 class="subtitle">...</h2>` | `## subtitle` (level 2 heading) |
+| Block HTML target (`BlockNode.htmlId`) | Full block HTML with its `id` attribute | Normal Markdown block, `htmlId` dropped |
 | Video embed | `<figure data-video="...">...</figure>` | Block removed |
 | Table with colspan/rowspan | Full HTML table | Plain GFM table (cell content kept, span dropped) |
 
 With `htmlFallback: true`, the raw HTML embedded in the Markdown string is valid CommonMark — it passes through HTML-aware renderers (GitHub, most CommonMark processors) intact. It is not guaranteed to survive renderers that strip all HTML, such as some static-site Markdown preprocessors. Use `htmlFallback: false` when you need output guaranteed to work in HTML-stripping environments.
+
+A fragment link such as `[Installation](#installation)` has a portable Markdown form and is kept
+in either mode. Its target does not: with the default HTML fallback, the target block is emitted as
+raw HTML with `id="installation"` and parsed back into `BlockNode.htmlId`. With
+`htmlFallback: false`, the link remains but the target ID is intentionally omitted.
 
 A node's lossless round-trip also depends on its owning plugin being loaded at import. For example, the `<figure data-video>` block produced by the video plugin on export is parsed back into a video node only if the video plugin is registered. Without it, the HTML parser has no node spec for the element and it is silently dropped. The same applies to `$formula$` math: the formula plugin contributes the `$...$` / `$$...$$` syntax via `registerMarkdownSyntax`. When using the web component, all registered plugins contribute their extensions automatically; when using the standalone `parseMarkdownToDocument`, pass the same `SchemaRegistry` used to build the document.
 
@@ -236,7 +242,12 @@ The three screenshots below follow that exact round trip on one document: the ra
 
 Identity is matched by position, not by content. This is intentional: the cursor stays on the same block index when content is rewritten in place. Plugins that reference blocks by `BlockId` should not assume content stability across `setContentMarkdown` calls.
 
-Clean Markdown (without embedded block IDs) is the normal case: notectl generates no `data-block-id` annotations in the Markdown output and recognizes none on import. Compare this to the HTML pair, which carries `data-block-id` on every block element for positional matching. Both pairs give the same result; the mechanism differs.
+Clean Markdown carries no internal block identity: notectl generates no `data-block-id` annotations
+in the Markdown output and recognizes none on import. This is separate from semantic
+`BlockNode.htmlId` targets, which are preserved as `id` attributes in raw HTML when
+`htmlFallback: true`. Compare internal identity to the HTML pair, which carries `data-block-id` on
+every block element for positional matching. Both pairs give the same caret result; the mechanism
+differs.
 
 | Pair | Identity carrier |
 |------|-----------------|

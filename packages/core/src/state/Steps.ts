@@ -53,6 +53,8 @@ export interface SplitBlockStep {
 	 * as-is (an absent value here means "the source block had no attrs").
 	 */
 	readonly newBlockAttrs?: BlockAttrs;
+	/** Semantic HTML ID restored by an inverse split, if the source block had one. */
+	readonly newBlockHTMLId?: string;
 	readonly path?: readonly BlockId[];
 }
 
@@ -68,6 +70,8 @@ export interface MergeBlocksStep {
 	readonly sourceType?: NodeTypeName;
 	/** Source block's attrs at merge time, if any. */
 	readonly sourceAttrs?: BlockAttrs;
+	/** Source block's semantic HTML ID at merge time, if any. */
+	readonly sourceHTMLId?: string;
 	readonly path?: readonly BlockId[];
 }
 

@@ -41,7 +41,7 @@ function createTableRegistry(): SchemaRegistry {
 		getMarkSpec: () => undefined,
 		getMarkTypes: () => [],
 		getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
-		getAllowedAttrs: () => ['style', 'colspan', 'rowspan'],
+		getAllowedAttrs: () => ['style', 'colspan', 'rowspan', 'id'],
 	} as unknown as SchemaRegistry;
 }
 
@@ -61,6 +61,138 @@ describe('serializeDocumentToHTML', () => {
 		const doc = createDocument();
 		const html: string = serializeDocumentToHTML(doc);
 		expect(stripBlockIds(html)).toBe('<p><br></p>');
+	});
+
+	it('serializes semantic HTML IDs independently of internal block IDs', () => {
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('Chapter')],
+				blockId('internal-1'),
+				undefined,
+				'chapter-1',
+			),
+		]);
+
+		expect(serializeDocumentToHTML(doc)).toBe(
+			'<p data-block-id="internal-1" id="chapter-1">Chapter</p>',
+		);
+		expect(serializeDocumentToHTML(doc, undefined, { includeBlockIds: false })).toBe(
+			'<p id="chapter-1">Chapter</p>',
+		);
+	});
+
+	it('escapes HTML IDs without narrowing them to CSS identifiers', () => {
+		const htmlId = '123:über&"<>';
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('Target')],
+				undefined,
+				undefined,
+				htmlId,
+			),
+		]);
+		const template = document.createElement('template');
+		template.innerHTML = serializeDocumentToHTML(doc);
+
+		expect(template.content.querySelector('p')?.id).toBe(htmlId);
+	});
+
+	it('replaces a NodeSpec-provided ID instead of merging or duplicating it', () => {
+		const registry = {
+			getNodeSpec: () => ({
+				toHTML: (_node: unknown, content: string) => `<p id="spec">${content}</p>`,
+			}),
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getAllowedTags: () => ['p'],
+			getAllowedAttrs: () => ['id'],
+		} as unknown as SchemaRegistry;
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('Target')],
+				undefined,
+				undefined,
+				'model',
+			),
+		]);
+		const html = serializeDocumentToHTML(doc, registry, { includeBlockIds: false });
+
+		expect(html).toContain(' id="model"');
+		expect(html).not.toContain('id="spec"');
+		expect(html.match(/\sid=/g)).toHaveLength(1);
+	});
+
+	it('replaces an unquoted NodeSpec-provided ID', () => {
+		const registry = {
+			getNodeSpec: () => ({
+				toHTML: (_node: unknown, content: string) =>
+					`<p title="contains id=foo" ID=spec id='duplicate'>${content}</p>`,
+			}),
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => [],
+			getAllowedTags: () => ['p'],
+			getAllowedAttrs: () => ['id', 'title'],
+		} as unknown as SchemaRegistry;
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('Target')],
+				undefined,
+				undefined,
+				'model',
+			),
+		]);
+
+		const html = serializeDocumentToHTML(doc, registry, { includeBlockIds: false });
+
+		expect(html).toBe('<p title="contains id=foo" id="model">Target</p>');
+	});
+
+	it('does not emit an invalid HTML ID supplied outside the typed factory', () => {
+		const valid = createBlockNode(nodeType('paragraph'), [createTextNode('Target')]);
+		const doc = createDocument([{ ...valid, htmlId: 'two words' }]);
+
+		expect(serializeDocumentToHTML(doc)).not.toContain(' id=');
+	});
+
+	it('preserves IDs in class-based output', () => {
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('Target')],
+				undefined,
+				undefined,
+				'target',
+			),
+		]);
+
+		expect(serializeDocumentToCSS(doc).html).toContain(' id="target"');
+	});
+
+	it('serializes IDs throughout a nested table tree', () => {
+		const paragraph = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('A')],
+			undefined,
+			undefined,
+			'value',
+		);
+		const cell = createBlockNode(nodeType('table_cell'), [paragraph], undefined, undefined, 'cell');
+		const row = createBlockNode(nodeType('table_row'), [cell], undefined, undefined, 'row');
+		const table = createBlockNode(nodeType('table'), [row], undefined, undefined, 'grid');
+		const html = serializeDocumentToHTML(createDocument([table]), createTableRegistry(), {
+			includeBlockIds: false,
+		});
+
+		expect(html).toContain('<table id="grid">');
+		expect(html).toContain('<tr id="row">');
+		expect(html).toContain('<td id="cell">');
+		expect(html).toContain('<p id="value">A</p>');
 	});
 
 	// Coverage for serializeBlock (via public API)

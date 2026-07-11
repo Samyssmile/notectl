@@ -123,7 +123,7 @@ function repairContainer(
 
 	const finalChildren: readonly ChildNode[] = resolveRepairedChildren(block, kept, registry);
 	return {
-		node: createBlockNode(block.type, finalChildren, block.id, block.attrs),
+		node: createBlockNode(block.type, finalChildren, block.id, block.attrs, block.htmlId),
 		hoisted,
 	};
 }
@@ -149,7 +149,14 @@ function resolveRepairedChildren(
 	}
 
 	const only: ChildNode | undefined = kept.length === 1 ? kept[0] : undefined;
-	if (leafCapable && only && isBlockNode(only) && only.type === 'paragraph' && !only.attrs) {
+	if (
+		leafCapable &&
+		only &&
+		isBlockNode(only) &&
+		only.type === 'paragraph' &&
+		!only.attrs &&
+		!only.htmlId
+	) {
 		const inline = getInlineChildren(only);
 		return inline.length > 0 ? [...inline] : [createTextNode('')];
 	}

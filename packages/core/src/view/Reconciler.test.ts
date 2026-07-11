@@ -272,6 +272,89 @@ describe('Reconciler InlineNode support', () => {
 	});
 });
 
+describe('semantic HTML ID rendering', () => {
+	it('applies an HTML ID through fallback and NodeSpec rendering', () => {
+		const fallbackBlock = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('fallback')],
+			blockId('fallback'),
+			undefined,
+			'fallback-target',
+		);
+		expect(renderBlock(fallbackBlock).id).toBe('fallback-target');
+
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM(node) {
+				return createBlockElement('p', node.id);
+			},
+		});
+		const specBlock = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('spec')],
+			blockId('spec'),
+			undefined,
+			'spec-target',
+		);
+		expect(renderBlock(specBlock, registry).id).toBe('spec-target');
+	});
+
+	it('synchronizes ID changes when a NodeView handles its own update', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'custom',
+			toDOM(node) {
+				return createBlockElement('div', node.id);
+			},
+		});
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('custom', (node) => {
+			const dom = createBlockElement('div', node.id);
+			const contentDOM = document.createElement('div');
+			dom.appendChild(contentDOM);
+			return { dom, contentDOM, update: () => true };
+		});
+
+		const makeState = (htmlId?: string): EditorState =>
+			EditorState.create({
+				doc: createDocument([
+					createBlockNode(
+						nodeType('custom'),
+						[createTextNode('content')],
+						blockId('custom'),
+						undefined,
+						htmlId,
+					),
+				]),
+				selection: createCollapsedSelection(blockId('custom'), 0),
+			});
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		let current = makeState('old-target');
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => current,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, current, options);
+		expect((container.firstElementChild as HTMLElement).id).toBe('old-target');
+
+		const old = current;
+		current = makeState('new-target');
+		reconcile(container, old, current, options);
+		expect((container.firstElementChild as HTMLElement).id).toBe('new-target');
+
+		const withID = current;
+		current = makeState();
+		reconcile(container, withID, current, options);
+		expect((container.firstElementChild as HTMLElement).hasAttribute('id')).toBe(false);
+	});
+});
+
 describe('Void block rendering', () => {
 	it('renderBlock sets data-void on void blocks when NodeSpec has isVoid', () => {
 		const registry = new SchemaRegistry();

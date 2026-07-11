@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BlockNode, Mark } from '../model/Document.js';
+import type { BlockNode, Document, Mark } from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -107,6 +107,46 @@ describe('setEditorJSON', () => {
 
 		expect(captured?.selection.anchor.blockId).toBe('b1');
 		expect(captured?.selection.anchor.offset).toBe(0);
+	});
+
+	it('normalizes semantic HTML IDs recursively at the JSON boundary', () => {
+		const validChild = {
+			...createBlockNode(nodeType('paragraph'), [createTextNode('valid')], blockId('p1')),
+			htmlId: '123:überblick',
+		};
+		const invalidChild = {
+			...createBlockNode(nodeType('paragraph'), [createTextNode('invalid')], blockId('p2')),
+			htmlId: 'two words',
+		};
+		const parent = createBlockNode(
+			nodeType('blockquote'),
+			[validChild, invalidChild],
+			blockId('q1'),
+		);
+		const doc: Document = { children: [parent] };
+		let captured: EditorState | null = null;
+
+		setEditorJSON(doc, undefined, (state) => {
+			captured = state;
+		});
+
+		const children = getBlockChildren((captured as EditorState).doc.children[0] as BlockNode);
+		expect(children[0]?.htmlId).toBe('123:überblick');
+		expect(children[1]?.htmlId).toBeUndefined();
+	});
+
+	it('drops non-string HTML IDs supplied by untyped JSON', () => {
+		const block = {
+			...createBlockNode(nodeType('paragraph'), [createTextNode('body')], blockId('p1')),
+			htmlId: 42,
+		} as unknown as BlockNode;
+		let captured: EditorState | null = null;
+
+		setEditorJSON({ children: [block] }, undefined, (state) => {
+			captured = state;
+		});
+
+		expect((captured as EditorState).doc.children[0]?.htmlId).toBeUndefined();
 	});
 
 	it('defaults a missing marks array on inline and text nodes from external JSON (#197)', () => {

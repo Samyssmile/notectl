@@ -8,10 +8,11 @@ import {
 	createDocument,
 	createInlineNode,
 	createTextNode,
+	getBlockChildren,
 	getBlockText,
 	getInlineChildren,
 } from '../model/Document.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
@@ -100,6 +101,155 @@ describe('serializeDocumentToMarkdown — blocks', () => {
 		expect(md(doc)).toBe('Hello\n\nWorld');
 	});
 
+	it('uses raw HTML to preserve a semantic block ID', () => {
+		const anchored = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('Destination')],
+			undefined,
+			undefined,
+			'chapter-1',
+		);
+		const doc = createDocument([anchored]);
+
+		expect(md(doc)).toBe('<p id="chapter-1">Destination</p>');
+		expect(parseMarkdownToDocument(md(doc)).children[0]?.htmlId).toBe('chapter-1');
+	});
+
+	it('preserves an anchored heading and its essential inline semantics without a registry', () => {
+		const anchored = createBlockNode(
+			nodeType('heading'),
+			[
+				createTextNode('Bold', [mark('bold')]),
+				createTextNode(' and '),
+				createTextNode('link', [mark('link', { href: '/guide', title: 'Guide' })]),
+				createInlineNode(inlineType('hard_break')),
+				createTextNode('tail'),
+				createInlineNode(inlineType('image_inline'), {
+					src: 'icon.png',
+					alt: 'Icon',
+					title: 'Inline icon',
+				}),
+			],
+			undefined,
+			{ level: 2 },
+			'chapter-2',
+		);
+
+		const markdown: string = md(createDocument([anchored]));
+		expect(markdown).toBe(
+			'<h2 id="chapter-2"><strong>Bold</strong> and <a href="/guide" title="Guide">link</a><br>tail<img src="icon.png" alt="Icon" title="Inline icon"></h2>',
+		);
+
+		const reparsed = parseMarkdownToDocument(markdown).children[0] as BlockNode;
+		expect(reparsed).toMatchObject({ type: 'heading', attrs: { level: 2 }, htmlId: 'chapter-2' });
+		const inline = getInlineChildren(reparsed);
+		expect(inline.map((child) => ('text' in child ? child.text : child.inlineType))).toEqual([
+			'Bold',
+			' and ',
+			'link',
+			'hard_break',
+			'tail',
+			'image_inline',
+		]);
+		expect(inline[0]?.marks.map((item) => item.type)).toEqual(['bold']);
+		expect(inline[2]?.marks).toEqual([
+			{ type: markType('link'), attrs: { href: '/guide', title: 'Guide' } },
+		]);
+		expect((inline[5] as InlineNode).attrs).toEqual({
+			src: 'icon.png',
+			alt: 'Icon',
+			title: 'Inline icon',
+		});
+	});
+
+	it('preserves every portable anchored block type without a registry', () => {
+		const quote = createBlockNode(
+			nodeType('blockquote'),
+			[para('Quoted')],
+			undefined,
+			undefined,
+			'quote-target',
+		);
+		const code = createBlockNode(
+			nodeType('code_block'),
+			[createTextNode('const answer = 42;')],
+			undefined,
+			{ language: 'ts' },
+			'code-target',
+		);
+		const rule = createBlockNode(
+			nodeType('horizontal_rule'),
+			[],
+			undefined,
+			undefined,
+			'rule-target',
+		);
+		const image = createBlockNode(
+			nodeType('image'),
+			[],
+			undefined,
+			{ src: 'diagram.png', alt: 'Diagram', title: 'Overview', width: 320 },
+			'image-target',
+		);
+
+		const markdown: string = md(createDocument([quote, code, rule, image]));
+		const reparsed = parseMarkdownToDocument(markdown);
+
+		expect(reparsed.children.map((block) => block.type)).toEqual([
+			'blockquote',
+			'code_block',
+			'horizontal_rule',
+			'image',
+		]);
+		expect(reparsed.children.map((block) => block.htmlId)).toEqual([
+			'quote-target',
+			'code-target',
+			'rule-target',
+			'image-target',
+		]);
+		expect(reparsed.children[1]).toMatchObject({
+			attrs: { language: 'ts' },
+		});
+		expect(getBlockText(reparsed.children[1] as BlockNode)).toBe('const answer = 42;');
+		expect(reparsed.children[3]).toMatchObject({
+			attrs: { src: 'diagram.png', alt: 'Diagram', title: 'Overview', width: 320 },
+		});
+	});
+
+	it('keeps an explicitly supplied registry authoritative for HTML fallback', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			group: 'block',
+			toDOM: () => document.createElement('section'),
+			toHTML: (_node, content) => `<section>${content}</section>`,
+			sanitize: { tags: ['section'] },
+		});
+		const heading = createBlockNode(
+			nodeType('heading'),
+			[createTextNode('Custom', [mark('bold')])],
+			undefined,
+			{ level: 4 },
+			'custom-heading',
+		);
+
+		expect(md(createDocument([heading]), registry)).toBe(
+			'<section id="custom-heading">Custom</section>',
+		);
+	});
+
+	it('degrades to native Markdown when HTML fallback is disabled', () => {
+		const anchored = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('Destination')],
+			undefined,
+			undefined,
+			'chapter-1',
+		);
+
+		expect(md(createDocument([anchored]), undefined, { htmlFallback: false })).toBe('Destination');
+	});
+
 	it('serializes ATX headings by level', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('heading'), [createTextNode('Title')], undefined, { level: 1 }),
@@ -155,6 +305,25 @@ describe('serializeDocumentToMarkdown — blocks', () => {
 });
 
 describe('serializeDocumentToMarkdown — lists', () => {
+	it('preserves list semantics and item HTML IDs without a registry', () => {
+		const first = createBlockNode(
+			nodeType('list_item'),
+			[createTextNode('first')],
+			undefined,
+			{ listType: 'bullet', indent: 0, checked: false },
+			'first-item',
+		);
+		const second = listItem('second', { listType: 'bullet', indent: 0 });
+
+		const markdown: string = md(createDocument([first, second]));
+		expect(markdown).toBe('<ul><li id="first-item">first</li><li>second</li></ul>');
+
+		const reparsed = parseMarkdownToDocument(markdown);
+		expect(reparsed.children.map((block) => block.type)).toEqual(['list_item', 'list_item']);
+		expect(reparsed.children[0]?.htmlId).toBe('first-item');
+		expect(reparsed.children.map(getBlockText)).toEqual(['first', 'second']);
+	});
+
 	it('serializes bullet, ordered, and checklist items', () => {
 		const doc = createDocument([
 			listItem('a', { listType: 'bullet' }),
@@ -286,9 +455,13 @@ describe('serializeDocumentToMarkdown — emphasis whitespace expulsion (#192)',
 });
 
 describe('serializeDocumentToMarkdown — superset / fallback', () => {
-	it('HTML-falls-back unrepresentable marks by default', () => {
+	it('HTML-falls-back a baseline unrepresentable mark without a registry', () => {
 		const doc = createDocument([para('underlined', [mark('underline')])]);
-		expect(md(doc, createRegistry())).toBe('<u>underlined</u>');
+		const markdown: string = md(doc);
+		expect(markdown).toBe('<u>underlined</u>');
+		expect(
+			getInlineChildren(parseMarkdownToDocument(markdown).children[0] as BlockNode)[0]?.marks,
+		).toEqual([{ type: markType('underline') }]);
 	});
 
 	it('drops styling-only marks but keeps text when htmlFallback is off', () => {
@@ -353,6 +526,31 @@ describe('serializeDocumentToMarkdown — images & tables', () => {
 			),
 		]);
 		expect(md(doc, createRegistry())).toBe('| H1 | H2 |\n| --- | --- |\n| a | b |');
+	});
+
+	it('preserves an anchored table hierarchy and cell spans without a registry', () => {
+		const cell = createBlockNode(
+			nodeType('table_cell'),
+			[para('wide')],
+			undefined,
+			{ colspan: 2 },
+			'wide-cell',
+		);
+		const row = createBlockNode(nodeType('table_row'), [cell]);
+		const table = createBlockNode(nodeType('table'), [row], undefined, undefined, 'results');
+
+		const markdown: string = md(createDocument([table]));
+		expect(markdown).toContain('<table id="results">');
+		expect(markdown).toContain('<td colspan="2" id="wide-cell"><p>wide</p></td>');
+
+		const reparsed = parseMarkdownToDocument(markdown).children[0] as BlockNode;
+		expect(reparsed).toMatchObject({ type: 'table', htmlId: 'results' });
+		const reparsedCell = getBlockChildren(getBlockChildren(reparsed)[0] as BlockNode)[0];
+		expect(reparsedCell).toMatchObject({
+			type: 'table_cell',
+			htmlId: 'wide-cell',
+			attrs: { colspan: 2 },
+		});
 	});
 });
 

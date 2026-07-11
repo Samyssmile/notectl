@@ -20,6 +20,7 @@ import {
 	escapeLinkTitle,
 	wrapCodeSpan,
 } from './MarkdownEscape.js';
+import { resolveMarkdownHTMLRegistry } from './MarkdownHTMLRegistry.js';
 
 /** Inline HTML export context (inline-style mode) for HTML-fallback marks. */
 const INLINE_HTML_CTX: HTMLExportContext = {
@@ -121,16 +122,16 @@ function renderTextContent(node: TextNode, ctx: SerContext): string {
 	const gfm: boolean = ctx.opts.gfm;
 	const fallbackMarks: Mark[] = node.marks.filter((m) => !isStackMark(m, gfm) && m.type !== 'code');
 
-	if (fallbackMarks.length > 0 && ctx.opts.htmlFallback && ctx.registry) {
+	if (fallbackMarks.length > 0 && ctx.opts.htmlFallback) {
 		return serializeMarksToHTML(
 			node.text,
 			fallbackMarks,
-			ctx.registry,
+			resolveMarkdownHTMLRegistry(ctx.registry),
 			ctx.markOrder,
 			INLINE_HTML_CTX,
 		);
 	}
-	// htmlFallback off (or unknown registry): keep text, drop styling.
+	// htmlFallback off: keep text, drop styling.
 	return escapeInline(node.text, gfm);
 }
 

@@ -29,6 +29,7 @@ import {
 	segmentsToInlineChildren,
 	textSegment,
 } from '../model/Document.js';
+import { normalizeHTMLId } from '../model/HTMLUtils.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { AttrSpec } from '../model/NodeSpec.js';
 import type { RichBlockData, RichSegment } from '../model/RichBlockData.js';
@@ -321,7 +322,7 @@ export function cloneBlockWithNewIds(block: BlockNode, newId: BlockId): BlockNod
 		}
 		return child;
 	});
-	return createBlockNode(block.type, children, newId, block.attrs);
+	return createBlockNode(block.type, children, newId, block.attrs, block.htmlId);
 }
 
 /** Recursively searches a block tree for a block with the given ID (DFS). */
@@ -397,11 +398,14 @@ export function validateRichBlockData(
 		raw.attrs,
 		spec.attrs,
 	);
+	const htmlId: string | undefined = normalizeHTMLId(raw.htmlId);
 	const segments: RichSegment[] | undefined = raw.segments
 		? sanitizeRichSegments(raw.segments, schemaRegistry)
 		: undefined;
+	const { htmlId: _rawHTMLId, ...rest } = raw;
 	return {
-		...raw,
+		...rest,
+		...(htmlId ? { htmlId } : {}),
 		...(attrs ? { attrs } : {}),
 		...(segments ? { segments } : raw.segments ? { segments: [] } : {}),
 	};
@@ -419,7 +423,13 @@ export function createBlockFromRichData(blockData: RichBlockData): BlockNode {
 		? (blockData.attrs as BlockAttrs)
 		: undefined;
 
-	return createBlockNode(nodeType(blockData.type) as NodeTypeName, children, newId, attrs);
+	return createBlockNode(
+		nodeType(blockData.type) as NodeTypeName,
+		children,
+		newId,
+		attrs,
+		blockData.htmlId,
+	);
 }
 
 /**

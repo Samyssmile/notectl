@@ -16,6 +16,7 @@ import {
 	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import { normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { wrapBlocks } from './BlockWrapperManagement.js';
 import { applyNodeDecorations, renderDecoratedContent } from './DecorationRendering.js';
@@ -83,6 +84,7 @@ export function renderBlock(
 				}
 			}
 
+			syncBlockHTMLId(nv.dom, block);
 			nv.dom.setAttribute('data-block-type', block.type);
 			applyNodeDecorations(nv.dom, block.id, options);
 			return nv.dom;
@@ -116,6 +118,7 @@ export function renderBlock(
 					wrapBlocks(el, blockChildren, registry);
 				}
 			}
+			syncBlockHTMLId(el, block);
 			el.setAttribute('data-block-type', block.type);
 			applyNodeDecorations(el, block.id, options);
 			return el;
@@ -124,6 +127,27 @@ export function renderBlock(
 
 	// 3. Fallback — render as paragraph
 	return renderParagraphFallback(block, registry, inlineDecos);
+}
+
+/**
+ * Synchronizes the semantic HTML ID owned by a block without disturbing an
+ * unrelated ID a third-party NodeView may put on a freshly created element.
+ */
+export function syncBlockHTMLId(
+	el: HTMLElement,
+	block: BlockNode,
+	previousBlock?: BlockNode,
+): void {
+	const htmlId: string | undefined = normalizeHTMLId(block.htmlId);
+	if (htmlId) {
+		el.setAttribute('id', htmlId);
+		return;
+	}
+
+	const previousHTMLId: string | undefined = normalizeHTMLId(previousBlock?.htmlId);
+	if (previousHTMLId && el.getAttribute('id') === previousHTMLId) {
+		el.removeAttribute('id');
+	}
 }
 
 /** Renders block content (inline children) into a container element. */
@@ -191,6 +215,7 @@ function renderParagraphFallback(
 	inlineDecos?: readonly InlineDecoration[],
 ): HTMLElement {
 	const p: HTMLElement = createBlockElement('p', block.id);
+	syncBlockHTMLId(p, block);
 	p.setAttribute('data-block-type', block.type);
 	renderBlockContent(p, block, registry, inlineDecos);
 	return p;

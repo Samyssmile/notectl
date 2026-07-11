@@ -47,6 +47,8 @@ describe('PrintServiceImpl', () => {
 				shadowCSS: '.shadow {}',
 				host,
 				contentHTML: '<p>hi</p>',
+				fallbackContentHTML: '<p>hi</p>',
+				destinationMarkersHTML: '',
 				title: 'Test',
 				lang: 'en',
 				carryThemeContext: false,
@@ -104,17 +106,44 @@ describe('PrintServiceImpl', () => {
 			expect(html.match(/\.shadow \{\}/g)).toHaveLength(2);
 		});
 
+		it('keeps fallback content separate and emits destination markers as direct host children', () => {
+			const marker: string =
+				'<a id="print-target" href="#print-target" slot="print-slot" ' +
+				'data-notectl-print-destination></a>';
+			const html: string = buildHTMLDocument(
+				buildInput({
+					contentHTML: '<p>shadow content</p>',
+					fallbackContentHTML: '<p>fallback content</p>',
+					destinationMarkersHTML: marker,
+				}),
+			);
+
+			const templateEnd: number = html.indexOf('</template>');
+			const fallbackIndex: number = html.indexOf('<div data-notectl-print-fallback>');
+			const markerIndex: number = html.indexOf(marker);
+			const hostEnd: number = html.indexOf('</notectl-editor>');
+			expect(html.slice(0, templateEnd)).toContain('<p>shadow content</p>');
+			expect(html.slice(fallbackIndex, markerIndex)).toContain('<p>fallback content</p>');
+			expect(templateEnd).toBeLessThan(fallbackIndex);
+			expect(fallbackIndex).toBeLessThan(markerIndex);
+			expect(markerIndex).toBeLessThan(hostEnd);
+		});
+
 		it('lets the fallback script remove the static fallback once a shadow root exists', () => {
 			const html: string = buildHTMLDocument(buildInput());
 			expect(html).toContain("querySelectorAll('[data-notectl-print-fallback]')");
 		});
 
 		it('omits fallback content and script for the internal print variant', () => {
-			const html: string = buildHTMLDocument(buildInput({ variant: 'internal' }));
+			const marker: string = '<a id="print-target" href="#print-target" slot="print-slot"></a>';
+			const html: string = buildHTMLDocument(
+				buildInput({ variant: 'internal', destinationMarkersHTML: marker }),
+			);
 
 			expect(html).not.toContain('data-notectl-print-fallback');
 			expect(html).not.toContain('<script');
 			expect(html.match(/<p>hi<\/p>/g)).toHaveLength(1);
+			expect(html).toContain(marker);
 		});
 
 		it('replicates host attributes but strips the style attribute', () => {
@@ -361,6 +390,43 @@ describe('PrintServiceImpl', () => {
 			expect(html).toContain('Hello World');
 		});
 
+		it('projects local links for shadow print and namespaces the light-DOM fallback', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-id="link"><a href="#chapter">Chapter</a></p>' +
+					'<h2 data-block-id="target" id="chapter">Target</h2>',
+			);
+
+			try {
+				const html: string = service.toHTML();
+				const shadowStart: number = html.indexOf('<template shadowrootmode="open">');
+				const shadowEnd: number = html.indexOf('</template>', shadowStart);
+				const fallbackStart: number = html.indexOf('<div data-notectl-print-fallback>');
+				const markerMatch: RegExpMatchArray | null = html.match(
+					/<a[^>]*data-notectl-print-destination(?:="")?[^>]*><\/a>/,
+				);
+				expect(markerMatch).not.toBeNull();
+				if (!markerMatch) return;
+				const markerId: string = markerMatch[0].match(/ id="([^"]+)"/)?.[1] ?? '';
+				const markerIndex: number = html.indexOf(markerMatch[0]);
+				const shadowHTML: string = html.slice(shadowStart, shadowEnd);
+				const fallbackHTML: string = html.slice(fallbackStart, markerIndex);
+				const fallbackId: string = fallbackHTML.match(/<h2[^>]* id="([^"]+)"/)?.[1] ?? '';
+
+				expect(markerId).not.toBe('');
+				expect(shadowHTML).toContain(`href="#${markerId}"`);
+				expect(shadowHTML).toContain('data-notectl-print-destination-slot');
+				expect(shadowHTML).toContain('id="chapter"');
+				expect(fallbackId).toMatch(/^notectl-print-fallback-destination-/);
+				expect(fallbackHTML).toContain(`href="#${fallbackId}"`);
+				expect(fallbackHTML).not.toContain('href="#chapter"');
+				expect(fallbackHTML).not.toContain('data-notectl-print-destination-slot');
+				expect(markerMatch[0]).toContain(`href="#${markerId}"`);
+				expect(markerMatch[0]).toContain('slot="notectl-print-destination-slot-');
+			} finally {
+				host.remove();
+			}
+		});
+
 		it('keeps @page rules out of the active CSS of the embed-safe export', () => {
 			const { service } = createTestEnv();
 			const html: string = service.toHTML({ margin: '2cm' });
@@ -597,6 +663,35 @@ describe('PrintServiceImpl', () => {
 				unregisterStyleRoot(shadow);
 				vi.restoreAllMocks();
 				document.body.removeChild(host);
+			}
+		});
+
+		it('writes local-link destination markers into the internal print document', () => {
+			const { service, host } = createTestEnv(
+				'<p data-block-id="link"><a href="#chapter">Chapter</a></p>' +
+					'<h2 data-block-id="target" id="chapter">Target</h2>',
+			);
+			const { written } = mockPrintIframe();
+
+			try {
+				service.print();
+				expect(written).toHaveLength(1);
+				const html: string = written[0] ?? '';
+				const markerMatch: RegExpMatchArray | null = html.match(
+					/<a[^>]*data-notectl-print-destination(?:="")?[^>]*><\/a>/,
+				);
+				expect(markerMatch).not.toBeNull();
+				if (!markerMatch) return;
+				const markerId: string = markerMatch[0].match(/ id="([^"]+)"/)?.[1] ?? '';
+
+				expect(html).not.toContain('data-notectl-print-fallback');
+				expect(html).not.toContain('href="#chapter"');
+				expect(html.match(new RegExp(`href="#${markerId}"`, 'g'))).toHaveLength(2);
+				expect(html).toContain('data-notectl-print-destination-slot');
+				expect(html).toContain('id="chapter"');
+			} finally {
+				vi.restoreAllMocks();
+				host.remove();
 			}
 		});
 

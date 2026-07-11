@@ -18,6 +18,7 @@ import {
 	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
+import { setHTMLIdOnFirstTag } from '../serialization/DocumentSerializer.js';
 import {
 	buildMarkOrder,
 	serializeDocumentToHTML,
@@ -127,8 +128,13 @@ export class ClipboardHandler {
 		if (!block) return;
 
 		// Internal format: block type + attrs for round-trip paste
-		const blockData: { readonly type: string; readonly attrs?: Record<string, unknown> } = {
+		const blockData: {
+			readonly type: string;
+			readonly htmlId?: string;
+			readonly attrs?: Record<string, unknown>;
+		} = {
 			type: block.type,
+			...(block.htmlId ? { htmlId: block.htmlId } : {}),
 			...(block.attrs ? { attrs: { ...block.attrs } } : {}),
 		};
 		clipboardData.setData(BLOCK_MIME, JSON.stringify(blockData));
@@ -136,7 +142,7 @@ export class ClipboardHandler {
 		// HTML representation via NodeSpec.toHTML if available
 		const spec = this.schemaRegistry?.getNodeSpec(block.type);
 		if (spec?.toHTML) {
-			clipboardData.setData('text/html', spec.toHTML(block, ''));
+			clipboardData.setData('text/html', setHTMLIdOnFirstTag(spec.toHTML(block, ''), block.htmlId));
 		}
 
 		// Plain text: use alt text for images, empty for other voids
@@ -183,6 +189,7 @@ export class ClipboardHandler {
 			richBlocks.push({
 				type: block.type,
 				text: sliced,
+				...(start === 0 && end === blockLen && block.htmlId ? { htmlId: block.htmlId } : {}),
 				...(block.attrs ? { attrs: { ...block.attrs } } : {}),
 				...(segments.length > 0 ? { segments } : {}),
 			});
@@ -197,7 +204,7 @@ export class ClipboardHandler {
 			const multiBlock: boolean = fromIdx !== toIdx;
 
 			const hasStructuredBlock: boolean = richBlocks.some(
-				(b) => b.type !== undefined && b.type !== 'paragraph',
+				(b) => b.htmlId !== undefined || (b.type !== undefined && b.type !== 'paragraph'),
 			);
 			if (multiBlock || this.containsInlineSegments(richBlocks) || hasStructuredBlock) {
 				const html: string = this.serializeBlocksToClipboardHTML(
@@ -395,11 +402,17 @@ export class ClipboardHandler {
 
 		for (const entry of entries) {
 			const { block, start, end } = entry;
+			const completeBlock: boolean = start === 0 && end === getBlockLength(block);
+			const { htmlId: _htmlId, ...blockWithoutHTMLId } = block;
+			const clipboardBlock: BlockNode = {
+				...blockWithoutHTMLId,
+				...(completeBlock && block.htmlId ? { htmlId: block.htmlId } : {}),
+			};
 			const inlineHTML: string = this.serializeBlockRangeToHTML(block, start, end, markOrder);
-			const spec = this.schemaRegistry?.getNodeSpec(block.type);
+			const spec = this.schemaRegistry?.getNodeSpec(clipboardBlock.type);
 
 			if (spec?.wrapper) {
-				const wrapperSpec = spec.wrapper(block as Parameters<typeof spec.wrapper>[0]);
+				const wrapperSpec = spec.wrapper(clipboardBlock as Parameters<typeof spec.wrapper>[0]);
 				const tag: string = wrapperSpec.tag;
 
 				if (currentListTag !== tag) {
@@ -408,16 +421,20 @@ export class ClipboardHandler {
 				}
 
 				if (spec.toHTML) {
-					listBuffer.push(spec.toHTML(block, inlineHTML));
+					listBuffer.push(
+						setHTMLIdOnFirstTag(spec.toHTML(clipboardBlock, inlineHTML), clipboardBlock.htmlId),
+					);
 				} else {
-					listBuffer.push(`<li>${inlineHTML}</li>`);
+					listBuffer.push(setHTMLIdOnFirstTag(`<li>${inlineHTML}</li>`, clipboardBlock.htmlId));
 				}
 			} else {
 				flushList();
 				if (spec?.toHTML) {
-					htmlParts.push(spec.toHTML(block, inlineHTML));
+					htmlParts.push(
+						setHTMLIdOnFirstTag(spec.toHTML(clipboardBlock, inlineHTML), clipboardBlock.htmlId),
+					);
 				} else {
-					htmlParts.push(`<p>${inlineHTML}</p>`);
+					htmlParts.push(setHTMLIdOnFirstTag(`<p>${inlineHTML}</p>`, clipboardBlock.htmlId));
 				}
 			}
 		}

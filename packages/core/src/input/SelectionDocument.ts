@@ -94,8 +94,9 @@ function sliceBlock(block: BlockNode, boundary: SelectionBoundary): BlockNode | 
 	if (slicedChildren.length === 0) return null;
 	if (!changed) return block;
 
+	const { htmlId: _htmlId, ...rest } = block;
 	return {
-		...block,
+		...rest,
 		children: slicedChildren,
 	};
 }
@@ -112,8 +113,9 @@ function sliceLeafBlock(block: BlockNode, boundary: SelectionBoundary): BlockNod
 	const segments = getBlockContentSegmentsInRange(block, from, to);
 	const children: readonly (TextNode | InlineNode)[] = segmentsToInlineChildren(segments);
 
+	const { htmlId: _htmlId, ...rest } = block;
 	return {
-		...block,
+		...rest,
 		children,
 	};
 }

@@ -31,6 +31,7 @@ import {
 	decodeEscapesAndEntities,
 	matchEntityAt,
 } from './MarkdownEntities.js';
+import { resolveMarkdownHTMLRegistry } from './MarkdownHTMLRegistry.js';
 import type { ParseContext } from './MarkdownParseContext.js';
 
 // --- Delimiter / bracket stacks ---
@@ -915,20 +916,30 @@ function pushInlineHtml(
 	ctx: ParseContext,
 	out: (TextNode | InlineNode)[],
 ): void {
-	if (!ctx.registry) {
-		out.push(createTextNode(html, [...marks]));
+	// The HTML parser treats a lone <br> in a paragraph as an empty-block
+	// placeholder. Here the paragraph is synthetic, so it is a real hard break.
+	const hardBreakAllowed: boolean =
+		!ctx.registry || ctx.registry.getInlineNodeSpec('hard_break') !== undefined;
+	if (hardBreakAllowed && /^<br\s*\/?>$/i.test(html.trim())) {
+		out.push(createInlineNode(inlineType('hard_break'), {}, [...marks]));
 		return;
 	}
-	const doc = parseHTMLToDocument(`<p>${html}</p>`, ctx.registry);
+	const doc = parseHTMLToDocument(`<p>${html}</p>`, resolveMarkdownHTMLRegistry(ctx.registry));
 	const block = doc.children[0];
 	if (!block) return;
+	let emitted = false;
 	for (const child of block.children) {
-		if ('text' in child) {
+		if ('text' in child && child.text !== '') {
 			out.push(createTextNode(child.text, mergeMarks(marks, child.marks)));
+			emitted = true;
 		} else if ('inlineType' in child) {
 			out.push(createInlineNode(child.inlineType, child.attrs, mergeMarks(marks, child.marks)));
+			emitted = true;
 		}
 	}
+	// An unknown/empty HTML element has no baseline model representation. Keep
+	// it literal on registry-free calls instead of silently dropping input.
+	if (!emitted && !ctx.registry) out.push(createTextNode(html, [...marks]));
 }
 
 /** Merges two mark lists, de-duplicating by type. */

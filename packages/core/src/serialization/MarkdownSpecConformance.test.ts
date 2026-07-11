@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { documentStructure, specHtmlToStructure } from '../test/MarkdownConformanceUtils.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
-import type { MarkdownParseOptions } from './MarkdownTypes.js';
+import type { MarkdownParseOptions, MarkdownSerializeOptions } from './MarkdownTypes.js';
 
 /**
  * Official CommonMark + GFM spec conformance gates (D1, #200).
@@ -61,8 +61,7 @@ const OUT_OF_SCOPE_SECTIONS: ReadonlySet<string> = new Set(['HTML blocks', 'Raw 
 const MULTILINE_DEF =
 	'link reference definitions with multi-line labels or multi-line titles stay paragraph text';
 const RAW_INLINE_HTML =
-	'raw inline HTML resolves through the htmlFallback seam, which needs a schema registry ' +
-	'(the spec gate parses registry-less)';
+	'raw inline HTML edge case cannot be represented by the baseline HTML fallback schema';
 const TAB_CONTAINER = 'tab-to-column expansion inside container markers is not implemented';
 const LAZY_SETEXT = 'a setext underline on a lazy continuation line is read as a heading';
 
@@ -77,7 +76,6 @@ const SKIPPED: ReadonlyMap<number, string> = new Map([
 	[196, MULTILINE_DEF],
 	[208, MULTILINE_DEF],
 	[344, RAW_INLINE_HTML],
-	[475, RAW_INLINE_HTML],
 	[476, RAW_INLINE_HTML],
 	[477, RAW_INLINE_HTML],
 	[541, MULTILINE_DEF],
@@ -102,8 +100,15 @@ function matchesSpec(example: SpecExample, options?: MarkdownParseOptions): bool
 /** Gate B: parse must not throw and serialization must reach a fixpoint. */
 function roundTripsLosslessly(example: SpecExample, options?: MarkdownParseOptions): boolean {
 	const doc = parseMarkdownToDocument(example.markdown, undefined, options);
-	const md2: string = serializeDocumentToMarkdown(doc);
-	const md3: string = serializeDocumentToMarkdown(parseMarkdownToDocument(md2, undefined, options));
+	const serializeOptions: MarkdownSerializeOptions | undefined = options?.flavor
+		? { flavor: options.flavor }
+		: undefined;
+	const md2: string = serializeDocumentToMarkdown(doc, undefined, serializeOptions);
+	const md3: string = serializeDocumentToMarkdown(
+		parseMarkdownToDocument(md2, undefined, options),
+		undefined,
+		serializeOptions,
+	);
 	return md2 === md3;
 }
 

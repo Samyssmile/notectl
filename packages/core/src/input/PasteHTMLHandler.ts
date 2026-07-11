@@ -32,6 +32,7 @@ import {
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { preserveHTMLIdSanitizeConfig } from '../serialization/HTMLSanitization.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HTMLParser } from './HTMLParser.js';
@@ -48,6 +49,27 @@ const PRE_SANITIZE_FORBID: string[] = [
 	'form',
 	'noscript',
 ];
+
+/** Block roots represented directly by the document model. */
+const MODELLED_BLOCK_TAGS: ReadonlySet<string> = new Set([
+	'p',
+	'div',
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'li',
+	'blockquote',
+	'table',
+	'tr',
+	'td',
+	'th',
+	'pre',
+	'figure',
+	'hr',
+]);
 
 export class PasteHTMLHandler {
 	constructor(
@@ -97,6 +119,7 @@ export class PasteHTMLHandler {
 			ADD_TAGS: this.schemaRegistry ? this.schemaRegistry.getAllowedTags() : [],
 			ADD_ATTR: this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [],
 			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			...preserveHTMLIdSanitizeConfig(),
 		});
 		const richJson: string | undefined = this.extractRichData(preSanitized);
 		if (richJson && this.tryRichPasteFromJson(richJson)) return;
@@ -114,6 +137,7 @@ export class PasteHTMLHandler {
 			ALLOWED_TAGS: allowedTags,
 			ALLOWED_ATTR: allowedAttrs,
 			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			...preserveHTMLIdSanitizeConfig(),
 		});
 
 		if (this.schemaRegistry) {
@@ -163,6 +187,7 @@ export class PasteHTMLHandler {
 	 * multi-block list items, void blocks).
 	 */
 	private requiresDocumentParser(html: string, container: DocumentFragment): boolean {
+		if (this.containsModelledBlockID(container)) return true;
 		if (/<table[\s>]/i.test(html)) return true;
 		// Blockquotes are container blocks (#136): the flat HTMLParser/slice path
 		// cannot represent their nested block children, so route them through the
@@ -174,6 +199,18 @@ export class PasteHTMLHandler {
 		// item's inline text.
 		if (/<li[\s>]/i.test(html) && this.containsMultiBlockListItem(container)) return true;
 		return this.containsVoidBlockElements(container);
+	}
+
+	/** Semantic IDs belong to whole blocks, which the flat slice parser cannot represent. */
+	private containsModelledBlockID(container: DocumentFragment): boolean {
+		const blockRuleTags: ReadonlySet<string> = new Set(
+			this.schemaRegistry?.getBlockParseRules().map((entry) => entry.rule.tag) ?? [],
+		);
+		for (const element of Array.from(container.querySelectorAll('[id]'))) {
+			const tag: string = element.tagName.toLowerCase();
+			if (MODELLED_BLOCK_TAGS.has(tag) || blockRuleTags.has(tag)) return true;
+		}
+		return false;
 	}
 
 	/**
