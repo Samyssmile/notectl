@@ -11,7 +11,7 @@ import {
 } from '../../commands/AttributedMarkCommands.js';
 import type { BlockNode } from '../../model/Document.js';
 import { hasMark } from '../../model/Document.js';
-import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
+import { escapeHTML, fragmentIdentifiers, sanitizeHref } from '../../model/HTMLUtils.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
@@ -50,6 +50,46 @@ const LINK_RULE = /(?:^|[^!])(\[([^\]\uFFFC]+)\]\(([^)\s\uFFFC]+)(?:\s+"([^"\uFF
 /** `<scheme:...>` autolink. */
 const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s\uFFFC]+)>)$/;
 
+/** Fragment-only links stay in the current editor even when external links open in a new tab. */
+function shouldOpenInNewTab(href: string, openInNewTab: boolean): boolean {
+	return openInNewTab && !href.startsWith('#');
+}
+
+/** Finds the clicked anchor without interpolating user-controlled data into a CSS selector. */
+function findClickedAnchor(
+	container: HTMLElement,
+	target: EventTarget | null,
+): HTMLAnchorElement | null {
+	let element: Element | null =
+		target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+
+	while (element && container.contains(element)) {
+		if (element instanceof HTMLAnchorElement) return element;
+		if (element === container) break;
+		element = element.parentElement;
+	}
+
+	return null;
+}
+
+/** Resolves an ID inside this editor by direct string comparison, never through a CSS selector. */
+function findFragmentTarget(
+	container: HTMLElement,
+	identifiers: readonly string[],
+): Element | null {
+	for (const identifier of identifiers) {
+		if (container.id === identifier) return container;
+
+		const descendants: HTMLCollectionOf<Element> = container.getElementsByTagName('*');
+		for (let index = 0; index < descendants.length; index++) {
+			const descendant: Element | null = descendants.item(index);
+			if (descendant?.id === identifier) return descendant;
+		}
+	}
+
+	return null;
+}
+
 // --- Plugin ---
 
 export class LinkPlugin implements Plugin {
@@ -59,6 +99,8 @@ export class LinkPlugin implements Plugin {
 
 	private readonly config: LinkConfig;
 	private locale!: LinkLocale;
+	private fragmentClickContainer: HTMLElement | null = null;
+	private fragmentClickHandler: ((event: MouseEvent) => void) | null = null;
 
 	constructor(config?: Partial<LinkConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -73,6 +115,11 @@ export class LinkPlugin implements Plugin {
 		if (this.config.inputRule !== false) {
 			this.registerInputRules(context);
 		}
+		this.installFragmentClickHandler(context);
+	}
+
+	destroy(): void {
+		this.removeFragmentClickHandler();
 	}
 
 	/**
@@ -156,7 +203,7 @@ export class LinkPlugin implements Plugin {
 				a.setAttribute('href', href);
 				const title: string = String(mark.attrs?.title ?? '');
 				if (title) a.setAttribute('title', title);
-				if (openInNewTab) {
+				if (shouldOpenInNewTab(href, openInNewTab)) {
 					a.setAttribute('target', '_blank');
 					a.setAttribute('rel', 'noopener noreferrer');
 				}
@@ -167,7 +214,7 @@ export class LinkPlugin implements Plugin {
 				const href: string = escapeHTML(safeHref);
 				const titleValue: string = String(mark.attrs?.title ?? '');
 				const titleAttr: string = titleValue ? ` title="${escapeHTML(titleValue)}"` : '';
-				if (openInNewTab) {
+				if (shouldOpenInNewTab(safeHref, openInNewTab)) {
 					return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${content}</a>`;
 				}
 				return `<a href="${href}"${titleAttr}>${content}</a>`;
@@ -187,6 +234,48 @@ export class LinkPlugin implements Plugin {
 			],
 			sanitize: { tags: ['a'], attrs: ['href', 'title', 'target', 'rel'] },
 		});
+	}
+
+	private installFragmentClickHandler(context: PluginContext): void {
+		this.removeFragmentClickHandler();
+
+		const container: HTMLElement = context.getContainer();
+		const handler = (event: MouseEvent): void => {
+			if (
+				event.defaultPrevented ||
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			) {
+				return;
+			}
+
+			const anchor: HTMLAnchorElement | null = findClickedAnchor(container, event.target);
+			if (!anchor) return;
+
+			const identifiers: readonly string[] = fragmentIdentifiers(anchor.getAttribute('href') ?? '');
+			if (identifiers.length === 0) return;
+
+			const target: Element | null = findFragmentTarget(container, identifiers);
+			if (!target) return;
+
+			event.preventDefault();
+			target.scrollIntoView();
+		};
+
+		this.fragmentClickContainer = container;
+		this.fragmentClickHandler = handler;
+		container.addEventListener('click', handler);
+	}
+
+	private removeFragmentClickHandler(): void {
+		if (this.fragmentClickContainer && this.fragmentClickHandler) {
+			this.fragmentClickContainer.removeEventListener('click', this.fragmentClickHandler);
+		}
+		this.fragmentClickContainer = null;
+		this.fragmentClickHandler = null;
 	}
 
 	private registerCommands(context: PluginContext): void {

@@ -372,6 +372,12 @@ form, RxJS pipe, …) round-trips the content on every keystroke (#103).
 | `getContentHTML` / `setContentHTML` | `data-block-id` attribute, emitted centrally by the serializer and adopted by the parser with format validation + uniqueness — present unless the caller opts out via `getContentHTML({ includeBlockIds: false })` |
 | `getText` / `setText` | `setText` reuses existing top-level block IDs in document order; new lines beyond the existing block count get fresh IDs |
 
+This internal identity is orthogonal to a block's optional semantic HTML target. `BlockNode.htmlId`
+is document content, renders as the block root's ordinary `id` attribute, and is used by links such
+as `href="#installation"`. It is never substituted for `BlockNode.id`, and `data-block-id` is never
+an anchor name. HTML import/export, JSON, rendering, transactions, Markdown's raw-HTML fallback,
+and print projection preserve `htmlId` independently of the round-trip carrier above.
+
 **Opting out of `data-block-id`.** `getContentHTML({ includeBlockIds: false })` produces clean
 export HTML with no `data-block-id`, for consumers that treat the output as a final artifact
 (database storage, server-side tag/attribute validation, handoff to another system) where the
@@ -379,7 +385,8 @@ editor-internal id is an abstraction leak. The serializer skips its central inje
 `FORBID_ATTR: ['data-block-id']` to the DOMPurify pass — necessary because `data-block-id` is a
 `data-*` attribute that DOMPurify's `ALLOW_DATA_ATTR` default would otherwise let through. The
 trade-off is explicit: round-trips of opted-out HTML generate fresh IDs, so the caret is no longer
-preserved. The default (`true`) keeps the identity contract above intact.
+preserved. Semantic `id` attributes backed by `htmlId` remain in clean output so document-local
+links keep working. The default (`true`) keeps the internal identity contract above intact.
 
 Identity is best-effort, not guaranteed: when block content changes the block
 may legitimately end up with a different `BlockId`. Identity matters only for

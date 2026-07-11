@@ -21,7 +21,7 @@ new LinkPlugin({ openInNewTab: true })
 
 ```ts
 interface LinkConfig {
-  /** Whether links open in a new tab (adds target="_blank"). Default: true */
+  /** Whether non-fragment links open in a new tab (adds target="_blank"). Default: true */
   readonly openInNewTab: boolean;
   /** Custom locale for toolbar labels and popup strings. */
   readonly locale?: LinkLocale;
@@ -62,7 +62,31 @@ The link button opens a **custom popup** with:
 |------|----------|-----------|-----------|
 | `link` | `<a>` | `href: string` | `<a href="...">` with optional `target="_blank"` |
 
-When `openInNewTab` is `true`, the `toDOM` method adds `target="_blank"` and `rel="noopener noreferrer"` to the rendered `<a>` element.
+When `openInNewTab` is `true`, the `toDOM` method adds `target="_blank"` and
+`rel="noopener noreferrer"` to rendered non-fragment links.
+
+## Document-Local Links
+
+Fragment-only URLs such as `#installation` target a block whose
+[`htmlId`](/notectl/api/document-model/#internal-id-vs-html-id) is `installation`:
+
+```ts
+await editor.setContentHTML(`
+  <p><a href="#installation">Go to installation</a></p>
+  <h2 id="installation">Installation</h2>
+`);
+```
+
+An unmodified left click resolves the target inside the same editor and scrolls it into view. Such
+links never receive `target="_blank"`, even when `openInNewTab` is enabled. The target is the
+semantic HTML `id`; the editor's internal `BlockNode.id` and `data-block-id` are not anchor names.
+
+HTML import and export preserve both sides of the link, including clean export with
+`includeBlockIds: false`. The PrintPlugin projects targets across its print shadow boundary so
+fragment links remain document-local in print output and generated PDFs. Markdown export preserves
+block targets through the default `htmlFallback: true`; disabling the fallback drops `htmlId`
+because portable Markdown has no syntax for an ID on a block. See the
+[Markdown guide](/notectl/guides/markdown/#superset-features-html-fallback-vs-graceful-degradation).
 
 ## Programmatic Link Insertion
 

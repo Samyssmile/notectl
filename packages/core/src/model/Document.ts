@@ -3,6 +3,7 @@
  * All types are deeply readonly — mutations create new instances.
  */
 
+import { normalizeHTMLId } from './HTMLUtils.js';
 import type { BlockId, InlineTypeName, MarkTypeName, NodeTypeName } from './TypeBrands.js';
 
 // --- Mark Types ---
@@ -53,7 +54,10 @@ export interface InlineNode {
 export type ChildNode = TextNode | InlineNode | BlockNode;
 
 export interface BlockNode {
+	/** Internal editor identity, serialized to HTML as `data-block-id`. */
 	readonly id: BlockId;
+	/** Optional document-local HTML target, serialized to the block element's `id` attribute. */
+	readonly htmlId?: string;
 	readonly type: NodeTypeName;
 	readonly attrs?: BlockAttrs;
 	readonly children: readonly ChildNode[];
@@ -218,9 +222,12 @@ export function createBlockNode(
 	children?: readonly ChildNode[],
 	id?: BlockId,
 	attrs?: BlockAttrs,
+	htmlId?: string,
 ): BlockNode {
+	const normalizedHTMLId: string | undefined = normalizeHTMLId(htmlId);
 	return {
 		id: id ?? generateBlockId(),
+		...(normalizedHTMLId ? { htmlId: normalizedHTMLId } : {}),
 		type,
 		...(attrs ? { attrs } : {}),
 		children: children ?? [createTextNode('')],

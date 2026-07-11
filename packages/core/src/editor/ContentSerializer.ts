@@ -17,7 +17,7 @@ import {
 	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
-import { formatHTML } from '../model/HTMLUtils.js';
+import { formatHTML, normalizeHTMLId } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type BlockId, nodeType } from '../model/TypeBrands.js';
@@ -48,7 +48,8 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
-	const withMarks: Document = defaultMissingMarks(doc);
+	const withHTMLIds: Document = normalizeHTMLIds(doc);
+	const withMarks: Document = defaultMissingMarks(withHTMLIds);
 	const normalized: Document = registry ? normalizeCompositeBlocks(withMarks, registry) : withMarks;
 	const schema = registry ? schemaFromRegistry(registry) : undefined;
 	const state: EditorState = EditorState.create({
@@ -56,6 +57,37 @@ export function setEditorJSON(
 		schema,
 	});
 	replaceState(state);
+}
+
+/**
+ * Validates semantic HTML IDs at the external JSON boundary. Directly supplied
+ * objects do not necessarily come from {@link createBlockNode}, so this pass
+ * establishes the same invariant recursively while preserving object identity
+ * for documents that are already valid.
+ */
+function normalizeHTMLIds(doc: Document): Document {
+	const children: readonly BlockNode[] = mapPreservingIdentity(doc.children, normalizeBlockHTMLId);
+	return children === doc.children ? doc : { children };
+}
+
+function normalizeBlockHTMLId(block: BlockNode): BlockNode {
+	const children: readonly ChildNode[] = mapPreservingIdentity(block.children, (child) =>
+		isTextNode(child) || isInlineNode(child) ? child : normalizeBlockHTMLId(child),
+	);
+	const rawHTMLId: unknown = (block as { readonly htmlId?: unknown }).htmlId;
+	const htmlId: string | undefined = normalizeHTMLId(rawHTMLId);
+	const hasHTMLId: boolean = Object.prototype.hasOwnProperty.call(block, 'htmlId');
+	const htmlIdUnchanged: boolean = rawHTMLId === htmlId && (htmlId !== undefined || !hasHTMLId);
+	if (children === block.children && htmlIdUnchanged) return block;
+
+	const { htmlId: _rawHTMLId, ...rest } = block as BlockNode & {
+		readonly htmlId?: unknown;
+	};
+	return {
+		...rest,
+		...(htmlId ? { htmlId } : {}),
+		children,
+	};
 }
 
 /**
@@ -129,7 +161,7 @@ function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 		const children: readonly ChildNode[] | undefined =
 			block.children.length > 0 ? block.children : undefined;
 		const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
-		return createBlockNode(block.type, [paragraph], block.id, block.attrs);
+		return createBlockNode(block.type, [paragraph], block.id, block.attrs, block.htmlId);
 	}
 
 	// Block children → recurse, so nested composites (e.g. a blockquote inside a
@@ -138,7 +170,7 @@ function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 		if (isTextNode(child) || isInlineNode(child)) return child;
 		return normalizeBlock(child, registry);
 	});
-	return createBlockNode(block.type, normalized, block.id, block.attrs);
+	return createBlockNode(block.type, normalized, block.id, block.attrs, block.htmlId);
 }
 
 /** Returns sanitized HTML representation of the document. */
@@ -211,7 +243,9 @@ export async function setEditorContentMarkdown(
 	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
 	const reIdentified: readonly BlockNode[] = parsed.children.map((block, idx) => {
 		const existing: BlockId | undefined = existingIds[idx];
-		return existing ? createBlockNode(block.type, block.children, existing, block.attrs) : block;
+		return existing
+			? createBlockNode(block.type, block.children, existing, block.attrs, block.htmlId)
+			: block;
 	});
 
 	setEditorJSON({ children: reIdentified }, registry, replaceState);

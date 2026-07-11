@@ -22,6 +22,68 @@ export function escapeHTML(text: string): string {
 /** Escapes a value for safe interpolation into an HTML attribute (double-quoted). */
 export const escapeAttr: (value: string) => string = escapeHTML;
 
+/** ASCII whitespace forbidden in a conforming HTML `id` value. */
+const HTML_ID_WHITESPACE: RegExp = /[\t\n\f\r ]/;
+
+/**
+ * Returns a conforming HTML `id`, or `undefined` when the input cannot identify an element.
+ * HTML IDs are intentionally not restricted to CSS identifiers: Unicode, punctuation, and
+ * leading digits are all valid. The platform only requires a non-empty value without ASCII
+ * whitespace.
+ */
+export function normalizeHTMLId(value: unknown): string | undefined {
+	return typeof value === 'string' && value.length > 0 && !HTML_ID_WHITESPACE.test(value)
+		? value
+		: undefined;
+}
+
+/**
+ * Resolves the candidate identifiers represented by a fragment-only URL.
+ *
+ * The HTML fragment algorithm first tries the URL-serialized fragment and then its non-fatally
+ * percent-decoded UTF-8 form. Returning both candidates in that order lets Shadow DOM and print
+ * bridges reproduce the browser's lookup semantics without relying on CSS selector escaping.
+ */
+export function fragmentIdentifiers(href: string): readonly string[] {
+	if (!href.startsWith('#') || href.length === 1) return [];
+	const raw: string = new URL(href, 'https://notectl.invalid/').hash.slice(1);
+	if (raw === '') return [];
+	const decoded: string = decodeFragment(raw);
+	return decoded === raw ? [raw] : [raw, decoded];
+}
+
+/** Percent-decodes a URL fragment with the platform's non-fatal UTF-8 semantics. */
+function decodeFragment(value: string): string {
+	const bytes: number[] = [];
+	const encoder = new TextEncoder();
+
+	for (let index = 0; index < value.length; ) {
+		const first: string | undefined = value[index + 1];
+		const second: string | undefined = value[index + 2];
+		if (value[index] === '%' && first && second && isASCIIHex(first) && isASCIIHex(second)) {
+			bytes.push(Number.parseInt(`${first}${second}`, 16));
+			index += 3;
+			continue;
+		}
+
+		const codePoint: number | undefined = value.codePointAt(index);
+		if (codePoint === undefined) break;
+		const character: string = String.fromCodePoint(codePoint);
+		bytes.push(...encoder.encode(character));
+		index += character.length;
+	}
+
+	return new TextDecoder().decode(Uint8Array.from(bytes));
+}
+
+function isASCIIHex(character: string): boolean {
+	return (
+		(character >= '0' && character <= '9') ||
+		(character >= 'a' && character <= 'f') ||
+		(character >= 'A' && character <= 'F')
+	);
+}
+
 /**
  * URL schemes accepted by `sanitizeHref` for anchor `href` values. Intentionally narrower
  * than the DOMPurify allowlist: `data:` and `blob:` are excluded because they can carry

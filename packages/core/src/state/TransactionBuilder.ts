@@ -164,6 +164,7 @@ export class TransactionBuilder {
 		targetLengthBefore: number,
 		sourceType?: NodeTypeName,
 		sourceAttrs?: BlockAttrs,
+		sourceHTMLId?: string,
 	): this {
 		const step: MergeBlocksStep = {
 			type: 'mergeBlocks',
@@ -172,6 +173,7 @@ export class TransactionBuilder {
 			targetLengthBefore,
 			...(sourceType !== undefined ? { sourceType } : {}),
 			...(sourceAttrs ? { sourceAttrs } : {}),
+			...(sourceHTMLId !== undefined ? { sourceHTMLId } : {}),
 		};
 		this.steps.push(step);
 		this.advanceDoc(step);
@@ -195,6 +197,7 @@ export class TransactionBuilder {
 			targetLengthBefore,
 			sourceBlock.type,
 			sourceBlock.attrs,
+			sourceBlock.htmlId,
 		);
 	}
 

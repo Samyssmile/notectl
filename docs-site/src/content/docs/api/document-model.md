@@ -43,6 +43,15 @@ const paraWithId = createEmptyParagraph(blockId('my-id'));
 
 // InlineNode (atomic, width-1 element)
 const br = createInlineNode(inlineType('hard_break'));
+
+// Heading that can be targeted by a document-local link (`href="#installation"`)
+const anchoredHeading = createBlockNode(
+  nodeType('heading'),
+  [createTextNode('Installation')],
+  undefined,
+  { level: 2 },
+  'installation',
+);
 ```
 
 ## BlockNode
@@ -52,11 +61,36 @@ A block-level node (paragraph, heading, list item, etc.):
 ```ts
 interface BlockNode {
   readonly id: BlockId;
+  readonly htmlId?: string;
   readonly type: NodeTypeName;
   readonly attrs?: BlockAttrs;
   readonly children: readonly ChildNode[];
 }
 ```
+
+### Internal ID vs. HTML ID
+
+`id` and `htmlId` have deliberately separate responsibilities:
+
+| Field | Purpose | HTML representation |
+|-------|---------|---------------------|
+| `id` | Internal editor identity used by selections, transactions, and block lookup | `data-block-id` (unless export opts out) |
+| `htmlId` | Optional document-local target for links such as `href="#installation"` | `id="installation"` |
+
+`id` is always present and must not be used as a document anchor. `htmlId` is optional, remains
+part of the document content, and is rendered on the block in both the live editor and exported
+HTML. A valid value is non-empty and contains no ASCII whitespace; keep values unique within a
+document.
+
+The fifth `createBlockNode` argument sets `htmlId`:
+
+```ts
+createBlockNode(type, children, id, attrs, htmlId);
+```
+
+HTML import maps a valid `id` on a model-represented block root to `htmlId`. Wrapper-only and inline
+elements without a corresponding `BlockNode` do not retain an ID. This is independent of adopting
+an editor-owned `data-block-id` as `id`.
 
 ### ChildNode
 

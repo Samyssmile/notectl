@@ -116,7 +116,7 @@ const html = await editor.getContentHTML();
 // Pretty-printed — returns indented HTML string
 const pretty = await editor.getContentHTML({ pretty: true });
 
-// Clean export HTML — no editor-internal data-block-id attributes
+// Clean export HTML — no editor-internal data-block-id attributes; semantic id attributes remain
 const clean = await editor.getContentHTML({ includeBlockIds: false });
 
 // Class-based CSS mode — returns { html, css, styleMap } object
@@ -180,6 +180,17 @@ const clean = await editor.getContentHTML({ includeBlockIds: false });
 const { html } = await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false });
 ```
 
+`includeBlockIds` controls only the internal `data-block-id` wire attribute. A semantic block
+`id` stored as [`BlockNode.htmlId`](/notectl/api/document-model/#internal-id-vs-html-id) remains in
+the output even when `includeBlockIds: false`, so document-local links keep their targets:
+
+```ts
+await editor.setContentHTML('<h2 id="installation">Installation</h2>');
+
+const clean = await editor.getContentHTML({ includeBlockIds: false });
+// Contains id="installation", but no data-block-id.
+```
+
 The default (`true`) keeps the current behavior; this is intentional, since flipping it would silently break the caret for existing binding-based integrations. The trade-off when opting out: round-trips of the cleaned HTML generate fresh IDs and no longer preserve the caret.
 
 ### `setContentHTML(html: string, options?: SetContentHTMLOptions): Promise<void>`
@@ -187,6 +198,12 @@ The default (`true`) keeps the current behavior; this is intentional, since flip
 Parses HTML and sets it as the editor content.
 
 By default each serialized block carries a `data-block-id` attribute (part of the wire format). When `setContentHTML` parses HTML produced by `getContentHTML`, those IDs are adopted so block identity round-trips — this is what keeps the caret stable when an external owner (Angular signal form, RxJS pipe, …) writes back the same content on every keystroke. Externally pasted HTML without `data-block-id` (including output of `getContentHTML({ includeBlockIds: false })`) works as before; fresh IDs are generated. See [Round-Trip Identity](/notectl/guides/content/#round-trip-identity).
+
+A valid `id` on an element represented as a block root is imported separately as
+`BlockNode.htmlId`. It becomes the block's semantic `id` in the live DOM and on subsequent HTML
+exports. Values must be non-empty and contain no ASCII whitespace. Wrapper-only or inline elements
+without a corresponding block node do not retain an ID. The editor never substitutes the internal
+`BlockNode.id` or `data-block-id` for this purpose.
 
 ### `getContentMarkdown(options?: MarkdownSerializeOptions): Promise<string>`
 

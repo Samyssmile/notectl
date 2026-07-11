@@ -27,6 +27,7 @@ import {
 	generateBlockId,
 	getBlockLength,
 } from '../model/Document.js';
+import { normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { RichBlockData } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -50,9 +51,13 @@ export class PasteRichBlockHandler {
 
 	/** Handles paste of an internal block node from ClipboardHandler. */
 	handleBlockPaste(json: string): void {
-		let parsed: { type?: string; attrs?: Record<string, unknown> };
+		let parsed: { type?: string; htmlId?: unknown; attrs?: Record<string, unknown> };
 		try {
-			parsed = JSON.parse(json) as { type?: string; attrs?: Record<string, unknown> };
+			parsed = JSON.parse(json) as {
+				type?: string;
+				htmlId?: unknown;
+				attrs?: Record<string, unknown>;
+			};
 		} catch {
 			return;
 		}
@@ -76,6 +81,7 @@ export class PasteRichBlockHandler {
 			undefined,
 			newBlockId,
 			attrs,
+			normalizeHTMLId(parsed.htmlId),
 		);
 
 		// Table cell: insert as last child, unless the cell's content rule forbids
@@ -150,6 +156,7 @@ export class PasteRichBlockHandler {
 
 		const hasStructured: boolean = blocks.some(
 			(b) =>
+				b.htmlId !== undefined ||
 				(b.type !== undefined && b.type !== 'paragraph') ||
 				b.segments?.some((segment) => segment.kind === 'inline'),
 		);
@@ -171,7 +178,9 @@ export class PasteRichBlockHandler {
 		//  - node selections and gap cursors have no text caret to split.
 		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
 		const isRootChild: boolean = state.doc.children.some((c) => c.id === anchorBlockId);
+		const carriesHTMLId: boolean = blocks.some((block) => normalizeHTMLId(block.htmlId));
 		const splitsAtCaret: boolean =
+			!carriesHTMLId &&
 			isTextSelection(sel) &&
 			isCollapsed(sel) &&
 			isRootChild &&

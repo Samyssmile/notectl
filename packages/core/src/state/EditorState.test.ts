@@ -15,6 +15,7 @@ import {
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
+import { applySplitBlock } from './StepApplication.js';
 import { TransactionBuilder } from './Transaction.js';
 
 describe('EditorState', () => {
@@ -136,6 +137,42 @@ describe('EditorState', () => {
 			expect(newState.doc.children).toHaveLength(2);
 			expect(getBlockText(newState.doc.children[0])).toBe('hello');
 			expect(getBlockText(newState.doc.children[1])).toBe(' world');
+		});
+
+		it('keeps a semantic HTML ID only on the original half', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello world')], 'b1', undefined, 'target'),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 5),
+			});
+			const transaction = new TransactionBuilder(state.selection, null, 'input', state.doc)
+				.splitBlock('b1', 5, 'b2')
+				.setSelection(createCollapsedSelection('b2', 0))
+				.build();
+
+			const next = state.apply(transaction);
+
+			expect(next.doc.children[0]?.htmlId).toBe('target');
+			expect(next.doc.children[1]?.htmlId).toBeUndefined();
+		});
+
+		it('applies an explicit HTML-ID-only override to the new half', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('hello world')], 'b1'),
+			]);
+
+			const next = applySplitBlock(doc, {
+				type: 'splitBlock',
+				blockId: 'b1',
+				offset: 5,
+				newBlockId: 'b2',
+				newBlockHTMLId: 'tail-target',
+			});
+
+			expect(next.children[1]?.type).toBe('paragraph');
+			expect(next.children[1]?.htmlId).toBe('tail-target');
 		});
 	});
 

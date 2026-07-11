@@ -14,12 +14,13 @@ import {
 	getInlineChildren,
 	isInlineNode,
 } from '../model/Document.js';
-import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
+import { SAFE_URI_REGEXP, normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
+import { preserveHTMLIdSanitizeConfig } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
@@ -38,7 +39,7 @@ export function parseHTMLToDocument(
 	options?: ParseHTMLOptions,
 ): Document {
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
-	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir'];
+	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir', 'id'];
 
 	// `data-block-id` carries block identity across `setContentHTML(getContentHTML())`.
 	// Whitelist it through DOMPurify so the adoption logic below sees it.
@@ -57,6 +58,7 @@ export function parseHTMLToDocument(
 		ALLOWED_TAGS: allowedTags,
 		ALLOWED_ATTR: allowedAttrs,
 		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+		...preserveHTMLIdSanitizeConfig(),
 	});
 	const root: DocumentFragment = template.content;
 
@@ -146,6 +148,7 @@ function parseChildNode(
 					children,
 					adoptBlockId(el, adoptedIds),
 					Object.keys(attrs).length > 0 ? attrs : undefined,
+					extractHTMLId(el),
 				),
 			);
 			return;
@@ -162,6 +165,7 @@ function parseChildNode(
 				inlineContent,
 				adoptBlockId(el, adoptedIds),
 				Object.keys(attrs).length > 0 ? attrs : undefined,
+				extractHTMLId(el),
 			),
 		);
 	} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
@@ -265,6 +269,7 @@ function parseListItemBlock(
 	checkbox: HTMLInputElement | null,
 	registry?: SchemaRegistry,
 ): BlockNode {
+	const htmlId: string | undefined = extractHTMLId(li);
 	const blockRules = registry?.getBlockParseRules() ?? [];
 	const isHoistedList = (node: ChildNode): boolean => {
 		if (node.nodeType !== Node.ELEMENT_NODE) return false;
@@ -282,6 +287,7 @@ function parseListItemBlock(
 			inlineContent,
 			adoptBlockId(li, adoptedIds),
 			attrs,
+			htmlId,
 		);
 	}
 
@@ -296,12 +302,13 @@ function parseListItemBlock(
 
 	// A lone attribute-less paragraph is the leaf shape in disguise.
 	const only: BlockNode | undefined = innerBlocks.length === 1 ? innerBlocks[0] : undefined;
-	if (only && only.type === 'paragraph' && !only.attrs) {
+	if (only && only.type === 'paragraph' && !only.attrs && !only.htmlId) {
 		return createBlockNode(
 			nodeType('list_item'),
 			getInlineChildren(only),
 			adoptBlockId(li, adoptedIds),
 			attrs,
+			htmlId,
 		);
 	}
 
@@ -311,10 +318,17 @@ function parseListItemBlock(
 			[createTextNode('')],
 			adoptBlockId(li, adoptedIds),
 			attrs,
+			htmlId,
 		);
 	}
 
-	return createBlockNode(nodeType('list_item'), innerBlocks, adoptBlockId(li, adoptedIds), attrs);
+	return createBlockNode(
+		nodeType('list_item'),
+		innerBlocks,
+		adoptBlockId(li, adoptedIds),
+		attrs,
+		htmlId,
+	);
 }
 
 /**
@@ -349,12 +363,21 @@ function parseTableElement(
 				cellContent,
 				adoptBlockId(cellEl, adoptedIds),
 				Object.keys(cellAttrs).length > 0 ? cellAttrs : undefined,
+				extractHTMLId(cellEl),
 			);
 			cells.push(cellBlock);
 		}
 
 		if (cells.length > 0) {
-			rows.push(createBlockNode(nodeType('table_row'), cells, adoptBlockId(trEl, adoptedIds)));
+			rows.push(
+				createBlockNode(
+					nodeType('table_row'),
+					cells,
+					adoptBlockId(trEl, adoptedIds),
+					undefined,
+					extractHTMLId(trEl as HTMLElement),
+				),
+			);
 		}
 	}
 
@@ -367,6 +390,7 @@ function parseTableElement(
 				rows,
 				adoptBlockId(tableEl, adoptedIds),
 				Object.keys(tableAttrs).length > 0 ? tableAttrs : undefined,
+				extractHTMLId(tableEl as HTMLElement),
 			),
 		);
 	}
@@ -458,6 +482,7 @@ function parseBlockquoteElement(
 			innerBlocks,
 			adoptBlockId(el, adoptedIds),
 			Object.keys(attrs).length > 0 ? attrs : undefined,
+			extractHTMLId(el),
 		),
 	);
 }
@@ -689,6 +714,11 @@ function extractDirection(el: HTMLElement, attrs: Record<string, string | number
 	if (styleDir && VALID_DIRECTIONS.has(styleDir)) {
 		attrs.dir = styleDir;
 	}
+}
+
+/** Reads a conforming document-local HTML target from a block element. */
+function extractHTMLId(el: HTMLElement): string | undefined {
+	return normalizeHTMLId(el.getAttribute('id'));
 }
 
 /** Legacy physical → logical alignment mapping for backward-compatible parsing. */

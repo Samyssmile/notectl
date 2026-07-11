@@ -231,6 +231,7 @@ export function mapSplitBlock(step: SplitBlockStep, mapping: Mapping, _doc: Docu
 		newBlockId: step.newBlockId,
 		...(step.newBlockType !== undefined ? { newBlockType: step.newBlockType } : {}),
 		...(step.newBlockAttrs ? { newBlockAttrs: step.newBlockAttrs } : {}),
+		...(step.newBlockHTMLId !== undefined ? { newBlockHTMLId: step.newBlockHTMLId } : {}),
 		...preservedPath(step.blockId, mapped.blockId, step.path),
 	};
 }
@@ -273,6 +274,7 @@ export function mapMergeBlocks(
 		targetLengthBefore,
 		...(step.sourceType !== undefined ? { sourceType: step.sourceType } : {}),
 		...(step.sourceAttrs ? { sourceAttrs: step.sourceAttrs } : {}),
+		...(step.sourceHTMLId !== undefined ? { sourceHTMLId: step.sourceHTMLId } : {}),
 		...preservedPath(step.targetBlockId, newTargetId, step.path),
 	};
 }

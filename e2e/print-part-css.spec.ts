@@ -1648,4 +1648,91 @@ test.describe('Print — host ::part() CSS (issue #202)', () => {
 		});
 		expect(probe.bodyStyles['background-color']).toBe('rgb(13, 17, 23)');
 	});
+
+	test('local links resolve through a visible slotted destination in the print document', async ({
+		editor,
+		page,
+	}) => {
+		const spacers: string = Array.from({ length: 40 }, (_, index) => `<p>Spacer ${index}</p>`).join(
+			'',
+		);
+		await editor.setContentHTML(
+			`<p><a href="#chapter">Jump to chapter</a></p>${spacers}<h2 id="chapter">Chapter</h2>`,
+		);
+
+		const result = await page.evaluate(async () => {
+			type PrintService = { toHTML(options: Record<string, unknown>): string };
+			type EditorElement = HTMLElement & {
+				getService(key: { id: string }): PrintService | undefined;
+			};
+			const editorEl = document.querySelector('notectl-editor') as EditorElement | null;
+			if (!editorEl) throw new Error('editor missing');
+			const printService = editorEl.getService({ id: 'print' });
+			if (!printService) throw new Error('print service missing');
+
+			const hostileStyle: HTMLStyleElement = document.createElement('style');
+			hostileStyle.textContent =
+				'a[aria-hidden="true"], a:empty { display: none !important; visibility: hidden !important; }';
+			document.head.appendChild(hostileStyle);
+			const frame: HTMLIFrameElement = document.createElement('iframe');
+			frame.style.cssText = 'position:fixed;left:-9999px;top:0;width:600px;height:300px;border:0';
+			document.body.appendChild(frame);
+
+			try {
+				const html: string = printService.toHTML({});
+				const frameDoc: Document | null = frame.contentDocument;
+				const frameWindow: Window | null = frame.contentWindow;
+				if (!frameDoc || !frameWindow) throw new Error('print iframe missing');
+				frameDoc.open();
+				frameDoc.write(html);
+				frameDoc.close();
+				await new Promise<void>((resolve) => frameWindow.requestAnimationFrame(() => resolve()));
+
+				const printHost = frameDoc.querySelector<HTMLElement>('notectl-editor');
+				const shadow = printHost?.shadowRoot;
+				const link = shadow?.querySelector<HTMLAnchorElement>(
+					'a[href^="#notectl-print-destination-"]',
+				);
+				const target = shadow?.querySelector<HTMLElement>('#chapter');
+				const slot = target?.querySelector<HTMLSlotElement>(
+					'slot[data-notectl-print-destination-slot]',
+				);
+				const marker = printHost?.querySelector<HTMLAnchorElement>(
+					':scope > a[data-notectl-print-destination]',
+				);
+				if (!printHost || !link || !target || !slot || !marker) {
+					throw new Error('projected print destination missing');
+				}
+
+				const markerStyle: CSSStyleDeclaration = frameWindow.getComputedStyle(marker);
+				const targetTop: number = target.getBoundingClientRect().top;
+				const markerTop: number = marker.getBoundingClientRect().top;
+				const scrollBefore: number = frameWindow.scrollY;
+				link.click();
+				await new Promise<void>((resolve) => frameWindow.requestAnimationFrame(() => resolve()));
+
+				return {
+					assigned: marker.assignedSlot === slot,
+					directHostChild: marker.parentElement === printHost,
+					display: markerStyle.display,
+					visibility: markerStyle.visibility,
+					topDelta: Math.abs(markerTop - targetTop),
+					hash: frameWindow.location.hash,
+					expectedHash: `#${marker.id}`,
+					scrolled: frameWindow.scrollY > scrollBefore,
+				};
+			} finally {
+				frame.remove();
+				hostileStyle.remove();
+			}
+		});
+
+		expect(result.assigned).toBe(true);
+		expect(result.directHostChild).toBe(true);
+		expect(result.display).toBe('block');
+		expect(result.visibility).toBe('visible');
+		expect(result.topDelta).toBeLessThan(4);
+		expect(result.hash).toBe(result.expectedHash);
+		expect(result.scrolled).toBe(true);
+	});
 });

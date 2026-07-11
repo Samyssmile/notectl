@@ -78,4 +78,32 @@ test.describe('Link', () => {
 		html = await editor.getContentHTML();
 		expect(html).not.toContain('<a');
 	});
+
+	test('an unmodified click navigates to an editor-local semantic target', async ({
+		editor,
+		page,
+	}) => {
+		await editor.setContentHTML(
+			'<p><a href="#installation"><strong>Jump</strong></a></p>' +
+				'<h2 id="installation">Installation</h2>',
+		);
+		await page.evaluate(() => {
+			const target = document
+				.querySelector('notectl-editor')
+				?.shadowRoot?.querySelector<HTMLElement>('#installation');
+			if (!target) throw new Error('target missing');
+			target.scrollIntoView = (): void => {
+				target.dataset.localLinkScrolled = 'true';
+			};
+		});
+
+		const link = editor.content.locator('a[href="#installation"]');
+		await expect(link).not.toHaveAttribute('target', '_blank');
+		await link.click();
+
+		await expect(editor.content.locator('#installation')).toHaveAttribute(
+			'data-local-link-scrolled',
+			'true',
+		);
+	});
 });

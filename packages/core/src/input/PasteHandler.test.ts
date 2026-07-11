@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	type BlockNode,
 	createBlockNode,
 	createDocument,
 	createInlineNode,
@@ -194,6 +195,29 @@ describe('PasteHandler text paste', () => {
 		expect(tr.metadata.origin).toBe('paste');
 	});
 
+	it('HTML paste preserves a semantic ID on a complete block', () => {
+		element = document.createElement('div');
+		let currentState: EditorState = createTestState();
+		dispatch = vi.fn((transaction: Transaction) => {
+			currentState = currentState.apply(transaction);
+		});
+		getState = () => currentState;
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: () => document.createElement('p'),
+			toHTML: (_node, content) => `<p>${content}</p>`,
+			parseHTML: [{ tag: 'p' }, { tag: 'div' }],
+			sanitize: { tags: ['p'] },
+		});
+		handler = new PasteHandler(element, { getState, dispatch, schemaRegistry: registry });
+
+		element.dispatchEvent(createPasteEvent({ html: '<p id="target">Destination</p>' }));
+
+		expect(currentState.doc.children[1]?.htmlId).toBe('target');
+		expect(getBlockText(currentState.doc.children[1] as BlockNode)).toBe('Destination');
+	});
+
 	it('HTML paste preserves superscript marks when schemaRegistry is present', () => {
 		element = document.createElement('div');
 		const state: EditorState = createTestState();
@@ -274,6 +298,7 @@ describe('PasteHandler block paste', () => {
 
 		const blockJson: string = JSON.stringify({
 			type: 'image',
+			htmlId: 'figure-target',
 			attrs: { src: 'https://example.com/photo.png', alt: 'A photo' },
 		});
 
@@ -292,6 +317,7 @@ describe('PasteHandler block paste', () => {
 		expect(isBlockNode(newBlock)).toBe(true);
 		if (isBlockNode(newBlock)) {
 			expect(newBlock.type).toBe('image');
+			expect(newBlock.htmlId).toBe('figure-target');
 			expect(newBlock.attrs?.src).toBe('https://example.com/photo.png');
 		}
 

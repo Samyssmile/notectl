@@ -127,10 +127,46 @@ describe('parseMarkdownToDocument — blocks', () => {
 		expect(getBlockText(firstBlock(doc))).toBe('raw html');
 	});
 
+	it('parses registry-free raw HTML with baseline block and inline semantics', () => {
+		const markdown = [
+			'<h3 id="intro"><strong>Bold</strong> <a href="/guide">link</a><br>tail</h3>',
+			'',
+			'<ol><li id="step-one">one</li><li>two</li></ol>',
+			'',
+			'<table id="data"><tr><td id="value" rowspan="2"><em>cell</em></td></tr></table>',
+		].join('\n');
+		const doc = parseMarkdownToDocument(markdown);
+
+		expect(doc.children.map((block) => block.type)).toEqual([
+			'heading',
+			'list_item',
+			'list_item',
+			'table',
+		]);
+		const heading = doc.children[0] as BlockNode;
+		expect(heading).toMatchObject({ attrs: { level: 3 }, htmlId: 'intro' });
+		const headingInline = getInlineChildren(heading);
+		expect(headingInline[0]?.marks.map((mark) => mark.type)).toEqual(['bold']);
+		expect(headingInline[2]?.marks).toEqual([
+			{ type: markType('link'), attrs: { href: '/guide' } },
+		]);
+		expect((headingInline[3] as InlineNode).inlineType).toBe('hard_break');
+		expect(doc.children[1]?.htmlId).toBe('step-one');
+		const table = doc.children[3] as BlockNode;
+		expect(table.htmlId).toBe('data');
+		const cell = getBlockChildren(getBlockChildren(table)[0] as BlockNode)[0] as BlockNode;
+		expect(cell).toMatchObject({ htmlId: 'value', attrs: { rowspan: 2 } });
+		const cellParagraph = getBlockChildren(cell)[0] as BlockNode;
+		expect(getInlineChildren(cellParagraph)[0]?.marks.map((mark) => mark.type)).toEqual(['italic']);
+	});
+
 	it('treats inline-tag lines as paragraphs, not HTML blocks', () => {
 		const doc = parseMarkdownToDocument('<u>underline</u> stays inline');
-		// Phase 2 inline parser keeps raw text; the point is it is one paragraph, not an HTML block.
-		expect(firstBlock(doc).type).toBe('paragraph');
+		const block = firstBlock(doc);
+		expect(block.type).toBe('paragraph');
+		const inline = getInlineChildren(block);
+		expect(inline[0]).toMatchObject({ text: 'underline', marks: [{ type: 'underline' }] });
+		expect(inline[1]).toMatchObject({ text: ' stays inline', marks: [] });
 	});
 
 	it('returns the canonical empty document (one empty paragraph) for empty input', () => {
@@ -233,6 +269,14 @@ describe('parseMarkdownToDocument — inline', () => {
 		expect(result[0]).toEqual({ text: 'line one', marks: [] });
 		expect(result[1]).toEqual({ node: 'hard_break', attrs: {} });
 		expect(result[2]).toEqual({ text: 'line two', marks: [] });
+	});
+
+	it('parses a raw HTML break through the registry-free fallback', () => {
+		expect(inlineOf('line one<br>line two')).toEqual([
+			{ text: 'line one', marks: [] },
+			{ node: 'hard_break', attrs: {} },
+			{ text: 'line two', marks: [] },
+		]);
 	});
 });
 

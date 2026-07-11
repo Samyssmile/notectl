@@ -54,6 +54,42 @@ describe('Transaction', () => {
 			expect(tr.steps).toHaveLength(2);
 		});
 
+		it('restores a merged source block HTML ID through undo', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('first')], 'b1', undefined, 'first'),
+				createBlockNode('paragraph', [createTextNode('second')], 'b2', undefined, 'second'),
+			]);
+			const selection = createCollapsedSelection('b2', 0);
+			const state = EditorState.create({ doc, selection });
+			const transaction = new TransactionBuilder(selection, null, 'input', doc)
+				.mergeBlocksAt('b1', 'b2')
+				.setSelection(createCollapsedSelection('b1', 5))
+				.build();
+
+			const merged = state.apply(transaction);
+			expect(merged.doc.children).toHaveLength(1);
+			expect(merged.doc.children[0]?.htmlId).toBe('first');
+
+			const restored = merged.apply(invertTransaction(transaction));
+			expect(restored.doc.children.map((block) => block.htmlId)).toEqual(['first', 'second']);
+		});
+
+		it('preserves a semantic HTML ID across a block type change', () => {
+			const doc = createDocument([
+				createBlockNode('paragraph', [createTextNode('Title')], 'b1', undefined, 'title'),
+			]);
+			const selection = createCollapsedSelection('b1', 0);
+			const state = EditorState.create({ doc, selection });
+			const transaction = new TransactionBuilder(selection, null, 'command', doc)
+				.setBlockType('b1', 'heading', { level: 2 })
+				.setSelection(selection)
+				.build();
+
+			const next = state.apply(transaction);
+			expect(next.doc.children[0]?.type).toBe('heading');
+			expect(next.doc.children[0]?.htmlId).toBe('title');
+		});
+
 		it('deleteText falls back to single segment when no workingDoc and no explicit segments', () => {
 			const sel = createCollapsedSelection('b1', 0);
 			const tr = new TransactionBuilder(sel, null, 'input')

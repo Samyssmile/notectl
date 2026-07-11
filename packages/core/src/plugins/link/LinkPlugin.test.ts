@@ -44,6 +44,22 @@ function makeState(
 	return builder.build();
 }
 
+async function initPluginWithContainer(container: HTMLElement): Promise<LinkPlugin> {
+	const plugin = new LinkPlugin();
+	await plugin.init(mockPluginContext({ getContainer: () => container }));
+	return plugin;
+}
+
+function appendLink(container: HTMLElement, href: string): HTMLElement {
+	const anchor: HTMLAnchorElement = document.createElement('a');
+	anchor.setAttribute('href', href);
+	const child: HTMLElement = document.createElement('strong');
+	child.textContent = 'jump';
+	anchor.appendChild(child);
+	container.appendChild(anchor);
+	return child;
+}
+
 // --- Tests ---
 
 describe('LinkPlugin', () => {
@@ -82,6 +98,36 @@ describe('LinkPlugin', () => {
 
 			expect(el?.getAttribute('target')).toBeNull();
 			expect(el?.getAttribute('rel')).toBeNull();
+		});
+
+		it('omits target and rel for fragment-only links even when openInNewTab is true', async () => {
+			const h = await pluginHarness(new LinkPlugin());
+			const spec = h.getMarkSpec('link');
+			const el = spec?.toDOM({ type: 'link', attrs: { href: '#chapter-2' } });
+
+			expect(el?.getAttribute('href')).toBe('#chapter-2');
+			expect(el?.getAttribute('target')).toBeNull();
+			expect(el?.getAttribute('rel')).toBeNull();
+		});
+
+		it('serializes fragment-only links without target and rel', async () => {
+			const h = await pluginHarness(new LinkPlugin());
+			const html = h
+				.getMarkSpec('link')
+				?.toHTMLString?.({ type: 'link', attrs: { href: '#chapter-2' } }, 'Chapter 2');
+
+			expect(html).toBe('<a href="#chapter-2">Chapter 2</a>');
+		});
+
+		it('continues to serialize normal links with target and rel', async () => {
+			const h = await pluginHarness(new LinkPlugin());
+			const html = h
+				.getMarkSpec('link')
+				?.toHTMLString?.({ type: 'link', attrs: { href: 'https://example.com' } }, 'Example');
+
+			expect(html).toBe(
+				'<a href="https://example.com" target="_blank" rel="noopener noreferrer">Example</a>',
+			);
 		});
 
 		it('has rank 10 (lower priority than text formatting marks)', async () => {
@@ -267,6 +313,92 @@ describe('LinkPlugin', () => {
 
 			expect(alert.hidden).toBe(true);
 			expect(input.getAttribute('aria-invalid')).toBeNull();
+		});
+	});
+
+	describe('local fragment navigation', () => {
+		it('delegates nested clicks to a raw editor-local fragment target', async () => {
+			const container: HTMLDivElement = document.createElement('div');
+			const clickedChild: HTMLElement = appendLink(container, '#chapter:2[details]');
+			const target: HTMLElement = document.createElement('section');
+			target.id = 'chapter:2[details]';
+			const scrollIntoView = vi.fn();
+			target.scrollIntoView = scrollIntoView;
+			container.appendChild(target);
+			const plugin: LinkPlugin = await initPluginWithContainer(container);
+
+			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+			clickedChild.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(scrollIntoView).toHaveBeenCalledOnce();
+			plugin.destroy();
+		});
+
+		it('falls back to the percent-decoded fragment identifier', async () => {
+			const container: HTMLDivElement = document.createElement('div');
+			const clickedChild: HTMLElement = appendLink(container, '#caf%C3%A9');
+			const target: HTMLElement = document.createElement('section');
+			target.id = 'café';
+			const scrollIntoView = vi.fn();
+			target.scrollIntoView = scrollIntoView;
+			container.appendChild(target);
+			const plugin: LinkPlugin = await initPluginWithContainer(container);
+
+			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+			clickedChild.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(scrollIntoView).toHaveBeenCalledOnce();
+			plugin.destroy();
+		});
+
+		it('leaves an unresolved fragment link to the browser', async () => {
+			const container: HTMLDivElement = document.createElement('div');
+			const clickedChild: HTMLElement = appendLink(container, '#missing');
+			const plugin: LinkPlugin = await initPluginWithContainer(container);
+
+			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+			clickedChild.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(false);
+			plugin.destroy();
+		});
+
+		it('does not intercept a normal link even when its fragment matches a local ID', async () => {
+			const container: HTMLDivElement = document.createElement('div');
+			const clickedChild: HTMLElement = appendLink(container, 'https://example.com/page#chapter-2');
+			const target: HTMLElement = document.createElement('section');
+			target.id = 'chapter-2';
+			const scrollIntoView = vi.fn();
+			target.scrollIntoView = scrollIntoView;
+			container.appendChild(target);
+			const plugin: LinkPlugin = await initPluginWithContainer(container);
+
+			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+			clickedChild.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(scrollIntoView).not.toHaveBeenCalled();
+			plugin.destroy();
+		});
+
+		it('removes the delegated click handler on destroy', async () => {
+			const container: HTMLDivElement = document.createElement('div');
+			const clickedChild: HTMLElement = appendLink(container, '#chapter-2');
+			const target: HTMLElement = document.createElement('section');
+			target.id = 'chapter-2';
+			const scrollIntoView = vi.fn();
+			target.scrollIntoView = scrollIntoView;
+			container.appendChild(target);
+			const plugin: LinkPlugin = await initPluginWithContainer(container);
+			plugin.destroy();
+
+			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+			clickedChild.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(scrollIntoView).not.toHaveBeenCalled();
 		});
 	});
 

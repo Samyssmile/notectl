@@ -20,6 +20,8 @@ import {
 	getInlineChildren,
 	isLeafBlock,
 } from '../../model/Document.js';
+import { normalizeHTMLId } from '../../model/HTMLUtils.js';
+import { serializeDocumentToHTML } from '../DocumentSerializer.js';
 import { serializeInlineContent } from './InlineSerializers.js';
 import { type SerContext, exportContext } from './MarkdownContext.js';
 import {
@@ -28,6 +30,7 @@ import {
 	escapeLinkDestination,
 	escapeLinkTitle,
 } from './MarkdownEscape.js';
+import { resolveMarkdownHTMLRegistry } from './MarkdownHTMLRegistry.js';
 
 /** Serializes a sequence of blocks, grouping consecutive list items, joined by blank lines. */
 export function serializeBlocks(blocks: readonly BlockNode[], ctx: SerContext): string {
@@ -47,7 +50,11 @@ export function serializeBlocks(blocks: readonly BlockNode[], ctx: SerContext): 
 				items.push(item);
 				i++;
 			}
-			parts.push(serializeListGroup(items, ctx));
+			parts.push(
+				ctx.opts.htmlFallback && items.some(hasHTMLIdInTree)
+					? serializeHTMLFallback(items, ctx)
+					: serializeListGroup(items, ctx),
+			);
 		} else {
 			parts.push(serializeBlock(block, ctx));
 			i++;
@@ -58,6 +65,9 @@ export function serializeBlocks(blocks: readonly BlockNode[], ctx: SerContext): 
 
 /** Serializes a single (non-list-item) block. */
 export function serializeBlock(block: BlockNode, ctx: SerContext): string {
+	if (ctx.opts.htmlFallback && hasHTMLIdInTree(block)) {
+		return serializeHTMLFallback([block], ctx);
+	}
 	const type: string = block.type;
 
 	if (type === 'paragraph') return serializeParagraph(block, ctx);
@@ -71,6 +81,19 @@ export function serializeBlock(block: BlockNode, ctx: SerContext): string {
 	if (type === 'subtitle') return serializeTitleLike(block, ctx, 2);
 
 	return serializeUnknownBlock(block, ctx);
+}
+
+/** Whether a block subtree carries HTML-only identity that Markdown cannot express. */
+function hasHTMLIdInTree(block: BlockNode): boolean {
+	if (normalizeHTMLId(block.htmlId)) return true;
+	return getBlockChildren(block).some(hasHTMLIdInTree);
+}
+
+/** Emits a complete block run as raw HTML without leaking internal block IDs. */
+function serializeHTMLFallback(blocks: readonly BlockNode[], ctx: SerContext): string {
+	return serializeDocumentToHTML({ children: blocks }, resolveMarkdownHTMLRegistry(ctx.registry), {
+		includeBlockIds: false,
+	});
 }
 
 /** Paragraph: inline content with leading block markers escaped per line. */
@@ -272,9 +295,14 @@ function serializeTable(block: BlockNode, ctx: SerContext): string {
 	const rows: readonly BlockNode[] = getBlockChildren(block);
 	if (rows.length === 0) return '';
 
+	// CommonMark has no table syntax. Keep the semantic hierarchy through the
+	// same raw-HTML seam used for spans and HTML IDs.
+	if (!ctx.opts.gfm && ctx.opts.htmlFallback) {
+		return serializeHTMLFallback([block], ctx);
+	}
+
 	if (ctx.opts.htmlFallback && hasSpannedCells(rows)) {
-		const html: string | undefined = ctx.registry?.getNodeSpec('table')?.toHTML?.(block, '');
-		if (html) return html;
+		return serializeHTMLFallback([block], ctx);
 	}
 
 	const matrix: string[][] = rows.map((row) =>

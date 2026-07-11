@@ -28,6 +28,8 @@ export type RichSegment = RichTextSegment | RichInlineSegment;
 export interface RichBlockData {
 	readonly type: string;
 	readonly text: string;
+	/** Semantic HTML ID, included only when the complete source block was copied. */
+	readonly htmlId?: string;
 	readonly attrs?: Record<string, unknown>;
 	/** Inline segments with marks. When present, used instead of plain `text`. */
 	readonly segments?: readonly RichSegment[];

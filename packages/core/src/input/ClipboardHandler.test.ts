@@ -63,7 +63,7 @@ describe('ClipboardHandler copy', () => {
 	});
 
 	it('writes block JSON for NodeSelection', () => {
-		const imgBlock = createImageBlock(B1);
+		const imgBlock = { ...createImageBlock(B1), htmlId: 'figure-target' };
 		const doc = createDocument([imgBlock]);
 		const state: EditorState = EditorState.create({
 			doc,
@@ -83,14 +83,16 @@ describe('ClipboardHandler copy', () => {
 		expect(event.defaultPrevented).toBe(true);
 		const json: string = event.data.get('application/x-notectl-block') ?? '';
 		expect(json).toBeTruthy();
-		const parsed: { type: string; attrs: Record<string, unknown> } = JSON.parse(json);
+		const parsed: { type: string; htmlId?: string; attrs: Record<string, unknown> } =
+			JSON.parse(json);
 		expect(parsed.type).toBe('image');
+		expect(parsed.htmlId).toBe('figure-target');
 		expect(parsed.attrs.src).toBe('https://example.com/photo.png');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
 	it('writes text/html via toHTML when spec exists', () => {
-		const imgBlock = createImageBlock(B1);
+		const imgBlock = { ...createImageBlock(B1), htmlId: 'figure-target' };
 		const doc = createDocument([imgBlock]);
 		const state: EditorState = EditorState.create({
 			doc,
@@ -120,6 +122,8 @@ describe('ClipboardHandler copy', () => {
 		const html: string = event.data.get('text/html') ?? '';
 		expect(html).toContain('<img');
 		expect(html).toContain('https://example.com/photo.png');
+		expect(html).toContain('id="figure-target"');
+		expect(html).not.toContain('data-block-id');
 	});
 
 	it('writes alt text as text/plain for NodeSelection', () => {
@@ -163,6 +167,54 @@ describe('ClipboardHandler copy', () => {
 		expect(event.defaultPrevented).toBe(true);
 		expect(event.data.get('text/plain')).toBe('Hello');
 		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('keeps a semantic ID when a complete single paragraph is copied', () => {
+		const doc = createDocument([
+			createBlockNode('paragraph', [createTextNode('Hello')], B1, undefined, 'paragraph-target'),
+		]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 5 }),
+		});
+		element = document.createElement('div');
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			schemaRegistry: new SchemaRegistry(),
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		const html: string = event.data.get('text/html') ?? '';
+		expect(html).toContain('<p id="paragraph-target">Hello</p>');
+		expect(html).toContain('data-notectl-rich');
+		expect(html).not.toContain('data-block-id');
+	});
+
+	it('drops a semantic ID when only part of a single paragraph is copied', () => {
+		const doc = createDocument([
+			createBlockNode('paragraph', [createTextNode('Hello')], B1, undefined, 'paragraph-target'),
+		]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 1 }, { blockId: B1, offset: 4 }),
+		});
+		element = document.createElement('div');
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			schemaRegistry: new SchemaRegistry(),
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		const html: string = event.data.get('text/html') ?? '';
+		expect(html).toBe('ell');
+		expect(html).not.toContain('paragraph-target');
+		expect(html).not.toContain('data-notectl-rich');
 	});
 
 	it('preserves InlineNodes in embedded rich HTML while skipping them in text/plain', () => {
@@ -396,20 +448,32 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		// Table structure: table > row > cell > paragraph (leaf)
 		const cell1: ReturnType<typeof createBlockNode> = createBlockNode(
 			'table_cell',
-			[createBlockNode('paragraph', [createTextNode('alpha')], B1)],
+			[createBlockNode('paragraph', [createTextNode('alpha')], B1, undefined, 'alpha-target')],
 			B4,
+			undefined,
+			'left-cell',
 		);
 		const cell2: ReturnType<typeof createBlockNode> = createBlockNode(
 			'table_cell',
-			[createBlockNode('paragraph', [createTextNode('omega')], B2)],
+			[createBlockNode('paragraph', [createTextNode('omega')], B2, undefined, 'omega-target')],
 			B5,
+			undefined,
+			'right-cell',
 		);
 		const row: ReturnType<typeof createBlockNode> = createBlockNode(
 			'table_row',
 			[cell1, cell2],
 			B6,
+			undefined,
+			'row-target',
 		);
-		const table: ReturnType<typeof createBlockNode> = createBlockNode('table', [row], B7);
+		const table: ReturnType<typeof createBlockNode> = createBlockNode(
+			'table',
+			[row],
+			B7,
+			undefined,
+			'table-target',
+		);
 
 		const doc = createDocument([table]);
 
@@ -458,6 +522,7 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		expect(cells).toHaveLength(2);
 		expect(cells[0]?.textContent).toBe('pha');
 		expect(cells[1]?.textContent).toBe('om');
+		expect(parsed.querySelector('[id]')).toBeNull();
 	});
 
 	it('derives text/plain correctly for composite selections containing InlineNodes', () => {
@@ -815,8 +880,8 @@ describe('ClipboardHandler HTML serialization with block types', () => {
 	it('embeds rich block data as data-notectl-rich in multi-block HTML', () => {
 		const registry: SchemaRegistry = createRegistryWithBlockTypes();
 		const doc = createDocument([
-			createBlockNode('heading', [createTextNode('Title')], B1, { level: 1 }),
-			createBlockNode('paragraph', [createTextNode('Body')], B2),
+			createBlockNode('heading', [createTextNode('Title')], B1, { level: 1 }, 'title-target'),
+			createBlockNode('paragraph', [createTextNode('Body')], B2, undefined, 'body-target'),
 		]);
 		const state: EditorState = EditorState.create({
 			doc,
@@ -836,6 +901,16 @@ describe('ClipboardHandler HTML serialization with block types', () => {
 
 		const html: string = event.data.get('text/html') ?? '';
 		expect(html).toContain('data-notectl-rich=');
+		const template = document.createElement('template');
+		template.innerHTML = html;
+		const richElement = template.content.querySelector('[data-notectl-rich]');
+		const richData = JSON.parse(richElement?.getAttribute('data-notectl-rich') ?? '[]');
+		expect(richData.map((block: { htmlId?: string }) => block.htmlId)).toEqual([
+			'title-target',
+			'body-target',
+		]);
+		expect(template.content.querySelector('h1')?.id).toBe('title-target');
+		expect(template.content.querySelector('p')?.id).toBe('body-target');
 	});
 
 	it('stores mark segments in rich clipboard data', () => {

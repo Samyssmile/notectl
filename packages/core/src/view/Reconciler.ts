@@ -15,7 +15,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
-import { renderBlock, renderBlockContent } from './BlockRendering.js';
+import { renderBlock, renderBlockContent, syncBlockHTMLId } from './BlockRendering.js';
 import {
 	getRenderedBlockElements,
 	insertAfterPreviousSibling,
@@ -118,6 +118,7 @@ export function reconcile(
 			if (existingNv) {
 				const handled = existingNv.update?.(block) ?? false;
 				if (handled) {
+					syncBlockHTMLId(existingNv.dom, block, oldBlock);
 					// Re-render inline content into contentDOM for leaf blocks
 					if (isLeafBlock(block) && existingNv.contentDOM) {
 						existingNv.contentDOM.textContent = '';
@@ -196,6 +197,7 @@ function blockChanged(
 	newDecos?: readonly Decoration[],
 ): boolean {
 	if (oldBlock.type !== newBlock.type) return true;
+	if (oldBlock.htmlId !== newBlock.htmlId) return true;
 	if (oldBlock.children.length !== newBlock.children.length) return true;
 
 	// Compare attrs
