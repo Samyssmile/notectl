@@ -14,6 +14,7 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"typecheck": "turbo run typecheck",
+		"size:check": "turbo run size:check",
 		"dev": "turbo run dev"
 	},
 	"devDependencies": {

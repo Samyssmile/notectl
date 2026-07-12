@@ -2,6 +2,10 @@ import { resolve } from 'node:path';
 import type { Plugin as VitePlugin } from 'vite';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+import {
+	bundleStatsPlugin,
+	stripEmbeddedFontSourcesFromMaps,
+} from './scripts/BundleStatsPlugin.js';
 
 const pluginEntries: Record<string, string> = {
 	'plugins/text-formatting': resolve(__dirname, 'src/plugins/text-formatting/index.ts'),
@@ -44,6 +48,8 @@ if (process.env.ANALYZE) {
 
 export default defineConfig({
 	plugins: [
+		bundleStatsPlugin(__dirname),
+		stripEmbeddedFontSourcesFromMaps(),
 		dts({
 			insertTypesEntry: false,
 			rollupTypes: false,
@@ -55,6 +61,7 @@ export default defineConfig({
 		lib: {
 			entry: {
 				'notectl-core': resolve(__dirname, 'src/index.ts'),
+				register: resolve(__dirname, 'src/register.ts'),
 				full: resolve(__dirname, 'src/full.ts'),
 				html: resolve(__dirname, 'src/html.ts'),
 				markdown: resolve(__dirname, 'src/markdown.ts'),
@@ -62,6 +69,8 @@ export default defineConfig({
 				'presets/minimal': resolve(__dirname, 'src/presets/minimal.ts'),
 				'presets/full': resolve(__dirname, 'src/presets/full.ts'),
 				fonts: resolve(__dirname, 'src/fonts.ts'),
+				'fonts/starter': resolve(__dirname, 'src/fonts/starter.ts'),
+				'fonts/math': resolve(__dirname, 'src/fonts/math.ts'),
 				...pluginEntries,
 			},
 			formats: ['es'],

@@ -5,6 +5,7 @@ import { createCollapsedSelection } from '../model/Selection.js';
 import { blockId, nodeType } from '../model/TypeBrands.js';
 import type { Plugin } from '../plugins/Plugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
+import '../register.js';
 import { NotectlEditor } from './NotectlEditor.js';
 
 /** Dispatches a real `beforeinput` insertText on the editor's content element. */

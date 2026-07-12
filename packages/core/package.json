@@ -1,10 +1,16 @@
 {
 	"name": "@notectl/core",
-	"version": "2.3.1",
+	"version": "2.3.2",
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
-	"sideEffects": ["./dist/full.mjs", "./dist/notectl-core.umd.js"],
+	"sideEffects": [
+		"./dist/notectl-core.mjs",
+		"./dist/register.mjs",
+		"./dist/chunks/*register*.mjs",
+		"./dist/full.mjs",
+		"./dist/notectl-core.umd.js"
+	],
 	"main": "./dist/notectl-core.umd.js",
 	"module": "./dist/notectl-core.mjs",
 	"types": "./dist/index.d.ts",
@@ -12,6 +18,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/notectl-core.mjs"
+		},
+		"./register": {
+			"types": "./dist/register.d.ts",
+			"import": "./dist/register.mjs"
 		},
 		"./full": {
 			"types": "./dist/full.d.ts",
@@ -41,6 +51,14 @@
 		"./fonts": {
 			"types": "./dist/fonts.d.ts",
 			"import": "./dist/fonts.mjs"
+		},
+		"./fonts/starter": {
+			"types": "./dist/fonts/starter.d.ts",
+			"import": "./dist/fonts/starter.mjs"
+		},
+		"./fonts/math": {
+			"types": "./dist/fonts/math.d.ts",
+			"import": "./dist/fonts/math.mjs"
 		},
 		"./plugins/text-formatting": {
 			"types": "./dist/plugins/text-formatting/index.d.ts",
@@ -164,7 +182,7 @@
 		}
 	},
 	"customElements": "custom-elements.json",
-	"files": ["dist", "README.md", "LICENSE", "custom-elements.json"],
+	"files": ["dist", "README.md", "LICENSE", "THIRD-PARTY-NOTICES.md", "custom-elements.json"],
 	"keywords": [
 		"rich-text-editor",
 		"web-component",
@@ -193,234 +211,17 @@
 		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit",
 		"dev": "vite build --watch",
-		"size": "size-limit",
-		"size:check": "size-limit --limit",
+		"size": "node scripts/check-bundle-size.mjs",
+		"size:check": "node scripts/check-bundle-size.mjs",
 		"build:analyze": "ANALYZE=true vite build"
 	},
-	"size-limit": [
-		{
-			"name": "Core (main entry)",
-			"path": "dist/notectl-core.mjs",
-			"limit": "76 KB",
-			"ignore": ["dompurify", "./MarkdownSerializer-*", "./MarkdownParser-*"],
-			"gzip": true
-		},
-		{
-			"name": "Presets (minimal)",
-			"path": "dist/presets/minimal.mjs",
-			"limit": "8 KB",
-			"gzip": true
-		},
-		{
-			"name": "Presets (full)",
-			"path": "dist/presets/full.mjs",
-			"limit": "92 KB",
-			"gzip": true
-		},
-		{
-			"name": "HTML (serializer/parser)",
-			"path": "dist/html.mjs",
-			"limit": "15 KB",
-			"ignore": ["dompurify"],
-			"gzip": true
-		},
-		{
-			"name": "Markdown (serializer/parser)",
-			"path": "dist/markdown.mjs",
-			"limit": "18 KB",
-			"ignore": ["dompurify"],
-			"gzip": true
-		},
-		{
-			"name": "Fonts (standalone)",
-			"path": "dist/fonts.mjs",
-			"limit": "300 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Table",
-			"path": "dist/plugins/table.mjs",
-			"limit": "22 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Text Formatting",
-			"path": "dist/plugins/text-formatting.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Heading",
-			"path": "dist/plugins/heading.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Toolbar",
-			"path": "dist/plugins/toolbar.mjs",
-			"limit": "15 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Shared",
-			"path": "dist/plugins/shared.mjs",
-			"limit": "15 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Image",
-			"path": "dist/plugins/image.mjs",
-			"limit": "15 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Video",
-			"path": "dist/plugins/video.mjs",
-			"limit": "25 KB",
-			"ignore": ["dompurify"],
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Code Block",
-			"path": "dist/plugins/code-block.mjs",
-			"limit": "18 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Smart Paste",
-			"path": "dist/plugins/smart-paste.mjs",
-			"limit": "6 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Link",
-			"path": "dist/plugins/link.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: List",
-			"path": "dist/plugins/list.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Blockquote",
-			"path": "dist/plugins/blockquote.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Strikethrough",
-			"path": "dist/plugins/strikethrough.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Inline Code",
-			"path": "dist/plugins/inline-code.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Text Color",
-			"path": "dist/plugins/text-color.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Horizontal Rule",
-			"path": "dist/plugins/horizontal-rule.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Alignment",
-			"path": "dist/plugins/alignment.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Font",
-			"path": "dist/plugins/font.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Font Size",
-			"path": "dist/plugins/font-size.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Highlight",
-			"path": "dist/plugins/highlight.mjs",
-			"limit": "10 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Super/Sub",
-			"path": "dist/plugins/super-sub.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Print",
-			"path": "dist/plugins/print.mjs",
-			"limit": "16 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Hard Break",
-			"path": "dist/plugins/hard-break.mjs",
-			"limit": "2 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Gap Cursor",
-			"path": "dist/plugins/gap-cursor.mjs",
-			"limit": "3 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Caret Navigation",
-			"path": "dist/plugins/caret-navigation.mjs",
-			"limit": "7 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Text Direction",
-			"path": "dist/plugins/text-direction.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Bidi Isolation",
-			"path": "dist/plugins/bidi-isolation.mjs",
-			"limit": "5 KB",
-			"gzip": true
-		},
-		{
-			"name": "Plugin: Text Direction Auto",
-			"path": "dist/plugins/text-direction-auto.mjs",
-			"limit": "4 KB",
-			"gzip": true
-		},
-		{
-			"name": "Full (kitchen sink)",
-			"path": "dist/full.mjs",
-			"limit": "390 KB",
-			"gzip": true
-		}
-	],
 	"dependencies": {
 		"dompurify": "^3.4.11"
 	},
 	"devDependencies": {
-		"@size-limit/preset-small-lib": "^12.0.1",
+		"esbuild": "^0.28.1",
 		"happy-dom": "^20.8.9",
 		"rollup-plugin-visualizer": "^7.0.1",
-		"size-limit": "^12.0.1",
 		"terser": "^5.46.1",
 		"vite": "^8.0.16",
 		"vite-plugin-dts": "^4.5.4",

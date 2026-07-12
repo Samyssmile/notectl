@@ -1,11 +1,13 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import { stripEmbeddedFontSourcesFromMaps } from './scripts/BundleStatsPlugin.js';
 
 /**
  * Separate UMD build for CDN / script-tag consumers.
- * Produces a single self-contained file with no code-splitting.
+ * Produces a single file with no code-splitting; DOMPurify remains external.
  */
 export default defineConfig({
+	plugins: [stripEmbeddedFontSourcesFromMaps()],
 	build: {
 		lib: {
 			entry: resolve(__dirname, 'src/full.ts'),

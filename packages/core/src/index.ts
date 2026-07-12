@@ -8,11 +8,13 @@
  * - `@notectl/core/plugins/<name>` — individual plugins
  * - `@notectl/core/presets` — preset factory functions
  * - `@notectl/core/html` — HTML serialization/parsing
- * - `@notectl/core/fonts` — starter font definitions
+ * - `@notectl/core/fonts/starter` — embedded starter font definitions
  * - `@notectl/core/full` — kitchen-sink (all of the above)
  *
  * @packageDocumentation
  */
+
+export { registerNotectlEditor } from './register.js';
 
 // --- Model ---
 export type {

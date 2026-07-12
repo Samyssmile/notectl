@@ -31,6 +31,12 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
+import {
+	JAVA_SUPPORT,
+	JSON_SUPPORT,
+	TYPESCRIPT_SUPPORT,
+	XML_SUPPORT,
+} from '../language/bundles/index.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { splitAndClassify } from './ContentSplitter.js';
 import {
@@ -45,6 +51,13 @@ import type {
 	SmartPasteConfig,
 } from './SmartPasteTypes.js';
 import { SMART_PASTE_SERVICE_KEY } from './SmartPasteTypes.js';
+
+const BUILTIN_LANGUAGE_SUPPORTS = [
+	JAVA_SUPPORT,
+	JSON_SUPPORT,
+	TYPESCRIPT_SUPPORT,
+	XML_SUPPORT,
+] as const;
 
 export class SmartPastePlugin implements Plugin {
 	readonly id = 'smart-paste';
@@ -70,9 +83,14 @@ export class SmartPastePlugin implements Plugin {
 			loadSmartPasteLocale,
 		);
 
-		// Subscribe to language registry for detectors (replay provides built-ins)
+		// Detection belongs to Smart Paste, while Code Block contributes only
+		// highlighting. Preserve those existing capabilities when adding detectors.
 		const registry = context.getService(LANGUAGE_REGISTRY_SERVICE_KEY);
 		if (registry) {
+			for (const support of BUILTIN_LANGUAGE_SUPPORTS) {
+				const existing = registry.get(support.id);
+				registry.register(existing ? { ...existing, detection: support.detection } : support);
+			}
 			registry.onRegister((support) => {
 				if (support.detection) {
 					this.detectors.push(support.detection);

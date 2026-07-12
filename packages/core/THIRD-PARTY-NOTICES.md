@@ -1,12 +1,25 @@
 # Third-party notices
 
 `@notectl/core` has a single runtime dependency (`dompurify`). It also bundles
-one self-hosted font asset, distributed here for completeness.
+three self-hosted font assets, distributed here for completeness.
+
+## Starter fonts (bundled WOFF2)
+
+`FIRA_CODE`, `FIRA_SANS`, and `STARTER_FONTS` from
+`@notectl/core/fonts/starter` contain **Fira Code** and **Fira Sans**. Both are
+licensed under the **SIL Open Font License, Version 1.1**.
+
+- Fira Code: Copyright 2014-2021 The Fira Code Project Authors
+- Fira Sans: Digitized data copyright 2012-2016, The Mozilla Foundation and
+  Telefonica S.A.
+
+- Fira Code: https://github.com/tonsky/FiraCode
+- Fira Sans: https://github.com/mozilla/Fira
 
 ## Notectl Math (bundled OpenType MATH font)
 
 The formula plugin ships an opt-in OpenType MATH font, exported as
-`NOTECTL_MATH_FONT` from `@notectl/core/fonts`. It is a **subset** of
+`NOTECTL_MATH_FONT` from `@notectl/core/fonts/math`. It is a **subset** of
 **Noto Sans Math**, Copyright 2022 Google LLC, licensed under the
 **SIL Open Font License, Version 1.1**.
 
@@ -16,9 +29,13 @@ the reserved name "Noto Sans Math"; its internal family name is "Notectl Math".
 - Original font: Noto Sans Math — https://github.com/notofonts/math
 - License: SIL Open Font License 1.1 — https://scripts.sil.org/OFL
 
-### SIL Open Font License, Version 1.1 - 26 February 2007
+## SIL Open Font License, Version 1.1 - 26 February 2007
+
+The following license applies to all bundled fonts listed above.
 
 ```
+Copyright 2014-2021 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
+Digitized data copyright 2012-2016, The Mozilla Foundation and Telefonica S.A.
 Copyright 2022 Google LLC.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

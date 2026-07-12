@@ -5,7 +5,7 @@
  * - `@notectl/core` — core framework (model, state, view, plugin system)
  * - `@notectl/core/html` — HTML serialization/parsing
  * - `@notectl/core/presets` — preset factory functions
- * - `@notectl/core/fonts` — starter font definitions
+ * - `@notectl/core/fonts/starter` and `/fonts/math` — embedded font definitions
  * - `@notectl/core/plugins/<name>` — individual plugins
  *
  * @example

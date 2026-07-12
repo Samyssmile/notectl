@@ -92,7 +92,7 @@ Full preset (toolbar, headings, lists, links, tables, code blocks, images, fonts
 
 ```ts
 import { ThemePreset, createEditor } from '@notectl/core';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 import { createFullPreset } from '@notectl/core/presets/full';
 

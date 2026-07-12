@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getBlockText } from '../../model/Document.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
-import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import type { PasteInterceptorEntry } from '../PluginManager.js';
 import { CodeBlockPlugin } from '../code-block/CodeBlockPlugin.js';
+import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
 import { SmartPastePlugin } from './SmartPastePlugin.js';
 import type { ContentDetector, DetectionResult } from './SmartPasteTypes.js';
 import { SMART_PASTE_SERVICE_KEY } from './SmartPasteTypes.js';
@@ -37,6 +38,7 @@ function findSmartPasteEntry(
 const SAMPLE_JSON = '{"name": "Alice", "age": 30}';
 
 const FORMATTED_JSON: string = JSON.stringify(JSON.parse(SAMPLE_JSON), null, 2);
+const BUILTIN_LANGUAGE_COUNT = 4;
 
 // --- Tests ---
 
@@ -83,6 +85,35 @@ describe('SmartPastePlugin', () => {
 			// Assert
 			const service = h.pm.getService(SMART_PASTE_SERVICE_KEY);
 			expect(service).toBeDefined();
+		});
+
+		it('adds detection to the built-in language capabilities', async () => {
+			const state = makeState();
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const registry = h.pm.getService(LANGUAGE_REGISTRY_SERVICE_KEY);
+			assertDefined(registry);
+
+			expect(registry.get('java')?.highlighting).toBeDefined();
+			expect(registry.get('java')?.detection).toBeDefined();
+		});
+
+		it('does not re-register unchanged highlighters when adding detectors', async () => {
+			const registerLanguage = vi.fn();
+			const highlighter = {
+				registerLanguage,
+				tokenize: () => [],
+				getSupportedLanguages: () => [],
+			};
+
+			await pluginHarness(
+				[new CodeBlockPlugin({ highlighter }), new SmartPastePlugin()],
+				makeState(),
+				{ builtinSpecs: true },
+			);
+
+			expect(registerLanguage).toHaveBeenCalledTimes(BUILTIN_LANGUAGE_COUNT);
 		});
 
 		it('paste interceptor has priority 50', async () => {

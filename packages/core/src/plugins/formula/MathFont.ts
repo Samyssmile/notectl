@@ -12,8 +12,8 @@
  * a self-hosted font ASSET, not an npm dependency — the single-runtime-dependency
  * promise (only `dompurify`) is unaffected.
  *
- * Import from '@notectl/core/fonts' and pass to the plugin:
- *   import { NOTECTL_MATH_FONT } from '@notectl/core/fonts';
+ * Import from '@notectl/core/fonts/math' and pass to the plugin:
+ *   import { NOTECTL_MATH_FONT } from '@notectl/core/fonts/math';
  *   new FormulaPlugin({ mathFont: NOTECTL_MATH_FONT });
  *
  * The base64 payload keeps it out of the main bundle (tree-shakeable; only the

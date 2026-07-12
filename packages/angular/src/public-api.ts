@@ -65,8 +65,8 @@ export type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting
 export type { FontDefinition } from '@notectl/core/plugins/font';
 
 // Starter fonts
-/** @deprecated Import from '@notectl/core/fonts' instead. */
-export { STARTER_FONTS } from '@notectl/core/fonts';
+/** @deprecated Import from '@notectl/core/fonts/starter' instead. */
+export { STARTER_FONTS } from '@notectl/core/fonts/starter';
 
 // Plugins (tree-shakable re-exports from sub-paths)
 export { TextFormattingPlugin } from '@notectl/core/plugins/text-formatting';

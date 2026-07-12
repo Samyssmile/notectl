@@ -564,11 +564,6 @@ export class NotectlEditor extends HTMLElement {
 	}
 }
 
-// Register custom element (guarded for SSR / non-browser environments)
-if (typeof customElements !== 'undefined' && !customElements.get('notectl-editor')) {
-	customElements.define('notectl-editor', NotectlEditor);
-}
-
 /** Factory function to create and configure a NotectlEditor instance. */
 export async function createEditor(
 	config?: import('./EditorConfig.js').NotectlEditorConfig,
