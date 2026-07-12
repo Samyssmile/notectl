@@ -7,12 +7,15 @@
  */
 
 import type { BlockId } from '../../model/TypeBrands.js';
+import { isRtlContext } from '../../platform/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import { applyRovingTabindex } from '../shared/KeyboardNav.js';
 import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
 import { positionPopup } from '../shared/PopupPositioning.js';
 import { renderBorderColorPicker } from './TableBorderColor.js';
 import { TABLE_LOCALE_EN, type TableLocale } from './TableLocale.js';
+import { renderTableSizeEditor } from './TableSizeEditor.js';
+import type { TableSizeTarget, TableSizingConfig } from './TableSizing.js';
 
 // --- Types ---
 
@@ -20,6 +23,14 @@ export interface TableContextMenuHandle {
 	isOpen(): boolean;
 	close(): void;
 	destroy(): void;
+}
+
+export interface TableContextMenuOptions {
+	/** Explicit logical target used by cell-invoked menus; omitted means current table selection. */
+	readonly sizeTarget?: TableSizeTarget;
+	readonly sizingConfig?: Partial<TableSizingConfig>;
+	/** Element that receives focus after the complete menu closes. */
+	readonly restoreFocusTo?: HTMLElement | null;
 }
 
 interface MenuEntry {
@@ -40,6 +51,13 @@ interface MenuSubmenu {
 
 type MenuDefinition = MenuEntry | MenuSeparator | MenuSubmenu;
 
+const openMenusByContext: WeakMap<PluginContext, Set<() => void>> = new WeakMap();
+
+/** Closes every table context/actions menu owned by one editor instance. */
+export function closeTableContextMenus(context: PluginContext): void {
+	for (const close of [...(openMenusByContext.get(context) ?? [])]) close();
+}
+
 // --- Menu Structure ---
 
 function buildMenuItems(locale: TableLocale): readonly MenuDefinition[] {
@@ -54,6 +72,7 @@ function buildMenuItems(locale: TableLocale): readonly MenuDefinition[] {
 		{ type: 'item', label: locale.deleteColumn, command: 'deleteColumn' },
 		{ type: 'separator' },
 		{ type: 'submenu', label: locale.borderColorLabel, id: 'borderColor' },
+		{ type: 'submenu', label: locale.sizeLabel, id: 'size' },
 		{ type: 'separator' },
 		{ type: 'item', label: locale.deleteTable, command: 'deleteTable' },
 	];
@@ -73,6 +92,7 @@ export function createTableContextMenu(
 	onClosed?: () => void,
 	locale: TableLocale = TABLE_LOCALE_EN,
 	popupManager?: PopupManager,
+	options: TableContextMenuOptions = {},
 ): TableContextMenuHandle {
 	let open = true;
 	let subPopup: HTMLDivElement | null = null;
@@ -84,6 +104,7 @@ export function createTableContextMenu(
 	menu.setAttribute('role', 'menu');
 	menu.setAttribute('aria-label', locale.tableActions);
 	menu.setAttribute('contenteditable', 'false');
+	menu.setAttribute('data-notectl-no-print', '');
 
 	// --- Build menu items ---
 	const menuItems: HTMLButtonElement[] = [];
@@ -240,10 +261,12 @@ export function createTableContextMenu(
 				content: (popup: HTMLElement, closeSub: () => void) => {
 					popup.className = 'notectl-table-context-menu';
 					popup.setAttribute('contenteditable', 'false');
+					popup.setAttribute('data-notectl-no-print', '');
 					subPopup = popup as HTMLDivElement;
 
 					popup.addEventListener('keydown', (e: KeyboardEvent) => {
 						e.stopPropagation();
+						if (e.target instanceof HTMLInputElement) return;
 						const popupIsRtl: boolean = getComputedStyle(menu).direction === 'rtl';
 						const backKey: string = popupIsRtl ? 'ArrowRight' : 'ArrowLeft';
 						if (e.key === backKey) {
@@ -253,16 +276,18 @@ export function createTableContextMenu(
 						}
 					});
 
-					renderBorderColorPicker(popup, context, tableId, () => close(), locale);
+					renderSubmenuContent(popup, trigger);
 				},
 			});
 		} else {
 			subPopup = document.createElement('div');
 			subPopup.className = 'notectl-table-context-menu';
 			subPopup.setAttribute('contenteditable', 'false');
+			subPopup.setAttribute('data-notectl-no-print', '');
 
 			subPopup.addEventListener('keydown', (e: KeyboardEvent) => {
 				e.stopPropagation();
+				if (e.target instanceof HTMLInputElement) return;
 				const menuIsRtl: boolean = getComputedStyle(menu).direction === 'rtl';
 				const closeKey: string = menuIsRtl ? 'ArrowRight' : 'ArrowLeft';
 				if (e.key === closeKey) {
@@ -272,7 +297,7 @@ export function createTableContextMenu(
 				}
 			});
 
-			renderBorderColorPicker(subPopup, context, tableId, () => close(), locale);
+			renderSubmenuContent(subPopup, trigger);
 
 			container.appendChild(subPopup);
 
@@ -280,11 +305,30 @@ export function createTableContextMenu(
 			const isRtl: boolean = getComputedStyle(menu).direction === 'rtl';
 			positionPopup(subPopup, menuRect, { position: 'right', isRtl });
 
-			requestAnimationFrame(() => {
-				const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;
-				firstFocusable?.focus();
-			});
+			if (trigger.dataset.submenu !== 'size') {
+				requestAnimationFrame(() => {
+					const firstFocusable = subPopup?.querySelector('button') as HTMLElement | null;
+					firstFocusable?.focus();
+				});
+			}
 		}
+	}
+
+	function renderSubmenuContent(popup: HTMLElement, trigger: HTMLButtonElement): void {
+		if (trigger.dataset.submenu === 'size') {
+			renderTableSizeEditor(
+				popup,
+				context,
+				{
+					target: options.sizeTarget,
+					config: options.sizingConfig,
+					onClose: close,
+				},
+				locale,
+			);
+			return;
+		}
+		renderBorderColorPicker(popup, context, tableId, close, locale);
 	}
 
 	function closeSubmenu(): void {
@@ -307,9 +351,13 @@ export function createTableContextMenu(
 		}
 	}
 
-	// --- Positioning & append ---
-	positionPopup(menu, anchorRect, { position: 'below-start' });
+	// --- Append before measuring: RTL/right-edge positioning needs the real
+	// containing block and cannot be computed from a disconnected element.
 	container.appendChild(menu);
+	positionPopup(menu, anchorRect, {
+		position: 'below-start',
+		isRtl: isRtlContext(container),
+	});
 
 	// Focus first item immediately and via rAF as backup
 	menuItems[0]?.focus();
@@ -349,8 +397,17 @@ export function createTableContextMenu(
 			document.removeEventListener('mousedown', onClickOutside, true);
 			outsideListenerAttached = false;
 		}
+		openMenusByContext.get(context)?.delete(close);
 		onClosed?.();
+		const restoreTarget: HTMLElement | null | undefined = options.restoreFocusTo;
+		if (restoreTarget?.isConnected) {
+			requestAnimationFrame(() => restoreTarget.focus({ preventScroll: true }));
+		}
 	}
+
+	const contextMenus: Set<() => void> = openMenusByContext.get(context) ?? new Set();
+	contextMenus.add(close);
+	openMenusByContext.set(context, contextMenus);
 
 	return {
 		isOpen: () => open,

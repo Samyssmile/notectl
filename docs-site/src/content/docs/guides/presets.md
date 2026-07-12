@@ -87,7 +87,7 @@ const editor = await createEditor({
 | `textDirectionAuto` | TextDirectionAutoPlugin | `{ autoDetect: true, inherit: true, preserve: true }` |
 | `list` | ListPlugin | `{ interactiveCheckboxes: true }` |
 | `link` | LinkPlugin | `{ openInNewTab: true }` |
-| `table` | TablePlugin | `{ maxPickerRows: 10 }` |
+| `table` | TablePlugin | `{ maxPickerRows: 10, minColumnWidthPx: 72 }` |
 | `horizontalRule` | HorizontalRulePlugin | `{}` |
 | `image` | ImagePlugin | `{ maxWidth: 600, resizable: true }` |
 | `print` | PrintPlugin | `{ keyBinding: 'Mod-Shift-P' }` |

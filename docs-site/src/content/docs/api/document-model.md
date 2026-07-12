@@ -113,9 +113,34 @@ type ChildNode = TextNode | InlineNode | BlockNode;
 | `code_block` | Code block with syntax highlighting | `language?: string` |
 | `horizontal_rule` | Horizontal line (void) | — |
 | `image` | Image block (void) | `src`, `alt?`, `width?`, `height?` |
-| `table` | Table container | — |
-| `table_row` | Table row | — |
+| `table` | Table container | `borderColor?`, `columnWidthsPx?: readonly (number \| null)[]` |
+| `table_row` | Table row | `minHeightPx?: number` |
 | `table_cell` | Table cell | `colspan?`, `rowspan?` |
+
+### Structured block attributes
+
+Block attributes are immutable JSON-compatible values. In addition to scalar strings, numbers,
+and booleans, a block attribute can contain a readonly array of scalar values. This is used for
+state that is intrinsically structured and must round-trip without delimiter-string encoding:
+
+```ts
+type BlockAttrPrimitive = string | number | boolean | null;
+type BlockAttrArrayValue = BlockAttrPrimitive;
+
+type BlockAttrValue =
+  | Exclude<BlockAttrPrimitive, null>
+  | readonly BlockAttrArrayValue[];
+
+interface BlockAttrs {
+  readonly [key: string]: BlockAttrValue;
+}
+```
+
+Table sizing is the canonical example. `table.attrs.columnWidthsPx` has one slot per logical
+column, where a finite number is an explicit CSS-pixel width and `null` means automatic. A row's
+optional `table_row.attrs.minHeightPx` is a CSS-pixel minimum rather than a fixed height. An
+all-automatic width vector and automatic row height are omitted. See the
+[Table plugin sizing API](/notectl/plugins/table/#public-sizing-api) for mutation and validation.
 
 ## TextNode
 

@@ -28,6 +28,7 @@ import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { findRangesMissingMark, findRangesWithMark } from './InlineContentOps.js';
 import { Mapping, type StepMap } from './Mapping.js';
 import { applyStep, getStepMap } from './StepHandlers.js';
+import { isMoveNodeNoOp } from './Steps.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -35,6 +36,7 @@ import type {
 	InsertNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	MoveNodeStep,
 	RemoveInlineNodeStep,
 	RemoveMarkStep,
 	RemoveNodeStep,
@@ -306,6 +308,52 @@ export class TransactionBuilder {
 		}
 
 		const step: RemoveNodeStep = { type: 'removeNode', parentPath, index, removedNode };
+		this.steps.push(step);
+		this.advanceDoc(step);
+		return this;
+	}
+
+	/**
+	 * Moves an existing block subtree without changing its identity. Source and
+	 * destination coordinates are resolved against the current working document;
+	 * `toIndex` is an insertion slot before the source is removed.
+	 */
+	moveNode(
+		fromParentPath: readonly BlockId[],
+		fromIndex: number,
+		toParentPath: readonly BlockId[],
+		toIndex: number,
+	): this {
+		const doc: Document = this.requireDoc('moveNode');
+		const movedNode: BlockNode | undefined = resolveChildAt(doc, fromParentPath, fromIndex);
+		if (!movedNode) {
+			throw new Error(
+				`Node at index ${fromIndex} not found under source path [${fromParentPath.join(', ')}].`,
+			);
+		}
+		if (toParentPath.includes(movedNode.id)) {
+			throw new Error(`Cannot move node "${movedNode.id}" into its own subtree.`);
+		}
+
+		const destinationLength: number =
+			toParentPath.length === 0
+				? doc.children.length
+				: (resolveNodeByPath(doc, toParentPath)?.children.length ?? -1);
+		if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex > destinationLength) {
+			throw new Error(
+				`Invalid destination index ${toIndex} under path [${toParentPath.join(', ')}].`,
+			);
+		}
+
+		const step: MoveNodeStep = {
+			type: 'moveNode',
+			fromParentPath,
+			fromIndex,
+			toParentPath,
+			toIndex,
+			movedNode,
+		};
+		if (isMoveNodeNoOp(step)) return this;
 		this.steps.push(step);
 		this.advanceDoc(step);
 		return this;

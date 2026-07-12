@@ -82,6 +82,7 @@ function mapInline(
 		case 'blockRemoval':
 			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
 		case 'childIndexShift':
+		case 'moveNode':
 			// Sibling-index shifts don't move text positions.
 			return deco;
 	}
@@ -151,6 +152,7 @@ function mapWidget(deco: WidgetDecoration, stepMap: StepMap): WidgetDecoration |
 		case 'blockRemoval':
 			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
 		case 'childIndexShift':
+		case 'moveNode':
 			return deco;
 	}
 }
@@ -198,6 +200,7 @@ function mapNode(deco: NodeDecoration, stepMap: StepMap): NodeDecoration | null 
 		case 'blockRemoval':
 			return stepMap.removedBlockIds.has(deco.blockId) ? null : deco;
 		case 'childIndexShift':
+		case 'moveNode':
 			return deco;
 	}
 }

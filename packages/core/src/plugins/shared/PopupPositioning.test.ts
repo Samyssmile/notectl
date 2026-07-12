@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ContainingBlockOffset } from './PopupPositioning.js';
 import {
 	appendToRoot,
+	getDeepActiveHTMLElement,
 	measureContainingBlockOffset,
 	positionPopup,
 	promoteToTopLayer,
@@ -11,6 +12,19 @@ import {
 type PopoverStub = HTMLDivElement & { showPopover: () => void };
 
 describe('PopupPositioning', () => {
+	it('resolves focus within the reference node shadow root', () => {
+		const host: HTMLDivElement = document.createElement('div');
+		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+		const button: HTMLButtonElement = document.createElement('button');
+		shadow.appendChild(button);
+		document.body.appendChild(host);
+		button.focus();
+
+		expect(document.activeElement).toBe(host);
+		expect(getDeepActiveHTMLElement(button)).toBe(button);
+		host.remove();
+	});
+
 	describe('positionPopup', () => {
 		it('positions below-start with correct top and left', () => {
 			const popup: HTMLDivElement = document.createElement('div');

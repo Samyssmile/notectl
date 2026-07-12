@@ -439,6 +439,62 @@ describe('ClipboardHandler copy with composite blocks (tables)', () => {
 		handler?.destroy();
 	});
 
+	it('serializes a table NodeSelection with its complete structure and attributes', () => {
+		const paragraph = createBlockNode('paragraph', [createTextNode('cell content')], B1);
+		const cell = createBlockNode('table_cell', [paragraph], blockId('cell'));
+		const row = createBlockNode('table_row', [cell], blockId('row'), { minHeightPx: 48 });
+		const table = createBlockNode('table', [row], blockId('table'), {
+			columnWidthsPx: [180],
+		});
+		const state = EditorState.create({
+			doc: createDocument([table]),
+			selection: createNodeSelection(blockId('table'), [blockId('table')]),
+		});
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: () => document.createElement('p'),
+			toHTML: (_node, content) => `<p>${content}</p>`,
+			sanitize: { tags: ['p'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table',
+			toDOM: () => document.createElement('table'),
+			toHTML: (node, content) =>
+				`<table data-width="${String(node.attrs?.columnWidthsPx?.[0] ?? '')}">${content}</table>`,
+			sanitize: { tags: ['table'], attrs: ['data-width'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_row',
+			toDOM: () => document.createElement('tr'),
+			toHTML: (node, content) =>
+				`<tr data-height="${String(node.attrs?.minHeightPx ?? '')}">${content}</tr>`,
+			sanitize: { tags: ['tr'], attrs: ['data-height'] },
+		});
+		registry.registerNodeSpec({
+			type: 'table_cell',
+			toDOM: () => document.createElement('td'),
+			toHTML: (_node, content) => `<td>${content}</td>`,
+			sanitize: { tags: ['td'] },
+		});
+		element = document.createElement('div');
+		handler = new ClipboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			schemaRegistry: registry,
+		});
+
+		const event = createClipboardEvent('copy');
+		element.dispatchEvent(event);
+
+		const html: string = event.data.get('text/html') ?? '';
+		expect(html).toContain('data-width="180"');
+		expect(html).toContain('data-height="48"');
+		expect(html).toContain('cell content');
+		expect(event.data.has('application/x-notectl-block')).toBe(false);
+		expect(event.data.get('text/plain')).toBe('cell content');
+	});
+
 	it('serializes only the selected range within a single table', () => {
 		const B4: BlockId = blockId('b4');
 		const B5: BlockId = blockId('b5');

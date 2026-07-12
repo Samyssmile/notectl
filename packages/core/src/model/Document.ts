@@ -27,8 +27,23 @@ export interface UnderlineMark extends Mark {
 
 // --- Node Types ---
 
+/** JSON-compatible primitive stored in a block attribute. */
+export type BlockAttrPrimitive = string | number | boolean | null;
+
+/** Scalar member permitted inside a structured block-attribute array. */
+export type BlockAttrArrayValue = BlockAttrPrimitive;
+
+/**
+ * Immutable JSON-compatible block attribute value.
+ *
+ * Marks and inline nodes intentionally retain their scalar-only attributes.
+ * Block nodes may additionally own structured state (for example a table's
+ * logical column-width vector) without encoding it in delimiter strings.
+ */
+export type BlockAttrValue = Exclude<BlockAttrPrimitive, null> | readonly BlockAttrArrayValue[];
+
 export interface BlockAttrs {
-	readonly [key: string]: string | number | boolean;
+	readonly [key: string]: BlockAttrValue;
 }
 
 export interface TextNode {
@@ -359,6 +374,30 @@ export function marksEqual(a: Mark, b: Mark): boolean {
 	const bKeys = Object.keys(bAttrs);
 	if (aKeys.length !== bKeys.length) return false;
 	return aKeys.every((key) => aAttrs[key] === bAttrs[key]);
+}
+
+/** Deep equality for immutable, JSON-compatible block attribute values. */
+export function blockAttrValuesEqual(
+	a: BlockAttrValue | undefined,
+	b: BlockAttrValue | undefined,
+): boolean {
+	if (a === b) return true;
+	if (a === undefined || b === undefined || a === null || b === null) return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+		return a.every((value, index) => value === b[index]);
+	}
+	return false;
+}
+
+/** Deep equality for block attribute records. */
+export function blockAttrsEqual(a: BlockAttrs | undefined, b: BlockAttrs | undefined): boolean {
+	if (a === b) return true;
+	if (!a || !b) return false;
+	const aKeys: readonly string[] = Object.keys(a);
+	const bKeys: readonly string[] = Object.keys(b);
+	if (aKeys.length !== bKeys.length) return false;
+	return aKeys.every((key) => blockAttrValuesEqual(a[key], b[key]));
 }
 
 /** Checks whether two mark arrays contain the same marks (order-independent). */

@@ -6,6 +6,7 @@ import deLocale from './locales/de.js';
 import esLocale from './locales/es.js';
 import frLocale from './locales/fr.js';
 import hiLocale from './locales/hi.js';
+import ptLocale from './locales/pt.js';
 import ruLocale from './locales/ru.js';
 import zhLocale from './locales/zh.js';
 
@@ -14,6 +15,7 @@ const ALL_LOCALES: ReadonlyArray<readonly [string, TableLocale]> = [
 	['DE', deLocale],
 	['ES', esLocale],
 	['FR', frLocale],
+	['PT', ptLocale],
 	['ZH', zhLocale],
 	['RU', ruLocale],
 	['AR', arLocale],
@@ -41,6 +43,18 @@ const STRING_KEYS: ReadonlyArray<keyof TableLocale> = [
 	'defaultColor',
 	'noBorders',
 	'borderColorPicker',
+	'sizeLabel',
+	'sizeDialogLabel',
+	'columnWidthLabel',
+	'rowMinimumHeightLabel',
+	'automatic',
+	'mixed',
+	'apply',
+	'cancel',
+	'resetColumnWidth',
+	'resetRowMinimumHeight',
+	'resetAllSizes',
+	'announceTableSizesReset',
 	'announceBorderReset',
 	'insertTable',
 	'tableAriaDescription',
@@ -66,6 +80,21 @@ describe('TableLocale', () => {
 
 		it('borderSwatchLabel produces correct string', () => {
 			expect(TABLE_LOCALE_EN.borderSwatchLabel('Blue')).toBe('Border Blue');
+		});
+
+		it('provides complete sizing labels and announcements', () => {
+			expect(TABLE_LOCALE_EN.sizeLabel).toBe('Size...');
+			expect(TABLE_LOCALE_EN.columnWidthLabel).toBe('Column width (px)');
+			expect(TABLE_LOCALE_EN.rowMinimumHeightLabel).toBe('Row minimum height (px)');
+			expect(TABLE_LOCALE_EN.invalidDimensionRange(60, 10_000)).toBe(
+				'Enter a value from 60 to 10000 px.',
+			);
+			expect(TABLE_LOCALE_EN.selectColumnLabel(1)).toBe('Select column 2');
+			expect(TABLE_LOCALE_EN.resizeRowSeparatorLabel(2)).toBe('Resize row 3');
+			expect(TABLE_LOCALE_EN.announceColumnWidthSet(1, 120)).toBe('Column 2 width set to 120 px.');
+			expect(TABLE_LOCALE_EN.announceRowMinimumHeightReset(2)).toBe(
+				'Row 3 minimum height reset to automatic.',
+			);
 		});
 	});
 
@@ -103,6 +132,28 @@ describe('TableLocale', () => {
 		it('borderSwatchLabel returns a non-empty string', () => {
 			const result: string = locale.borderSwatchLabel('Blue');
 			expect(result.length).toBeGreaterThan(0);
+		});
+
+		it('has localized sizing functions that interpolate indices, values, and ranges', () => {
+			const results: ReadonlyArray<readonly [string, string, readonly string[]]> = [
+				['invalidDimensionRange', locale.invalidDimensionRange(61, 987), ['61', '987']],
+				['selectRowLabel', locale.selectRowLabel(2), ['3']],
+				['selectColumnLabel', locale.selectColumnLabel(3), ['4']],
+				['resizeColumnSeparatorLabel', locale.resizeColumnSeparatorLabel(4), ['5']],
+				['resizeRowSeparatorLabel', locale.resizeRowSeparatorLabel(5), ['6']],
+				['resizeKeyboardHint', locale.resizeKeyboardHint(7, 31), ['7', '31']],
+				['announceColumnWidthSet', locale.announceColumnWidthSet(6, 123), ['7', '123']],
+				['announceRowMinimumHeightSet', locale.announceRowMinimumHeightSet(7, 234), ['8', '234']],
+				['announceColumnWidthReset', locale.announceColumnWidthReset(8), ['9']],
+				['announceRowMinimumHeightReset', locale.announceRowMinimumHeightReset(9), ['10']],
+			];
+
+			for (const [key, result, expectedValues] of results) {
+				expect(result.length, `${key} should not be empty`).toBeGreaterThan(0);
+				for (const value of expectedValues) {
+					expect(result, `${key} should include ${value}`).toContain(value);
+				}
+			}
 		});
 	});
 

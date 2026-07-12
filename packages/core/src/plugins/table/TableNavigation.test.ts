@@ -11,7 +11,8 @@ import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import { TABLE_LOCALE_EN } from './TableLocale.js';
-import { registerTableKeymaps } from './TableNavigation.js';
+import { registerTableKeymaps, resolveTableMenuSizeTarget } from './TableNavigation.js';
+import { TableSelectionServiceKey } from './TableSelection.js';
 import { TABLE_SCHEMA, createTableState } from './TableTestUtils.js';
 
 // --- Test-specific Helpers ---
@@ -70,6 +71,49 @@ function createNavState(
 // --- Tests ---
 
 describe('TableNavigation', () => {
+	describe('context-menu sizing target', () => {
+		it('uses the active logical range instead of forcing the caret cell', () => {
+			const context = {
+				getService: (key: unknown) =>
+					key === TableSelectionServiceKey
+						? {
+								getSelectedRange: () => ({
+									tableId: 't1' as BlockId,
+									fromRow: 0,
+									fromCol: 0,
+									toRow: 1,
+									toCol: 1,
+								}),
+							}
+						: undefined,
+			} as unknown as PluginContext;
+			const tableContext = {
+				tableId: 't1' as BlockId,
+				tableIndex: 0,
+				rowId: 'row0' as BlockId,
+				rowIndex: 0,
+				rowEnd: 1,
+				cellId: 'c0_0' as BlockId,
+				colIndex: 0,
+				colEnd: 1,
+				rowspan: 1,
+				colspan: 1,
+				totalRows: 2,
+				totalCols: 2,
+			};
+
+			expect(resolveTableMenuSizeTarget(context, tableContext)).toBeUndefined();
+			expect(
+				resolveTableMenuSizeTarget({ getService: () => undefined } as PluginContext, tableContext),
+			).toEqual({
+				kind: 'cell',
+				tableId: 't1',
+				row: 0,
+				column: 0,
+			});
+		});
+	});
+
 	describe('Tab', () => {
 		it('moves to next cell in same row', () => {
 			const state = createNavState(2, 3, 0, 0);

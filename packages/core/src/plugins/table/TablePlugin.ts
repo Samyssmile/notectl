@@ -8,16 +8,32 @@ import type { Decoration, DecorationSet } from '../../decorations/Decoration.js'
 import { node as nodeDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
 import { TABLE_CSS } from '../../editor/styles/table.js';
+import type { BlockAttrValue, BlockAttrs, BlockNode } from '../../model/Document.js';
+import { getBlockChildren } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import {
+	TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
+	TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+	normalizeSerializedTableDimensionPx,
+	serializeTableDimensionAttrs,
+} from '../../serialization/TableDimensions.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidHexColor } from '../shared/ColorValidation.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { resetTableBorderColor } from './TableBorderColor.js';
+import { installTableClipboard } from './TableClipboard.js';
 import { insertTable, registerTableCommands } from './TableCommands.js';
+import { closeTableContextMenus } from './TableContextMenu.js';
+import type { TableControlsHandle } from './TableControls.js';
+import {
+	createTableGrid,
+	normalizeTableSpan,
+	projectTableColumnWidthsForSlice,
+} from './TableGrid.js';
 import { isInsideTable } from './TableHelpers.js';
 import { TABLE_LOCALE_EN, type TableLocale, loadTableLocale } from './TableLocale.js';
 import { registerTableKeymaps } from './TableNavigation.js';
@@ -31,13 +47,20 @@ import {
 	createTableSelectionService,
 	installMouseSelection,
 } from './TableSelection.js';
+import {
+	DEFAULT_TABLE_SIZING_CONFIG,
+	type TableSizingConfig,
+	createTableSizingService,
+	readTableColumnWidthsPx,
+	resolveTableSizingConfig,
+} from './TableSizing.js';
 
 // --- Attribute Registry Augmentation ---
 
 declare module '../../model/AttrRegistry.js' {
 	interface NodeAttrRegistry {
-		table: { borderColor?: string };
-		table_row: Record<string, never>;
+		table: { borderColor?: string; columnWidthsPx?: readonly (number | null)[] };
+		table_row: { minHeightPx?: number };
 		table_cell: { colspan?: number; rowspan?: number };
 	}
 }
@@ -51,11 +74,34 @@ export interface TableConfig {
 	readonly maxPickerCols?: number;
 	/** Locale for all user-facing strings. Defaults to English. */
 	readonly locale?: TableLocale;
+	/** Minimum logical column width in CSS pixels. Defaults to 60. */
+	readonly minColumnWidthPx?: number;
+	/** Minimum logical row height in CSS pixels. Defaults to 24. */
+	readonly minRowHeightPx?: number;
+	/** Maximum accepted logical column width in CSS pixels. Defaults to 10000. */
+	readonly maxColumnWidthPx?: number;
+	/** Maximum accepted logical row height in CSS pixels. Defaults to 10000. */
+	readonly maxRowHeightPx?: number;
+	/** Small keyboard resize step in CSS pixels. Defaults to 8. */
+	readonly keyboardResizeStepPx?: number;
+	/** Shift-modified keyboard resize step in CSS pixels. Defaults to 32. */
+	readonly keyboardResizeLargeStepPx?: number;
+	/** Enables pointer and separator-key resizing. Precise UI/API remain available. Defaults to true. */
+	readonly directResize?: boolean;
 }
 
-const DEFAULT_CONFIG: TableConfig = {
+interface ResolvedTableConfig extends TableSizingConfig {
+	readonly maxPickerRows: number;
+	readonly maxPickerCols: number;
+	readonly locale?: TableLocale;
+	readonly directResize: boolean;
+}
+
+const DEFAULT_CONFIG: ResolvedTableConfig = {
 	maxPickerRows: 8,
 	maxPickerCols: 8,
+	...DEFAULT_TABLE_SIZING_CONFIG,
+	directResize: true,
 };
 
 // --- SVG Icon ---
@@ -68,21 +114,35 @@ const TABLE_ICON =
 // --- Serialization Constants ---
 
 const DEFAULT_BORDER_COLOR = '#d0d0d0';
-const TABLE_BASE_STYLE = 'border-collapse: collapse; width: 100%; table-layout: fixed';
+const TABLE_BASE_STYLE = 'border-collapse: collapse; table-layout: fixed';
 const CELL_STYLE = `border: 1px solid var(--ntbl-bc, ${DEFAULT_BORDER_COLOR}); padding: 8px 12px; vertical-align: top`;
 
 // --- Serialization Helpers ---
 
 /** Builds the inline `style` attribute value for the `<table>` element. */
-function buildTableStyle(borderColor: string | undefined): string {
-	if (!borderColor) return TABLE_BASE_STYLE;
+function buildTableStyle(
+	borderColor: string | undefined,
+	widths: readonly (number | null)[],
+	minimumColumnWidthPx: number,
+): string {
+	const minimumWidthPx: number = widths.reduce<number>(
+		(total, width) => total + (width ?? minimumColumnWidthPx),
+		0,
+	);
+	const allColumnsExplicit: boolean =
+		widths.length > 0 && widths.every((width): width is number => width !== null);
+	const widthStyle: string = allColumnsExplicit
+		? `width: ${String(minimumWidthPx)}px`
+		: 'width: 100%';
+	const baseStyle = `${TABLE_BASE_STYLE}; ${widthStyle}; min-width: ${String(minimumWidthPx)}px`;
+	if (!borderColor) return baseStyle;
 	if (borderColor === 'none') {
-		return `${TABLE_BASE_STYLE}; --ntbl-bc: transparent`;
+		return `${baseStyle}; --ntbl-bc: transparent`;
 	}
 	if (isValidHexColor(borderColor)) {
-		return `${TABLE_BASE_STYLE}; --ntbl-bc: ${escapeHTML(borderColor)}`;
+		return `${baseStyle}; --ntbl-bc: ${escapeHTML(borderColor)}`;
 	}
-	return TABLE_BASE_STYLE;
+	return baseStyle;
 }
 
 // --- Plugin ---
@@ -92,14 +152,24 @@ export class TablePlugin implements Plugin {
 	readonly name = 'Table';
 	readonly priority = 40;
 
-	private readonly config: TableConfig;
+	private readonly config: ResolvedTableConfig;
 	private locale!: TableLocale;
 	private selectionService: TableSelectionService | null = null;
 	private cleanupMouseSelection: (() => void) | null = null;
+	private cleanupClipboard: (() => void) | null = null;
 	private context: PluginContext | null = null;
+	private readonly controls: Set<TableControlsHandle> = new Set();
 
 	constructor(config?: Partial<TableConfig>) {
-		this.config = { ...DEFAULT_CONFIG, ...config };
+		const sizing: TableSizingConfig = resolveTableSizingConfig(config ?? {});
+		this.config = {
+			...DEFAULT_CONFIG,
+			...config,
+			...sizing,
+			maxPickerRows: normalizePickerSize(config?.maxPickerRows, DEFAULT_CONFIG.maxPickerRows),
+			maxPickerCols: normalizePickerSize(config?.maxPickerCols, DEFAULT_CONFIG.maxPickerCols),
+			directResize: config?.directResize ?? true,
+		};
 	}
 
 	async init(context: PluginContext): Promise<void> {
@@ -118,22 +188,33 @@ export class TablePlugin implements Plugin {
 		context.registerCommand('resetTableBorderColor', () =>
 			resetTableBorderColor(context, this.locale),
 		);
-		registerTableKeymaps(context, this.locale);
+		registerTableKeymaps(context, this.locale, this.config);
 		this.registerToolbarItem(context);
 		this.selectionService = createTableSelectionService(context);
+		createTableSizingService(context, this.config);
 	}
 
 	onReady(): void {
 		if (this.context && this.selectionService) {
 			this.cleanupMouseSelection = installMouseSelection(this.context, this.selectionService);
+			this.cleanupClipboard = installTableClipboard(this.context, this.selectionService);
 		}
 	}
 
 	destroy(): void {
+		if (this.context) closeTableContextMenus(this.context);
 		this.cleanupMouseSelection?.();
 		this.cleanupMouseSelection = null;
+		this.cleanupClipboard?.();
+		this.cleanupClipboard = null;
 		this.selectionService = null;
+		this.controls.clear();
 		this.context = null;
+	}
+
+	onReadOnlyChange(readonly: boolean): void {
+		for (const controls of this.controls) controls.setReadOnly(readonly);
+		if (readonly && this.context) closeTableContextMenus(this.context);
 	}
 
 	decorations(state: EditorState): DecorationSet {
@@ -163,12 +244,19 @@ export class TablePlugin implements Plugin {
 	}
 
 	private registerNodeSpecs(context: PluginContext): void {
+		const config: ResolvedTableConfig = this.config;
 		context.registerNodeSpec({
 			type: 'table',
+			attrs: {
+				columnWidthsPx: { allowArray: true },
+			},
 			group: 'block',
 			content: { allow: ['table_row'], min: 1 },
 			isolating: true,
 			selectable: true,
+			normalizeAttrs: (node: BlockNode) => normalizeTableAttrs(node, this.config),
+			normalizeNode: normalizeTableStructure,
+			transformSelectionSlice: projectTableColumnWidthsForSlice,
 			toDOM(node) {
 				const wrapper: HTMLDivElement = document.createElement('div');
 				wrapper.className = 'notectl-table-wrapper';
@@ -178,17 +266,30 @@ export class TablePlugin implements Plugin {
 			},
 			toHTML(node, content, ctx?: HTMLExportContext) {
 				const borderColor: string | undefined = node.attrs?.borderColor as string | undefined;
-				const style: string = buildTableStyle(borderColor);
+				const grid = createTableGrid(node);
+				const widths = readTableColumnWidthsPx(node, grid.columnCount);
+				const style: string = buildTableStyle(borderColor, widths, config.minColumnWidthPx);
 				const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
-				return `<table${attr}>${content}</table>`;
+				const columns: string = widths
+					.map((width) =>
+						width === null
+							? '<col>'
+							: `<col${serializeTableDimensionAttrs(TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE, 'width', width, ctx)}>`,
+					)
+					.join('');
+				return `<table${attr}><colgroup>${columns}</colgroup><tbody>${content}</tbody></table>`;
 			},
-			sanitize: { tags: ['table', 'tbody'] },
+			sanitize: {
+				tags: ['table', 'colgroup', 'col', 'thead', 'tbody', 'tfoot'],
+				attrs: [TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE, 'width', 'span'],
+			},
 		});
 
 		context.registerNodeSpec({
 			type: 'table_row',
 			group: 'table_content',
-			content: { allow: ['table_cell'], min: 1 },
+			content: { allow: ['table_cell'], min: 0 },
+			normalizeAttrs: (node: BlockNode) => normalizeTableRowAttrs(node, this.config),
 			toDOM(node) {
 				const tr: HTMLTableRowElement = document.createElement('tr');
 				tr.setAttribute('data-block-id', node.id);
@@ -196,10 +297,19 @@ export class TablePlugin implements Plugin {
 				tr.setAttribute('part', 'table-row');
 				return tr;
 			},
-			toHTML(_node, content) {
-				return `<tr>${content}</tr>`;
+			toHTML(node, content, ctx?: HTMLExportContext) {
+				const attrs: string = serializeTableDimensionAttrs(
+					TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+					'height',
+					node.attrs?.minHeightPx,
+					ctx,
+				);
+				return `<tr${attrs}>${content}</tr>`;
 			},
-			sanitize: { tags: ['tr'] },
+			sanitize: {
+				tags: ['tr'],
+				attrs: [TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE, 'height'],
+			},
 		});
 
 		context.registerNodeSpec({
@@ -215,8 +325,10 @@ export class TablePlugin implements Plugin {
 					'video',
 					'horizontal_rule',
 				],
+				min: 1,
 			},
 			isolating: true,
+			normalizeAttrs: normalizeTableCellAttrs,
 			toDOM(node) {
 				const td: HTMLTableCellElement = document.createElement('td');
 				td.setAttribute('data-block-id', node.id);
@@ -233,14 +345,24 @@ export class TablePlugin implements Plugin {
 				if (rowspan > 1) attrs.push(` rowspan="${rowspan}"`);
 				return `<td${attrs.join('')}>${content}</td>`;
 			},
-			sanitize: { tags: ['td'], attrs: ['colspan', 'rowspan'] },
+			sanitize: { tags: ['td', 'th'], attrs: ['colspan', 'rowspan'] },
 		});
 	}
 
 	private registerNodeViews(context: PluginContext): void {
 		const registry = context.getSchemaRegistry();
 
-		context.registerNodeView('table', createTableNodeViewFactory(registry, context, this.locale));
+		context.registerNodeView(
+			'table',
+			createTableNodeViewFactory(registry, context, this.locale, this.config, {
+				onControlsCreated: (controls: TableControlsHandle): void => {
+					this.controls.add(controls);
+				},
+				onControlsDestroyed: (controls: TableControlsHandle): void => {
+					this.controls.delete(controls);
+				},
+			}),
+		);
 		context.registerNodeView('table_row', createTableRowNodeViewFactory(registry));
 		context.registerNodeView('table_cell', createTableCellNodeViewFactory(registry));
 	}
@@ -271,3 +393,116 @@ export class TablePlugin implements Plugin {
 		});
 	}
 }
+
+function normalizePickerSize(value: unknown, fallback: number): number {
+	return typeof value === 'number' && Number.isInteger(value) && value > 0
+		? Math.min(value, 100)
+		: fallback;
+}
+
+function normalizeTableAttrs(node: BlockNode, config: TableSizingConfig): BlockAttrs | undefined {
+	const attrs: MutableBlockAttrs = copyUnrelatedAttrs(node.attrs, [
+		'borderColor',
+		'columnWidthsPx',
+	]);
+	const borderColor: unknown = node.attrs?.borderColor;
+	if (borderColor === 'none' || (typeof borderColor === 'string' && isValidHexColor(borderColor))) {
+		attrs.borderColor = borderColor;
+	}
+
+	const grid = createTableGrid(node);
+	const rawWidths: unknown = node.attrs?.columnWidthsPx;
+	if (Array.isArray(rawWidths) && grid.columnCount > 0) {
+		const widths: (number | null)[] = Array.from(
+			{ length: grid.columnCount },
+			(_unused, column): number | null => {
+				const parsed: number | undefined = normalizeSerializedTableDimensionPx(rawWidths[column]);
+				if (parsed === undefined) return null;
+				return Math.min(config.maxColumnWidthPx, Math.max(config.minColumnWidthPx, parsed));
+			},
+		);
+		if (widths.some((width) => width !== null)) {
+			attrs.columnWidthsPx = Object.freeze(widths);
+		}
+	}
+	return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
+function normalizeTableRowAttrs(
+	node: BlockNode,
+	config: TableSizingConfig,
+): BlockAttrs | undefined {
+	const attrs: MutableBlockAttrs = copyUnrelatedAttrs(node.attrs, ['minHeightPx']);
+	const parsed: number | undefined = normalizeSerializedTableDimensionPx(node.attrs?.minHeightPx);
+	if (parsed !== undefined) {
+		attrs.minHeightPx = Math.min(config.maxRowHeightPx, Math.max(config.minRowHeightPx, parsed));
+	}
+	return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
+function normalizeTableCellAttrs(node: BlockNode): BlockAttrs | undefined {
+	const attrs: MutableBlockAttrs = copyUnrelatedAttrs(node.attrs, ['colspan', 'rowspan']);
+	const colspan: number = normalizeTableSpan(node.attrs?.colspan);
+	const rowspan: number = normalizeTableSpan(node.attrs?.rowspan);
+	if (colspan > 1) attrs.colspan = colspan;
+	if (rowspan > 1) attrs.rowspan = rowspan;
+	return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
+/** Clamps row spans to the rows that actually exist, preventing latent spans after insertions. */
+function normalizeTableStructure(table: BlockNode): BlockNode {
+	const rows: readonly BlockNode[] = getBlockChildren(table);
+	let changed = false;
+	const normalizedRows: readonly BlockNode[] = rows.map((row: BlockNode, rowIndex: number) => {
+		let rowChanged = false;
+		const cells: readonly BlockNode[] = getBlockChildren(row).map((cell: BlockNode) => {
+			const requested: number = normalizeTableSpan(cell.attrs?.rowspan);
+			const effective: number = Math.min(requested, rows.length - rowIndex);
+			if (effective === requested) return cell;
+			rowChanged = true;
+			const { rowspan: _rowspan, ...rest } = cell.attrs ?? {};
+			const attrs: MutableBlockAttrs = {
+				...rest,
+				...(effective > 1 ? { rowspan: effective } : {}),
+			};
+			const { attrs: _attrs, ...withoutAttrs } = cell;
+			return Object.keys(attrs).length > 0 ? { ...withoutAttrs, attrs } : withoutAttrs;
+		});
+		if (!rowChanged) return row;
+		changed = true;
+		return { ...row, children: cells };
+	});
+	return changed ? { ...table, children: normalizedRows } : table;
+}
+
+function copyUnrelatedAttrs(
+	attrs: BlockAttrs | undefined,
+	excluded: readonly string[],
+): MutableBlockAttrs {
+	const result: MutableBlockAttrs = {};
+	for (const [key, value] of Object.entries(attrs ?? {})) {
+		if (excluded.includes(key)) continue;
+		const normalized: BlockAttrValue | undefined = cloneBlockAttrValue(value);
+		if (normalized !== undefined) result[key] = normalized;
+	}
+	return result;
+}
+
+function cloneBlockAttrValue(value: unknown): BlockAttrValue | undefined {
+	if (typeof value === 'string' || typeof value === 'boolean') return value;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+	if (!Array.isArray(value)) return undefined;
+	const normalized: (string | number | boolean | null)[] = [];
+	for (const entry of value) {
+		if (entry === null || typeof entry === 'string' || typeof entry === 'boolean') {
+			normalized.push(entry);
+		} else if (typeof entry === 'number' && Number.isFinite(entry)) {
+			normalized.push(entry);
+		} else {
+			return undefined;
+		}
+	}
+	return Object.freeze(normalized);
+}
+
+type MutableBlockAttrs = Record<string, BlockAttrValue>;

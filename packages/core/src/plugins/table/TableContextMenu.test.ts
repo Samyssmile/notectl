@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
-import { createTableContextMenu } from './TableContextMenu.js';
+import { closeTableContextMenus, createTableContextMenu } from './TableContextMenu.js';
 import type { TableLocale } from './TableLocale.js';
 import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { createTableState } from './TableTestUtils.js';
@@ -52,6 +52,7 @@ describe('TableContextMenu', () => {
 			expect(menu).not.toBeNull();
 			expect(menu.getAttribute('role')).toBe('menu');
 			expect(menu.getAttribute('aria-label')).toBe('Table actions');
+			expect(menu.hasAttribute('data-notectl-no-print')).toBe(true);
 		});
 
 		it('contains menuitem buttons', () => {
@@ -78,6 +79,7 @@ describe('TableContextMenu', () => {
 			expect(labels).toContain('Delete Column');
 			expect(labels).toContain('Delete Table');
 			expect(labels).toContain('Border Color...');
+			expect(labels).toContain('Size...');
 		});
 
 		it('Border Color has aria-haspopup', () => {
@@ -85,6 +87,32 @@ describe('TableContextMenu', () => {
 			const items = menu.querySelectorAll('[role="menuitem"]');
 			const borderItem = Array.from(items).find((el) => el.textContent === 'Border Color...');
 			expect(borderItem?.getAttribute('aria-haspopup')).toBe('true');
+		});
+
+		it('opens the accessible precise size editor as a submenu', () => {
+			const { menu, container } = openMenu();
+			const sizeItem = Array.from(
+				menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+			).find((item) => item.textContent === 'Size...');
+			sizeItem?.click();
+
+			const editor = container.querySelector('.notectl-table-size-editor');
+			expect(sizeItem?.getAttribute('aria-haspopup')).toBe('true');
+			expect(editor?.getAttribute('role')).toBe('dialog');
+			expect(editor?.getAttribute('aria-label')).toBe('Table size');
+			expect(editor?.hasAttribute('data-notectl-no-print')).toBe(true);
+		});
+
+		it('positions the main menu from the visual start in RTL', () => {
+			const container: HTMLDivElement = document.createElement('div');
+			container.dir = 'rtl';
+			container.style.direction = 'rtl';
+			document.body.appendChild(container);
+			const { menu } = openMenu(container);
+
+			expect(menu.style.left).toBe('auto');
+			expect(menu.style.right).not.toBe('auto');
+			container.remove();
 		});
 
 		it('renders keyboard hint footer', () => {
@@ -248,6 +276,12 @@ describe('TableContextMenu', () => {
 			expect(context.executeCommand).toHaveBeenCalledWith('deleteRow');
 			expect(handle.isOpen()).toBe(false);
 		});
+	});
+
+	it('closes every open menu when its editor enters read-only mode', () => {
+		const { context, handle } = openMenu();
+		closeTableContextMenus(context);
+		expect(handle.isOpen()).toBe(false);
 	});
 
 	describe('submenu', () => {

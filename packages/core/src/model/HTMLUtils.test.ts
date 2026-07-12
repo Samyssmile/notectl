@@ -143,6 +143,15 @@ describe('formatHTML', () => {
 		expect(result).toBe('<table>\n  <tr>\n    <td>\n      Cell\n    </td>\n  </tr>\n</table>');
 	});
 
+	it('indents colgroups while keeping col elements void', () => {
+		const result: string = formatHTML(
+			'<table><colgroup><col><col style="width: 120px"></colgroup><tbody><tr><td>A</td></tr></tbody></table>',
+		);
+		expect(result).toBe(
+			'<table>\n  <colgroup>\n    <col>\n    <col style="width: 120px">\n  </colgroup>\n  <tbody>\n    <tr>\n      <td>\n        A\n      </td>\n    </tr>\n  </tbody>\n</table>',
+		);
+	});
+
 	it('handles headings', () => {
 		const result: string = formatHTML('<h1>Title</h1><p>Content</p>');
 		expect(result).toBe('<h1>\n  Title\n</h1>\n<p>\n  Content\n</p>');

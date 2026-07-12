@@ -12,6 +12,8 @@
 import { canContain } from '../model/ContentModel.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import {
+	type BlockAttrArrayValue,
+	type BlockAttrValue,
 	type BlockAttrs,
 	type BlockNode,
 	type ChildNode,
@@ -338,23 +340,32 @@ export function findBlockRecursive(block: BlockNode, blockId: BlockId): BlockNod
 
 /**
  * Validates incoming attributes against the declared AttrSpec.
- * Only keys declared in the spec are kept; non-primitive values fall back to defaults.
+ * Only declared keys are kept. Block callers may opt into immutable flat arrays
+ * for specs that explicitly set `allowArray`; all other structured values fall
+ * back to defaults or are removed.
  */
 export function sanitizeAttrs(
 	incoming: Record<string, unknown> | undefined,
 	specAttrs: Readonly<Record<string, AttrSpec>> | undefined,
-): Record<string, string | number | boolean> | undefined {
+	allowStructured = false,
+): BlockAttrs | undefined {
 	if (!specAttrs) return undefined;
 
-	const result: Record<string, string | number | boolean> = {};
+	const result: Record<string, BlockAttrValue> = {};
 	let hasKeys = false;
 
 	for (const key of Object.keys(specAttrs)) {
 		const spec: AttrSpec = specAttrs[key] as AttrSpec;
 		const raw: unknown = incoming?.[key];
 
-		if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+		if (
+			typeof raw === 'string' ||
+			(typeof raw === 'number' && Number.isFinite(raw)) ||
+			typeof raw === 'boolean'
+		) {
 			result[key] = raw;
+		} else if (allowStructured && spec.allowArray && isBlockAttrArray(raw)) {
+			result[key] = Object.freeze([...raw]);
 		} else if (spec.default !== undefined) {
 			result[key] = spec.default;
 		}
@@ -362,6 +373,19 @@ export function sanitizeAttrs(
 	}
 
 	return hasKeys ? result : undefined;
+}
+
+function isBlockAttrArray(value: unknown): value is readonly BlockAttrArrayValue[] {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(item: unknown): boolean =>
+				item === null ||
+				typeof item === 'string' ||
+				typeof item === 'boolean' ||
+				(typeof item === 'number' && Number.isFinite(item)),
+		)
+	);
 }
 
 /** Checks whether a block is empty (has no text and is not a void block). */
@@ -394,10 +418,7 @@ export function validateRichBlockData(
 	const spec = schemaRegistry.getNodeSpec(raw.type);
 	if (!spec) return undefined;
 
-	const attrs: Record<string, string | number | boolean> | undefined = sanitizeAttrs(
-		raw.attrs,
-		spec.attrs,
-	);
+	const attrs: BlockAttrs | undefined = sanitizeAttrs(raw.attrs, spec.attrs, true);
 	const htmlId: string | undefined = normalizeHTMLId(raw.htmlId);
 	const segments: RichSegment[] | undefined = raw.segments
 		? sanitizeRichSegments(raw.segments, schemaRegistry)

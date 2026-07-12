@@ -14,6 +14,7 @@ import {
 	type ChildIndexShiftMap,
 	IDENTITY_MAP,
 	type MergeMap,
+	type MoveNodeMap,
 	type ShiftMap,
 	type SplitMap,
 	type StepMap,
@@ -27,6 +28,7 @@ import type {
 	InsertNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	MoveNodeStep,
 	RemoveInlineNodeStep,
 	RemoveMarkStep,
 	RemoveNodeStep,
@@ -36,6 +38,7 @@ import type {
 	SetStoredMarksStep,
 	SplitBlockStep,
 } from './Steps.js';
+import { isMoveNodeNoOp, resolveMoveNodeStep } from './Steps.js';
 
 // --- Content-shifting steps ---
 
@@ -123,6 +126,23 @@ export function getMapInsertNode(_doc: Document, step: InsertNodeStep): ChildInd
 		parentPath: step.parentPath,
 		fromIndex: step.index,
 		delta: 1,
+		insertedBlockIds: collectRemovedBlockIds(step.node),
+	};
+}
+
+export function getMapMoveNode(
+	doc: Document,
+	step: MoveNodeStep,
+): MoveNodeMap | typeof IDENTITY_MAP {
+	const resolved = resolveMoveNodeStep(doc, step);
+	if (!resolved || isMoveNodeNoOp(step)) return IDENTITY_MAP;
+	return {
+		type: 'moveNode',
+		movedNodeId: step.movedNode.id,
+		fromParentPath: step.fromParentPath,
+		fromIndex: step.fromIndex,
+		toParentPath: step.toParentPath,
+		destinationIndex: resolved.destinationIndex,
 	};
 }
 

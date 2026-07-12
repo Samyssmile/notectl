@@ -133,6 +133,7 @@ const BLOCK_TAGS: ReadonlySet<string> = new Set([
 	'li',
 	'blockquote',
 	'table',
+	'colgroup',
 	'thead',
 	'tbody',
 	'tfoot',

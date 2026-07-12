@@ -118,6 +118,29 @@ describe('issue #166 — pasting a table while the caret is inside a table cell'
 		expect(c1?.children).toHaveLength(1);
 		expect(c1 ? getBlockText(c1.children[0] as BlockNode) : '').toBe('A');
 	});
+
+	it('normalizes pasted table dimensions through the configured model boundary', async () => {
+		const h = await pluginHarness(
+			new TablePlugin({ minColumnWidthPx: 80, minRowHeightPx: 30 }),
+			tableState(),
+			{ builtinSpecs: true },
+		);
+		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
+
+		handler.handleHTMLOrTextPaste(
+			clipboard(
+				'<table><colgroup><col width="20"></colgroup><tbody>' +
+					'<tr height="5"><td>small</td></tr></tbody></table>',
+				'small',
+			),
+			'small',
+		);
+
+		const pasted: BlockNode | undefined = h.getState().doc.children[1];
+		expect(pasted?.attrs?.columnWidthsPx).toEqual([80]);
+		const firstRow: BlockNode | undefined = pasted?.children.find(isBlockNode);
+		expect(firstRow?.attrs?.minHeightPx).toBe(30);
+	});
 });
 
 describe('issue #194 — pasting multi-block list items', () => {

@@ -218,7 +218,7 @@ test.describe('Readonly Mode', () => {
 		expect(textAfter.trim()).toBe(textBefore.trim());
 	});
 
-	test('table delete button does not remove table in readonly mode', async ({ editor, page }) => {
+	test('table delete button is hidden in readonly mode', async ({ editor, page }) => {
 		await insertTable(page);
 		expect(await hasTableBlock(page)).toBe(true);
 
@@ -227,12 +227,13 @@ test.describe('Readonly Mode', () => {
 		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
 		await tableContainer.hover();
 		const deleteBtn = page.locator('notectl-editor .ntbl-delete-table-btn').first();
-		await deleteBtn.click({ force: true });
+		await expect(deleteBtn).toBeHidden();
+		await expect(deleteBtn).toBeDisabled();
 
 		expect(await hasTableBlock(page)).toBe(true);
 	});
 
-	test('table add-row button does not add a row in readonly mode', async ({ editor, page }) => {
+	test('table add-row button is hidden in readonly mode', async ({ editor, page }) => {
 		await insertTable(page);
 		const rowsBefore: number = await getTableRowCount(page);
 
@@ -241,15 +242,13 @@ test.describe('Readonly Mode', () => {
 		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
 		await tableContainer.hover();
 		const addRowBtn = page.locator('notectl-editor .ntbl-add-row').first();
-		await addRowBtn.click({ force: true });
+		await expect(addRowBtn).toBeHidden();
+		await expect(addRowBtn).toBeDisabled();
 
 		expect(await getTableRowCount(page)).toBe(rowsBefore);
 	});
 
-	test('table add-column button does not add a column in readonly mode', async ({
-		editor,
-		page,
-	}) => {
+	test('table add-column button is hidden in readonly mode', async ({ editor, page }) => {
 		await insertTable(page);
 		const colsBefore: number = await getTableColCount(page);
 
@@ -258,7 +257,8 @@ test.describe('Readonly Mode', () => {
 		const tableContainer = page.locator('notectl-editor .ntbl-container').first();
 		await tableContainer.hover();
 		const addColBtn = page.locator('notectl-editor .ntbl-add-col').first();
-		await addColBtn.click({ force: true });
+		await expect(addColBtn).toBeHidden();
+		await expect(addColBtn).toBeDisabled();
 
 		expect(await getTableColCount(page)).toBe(colsBefore);
 	});

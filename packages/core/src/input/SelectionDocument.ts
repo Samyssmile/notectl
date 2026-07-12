@@ -11,6 +11,7 @@ import {
 	isLeafBlock,
 	segmentsToInlineChildren,
 } from '../model/Document.js';
+import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { Selection } from '../model/Selection.js';
 import { selectionRange } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -29,7 +30,11 @@ interface SelectionBoundary {
  * Composite ancestors are preserved, while first/last leaf blocks are trimmed
  * to the exact selection offsets.
  */
-export function buildSelectionDocument(state: EditorState, selection: Selection): Document {
+export function buildSelectionDocument(
+	state: EditorState,
+	selection: Selection,
+	registry?: SchemaRegistry,
+): Document {
 	const blockOrder = state.getBlockOrder();
 	const range = selectionRange(selection, blockOrder);
 	const fromIdx: number = blockOrder.indexOf(range.from.blockId);
@@ -64,14 +69,18 @@ export function buildSelectionDocument(state: EditorState, selection: Selection)
 	for (let i = fromRootIdx; i <= toRootIdx; i++) {
 		const root = state.doc.children[i];
 		if (!root) continue;
-		const sliced = sliceBlock(root, boundary);
+		const sliced = sliceBlock(root, boundary, registry);
 		if (sliced) children.push(sliced);
 	}
 
 	return { children };
 }
 
-function sliceBlock(block: BlockNode, boundary: SelectionBoundary): BlockNode | null {
+function sliceBlock(
+	block: BlockNode,
+	boundary: SelectionBoundary,
+	registry?: SchemaRegistry,
+): BlockNode | null {
 	if (isLeafBlock(block)) {
 		if (!boundary.selectedLeafIds.has(block.id)) return null;
 		return sliceLeafBlock(block, boundary);
@@ -82,7 +91,7 @@ function sliceBlock(block: BlockNode, boundary: SelectionBoundary): BlockNode | 
 	let changed = blockChildren.length !== block.children.length;
 
 	for (const child of blockChildren) {
-		const slicedChild = sliceBlock(child, boundary);
+		const slicedChild = sliceBlock(child, boundary, registry);
 		if (slicedChild) {
 			slicedChildren.push(slicedChild);
 			if (slicedChild !== child) changed = true;
@@ -95,10 +104,11 @@ function sliceBlock(block: BlockNode, boundary: SelectionBoundary): BlockNode | 
 	if (!changed) return block;
 
 	const { htmlId: _htmlId, ...rest } = block;
-	return {
+	const slice: BlockNode = {
 		...rest,
 		children: slicedChildren,
 	};
+	return registry?.getNodeSpec(block.type)?.transformSelectionSlice?.(block, slice) ?? slice;
 }
 
 function sliceLeafBlock(block: BlockNode, boundary: SelectionBoundary): BlockNode {

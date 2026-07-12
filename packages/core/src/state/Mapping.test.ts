@@ -344,6 +344,27 @@ describe('Mapping', () => {
 		expect(result.deleted).toBe(true);
 	});
 
+	it('restores explicitly reinserted block identities and allows a later removal', () => {
+		const reinsertion: ChildIndexShiftMap = {
+			type: 'childIndexShift',
+			parentPath: [],
+			fromIndex: 0,
+			delta: 1,
+			insertedBlockIds: new Set([B1, B2]),
+		};
+		const restored: Mapping = Mapping.from([blockRemoval(B1, B2), shift(B3, 0, 0, 1), reinsertion]);
+
+		expect(restored.mapResult(pos(B1, 0)).deleted).toBe(false);
+		expect(restored.mapResult(pos(B2, 0)).deleted).toBe(false);
+		expect(Mapping.from([shift(B1, 0, 2, 0), reinsertion]).mapResult(pos(B1, 1)).deleted).toBe(
+			true,
+		);
+
+		const removedAgain: Mapping = restored.appendMap(blockRemoval(B1));
+		expect(removedAgain.mapResult(pos(B1, 0)).deleted).toBe(true);
+		expect(removedAgain.mapResult(pos(B2, 0)).deleted).toBe(false);
+	});
+
 	it('mapRange returns endpoints after composition', () => {
 		// Insert 'XY' at offset 2 in B1
 		const mapping: Mapping = Mapping.from([shift(B1, 2, 2, 2)]);

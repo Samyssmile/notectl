@@ -154,7 +154,7 @@ Auto-detection only inspects the plain-text clipboard when there is no usable `t
 | 4-space / tab indented lines | `code_block` | Import only; export always emits fenced code. |
 | `---`, `***`, `___` | `horizontal_rule` | Serialized as `---`. |
 | `![alt](src "title")` | `image` (block) | Standalone image line. Title optional. Images with explicit width, height, or non-center alignment use an HTML fallback. |
-| GFM pipe table | `table` | Column alignment (`left`, `center`, `right`) is read from the delimiter row and preserved on export. Tables with colspan or rowspan cells fall back to raw HTML. |
+| GFM pipe table | `table` | Column alignment (`left`, `center`, `right`) is read from the delimiter row and preserved on export. Tables with spans, explicit logical column widths, or row minimum heights fall back to raw HTML. |
 
 ## Inline mapping table
 
@@ -192,6 +192,7 @@ Features that have no portable Markdown form are handled as follows when `htmlFa
 | Block HTML target (`BlockNode.htmlId`) | Full block HTML with its `id` attribute | Normal Markdown block, `htmlId` dropped |
 | Video embed | `<figure data-video="...">...</figure>` | Block removed |
 | Table with colspan/rowspan | Full HTML table | Plain GFM table (cell content kept, span dropped) |
+| Table column widths / row minimum heights | Full semantic HTML with `<colgroup>/<col>` and row metadata | Plain GFM table; cell content kept and all dimensions reset to automatic on import |
 
 With `htmlFallback: true`, the raw HTML embedded in the Markdown string is valid CommonMark — it passes through HTML-aware renderers (GitHub, most CommonMark processors) intact. It is not guaranteed to survive renderers that strip all HTML, such as some static-site Markdown preprocessors. Use `htmlFallback: false` when you need output guaranteed to work in HTML-stripping environments.
 

@@ -8,6 +8,27 @@ import {
 
 describe('TableControlsLayout', () => {
 	describe('measureColBorders', () => {
+		it('measures non-uniform rendered col boundaries', () => {
+			const table = document.createElement('table');
+			const colgroup = document.createElement('colgroup');
+			const widths = [120, 80, 200];
+			let left = 10;
+			for (const width of widths) {
+				const col = document.createElement('col');
+				const currentLeft = left;
+				col.getBoundingClientRect = () => new DOMRect(currentLeft, 0, width, 20);
+				left += width;
+				colgroup.appendChild(col);
+			}
+			table.getBoundingClientRect = () => new DOMRect(10, 0, 400, 20);
+			table.appendChild(colgroup);
+
+			expect(measureColBorders(table)).toEqual([
+				{ position: 120, index: 1 },
+				{ position: 200, index: 2 },
+			]);
+		});
+
 		it('returns empty array for single column', () => {
 			expect(measureColBorders(300, 1)).toEqual([]);
 		});

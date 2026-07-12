@@ -20,6 +20,7 @@ import type { Keymap } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CompositionTracker } from './CompositionTracker.js';
@@ -88,6 +89,7 @@ export class KeyboardHandler {
 	}
 
 	private onKeydown(e: KeyboardEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		// During IME composition, let the browser handle all keys
 		if (this.compositionTracker?.isComposing) return;
 

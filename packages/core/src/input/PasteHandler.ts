@@ -7,6 +7,7 @@ import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import { serializeDocumentToHTML } from '../serialization/DocumentSerializer.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 import { looksLikeMarkdown } from './MarkdownPasteDetector.js';
@@ -85,6 +86,7 @@ export class PasteHandler {
 	}
 
 	private onPaste(e: ClipboardEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		e.preventDefault();
 		if (this.isReadOnly()) return;
 

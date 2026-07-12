@@ -9,6 +9,7 @@ import type { BlockId } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
 import { expectToolbarItem } from '../../test/PluginTestUtils.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { createTableGrid } from './TableGrid.js';
 import {
 	createTable,
 	createTableCell,
@@ -57,6 +58,45 @@ describe('TablePlugin', () => {
 			expect(h.getNodeSpec('table_cell')).toBeDefined();
 		});
 
+		it('canonicalizes rowspans to existing rows so later inserts cannot revive latent spans', async () => {
+			const h = await pluginHarness(new TablePlugin());
+			const table = createTable(1, 1);
+			const row = getBlockChildren(table)[0];
+			const cell = row ? getBlockChildren(row)[0] : undefined;
+			if (!row || !cell) throw new Error('Expected a one-cell table');
+			const malformed = {
+				...table,
+				children: [{ ...row, children: [{ ...cell, attrs: { rowspan: 2 } }] }],
+			};
+
+			const normalized = h.getNodeSpec('table')?.normalizeNode?.(malformed);
+			const normalizedRow = normalized ? getBlockChildren(normalized)[0] : undefined;
+			const normalizedCell = normalizedRow ? getBlockChildren(normalizedRow)[0] : undefined;
+			expect(normalizedCell?.attrs?.rowspan).toBeUndefined();
+			const withInsertedRow = normalized
+				? { ...normalized, children: [...getBlockChildren(normalized), createTableRow(1)] }
+				: malformed;
+			expect(createTableGrid(withInsertedRow).columnCount).toBe(1);
+		});
+
+		it('preserves valid foreign structured attrs but rejects invalid runtime values', async () => {
+			const h = await pluginHarness(new TablePlugin());
+			const table = createTable(1, 1);
+			const external = {
+				...table,
+				attrs: {
+					foreign: [1, null, 'value', true],
+					object: { injected: true },
+					nested: [[1]],
+					notFinite: Number.NaN,
+				},
+			} as unknown as BlockNode;
+
+			const attrs = h.getNodeSpec('table')?.normalizeAttrs?.(external);
+			expect(attrs).toEqual({ foreign: [1, null, 'value', true] });
+			expect(Object.isFrozen(attrs?.foreign)).toBe(true);
+		});
+
 		it('table NodeSpec has isolating: true', async () => {
 			const h = await pluginHarness(new TablePlugin());
 			expect(h.getNodeSpec('table')?.isolating).toBe(true);
@@ -87,6 +127,16 @@ describe('TablePlugin', () => {
 			const el = spec?.toDOM(createBlockNode('table_cell', [createTextNode('')], 'c1' as BlockId));
 			expect(el?.tagName).toBe('TD');
 			expect(el?.getAttribute('role')).toBe('cell');
+		});
+
+		it('exports exact table width when every logical column is explicit', async () => {
+			const h = await pluginHarness(new TablePlugin());
+			const table = { ...createTable(1, 2), attrs: { columnWidthsPx: [120, 240] } };
+			const html = h.getNodeSpec('table')?.toHTML?.(table, '<tr><td>A</td><td>B</td></tr>');
+
+			expect(html).toContain('width: 360px');
+			expect(html).toContain('min-width: 360px');
+			expect(html).not.toContain('width: 100%');
 		});
 
 		it('table NodeSpec exposes part="table"', async () => {

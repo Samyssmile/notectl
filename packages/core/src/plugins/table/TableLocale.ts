@@ -31,6 +31,38 @@ export interface TableLocale {
 	readonly contextMenuHint: string;
 	readonly borderColor: string;
 
+	// Sizing
+	readonly sizeLabel: string;
+	readonly sizeDialogLabel: string;
+	readonly columnWidthLabel: string;
+	readonly rowMinimumHeightLabel: string;
+	readonly automatic: string;
+	readonly mixed: string;
+	readonly apply: string;
+	readonly cancel: string;
+	readonly resetColumnWidth: string;
+	readonly resetRowMinimumHeight: string;
+	readonly resetAllSizes: string;
+	readonly invalidDimensionRange: (minimum: number, maximum: number) => string;
+	/** Receives a zero-based logical row index and renders it as a one-based label. */
+	readonly selectRowLabel: (rowIndex: number) => string;
+	/** Receives a zero-based logical column index and renders it as a one-based label. */
+	readonly selectColumnLabel: (columnIndex: number) => string;
+	/** Receives a zero-based logical column index and renders it as a one-based label. */
+	readonly resizeColumnSeparatorLabel: (columnIndex: number) => string;
+	/** Receives a zero-based logical row index and renders it as a one-based label. */
+	readonly resizeRowSeparatorLabel: (rowIndex: number) => string;
+	readonly resizeKeyboardHint: (step: number, largeStep: number) => string;
+	/** Receives a zero-based logical column index and announces it as one-based. */
+	readonly announceColumnWidthSet: (columnIndex: number, valuePx: number) => string;
+	/** Receives a zero-based logical row index and announces it as one-based. */
+	readonly announceRowMinimumHeightSet: (rowIndex: number, valuePx: number) => string;
+	/** Receives a zero-based logical column index and announces it as one-based. */
+	readonly announceColumnWidthReset: (columnIndex: number) => string;
+	/** Receives a zero-based logical row index and announces it as one-based. */
+	readonly announceRowMinimumHeightReset: (rowIndex: number) => string;
+	readonly announceTableSizesReset: string;
+
 	// Border Color Picker
 	readonly defaultColor: string;
 	readonly noBorders: string;
@@ -80,6 +112,36 @@ export const TABLE_LOCALE_EN: TableLocale = {
 	tableActionsHint: 'Table actions (Right-click or Shift+F10)',
 	contextMenuHint: 'Right-click or Shift+F10 for table actions',
 	borderColor: 'Border color',
+
+	// Sizing
+	sizeLabel: 'Size...',
+	sizeDialogLabel: 'Table size',
+	columnWidthLabel: 'Column width (px)',
+	rowMinimumHeightLabel: 'Row minimum height (px)',
+	automatic: 'Automatic',
+	mixed: 'Mixed',
+	apply: 'Apply',
+	cancel: 'Cancel',
+	resetColumnWidth: 'Reset column width',
+	resetRowMinimumHeight: 'Reset row minimum height',
+	resetAllSizes: 'Reset all sizes',
+	invalidDimensionRange: (minimum: number, maximum: number) =>
+		`Enter a value from ${minimum} to ${maximum} px.`,
+	selectRowLabel: (rowIndex: number) => `Select row ${rowIndex + 1}`,
+	selectColumnLabel: (columnIndex: number) => `Select column ${columnIndex + 1}`,
+	resizeColumnSeparatorLabel: (columnIndex: number) => `Resize column ${columnIndex + 1}`,
+	resizeRowSeparatorLabel: (rowIndex: number) => `Resize row ${rowIndex + 1}`,
+	resizeKeyboardHint: (step: number, largeStep: number) =>
+		`Arrow keys resize by ${step} px; hold Shift for ${largeStep} px.`,
+	announceColumnWidthSet: (columnIndex: number, valuePx: number) =>
+		`Column ${columnIndex + 1} width set to ${valuePx} px.`,
+	announceRowMinimumHeightSet: (rowIndex: number, valuePx: number) =>
+		`Row ${rowIndex + 1} minimum height set to ${valuePx} px.`,
+	announceColumnWidthReset: (columnIndex: number) =>
+		`Column ${columnIndex + 1} width reset to automatic.`,
+	announceRowMinimumHeightReset: (rowIndex: number) =>
+		`Row ${rowIndex + 1} minimum height reset to automatic.`,
+	announceTableSizesReset: 'Table column widths and row minimum heights reset to automatic.',
 
 	// Border Color Picker
 	defaultColor: 'Default',

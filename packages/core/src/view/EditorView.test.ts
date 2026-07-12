@@ -354,6 +354,27 @@ describe('EditorView.applyUpdate()', () => {
 			document.body.removeChild(container);
 		});
 
+		it('ignores selection changes owned by non-editable plugin form controls', () => {
+			const { container, view } = createTestView();
+			document.body.appendChild(container);
+			const popup: HTMLDivElement = document.createElement('div');
+			popup.contentEditable = 'false';
+			const input: HTMLInputElement = document.createElement('input');
+			popup.appendChild(input);
+			container.appendChild(popup);
+			const readSpy = vi.spyOn(SelectionSync, 'readSelectionFromDOM');
+			readSpy.mockReturnValue(createCollapsedSelection('b1', 1));
+
+			input.focus();
+			document.dispatchEvent(new Event('selectionchange'));
+
+			expect(readSpy).not.toHaveBeenCalled();
+			expect(view.getState().selection.anchor.offset).toBe(0);
+			readSpy.mockRestore();
+			view.destroy();
+			container.remove();
+		});
+
 		it('breaks undo grouping when the DOM selection moves between edits', () => {
 			const { container, view } = createTestView();
 			document.body.appendChild(container);
@@ -584,6 +605,49 @@ describe('EditorView.applyUpdate()', () => {
 
 			view.destroy();
 			document.body.removeChild(container);
+		});
+
+		it('does not select a selectable ancestor from non-editable plugin controls', () => {
+			const container = document.createElement('div');
+			container.contentEditable = 'true';
+			document.body.appendChild(container);
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('')], 'p1')],
+									'c1',
+								),
+							],
+							'r1',
+						),
+					],
+					't1',
+				),
+			]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('p1', 0),
+			});
+			const view = new EditorView(container, { state });
+			const table = container.querySelector<HTMLElement>('[data-block-id="t1"]');
+			if (!table) throw new Error('Table element not rendered');
+			table.setAttribute('data-selectable', 'true');
+			const action: HTMLButtonElement = document.createElement('button');
+			action.contentEditable = 'false';
+			table.appendChild(action);
+
+			action.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+			expect(isNodeSelection(view.getState().selection)).toBe(false);
+			expect(view.getState().selection.anchor.blockId).toBe('p1');
+			view.destroy();
+			container.remove();
 		});
 	});
 

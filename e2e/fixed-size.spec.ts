@@ -1,5 +1,15 @@
 import { expect, test } from './fixtures/editor-page';
 
+function documentWithParagraphs(lines: readonly string[]) {
+	return {
+		children: lines.map((text, index) => ({
+			id: `fixed-size-paragraph-${index}`,
+			type: 'paragraph',
+			children: [{ type: 'text', text, marks: [] }],
+		})),
+	};
+}
+
 /**
  * Verifies the editor supports a fixed external size with internal scrolling
  * (issue #107). The toolbar must stay pinned at the top while overflow content
@@ -37,12 +47,7 @@ test.describe('Fixed-size editor with internal scrolling', () => {
 	test('content scrolls when overflowing while toolbar stays pinned', async ({ page, editor }) => {
 		// Insert enough lines to overflow the 280px host.
 		const lines: string[] = Array.from({ length: 50 }, (_, i) => `line ${i + 1}`);
-		await editor.setJSON({
-			children: lines.map((text) => ({
-				type: 'paragraph',
-				children: [{ text }],
-			})),
-		});
+		await editor.setJSON(documentWithParagraphs(lines));
 
 		const layout = await page.evaluate(() => {
 			const host = document.querySelector('notectl-editor') as HTMLElement;
@@ -95,12 +100,7 @@ test.describe('Fixed-size editor with internal scrolling', () => {
 		});
 
 		const lines: string[] = Array.from({ length: 30 }, (_, i) => `paragraph ${i + 1}`);
-		await editor.setJSON({
-			children: lines.map((text) => ({
-				type: 'paragraph',
-				children: [{ text }],
-			})),
-		});
+		await editor.setJSON(documentWithParagraphs(lines));
 
 		const measurements = await page.evaluate(() => {
 			const host = document.querySelector('notectl-editor') as HTMLElement;

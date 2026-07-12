@@ -14,6 +14,7 @@ import {
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { type TableGridCell, createTableGrid } from './TableGrid.js';
 
 /** Context information about a cell within a table. */
 export interface TableContext {
@@ -21,8 +22,12 @@ export interface TableContext {
 	readonly tableIndex: number;
 	readonly rowId: BlockId;
 	readonly rowIndex: number;
+	readonly rowEnd: number;
 	readonly cellId: BlockId;
 	readonly colIndex: number;
+	readonly colEnd: number;
+	readonly rowspan: number;
+	readonly colspan: number;
 	readonly totalRows: number;
 	readonly totalCols: number;
 }
@@ -72,10 +77,11 @@ export function findTableContext(state: EditorState, blockId: BlockId): TableCon
 	const path = state.getNodePath(blockId);
 	if (!path) return null;
 
-	// Collect table, row, and cell in a single pass
+	// Resolve the owning table and cell by identity first. Logical coordinates
+	// come exclusively from TableGrid; a cell's child-array index is not its
+	// column when colspan/rowspan are present.
 	let tableId: BlockId | null = null;
 	let tableNode: BlockNode | null = null;
-	let rowId: BlockId | null = null;
 	let cellId: BlockId | null = null;
 
 	for (const id of path) {
@@ -84,8 +90,6 @@ export function findTableContext(state: EditorState, blockId: BlockId): TableCon
 		if (node.type === 'table') {
 			tableId = id as BlockId;
 			tableNode = node;
-		} else if (node.type === 'table_row') {
-			rowId = id as BlockId;
 		} else if (node.type === 'table_cell') {
 			cellId = id as BlockId;
 		}
@@ -97,33 +101,28 @@ export function findTableContext(state: EditorState, blockId: BlockId): TableCon
 		cellId = blockId;
 	}
 
-	if (!tableId || !tableNode || !cellId || !rowId) return null;
+	if (!tableId || !tableNode || !cellId) return null;
 
 	// Find table index in document
 	const tableIndex: number = state.doc.children.findIndex((b) => b.id === tableId);
 
-	const rows: readonly BlockNode[] = getBlockChildren(tableNode);
-	const rowIndex: number = rows.findIndex((r) => r.id === rowId);
-	if (rowIndex === -1) return null;
-
-	const rowNode: BlockNode | undefined = rows[rowIndex];
-	if (!rowNode) return null;
-	const cells: readonly BlockNode[] = getBlockChildren(rowNode);
-	const colIndex: number = cells.findIndex((c) => c.id === cellId);
-	if (colIndex === -1) return null;
-
-	const totalCols: number = cells.length;
-	const totalRows: number = rows.length;
+	const grid = createTableGrid(tableNode);
+	const gridCell: TableGridCell | undefined = grid.cellById(cellId);
+	if (!gridCell) return null;
 
 	return {
 		tableId,
 		tableIndex,
-		rowId,
-		rowIndex,
+		rowId: gridCell.sourceRow.id,
+		rowIndex: gridCell.rowStart,
+		rowEnd: gridCell.rowEnd,
 		cellId,
-		colIndex,
-		totalRows,
-		totalCols,
+		colIndex: gridCell.columnStart,
+		colEnd: gridCell.columnEnd,
+		rowspan: gridCell.rowSpan,
+		colspan: gridCell.columnSpan,
+		totalRows: grid.rowCount,
+		totalCols: grid.columnCount,
 	};
 }
 
@@ -138,15 +137,8 @@ export function getCellAt(
 	colIndex: number,
 ): BlockId | null {
 	const table = state.getBlock(tableId);
-	if (!table) return null;
-
-	const rows: readonly BlockNode[] = getBlockChildren(table);
-	const row: BlockNode | undefined = rows[rowIndex];
-	if (!row) return null;
-
-	const cells: readonly BlockNode[] = getBlockChildren(row);
-	const cell: BlockNode | undefined = cells[colIndex];
-	return cell?.id ?? null;
+	if (!table || table.type !== 'table') return null;
+	return createTableGrid(table).cellAt(rowIndex, colIndex)?.cell.id ?? null;
 }
 
 /** Returns all cell IDs in a table in row-major order. */
@@ -154,15 +146,8 @@ export function getAllCellIds(state: EditorState, tableId: BlockId): readonly Bl
 	const table = state.getBlock(tableId);
 	if (!table) return [];
 
-	const result: BlockId[] = [];
-	const rows: readonly BlockNode[] = getBlockChildren(table);
-	for (const row of rows) {
-		const cells: readonly BlockNode[] = getBlockChildren(row);
-		for (const cell of cells) {
-			result.push(cell.id);
-		}
-	}
-	return result;
+	if (table.type !== 'table') return [];
+	return createTableGrid(table).cells.map((entry: TableGridCell) => entry.cell.id);
 }
 
 /** Returns the first leaf-block ID inside a table cell (e.g. the paragraph). */

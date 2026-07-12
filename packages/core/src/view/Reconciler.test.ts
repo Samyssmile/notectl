@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { inline as inlineDeco } from '../decorations/Decoration.js';
+import {
+	DecorationSet,
+	inline as inlineDeco,
+	node as nodeDeco,
+} from '../decorations/Decoration.js';
 import type { InlineDecoration } from '../decorations/Decoration.js';
 import {
 	type BlockNode,
@@ -352,6 +356,65 @@ describe('semantic HTML ID rendering', () => {
 		current = makeState();
 		reconcile(container, withID, current, options);
 		expect((container.firstElementChild as HTMLElement).hasAttribute('id')).toBe(false);
+	});
+});
+
+describe('nested NodeView decorations', () => {
+	it('adds and removes descendant node-decoration classes without replacing the NodeView', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'container',
+			content: { allow: ['cell'], min: 1 },
+			toDOM: (node) => createBlockElement('div', node.id),
+		});
+		registry.registerNodeSpec({
+			type: 'cell',
+			toDOM: (node) => createBlockElement('div', node.id),
+		});
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('cell', (node) => {
+			const dom = createBlockElement('div', node.id);
+			dom.classList.add('cell-base');
+			return { dom, contentDOM: dom, update: () => true };
+		});
+		const cell = createBlockNode(nodeType('cell'), [createTextNode('value')], blockId('cell'));
+		const root = createBlockNode(nodeType('container'), [cell], blockId('container'));
+		const state = EditorState.create({
+			doc: createDocument([root]),
+			selection: createCollapsedSelection(blockId('cell'), 0),
+		});
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const baseOptions = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => state,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, state, {
+			...baseOptions,
+			decorations: DecorationSet.empty,
+		});
+		const cellElement = container.querySelector<HTMLElement>('[data-block-id="cell"]');
+		if (!cellElement) throw new Error('Expected nested cell NodeView');
+
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: DecorationSet.empty,
+			decorations: DecorationSet.create([nodeDeco(blockId('cell'), { class: 'cell-selected' })]),
+		});
+		expect(cellElement.classList.contains('cell-selected')).toBe(true);
+
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: DecorationSet.create([nodeDeco(blockId('cell'), { class: 'cell-selected' })]),
+			decorations: DecorationSet.empty,
+		});
+		expect(cellElement.classList.contains('cell-selected')).toBe(false);
+		expect(cellElement.classList.contains('cell-base')).toBe(true);
+		expect(container.querySelector('[data-block-id="cell"]')).toBe(cellElement);
 	});
 });
 

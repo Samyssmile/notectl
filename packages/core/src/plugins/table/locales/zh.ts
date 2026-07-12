@@ -21,6 +21,38 @@ const locale: TableLocale = {
 	contextMenuHint: '\u53f3\u952e\u6216 Shift+F10 \u6253\u5f00\u8868\u683c\u64cd\u4f5c',
 	borderColor: '\u8fb9\u6846\u989c\u8272',
 
+	sizeLabel: '\u5c3a\u5bf8\u2026',
+	sizeDialogLabel: '\u8868\u683c\u5c3a\u5bf8',
+	columnWidthLabel: '\u5217\u5bbd\uff08px\uff09',
+	rowMinimumHeightLabel: '\u884c\u6700\u5c0f\u9ad8\u5ea6\uff08px\uff09',
+	automatic: '\u81ea\u52a8',
+	mixed: '\u6df7\u5408\u503c',
+	apply: '\u5e94\u7528',
+	cancel: '\u53d6\u6d88',
+	resetColumnWidth: '\u91cd\u7f6e\u5217\u5bbd',
+	resetRowMinimumHeight: '\u91cd\u7f6e\u884c\u6700\u5c0f\u9ad8\u5ea6',
+	resetAllSizes: '\u91cd\u7f6e\u6240\u6709\u5c3a\u5bf8',
+	invalidDimensionRange: (minimum: number, maximum: number) =>
+		`\u8bf7\u8f93\u5165 ${minimum} \u5230 ${maximum} px \u4e4b\u95f4\u7684\u503c\u3002`,
+	selectRowLabel: (rowIndex: number) => `\u9009\u62e9\u7b2c ${rowIndex + 1} \u884c`,
+	selectColumnLabel: (columnIndex: number) => `\u9009\u62e9\u7b2c ${columnIndex + 1} \u5217`,
+	resizeColumnSeparatorLabel: (columnIndex: number) =>
+		`\u8c03\u6574\u7b2c ${columnIndex + 1} \u5217\u7684\u5bbd\u5ea6`,
+	resizeRowSeparatorLabel: (rowIndex: number) =>
+		`\u8c03\u6574\u7b2c ${rowIndex + 1} \u884c\u7684\u9ad8\u5ea6`,
+	resizeKeyboardHint: (step: number, largeStep: number) =>
+		`\u4f7f\u7528\u7bad\u5934\u952e\u6bcf\u6b21\u8c03\u6574 ${step} px\uff1b\u6309\u4f4f Shift \u6bcf\u6b21\u8c03\u6574 ${largeStep} px\u3002`,
+	announceColumnWidthSet: (columnIndex: number, valuePx: number) =>
+		`\u7b2c ${columnIndex + 1} \u5217\u7684\u5bbd\u5ea6\u5df2\u8bbe\u7f6e\u4e3a ${valuePx} px\u3002`,
+	announceRowMinimumHeightSet: (rowIndex: number, valuePx: number) =>
+		`\u7b2c ${rowIndex + 1} \u884c\u7684\u6700\u5c0f\u9ad8\u5ea6\u5df2\u8bbe\u7f6e\u4e3a ${valuePx} px\u3002`,
+	announceColumnWidthReset: (columnIndex: number) =>
+		`\u7b2c ${columnIndex + 1} \u5217\u7684\u5bbd\u5ea6\u5df2\u91cd\u7f6e\u4e3a\u81ea\u52a8\u3002`,
+	announceRowMinimumHeightReset: (rowIndex: number) =>
+		`\u7b2c ${rowIndex + 1} \u884c\u7684\u6700\u5c0f\u9ad8\u5ea6\u5df2\u91cd\u7f6e\u4e3a\u81ea\u52a8\u3002`,
+	announceTableSizesReset:
+		'\u6240\u6709\u5217\u5bbd\u548c\u884c\u6700\u5c0f\u9ad8\u5ea6\u5df2\u91cd\u7f6e\u4e3a\u81ea\u52a8\u3002',
+
 	defaultColor: '\u9ed8\u8ba4',
 	noBorders: '\u65e0\u8fb9\u6846',
 	borderColorPicker: '\u8fb9\u6846\u989c\u8272\u9009\u62e9\u5668',

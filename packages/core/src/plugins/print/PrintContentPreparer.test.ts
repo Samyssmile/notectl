@@ -62,7 +62,7 @@ describe('PrintContentPreparer', () => {
 			el.classList.add('notectl-node-selected', 'notectl-content--empty');
 
 			const child: HTMLElement = document.createElement('p');
-			child.classList.add('notectl-node-selected');
+			child.classList.add('notectl-node-selected', 'notectl-table-cell--selected');
 			el.appendChild(child);
 
 			sanitize(el);
@@ -70,6 +70,7 @@ describe('PrintContentPreparer', () => {
 			expect(el.classList.contains('notectl-node-selected')).toBe(false);
 			expect(el.classList.contains('notectl-content--empty')).toBe(false);
 			expect(child.classList.contains('notectl-node-selected')).toBe(false);
+			expect(child.classList.contains('notectl-table-cell--selected')).toBe(false);
 		});
 
 		it('removes data-placeholder attribute', () => {

@@ -106,6 +106,38 @@ describe('InputHandler', () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
+	it('leaves input inside non-editable plugin UI to the browser', () => {
+		element = document.createElement('div');
+		element.contentEditable = 'true';
+		const popup: HTMLDivElement = document.createElement('div');
+		popup.contentEditable = 'false';
+		const input: HTMLInputElement = document.createElement('input');
+		popup.appendChild(input);
+		element.appendChild(popup);
+
+		let state = createState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const tracker = new CompositionTracker();
+		handler = new InputHandler(element, {
+			getState: () => state,
+			dispatch,
+			syncSelection: vi.fn(),
+			compositionTracker: tracker,
+		});
+
+		const beforeInput = createBeforeInputEvent('insertText', '210');
+		input.dispatchEvent(beforeInput);
+		input.dispatchEvent(createCompositionEvent('compositionstart'));
+		input.dispatchEvent(createCompositionEvent('compositionend', 'ä'));
+
+		expect(beforeInput.defaultPrevented).toBe(false);
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(tracker.isComposing).toBe(false);
+		expect(getBlockText(state.doc.children[0])).toBe('hello');
+	});
+
 	it('prevents deleteByCut without issuing an extra deletion transaction', () => {
 		element = document.createElement('div');
 		let state = createState({

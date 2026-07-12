@@ -20,6 +20,10 @@ import {
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
+import {
+	isEventFromEditorContent,
+	isNodeFromEditorContent,
+} from '../platform/EditorEventBoundary.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CursorWrapper } from './CursorWrapper.js';
@@ -50,18 +54,20 @@ export class EditorViewEvents {
 	private readonly handleMousedown: (e: MouseEvent) => void;
 	private readonly handleDragover: (e: DragEvent) => void;
 	private readonly handleDrop: (e: DragEvent) => void;
-	private readonly handleCompositionStart: () => void;
-	private readonly handleCompositionEnd: () => void;
+	private readonly handleCompositionStart: (event: CompositionEvent) => void;
+	private readonly handleCompositionEnd: (event: CompositionEvent) => void;
 	private pendingNodeSelectionClear = false;
 	private pendingGapCursorClear = false;
 
 	constructor(deps: EventCoordinatorDeps) {
 		this.deps = deps;
 
-		this.handleCompositionStart = () => {
+		this.handleCompositionStart = (event: CompositionEvent) => {
+			if (!isEventFromEditorContent(event, deps.contentElement)) return;
 			deps.cursorWrapper.onCompositionStart(deps.getState());
 		};
-		this.handleCompositionEnd = () => {
+		this.handleCompositionEnd = (event: CompositionEvent) => {
+			if (!isEventFromEditorContent(event, deps.contentElement)) return;
 			deps.cursorWrapper.cleanup();
 		};
 		deps.contentElement.addEventListener('compositionstart', this.handleCompositionStart);
@@ -139,6 +145,7 @@ export class EditorViewEvents {
 		if (!this.deps.contentElement.contains(activeEl) && activeEl !== this.deps.contentElement) {
 			return;
 		}
+		if (!isNodeFromEditorContent(activeEl, this.deps.contentElement)) return;
 
 		this.syncSelectionFromDOM();
 	}
@@ -146,6 +153,7 @@ export class EditorViewEvents {
 	/** Handles mousedown on selectable/void blocks. */
 	private onMousedown(e: MouseEvent): void {
 		if (this.deps.isUpdating()) return;
+		if (!isEventFromEditorContent(e, this.deps.contentElement)) return;
 		this.deps.onMousedown?.();
 
 		const target = e.target;

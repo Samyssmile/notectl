@@ -50,11 +50,15 @@ Or use the HTML attribute for fully read-only (no interactive checkboxes):
 | **Text editing** | Disabled | Disabled |
 | **Text selection** | Allowed | Allowed |
 | **Checklist checkboxes** | Disabled | Interactive |
-| **Table controls** (delete table/row/col, add row/col, context menu) | Disabled | Disabled |
+| **Table controls** (structure, context menu, resize separators, size dialog) | Disabled | Disabled |
 | **Code-block controls** (delete, language picker) | Disabled | Disabled |
 | **Copy buttons** | Allowed | Allowed |
 
 The read-only guard runs centrally inside `EditorView.dispatch`, so any plugin that builds a transaction — including click handlers on `NodeView` controls — is automatically inert in read-only mode. Plugins can opt into bypassing the guard for specific commands by registering them with `readonlyAllowed: true` (the same mechanism `interactiveCheckboxes` uses).
+
+Persisted table dimensions still render in read-only mode. `TableSizingService` read methods remain
+available for inspection, while every sizing setter/reset returns `false` without mutating state.
+See [Table sizing in read-only mode](/notectl/plugins/table/#read-only-mode).
 
 ## Use Cases
 

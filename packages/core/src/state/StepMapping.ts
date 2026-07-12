@@ -34,6 +34,7 @@
 
 import type { BlockNode, Document, InlineNode } from '../model/Document.js';
 import {
+	blockAttrsEqual,
 	getBlockContentSegmentsInRange,
 	getBlockLength,
 	getBlockMarksAtOffset,
@@ -58,6 +59,7 @@ import type {
 	InsertNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	MoveNodeStep,
 	RemoveInlineNodeStep,
 	RemoveMarkStep,
 	RemoveNodeStep,
@@ -68,6 +70,7 @@ import type {
 	SplitBlockStep,
 	Step,
 } from './Steps.js';
+import { resolveMoveNodeStep } from './Steps.js';
 
 // --- Helpers ---
 
@@ -94,14 +97,18 @@ function preservedPath(
  * slots*, not in block identity), so when any ancestor block is gone the
  * structural anchor is lost and the step must be abandoned.
  */
-function parentPathStillValid(parentPath: readonly BlockId[], mapping: Mapping): boolean {
-	if (mapping.isEmpty) return true;
+function parentPathStillValid(
+	parentPath: readonly BlockId[],
+	mapping: Mapping,
+	doc: Document,
+): boolean {
+	if (parentPath.length === 0) return true;
 	for (const id of parentPath) {
 		const result = mapping.mapResult({ blockId: id, offset: 0 }, -1);
 		if (result.deleted) return false;
 		if (result.pos.blockId !== id) return false;
 	}
-	return true;
+	return resolveNodeByPath(doc, parentPath) !== undefined;
 }
 
 /**
@@ -365,7 +372,7 @@ export function mapSetNodeAttr(
 	doc: Document,
 ): Step | null {
 	if (mapping.isEmpty) return step;
-	if (!parentPathStillValid(step.path, mapping)) return null;
+	if (!parentPathStillValid(step.path, mapping, doc)) return null;
 	const node = resolveNodeByPath(doc, step.path);
 	if (!node) return null;
 	return {
@@ -404,8 +411,8 @@ export function mapSetInlineNodeAttr(
 
 // --- Tree-structural steps ---
 
-export function mapInsertNode(step: InsertNodeStep, mapping: Mapping, _doc: Document): Step | null {
-	if (!parentPathStillValid(step.parentPath, mapping)) return null;
+export function mapInsertNode(step: InsertNodeStep, mapping: Mapping, doc: Document): Step | null {
+	if (!parentPathStillValid(step.parentPath, mapping, doc)) return null;
 	// Insertion-slot semantics: the slot survives even when the block
 	// previously at this index was removed by an intervening edit. The slot
 	// is *where to insert*, not a reference to an existing child.
@@ -420,7 +427,7 @@ export function mapInsertNode(step: InsertNodeStep, mapping: Mapping, _doc: Docu
 }
 
 export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, doc: Document): Step | null {
-	if (!parentPathStillValid(step.parentPath, mapping)) return null;
+	if (!parentPathStillValid(step.parentPath, mapping, doc)) return null;
 	// The to-be-removed block itself must still exist as a distinct block.
 	const probe = mapping.mapResult({ blockId: step.removedNode.id, offset: 0 }, -1);
 	if (probe.deleted) return null;
@@ -454,22 +461,35 @@ export function mapRemoveNode(step: RemoveNodeStep, mapping: Mapping, doc: Docum
 	};
 }
 
-// --- Local utilities ---
+export function mapMoveNode(step: MoveNodeStep, mapping: Mapping, doc: Document): Step | null {
+	if (!parentPathStillValid(step.fromParentPath, mapping, doc)) return null;
+	if (!parentPathStillValid(step.toParentPath, mapping, doc)) return null;
 
-function blockAttrsEqual(
-	a: Readonly<Record<string, unknown>> | undefined,
-	b: Readonly<Record<string, unknown>> | undefined,
-): boolean {
-	if (a === b) return true;
-	if (!a || !b) return false;
-	const aKeys = Object.keys(a);
-	const bKeys = Object.keys(b);
-	if (aKeys.length !== bKeys.length) return false;
-	for (const k of aKeys) {
-		if (a[k] !== b[k]) return false;
+	const probe = mapping.mapResult({ blockId: step.movedNode.id, offset: 0 }, -1);
+	if (probe.deleted || probe.pos.blockId !== step.movedNode.id) return null;
+	const fromIndex: number | null = mapChildIndex(step.fromParentPath, step.fromIndex, mapping);
+	if (fromIndex === null) return null;
+	const toIndex: number = mapInsertionIndex(step.toParentPath, step.toIndex, mapping);
+	const movedNode: BlockNode | undefined = resolveChildAt(doc, step.fromParentPath, fromIndex);
+	if (!movedNode || movedNode.id !== step.movedNode.id) return null;
+
+	const mapped: MoveNodeStep = {
+		type: 'moveNode',
+		fromParentPath: step.fromParentPath,
+		fromIndex,
+		toParentPath: step.toParentPath,
+		toIndex,
+		movedNode,
+	};
+	if (!resolveMoveNodeStep(doc, mapped)) return null;
+
+	if (fromIndex === step.fromIndex && toIndex === step.toIndex && movedNode === step.movedNode) {
+		return step;
 	}
-	return true;
+	return mapped;
 }
+
+// --- Local utilities ---
 
 function inlineNodesEqual(a: InlineNode, b: InlineNode): boolean {
 	if (a === b) return true;

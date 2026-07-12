@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	type BlockAttrs,
+	type BlockNode,
 	createBlockNode,
 	createDocument,
 	createTextNode,
@@ -12,6 +14,7 @@ import {
 } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
+import { HistoryManager } from '../../state/History.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import {
@@ -22,6 +25,7 @@ import {
 	createDeleteTableTransaction,
 	deleteTable,
 } from './TableCommands.js';
+import { createTableGrid } from './TableGrid.js';
 import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { TABLE_SCHEMA, createTableState, createTestTableNode } from './TableTestUtils.js';
 
@@ -456,5 +460,239 @@ describe('deleteTable', () => {
 
 		expect(deleteTable(context, TABLE_LOCALE_EN)).toBe(true);
 		expect(currentState.doc.children.map((node) => node.id)).toEqual(['before']);
+	});
+});
+
+// --- Logical-grid, span, and dimension metadata invariants ---
+
+function spanTestCell(id: string, attrs?: BlockAttrs): BlockNode {
+	return createBlockNode(
+		'table_cell' as NodeTypeName,
+		[createBlockNode('paragraph' as NodeTypeName, [createTextNode(id)], `p-${id}` as BlockId)],
+		id as BlockId,
+		attrs,
+	);
+}
+
+function spanTestRow(id: string, cells: readonly BlockNode[], attrs?: BlockAttrs): BlockNode {
+	return createBlockNode('table_row' as NodeTypeName, cells, id as BlockId, attrs);
+}
+
+function spanTestState(table: BlockNode, caret = 'p-a'): EditorState {
+	return EditorState.create({
+		doc: createDocument([table]),
+		selection: createCollapsedSelection(caret as BlockId, 0),
+		schema: TABLE_SCHEMA,
+	});
+}
+
+function spanningDimensionTable(): BlockNode {
+	return createBlockNode(
+		'table' as NodeTypeName,
+		[
+			spanTestRow('r0', [spanTestCell('a', { colspan: 2, rowspan: 2 }), spanTestCell('b')], {
+				minHeightPx: 30,
+			}),
+			spanTestRow('r1', [spanTestCell('c')], { minHeightPx: 40 }),
+		],
+		't1' as BlockId,
+		{ borderColor: '#123456', columnWidthsPx: [80, 100, 120] },
+	);
+}
+
+function expectHistoryRoundTrip(state: EditorState, transaction: Transaction): void {
+	const history = new HistoryManager();
+	history.push(transaction);
+	const after = state.apply(transaction);
+	const undone = history.undo(after);
+	expect(undone?.state.doc).toEqual(state.doc);
+	const redone = undone ? history.redo(undone.state) : null;
+	expect(redone?.state.doc).toEqual(after.doc);
+}
+
+function plainDimensionTable(): BlockNode {
+	return createBlockNode(
+		'table' as NodeTypeName,
+		[
+			spanTestRow('r0', [spanTestCell('a'), spanTestCell('b'), spanTestCell('c')], {
+				minHeightPx: 30,
+			}),
+			spanTestRow('r1', [spanTestCell('d'), spanTestCell('e'), spanTestCell('f')], {
+				minHeightPx: 40,
+			}),
+		],
+		't1' as BlockId,
+		{ columnWidthsPx: [80, 100, 120] },
+	);
+}
+
+describe('plain-table dimension splicing (#209)', () => {
+	it('splices column metadata when the first logical column is deleted and inverts exactly', () => {
+		const state = spanTestState(plainDimensionTable());
+		const transaction = buildDeleteColumnTransaction(state, 't1' as BlockId, 0);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		expect(next.getBlock('t1' as BlockId)?.attrs?.columnWidthsPx).toEqual([100, 120]);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('splices column metadata when the last logical column is deleted', () => {
+		const state = spanTestState(plainDimensionTable());
+		const transaction = buildDeleteColumnTransaction(state, 't1' as BlockId, 2);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		expect(next.getBlock('t1' as BlockId)?.attrs?.columnWidthsPx).toEqual([80, 100]);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('appends an automatic width when a trailing column is inserted', () => {
+		const state = spanTestState(plainDimensionTable());
+		const transaction = buildInsertColumnTransaction(state, 't1' as BlockId, 3);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		expect(next.getBlock('t1' as BlockId)?.attrs?.columnWidthsPx).toEqual([80, 100, 120, null]);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('preserves the surviving row minimum height when the first row is deleted', () => {
+		const state = spanTestState(plainDimensionTable());
+		const transaction = buildDeleteRowTransaction(state, 't1' as BlockId, 0);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		const table = next.getBlock('t1' as BlockId);
+		const rows = table ? getBlockChildren(table) : [];
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.attrs?.minHeightPx).toBe(40);
+		expectHistoryRoundTrip(state, transaction);
+	});
+});
+
+describe('logical-grid structural transactions', () => {
+	it('inserts inside a spanning cell and splices automatic column metadata atomically', () => {
+		const state = spanTestState(spanningDimensionTable());
+		const transaction = buildInsertColumnTransaction(state, 't1' as BlockId, 1);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		const table = next.getBlock('t1' as BlockId);
+		expect(table?.attrs).toMatchObject({
+			borderColor: '#123456',
+			columnWidthsPx: [80, null, 100, 120],
+		});
+		expect(next.getBlock('a' as BlockId)?.attrs).toMatchObject({ colspan: 3, rowspan: 2 });
+		expect(table ? getBlockChildren(table)[0]?.children : []).toHaveLength(2);
+		expect(table ? getBlockChildren(table)[1]?.children : []).toHaveLength(1);
+		expect(createTableGrid(table as BlockNode).columnCount).toBe(4);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('inserts cells at a span edge instead of expanding the span', () => {
+		const state = spanTestState(spanningDimensionTable());
+		const transaction = buildInsertColumnTransaction(state, 't1' as BlockId, 2);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		expect(next.getBlock('a' as BlockId)?.attrs?.colspan).toBe(2);
+		const table = next.getBlock('t1' as BlockId);
+		const rows = table ? getBlockChildren(table) : [];
+		expect(rows[0]?.children).toHaveLength(3);
+		expect(rows[1]?.children).toHaveLength(2);
+		expect(table?.attrs?.columnWidthsPx).toEqual([80, 100, null, 120]);
+	});
+
+	it('deletes one covered logical column by shrinking a colspan once', () => {
+		const state = spanTestState(spanningDimensionTable());
+		const transaction = buildDeleteColumnTransaction(state, 't1' as BlockId, 1);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		expect(next.getBlock('a' as BlockId)?.attrs).toEqual({ rowspan: 2 });
+		expect(next.getBlock('t1' as BlockId)?.attrs).toMatchObject({
+			borderColor: '#123456',
+			columnWidthsPx: [80, 120],
+		});
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('inserts a row inside rowspan coverage with only uncovered automatic cells', () => {
+		const state = spanTestState(spanningDimensionTable());
+		const transaction = buildInsertRowTransaction(state, 't1' as BlockId, 1);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		const table = next.getBlock('t1' as BlockId);
+		const rows = table ? getBlockChildren(table) : [];
+		expect(rows).toHaveLength(3);
+		expect(rows[0]?.attrs?.minHeightPx).toBe(30);
+		expect(rows[1]?.attrs?.minHeightPx).toBeUndefined();
+		expect(rows[2]?.attrs?.minHeightPx).toBe(40);
+		expect(rows[1]?.children).toHaveLength(1);
+		expect(next.getBlock('a' as BlockId)?.attrs?.rowspan).toBe(3);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('moves a rowspan owner into the following row when deleting its start row', () => {
+		const state = spanTestState(spanningDimensionTable());
+		const transaction = buildDeleteRowTransaction(state, 't1' as BlockId, 0);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		const table = next.getBlock('t1' as BlockId);
+		const rows = table ? getBlockChildren(table) : [];
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.id).toBe('r1');
+		expect(rows[0]?.attrs?.minHeightPx).toBe(40);
+		expect(getBlockChildren(rows[0] as BlockNode).map((cell) => cell.id)).toEqual(['a', 'c']);
+		expect(next.getBlock('a' as BlockId)?.attrs).toEqual({ colspan: 2 });
+		expect(next.getBlock('p-a' as BlockId)).toBeDefined();
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('shrinks a rowspan from an earlier row while naturally removing only the deleted row height', () => {
+		const table = createBlockNode(
+			'table' as NodeTypeName,
+			[
+				spanTestRow('r0', [spanTestCell('a', { rowspan: 3 }), spanTestCell('b')], {
+					minHeightPx: 25,
+				}),
+				spanTestRow('r1', [spanTestCell('c')], { minHeightPx: 35 }),
+				spanTestRow('r2', [spanTestCell('d')], { minHeightPx: 45 }),
+			],
+			't1' as BlockId,
+			{ columnWidthsPx: [70, 90] },
+		);
+		const state = spanTestState(table);
+		const transaction = buildDeleteRowTransaction(state, 't1' as BlockId, 1);
+		expect(transaction).not.toBeNull();
+		if (!transaction) return;
+
+		const next = state.apply(transaction);
+		const nextTable = next.getBlock('t1' as BlockId);
+		const rows = nextTable ? getBlockChildren(nextTable) : [];
+		expect(rows.map((row) => row.attrs?.minHeightPx)).toEqual([25, 45]);
+		expect(next.getBlock('a' as BlockId)?.attrs?.rowspan).toBe(2);
+		expect(nextTable?.attrs?.columnWidthsPx).toEqual([70, 90]);
+		expectHistoryRoundTrip(state, transaction);
+	});
+
+	it('rejects non-integer and out-of-bounds logical coordinates without partial steps', () => {
+		const state = spanTestState(spanningDimensionTable());
+		expect(buildInsertColumnTransaction(state, 't1' as BlockId, -1)).toBeNull();
+		expect(buildInsertRowTransaction(state, 't1' as BlockId, 99)).toBeNull();
+		expect(buildDeleteColumnTransaction(state, 't1' as BlockId, 1.5)).toBeNull();
+		expect(buildDeleteRowTransaction(state, 't1' as BlockId, 2)).toBeNull();
 	});
 });

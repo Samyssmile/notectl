@@ -200,8 +200,13 @@ const READONLY_DEMO_HTML: string = `
 </p>
 <h2 data-block-id="h2-table">Quarterly results</h2>
 <table data-block-id="tbl">
+	<colgroup>
+		<col data-notectl-width-px="140" style="width: 140px">
+		<col data-notectl-width-px="220" style="width: 220px">
+		<col data-notectl-width-px="160" style="width: 160px">
+	</colgroup>
 	<tbody>
-		<tr data-block-id="tr-head">
+		<tr data-block-id="tr-head" data-notectl-min-height-px="44" style="height: 44px">
 			<td data-block-id="th-quarter"><strong>Quarter</strong></td>
 			<td data-block-id="th-revenue"><strong>Revenue</strong></td>
 			<td data-block-id="th-status"><strong>Status</strong></td>
@@ -211,7 +216,7 @@ const READONLY_DEMO_HTML: string = `
 			<td data-block-id="td-q1-rev"><span style="background-color: #fff59d">€ 120k</span></td>
 			<td data-block-id="td-q1-status"><span style="color: #16a34a">on track</span></td>
 		</tr>
-		<tr data-block-id="tr-q2">
+		<tr data-block-id="tr-q2" data-notectl-min-height-px="56" style="height: 56px">
 			<td data-block-id="td-q2-name">Q2</td>
 			<td data-block-id="td-q2-rev"><span style="background-color: #a7f3d0">€ 165k</span></td>
 			<td data-block-id="td-q2-status"><strong><span style="color: #15803d">ahead</span></strong></td>

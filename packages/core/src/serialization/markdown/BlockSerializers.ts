@@ -22,6 +22,10 @@ import {
 } from '../../model/Document.js';
 import { normalizeHTMLId } from '../../model/HTMLUtils.js';
 import { serializeDocumentToHTML } from '../DocumentSerializer.js';
+import {
+	hasExplicitTableColumnWidth,
+	normalizeSerializedTableDimensionPx,
+} from '../TableDimensions.js';
 import { serializeInlineContent } from './InlineSerializers.js';
 import { type SerContext, exportContext } from './MarkdownContext.js';
 import {
@@ -301,7 +305,11 @@ function serializeTable(block: BlockNode, ctx: SerContext): string {
 		return serializeHTMLFallback([block], ctx);
 	}
 
-	if (ctx.opts.htmlFallback && hasSpannedCells(rows)) {
+	// GFM has no syntax for either logical column widths or row minimum
+	// heights. Preserve them through the existing semantic HTML seam when it
+	// is available. With `htmlFallback: false`, the documented behavior is a
+	// plain pipe table whose dimensions reset to automatic on re-import.
+	if (ctx.opts.htmlFallback && (hasSpannedCells(rows) || hasExplicitTableDimensions(block, rows))) {
 		return serializeHTMLFallback([block], ctx);
 	}
 
@@ -358,6 +366,15 @@ function hasSpannedCells(rows: readonly BlockNode[]): boolean {
 		}
 	}
 	return false;
+}
+
+/** Whether the table carries any safe dimension that GFM cannot represent. */
+function hasExplicitTableDimensions(table: BlockNode, rows: readonly BlockNode[]): boolean {
+	if (hasExplicitTableColumnWidth(table.attrs?.columnWidthsPx)) return true;
+	return rows.some(
+		(row: BlockNode): boolean =>
+			normalizeSerializedTableDimensionPx(row.attrs?.minHeightPx) !== undefined,
+	);
 }
 
 /** Serializes a table cell to single-line inline Markdown, escaping pipes. */

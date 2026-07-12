@@ -22,6 +22,37 @@ const locale: TableLocale = {
 	contextMenuHint: 'Rechtsklick oder Umschalt+F10 f\u00fcr Tabellenaktionen',
 	borderColor: 'Rahmenfarbe',
 
+	sizeLabel: 'Gr\u00f6\u00dfe\u2026',
+	sizeDialogLabel: 'Tabellengr\u00f6\u00dfe',
+	columnWidthLabel: 'Spaltenbreite (px)',
+	rowMinimumHeightLabel: 'Mindesth\u00f6he der Zeile (px)',
+	automatic: 'Automatisch',
+	mixed: 'Gemischt',
+	apply: 'Anwenden',
+	cancel: 'Abbrechen',
+	resetColumnWidth: 'Spaltenbreite zur\u00fccksetzen',
+	resetRowMinimumHeight: 'Mindesth\u00f6he der Zeile zur\u00fccksetzen',
+	resetAllSizes: 'Alle Gr\u00f6\u00dfen zur\u00fccksetzen',
+	invalidDimensionRange: (minimum: number, maximum: number) =>
+		`Geben Sie einen Wert zwischen ${minimum} und ${maximum} px ein.`,
+	selectRowLabel: (rowIndex: number) => `Zeile ${rowIndex + 1} ausw\u00e4hlen`,
+	selectColumnLabel: (columnIndex: number) => `Spalte ${columnIndex + 1} ausw\u00e4hlen`,
+	resizeColumnSeparatorLabel: (columnIndex: number) =>
+		`Breite von Spalte ${columnIndex + 1} \u00e4ndern`,
+	resizeRowSeparatorLabel: (rowIndex: number) => `H\u00f6he von Zeile ${rowIndex + 1} \u00e4ndern`,
+	resizeKeyboardHint: (step: number, largeStep: number) =>
+		`Pfeiltasten \u00e4ndern die Gr\u00f6\u00dfe um ${step} px; Umschalttaste f\u00fcr ${largeStep} px gedr\u00fcckt halten.`,
+	announceColumnWidthSet: (columnIndex: number, valuePx: number) =>
+		`Breite von Spalte ${columnIndex + 1} auf ${valuePx} px gesetzt.`,
+	announceRowMinimumHeightSet: (rowIndex: number, valuePx: number) =>
+		`Mindesth\u00f6he von Zeile ${rowIndex + 1} auf ${valuePx} px gesetzt.`,
+	announceColumnWidthReset: (columnIndex: number) =>
+		`Breite von Spalte ${columnIndex + 1} auf automatisch zur\u00fcckgesetzt.`,
+	announceRowMinimumHeightReset: (rowIndex: number) =>
+		`Mindesth\u00f6he von Zeile ${rowIndex + 1} auf automatisch zur\u00fcckgesetzt.`,
+	announceTableSizesReset:
+		'Alle Spaltenbreiten und Mindesth\u00f6hen der Zeilen auf automatisch zur\u00fcckgesetzt.',
+
 	defaultColor: 'Standard',
 	noBorders: 'Keine Rahmen',
 	borderColorPicker: 'Rahmenfarbe ausw\u00e4hlen',

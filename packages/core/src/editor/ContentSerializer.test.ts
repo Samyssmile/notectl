@@ -235,6 +235,79 @@ describe('setEditorJSON', () => {
 		expect(captured?.selection.anchor.blockId).toBe('p1');
 		expect(captured?.selection.anchor.offset).toBe(0);
 	});
+
+	it('runs plugin-owned attribute normalization at the external JSON boundary', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'sized',
+			toDOM: () => document.createElement('div'),
+			normalizeAttrs(node) {
+				const raw: unknown = node.attrs?.sizes;
+				if (!Array.isArray(raw)) return undefined;
+				const sizes = raw.map((value) =>
+					typeof value === 'number' && Number.isFinite(value) ? Math.max(10, value) : null,
+				);
+				return { sizes };
+			},
+		});
+		const block = createBlockNode(nodeType('sized'), [createTextNode('body')], blockId('s1'), {
+			sizes: [1, null, 30],
+		});
+		let captured: EditorState | null = null;
+
+		setEditorJSON({ children: [block] }, registry, (state) => {
+			captured = state;
+		});
+
+		expect((captured as EditorState).doc.children[0]?.attrs).toEqual({
+			sizes: [10, null, 30],
+		});
+	});
+
+	it('runs plugin-owned subtree normalization after descendants and attrs', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'container',
+			toDOM: () => document.createElement('div'),
+			content: { allow: ['paragraph'], min: 0 },
+			normalizeNode(node) {
+				return { ...node, children: node.children.slice(0, 1) };
+			},
+		});
+		const block = createBlockNode(
+			nodeType('container'),
+			[
+				createBlockNode(nodeType('paragraph'), [createTextNode('one')], blockId('p1')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('two')], blockId('p2')),
+			],
+			blockId('c1'),
+		);
+		let captured: EditorState | null = null;
+
+		setEditorJSON({ children: [block] }, registry, (state) => {
+			captured = state;
+		});
+
+		expect((captured as EditorState).doc.children[0]?.children).toHaveLength(1);
+		expect((captured as EditorState).doc.children[0]?.children[0]?.id).toBe('p1');
+	});
+
+	it('preserves an intentionally empty composite whose content minimum is zero', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'empty_container',
+			toDOM: () => document.createElement('div'),
+			content: { allow: ['paragraph'], min: 0 },
+		});
+		const block = createBlockNode(nodeType('empty_container'), [], blockId('empty-container'));
+		let captured: EditorState | null = null;
+
+		setEditorJSON({ children: [block] }, registry, (state) => {
+			captured = state;
+		});
+
+		expect((captured as EditorState).doc.children[0]?.children).toEqual([]);
+	});
 });
 
 describe('getEditorText', () => {

@@ -89,7 +89,12 @@ function omitAttrs(
 ): Record<string, string | number | boolean> {
 	const out: Record<string, string | number | boolean> = {};
 	for (const [key, value] of Object.entries(attrs ?? {})) {
-		if (!keys.includes(key)) out[key] = value;
+		if (
+			!keys.includes(key) &&
+			(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+		) {
+			out[key] = value;
+		}
 	}
 	return out;
 }
