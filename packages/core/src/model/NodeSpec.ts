@@ -3,12 +3,14 @@
  */
 
 import type { NodeAttrsFor } from './AttrRegistry.js';
-import type { BlockNode } from './Document.js';
+import type { BlockAttrs, BlockNode } from './Document.js';
 import type { ParseRule } from './ParseRule.js';
 import type { SanitizeConfig } from './SanitizeConfig.js';
 
 export interface AttrSpec {
 	readonly default?: string | number | boolean;
+	/** Allows a cloned, immutable flat primitive array for block attributes. */
+	readonly allowArray?: boolean;
 }
 
 /** Describes a wrapper element that groups consecutive blocks of the same kind. */
@@ -67,6 +69,28 @@ export interface NodeSpec<T extends string = string> {
 	/** Renders the block to a DOM element. Must set `data-block-id` on the root. */
 	toDOM(node: Omit<BlockNode, 'attrs'> & { readonly attrs: NodeAttrsFor<T> }): HTMLElement;
 	readonly attrs?: Readonly<Record<string, AttrSpec>>;
+	/**
+	 * Establishes plugin-owned attribute invariants at external document
+	 * boundaries such as `setJSON()` and HTML/Markdown import.
+	 *
+	 * The returned record must be immutable and contain only canonical values.
+	 * Returning `undefined` removes all attributes. Normal transaction builders
+	 * remain responsible for emitting canonical attrs so normalization never
+	 * creates hidden, non-invertible changes during `EditorState.apply()`.
+	 */
+	readonly normalizeAttrs?: (node: BlockNode) => BlockAttrs | undefined;
+	/**
+	 * Establishes plugin-owned subtree invariants after descendants and attrs
+	 * have been normalized at an external document boundary. The returned node
+	 * must keep the same type and identity; it may canonically rewrite children.
+	 */
+	readonly normalizeNode?: (node: BlockNode) => BlockNode;
+	/**
+	 * Projects node-owned metadata when clipboard selection slicing removes
+	 * descendants. Container plugins use this to keep only metadata whose
+	 * coordinate mapping remains unambiguous in the sliced subtree.
+	 */
+	readonly transformSelectionSlice?: (original: BlockNode, slice: BlockNode) => BlockNode;
 	/** If true, the node contains no editable text (e.g. Image, HR). */
 	readonly isVoid?: boolean;
 	/** Content model: which children this node can contain. */

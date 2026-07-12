@@ -143,4 +143,24 @@ describe('StyleRuntime', () => {
 
 		unregisterStyleRoot(shadow);
 	});
+
+	it('removes disconnected inline fallbacks when a registered root takes ownership', () => {
+		const el: HTMLDivElement = document.createElement('div');
+		setStyleProperties(el, { width: '100px', minWidth: '80px' });
+		expect(el.style.width).toBe('100px');
+
+		const host: HTMLDivElement = document.createElement('div');
+		document.body.appendChild(host);
+		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+		registerStyleRoot(shadow, {});
+		shadow.appendChild(el);
+		setStyleProperties(el, { width: '140px', minWidth: '120px' });
+
+		expect(el.getAttribute('style')).toBeNull();
+		expect(el.getAttribute('data-notectl-style-token')).toBeTruthy();
+		expect(getStyleText(el)).toContain('width: 140px');
+		expect(getStyleText(el)).toContain('min-width: 120px');
+
+		unregisterStyleRoot(shadow);
+	});
 });

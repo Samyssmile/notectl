@@ -339,11 +339,20 @@ Unsubscribe from an event.
 Retrieves a typed service registered by any plugin. Returns `undefined` if not found.
 
 ```ts
-import { TableSelectionServiceKey } from '@notectl/core/plugins/table';
+import {
+  TableSelectionServiceKey,
+  TableSizingServiceKey,
+} from '@notectl/core/plugins/table';
 
-const tableService = editor.getService(TableSelectionServiceKey);
-tableService?.getSelectedCells();
+const tableSelection = editor.getService(TableSelectionServiceKey);
+tableSelection?.getSelectedCellIds();
+
+const tableSizing = editor.getService(TableSizingServiceKey);
+tableSizing?.setSelectionSize({ columnWidthPx: 180 });
 ```
+
+Table sizing reads and writes canonical logical column/row dimensions; consumers do not need node
+paths or table DOM access. See the [TableSizingService reference](/notectl/plugins/table/#public-sizing-api).
 
 ### `onPluginEvent<T>(key: EventKey<T>, callback: PluginEventCallback<T>): () => void`
 

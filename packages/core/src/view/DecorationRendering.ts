@@ -15,6 +15,14 @@ import { preserveSpaces, renderInlineNode } from './InlineRendering.js';
 import { wrapNodeWithMarks } from './MarkRendering.js';
 import type { ReconcileOptions } from './Reconciler.js';
 
+interface AppliedNodeDecorationClasses {
+	readonly managed: ReadonlySet<string>;
+	readonly preexisting: ReadonlySet<string>;
+}
+
+const appliedNodeDecorationClasses: WeakMap<HTMLElement, AppliedNodeDecorationClasses> =
+	new WeakMap();
+
 /**
  * Renders inline content with decorations. InlineNodes are width-1 split points
  * rendered as their own elements (not wrapped by decorations).
@@ -131,17 +139,49 @@ export function applyNodeDecorations(
 	bid: BlockId,
 	options?: ReconcileOptions,
 ): void {
+	syncNodeDecorationClasses(el, bid, options);
 	const nodeDecos = options?.decorations?.findNode(bid);
 	if (!nodeDecos || nodeDecos.length === 0) return;
 
 	for (const deco of nodeDecos) {
-		if (deco.attrs.class) {
-			for (const cls of deco.attrs.class.split(' ')) {
-				if (cls) el.classList.add(cls);
-			}
-		}
 		if (deco.attrs.style) {
 			appendStyleText(el, deco.attrs.style);
 		}
 	}
+}
+
+/**
+ * Synchronizes class-based node decorations without replacing a NodeView.
+ * Decoration-owned classes are removed when their decoration disappears,
+ * while classes that existed before decoration application are preserved.
+ */
+export function syncNodeDecorationClasses(
+	el: HTMLElement,
+	bid: BlockId,
+	options?: ReconcileOptions,
+): void {
+	const previous: AppliedNodeDecorationClasses | undefined = appliedNodeDecorationClasses.get(el);
+	if (previous) {
+		for (const className of previous.managed) {
+			if (!previous.preexisting.has(className)) el.classList.remove(className);
+		}
+	}
+
+	const desired = new Set<string>();
+	for (const decoration of options?.decorations?.findNode(bid) ?? []) {
+		for (const className of decoration.attrs.class?.split(/\s+/) ?? []) {
+			if (className) desired.add(className);
+		}
+	}
+	if (desired.size === 0) {
+		appliedNodeDecorationClasses.delete(el);
+		return;
+	}
+
+	const preexisting = new Set<string>();
+	for (const className of desired) {
+		if (el.classList.contains(className)) preexisting.add(className);
+		else el.classList.add(className);
+	}
+	appliedNodeDecorationClasses.set(el, { managed: desired, preexisting });
 }

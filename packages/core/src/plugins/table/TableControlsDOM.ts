@@ -96,6 +96,37 @@ export function buildHandleBar(className: string): HTMLDivElement {
 	return bar;
 }
 
+/** Builds a keyboard-focusable logical column/row resize separator. */
+export function buildResizeSeparator(
+	kind: 'column' | 'row',
+	index: number,
+	label: string,
+	keyboardHint: string,
+): HTMLButtonElement {
+	const separator: HTMLButtonElement = document.createElement('button');
+	separator.type = 'button';
+	separator.className = `ntbl-resize-separator ntbl-resize-separator--${kind}`;
+	separator.dataset.kind = kind;
+	separator.dataset.index = String(index);
+	separator.setAttribute('role', 'separator');
+	separator.setAttribute('aria-orientation', kind === 'column' ? 'vertical' : 'horizontal');
+	separator.setAttribute('aria-label', label);
+	separator.setAttribute('contenteditable', 'false');
+	separator.setAttribute('data-notectl-no-print', '');
+	separator.title = `${label}. ${keyboardHint}`;
+	return separator;
+}
+
+/** Builds the live pointer-resize dimension indicator. */
+export function buildResizeIndicator(): HTMLDivElement {
+	const indicator: HTMLDivElement = document.createElement('div');
+	indicator.className = 'ntbl-resize-indicator';
+	indicator.setAttribute('aria-hidden', 'true');
+	indicator.setAttribute('contenteditable', 'false');
+	indicator.setAttribute('data-notectl-no-print', '');
+	return indicator;
+}
+
 /** SVG icon for kebab menu (three vertical dots). */
 export const ACTIONS_SVG: string =
 	'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" ' +
@@ -162,16 +193,34 @@ export function updateBorderColorSwatch(swatch: HTMLElement, color?: string): vo
 	}
 }
 
-/** Builds a single column or row handle with a delete button. */
+export interface TableHandleSelectionOptions {
+	readonly label: string;
+	readonly onSelect: (idx: number) => void;
+	readonly selected?: boolean;
+}
+
+/** Builds a single column or row handle with selection and delete buttons. */
 export function buildHandle(
 	className: string,
 	index: number,
 	deleteLabel: string,
 	onDelete: (idx: number) => void,
+	selection?: TableHandleSelectionOptions,
 ): HTMLDivElement {
 	const handle: HTMLDivElement = document.createElement('div');
 	handle.className = `ntbl-handle ${className}`;
 	handle.dataset.index = String(index);
+
+	if (selection) {
+		const selectBtn: HTMLButtonElement = createButton('ntbl-handle-select', '', selection.label);
+		selectBtn.setAttribute('aria-pressed', selection.selected ? 'true' : 'false');
+		selectBtn.addEventListener('click', (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			selection.onSelect(index);
+		});
+		handle.appendChild(selectBtn);
+	}
 
 	const deleteBtn: HTMLButtonElement = createButton('ntbl-handle-delete', DELETE_SVG, deleteLabel);
 	deleteBtn.addEventListener('click', (e: MouseEvent) => {

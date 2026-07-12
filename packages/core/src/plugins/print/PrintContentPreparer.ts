@@ -21,7 +21,11 @@ export function sanitize(clone: HTMLElement): void {
 	clone.removeAttribute('contenteditable');
 
 	// Remove selection-related CSS classes
-	const selectionClasses: readonly string[] = ['notectl-node-selected', 'notectl-content--empty'];
+	const selectionClasses: readonly string[] = [
+		'notectl-node-selected',
+		'notectl-content--empty',
+		'notectl-table-cell--selected',
+	];
 	for (const cls of selectionClasses) {
 		clone.classList.remove(cls);
 		for (const el of clone.querySelectorAll(`.${cls}`)) {

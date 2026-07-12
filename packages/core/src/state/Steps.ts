@@ -4,7 +4,15 @@
  */
 
 import { segmentsLength } from '../model/ContentSlice.js';
-import type { BlockAttrs, BlockNode, ContentSegment, InlineNode, Mark } from '../model/Document.js';
+import type {
+	BlockAttrs,
+	BlockNode,
+	ContentSegment,
+	Document,
+	InlineNode,
+	Mark,
+} from '../model/Document.js';
+import { resolveChildAt, resolveNodeByPath } from '../model/NodeResolver.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 
 export interface InsertTextStep {
@@ -143,6 +151,20 @@ export interface RemoveNodeStep {
 	readonly removedNode: BlockNode;
 }
 
+/**
+ * Moves one existing block node between parent child lists without changing
+ * its identity or descendants. `toIndex` is an insertion slot in the document
+ * before removal; same-parent moves adjust it after removing the source.
+ */
+export interface MoveNodeStep {
+	readonly type: 'moveNode';
+	readonly fromParentPath: readonly BlockId[];
+	readonly fromIndex: number;
+	readonly toParentPath: readonly BlockId[];
+	readonly toIndex: number;
+	readonly movedNode: BlockNode;
+}
+
 export interface SetNodeAttrStep {
 	readonly type: 'setNodeAttr';
 	readonly path: readonly BlockId[];
@@ -188,12 +210,73 @@ export type Step =
 	| SetBlockTypeStep
 	| InsertNodeStep
 	| RemoveNodeStep
+	| MoveNodeStep
 	| SetNodeAttrStep
 	| InsertInlineNodeStep
 	| RemoveInlineNodeStep
 	| SetInlineNodeAttrStep;
 
 export type TransactionOrigin = 'input' | 'paste' | 'command' | 'history' | 'api';
+
+/** Returns the moved node's index in its destination parent after removal. */
+export function moveNodeDestinationIndex(step: MoveNodeStep): number {
+	return sameBlockPath(step.fromParentPath, step.toParentPath) && step.toIndex > step.fromIndex
+		? step.toIndex - 1
+		: step.toIndex;
+}
+
+/** True when a same-parent move leaves the child list unchanged. */
+export function isMoveNodeNoOp(step: MoveNodeStep): boolean {
+	return (
+		sameBlockPath(step.fromParentPath, step.toParentPath) &&
+		moveNodeDestinationIndex(step) === step.fromIndex
+	);
+}
+
+/** A move resolved and validated against the document it will be applied to. */
+export interface ResolvedMoveNodeStep {
+	readonly movedNode: BlockNode;
+	readonly destinationIndex: number;
+}
+
+/**
+ * Resolves both sides of a move before any mutation occurs. This is shared by
+ * application and StepMap production so an invalid move is consistently an
+ * identity operation and can never remove its source without reinserting it.
+ */
+export function resolveMoveNodeStep(
+	doc: Document,
+	step: MoveNodeStep,
+): ResolvedMoveNodeStep | null {
+	const movedNode: BlockNode | undefined = resolveChildAt(doc, step.fromParentPath, step.fromIndex);
+	if (!movedNode || movedNode.id !== step.movedNode.id) return null;
+	if (step.toParentPath.includes(movedNode.id)) return null;
+
+	const destinationLength: number | null =
+		step.toParentPath.length === 0
+			? doc.children.length
+			: (resolveNodeByPath(doc, step.toParentPath)?.children.length ?? null);
+	if (
+		destinationLength === null ||
+		!Number.isInteger(step.toIndex) ||
+		step.toIndex < 0 ||
+		step.toIndex > destinationLength
+	) {
+		return null;
+	}
+
+	const sameParent: boolean = sameBlockPath(step.fromParentPath, step.toParentPath);
+	const destinationIndex: number = moveNodeDestinationIndex(step);
+	const postRemovalLength: number = destinationLength - (sameParent ? 1 : 0);
+	if (destinationIndex < 0 || destinationIndex > postRemovalLength) return null;
+
+	return { movedNode, destinationIndex };
+}
+
+function sameBlockPath(a: readonly BlockId[], b: readonly BlockId[]): boolean {
+	if (a.length !== b.length) return false;
+	return a.every((id: BlockId, index: number) => id === b[index]);
+}
 
 /**
  * Block-space width an {@link InsertTextStep} occupies once applied. When the

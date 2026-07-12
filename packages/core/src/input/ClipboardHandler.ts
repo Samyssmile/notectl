@@ -6,7 +6,13 @@
 
 import { deleteNodeSelection, deleteSelectionCommand } from '../commands/Commands.js';
 import type { BlockNode, Mark } from '../model/Document.js';
-import { forEachInlineChildInRange, getBlockLength, isLeafBlock } from '../model/Document.js';
+import {
+	forEachInlineChildInRange,
+	getBlockChildren,
+	getBlockLength,
+	getBlockText,
+	isLeafBlock,
+} from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { RichBlockData, RichSegment } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -18,6 +24,7 @@ import {
 	isTextSelection,
 	selectionRange,
 } from '../model/Selection.js';
+import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import { setHTMLIdOnFirstTag } from '../serialization/DocumentSerializer.js';
 import {
 	buildMarkOrder,
@@ -66,6 +73,7 @@ export class ClipboardHandler {
 	}
 
 	private onCopy(e: ClipboardEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		// Sync DOM selection → state first; selectionchange may lag behind
 		this.syncSelection?.();
 
@@ -90,6 +98,7 @@ export class ClipboardHandler {
 	}
 
 	private onCut(e: ClipboardEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		if (this.isReadOnly()) return;
 
 		// Sync DOM selection → state first; selectionchange may lag behind
@@ -127,6 +136,21 @@ export class ClipboardHandler {
 		const block = state.getBlock(sel.nodeId);
 		if (!block) return;
 
+		// Composite nodes carry their content in descendants. The block-only MIME
+		// format and a direct `toHTML(block, '')` call cannot represent that tree
+		// (a selected table used to become an empty table on paste), so serialize
+		// the complete subtree through the canonical document serializer instead.
+		if (!isLeafBlock(block)) {
+			if (this.schemaRegistry) {
+				clipboardData.setData(
+					'text/html',
+					serializeDocumentToHTML({ children: [block] }, this.schemaRegistry),
+				);
+			}
+			clipboardData.setData('text/plain', this.plainTextFromBlockTree(block));
+			return;
+		}
+
 		// Internal format: block type + attrs for round-trip paste
 		const blockData: {
 			readonly type: string;
@@ -149,6 +173,14 @@ export class ClipboardHandler {
 		const attrs = block.attrs as Record<string, unknown> | undefined;
 		const altText: string = typeof attrs?.alt === 'string' ? attrs.alt : '';
 		clipboardData.setData('text/plain', altText);
+	}
+
+	/** Returns leaf text for a composite block in document order. */
+	private plainTextFromBlockTree(block: BlockNode): string {
+		if (isLeafBlock(block)) return getBlockText(block);
+		return getBlockChildren(block)
+			.map((child) => this.plainTextFromBlockTree(child))
+			.join('\n');
 	}
 
 	private writeTextSelectionToClipboard(clipboardData: DataTransfer, state: EditorState): void {
@@ -314,7 +346,7 @@ export class ClipboardHandler {
 
 		// Serialize only the selected region while preserving composite ancestors
 		if (this.schemaRegistry) {
-			const doc = buildSelectionDocument(state, sel);
+			const doc = buildSelectionDocument(state, sel, this.schemaRegistry);
 			if (doc.children.length > 0) {
 				const html: string = serializeDocumentToHTML(doc, this.schemaRegistry);
 				clipboardData.setData('text/html', html);

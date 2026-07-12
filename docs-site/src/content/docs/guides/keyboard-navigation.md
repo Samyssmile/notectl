@@ -114,6 +114,22 @@ Inside tables, navigation is scoped to the current cell with some special shortc
 
 Table cells are isolating — word movement and line-boundary movement do not escape the current cell.
 
+### Table resize separators
+
+When direct table resizing is enabled, use `Tab` to focus a column or row separator. The focused
+control exposes its orientation, logical axis, current value, and minimum to assistive technology.
+
+| Focused control | Key | Action |
+|---|---|---|
+| Column separator | `ArrowLeft` / `ArrowRight` | Decrease/increase width by 8 px by default; horizontal direction mirrors in RTL. |
+| Row separator | `ArrowUp` / `ArrowDown` | Decrease/increase the row minimum height by 8 px by default. |
+| Either | `Shift` + resize arrow | Use the 32 px large step by default. |
+| Either | `Delete` / `Backspace` | Reset that column width or row minimum height to automatic. |
+
+Configure the steps with `TablePlugin`'s `keyboardResizeStepPx` and
+`keyboardResizeLargeStepPx` options. The [Table plugin guide](/notectl/plugins/table/#keyboard-resizing)
+also covers pointer/touch resize, exact input, automatic reset, and read-only behavior.
+
 ## Deletion
 
 | Action | Mac | Windows / Linux |

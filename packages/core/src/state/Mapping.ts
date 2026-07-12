@@ -151,13 +151,35 @@ export interface BlockRemovalMap {
  * (`{blockId, offset}`) is unaffected — the new block has no prior
  * positions, and positions inside other siblings keep their offsets.
  *
- * Only consumed by {@link mapChildIndex}.
+ * Consumed by {@link mapChildIndex}, {@link mapInsertionIndex}, and exact
+ * structural inverse detection during history replay.
  */
 export interface ChildIndexShiftMap {
 	readonly type: 'childIndexShift';
 	readonly parentPath: readonly BlockId[];
 	readonly fromIndex: number;
 	readonly delta: number;
+	/**
+	 * IDs introduced by an InsertNodeStep. Optional for synthetic/test maps;
+	 * when present it makes the map an exact structural inverse of the matching
+	 * BlockRemovalMap during history replay.
+	 */
+	readonly insertedBlockIds?: ReadonlySet<BlockId>;
+}
+
+/**
+ * One existing subtree moves between child lists. Positions inside the moved
+ * subtree keep their block IDs and offsets; sibling child indices in both
+ * parents are shifted by the removal followed by the insertion.
+ */
+export interface MoveNodeMap {
+	readonly type: 'moveNode';
+	readonly movedNodeId: BlockId;
+	readonly fromParentPath: readonly BlockId[];
+	readonly fromIndex: number;
+	readonly toParentPath: readonly BlockId[];
+	/** Destination index after removing the source node. */
+	readonly destinationIndex: number;
 }
 
 /** Discriminated union of all StepMap variants. */
@@ -167,7 +189,8 @@ export type StepMap =
 	| SplitMap
 	| MergeMap
 	| BlockRemovalMap
-	| ChildIndexShiftMap;
+	| ChildIndexShiftMap
+	| MoveNodeMap;
 
 // --- Map results ---
 
@@ -233,6 +256,10 @@ export function mapPositionThroughStep(pos: Position, map: StepMap, assoc: Assoc
 			// a new sibling block has no prior positions to map, and existing
 			// siblings keep their internal offsets even if their parent-relative
 			// index changed. Consumed only by {@link mapChildIndex}.
+			return { pos, deleted: false };
+		case 'moveNode':
+			// A move preserves block identity and in-block offsets. Structural
+			// child-index consumers handle the parent-list shifts separately.
 			return { pos, deleted: false };
 	}
 }
@@ -371,19 +398,29 @@ export class Mapping {
 	}
 
 	/**
-	 * Like {@link map}, but returns whether the position landed in deleted
-	 * content at any step. Once a position is marked deleted, the flag is
-	 * sticky — subsequent steps do not "un-delete" it.
+	 * Like {@link map}, but returns whether the position is deleted in the final
+	 * frame. Content deletion remains sticky across every later map. Structural
+	 * deletion can be recovered by an `insertNode` map carrying the same block
+	 * ID; a later removal can mark that identity deleted again.
 	 */
 	mapResult(pos: Position, assoc: Assoc = -1): MapResult {
 		let current: Position = pos;
-		let deleted = false;
+		let contentDeleted = false;
+		let structurallyDeleted = false;
 		for (const m of this.maps) {
 			const result: MapResult = mapPositionThroughStep(current, m, assoc);
 			current = result.pos;
-			if (result.deleted) deleted = true;
+			if (result.deleted) {
+				if (m.type === 'blockRemoval') {
+					structurallyDeleted = true;
+				} else {
+					contentDeleted = true;
+				}
+			} else if (m.type === 'childIndexShift' && m.insertedBlockIds?.has(current.blockId)) {
+				structurallyDeleted = false;
+			}
 		}
-		return { pos: current, deleted };
+		return { pos: current, deleted: contentDeleted || structurallyDeleted };
 	}
 
 	/**
@@ -505,7 +542,7 @@ export function mapOffsetInBlock(
  *
  * Child-indices live in a coordinate space orthogonal to positions
  * (`{blockId, offset}`): they describe a slot in a parent's child list,
- * not a place inside text. Only two {@link StepMap} categories carry
+ * not a place inside text. Three {@link StepMap} categories carry
  * child-index-affecting information:
  *
  * - {@link ChildIndexShiftMap} (produced by `insertNode`): shifts
@@ -513,6 +550,8 @@ export function mapOffsetInBlock(
  * - {@link BlockRemovalMap} (produced by `removeNode`): removes the child
  *   at `index` (the input index becomes invalid → `null`), and shifts
  *   sibling indices `> index` down by `1`.
+ * - {@link MoveNodeMap} (produced by `moveNode`): combines the source removal
+ *   and destination insertion while preserving the moved subtree's identity.
  *
  * Maps whose `parentPath` differs from the input pass through; all
  * non-structural categories (`shift`, `split`, `merge`, `identity`) are
@@ -609,7 +648,41 @@ function mapChildIndexThroughStep(
 			if (!sameParentPath(parentPath, map.parentPath)) return index;
 			if (index >= map.fromIndex) return index + map.delta;
 			return index;
+		case 'moveNode':
+			return mapChildIndexThroughMove(parentPath, index, map, kind);
 	}
+}
+
+function mapChildIndexThroughMove(
+	parentPath: readonly BlockId[],
+	index: number,
+	map: MoveNodeMap,
+	kind: ChildIndexKind,
+): number | null {
+	const sameParent: boolean = sameParentPath(map.fromParentPath, map.toParentPath);
+	if (sameParent && map.fromIndex === map.destinationIndex) return index;
+	if (
+		kind === 'existing' &&
+		sameParent &&
+		sameParentPath(parentPath, map.fromParentPath) &&
+		index === map.fromIndex
+	) {
+		return map.destinationIndex;
+	}
+
+	let current: number = index;
+	if (sameParentPath(parentPath, map.fromParentPath)) {
+		if (current === map.fromIndex) {
+			if (kind === 'existing') return null;
+		} else if (current > map.fromIndex) {
+			current--;
+		}
+	}
+
+	if (sameParentPath(parentPath, map.toParentPath) && current >= map.destinationIndex) {
+		current++;
+	}
+	return current;
 }
 
 function sameParentPath(a: readonly BlockId[], b: readonly BlockId[]): boolean {
@@ -635,10 +708,9 @@ function sameParentPath(a: readonly BlockId[], b: readonly BlockId[]): boolean {
  * and cancel them, sidestepping the round-trip clamping for cases where
  * the rebase is a no-op in content terms.
  *
- * `BlockRemovalMap`'s inverse is {@link IDENTITY_MAP}: re-inserting a
- * removed block subtree does not shift positions in *other* blocks, so the
- * inverse direction is invisible to position-mapping. Callers that need to
- * re-validate "did the block come back" must check the document instead.
+ * Structural maps include enough metadata to recover their exact inverse
+ * where possible. Synthetic ChildIndexShiftMaps without inserted subtree IDs
+ * remain position-only and therefore invert to {@link IDENTITY_MAP}.
  */
 export function invertStepMap(map: StepMap): StepMap {
 	switch (map.type) {
@@ -667,23 +739,32 @@ export function invertStepMap(map: StepMap): StepMap {
 				newBlockId: map.sourceBlockId,
 			};
 		case 'blockRemoval':
-			// Re-inserting a removed subtree does not shift positions in other
-			// blocks, so the inverse position-space direction is invisible. The
-			// child-index shift direction *is* representable as a
-			// `childIndexShift` map, but history's cancellation only looks for
-			// content-trivial round-trips; we return IDENTITY_MAP and let the
-			// caller fall back to the standard rebase path. See JSDoc above.
-			return IDENTITY_MAP;
+			return {
+				type: 'childIndexShift',
+				parentPath: map.parentPath,
+				fromIndex: map.index,
+				delta: 1,
+				insertedBlockIds: map.removedBlockIds,
+			};
 		case 'childIndexShift':
-			// Inverting an insertNode (delta = +1 at fromIndex) is a removeNode
-			// at the same index, which carries both position- and child-index
-			// effects via `BlockRemovalMap`. Producing a faithful inverse here
-			// would require knowing `removedBlockIds`, which a position-only
-			// `StepMap` does not carry. Return IDENTITY_MAP for the same reason
-			// as `blockRemoval`: cancellation won't fire for these pairs, but
-			// the frame-walk's standard rebase path still produces correct
-			// rebased steps.
+			if (map.delta === 1 && map.insertedBlockIds) {
+				return {
+					type: 'blockRemoval',
+					removedBlockIds: map.insertedBlockIds,
+					parentPath: map.parentPath,
+					index: map.fromIndex,
+				};
+			}
 			return IDENTITY_MAP;
+		case 'moveNode':
+			return {
+				type: 'moveNode',
+				movedNodeId: map.movedNodeId,
+				fromParentPath: map.toParentPath,
+				fromIndex: map.destinationIndex,
+				toParentPath: map.fromParentPath,
+				destinationIndex: map.fromIndex,
+			};
 	}
 }
 
@@ -729,8 +810,31 @@ export function stepMapsEqual(a: StepMap, b: StepMap): boolean {
 			return (
 				a.fromIndex === cs.fromIndex &&
 				a.delta === cs.delta &&
-				sameParentPath(a.parentPath, cs.parentPath)
+				sameParentPath(a.parentPath, cs.parentPath) &&
+				optionalIdSetsEqual(a.insertedBlockIds, cs.insertedBlockIds)
+			);
+		}
+		case 'moveNode': {
+			if (b.type !== 'moveNode') return false;
+			return (
+				a.movedNodeId === b.movedNodeId &&
+				a.fromIndex === b.fromIndex &&
+				a.destinationIndex === b.destinationIndex &&
+				sameParentPath(a.fromParentPath, b.fromParentPath) &&
+				sameParentPath(a.toParentPath, b.toParentPath)
 			);
 		}
 	}
+}
+
+function optionalIdSetsEqual(
+	a: ReadonlySet<BlockId> | undefined,
+	b: ReadonlySet<BlockId> | undefined,
+): boolean {
+	if (a === b) return true;
+	if (!a || !b || a.size !== b.size) return false;
+	for (const id of a) {
+		if (!b.has(id)) return false;
+	}
+	return true;
 }

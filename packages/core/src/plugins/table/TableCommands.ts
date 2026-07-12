@@ -9,7 +9,14 @@
 
 import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
 import { createSelectionForBlockBoundary } from '../../commands/CommandHelpers.js';
-import { createEmptyParagraph, generateBlockId, getBlockChildren } from '../../model/Document.js';
+import {
+	type BlockAttrValue,
+	type BlockNode,
+	createBlockNode,
+	createEmptyParagraph,
+	generateBlockId,
+	getBlockChildren,
+} from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
@@ -18,20 +25,22 @@ import {
 	isTextSelection,
 } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import { getSelectedBlockId } from '../shared/PluginHelpers.js';
+import { type TableGrid, type TableGridCell, createTableGrid } from './TableGrid.js';
 import {
 	type TableContext,
 	createTable,
 	createTableCell,
-	createTableRow,
 	findTableContext,
 	getCellAt,
 	getFirstLeafInCell,
 } from './TableHelpers.js';
 import type { TableLocale } from './TableLocale.js';
+import { readTableColumnWidthsPx, withTableColumnWidthsPx } from './TableSizing.js';
 
 // --- Shared Transaction Builders ---
 
@@ -42,14 +51,28 @@ export function buildInsertRowTransaction(
 	rowIndex: number,
 ): Transaction | null {
 	const table = state.getBlock(tableId);
-	if (!table) return null;
+	if (!table || table.type !== 'table') return null;
+	const grid: TableGrid = createTableGrid(table);
+	if (!validInsertionIndex(rowIndex, grid.rowCount) || grid.columnCount === 0) return null;
 
-	const rows = getBlockChildren(table);
-	const numCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
-	if (numCols === 0) return null;
+	const crossingCells: readonly TableGridCell[] = grid.cells.filter(
+		(entry: TableGridCell) => entry.rowStart < rowIndex && entry.rowEnd > rowIndex,
+	);
+	const tr = state.transaction('command');
+	for (const entry of crossingCells) {
+		if (!setCellSpan(state, tr, entry.cell, 'rowspan', entry.rowSpan + 1)) return null;
+	}
 
-	const newRow = createTableRow(numCols);
-	const tr = state.transaction('command').insertNode([tableId], rowIndex, newRow);
+	const cells: BlockNode[] = [];
+	for (let column = 0; column < grid.columnCount; column++) {
+		const covered: boolean = crossingCells.some(
+			(entry: TableGridCell) => entry.columnStart <= column && entry.columnEnd > column,
+		);
+		if (!covered) cells.push(createTableCell());
+	}
+	const newRow: BlockNode = createBlockNode(nodeType('table_row'), cells);
+	const rawRowIndex: number = rawInsertionIndex(table, grid, rowIndex);
+	tr.insertNode([tableId], rawRowIndex, newRow);
 
 	const firstCell = getBlockChildren(newRow)[0];
 	const firstLeaf = firstCell ? getBlockChildren(firstCell)[0] : undefined;
@@ -69,17 +92,47 @@ export function buildInsertColumnTransaction(
 	colIndex: number,
 ): Transaction | null {
 	const table = state.getBlock(tableId);
-	if (!table) return null;
+	if (!table || table.type !== 'table') return null;
+	const grid: TableGrid = createTableGrid(table);
+	if (!validInsertionIndex(colIndex, grid.columnCount) || grid.rowCount === 0) return null;
 
-	const rows = getBlockChildren(table);
 	const tr = state.transaction('command');
-
-	for (const row of rows) {
-		const newCell = createTableCell();
-		tr.insertNode([tableId, row.id], colIndex, newCell);
+	if (hasColumnWidthMetadata(table)) {
+		const widths: (number | null)[] = [...readTableColumnWidthsPx(table, grid.columnCount)];
+		widths.splice(colIndex, 0, null);
+		const path = state.getNodePath(tableId);
+		if (!path) return null;
+		tr.setNodeAttr(path, withTableColumnWidthsPx(table.attrs, widths));
 	}
 
-	tr.setSelection(state.selection);
+	const crossingCells: readonly TableGridCell[] = grid.cells.filter(
+		(entry: TableGridCell) => entry.columnStart < colIndex && entry.columnEnd > colIndex,
+	);
+	for (const entry of crossingCells) {
+		if (!setCellSpan(state, tr, entry.cell, 'colspan', entry.columnSpan + 1)) return null;
+	}
+
+	let firstInsertedCell: BlockNode | undefined;
+	for (let rowIndex = 0; rowIndex < grid.rowCount; rowIndex++) {
+		const row: BlockNode | undefined = grid.rows[rowIndex];
+		if (!row) continue;
+		const coveredByCrossingCell: boolean = crossingCells.some(
+			(entry: TableGridCell) => entry.rowStart <= rowIndex && entry.rowEnd > rowIndex,
+		);
+		if (coveredByCrossingCell) continue;
+
+		const newCell = createTableCell();
+		firstInsertedCell ??= newCell;
+		const insertionIndex: number = grid.cells.filter(
+			(entry: TableGridCell) => entry.sourceRow.id === row.id && entry.columnEnd <= colIndex,
+		).length;
+		tr.insertNode([tableId, row.id], insertionIndex, newCell);
+	}
+
+	const firstLeaf: BlockNode | undefined = firstInsertedCell
+		? getBlockChildren(firstInsertedCell)[0]
+		: undefined;
+	tr.setSelection(firstLeaf ? createCollapsedSelection(firstLeaf.id, 0) : state.selection);
 	return tr.build();
 }
 
@@ -95,17 +148,54 @@ export function buildDeleteRowTransaction(
 	preferredCol = 0,
 ): Transaction | null {
 	const table = state.getBlock(tableId);
-	if (!table) return null;
-
-	const rows = getBlockChildren(table);
-	if (rows.length <= 1) {
+	if (!table || table.type !== 'table') return null;
+	const grid: TableGrid = createTableGrid(table);
+	if (!validExistingIndex(rowIndex, grid.rowCount)) return null;
+	if (grid.rowCount <= 1) {
 		return createDeleteTableTransaction(state, tableId);
 	}
 
-	const tr = state.transaction('command').removeNode([tableId], rowIndex);
+	const tr = state.transaction('command');
+	const coveringCells: readonly TableGridCell[] = grid.cells.filter(
+		(entry: TableGridCell) => entry.rowStart <= rowIndex && entry.rowEnd > rowIndex,
+	);
+	const movedCells: readonly TableGridCell[] = coveringCells
+		.filter((entry: TableGridCell) => entry.rowStart === rowIndex && entry.rowSpan > 1)
+		.sort((a: TableGridCell, b: TableGridCell) => a.columnStart - b.columnStart);
 
-	const targetRow: number = rowIndex > 0 ? rowIndex - 1 : 1;
-	const cellId: BlockId | null = getCellAt(state, tableId, targetRow, preferredCol);
+	for (const entry of coveringCells) {
+		if (entry.rowSpan <= 1) continue;
+		if (!setCellSpan(state, tr, entry.cell, 'rowspan', entry.rowSpan - 1)) return null;
+	}
+
+	if (movedCells.length > 0) {
+		const targetRow: BlockNode | undefined = grid.rows[rowIndex + 1];
+		if (!targetRow) return null;
+		const targetOwnedCells: readonly TableGridCell[] = grid.cells.filter(
+			(entry: TableGridCell) => entry.sourceRow.id === targetRow.id,
+		);
+		let moved = 0;
+		for (const entry of movedCells) {
+			const insertionIndex: number =
+				targetOwnedCells.filter((target: TableGridCell) => target.columnStart < entry.columnStart)
+					.length + moved;
+			tr.moveNode(
+				[tableId, entry.sourceRow.id],
+				entry.sourceCellIndex - moved,
+				[tableId, targetRow.id],
+				insertionIndex,
+			);
+			moved++;
+		}
+	}
+
+	const rawRowIndex: number = rawExistingRowIndex(table, grid, rowIndex);
+	if (rawRowIndex < 0) return null;
+	tr.removeNode([tableId], rawRowIndex);
+
+	const selectionRow: number = rowIndex > 0 ? rowIndex - 1 : 1;
+	const safeColumn: number = Math.min(Math.max(0, preferredCol), grid.columnCount - 1);
+	const cellId: BlockId | null = getCellAt(state, tableId, selectionRow, safeColumn);
 	if (cellId) {
 		const leafId: BlockId = getFirstLeafInCell(state, cellId);
 		tr.setSelection(createCollapsedSelection(leafId, 0));
@@ -126,25 +216,41 @@ export function buildDeleteColumnTransaction(
 	preferredRow = 0,
 ): Transaction | null {
 	const table = state.getBlock(tableId);
-	if (!table) return null;
-
-	const rows = getBlockChildren(table);
-	const numCols: number = rows[0] ? getBlockChildren(rows[0]).length : 0;
-
-	if (numCols <= 1) {
+	if (!table || table.type !== 'table') return null;
+	const grid: TableGrid = createTableGrid(table);
+	if (!validExistingIndex(colIndex, grid.columnCount)) return null;
+	if (grid.columnCount <= 1) {
 		return createDeleteTableTransaction(state, tableId);
 	}
 
 	const tr = state.transaction('command');
+	if (hasColumnWidthMetadata(table)) {
+		const widths: (number | null)[] = [...readTableColumnWidthsPx(table, grid.columnCount)];
+		widths.splice(colIndex, 1);
+		const path = state.getNodePath(tableId);
+		if (!path) return null;
+		tr.setNodeAttr(path, withTableColumnWidthsPx(table.attrs, widths));
+	}
 
-	for (let r: number = rows.length - 1; r >= 0; r--) {
-		const row = rows[r];
-		if (!row) continue;
-		tr.removeNode([tableId, row.id], colIndex);
+	const coveringCells: readonly TableGridCell[] = grid.cells.filter(
+		(entry: TableGridCell) => entry.columnStart <= colIndex && entry.columnEnd > colIndex,
+	);
+	for (const entry of coveringCells) {
+		if (entry.columnSpan <= 1) continue;
+		if (!setCellSpan(state, tr, entry.cell, 'colspan', entry.columnSpan - 1)) return null;
+	}
+	for (const entry of coveringCells
+		.filter((cell: TableGridCell) => cell.columnSpan === 1)
+		.sort((a: TableGridCell, b: TableGridCell) => {
+			if (a.sourceRowIndex !== b.sourceRowIndex) return b.sourceRowIndex - a.sourceRowIndex;
+			return b.sourceCellIndex - a.sourceCellIndex;
+		})) {
+		tr.removeNode([tableId, entry.sourceRow.id], entry.sourceCellIndex);
 	}
 
 	const targetCol: number = colIndex > 0 ? colIndex - 1 : 1;
-	const cellId: BlockId | null = getCellAt(state, tableId, preferredRow, targetCol);
+	const safeRow: number = Math.min(Math.max(0, preferredRow), grid.rowCount - 1);
+	const cellId: BlockId | null = getCellAt(state, tableId, safeRow, targetCol);
 	if (cellId) {
 		const leafId: BlockId = getFirstLeafInCell(state, cellId);
 		tr.setSelection(createCollapsedSelection(leafId, 0));
@@ -256,7 +362,7 @@ export function addRowBelow(context: PluginContext, locale: TableLocale): boolea
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	const tr = buildInsertRowTransaction(state, tableCtx.tableId, tableCtx.rowIndex + 1);
+	const tr = buildInsertRowTransaction(state, tableCtx.tableId, tableCtx.rowEnd);
 	if (!tr) return false;
 
 	context.dispatch(tr);
@@ -280,13 +386,61 @@ function addColumn(context: PluginContext, side: 'left' | 'right', locale: Table
 	const tableCtx: TableContext | null = findTableContext(state, state.selection.anchor.blockId);
 	if (!tableCtx) return false;
 
-	const insertColIndex: number = side === 'left' ? tableCtx.colIndex : tableCtx.colIndex + 1;
+	const insertColIndex: number = side === 'left' ? tableCtx.colIndex : tableCtx.colEnd;
 	const tr = buildInsertColumnTransaction(state, tableCtx.tableId, insertColIndex);
 	if (!tr) return false;
 
 	context.dispatch(tr);
 	context.announce(locale.announceColumnInserted(side));
 	return true;
+}
+
+// --- Logical-grid structural helpers ---
+
+function validInsertionIndex(index: number, length: number): boolean {
+	return Number.isInteger(index) && index >= 0 && index <= length;
+}
+
+function validExistingIndex(index: number, length: number): boolean {
+	return Number.isInteger(index) && index >= 0 && index < length;
+}
+
+function rawInsertionIndex(table: BlockNode, grid: TableGrid, logicalRow: number): number {
+	if (logicalRow >= grid.rowCount) return table.children.length;
+	const row: BlockNode | undefined = grid.rows[logicalRow];
+	if (!row) return table.children.length;
+	const index: number = table.children.findIndex((child) => 'id' in child && child.id === row.id);
+	return index === -1 ? table.children.length : index;
+}
+
+function rawExistingRowIndex(table: BlockNode, grid: TableGrid, logicalRow: number): number {
+	const row: BlockNode | undefined = grid.rows[logicalRow];
+	if (!row) return -1;
+	return table.children.findIndex((child) => 'id' in child && child.id === row.id);
+}
+
+function setCellSpan(
+	state: EditorState,
+	builder: ReturnType<EditorState['transaction']>,
+	cell: BlockNode,
+	key: 'colspan' | 'rowspan',
+	value: number,
+): boolean {
+	const path: readonly BlockId[] | undefined = state.getNodePath(cell.id);
+	if (!path) return false;
+	builder.setNodeAttr(path, withCellSpan(cell, key, value).attrs ?? {});
+	return true;
+}
+
+function withCellSpan(cell: BlockNode, key: 'colspan' | 'rowspan', value: number): BlockNode {
+	const attrs: Record<string, BlockAttrValue> = { ...(cell.attrs ?? {}) };
+	delete attrs[key];
+	if (value > 1) attrs[key] = value;
+	return { ...cell, attrs };
+}
+
+function hasColumnWidthMetadata(table: BlockNode): boolean {
+	return Object.prototype.hasOwnProperty.call(table.attrs ?? {}, 'columnWidthsPx');
 }
 
 /** Deletes the current row. If it's the last row, deletes the entire table. */

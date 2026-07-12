@@ -21,6 +21,7 @@ import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
+import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import type { EditorState } from '../state/EditorState.js';
 import { CompositionTracker } from './CompositionTracker.js';
 
@@ -85,6 +86,7 @@ export class InputHandler {
 	}
 
 	private onBeforeInput(e: InputEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		if (this.isReadOnly()) return;
 
 		// During composition, let the browser handle it
@@ -200,7 +202,8 @@ export class InputHandler {
 		}
 	}
 
-	private onCompositionStart(_e: CompositionEvent): void {
+	private onCompositionStart(e: CompositionEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		const state = this.getState();
 		if (!isTextSelection(state.selection)) return;
 		this.compositionCommitHandled = false;
@@ -208,6 +211,7 @@ export class InputHandler {
 	}
 
 	private onCompositionEnd(e: CompositionEvent): void {
+		if (!isEventFromEditorContent(e, this.element)) return;
 		this.compositionTracker.end();
 		if (this.isReadOnly()) return;
 		if (this.compositionCommitHandled) {

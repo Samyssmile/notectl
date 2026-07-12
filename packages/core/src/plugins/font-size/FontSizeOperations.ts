@@ -12,7 +12,7 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import type { BlockNode, InlineNode, Mark } from '../../model/Document.js';
+import type { BlockAttrs, BlockNode, InlineNode, Mark } from '../../model/Document.js';
 import {
 	getBlockLength,
 	getInlineChildren,
@@ -39,15 +39,15 @@ import { dispatchIfPresent } from '../shared/PluginHelpers.js';
 // spec; the font-size controls then read/write that attribute. This stays generic
 // (no formula-specific coupling) — any node or inline node can opt in the same way.
 
-type NodeAttrs = Readonly<Record<string, string | number | boolean>>;
+type InlineNodeAttrs = Readonly<Record<string, string | number | boolean>>;
 
 type NodeFontSizeTarget =
-	| { readonly kind: 'block'; readonly path: readonly BlockId[]; readonly attrs: NodeAttrs }
+	| { readonly kind: 'block'; readonly path: readonly BlockId[]; readonly attrs: BlockAttrs }
 	| {
 			readonly kind: 'inline';
 			readonly blockId: BlockId;
 			readonly offset: number;
-			readonly attrs: NodeAttrs;
+			readonly attrs: InlineNodeAttrs;
 	  };
 
 function specDeclaresFontSize(
@@ -104,16 +104,18 @@ function singleSelectedInlineNode(
 }
 
 /** Reads a fontSize attr value from raw attrs, or null when unset. */
-function readFontSize(attrs: NodeAttrs | undefined): string | null {
+function readFontSize(attrs: BlockAttrs | InlineNodeAttrs | undefined): string | null {
 	const fontSize = attrs?.fontSize;
 	return typeof fontSize === 'string' && fontSize.length > 0 ? fontSize : null;
 }
 
 /** Merges a fontSize value ('' clears it) into existing attrs, preserving the rest. */
 function mergeFontSize(
-	attrs: NodeAttrs | undefined,
+	attrs: InlineNodeAttrs | undefined,
 	size: string,
-): Record<string, string | number | boolean> {
+): Record<string, string | number | boolean>;
+function mergeFontSize(attrs: BlockAttrs | undefined, size: string): BlockAttrs;
+function mergeFontSize(attrs: BlockAttrs | InlineNodeAttrs | undefined, size: string): BlockAttrs {
 	return { ...(attrs ?? {}), fontSize: size };
 }
 
@@ -156,12 +158,12 @@ type FontSizeCarrier =
 			readonly to: number;
 			readonly mark: Mark | undefined;
 	  }
-	| { readonly kind: 'blockNode'; readonly path: readonly BlockId[]; readonly attrs: NodeAttrs }
+	| { readonly kind: 'blockNode'; readonly path: readonly BlockId[]; readonly attrs: BlockAttrs }
 	| {
 			readonly kind: 'inlineNode';
 			readonly blockId: BlockId;
 			readonly offset: number;
-			readonly attrs: NodeAttrs;
+			readonly attrs: InlineNodeAttrs;
 	  };
 
 /** Enumerates the font-size carriers within the current (non-collapsed) text range. */
@@ -278,7 +280,7 @@ function dispatchRangeFontSize(context: PluginContext, state: EditorState, size:
 
 /** The set of fontSize values carried by font-size-aware nodes in the range, or null when none. */
 function rangeNodeSizes(state: EditorState): Set<string> | null {
-	const nodeAttrs: NodeAttrs[] = rangeCarriers(state)
+	const nodeAttrs: (BlockAttrs | InlineNodeAttrs)[] = rangeCarriers(state)
 		.filter((carrier) => carrier.kind !== 'text')
 		.map((carrier) => carrier.attrs);
 	if (nodeAttrs.length === 0) return null;

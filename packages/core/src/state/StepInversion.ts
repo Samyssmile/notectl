@@ -16,6 +16,7 @@ import type {
 	InsertNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	MoveNodeStep,
 	RemoveInlineNodeStep,
 	RemoveMarkStep,
 	RemoveNodeStep,
@@ -26,6 +27,7 @@ import type {
 	SplitBlockStep,
 	Step,
 } from './Steps.js';
+import { moveNodeDestinationIndex } from './Steps.js';
 import type { Transaction } from './Transaction.js';
 
 /** Returns a path spread object if the step has a path, or empty object otherwise. */
@@ -143,6 +145,26 @@ export function invertRemoveNode(step: RemoveNodeStep): Step {
 		parentPath: step.parentPath,
 		index: step.index,
 		node: step.removedNode,
+	};
+}
+
+export function invertMoveNode(step: MoveNodeStep): Step {
+	const destinationIndex: number = moveNodeDestinationIndex(step);
+	const sameParent: boolean =
+		step.fromParentPath.length === step.toParentPath.length &&
+		step.fromParentPath.every((id, index) => id === step.toParentPath[index]);
+	// `toIndex` is measured before removal. When the inverse moves the node
+	// forward within the same parent, its insertion slot is one past the
+	// desired post-removal index because the source still occupies a slot.
+	const toIndex: number =
+		sameParent && step.fromIndex > destinationIndex ? step.fromIndex + 1 : step.fromIndex;
+	return {
+		type: 'moveNode',
+		fromParentPath: step.toParentPath,
+		fromIndex: destinationIndex,
+		toParentPath: step.fromParentPath,
+		toIndex,
+		movedNode: step.movedNode,
 	};
 }
 

@@ -8,7 +8,14 @@
  */
 
 import { escapeAttr, sanitizeHref } from '../../model/HTMLUtils.js';
+import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { SchemaRegistry } from '../../model/SchemaRegistry.js';
+import {
+	TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
+	TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+	normalizeTableColumnWidthsPx,
+	serializeTableDimensionAttrs,
+} from '../TableDimensions.js';
 
 let baselineRegistry: SchemaRegistry | undefined;
 
@@ -158,15 +165,48 @@ function registerBlocks(registry: SchemaRegistry): void {
 	registry.registerNodeSpec({
 		type: 'table',
 		toDOM: htmlOnlyDOM,
-		toHTML: (_node, content) => `<table>${content}</table>`,
-		sanitize: { tags: ['table', 'thead', 'tbody', 'tfoot'] },
+		toHTML(node, content, ctx?: HTMLExportContext) {
+			const widths: readonly (number | null)[] | undefined = normalizeTableColumnWidthsPx(
+				node.attrs?.columnWidthsPx,
+			);
+			const colgroup: string = widths
+				? `<colgroup>${widths
+						.map((width: number | null): string => {
+							const attrs: string = serializeTableDimensionAttrs(
+								TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
+								'width',
+								width,
+								ctx,
+							);
+							return `<col${attrs}>`;
+						})
+						.join('')}</colgroup>`
+				: '';
+			const tableAttrs: string = widths ? tableDimensionStyle(widths, ctx) : '';
+			return `<table${tableAttrs}>${colgroup}<tbody>${content}</tbody></table>`;
+		},
+		sanitize: {
+			tags: ['table', 'colgroup', 'col', 'thead', 'tbody', 'tfoot'],
+			attrs: ['span', 'width', TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE],
+		},
 	});
 
 	registry.registerNodeSpec({
 		type: 'table_row',
 		toDOM: htmlOnlyDOM,
-		toHTML: (_node, content) => `<tr>${content}</tr>`,
-		sanitize: { tags: ['tr'] },
+		toHTML(node, content, ctx?: HTMLExportContext) {
+			const attrs: string = serializeTableDimensionAttrs(
+				TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+				'height',
+				node.attrs?.minHeightPx,
+				ctx,
+			);
+			return `<tr${attrs}>${content}</tr>`;
+		},
+		sanitize: {
+			tags: ['tr'],
+			attrs: ['height', TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE],
+		},
 	});
 
 	registry.registerNodeSpec({
@@ -184,6 +224,20 @@ function registerBlocks(registry: SchemaRegistry): void {
 		},
 		sanitize: { tags: ['td', 'th'], attrs: ['colspan', 'rowspan'] },
 	});
+}
+
+function tableDimensionStyle(widths: readonly (number | null)[], ctx?: HTMLExportContext): string {
+	const minimumWidthPx: number = widths.reduce<number>(
+		(total: number, width: number | null): number => total + (width ?? 60),
+		0,
+	);
+	const allExplicit: boolean = widths.every(
+		(width: number | null): width is number => width !== null,
+	);
+	const declarations: string = allExplicit
+		? `width: ${String(minimumWidthPx)}px; min-width: ${String(minimumWidthPx)}px; table-layout: fixed`
+		: `width: 100%; min-width: ${String(minimumWidthPx)}px; table-layout: fixed`;
+	return ctx?.styleAttr(declarations) ?? ` style="${declarations}"`;
 }
 
 function imageAttrs(image: HTMLImageElement): Record<string, string | number | boolean> {

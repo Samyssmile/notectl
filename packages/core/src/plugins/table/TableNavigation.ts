@@ -15,8 +15,10 @@ import {
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { getDeepActiveHTMLElement } from '../shared/PopupPositioning.js';
 import { addRowBelow } from './TableCommands.js';
 import { type TableContextMenuHandle, createTableContextMenu } from './TableContextMenu.js';
+import { createTableGrid } from './TableGrid.js';
 import {
 	type TableContext,
 	findTableContext,
@@ -25,12 +27,18 @@ import {
 	getLastLeafInCell,
 } from './TableHelpers.js';
 import type { TableLocale } from './TableLocale.js';
+import { TableSelectionServiceKey } from './TableSelection.js';
+import type { TableSizeTarget, TableSizingConfig } from './TableSizing.js';
 
-/** Tracks the active context menu for Shift-F10 (one at a time). */
-let activeContextMenu: TableContextMenuHandle | null = null;
+/** Tracks one keyboard context menu per editor without coupling editor instances. */
+const activeContextMenus: WeakMap<PluginContext, TableContextMenuHandle> = new WeakMap();
 
 /** Registers all table navigation keymaps. */
-export function registerTableKeymaps(context: PluginContext, locale: TableLocale): void {
+export function registerTableKeymaps(
+	context: PluginContext,
+	locale: TableLocale,
+	sizingConfig: Partial<TableSizingConfig> = {},
+): void {
 	const keymap: Keymap = {
 		Tab: () => handleTab(context, locale),
 		'Shift-Tab': () => handleShiftTab(context),
@@ -41,7 +49,7 @@ export function registerTableKeymaps(context: PluginContext, locale: TableLocale
 		ArrowRight: () => handleArrowRight(context),
 		ArrowLeft: () => handleArrowLeft(context),
 		Escape: () => handleEscape(context),
-		'Shift-F10': () => handleContextMenu(context),
+		'Shift-F10': () => handleContextMenu(context, locale, sizingConfig),
 	};
 
 	context.registerKeymap(keymap, { priority: 'context' });
@@ -67,46 +75,16 @@ function withTableContext(
 /** Tab: move to next cell. At end of table, add a new row. */
 function handleTab(context: PluginContext, locale: TableLocale): boolean {
 	return withTableContext(context, (_state, _sel, tableCtx) => {
-		if (tableCtx.colIndex < tableCtx.totalCols - 1) {
-			return moveToCellAndSelect(
-				context,
-				tableCtx.tableId,
-				tableCtx.rowIndex,
-				tableCtx.colIndex + 1,
-			);
-		}
+		if (moveToAdjacentSourceCell(context, tableCtx, 1, false)) return true;
 
-		if (tableCtx.rowIndex < tableCtx.totalRows - 1) {
-			return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowIndex + 1, 0);
-		}
-
-		addRowBelow(context, locale);
-		return true;
+		return context.isReadOnly?.() ? false : addRowBelow(context, locale);
 	});
 }
 
 /** Shift-Tab: move to previous cell. At start of table, stay put. */
 function handleShiftTab(context: PluginContext): boolean {
 	return withTableContext(context, (_state, _sel, tableCtx) => {
-		if (tableCtx.colIndex > 0) {
-			return moveToCellAndSelect(
-				context,
-				tableCtx.tableId,
-				tableCtx.rowIndex,
-				tableCtx.colIndex - 1,
-			);
-		}
-
-		if (tableCtx.rowIndex > 0) {
-			return moveToCellAndSelect(
-				context,
-				tableCtx.tableId,
-				tableCtx.rowIndex - 1,
-				tableCtx.totalCols - 1,
-			);
-		}
-
-		return true;
+		return moveToAdjacentSourceCell(context, tableCtx, -1, false) || true;
 	});
 }
 
@@ -116,7 +94,7 @@ function handleBackspace(context: PluginContext): boolean {
 		if (!isCollapsed(sel)) return false;
 		if (sel.anchor.offset !== 0) return false;
 
-		const isAtDeletionBoundary: boolean = tableCtx.rowIndex === 0 && tableCtx.colIndex === 0;
+		const isAtDeletionBoundary: boolean = isFirstSourceCell(state, tableCtx);
 		if (!isAtDeletionBoundary) return false;
 
 		const firstLeaf: BlockId = getFirstLeafInCell(state, tableCtx.cellId);
@@ -137,8 +115,7 @@ function handleDelete(context: PluginContext): boolean {
 		const blockLen: number = getBlockLength(block);
 		if (sel.anchor.offset !== blockLen) return false;
 
-		const isAtDeletionBoundary: boolean =
-			tableCtx.rowIndex === tableCtx.totalRows - 1 && tableCtx.colIndex === tableCtx.totalCols - 1;
+		const isAtDeletionBoundary: boolean = isLastSourceCell(state, tableCtx);
 		if (!isAtDeletionBoundary) return false;
 
 		const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
@@ -154,11 +131,11 @@ function handleArrowDown(context: PluginContext): boolean {
 		const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
 		if (sel.anchor.blockId !== lastLeaf) return false;
 
-		if (tableCtx.rowIndex >= tableCtx.totalRows - 1) {
+		if (tableCtx.rowEnd >= tableCtx.totalRows) {
 			return handleEscape(context);
 		}
 
-		return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowIndex + 1, tableCtx.colIndex);
+		return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowEnd, tableCtx.colIndex);
 	});
 }
 
@@ -188,20 +165,7 @@ function handleArrowRight(context: PluginContext): boolean {
 		const lastLeaf: BlockId = getLastLeafInCell(state, tableCtx.cellId);
 		if (sel.anchor.blockId !== lastLeaf) return false;
 
-		if (tableCtx.colIndex < tableCtx.totalCols - 1) {
-			return moveToCellAndSelect(
-				context,
-				tableCtx.tableId,
-				tableCtx.rowIndex,
-				tableCtx.colIndex + 1,
-			);
-		}
-
-		if (tableCtx.rowIndex < tableCtx.totalRows - 1) {
-			return moveToCellAndSelect(context, tableCtx.tableId, tableCtx.rowIndex + 1, 0);
-		}
-
-		return true;
+		return moveToAdjacentSourceCell(context, tableCtx, 1, false) || true;
 	});
 }
 
@@ -214,20 +178,7 @@ function handleArrowLeft(context: PluginContext): boolean {
 		const firstLeaf: BlockId = getFirstLeafInCell(state, tableCtx.cellId);
 		if (sel.anchor.blockId !== firstLeaf) return false;
 
-		if (tableCtx.colIndex > 0) {
-			return moveToCellAtEnd(context, tableCtx.tableId, tableCtx.rowIndex, tableCtx.colIndex - 1);
-		}
-
-		if (tableCtx.rowIndex > 0) {
-			return moveToCellAtEnd(
-				context,
-				tableCtx.tableId,
-				tableCtx.rowIndex - 1,
-				tableCtx.totalCols - 1,
-			);
-		}
-
-		return true;
+		return moveToAdjacentSourceCell(context, tableCtx, -1, true) || true;
 	});
 }
 
@@ -250,7 +201,12 @@ function handleEscape(context: PluginContext): boolean {
 }
 
 /** Shift-F10: open context menu at current cell. */
-function handleContextMenu(context: PluginContext): boolean {
+function handleContextMenu(
+	context: PluginContext,
+	locale: TableLocale,
+	sizingConfig: Partial<TableSizingConfig>,
+): boolean {
+	if (context.isReadOnly?.()) return false;
 	return withTableContext(context, (_state, _sel, tableCtx) => {
 		const container: HTMLElement = context.getContainer();
 
@@ -275,19 +231,75 @@ function handleContextMenu(context: PluginContext): boolean {
 
 		const menuContainer: HTMLElement = tableContainer ?? container;
 
-		activeContextMenu?.close();
-		activeContextMenu = createTableContextMenu(
+		activeContextMenus.get(context)?.close();
+		const restoreFocusTo: HTMLElement | null = getDeepActiveHTMLElement(container) ?? cellEl;
+		const activeContextMenu: TableContextMenuHandle = createTableContextMenu(
 			menuContainer,
 			context,
 			tableCtx.tableId,
 			anchorRect,
 			() => {
-				activeContextMenu = null;
+				activeContextMenus.delete(context);
+			},
+			locale,
+			undefined,
+			{
+				sizeTarget: resolveTableMenuSizeTarget(context, tableCtx),
+				sizingConfig,
+				restoreFocusTo,
 			},
 		);
+		activeContextMenus.set(context, activeContextMenu);
 
 		return true;
 	});
+}
+
+/** Uses an active logical table range ahead of the caret cell for menu sizing. */
+export function resolveTableMenuSizeTarget(
+	context: PluginContext,
+	tableContext: TableContext,
+): TableSizeTarget | undefined {
+	const selectedRange = context.getService?.(TableSelectionServiceKey)?.getSelectedRange();
+	if (selectedRange?.tableId === tableContext.tableId) return undefined;
+	return {
+		kind: 'cell',
+		tableId: tableContext.tableId,
+		row: tableContext.rowIndex,
+		column: tableContext.colIndex,
+	};
+}
+
+function moveToAdjacentSourceCell(
+	context: PluginContext,
+	tableContext: TableContext,
+	delta: -1 | 1,
+	atEnd: boolean,
+): boolean {
+	const state: EditorState = context.getState();
+	const table = state.getBlock(tableContext.tableId);
+	if (!table || table.type !== 'table') return false;
+	const cells = createTableGrid(table).cells;
+	const currentIndex: number = cells.findIndex((entry) => entry.cell.id === tableContext.cellId);
+	const target = cells[currentIndex + delta];
+	if (!target) return false;
+	return atEnd
+		? moveToCellAtEnd(context, tableContext.tableId, target.rowStart, target.columnStart)
+		: moveToCellAndSelect(context, tableContext.tableId, target.rowStart, target.columnStart);
+}
+
+function isFirstSourceCell(state: EditorState, tableContext: TableContext): boolean {
+	const table = state.getBlock(tableContext.tableId);
+	return (
+		table?.type === 'table' && createTableGrid(table).cells[0]?.cell.id === tableContext.cellId
+	);
+}
+
+function isLastSourceCell(state: EditorState, tableContext: TableContext): boolean {
+	const table = state.getBlock(tableContext.tableId);
+	if (!table || table.type !== 'table') return false;
+	const cells = createTableGrid(table).cells;
+	return cells[cells.length - 1]?.cell.id === tableContext.cellId;
 }
 
 // --- Cell navigation helpers ---

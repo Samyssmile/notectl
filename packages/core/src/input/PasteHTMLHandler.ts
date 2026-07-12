@@ -19,6 +19,7 @@ import {
 	insertTextCommand,
 } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
+import { normalizeCompositeBlocks } from '../editor/ContentSerializer.js';
 import { plainTextSlice } from '../model/ContentSlice.js';
 import { type BlockNode, generateBlockId, getBlockText } from '../model/Document.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
@@ -276,7 +277,8 @@ export class PasteHTMLHandler {
 	private handleDocumentPaste(html: string, state: EditorState): void {
 		if (!this.schemaRegistry) return;
 
-		const doc = parseHTMLToDocument(html, this.schemaRegistry);
+		const parsed = parseHTMLToDocument(html, this.schemaRegistry);
+		const doc = normalizeCompositeBlocks(parsed, this.schemaRegistry);
 		if (doc.children.length === 0) return;
 
 		const sel = state.selection;

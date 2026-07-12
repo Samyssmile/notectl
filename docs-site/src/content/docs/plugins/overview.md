@@ -17,7 +17,7 @@ notectl ships with **27 built-in plugins**. Every editor feature — from bold t
 | [HeadingPlugin](/notectl/plugins/heading/) | `heading` | Heading levels 1-6, Title, Subtitle | `Ctrl+Shift+1`-`6` |
 | [ListPlugin](/notectl/plugins/list/) | `list` | Bullet, ordered, and checklist | `Tab`, `Shift+Tab` |
 | [LinkPlugin](/notectl/plugins/link/) | `link` | Hyperlinks | `Ctrl+K` |
-| [TablePlugin](/notectl/plugins/table/) | `table` | Tables with cell selection | `Tab`, `Shift+F10` |
+| [TablePlugin](/notectl/plugins/table/) | `table` | Tables with persistent logical column widths, row minimum heights, and cell selection | `Tab`, `Shift+F10`, focused separator arrows |
 | [InlineCodePlugin](/notectl/plugins/inline-code/) | `inline-code` | Inline code mark with backtick input rule | `Ctrl+E` |
 | [CodeBlockPlugin](/notectl/plugins/code-block/) | `code-block` | Fenced code blocks with syntax highlighting | `` ``` `` (input rule) |
 | [BlockquotePlugin](/notectl/plugins/blockquote/) | `blockquote` | Block quotes | `Ctrl+Shift+>` |
@@ -90,7 +90,7 @@ Plugins register through the `PluginContext`:
 | `registerBlockTypePickerEntry()` | Block type dropdown entries | Heading levels, paragraph, title |
 | `registerNodeView()` | Custom block renderers | Code block header, image upload UI, table controls |
 | `registerMiddleware()` | Transaction interceptors | Preserve alignment on block type change |
-| `registerService()` | Typed services | ToolbarService, TableSelectionService |
+| `registerService()` | Typed services | ToolbarService, TableSelectionService, TableSizingService |
 | `registerPasteInterceptor()` | Paste content transformers | Smart paste, markdown conversion |
 | `registerFileHandler()` | File paste/drop handlers | Image upload on drag-and-drop |
 | `registerStyleSheet()` | Inject plugin CSS | Table grid styles, code block theme |

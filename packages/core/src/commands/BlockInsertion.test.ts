@@ -24,6 +24,7 @@ import {
 	resolveRootEscapeContext,
 	resolveRootInsertionContext,
 	sanitizeAttrs,
+	validateRichBlockData,
 } from './BlockInsertion.js';
 
 // --- resolveRootInsertionContext ---
@@ -263,6 +264,40 @@ describe('sanitizeAttrs', () => {
 	it('returns undefined when no keys match', () => {
 		const emptySpec: Readonly<Record<string, AttrSpec>> = {};
 		expect(sanitizeAttrs({ level: 1 }, emptySpec)).toBeUndefined();
+	});
+
+	it('accepts only explicitly declared immutable flat arrays for block attributes', () => {
+		const structuredSpec: Readonly<Record<string, AttrSpec>> = {
+			widths: { allowArray: true },
+		};
+		const source: (number | null)[] = [100, null, 200];
+		const result = sanitizeAttrs({ widths: source }, structuredSpec, true);
+
+		expect(result?.widths).toEqual([100, null, 200]);
+		expect(result?.widths).not.toBe(source);
+		expect(Object.isFrozen(result?.widths)).toBe(true);
+		expect(sanitizeAttrs({ widths: source }, structuredSpec)).toBeUndefined();
+		expect(
+			sanitizeAttrs({ widths: [100, { css: 'url(x)' }] }, structuredSpec, true),
+		).toBeUndefined();
+		expect(sanitizeAttrs({ widths: [100, Number.NaN] }, structuredSpec, true)).toBeUndefined();
+	});
+
+	it('preserves declared structured block attributes through rich-data validation', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'structured',
+			attrs: { widths: { allowArray: true } },
+			toDOM: () => document.createElement('div'),
+		});
+
+		const validated = validateRichBlockData(
+			{ type: 'structured', text: '', attrs: { widths: [100, null, 200] } },
+			registry,
+		);
+
+		expect(validated?.attrs?.widths).toEqual([100, null, 200]);
+		expect(Object.isFrozen(validated?.attrs?.widths)).toBe(true);
 	});
 });
 

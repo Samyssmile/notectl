@@ -30,6 +30,7 @@ import {
 	setInlineNodeAttrsAtOffset,
 	sliceInlineContent,
 } from './InlineContentOps.js';
+import { isMoveNodeNoOp, resolveMoveNodeStep } from './Steps.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -37,6 +38,7 @@ import type {
 	InsertNodeStep,
 	InsertTextStep,
 	MergeBlocksStep,
+	MoveNodeStep,
 	RemoveInlineNodeStep,
 	RemoveMarkStep,
 	RemoveNodeStep,
@@ -259,6 +261,25 @@ export function applyRemoveNode(doc: Document, step: RemoveNodeStep): Document {
 		const newChildren: ChildNode[] = [...parent.children];
 		newChildren.splice(step.index, 1);
 		return { ...parent, children: newChildren };
+	});
+}
+
+/** Moves a subtree while preserving every block identity inside it. */
+export function applyMoveNode(doc: Document, step: MoveNodeStep): Document {
+	const resolved = resolveMoveNodeStep(doc, step);
+	if (!resolved || isMoveNodeNoOp(step)) return doc;
+
+	const withoutSource: Document = applyRemoveNode(doc, {
+		type: 'removeNode',
+		parentPath: step.fromParentPath,
+		index: step.fromIndex,
+		removedNode: resolved.movedNode,
+	});
+	return applyInsertNode(withoutSource, {
+		type: 'insertNode',
+		parentPath: step.toParentPath,
+		index: resolved.destinationIndex,
+		node: resolved.movedNode,
 	});
 }
 

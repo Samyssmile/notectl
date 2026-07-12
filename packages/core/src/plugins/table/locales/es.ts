@@ -21,6 +21,37 @@ const locale: TableLocale = {
 	contextMenuHint: 'Clic derecho o May\u00fas+F10 para acciones de tabla',
 	borderColor: 'Color del borde',
 
+	sizeLabel: 'Tama\u00f1o\u2026',
+	sizeDialogLabel: 'Tama\u00f1o de la tabla',
+	columnWidthLabel: 'Ancho de columna (px)',
+	rowMinimumHeightLabel: 'Altura m\u00ednima de fila (px)',
+	automatic: 'Autom\u00e1tico',
+	mixed: 'Mixto',
+	apply: 'Aplicar',
+	cancel: 'Cancelar',
+	resetColumnWidth: 'Restablecer ancho de columna',
+	resetRowMinimumHeight: 'Restablecer altura m\u00ednima de fila',
+	resetAllSizes: 'Restablecer todos los tama\u00f1os',
+	invalidDimensionRange: (minimum: number, maximum: number) =>
+		`Introduce un valor entre ${minimum} y ${maximum} px.`,
+	selectRowLabel: (rowIndex: number) => `Seleccionar fila ${rowIndex + 1}`,
+	selectColumnLabel: (columnIndex: number) => `Seleccionar columna ${columnIndex + 1}`,
+	resizeColumnSeparatorLabel: (columnIndex: number) =>
+		`Cambiar el ancho de la columna ${columnIndex + 1}`,
+	resizeRowSeparatorLabel: (rowIndex: number) => `Cambiar la altura de la fila ${rowIndex + 1}`,
+	resizeKeyboardHint: (step: number, largeStep: number) =>
+		`Las flechas cambian el tama\u00f1o en ${step} px; mant\u00e9n May\u00fas para ${largeStep} px.`,
+	announceColumnWidthSet: (columnIndex: number, valuePx: number) =>
+		`Ancho de la columna ${columnIndex + 1} establecido en ${valuePx} px.`,
+	announceRowMinimumHeightSet: (rowIndex: number, valuePx: number) =>
+		`Altura m\u00ednima de la fila ${rowIndex + 1} establecida en ${valuePx} px.`,
+	announceColumnWidthReset: (columnIndex: number) =>
+		`Ancho de la columna ${columnIndex + 1} restablecido al modo autom\u00e1tico.`,
+	announceRowMinimumHeightReset: (rowIndex: number) =>
+		`Altura m\u00ednima de la fila ${rowIndex + 1} restablecida al modo autom\u00e1tico.`,
+	announceTableSizesReset:
+		'Todos los anchos de columna y las alturas m\u00ednimas de fila se restablecieron al modo autom\u00e1tico.',
+
 	defaultColor: 'Predeterminado',
 	noBorders: 'Sin bordes',
 	borderColorPicker: 'Selector de color de borde',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Mark } from '../model/Document.js';
+import type { BlockNode, Mark } from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -1513,8 +1513,29 @@ describe('table HTML parsing', () => {
 			getBlockParseRules: () => [],
 			getMarkParseRules: () => [],
 			getInlineParseRules: () => [],
-			getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'thead', 'tr', 'td', 'th'],
-			getAllowedAttrs: () => ['style', 'dir', 'id'],
+			getAllowedTags: () => [
+				'p',
+				'br',
+				'table',
+				'colgroup',
+				'col',
+				'tbody',
+				'thead',
+				'tfoot',
+				'tr',
+				'td',
+				'th',
+			],
+			getAllowedAttrs: () => [
+				'style',
+				'dir',
+				'id',
+				'width',
+				'height',
+				'span',
+				'data-notectl-width-px',
+				'data-notectl-min-height-px',
+			],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1579,6 +1600,89 @@ describe('table HTML parsing', () => {
 		expect(table.type).toBe('table');
 		expect(table.children).toHaveLength(1);
 		expect(table.children[0]?.type).toBe('table_row');
+	});
+
+	it('imports canonical column widths and row minimum heights with metadata precedence', () => {
+		const registry = createTableRegistry();
+		const html =
+			'<table><colgroup>' +
+			'<col data-notectl-width-px="120" style="width: 999px">' +
+			'<col>' +
+			'<col data-notectl-width-px="240.5">' +
+			'</colgroup><tbody>' +
+			'<tr data-notectl-min-height-px="48" style="height: 99px"><td>A</td></tr>' +
+			'<tr data-notectl-min-height-px="32"></tr>' +
+			'</tbody></table>';
+
+		const doc = parseHTMLToDocument(html, registry);
+		const table = doc.children[0];
+		if (!table) return;
+		const rows = getBlockChildren(table);
+
+		expect(table.attrs?.columnWidthsPx).toEqual([120, null, 240.5]);
+		expect(rows).toHaveLength(2);
+		expect(rows[0]?.attrs?.minHeightPx).toBe(48);
+		expect(rows[1]?.attrs?.minHeightPx).toBe(32);
+		expect(getBlockChildren(rows[1] as BlockNode)).toHaveLength(0);
+	});
+
+	it('imports safe conventional px dimensions and expands column spans', () => {
+		const registry = createTableRegistry();
+		const html =
+			'<table><colgroup width="75"><col span="2"><col style="width: 120.5px"></colgroup>' +
+			'<tbody><tr height="36px"><td>A</td></tr></tbody></table>';
+
+		const table = parseHTMLToDocument(html, registry).children[0];
+		if (!table) return;
+		const row = getBlockChildren(table)[0];
+
+		expect(table.attrs?.columnWidthsPx).toEqual([75, 75, 120.5]);
+		expect(row?.attrs?.minHeightPx).toBe(36);
+	});
+
+	it('rejects malformed, non-pixel, and out-of-bounds imported dimensions', () => {
+		const registry = createTableRegistry();
+		const html =
+			'<table><colgroup>' +
+			'<col data-notectl-width-px="1e3">' +
+			'<col style="width: calc(100% - 1px)">' +
+			'<col width="50%">' +
+			'<col data-notectl-width-px="10001">' +
+			'<col style="width: 80px; background: url(javascript:alert(1))">' +
+			'</colgroup><tbody>' +
+			'<tr data-notectl-min-height-px="-2"><td>A</td></tr>' +
+			'<tr style="min-height: 12em"><td>B</td></tr>' +
+			'<tr height="10001"><td>C</td></tr>' +
+			'</tbody></table>';
+
+		const table = parseHTMLToDocument(html, registry).children[0];
+		if (!table) return;
+		const rows = getBlockChildren(table);
+
+		// Invalid entries retain their logical automatic slots when another
+		// explicit column in the same vector is valid.
+		expect(table.attrs?.columnWidthsPx).toEqual([null, null, null, null, 80]);
+		expect(rows.every((row: BlockNode): boolean => row.attrs?.minHeightPx === undefined)).toBe(
+			true,
+		);
+	});
+
+	it('rehydrates class-mode column and row styles through the supplied style map', () => {
+		const registry = createTableRegistry();
+		const styleMap = new Map<string, string>([
+			['notectl-col-width', 'width: 140px'],
+			['notectl-row-height', 'height: 44px'],
+		]);
+		const html =
+			'<table><colgroup><col class="notectl-col-width"></colgroup>' +
+			'<tbody><tr class="notectl-row-height"><td>A</td></tr></tbody></table>';
+
+		const table = parseHTMLToDocument(html, registry, { styleMap }).children[0];
+		if (!table) return;
+		const row = getBlockChildren(table)[0];
+
+		expect(table.attrs?.columnWidthsPx).toEqual([140]);
+		expect(row?.attrs?.minHeightPx).toBe(44);
 	});
 
 	it('parses table alongside paragraphs', () => {
@@ -1897,6 +2001,22 @@ describe('table HTML parsing', () => {
 		const cell1 = row.children[1];
 		if (!cell1 || !('type' in cell1)) return;
 		expect(cell1.attrs).toBeUndefined();
+	});
+
+	it('rejects partially numeric or excessive cell spans instead of using parseInt prefixes', () => {
+		const registry = {
+			...createTableRegistry(),
+			getAllowedAttrs: () => ['colspan', 'rowspan'],
+		} as unknown as SchemaRegistry;
+		const doc = parseHTMLToDocument(
+			'<table><tr><td colspan="2evil" rowspan="1001">A</td><td>B</td></tr></table>',
+			registry,
+		);
+		const table = doc.children[0];
+		const row = table && 'children' in table ? table.children[0] : undefined;
+		const cell = row && 'children' in row ? row.children[0] : undefined;
+
+		expect(cell && 'type' in cell ? cell.attrs : undefined).toBeUndefined();
 	});
 });
 

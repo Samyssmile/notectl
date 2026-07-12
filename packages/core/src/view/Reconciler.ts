@@ -10,7 +10,13 @@
 import type { Decoration } from '../decorations/Decoration.js';
 import { type DecorationSet, decorationArraysEqual } from '../decorations/Decoration.js';
 import type { BlockNode } from '../model/Document.js';
-import { isInlineNode, isLeafBlock, isTextNode, markSetsEqual } from '../model/Document.js';
+import {
+	blockAttrsEqual,
+	isInlineNode,
+	isLeafBlock,
+	isTextNode,
+	markSetsEqual,
+} from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
@@ -23,6 +29,7 @@ import {
 	removeBlockElement,
 	replaceBlockElement,
 } from './BlockWrapperManagement.js';
+import { syncNodeDecorationClasses } from './DecorationRendering.js';
 import type { NodeView } from './NodeView.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 
@@ -187,6 +194,14 @@ export function reconcile(
 	if (!isComposing && registry) {
 		reconcileWrappers(container, newBlocks, registry);
 	}
+
+	// Node decorations may target descendants of an unchanged composite root.
+	// Synchronize their classes in place so nested NodeViews (table cells, code
+	// blocks, and plugin containers) do not require destructive parent renders.
+	for (const element of container.querySelectorAll<HTMLElement>('[data-block-id]')) {
+		const rawId: string | null = element.getAttribute('data-block-id');
+		if (rawId) syncNodeDecorationClasses(element, toBlockId(rawId), options);
+	}
 }
 
 /** Checks whether a block has changed by comparing its children, attrs, and decorations. */
@@ -201,17 +216,7 @@ function blockChanged(
 	if (oldBlock.children.length !== newBlock.children.length) return true;
 
 	// Compare attrs
-	const oldAttrs = oldBlock.attrs;
-	const newAttrs = newBlock.attrs;
-	if (oldAttrs !== newAttrs) {
-		if (!oldAttrs || !newAttrs) return true;
-		const oldKeys = Object.keys(oldAttrs);
-		const newKeys = Object.keys(newAttrs);
-		if (oldKeys.length !== newKeys.length) return true;
-		for (const key of oldKeys) {
-			if (oldAttrs[key] !== newAttrs[key]) return true;
-		}
-	}
+	if (!blockAttrsEqual(oldBlock.attrs, newBlock.attrs)) return true;
 
 	for (let i = 0; i < oldBlock.children.length; i++) {
 		const oldChild = oldBlock.children[i];

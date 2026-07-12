@@ -13,6 +13,10 @@ export const TABLE_CSS = `
 	table-layout: fixed;
 }
 
+.notectl-table col {
+	box-sizing: border-box;
+}
+
 /* Border resolution order: per-table local override → theme component token → theme global token.
  * The inline --ntbl-border-color is set by the toolbar's "border color" action and must win
  * over the theme so per-table customizations remain visible after a theme switch.
@@ -21,7 +25,7 @@ export const TABLE_CSS = `
 	border: 1px solid var(--ntbl-border-color, var(--notectl-table-border, var(--notectl-border)));
 	background: var(--notectl-table-cell-bg, transparent);
 	padding: 8px 12px;
-	min-width: 60px;
+	min-width: var(--ntbl-min-column-width, 60px);
 	vertical-align: top;
 	min-height: 1.6em;
 }
@@ -30,7 +34,7 @@ export const TABLE_CSS = `
 	border: 1px solid var(--ntbl-border-color, var(--notectl-table-border, var(--notectl-border)));
 	background: var(--notectl-table-header-bg, var(--notectl-surface-raised));
 	padding: 8px 12px;
-	min-width: 60px;
+	min-width: var(--ntbl-min-column-width, 60px);
 	vertical-align: top;
 	text-align: start;
 	font-weight: 600;
@@ -169,6 +173,27 @@ export const TABLE_CSS = `
 	border-radius: 3px;
 }
 
+.ntbl-handle-select {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	border-radius: inherit;
+	background: transparent;
+	cursor: pointer;
+}
+
+.ntbl-handle-select[aria-pressed="true"] {
+	background: var(--notectl-primary-muted);
+	box-shadow: inset 0 0 0 1px var(--notectl-primary);
+}
+
+.ntbl-handle-select:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--notectl-focus-ring);
+}
+
 .ntbl-col-handle {
 	height: 100%;
 	background: var(--notectl-hover-bg);
@@ -207,6 +232,105 @@ export const TABLE_CSS = `
 	transform: scale(0.7);
 	transition: opacity 0.15s, transform 0.15s,
 		background 0.15s, color 0.15s;
+	z-index: 1;
+}
+
+/* --- Logical column/row resize separators --- */
+.ntbl-col-resize-bar,
+.ntbl-row-resize-bar {
+	position: absolute;
+	inset: 0 auto auto 0;
+	z-index: 8;
+	pointer-events: none;
+}
+
+.ntbl-resize-separator {
+	position: absolute;
+	display: block;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	opacity: 0;
+	pointer-events: none;
+	touch-action: none;
+}
+
+.ntbl-resize-separator--column {
+	width: 12px;
+	transform: translateX(-6px);
+	cursor: col-resize;
+}
+
+.ntbl-resize-separator--row {
+	height: 12px;
+	transform: translateY(-6px);
+	cursor: row-resize;
+}
+
+.ntbl-container:hover .ntbl-resize-separator,
+.ntbl-container:focus-within .ntbl-resize-separator,
+.ntbl-container.notectl-table--selected .ntbl-resize-separator,
+.ntbl-container--resizing-column .ntbl-resize-separator--column,
+.ntbl-container--resizing-row .ntbl-resize-separator--row {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.ntbl-resize-separator::after {
+	content: "";
+	position: absolute;
+	background: var(--notectl-primary);
+	opacity: 0.35;
+}
+
+.ntbl-resize-separator--column::after {
+	inset: 0 auto 0 5px;
+	width: 2px;
+}
+
+.ntbl-resize-separator--row::after {
+	inset: 5px 0 auto 0;
+	height: 2px;
+}
+
+.ntbl-resize-separator:hover::after,
+.ntbl-resize-separator:focus-visible::after {
+	opacity: 1;
+	box-shadow: 0 0 0 2px var(--notectl-focus-ring);
+}
+
+.ntbl-resize-separator:focus-visible {
+	outline: none;
+}
+
+.ntbl-resize-indicator {
+	position: absolute;
+	display: none;
+	z-index: 12;
+	padding: 3px 7px;
+	border-radius: 4px;
+	background: var(--notectl-fg);
+	color: var(--notectl-bg);
+	font: 12px/1.4 monospace;
+	pointer-events: none;
+	white-space: nowrap;
+}
+
+.ntbl-resize-indicator--visible {
+	display: block;
+}
+
+.ntbl-container--resizing-column,
+.ntbl-container--resizing-column * {
+	cursor: col-resize !important;
+	user-select: none !important;
+}
+
+.ntbl-container--resizing-row,
+.ntbl-container--resizing-row * {
+	cursor: row-resize !important;
+	user-select: none !important;
 }
 
 .ntbl-handle:hover .ntbl-handle-delete,
@@ -503,6 +627,120 @@ export const TABLE_CSS = `
 	height: 0;
 }
 
+/* --- Precise size editor --- */
+.notectl-table-size-editor {
+	box-sizing: border-box;
+	width: 340px;
+	max-width: calc(100vw - 16px);
+	min-width: 260px;
+	padding: 12px;
+}
+
+.notectl-table-size-editor__title {
+	margin-block-end: 10px;
+	font-weight: 600;
+}
+
+.notectl-table-size-editor__field {
+	display: grid;
+	gap: 4px;
+	margin-block-end: 10px;
+	font-size: 13px;
+}
+
+.notectl-table-size-editor__input-wrap {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.notectl-table-size-editor input {
+	box-sizing: border-box;
+	min-width: 0;
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid var(--notectl-border);
+	border-radius: 4px;
+	background: var(--notectl-bg);
+	color: var(--notectl-fg);
+	font: inherit;
+}
+
+.notectl-table-size-editor input:focus-visible {
+	outline: 2px solid var(--notectl-focus-ring);
+	outline-offset: 1px;
+}
+
+.notectl-table-size-editor input[aria-invalid="true"] {
+	border-color: var(--notectl-danger);
+}
+
+.notectl-table-size-editor__unit {
+	color: var(--notectl-fg-muted);
+}
+
+.notectl-table-size-editor__error {
+	min-height: 1.2em;
+	color: var(--notectl-danger);
+	font-size: 11px;
+}
+
+.notectl-table-size-editor__resets,
+.notectl-table-size-editor__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.notectl-table-size-editor__resets {
+	padding-block-end: 10px;
+	border-block-end: 1px solid var(--notectl-border);
+}
+
+.notectl-table-size-editor__actions {
+	justify-content: flex-end;
+	padding-block-start: 10px;
+}
+
+.notectl-table-size-editor button {
+	width: auto;
+	padding: 6px 8px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.notectl-table-context-menu .notectl-table-size-editor__apply {
+	background: var(--notectl-primary);
+	color: var(--notectl-primary-fg);
+}
+
+.notectl-table-context-menu .notectl-table-size-editor button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Read-only tables keep semantic dimensions but expose no mutation affordances. */
+.ntbl-container[data-notectl-table-readonly] {
+	padding-block-start: 0;
+	padding-inline-start: 0;
+}
+
+.ntbl-container[data-notectl-table-readonly] > :is(
+	.ntbl-col-bar,
+	.ntbl-row-bar,
+	.ntbl-col-resize-bar,
+	.ntbl-row-resize-bar,
+	.ntbl-insert-line,
+	.ntbl-add-zone,
+	.ntbl-delete-table-btn,
+	.ntbl-border-color-btn,
+	.ntbl-actions-btn,
+	.ntbl-context-hint,
+	.ntbl-resize-indicator
+) {
+	display: none !important;
+}
+
 .ntbl-add-row {
 	bottom: 0;
 	height: 24px;
@@ -563,5 +801,19 @@ export const TABLE_CSS = `
 
 .ntbl-add-zone:hover .ntbl-add-icon {
 	transform: scale(1.15);
+}
+
+@media print {
+	.notectl-table-wrapper {
+		overflow: visible;
+	}
+
+	.ntbl-container {
+		padding: 0;
+	}
+
+	.ntbl-container > [data-notectl-no-print] {
+		display: none !important;
+	}
 }
 `;

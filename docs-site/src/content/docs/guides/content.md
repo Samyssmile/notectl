@@ -58,8 +58,8 @@ const pretty = await editor.getContentHTML({ pretty: true });
 
 The HTML is sanitized with DOMPurify. The allowed tags and attributes are **schema-driven** — each plugin declares which HTML elements it produces. With a full preset, the allowed set includes:
 
-- **Tags**: `p`, `div`, `span`, `br`, `h1`-`h6`, `strong`, `b`, `em`, `i`, `u`, `s`, `a`, `sup`, `sub`, `ul`, `ol`, `li`, `input`, `blockquote`, `hr`, `pre`, `code`, `table`, `tbody`, `tr`, `td`, `figure`, `img`
-- **Attributes**: `id`, `style`, `href`, `target`, `rel`, `colspan`, `rowspan`, `src`, `alt`, `width`, `height`, `class`
+- **Tags**: `p`, `div`, `span`, `br`, `h1`-`h6`, `strong`, `b`, `em`, `i`, `u`, `s`, `a`, `sup`, `sub`, `ul`, `ol`, `li`, `input`, `blockquote`, `hr`, `pre`, `code`, `table`, `colgroup`, `col`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `figure`, `img`
+- **Attributes**: `id`, `style`, `href`, `target`, `rel`, `colspan`, `rowspan`, `src`, `alt`, `width`, `height`, `class`, and plugin-owned `data-notectl-*` metadata such as bounded table dimensions
 
 If you use a subset of plugins, only the tags relevant to those plugins are allowed.
 
@@ -148,7 +148,7 @@ The HTML is parsed into the document model. Supported elements depend on registe
 | `<hr>` | `horizontal_rule` |
 | `<blockquote>` | `blockquote` |
 | `<pre><code>` | `code_block` |
-| `<table>`, `<tr>`, `<td>` | `table`, `table_row`, `table_cell` |
+| `<table>`, `<colgroup>/<col>`, `<tr>`, `<td>` | `table`, logical column widths, `table_row`, `table_cell` |
 | `<figure>`, `<img>` | `image` |
 
 Inline formatting maps:
@@ -172,6 +172,12 @@ A conforming `id` on an element represented as a block root is imported as the s
 `BlockNode.htmlId` field. For example, `<h2 id="installation">` can be targeted by
 `<a href="#installation">`. Wrapper-only and inline elements that have no corresponding block in
 the document model (for example `<ul>`, `<tbody>`, or `<span>`) do not own a `BlockNode.htmlId`.
+
+For tables, export writes logical widths once through `<colgroup>/<col>` and row minimum heights
+on `<tr>`. Import accepts notectl's bounded numeric metadata plus unambiguous numeric or exact
+`px` conventional width/height forms. Percentages, other units, CSS expressions, and arbitrary
+declarations never enter the document attributes. See
+[Table persistence and interchange](/notectl/plugins/table/#persistence-and-interchange).
 
 #### Whitespace handling
 

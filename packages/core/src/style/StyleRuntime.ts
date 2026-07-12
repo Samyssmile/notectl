@@ -233,6 +233,7 @@ class StrictStyleEngine {
 	setProperty(el: HTMLElement, property: string, value: string): void {
 		const declarations = this.getOrCreateDeclarations(el);
 		const name = normalizePropertyName(property);
+		removeInlineProperty(el, name);
 		if (!value) {
 			declarations.delete(name);
 		} else {
@@ -248,6 +249,7 @@ class StrictStyleEngine {
 		const declarations = this.getOrCreateDeclarations(el);
 		for (const [property, value] of Object.entries(properties)) {
 			const name = normalizePropertyName(property);
+			removeInlineProperty(el, name);
 			if (!value) {
 				declarations.delete(name);
 			} else {
@@ -259,6 +261,7 @@ class StrictStyleEngine {
 
 	setStyleText(el: HTMLElement, cssText: string): void {
 		const declarations = parseStyleText(cssText);
+		el.removeAttribute('style');
 		if (declarations.size === 0) {
 			this.clearElementStyles(el);
 			return;
@@ -272,6 +275,7 @@ class StrictStyleEngine {
 		if (parsed.size === 0) return;
 		const declarations = this.getOrCreateDeclarations(el);
 		for (const [property, value] of parsed) {
+			removeInlineProperty(el, property);
 			declarations.set(property, value);
 		}
 		this.syncElementToken(el, declarations);
@@ -465,6 +469,12 @@ function normalizePropertyName(property: string): string {
 	if (trimmed.startsWith('--')) return trimmed;
 	if (trimmed.includes('-')) return trimmed.toLowerCase();
 	return trimmed.replace(/[A-Z]/g, (char: string) => `-${char.toLowerCase()}`).toLowerCase();
+}
+
+function removeInlineProperty(el: HTMLElement, property: string): void {
+	if (!property) return;
+	el.style.removeProperty(property);
+	if (el.getAttribute('style') === '') el.removeAttribute('style');
 }
 
 function buildTokenSelector(token: string): string {

@@ -28,6 +28,9 @@ export type {
 	ItalicMark,
 	UnderlineMark,
 	BlockAttrs,
+	BlockAttrPrimitive,
+	BlockAttrArrayValue,
+	BlockAttrValue,
 } from './model/Document.js';
 
 export {
@@ -49,6 +52,8 @@ export {
 	getContentAtOffset,
 	hasMark,
 	markSetsEqual,
+	blockAttrValuesEqual,
+	blockAttrsEqual,
 } from './model/Document.js';
 
 // --- Grapheme Utils ---
@@ -170,6 +175,7 @@ export type {
 	SetBlockTypeStep,
 	InsertNodeStep,
 	RemoveNodeStep,
+	MoveNodeStep,
 	SetNodeAttrStep,
 	InsertInlineNodeStep,
 	RemoveInlineNodeStep,
@@ -192,6 +198,7 @@ export type {
 	MergeMap,
 	BlockRemovalMap,
 	ChildIndexShiftMap,
+	MoveNodeMap,
 } from './state/Mapping.js';
 export {
 	Mapping,

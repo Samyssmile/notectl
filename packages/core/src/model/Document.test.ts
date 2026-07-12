@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	addMarkToSet,
+	blockAttrsEqual,
 	createBlockNode,
 	createDocument,
 	createInlineNode,
@@ -34,6 +35,17 @@ describe('Document model', () => {
 			const a = createBlockNode('paragraph');
 			const b = createBlockNode('paragraph');
 			expect(a.id).not.toBe(b.id);
+		});
+	});
+
+	describe('structured block attributes', () => {
+		it('compares immutable primitive arrays structurally', () => {
+			expect(
+				blockAttrsEqual({ columnWidthsPx: [120, null, 240] }, { columnWidthsPx: [120, null, 240] }),
+			).toBe(true);
+			expect(
+				blockAttrsEqual({ columnWidthsPx: [120, null, 240] }, { columnWidthsPx: [120, 160, 240] }),
+			).toBe(false);
 		});
 	});
 

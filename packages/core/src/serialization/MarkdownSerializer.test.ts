@@ -14,8 +14,11 @@ import {
 } from '../model/Document.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import { parseHTMLToDocument } from './DocumentParser.js';
+import { serializeDocumentToCSS } from './DocumentSerializer.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 import { serializeDocumentToMarkdown } from './MarkdownSerializer.js';
+import { resolveMarkdownHTMLRegistry } from './markdown/MarkdownHTMLRegistry.js';
 
 // --- Helpers ---
 
@@ -526,6 +529,84 @@ describe('serializeDocumentToMarkdown — images & tables', () => {
 			),
 		]);
 		expect(md(doc, createRegistry())).toBe('| H1 | H2 |\n| --- | --- |\n| a | b |');
+	});
+
+	it('HTML-falls-back dimensions and round-trips the canonical sizing wire form', () => {
+		const cell = (value: string): BlockNode =>
+			createBlockNode(nodeType('table_cell'), [para(value)]);
+		const rows = [
+			createBlockNode(nodeType('table_row'), [cell('H1'), cell('H2'), cell('H3')], undefined, {
+				minHeightPx: 48,
+			}),
+			createBlockNode(nodeType('table_row'), [cell('a'), cell('b'), cell('c')]),
+		];
+		const table = createBlockNode(nodeType('table'), rows, undefined, {
+			columnWidthsPx: [120, null, 240.5],
+		});
+
+		const markdown: string = md(createDocument([table]));
+		expect(markdown).toContain('<colgroup>');
+		expect(markdown).toContain('data-notectl-width-px="120" style="width: 120px"');
+		expect(markdown).toContain('<col>');
+		expect(markdown).toContain('data-notectl-width-px="240.5" style="width: 240.5px"');
+		expect(markdown).toContain('<tr data-notectl-min-height-px="48" style="height: 48px">');
+
+		const reparsed = parseMarkdownToDocument(markdown).children[0] as BlockNode;
+		expect(reparsed.attrs?.columnWidthsPx).toEqual([120, null, 240.5]);
+		expect(getBlockChildren(reparsed)[0]?.attrs?.minHeightPx).toBe(48);
+	});
+
+	it('emits a dimensionless GFM table when HTML fallback is disabled', () => {
+		const cell = (value: string): BlockNode =>
+			createBlockNode(nodeType('table_cell'), [para(value)]);
+		const table = createBlockNode(
+			nodeType('table'),
+			[
+				createBlockNode(nodeType('table_row'), [cell('H1'), cell('H2')], undefined, {
+					minHeightPx: 48,
+				}),
+				createBlockNode(nodeType('table_row'), [cell('a'), cell('b')]),
+			],
+			undefined,
+			{ columnWidthsPx: [120, null] },
+		);
+
+		expect(md(createDocument([table]), undefined, { htmlFallback: false })).toBe(
+			'| H1 | H2 |\n| --- | --- |\n| a | b |',
+		);
+	});
+
+	it('HTML-falls-back a row minimum height even when every column is automatic', () => {
+		const cell = createBlockNode(nodeType('table_cell'), [para('A')]);
+		const row = createBlockNode(nodeType('table_row'), [cell], undefined, { minHeightPx: 36 });
+		const table = createBlockNode(nodeType('table'), [row]);
+
+		const markdown: string = md(createDocument([table]));
+		expect(markdown).toContain('<table>');
+		expect(markdown).toContain('data-notectl-min-height-px="36"');
+		expect(markdown).not.toContain('<colgroup>');
+	});
+
+	it('keeps dimension CSS on the collector path in class-mode HTML', () => {
+		const cell = createBlockNode(nodeType('table_cell'), [para('A')]);
+		const row = createBlockNode(nodeType('table_row'), [cell], undefined, { minHeightPx: 44 });
+		const table = createBlockNode(nodeType('table'), [row], undefined, {
+			columnWidthsPx: [140],
+		});
+		const registry = resolveMarkdownHTMLRegistry();
+
+		const result = serializeDocumentToCSS(createDocument([table]), registry, {
+			includeBlockIds: false,
+		});
+		expect(result.html).not.toContain('style=');
+		expect(result.html).toContain('data-notectl-width-px="140"');
+		expect(result.html).toContain('data-notectl-min-height-px="44"');
+		expect(result.css).toContain('width: 140px');
+		expect(result.css).toContain('height: 44px');
+
+		const reparsed = parseHTMLToDocument(result.html, registry, { styleMap: result.styleMap });
+		expect(reparsed.children[0]?.attrs?.columnWidthsPx).toEqual([140]);
+		expect(getBlockChildren(reparsed.children[0] as BlockNode)[0]?.attrs?.minHeightPx).toBe(44);
 	});
 
 	it('preserves an anchored table hierarchy and cell spans without a registry', () => {

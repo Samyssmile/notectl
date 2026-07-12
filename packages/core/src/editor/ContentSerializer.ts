@@ -5,9 +5,10 @@
  * Every function is stateless — it receives EditorState / Document and returns data.
  */
 
-import type { BlockNode, ChildNode } from '../model/Document.js';
+import type { BlockAttrs, BlockNode, ChildNode } from '../model/Document.js';
 import {
 	type Document,
+	blockAttrsEqual,
 	createBlockNode,
 	createTextNode,
 	getBlockChildren,
@@ -146,31 +147,52 @@ function allowsBlockChildren(content: { readonly allow: readonly string[] }): bo
 
 function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
 	const spec = registry.getNodeSpec(block.type);
+	let normalizedBlock: BlockNode = block;
 
-	// No content rule, or a rule permitting only inline text → pure leaf, nothing
-	// to normalize.
-	if (!spec?.content || !allowsBlockChildren(spec.content)) return block;
+	if (spec?.content && allowsBlockChildren(spec.content)) {
+		const allowsInline: boolean = spec.content.allow.includes('text');
 
-	const allowsInline: boolean = spec.content.allow.includes('text');
-
-	if (isLeafBlock(block)) {
-		// A hybrid block (list_item, #194) with inline children is already a valid
-		// leaf; only a pure composite (table_cell, blockquote) must wrap its inline
-		// children in a paragraph to satisfy the block-only invariant.
-		if (allowsInline) return block;
-		const children: readonly ChildNode[] | undefined =
-			block.children.length > 0 ? block.children : undefined;
-		const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
-		return createBlockNode(block.type, [paragraph], block.id, block.attrs, block.htmlId);
+		if (isLeafBlock(block)) {
+			// A hybrid block (list_item, #194) with inline children is already a valid
+			// leaf. A composite with min: 0 may intentionally be empty (for example a
+			// table row fully covered by rowspans); other pure composites get a paragraph.
+			if (!allowsInline && !(block.children.length === 0 && spec.content.min === 0)) {
+				const children: readonly ChildNode[] | undefined =
+					block.children.length > 0 ? block.children : undefined;
+				const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
+				normalizedBlock = createBlockNode(
+					block.type,
+					[paragraph],
+					block.id,
+					block.attrs,
+					block.htmlId,
+				);
+			}
+		} else {
+			// Block children → recurse, so nested composites get their own invariants.
+			const normalized: readonly ChildNode[] = block.children.map((child) => {
+				if (isTextNode(child) || isInlineNode(child)) return child;
+				return normalizeBlock(child, registry);
+			});
+			normalizedBlock = createBlockNode(
+				block.type,
+				normalized,
+				block.id,
+				block.attrs,
+				block.htmlId,
+			);
+		}
 	}
 
-	// Block children → recurse, so nested composites (e.g. a blockquote inside a
-	// container list_item) get their own inline children wrapped as well (#194).
-	const normalized: readonly ChildNode[] = block.children.map((child) => {
-		if (isTextNode(child) || isInlineNode(child)) return child;
-		return normalizeBlock(child, registry);
-	});
-	return createBlockNode(block.type, normalized, block.id, block.attrs, block.htmlId);
+	const normalizedAttrs: BlockAttrs | undefined = spec?.normalizeAttrs?.(normalizedBlock);
+	if (spec?.normalizeAttrs && !blockAttrsEqual(normalizedBlock.attrs, normalizedAttrs)) {
+		const { attrs: _attrs, ...withoutAttrs } = normalizedBlock;
+		normalizedBlock = {
+			...withoutAttrs,
+			...(normalizedAttrs ? { attrs: normalizedAttrs } : {}),
+		};
+	}
+	return spec?.normalizeNode?.(normalizedBlock) ?? normalizedBlock;
 }
 
 /** Returns sanitized HTML representation of the document. */

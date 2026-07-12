@@ -214,6 +214,17 @@ export function appendToRoot(element: HTMLElement, referenceNode: Node): void {
 	}
 }
 
+/** Returns the focused element in the reference node's root, including nested shadow roots. */
+export function getDeepActiveHTMLElement(referenceNode: Node): HTMLElement | null {
+	const root: Node = referenceNode.getRootNode();
+	let active: Element | null =
+		root instanceof ShadowRoot || root instanceof Document
+			? root.activeElement
+			: document.activeElement;
+	while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+	return active instanceof HTMLElement ? active : null;
+}
+
 /**
  * Promotes a popup/overlay to the browser's top layer via the Popover API so it
  * paints above — and receives pointer events ahead of — every stacking context

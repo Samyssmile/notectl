@@ -5,7 +5,14 @@
 
 import DOMPurify from 'dompurify';
 import { hoistDisallowedBlocks } from '../model/ContentModel.js';
-import type { BlockNode, Document, InlineNode, Mark, TextNode } from '../model/Document.js';
+import type {
+	BlockAttrValue,
+	BlockNode,
+	Document,
+	InlineNode,
+	Mark,
+	TextNode,
+} from '../model/Document.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -22,6 +29,14 @@ import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
 import { preserveHTMLIdSanitizeConfig } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
+import {
+	MAX_SERIALIZED_TABLE_COLUMNS,
+	TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
+	TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+	normalizeTableColumnWidthsPx,
+	parseTableColumnSpan,
+	readTableDimensionPx,
+} from './TableDimensions.js';
 
 /** Options for `parseHTMLToDocument` when importing class-based HTML. */
 export interface ParseHTMLOptions {
@@ -343,6 +358,8 @@ function parseTableElement(
 	registry?: SchemaRegistry,
 ): void {
 	const rows: BlockNode[] = [];
+	const columnWidthsPx: readonly (number | null)[] | undefined =
+		extractTableColumnWidthsPx(tableEl);
 
 	// Collect <tr> elements, handling <thead>/<tbody>/<tfoot> wrappers
 	const rowElements: Element[] = collectTableRows(tableEl);
@@ -368,22 +385,25 @@ function parseTableElement(
 			cells.push(cellBlock);
 		}
 
-		if (cells.length > 0) {
-			rows.push(
-				createBlockNode(
-					nodeType('table_row'),
-					cells,
-					adoptBlockId(trEl, adoptedIds),
-					undefined,
-					extractHTMLId(trEl as HTMLElement),
-				),
-			);
-		}
+		const rowAttrs: Record<string, string | number | boolean> = {};
+		extractTableRowMinHeight(trEl as HTMLElement, rowAttrs);
+		// Preserve empty rows. Besides retaining authored table structure, an empty
+		// `<tr>` may carry the canonical minimum-height metadata by itself.
+		rows.push(
+			createBlockNode(
+				nodeType('table_row'),
+				cells,
+				adoptBlockId(trEl, adoptedIds),
+				Object.keys(rowAttrs).length > 0 ? rowAttrs : undefined,
+				extractHTMLId(trEl as HTMLElement),
+			),
+		);
 	}
 
 	if (rows.length > 0) {
-		const tableAttrs: Record<string, string | number | boolean> = {};
+		const tableAttrs: Record<string, BlockAttrValue> = {};
 		extractTableBorderColor(tableEl as HTMLElement, tableAttrs);
+		if (columnWidthsPx) tableAttrs.columnWidthsPx = columnWidthsPx;
 		blocks.push(
 			createBlockNode(
 				nodeType('table'),
@@ -394,6 +414,71 @@ function parseTableElement(
 			),
 		);
 	}
+}
+
+/** Collects canonical logical column widths from direct `<colgroup>/<col>` children. */
+function extractTableColumnWidthsPx(tableEl: Element): readonly (number | null)[] | undefined {
+	const widths: (number | null)[] = [];
+
+	for (const child of Array.from(tableEl.children)) {
+		const tag: string = child.tagName.toLowerCase();
+		if (tag === 'col') {
+			appendColumnElementWidths(child as HTMLElement, undefined, widths);
+			continue;
+		}
+		if (tag !== 'colgroup') continue;
+
+		const groupEl: HTMLElement = child as HTMLElement;
+		const groupWidth: number | undefined = readTableColumnWidthPx(groupEl);
+		const columns: HTMLElement[] = Array.from(groupEl.children).filter(
+			(element): element is HTMLElement => element.tagName.toLowerCase() === 'col',
+		);
+		if (columns.length === 0) {
+			appendRepeatedWidth(groupWidth, parseTableColumnSpan(groupEl.getAttribute('span')), widths);
+			continue;
+		}
+
+		for (const column of columns) appendColumnElementWidths(column, groupWidth, widths);
+	}
+
+	return normalizeTableColumnWidthsPx(widths);
+}
+
+function appendColumnElementWidths(
+	column: HTMLElement,
+	inheritedWidth: number | undefined,
+	widths: (number | null)[],
+): void {
+	const width: number | undefined = readTableColumnWidthPx(column) ?? inheritedWidth;
+	appendRepeatedWidth(width, parseTableColumnSpan(column.getAttribute('span')), widths);
+}
+
+function appendRepeatedWidth(
+	width: number | undefined,
+	span: number,
+	widths: (number | null)[],
+): void {
+	const remaining: number = MAX_SERIALIZED_TABLE_COLUMNS - widths.length;
+	const count: number = Math.min(span, Math.max(0, remaining));
+	for (let index = 0; index < count; index++) widths.push(width ?? null);
+}
+
+function readTableColumnWidthPx(element: HTMLElement): number | undefined {
+	return readTableDimensionPx(element, TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE, ['width'], 'width');
+}
+
+/** Extracts one row's validated minimum height from canonical or conventional HTML. */
+function extractTableRowMinHeight(
+	row: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+): void {
+	const minHeightPx: number | undefined = readTableDimensionPx(
+		row,
+		TABLE_ROW_MIN_HEIGHT_DATA_ATTRIBUTE,
+		['min-height', 'height'],
+		'height',
+	);
+	if (minHeightPx !== undefined) attrs.minHeightPx = minHeightPx;
 }
 
 /** Collects `<tr>` elements from a table, traversing through `<thead>`/`<tbody>`/`<tfoot>`. */
@@ -418,10 +503,7 @@ function collectTableRows(tableEl: Element): Element[] {
 const BORDER_COLOR_RE = /--ntbl-bc:\s*(#[0-9a-fA-F]{3,8}|transparent)/;
 
 /** Extracts `borderColor` from a table element's inline style (`--ntbl-bc` CSS variable). */
-function extractTableBorderColor(
-	el: HTMLElement,
-	attrs: Record<string, string | number | boolean>,
-): void {
+function extractTableBorderColor(el: HTMLElement, attrs: Record<string, BlockAttrValue>): void {
 	const style: string = el.getAttribute('style') ?? '';
 	const match: RegExpMatchArray | null = BORDER_COLOR_RE.exec(style);
 	if (!match?.[1]) return;
@@ -435,12 +517,12 @@ function extractCellSpanAttrs(
 ): void {
 	const colspan: string | null = el.getAttribute('colspan');
 	if (colspan) {
-		const value: number = Number.parseInt(colspan, 10);
+		const value: number = parseTableColumnSpan(colspan);
 		if (value > 1) attrs.colspan = value;
 	}
 	const rowspan: string | null = el.getAttribute('rowspan');
 	if (rowspan) {
-		const value: number = Number.parseInt(rowspan, 10);
+		const value: number = parseTableColumnSpan(rowspan);
 		if (value > 1) attrs.rowspan = value;
 	}
 }

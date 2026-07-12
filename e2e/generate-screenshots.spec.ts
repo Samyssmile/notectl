@@ -77,13 +77,24 @@ function codeBlock(text: string, language = ''): BlockDef {
 	return { id: uid(), type: 'code_block', attrs: { language }, children: [txt(text)] };
 }
 
-function table(rows: TextDef[][][]): BlockDef {
+function table(
+	rows: TextDef[][][],
+	options: {
+		readonly columnWidthsPx?: readonly (number | null)[];
+		readonly rowMinHeightsPx?: readonly (number | null)[];
+	} = {},
+): BlockDef {
 	return {
 		id: uid(),
 		type: 'table',
-		children: rows.map((cells) => ({
+		...(options.columnWidthsPx ? { attrs: { columnWidthsPx: options.columnWidthsPx } } : {}),
+		children: rows.map((cells, rowIndex) => ({
 			id: uid(),
 			type: 'table_row',
+			...(options.rowMinHeightsPx?.[rowIndex] === null ||
+			options.rowMinHeightsPx?.[rowIndex] === undefined
+				? {}
+				: { attrs: { minHeightPx: options.rowMinHeightsPx[rowIndex] } }),
 			children: cells.map((cellContent) => ({
 				id: uid(),
 				type: 'table_cell',
@@ -463,29 +474,35 @@ const LIST_CONTENT: DocDef = {
 const TABLE_PLUGIN_CONTENT: DocDef = {
 	children: [
 		para([txt('A data table with headers, rich formatting, and multiple columns:')]),
-		table([
-			[[txt('Feature', bold)], [txt('Description', bold)], [txt('Status', bold)]],
+		table(
 			[
-				[txt('Cell Selection')],
-				[txt('Click and drag to select multiple cells')],
-				[txt('Supported', color('#34a853'))],
+				[[txt('Feature', bold)], [txt('Description', bold)], [txt('Status', bold)]],
+				[
+					[txt('Cell Selection')],
+					[txt('Click and drag to select multiple cells')],
+					[txt('Supported', color('#34a853'))],
+				],
+				[
+					[txt('Row Operations')],
+					[txt('Add or remove rows above and below')],
+					[txt('Supported', color('#34a853'))],
+				],
+				[
+					[txt('Column Operations')],
+					[txt('Add or remove columns left and right')],
+					[txt('Supported', color('#34a853'))],
+				],
+				[
+					[txt('Keyboard Nav')],
+					[txt('Tab, Shift+Tab, and arrow keys')],
+					[txt('Supported', color('#34a853'))],
+				],
 			],
-			[
-				[txt('Row Operations')],
-				[txt('Add or remove rows above and below')],
-				[txt('Supported', color('#34a853'))],
-			],
-			[
-				[txt('Column Operations')],
-				[txt('Add or remove columns left and right')],
-				[txt('Supported', color('#34a853'))],
-			],
-			[
-				[txt('Keyboard Nav')],
-				[txt('Tab, Shift+Tab, and arrow keys')],
-				[txt('Supported', color('#34a853'))],
-			],
-		]),
+			{
+				columnWidthsPx: [170, 410, 150],
+				rowMinHeightsPx: [52, 44, 60, 44, 52],
+			},
+		),
 	],
 };
 
@@ -720,6 +737,24 @@ test.describe('Documentation screenshots', () => {
 		if (!box) throw new Error('editor not found');
 		await page.screenshot({
 			path: `${DIR}/table-context-menu.png`,
+			clip: { x: box.x, y: box.y, width: box.width, height: box.height },
+		});
+	});
+
+	test('table-size-dialog', async ({ page }) => {
+		await setMinHeight(page, '560px');
+		await setEditorJSON(page, TABLE_PLUGIN_CONTENT);
+		const cell = page.locator('notectl-editor td').nth(5);
+		await cell.click();
+		await cell.click({ button: 'right' });
+		const sizeItem = page.locator('notectl-editor [role="menuitem"][data-submenu="size"]');
+		await sizeItem.waitFor({ state: 'visible', timeout: 3000 });
+		await sizeItem.click();
+		await page.getByRole('dialog', { name: 'Table size' }).waitFor({ state: 'visible' });
+		const box = await page.locator('notectl-editor').boundingBox();
+		if (!box) throw new Error('editor not found');
+		await page.screenshot({
+			path: `${DIR}/table-size-dialog.png`,
 			clip: { x: box.x, y: box.y, width: box.width, height: box.height },
 		});
 	});

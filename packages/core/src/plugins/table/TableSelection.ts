@@ -3,11 +3,14 @@
  * Tracks selected cell range and provides IDs for bulk formatting.
  */
 
+import { createCollapsedSelection, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
+import { isEventFromEditorContent } from '../../platform/EditorEventBoundary.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { ServiceKey } from '../Plugin.js';
 import type { PluginContext } from '../Plugin.js';
-import { findTableContext, getCellAt } from './TableHelpers.js';
+import { type TableGrid, createTableGrid, expandTableGridRange } from './TableGrid.js';
+import { findTableContext, getFirstLeafInCell } from './TableHelpers.js';
 
 /** Rectangular range of cells within a table. */
 export interface CellRange {
@@ -33,63 +36,152 @@ export const TableSelectionServiceKey = new ServiceKey<TableSelectionService>('t
 /** Creates and registers the TableSelectionService. */
 export function createTableSelectionService(context: PluginContext): TableSelectionService {
 	let selectedRange: CellRange | null = null;
+	let selectedStructure: string | null = null;
 	let cachedCellIds: readonly BlockId[] = [];
 	let cachedCellIdSet: Set<BlockId> = new Set();
 
 	function updateCache(): void {
-		if (!selectedRange) {
+		const current = resolveCurrentSelection();
+		if (!current) {
 			cachedCellIds = [];
 			cachedCellIdSet = new Set();
 			return;
 		}
 
-		const state: EditorState = context.getState();
-		const ids: BlockId[] = [];
+		const { grid, range } = current;
 
-		const minRow: number = Math.min(selectedRange.fromRow, selectedRange.toRow);
-		const maxRow: number = Math.max(selectedRange.fromRow, selectedRange.toRow);
-		const minCol: number = Math.min(selectedRange.fromCol, selectedRange.toCol);
-		const maxCol: number = Math.max(selectedRange.fromCol, selectedRange.toCol);
-
-		for (let r = minRow; r <= maxRow; r++) {
-			for (let c = minCol; c <= maxCol; c++) {
-				const cellId: BlockId | null = getCellAt(state, selectedRange.tableId, r, c);
-				if (cellId) ids.push(cellId);
-			}
-		}
+		const ids: BlockId[] = grid
+			.cellsInRange({
+				fromRow: range.fromRow,
+				fromColumn: range.fromCol,
+				toRow: range.toRow,
+				toColumn: range.toCol,
+			})
+			.map((entry) => entry.cell.id);
 
 		cachedCellIds = ids;
 		cachedCellIdSet = new Set(ids);
 	}
 
+	function resolveCurrentSelection(): {
+		readonly range: CellRange;
+		readonly grid: TableGrid;
+	} | null {
+		if (!selectedRange || !selectedStructure) return null;
+		const table = context.getState().getBlock(selectedRange.tableId);
+		if (!table || table.type !== 'table') {
+			clearInternal();
+			return null;
+		}
+		const grid: TableGrid = createTableGrid(table);
+		if (tableStructureSignature(grid) !== selectedStructure) {
+			clearInternal();
+			return null;
+		}
+		return { range: selectedRange, grid };
+	}
+
+	function clearInternal(): void {
+		selectedRange = null;
+		selectedStructure = null;
+		cachedCellIds = [];
+		cachedCellIdSet = new Set();
+	}
+
 	const service: TableSelectionService = {
 		getSelectedRange(): CellRange | null {
-			return selectedRange;
+			return resolveCurrentSelection()?.range ?? null;
 		},
 
 		setSelectedRange(range: CellRange | null): void {
-			selectedRange = range;
-			updateCache();
 			const state: EditorState = context.getState();
-			context.dispatch(state.transaction('api').setSelection(state.selection).build());
+			let focusCellId: BlockId | null = null;
+			if (!range) {
+				clearInternal();
+			} else {
+				const table = context.getState().getBlock(range.tableId);
+				const grid: TableGrid | null = table?.type === 'table' ? createTableGrid(table) : null;
+				const coordinates: readonly number[] = [
+					range.fromRow,
+					range.fromCol,
+					range.toRow,
+					range.toCol,
+				];
+				const valid: boolean =
+					!!grid &&
+					coordinates.every(Number.isInteger) &&
+					range.fromRow >= 0 &&
+					range.toRow >= 0 &&
+					range.fromCol >= 0 &&
+					range.toCol >= 0 &&
+					range.fromRow < grid.rowCount &&
+					range.toRow < grid.rowCount &&
+					range.fromCol < grid.columnCount &&
+					range.toCol < grid.columnCount;
+				const expanded =
+					valid && grid
+						? expandTableGridRange(grid, {
+								fromRow: range.fromRow,
+								fromColumn: range.fromCol,
+								toRow: range.toRow,
+								toColumn: range.toCol,
+							})
+						: null;
+				if (!grid || !expanded) {
+					clearInternal();
+				} else {
+					selectedRange = {
+						tableId: range.tableId,
+						fromRow: expanded.fromRow,
+						fromCol: expanded.fromColumn,
+						toRow: expanded.toRow,
+						toCol: expanded.toColumn,
+					};
+					selectedStructure = tableStructureSignature(grid);
+					focusCellId = grid.cellAt(expanded.fromRow, expanded.fromColumn)?.cell.id ?? null;
+				}
+			}
+			updateCache();
+			const currentTable = isTextSelection(state.selection)
+				? findTableContext(state, state.selection.anchor.blockId)
+				: null;
+			const selection =
+				focusCellId && currentTable?.tableId !== range?.tableId
+					? createCollapsedSelection(getFirstLeafInCell(state, focusCellId), 0)
+					: state.selection;
+			context.dispatch(state.transaction('api').setSelection(selection).build());
 		},
 
 		clearSelectionSilent(): void {
-			selectedRange = null;
-			updateCache();
+			clearInternal();
 		},
 
 		getSelectedCellIds(): readonly BlockId[] {
+			updateCache();
 			return cachedCellIds;
 		},
 
 		isSelected(cellId: BlockId): boolean {
+			updateCache();
 			return cachedCellIdSet.has(cellId);
 		},
 	};
 
 	context.registerService(TableSelectionServiceKey, service);
 	return service;
+}
+
+function tableStructureSignature(grid: TableGrid): string {
+	return JSON.stringify({
+		rows: grid.rows.map((row) => row.id),
+		cells: grid.cells.map((entry) => [
+			entry.cell.id,
+			entry.rowStart,
+			entry.rowEnd,
+			entry.columnStart,
+			entry.columnEnd,
+		]),
+	});
 }
 
 /**
@@ -101,10 +193,19 @@ export function installMouseSelection(
 	service: TableSelectionService,
 ): () => void {
 	const container: HTMLElement = context.getContainer();
-	let anchorCell: { tableId: BlockId; row: number; col: number } | null = null;
+	let anchorCell: {
+		tableId: BlockId;
+		cellId: BlockId;
+		rowStart: number;
+		rowEnd: number;
+		colStart: number;
+		colEnd: number;
+	} | null = null;
 	let isDragging = false;
 
 	function handleMouseDown(e: MouseEvent): void {
+		if (e.button !== 0 || context.isReadOnly?.()) return;
+		if (!isEventFromEditorContent(e, container)) return;
 		const target = e.target as HTMLElement;
 		const cellEl: HTMLElement | null = target.closest('td[data-block-id]');
 		if (!cellEl) {
@@ -129,8 +230,11 @@ export function installMouseSelection(
 
 			anchorCell = {
 				tableId: tableCtx.tableId,
-				row: tableCtx.rowIndex,
-				col: tableCtx.colIndex,
+				cellId: tableCtx.cellId,
+				rowStart: tableCtx.rowIndex,
+				rowEnd: tableCtx.rowEnd,
+				colStart: tableCtx.colIndex,
+				colEnd: tableCtx.colEnd,
 			};
 			isDragging = true;
 			// Don't set range yet — wait for mousemove to avoid interfering with clicks
@@ -146,18 +250,12 @@ export function installMouseSelection(
 			}
 
 			e.preventDefault();
-			service.setSelectedRange({
-				tableId: anchorCell.tableId,
-				fromRow: anchorCell.row,
-				fromCol: anchorCell.col,
-				toRow: tableCtx.rowIndex,
-				toCol: tableCtx.colIndex,
-			});
+			service.setSelectedRange(rangeCoveringCells(anchorCell, tableCtx));
 		}
 	}
 
 	function handleMouseMove(e: MouseEvent): void {
-		if (!isDragging || !anchorCell) return;
+		if (context.isReadOnly?.() || !isDragging || !anchorCell) return;
 
 		const target = e.target as HTMLElement;
 		const cellEl: HTMLElement | null = target.closest('td[data-block-id]');
@@ -169,15 +267,9 @@ export function installMouseSelection(
 		if (!tableCtx || tableCtx.tableId !== anchorCell.tableId) return;
 
 		// Only set range if we've moved to a different cell
-		if (tableCtx.rowIndex !== anchorCell.row || tableCtx.colIndex !== anchorCell.col) {
+		if (tableCtx.cellId !== anchorCell.cellId) {
 			e.preventDefault();
-			service.setSelectedRange({
-				tableId: anchorCell.tableId,
-				fromRow: anchorCell.row,
-				fromCol: anchorCell.col,
-				toRow: tableCtx.rowIndex,
-				toCol: tableCtx.colIndex,
-			});
+			service.setSelectedRange(rangeCoveringCells(anchorCell, tableCtx));
 		}
 	}
 
@@ -193,5 +285,29 @@ export function installMouseSelection(
 		container.removeEventListener('mousedown', handleMouseDown);
 		container.removeEventListener('mousemove', handleMouseMove);
 		document.removeEventListener('mouseup', handleMouseUp);
+	};
+}
+
+function rangeCoveringCells(
+	anchor: {
+		readonly tableId: BlockId;
+		readonly rowStart: number;
+		readonly rowEnd: number;
+		readonly colStart: number;
+		readonly colEnd: number;
+	},
+	target: {
+		readonly rowIndex: number;
+		readonly rowEnd: number;
+		readonly colIndex: number;
+		readonly colEnd: number;
+	},
+): CellRange {
+	return {
+		tableId: anchor.tableId,
+		fromRow: Math.min(anchor.rowStart, target.rowIndex),
+		fromCol: Math.min(anchor.colStart, target.colIndex),
+		toRow: Math.max(anchor.rowEnd, target.rowEnd) - 1,
+		toCol: Math.max(anchor.colEnd, target.colEnd) - 1,
 	};
 }

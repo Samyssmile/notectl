@@ -11,7 +11,7 @@
  */
 
 import type { BlockAlignment } from './BlockAlignment.js';
-import type { BlockNode, InlineNode, Mark } from './Document.js';
+import type { BlockAttrs, BlockNode, InlineNode, Mark } from './Document.js';
 import { isInlineNode } from './Document.js';
 
 /** Plugins augment this interface to register typed node attributes. */
@@ -29,7 +29,7 @@ export interface MarkAttrRegistry {
 /** Resolves typed attributes for known node types, falls back for unknown. */
 export type NodeAttrsFor<T extends string> = T extends keyof NodeAttrRegistry
 	? NodeAttrRegistry[T]
-	: Record<string, string | number | boolean>;
+	: BlockAttrs;
 
 /** Resolves typed attributes for known mark types, falls back for unknown. */
 export type MarkAttrsFor<T extends string> = T extends keyof MarkAttrRegistry

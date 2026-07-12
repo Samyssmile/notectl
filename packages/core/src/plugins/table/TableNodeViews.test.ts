@@ -35,6 +35,22 @@ function createTableBlock(): BlockNode {
 	);
 }
 
+function createSizedTableBlock(): BlockNode {
+	const cells = [0, 1, 2].map((index) =>
+		createBlockNode(
+			'table_cell',
+			[createBlockNode('paragraph', [createTextNode(String(index))], `p${index}`)],
+			`c${index}`,
+		),
+	);
+	return createBlockNode(
+		'table',
+		[createBlockNode('table_row', cells, 'r1', { minHeightPx: 48 })],
+		't1',
+		{ columnWidthsPx: [120, null, 240] },
+	);
+}
+
 function createTableState(tableNode: BlockNode): EditorState {
 	return EditorState.create({
 		doc: createDocument([tableNode]),
@@ -69,6 +85,66 @@ describe('TableNodeView', () => {
 
 		nodeView.destroy?.();
 	});
+
+	it('renders one semantic col per logical column and applies explicit widths', () => {
+		const tableNode = createSizedTableBlock();
+		const state = createTableState(tableNode);
+		const nodeView = createTableNodeViewFactory(new SchemaRegistry())(
+			tableNode,
+			() => state,
+			() => {},
+		);
+		const table = nodeView.dom.querySelector('table') as HTMLTableElement;
+		const columns = table.querySelectorAll(':scope > colgroup > col');
+
+		expect(columns).toHaveLength(3);
+		expect(columns[0]?.getAttribute('data-notectl-width-px')).toBe('120');
+		expect(columns[1]?.hasAttribute('data-notectl-width-px')).toBe(false);
+		expect(columns[2]?.getAttribute('data-notectl-width-px')).toBe('240');
+		expect(table.style.minWidth).toBe('420px');
+		nodeView.destroy?.();
+	});
+
+	it('updates column dimensions in place for a sizing-only transaction', () => {
+		const tableNode = createSizedTableBlock();
+		const state = createTableState(tableNode);
+		const nodeView = createTableNodeViewFactory(new SchemaRegistry())(
+			tableNode,
+			() => state,
+			() => {},
+		);
+		const tableBefore = nodeView.dom.querySelector('table');
+		const updated: BlockNode = {
+			...tableNode,
+			attrs: { columnWidthsPx: [160, 180, null] },
+		};
+
+		expect(nodeView.update?.(updated)).toBe(true);
+		expect(nodeView.dom.querySelector('table')).toBe(tableBefore);
+		const columns = nodeView.dom.querySelectorAll('col');
+		expect(columns[0]?.getAttribute('data-notectl-width-px')).toBe('160');
+		expect(columns[1]?.getAttribute('data-notectl-width-px')).toBe('180');
+		expect(columns[2]?.hasAttribute('data-notectl-width-px')).toBe(false);
+		nodeView.destroy?.();
+	});
+
+	it('uses the exact summed table width when every logical column is explicit', () => {
+		const sized: BlockNode = {
+			...createSizedTableBlock(),
+			attrs: { columnWidthsPx: [120, 240, 160] },
+		};
+		const state = createTableState(sized);
+		const nodeView = createTableNodeViewFactory(new SchemaRegistry())(
+			sized,
+			() => state,
+			() => {},
+		);
+		const table = nodeView.dom.querySelector('table') as HTMLTableElement;
+
+		expect(table.style.width).toBe('520px');
+		expect(table.style.minWidth).toBe('520px');
+		nodeView.destroy?.();
+	});
 });
 
 describe('TableNodeView shadow parts', () => {
@@ -97,6 +173,23 @@ describe('TableNodeView shadow parts', () => {
 
 		expect(nodeView.dom.getAttribute('part')).toBe('table-row');
 		nodeView.destroy?.();
+	});
+
+	it('table_row applies and removes a content-growing minimum height', () => {
+		const rowNode = createBlockNode('table_row', [], 'r1', { minHeightPx: 52 });
+		const state = createTableState(createTableBlock());
+		const nodeView = createTableRowNodeViewFactory(new SchemaRegistry())(
+			rowNode,
+			() => state,
+			noopDispatch,
+		);
+		const row = nodeView.dom as HTMLTableRowElement;
+
+		expect(row.style.height).toBe('52px');
+		expect(row.getAttribute('data-notectl-min-height-px')).toBe('52');
+		expect(nodeView.update?.({ ...rowNode, attrs: undefined })).toBe(true);
+		expect(row.style.height).toBe('');
+		expect(row.hasAttribute('data-notectl-min-height-px')).toBe(false);
 	});
 
 	it('table_cell NodeView exposes part="table-cell"', () => {
