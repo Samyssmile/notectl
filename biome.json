@@ -33,6 +33,7 @@
 	},
 	"files": {
 		"ignore": [
+			"**/.bundle-stats.json",
 			"**/dist/**",
 			"**/node_modules/**",
 			"**/*.d.ts",

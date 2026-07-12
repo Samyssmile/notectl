@@ -15,7 +15,7 @@ The `FormulaPlugin` adds inline and block (display) math to notectl. It is built
 
 ```ts
 import { FormulaPlugin } from '@notectl/core/plugins/formula';
-import { NOTECTL_MATH_FONT } from '@notectl/core/fonts';
+import { NOTECTL_MATH_FONT } from '@notectl/core/fonts/math';
 
 // Recommended: pass the bundled OpenType MATH font for correct rendering in Chromium.
 new FormulaPlugin({ mathFont: NOTECTL_MATH_FONT });
@@ -25,7 +25,7 @@ The plugin is included in the full preset:
 
 ```ts
 import { createFullPreset } from '@notectl/core/presets/full';
-import { NOTECTL_MATH_FONT } from '@notectl/core/fonts';
+import { NOTECTL_MATH_FONT } from '@notectl/core/fonts/math';
 
 const preset = createFullPreset({
   formula: { mathFont: NOTECTL_MATH_FONT },
@@ -36,7 +36,7 @@ const preset = createFullPreset({
 
 Firefox and Safari render MathML with the system OpenType MATH font. Chromium ships none, so without one it draws stretchy constructs incorrectly: matrix brackets stay flat, large integrals, roots, and summations are not enlarged.
 
-notectl solves this with a bundled font, `NOTECTL_MATH_FONT`, a subset of Noto Sans Math (SIL OFL 1.1). It is exported from the `./fonts` subpath so its payload stays out of the main bundle, and it is opt-in. Pass it to the plugin and the formula styles apply `font-family: 'Notectl Math', math` to every formula, which fixes the Chromium rendering. It is a self-hosted font asset, not an npm dependency.
+notectl solves this with a bundled font, `NOTECTL_MATH_FONT`, a subset of Noto Sans Math (SIL OFL 1.1). It is exported from the granular `./fonts/math` subpath so the independent starter-font payload stays out of native ESM loads, and it is opt-in. Pass it to the plugin and the formula styles apply `font-family: 'Notectl Math', math` to every formula, which fixes the Chromium rendering. It is a self-hosted font asset, not an npm dependency.
 
 ## Inserting formulas
 
@@ -124,7 +124,7 @@ interface FormulaPluginConfig {
   };
   /** Preset px sizes in the editor's size control; pass [] to hide it. */
   readonly fontSizes?: readonly number[];
-  /** Bundled OpenType MATH font (import NOTECTL_MATH_FONT from '@notectl/core/fonts'). */
+  /** Bundled OpenType MATH font (import from '@notectl/core/fonts/math'). */
   readonly mathFont?: FontDefinition;
 }
 ```

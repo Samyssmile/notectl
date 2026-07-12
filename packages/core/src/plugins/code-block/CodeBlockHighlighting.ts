@@ -8,17 +8,42 @@
 
 import type { PluginContext } from '../Plugin.js';
 import { LanguageRegistry } from '../language/LanguageRegistry.js';
-import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
-import {
-	JAVA_SUPPORT,
-	JSON_SUPPORT,
-	TYPESCRIPT_SUPPORT,
-	XML_SUPPORT,
-} from '../language/bundles/index.js';
+import { LANGUAGE_REGISTRY_SERVICE_KEY, type LanguageSupport } from '../language/LanguageTypes.js';
 import type { CodeBlockConfig, SyntaxHighlighter } from './CodeBlockTypes.js';
 import { SYNTAX_HIGHLIGHTER_SERVICE_KEY } from './CodeBlockTypes.js';
 import type { TokenCache } from './TokenCache.js';
 import { RegexTokenizer } from './highlighter/RegexTokenizer.js';
+import { JAVA_LANGUAGE } from './highlighter/languages/java.js';
+import { JSON_LANGUAGE } from './highlighter/languages/json.js';
+import { TYPESCRIPT_LANGUAGE } from './highlighter/languages/typescript.js';
+import { XML_LANGUAGE } from './highlighter/languages/xml.js';
+
+const BUILTIN_HIGHLIGHTING_SUPPORTS: readonly LanguageSupport[] = [
+	{
+		id: JAVA_LANGUAGE.name,
+		displayName: 'Java',
+		aliases: JAVA_LANGUAGE.aliases,
+		highlighting: JAVA_LANGUAGE,
+	},
+	{
+		id: JSON_LANGUAGE.name,
+		displayName: 'JSON',
+		aliases: JSON_LANGUAGE.aliases,
+		highlighting: JSON_LANGUAGE,
+	},
+	{
+		id: TYPESCRIPT_LANGUAGE.name,
+		displayName: 'TypeScript',
+		aliases: TYPESCRIPT_LANGUAGE.aliases,
+		highlighting: TYPESCRIPT_LANGUAGE,
+	},
+	{
+		id: XML_LANGUAGE.name,
+		displayName: 'XML',
+		aliases: XML_LANGUAGE.aliases,
+		highlighting: XML_LANGUAGE,
+	},
+];
 
 /**
  * Sets up the highlighter, language registry, and syntax-highlighter service.
@@ -31,20 +56,26 @@ export function setupHighlighting(
 	tokenCache: TokenCache,
 ): SyntaxHighlighter {
 	const highlighter: SyntaxHighlighter = config.highlighter ?? new RegexTokenizer();
+	const registeredHighlighting = new Map<string, NonNullable<LanguageSupport['highlighting']>>();
 
 	const languageRegistry = new LanguageRegistry();
 	languageRegistry.onRegister((support) => {
-		if (support.highlighting && highlighter.registerLanguage) {
-			highlighter.registerLanguage(support.highlighting);
+		const highlighting = support.highlighting;
+		if (
+			highlighting &&
+			highlighter.registerLanguage &&
+			registeredHighlighting.get(support.id) !== highlighting
+		) {
+			highlighter.registerLanguage(highlighting);
+			registeredHighlighting.set(support.id, highlighting);
 			tokenCache.clear();
 		}
 	});
 	context.registerService(LANGUAGE_REGISTRY_SERVICE_KEY, languageRegistry);
 
-	languageRegistry.register(JAVA_SUPPORT);
-	languageRegistry.register(JSON_SUPPORT);
-	languageRegistry.register(TYPESCRIPT_SUPPORT);
-	languageRegistry.register(XML_SUPPORT);
+	for (const support of BUILTIN_HIGHLIGHTING_SUPPORTS) {
+		languageRegistry.register(support);
+	}
 
 	context.registerService(SYNTAX_HIGHLIGHTER_SERVICE_KEY, {
 		registerLanguage: (def) => {

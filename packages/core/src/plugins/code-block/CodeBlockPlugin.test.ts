@@ -8,6 +8,7 @@ import {
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
 import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
 import { CodeBlockPlugin } from './CodeBlockPlugin.js';
 import { CODE_BLOCK_SERVICE_KEY, SYNTAX_HIGHLIGHTER_SERVICE_KEY } from './CodeBlockTypes.js';
 
@@ -1003,6 +1004,15 @@ describe('CodeBlockPlugin', () => {
 			expect(languages).toContain('java');
 			expect(languages).toContain('json');
 			expect(languages).toContain('xml');
+		});
+
+		it('registers highlighting without pulling in Smart Paste detectors', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const registry = h.pm.getService(LANGUAGE_REGISTRY_SERVICE_KEY);
+			assertDefined(registry);
+
+			expect(registry.get('java')?.highlighting).toBeDefined();
+			expect(registry.get('java')?.detection).toBeUndefined();
 		});
 
 		it('getSupportedLanguages delegates to highlighter', async () => {

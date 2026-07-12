@@ -1,6 +1,7 @@
 import { ThemePreset, createEditor } from '@notectl/core';
 import type { NotectlEditor, StateChangeEvent, Theme } from '@notectl/core';
-import { NOTECTL_MATH_FONT, STARTER_FONTS } from '@notectl/core/fonts';
+import { NOTECTL_MATH_FONT } from '@notectl/core/fonts/math';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 import { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
 import { FontPlugin } from '@notectl/core/plugins/font';

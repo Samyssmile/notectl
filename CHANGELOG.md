@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-07-12
+
+### Added
+
+- **Granular bundled-font entry points.** Consumers can now import the starter fonts from
+  `@notectl/core/fonts/starter` and the formula font from `@notectl/core/fonts/math`, while
+  the existing `@notectl/core/fonts` compatibility entry point remains available.
+
+### Changed
+
+- **Bundle budgets now follow the emitted Vite chunk graph.** The size gate measures static
+  entry-point closures, deferred locale chunks, and the single-file UMD build independently,
+  with consistent treatment of external dependencies. Code-block highlighting no longer
+  bundles Smart Paste's language detectors, and embedded font sources are omitted from source
+  map contents without changing runtime assets, reducing the packed core archive by about 23%.
+
+### Fixed
+
+- **Bare root imports retain custom-element registration under tree shaking.** Registration now
+  has an explicit public boundary and matching package side-effect metadata, so importing
+  `@notectl/core` continues to define `<notectl-editor>` in optimized consumer builds.
+
 ## [2.3.1] - 2026-07-12
 
 ### Added

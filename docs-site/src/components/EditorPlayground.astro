@@ -21,7 +21,8 @@ import { ThemePreset, createEditor } from '@notectl/core';
 	import { GapCursorPlugin } from '@notectl/core/plugins/gap-cursor';
 	import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 	import { createFullPreset } from '@notectl/core/presets/full';
-	import { NOTECTL_MATH_FONT, STARTER_FONTS } from '@notectl/core/fonts';
+	import { NOTECTL_MATH_FONT } from '@notectl/core/fonts/math';
+	import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 
 	const container = document.getElementById('playground-editor');
 	const output = document.getElementById('playground-output');

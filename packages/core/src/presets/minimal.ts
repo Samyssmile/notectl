@@ -7,7 +7,7 @@
  * @example
  * ```ts
  * import { createMinimalPreset } from '@notectl/core/presets/minimal';
- * import { STARTER_FONTS } from '@notectl/core/fonts';
+ * import { STARTER_FONTS } from '@notectl/core/fonts/starter';
  *
  * const preset = createMinimalPreset({ font: { fonts: STARTER_FONTS } });
  * ```

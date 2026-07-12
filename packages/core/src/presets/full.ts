@@ -7,7 +7,7 @@
  * @example
  * ```ts
  * import { createFullPreset } from '@notectl/core/presets/full';
- * import { STARTER_FONTS } from '@notectl/core/fonts';
+ * import { STARTER_FONTS } from '@notectl/core/fonts/starter';
  *
  * const preset = createFullPreset({ font: { fonts: STARTER_FONTS } });
  * ```

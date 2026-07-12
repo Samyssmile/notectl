@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+packages/core/.bundle-stats.json
+packages/core/stats.html
 
 # Build output
 dist/

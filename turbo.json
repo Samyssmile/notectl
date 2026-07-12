@@ -3,7 +3,7 @@
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
-			"outputs": ["dist/**"]
+			"outputs": ["dist/**", ".bundle-stats.json"]
 		},
 		"test": {
 			"dependsOn": ["build"]
@@ -13,6 +13,10 @@
 		},
 		"typecheck": {
 			"dependsOn": ["^build"]
+		},
+		"size:check": {
+			"dependsOn": ["build"],
+			"cache": false
 		},
 		"lint": {},
 		"dev": {

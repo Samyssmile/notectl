@@ -13,7 +13,7 @@ For a complete guide on using custom fonts, see [Custom Fonts](/notectl/guides/c
 
 ```ts
 import { FontPlugin } from '@notectl/core/plugins/font';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 
 new FontPlugin({
   fonts: [...STARTER_FONTS],
@@ -60,7 +60,7 @@ interface FontFaceDescriptor {
 Built-in fonts with embedded WOFF2 data (no external URLs needed):
 
 ```ts
-import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core/fonts';
+import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core/fonts/starter';
 ```
 
 | Constant | Font | Category | Weights |
@@ -94,7 +94,7 @@ When the user selects the `defaultFont`, the font mark is **removed** rather tha
 
 ```ts
 import { FontPlugin } from '@notectl/core/plugins/font';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 import type { FontDefinition } from '@notectl/core/plugins/font';
 
 const INTER: FontDefinition = {

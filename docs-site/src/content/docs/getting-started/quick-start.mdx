@@ -35,7 +35,7 @@ The fastest way to get a production editor with all plugins is using `createFull
 ```ts
 import { createEditor, ThemePreset } from '@notectl/core';
 import { createFullPreset } from '@notectl/core/presets';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 
 const editor = await createEditor({
   ...createFullPreset({

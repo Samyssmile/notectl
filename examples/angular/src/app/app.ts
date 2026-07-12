@@ -30,7 +30,7 @@ import {
   FontSizePlugin,
   ThemePreset,
 } from '@notectl/angular';
-import { STARTER_FONTS } from '@notectl/core/fonts';
+import { STARTER_FONTS } from '@notectl/core/fonts/starter';
 import {FormulaPlugin} from '@notectl/core/plugins/formula';
 import {PrintPlugin} from '@notectl/core/plugins/print';
 import {ToolbarOverflowBehavior} from '@notectl/core/plugins/toolbar';

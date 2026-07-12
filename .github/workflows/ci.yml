@@ -50,6 +50,8 @@ jobs:
 
       - run: pnpm build
 
+      - run: pnpm size:check
+
       - run: pnpm typecheck
 
   test:
