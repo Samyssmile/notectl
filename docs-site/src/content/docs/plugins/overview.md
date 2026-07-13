@@ -5,7 +5,7 @@ description: All built-in plugins available in notectl with their capabilities a
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-notectl ships with **27 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
+notectl ships with **28 built-in plugins**. Every editor feature — from bold text to tables — is implemented as a plugin. You can use all of them, a subset, or build your own.
 
 ![Editor with full plugin set](../../../assets/screenshots/editor-formatted.png)
 

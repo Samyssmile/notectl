@@ -78,6 +78,7 @@ export { InlineCodePlugin } from '@notectl/core/plugins/inline-code';
 export { CodeBlockPlugin } from '@notectl/core/plugins/code-block';
 export { BlockquotePlugin } from '@notectl/core/plugins/blockquote';
 export { ImagePlugin } from '@notectl/core/plugins/image';
+export { VideoPlugin } from '@notectl/core/plugins/video';
 export { FormulaPlugin } from '@notectl/core/plugins/formula';
 export { FontSizePlugin } from '@notectl/core/plugins/font-size';
 export { FontPlugin } from '@notectl/core/plugins/font';
