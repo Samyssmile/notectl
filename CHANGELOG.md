@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-07-13
+
+### Fixed
+
+- **Angular consumers can import every built-in plugin from `@notectl/angular`.** The Angular
+  public entry point now re-exports `InlineCodePlugin`, `FormulaPlugin`, `PrintPlugin`,
+  `SmartPastePlugin`, `CaretNavigationPlugin`, `GapCursorPlugin`, and `VideoPlugin`. A public-API
+  contract test keeps the Angular barrel aligned with every plugin constructor in
+  `@notectl/core/full`, and the documentation now reports the correct total of 28 built-in
+  plugins.
+
 ## [2.3.2] - 2026-07-12
 
 ### Added
