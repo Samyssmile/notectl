@@ -29,11 +29,12 @@ import {
   FontPlugin,
   FontSizePlugin,
   ThemePreset,
+  FormulaPlugin,
+  PrintPlugin,
+  InlineCodePlugin,
 } from '@notectl/angular';
 import { STARTER_FONTS } from '@notectl/core/fonts/starter';
-import {FormulaPlugin} from '@notectl/core/plugins/formula';
-import {PrintPlugin} from '@notectl/core/plugins/print';
-import {ToolbarOverflowBehavior} from '@notectl/core/plugins/toolbar';
+import { ToolbarOverflowBehavior } from '@notectl/core/plugins/toolbar';
 
 const INTER: FontDefinition = {
   name: 'Inter',
@@ -116,6 +117,7 @@ export class App {
             toggle: 'Mod-Shift-C',
           },
         }),
+        new InlineCodePlugin(),
       ],
       [new AlignmentPlugin(), new TextDirectionPlugin()],
       [new ListPlugin()],
