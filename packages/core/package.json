@@ -216,7 +216,7 @@
 		"build:analyze": "ANALYZE=true vite build"
 	},
 	"dependencies": {
-		"dompurify": "^3.4.11"
+		"dompurify": "^3.4.12"
 	},
 	"devDependencies": {
 		"esbuild": "^0.28.1",
