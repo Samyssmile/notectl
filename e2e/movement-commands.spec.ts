@@ -1,5 +1,19 @@
 import { expect, test } from './fixtures/editor-page';
 
+/**
+ * Word-forward movement has two legitimate native conventions, and the editor
+ * delegates `Ctrl+ArrowRight` to the browser instead of overriding either:
+ *
+ * - caret stops at the end of the current word — Gecko, and Blink on Linux/macOS
+ * - caret stops at the start of the next word — Blink on Windows
+ *
+ * Typing `X` after one word-step from the start of `hello world` therefore
+ * yields one of these. Both prove the same thing: exactly one word-step ran and
+ * the caret sits between the two words. Pinning a single spelling would make
+ * this suite fail on a platform whose native behaviour is perfectly correct.
+ */
+const WORD_FORWARD_RESULTS: readonly string[] = ['helloX world', 'hello Xworld'];
+
 test.describe('Movement Commands', () => {
 	test.describe('Word movement', () => {
 		test('Ctrl+ArrowRight moves cursor by word forward', async ({ editor, page }) => {
@@ -8,14 +22,13 @@ test.describe('Movement Commands', () => {
 			// Move to start first
 			await page.keyboard.press('Home');
 			await page.waitForTimeout(50);
-			// Move one word forward (browser lands after "hello")
+			// Move one word forward
 			await page.keyboard.press('Control+ArrowRight');
 			await page.waitForTimeout(50);
 			// Type at new position
 			await page.keyboard.type('X', { delay: 10 });
 			const text: string = await editor.getText();
-			// Cursor lands after "hello" (browser word boundary)
-			expect(text.trim()).toBe('helloX world');
+			expect(WORD_FORWARD_RESULTS).toContain(text.trim());
 		});
 
 		test('Ctrl+ArrowLeft moves cursor by word backward', async ({ editor, page }) => {
