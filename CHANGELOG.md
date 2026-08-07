@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.4] - 2026-08-07
+
+Reliability release. The editor no longer trusts data or callbacks it does not own: plugin
+failures degrade gracefully instead of breaking the surrounding operation, and values handed
+in by the host application are snapshotted so later caller mutation cannot diverge editor
+state. Adds 123 tests.
+
+### Added
+
+- **Public API.** `EditorInitializationAbortedError` (rejects `whenReady()` waiters when an
+  initialization is aborted), the `NodeSpecExtension` type, and the `ElementSanitizeValidator`
+  type are now exported from `@notectl/core`.
+
+### Changed
+
+- **A failing plugin no longer breaks the surrounding operation.** Paste and text-input
+  interceptors, input rules, keymaps, file handlers, Markdown syntax callbacks, NodeViews,
+  schema parse/render, and widget rendering all run behind one attributed error boundary.
+  A throwing NodeView factory falls back to the `NodeSpec` path instead of aborting the render,
+  throwing renderers use attributed DOM fallbacks, and a throwing input rule or keymap lets the
+  next matching handler run. Failures are reported through the configured logger with the
+  responsible plugin id.
+- **Host-supplied values are owned by the editor.** Documents, stored marks, block attributes,
+  step payloads, selections, and `StepMap` payloads are snapshotted and deeply frozen on the way
+  in, so mutating the object you passed can no longer change editor state behind its back.
+- **Application loggers are contained.** A logger that throws or returns a rejected promise can
+  no longer become a second runtime failure inside an editor recovery path.
+- **Initialization and teardown are race-free.** Concurrent `init()` calls coalesce onto one
+  result, a stale initialization can no longer tear down the active generation, and a failed or
+  cancelled initialization rolls back every registration so a retry starts from an empty
+  registry. `register()` and `init()` now reject while `destroy()` is in progress; this
+  previously corrupted lifecycle state silently.
+- File handlers now run over a stable snapshot and stay synchronous until a handler actually
+  returns a promise, preserving native event semantics for fully synchronous chains.
+- `normalizeCompositeBlocks` moved to the model layer so input code no longer depends on the
+  editor composition layer. A new architecture-boundary test enforces this.
+- Bundle budgets raised for the added boundaries: core 100 to 105 KB, HTML codec 12 to 13 KB.
+
+### Fixed
+
+- **The schema no longer depends on plugin registration order.** Specs and cross-plugin
+  extensions are materialized once after all plugins have registered, so code blocks are valid
+  table-cell content even when `CodeBlockPlugin` initializes before `TablePlugin`.
+- **Two editors on one page no longer merge their iframe host policies.** Video sanitization
+  keeps each editor owner's allowed-host policy isolated instead of unioning provider hosts
+  across instances, and no longer consumes or removes DOMPurify hooks owned by another user of
+  the library.
+- **Undo stays reliable when middleware changes a transaction.** `StepMap`s are rebuilt against
+  the real pre-apply document frames after middleware may have replaced, removed, or appended
+  steps, which fixes undo for middleware-appended steps such as automatic text direction.
+- Asynchronous work started by one editor generation (Markdown import, file handlers, autofocus
+  frames) can no longer dispatch or announce into a later generation after a remount.
+- NodeView subtrees are destroyed children-first before a replacement factory can overwrite
+  registry entries, so replaced blocks no longer leak undestroyed NodeViews.
+
 ## [2.3.3] - 2026-07-13
 
 ### Fixed
