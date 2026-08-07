@@ -24,6 +24,30 @@ const registry = new SchemaRegistry();
 | `removeNodeSpec` | `(type: string) => void` | Remove a registered spec |
 | `getNodeTypes` | `() => string[]` | List all registered node type names |
 
+### Node Spec Extensions
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `registerNodeSpecExtension` | `(type: string, extension: NodeSpecExtension) => void` | Declare a transformation applied to a node type, independent of registration order |
+| `removeNodeSpecExtension` | `(type: string, extension: NodeSpecExtension) => void` | Remove one extension by function identity |
+| `finalize` | `() => void` | Materialize the complete schema after all specs and extensions are declared |
+
+```ts
+type NodeSpecExtension = (spec: NodeSpec) => NodeSpec;
+```
+
+An extension transforms a node type owned by someone else: adding an attribute, wrapping `toDOM()`,
+or widening `content.allow`. Extensions may be registered **before** their target spec exists and
+are materialized together by `finalize()`, so the resulting schema does not depend on the order in
+which plugins register. Multiple extensions for one type compose in registration order.
+
+`getNodeSpec()` returns the finalized spec, finalizing lazily if needed, so standalone registry
+consumers always read the composed result. Write extensions idempotently (return `spec` unchanged
+when your change is already present), because the snapshot is rebuilt whenever registrations change.
+
+See [Extending Another Plugin's NodeSpec](/notectl/api/plugin-interface/#extending-another-plugins-nodespec)
+for the plugin-facing API.
+
 ### Mark Spec Methods
 
 | Method | Signature | Description |
@@ -277,8 +301,37 @@ Declares tags and attributes that a spec needs to survive DOMPurify sanitization
 interface SanitizeConfig {
   readonly tags?: readonly string[];
   readonly attrs?: readonly string[];
+  readonly elementValidators?: Readonly<Record<string, ElementSanitizeValidator>>;
+}
+
+type ElementSanitizeValidator = (element: Element) => boolean;
+```
+
+#### `elementValidators`
+
+A structural allowlist cannot express a value-dependent security rule, such as "this `iframe` is
+permitted only if its `src` host is one of my providers". `elementValidators` closes that gap: keyed
+by tag name, each validator inspects one already-parsed element and returns `false` to have it
+removed.
+
+```ts
+sanitize: {
+  tags: ['iframe'],
+  attrs: ['src', 'allow', 'title'],
+  elementValidators: { iframe: validateIframe },
 }
 ```
+
+Two properties matter for security:
+
+- **All validators registered for a tag must pass**, so allowing a tag never weakens another spec's
+  rule for the same tag.
+- **The policy belongs to the registry that authorized the tag**, which means it is scoped to one
+  editor instance. Two editors on the same page do not merge their policies, and neither one's rules
+  leak into the other. The video plugin relies on this for its per-instance provider host allowlist.
+
+Validators run after DOMPurify has parsed the element, so you inspect a real DOM node rather than
+raw markup. Keep them pure and synchronous.
 
 ---
 

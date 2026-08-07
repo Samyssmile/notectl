@@ -62,8 +62,37 @@ interface NotectlEditorConfig {
   dir?: 'ltr' | 'rtl';
   /** Editor locale. Defaults to Locale.BROWSER (auto-detect from navigator.language). */
   locale?: Locale;
+  /** Sink for editor runtime errors. Defaults to a console-backed logger. */
+  logger?: Logger;
 }
 ```
+
+### `logger`
+
+Every runtime failure the editor recovers from is reported here: plugin lifecycle errors,
+middleware exceptions, event listener errors, command handler crashes, and failures in any
+plugin-contributed callback (input rules, keymaps, paste interceptors, file handlers, NodeViews,
+schema and widget rendering). Plugin callbacks run behind an error boundary, so a throwing plugin
+degrades to a fallback instead of breaking the operation. The logger is the only place that
+failure becomes visible, including which plugin caused it.
+
+```ts
+import { createEditor, silentLogger, type Logger } from '@notectl/core';
+
+// Route into your own telemetry pipeline
+const logger: Logger = {
+  error: (message, cause) => reportToSentry(message, cause),
+  warn: (message) => console.warn(message),
+  info: () => {},
+  debug: () => {},
+};
+
+const editor = createEditor(host, { logger });
+```
+
+`consoleLogger` (the default) forwards to the global `console`, and `silentLogger` suppresses
+output. `scopedLogger(base, scope)` prefixes messages with `[scope]`. A logger that throws or
+returns a rejected promise cannot break the editor recovery path it was called from.
 
 ### `ToolbarConfig`
 
@@ -445,6 +474,25 @@ See the [Markdown guide](/notectl/guides/markdown/#editor-configuration) for the
 
 Returns a promise that resolves when the editor is fully initialized.
 
+**Rejects** with `EditorInitializationAbortedError` when the initialization it is waiting on is
+aborted, which happens if `destroy()` runs before the editor became ready. Always attach a
+rejection handler in code paths that can unmount before initialization completes, such as a
+framework component whose lifecycle may tear down mid-mount:
+
+```ts
+import { EditorInitializationAbortedError } from '@notectl/core';
+
+try {
+  await editor.whenReady();
+} catch (error) {
+  if (error instanceof EditorInitializationAbortedError) return; // unmounted, nothing to do
+  throw error;
+}
+```
+
+Concurrent `whenReady()` and `init()` callers are joined onto the same result, so they all resolve
+or all reject together.
+
 ### `configure(config: Partial<NotectlEditorConfig>): void`
 
 Updates configuration at runtime. Active side-effects for `placeholder`, `readonly`, `paperSize`, and `dir`. To change the theme at runtime, use `setTheme()` instead.
@@ -453,11 +501,19 @@ Updates configuration at runtime. Active side-effects for `placeholder`, `readon
 
 ### `registerPlugin(plugin: Plugin): void`
 
-Registers a plugin. Must be called **before** `init()` or before the element is added to the DOM. **Throws** if called after initialization.
+Registers a plugin. Must be called **before** `init()` or before the element is added to the DOM. **Throws** if called after initialization, and also while a `destroy()` is still in progress.
 
 ### `destroy(): Promise<void>`
 
-Cleans up the editor. The editor can be re-initialized after destruction.
+Cleans up the editor. The editor can be re-initialized after destruction, but you must await
+`destroy()` first: `registerPlugin()` and initialization both reject while teardown is still
+running. An initialization requested while a teardown is in flight waits for it and then starts
+from an empty registry.
+
+If `destroy()` interrupts an initialization that never finished, that initialization is rolled back
+completely, so no half-registered plugin state survives into the next generation. Asynchronous work
+started by the destroyed generation (a Markdown import, a file handler, a pending autofocus) cannot
+dispatch into the new one.
 
 ## HTML Attributes
 

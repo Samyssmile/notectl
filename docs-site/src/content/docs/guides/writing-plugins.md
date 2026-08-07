@@ -112,6 +112,24 @@ context.registerMarkSpec({
 });
 ```
 
+To augment a block type **another** plugin owns, declare a `NodeSpecExtension` instead of
+re-registering its spec. Extensions are materialized after every plugin has registered, so the
+target plugin may initialize later than yours:
+
+```ts
+// Allow our callout inside table cells, regardless of plugin order
+context.registerNodeSpecExtension('table_cell', (cellSpec) => {
+  if (!cellSpec.content || cellSpec.content.allow.includes('callout')) return cellSpec;
+  return {
+    ...cellSpec,
+    content: { ...cellSpec.content, allow: [...cellSpec.content.allow, 'callout'] },
+  };
+});
+```
+
+Return `spec` unchanged when your change is already applied; the schema can be rebuilt and the
+extension re-run. See [Extending Another Plugin's NodeSpec](/notectl/api/plugin-interface/#extending-another-plugins-nodespec).
+
 ### Keymaps
 
 Bind keyboard shortcuts:
@@ -458,3 +476,25 @@ declare module '@notectl/core' {
 ```
 
 This enables type checking when you use `isMarkOfType(mark, 'highlight')` — the compiler knows `mark.attrs.color` exists.
+
+## How Failures in Your Plugin Behave
+
+Every callback you register runs behind an error boundary. If it throws or returns a rejected
+promise, the editor does not break: it continues to the next matching handler, or renders an
+attributed DOM fallback, and reports the failure through the editor's
+[`logger`](/notectl/api/editor/#logger) together with your plugin id and the callback name. The full
+matrix is in the [PluginContext reference](/notectl/api/plugin-interface/#error-isolation-for-plugin-callbacks).
+
+This matters while developing a plugin:
+
+- **Your exceptions do not appear as uncaught errors.** If a feature quietly does nothing or falls
+  back to default rendering, read the logger output before suspecting the editor. Pass a custom
+  `logger` or keep the default `consoleLogger` during development.
+- **Do not use a thrown exception as control flow.** Throwing to abort an editor operation does not
+  work; return `false` from a command, input rule, keymap, or file handler to decline it instead.
+- **Keep callbacks free of partial side effects.** The editor continues past a failure, so a
+  callback that mutated external state halfway leaves that state inconsistent with the document.
+
+Lifecycle failures behave the same way. If your `init()` throws, the whole initialization is rolled
+back and every registration made by every plugin is removed, so a retry starts from an empty
+registry rather than a half-built schema.
