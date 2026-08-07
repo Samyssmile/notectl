@@ -53,6 +53,7 @@ interface PluginContext {
 
   // --- Schema ---
   registerNodeSpec<T extends string>(spec: NodeSpec<T>): void;
+  registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
   registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
   registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
   registerNodeView(type: string, factory: NodeViewFactory): void;
@@ -102,6 +103,71 @@ interface PluginContext {
 ```
 
 Plugins that need to show popups (dropdowns, color pickers, dialogs) should use the shared [Popup Framework](/notectl/api/popup-framework/) via `PopupServiceKey` rather than managing DOM elements directly.
+
+## Extending Another Plugin's NodeSpec
+
+```ts
+type NodeSpecExtension = (spec: NodeSpec) => NodeSpec;
+
+registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
+```
+
+Use this instead of reading and re-registering a foreign `NodeSpec` when your plugin needs to
+augment a block type another plugin owns: add an attribute, wrap `toDOM()`, or widen
+`content.allow`. The extension receives the current spec and returns the transformed one.
+
+**Order does not matter.** Extensions are declared during `init()` but materialized together only
+after every plugin has registered its base specs, so you may extend a target whose owning plugin
+initializes later. Extensions for the same type compose in registration order.
+
+Always make the transformation idempotent by returning `spec` unchanged when your change is already
+present. The same extension can be re-applied when the schema is rebuilt:
+
+```ts
+init(context: PluginContext): void {
+  // Allow this plugin's block inside table cells, whether or not
+  // TablePlugin has initialized yet.
+  context.registerNodeSpecExtension('table_cell', (cellSpec) => {
+    if (!cellSpec.content || cellSpec.content.allow.includes('code_block')) return cellSpec;
+    return {
+      ...cellSpec,
+      content: { ...cellSpec.content, allow: [...cellSpec.content.allow, 'code_block'] },
+    };
+  });
+}
+```
+
+For the common case of adding one attribute that renders as a DOM effect, prefer the shared
+`patchNodeSpecAttr()` helper, which builds the extension and the `toDOM` wrapper for you. The
+alignment and text-direction plugins use it to add `align` and `dir` across several block types.
+
+A cleanup removing the extension uses the function identity as its key, so keep a reference if
+your plugin needs to unregister it in `destroy()`.
+
+## Error Isolation for Plugin Callbacks
+
+Every callback a plugin contributes runs behind an error boundary: input rules, keymaps, paste and
+text-input interceptors, file handlers, Markdown syntax extensions, NodeView factories and their
+lifecycle methods, schema parse and render functions, and widget renderers.
+
+A callback that throws, or returns a rejected promise, does not break the surrounding operation:
+
+| Failing callback | Editor behavior |
+|------------------|-----------------|
+| Input rule, keymap, paste interceptor | The next matching handler runs, then the core default |
+| NodeView factory | Falls back to the block's `NodeSpec.toDOM()` |
+| NodeView `update` / `selectionChanged` | The failure is contained; remaining `destroy` callbacks still run |
+| Node, mark, inline-node, widget renderer | An attributed DOM fallback is rendered |
+| File handler | The next matching handler is offered the file |
+
+The failure is reported through the editor's [`logger`](/notectl/api/editor/#logger) with your
+plugin id, the callback name, and the cause. This means an exception in your plugin will **not**
+surface as an uncaught error during development. If a feature silently takes a fallback path, check
+the logger output first.
+
+Two consequences worth designing for: do not rely on a thrown exception to abort an editor
+operation, and keep callbacks free of partially applied side effects, because the editor will
+continue past a failure.
 
 ## Type-Safe Keys
 
