@@ -357,4 +357,19 @@ describe('decorationArraysEqual()', () => {
 		const c: readonly Decoration[] = [widget(B1, 3, toDOM2)];
 		expect(decorationArraysEqual(a, c)).toBe(false);
 	});
+
+	it('uses a widget key as stable identity across factory recreation', () => {
+		const a: readonly Decoration[] = [
+			widget(B1, 3, () => document.createElement('span'), { key: 'stable' }),
+		];
+		const b: readonly Decoration[] = [
+			widget(B1, 3, () => document.createElement('strong'), { key: 'stable' }),
+		];
+		const differentKey: readonly Decoration[] = [
+			widget(B1, 3, () => document.createElement('span'), { key: 'other' }),
+		];
+
+		expect(decorationArraysEqual(a, b)).toBe(true);
+		expect(decorationArraysEqual(a, differentKey)).toBe(false);
+	});
 });

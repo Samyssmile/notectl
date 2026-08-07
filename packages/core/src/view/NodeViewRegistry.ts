@@ -3,19 +3,33 @@
  * for block-level rendering.
  */
 
+import type { PluginCallbackRegistration } from '../model/PluginCallbackExecutor.js';
 import type { NodeViewFactory } from './NodeView.js';
 
-export class NodeViewRegistry {
-	private readonly _nodeViews = new Map<string, NodeViewFactory>();
+export interface NodeViewEntry extends PluginCallbackRegistration {
+	readonly factory: NodeViewFactory;
+}
 
-	registerNodeView(type: string, factory: NodeViewFactory): void {
+export class NodeViewRegistry {
+	private readonly _nodeViews = new Map<string, NodeViewEntry>();
+
+	registerNodeView(
+		type: string,
+		factory: NodeViewFactory,
+		registration: PluginCallbackRegistration = { pluginId: 'unattributed', name: type },
+	): void {
 		if (this._nodeViews.has(type)) {
 			throw new Error(`NodeView for type "${type}" is already registered.`);
 		}
-		this._nodeViews.set(type, factory);
+		this._nodeViews.set(type, { ...registration, factory });
 	}
 
 	getNodeViewFactory(type: string): NodeViewFactory | undefined {
+		return this._nodeViews.get(type)?.factory;
+	}
+
+	/** Returns the factory together with its plugin ownership for runtime attribution. */
+	getNodeViewEntry(type: string): NodeViewEntry | undefined {
 		return this._nodeViews.get(type);
 	}
 

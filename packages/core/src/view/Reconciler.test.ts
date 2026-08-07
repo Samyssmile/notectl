@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	DecorationSet,
 	inline as inlineDeco,
 	node as nodeDeco,
+	widget as widgetDeco,
 } from '../decorations/Decoration.js';
 import type { InlineDecoration } from '../decorations/Decoration.js';
 import {
@@ -15,9 +16,10 @@ import {
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection } from '../model/Selection.js';
+import { createCollapsedSelection, createNodeSelection } from '../model/Selection.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { getStyleText, setStyleText } from '../style/StyleRuntime.js';
 import { createBlockElement } from './DomUtils.js';
 import { NodeViewRegistry } from './NodeViewRegistry.js';
 import { reconcile, renderBlock, renderBlockContent } from './Reconciler.js';
@@ -416,9 +418,130 @@ describe('nested NodeView decorations', () => {
 		expect(cellElement.classList.contains('cell-base')).toBe(true);
 		expect(container.querySelector('[data-block-id="cell"]')).toBe(cellElement);
 	});
+
+	it('updates node-decoration styles and restores NodeView-owned style values', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'container',
+			content: { allow: ['cell'], min: 1 },
+			toDOM: (node) => createBlockElement('div', node.id),
+		});
+		registry.registerNodeSpec({
+			type: 'cell',
+			toDOM: (node) => createBlockElement('div', node.id),
+		});
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('cell', (node) => {
+			const dom = createBlockElement('div', node.id);
+			setStyleText(dom, 'color: black; background-color: white');
+			return { dom, contentDOM: dom, update: () => true };
+		});
+		const cell = createBlockNode(nodeType('cell'), [createTextNode('value')], blockId('cell'));
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode(nodeType('container'), [cell], blockId('container'))]),
+			selection: createCollapsedSelection(blockId('cell'), 0),
+		});
+		const container = document.createElement('div');
+		const baseOptions = {
+			registry,
+			nodeViewRegistry,
+			nodeViews: new Map(),
+			getState: () => state,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, state, baseOptions);
+		const cellElement = container.querySelector<HTMLElement>('[data-block-id="cell"]');
+		if (!cellElement) throw new Error('Expected nested cell NodeView');
+
+		const red = DecorationSet.create([
+			nodeDeco(blockId('cell'), { style: 'color: red; border-color: green' }),
+		]);
+		reconcile(container, state, state, { ...baseOptions, decorations: red });
+		expect(getStyleText(cellElement)).toContain('color: red');
+		expect(getStyleText(cellElement)).toContain('background-color: white');
+		expect(getStyleText(cellElement)).toContain('border-color: green');
+
+		const blue = DecorationSet.create([nodeDeco(blockId('cell'), { style: 'color: blue' })]);
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: red,
+			decorations: blue,
+		});
+		expect(getStyleText(cellElement)).toContain('color: blue');
+		expect(getStyleText(cellElement)).toContain('background-color: white');
+		expect(getStyleText(cellElement)).not.toContain('border-color');
+
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: blue,
+			decorations: DecorationSet.empty,
+		});
+		expect(getStyleText(cellElement)).toContain('color: black');
+		expect(getStyleText(cellElement)).toContain('background-color: white');
+		expect(getStyleText(cellElement)).not.toContain('border-color');
+	});
 });
 
 describe('Void block rendering', () => {
+	it('preserves atomic NodeView DOM while synchronizing decorations', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'image',
+			isVoid: true,
+			toDOM: (node) => createBlockElement('figure', node.id),
+		});
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('image', (node) => {
+			const dom = createBlockElement('figure', node.id);
+			const image = document.createElement('img');
+			image.className = 'notectl-image__img';
+			dom.appendChild(image);
+			return { dom, contentDOM: null };
+		});
+		const image = createBlockNode(nodeType('image'), [], blockId('image-1'));
+		const state = EditorState.create({
+			doc: createDocument([image]),
+			selection: createCollapsedSelection(image.id, 0),
+		});
+		const container = document.createElement('div');
+
+		reconcile(container, null, state, {
+			registry,
+			nodeViewRegistry,
+			nodeViews: new Map(),
+			getState: () => state,
+			dispatch: () => {},
+		});
+
+		expect(container.querySelector('.notectl-image__img')).not.toBeNull();
+	});
+
+	it('preserves DOM supplied by a void NodeSpec while synchronizing decorations', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'image',
+			isVoid: true,
+			toDOM(node) {
+				const dom = createBlockElement('figure', node.id);
+				const image = document.createElement('img');
+				image.className = 'notectl-image__img';
+				dom.appendChild(image);
+				return dom;
+			},
+		});
+		const image = createBlockNode(nodeType('image'), [], blockId('image-1'));
+		const state = EditorState.create({
+			doc: createDocument([image]),
+			selection: createCollapsedSelection(image.id, 0),
+		});
+		const container = document.createElement('div');
+
+		reconcile(container, null, state, { registry });
+
+		expect(container.querySelector('.notectl-image__img')).not.toBeNull();
+	});
+
 	it('renderBlock sets data-void on void blocks when NodeSpec has isVoid', () => {
 		const registry = new SchemaRegistry();
 		const hrSpec: NodeSpec = {
@@ -964,5 +1087,593 @@ describe('CursorWrapper stale removal', () => {
 
 		expect(container.querySelector('[data-cursor-wrapper]')).toBeNull();
 		expect(container.textContent).toBe('Hello');
+	});
+});
+
+describe('NodeView update reconciliation', () => {
+	it('destroys composite descendants before rendering replacement inline content', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'container',
+			content: { allow: ['container', 'paragraph'], min: 1 },
+			toDOM: (node) => createBlockElement('section', node.id),
+		});
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: (node) => createBlockElement('p', node.id),
+		});
+
+		const lifecycleEvents: string[] = [];
+		registry.registerInlineNodeSpec({
+			type: 'emoji',
+			toDOM: () => {
+				lifecycleEvents.push('render:inline');
+				const element = document.createElement('span');
+				element.textContent = '🙂';
+				return element;
+			},
+		});
+
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('container', (node) => {
+			const dom = createBlockElement('section', node.id);
+			return {
+				dom,
+				contentDOM: dom,
+				update: () => true,
+				destroy: () => lifecycleEvents.push(`destroy:${node.id}`),
+			};
+		});
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			return {
+				dom,
+				contentDOM: dom,
+				destroy: () => lifecycleEvents.push(`destroy:${node.id}`),
+			};
+		});
+
+		const grandchild = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('nested')],
+			blockId('grandchild'),
+		);
+		const child = createBlockNode(nodeType('container'), [grandchild], blockId('child'));
+		const oldRoot = createBlockNode(nodeType('container'), [child], blockId('root'));
+		const newRoot = createBlockNode(
+			nodeType('container'),
+			[createInlineNode(inlineType('emoji'))],
+			blockId('root'),
+		);
+		const oldState = EditorState.create({
+			doc: createDocument([oldRoot]),
+			selection: createCollapsedSelection(grandchild.id, 0),
+		});
+		const newState = EditorState.create({
+			doc: createDocument([newRoot]),
+			selection: createCollapsedSelection(newRoot.id, 1),
+		});
+		let currentState = oldState;
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => currentState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, oldState, options);
+		const rootElement = container.querySelector<HTMLElement>('[data-block-id="root"]');
+		const childElement = container.querySelector<HTMLElement>('[data-block-id="child"]');
+		if (!rootElement || !childElement) throw new Error('Expected rendered composite subtree');
+		expect(nodeViews.has('child')).toBe(true);
+		expect(nodeViews.has('grandchild')).toBe(true);
+
+		currentState = newState;
+		reconcile(container, oldState, newState, options);
+
+		expect(lifecycleEvents).toEqual(['destroy:grandchild', 'destroy:child', 'render:inline']);
+		expect(nodeViews.has('child')).toBe(false);
+		expect(nodeViews.has('grandchild')).toBe(false);
+		expect(nodeViews.get('root')?.dom).toBe(rootElement);
+		expect(rootElement.contains(childElement)).toBe(false);
+		expect(rootElement.textContent).toBe('🙂');
+	});
+
+	it('synchronizes selection callbacks when handled updates also change the model', () => {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: (node) => createBlockElement('p', node.id),
+		});
+		const selects = new Map<string, ReturnType<typeof vi.fn>>();
+		const deselects = new Map<string, ReturnType<typeof vi.fn>>();
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			const selectNode = vi.fn();
+			const deselectNode = vi.fn();
+			selects.set(node.id, selectNode);
+			deselects.set(node.id, deselectNode);
+			return { dom, contentDOM: dom, update: () => true, selectNode, deselectNode };
+		});
+
+		const firstId = blockId('first');
+		const secondId = blockId('second');
+		const oldState = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('old first')], firstId),
+				createBlockNode(nodeType('paragraph'), [createTextNode('old second')], secondId),
+			]),
+			selection: createNodeSelection(firstId, [firstId]),
+		});
+		const newState = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('new first')], firstId),
+				createBlockNode(nodeType('paragraph'), [createTextNode('new second')], secondId),
+			]),
+			selection: createNodeSelection(secondId, [secondId]),
+		});
+		let currentState = oldState;
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => currentState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, oldState, { ...options, selectedNodeId: firstId });
+		expect(selects.get(firstId)).toHaveBeenCalledTimes(1);
+		for (const callback of [...selects.values(), ...deselects.values()]) callback.mockClear();
+		currentState = newState;
+		reconcile(container, oldState, newState, {
+			...options,
+			previousSelectedNodeId: firstId,
+			selectedNodeId: secondId,
+		});
+
+		expect(deselects.get(firstId)).toHaveBeenCalledTimes(1);
+		expect(selects.get(firstId)).not.toHaveBeenCalled();
+		expect(selects.get(secondId)).toHaveBeenCalledTimes(1);
+		expect(deselects.get(secondId)).not.toHaveBeenCalled();
+		expect(container.querySelector('[data-block-id="first"]')?.textContent).toBe('new first');
+		expect(container.querySelector('[data-block-id="second"]')?.textContent).toBe('new second');
+	});
+});
+
+describe('recursive block ownership', () => {
+	function registerContainerSpecs(registry: SchemaRegistry): void {
+		registry.registerNodeSpec({
+			type: 'container',
+			content: { allow: ['container', 'paragraph'], min: 1 },
+			toDOM: (node) => createBlockElement('section', node.id),
+		});
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: (node) => createBlockElement('p', node.id),
+		});
+	}
+
+	it('re-renders a nested block when only its identity changes', () => {
+		const registry = new SchemaRegistry();
+		registerContainerSpecs(registry);
+		const makeState = (childId: string): EditorState => {
+			const child = createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode('same content')],
+				blockId(childId),
+			);
+			return EditorState.create({
+				doc: createDocument([createBlockNode(nodeType('container'), [child], blockId('root'))]),
+				selection: createCollapsedSelection(blockId(childId), 0),
+			});
+		};
+		const oldState = makeState('old-child');
+		const newState = makeState('new-child');
+		const container = document.createElement('div');
+
+		reconcile(container, null, oldState, { registry });
+		reconcile(container, oldState, newState, { registry });
+
+		expect(container.querySelector('[data-block-id="old-child"]')).toBeNull();
+		expect(container.querySelector('[data-block-id="new-child"]')?.textContent).toBe(
+			'same content',
+		);
+	});
+
+	it('updates and removes inline decorations on nested leaf blocks in place', () => {
+		const registry = new SchemaRegistry();
+		registerContainerSpecs(registry);
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			const chrome = document.createElement('span');
+			chrome.className = 'leaf-chrome';
+			const contentDOM = document.createElement('span');
+			dom.append(chrome, contentDOM);
+			return { dom, contentDOM, update: () => true };
+		});
+		const leaf = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('nested text')],
+			blockId('leaf'),
+		);
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode(nodeType('container'), [leaf], blockId('root'))]),
+			selection: createCollapsedSelection(blockId('leaf'), 0),
+		});
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const baseOptions = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => state,
+			dispatch: () => {},
+		};
+		const highlighted = DecorationSet.create([
+			inlineDeco(blockId('leaf'), 0, 6, { class: 'nested-highlight' }),
+		]);
+
+		reconcile(container, null, state, {
+			...baseOptions,
+			decorations: DecorationSet.empty,
+		});
+		const leafElement = container.querySelector<HTMLElement>('[data-block-id="leaf"]');
+		if (!leafElement) throw new Error('Expected nested leaf block');
+
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: DecorationSet.empty,
+			decorations: highlighted,
+		});
+		expect(leafElement.querySelector('.nested-highlight')?.textContent).toBe('nested');
+		expect(leafElement.querySelector('.leaf-chrome')).not.toBeNull();
+		expect(container.querySelector('[data-block-id="leaf"]')).toBe(leafElement);
+
+		reconcile(container, state, state, {
+			...baseOptions,
+			oldDecorations: highlighted,
+			decorations: DecorationSet.empty,
+		});
+		expect(leafElement.querySelector('.nested-highlight')).toBeNull();
+		expect(leafElement.textContent).toBe('nested text');
+		expect(container.querySelector('[data-block-id="leaf"]')).toBe(leafElement);
+	});
+
+	it('retains an updated container NodeView while replacing its owned descendants', () => {
+		const registry = new SchemaRegistry();
+		registerContainerSpecs(registry);
+		const nodeViewRegistry = new NodeViewRegistry();
+		const rootDestroy = vi.fn();
+		const childDestroys: ReturnType<typeof vi.fn>[] = [];
+		let rootFactoryCalls = 0;
+
+		nodeViewRegistry.registerNodeView('container', (node) => {
+			rootFactoryCalls += 1;
+			const dom = createBlockElement('section', node.id);
+			return { dom, contentDOM: dom, update: () => true, destroy: rootDestroy };
+		});
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			const destroy = vi.fn();
+			childDestroys.push(destroy);
+			return { dom, contentDOM: dom, update: () => false, destroy };
+		});
+
+		const makeState = (text: string): EditorState => {
+			const child = createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode(text)],
+				blockId('child'),
+			);
+			return EditorState.create({
+				doc: createDocument([createBlockNode(nodeType('container'), [child], blockId('root'))]),
+				selection: createCollapsedSelection(blockId('child'), 0),
+			});
+		};
+		const oldState = makeState('old');
+		const newState = makeState('new');
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => newState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, oldState, options);
+		const rootElement = container.querySelector('[data-block-id="root"]');
+		reconcile(container, oldState, newState, options);
+
+		expect(container.querySelector('[data-block-id="root"]')).toBe(rootElement);
+		expect(container.querySelector('[data-block-id="child"]')?.textContent).toBe('new');
+		expect(rootFactoryCalls).toBe(1);
+		expect(rootDestroy).not.toHaveBeenCalled();
+		expect(childDestroys).toHaveLength(2);
+		expect(childDestroys[0]).toHaveBeenCalledTimes(1);
+		expect(childDestroys[1]).not.toHaveBeenCalled();
+	});
+
+	it('destroys every NodeView in a replaced or removed subtree exactly once', () => {
+		const registry = new SchemaRegistry();
+		registerContainerSpecs(registry);
+		const nodeViewRegistry = new NodeViewRegistry();
+		const destroys = new Map<string, ReturnType<typeof vi.fn>[]>();
+
+		for (const type of ['container', 'paragraph']) {
+			nodeViewRegistry.registerNodeView(type, (node) => {
+				const dom = createBlockElement(type === 'container' ? 'section' : 'p', node.id);
+				const destroy = vi.fn();
+				const generations = destroys.get(node.id) ?? [];
+				generations.push(destroy);
+				destroys.set(node.id, generations);
+				return { dom, contentDOM: dom, update: () => false, destroy };
+			});
+		}
+
+		const makeState = (text: string): EditorState => {
+			const grandchild = createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode(text)],
+				blockId('grandchild'),
+			);
+			const child = createBlockNode(nodeType('container'), [grandchild], blockId('child'));
+			return EditorState.create({
+				doc: createDocument([createBlockNode(nodeType('container'), [child], blockId('root'))]),
+				selection: createCollapsedSelection(blockId('grandchild'), 0),
+			});
+		};
+		const firstState = makeState('first');
+		const secondState = makeState('second');
+		const emptyState = EditorState.create({
+			doc: createDocument([]),
+			selection: createCollapsedSelection(blockId(''), 0),
+		});
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => secondState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, firstState, options);
+		reconcile(container, firstState, secondState, options);
+
+		for (const id of ['root', 'child', 'grandchild']) {
+			expect(destroys.get(id)).toHaveLength(2);
+			expect(destroys.get(id)?.[0]).toHaveBeenCalledTimes(1);
+			expect(destroys.get(id)?.[1]).not.toHaveBeenCalled();
+		}
+
+		reconcile(container, secondState, emptyState, options);
+		for (const id of ['root', 'child', 'grandchild']) {
+			expect(destroys.get(id)?.[0]).toHaveBeenCalledTimes(1);
+			expect(destroys.get(id)?.[1]).toHaveBeenCalledTimes(1);
+		}
+		expect(nodeViews.size).toBe(0);
+	});
+
+	it('transfers a moved descendant between top-level owners without leaking or destroying the new view', () => {
+		const registry = new SchemaRegistry();
+		registerContainerSpecs(registry);
+		const nodeViewRegistry = new NodeViewRegistry();
+		const destroys = new Map<string, ReturnType<typeof vi.fn>[]>();
+		const instances = new Map<string, HTMLElement[]>();
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			const destroy = vi.fn();
+			const destroyGenerations = destroys.get(node.id) ?? [];
+			destroyGenerations.push(destroy);
+			destroys.set(node.id, destroyGenerations);
+			const domGenerations = instances.get(node.id) ?? [];
+			domGenerations.push(dom);
+			instances.set(node.id, domGenerations);
+			return { dom, contentDOM: dom, destroy };
+		});
+
+		const paragraph = (id: string, text: string): BlockNode =>
+			createBlockNode(nodeType('paragraph'), [createTextNode(text)], blockId(id));
+		const oldState = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('container'), [paragraph('a-child', 'A')], blockId('a')),
+				createBlockNode(nodeType('container'), [paragraph('moving', 'move')], blockId('b')),
+			]),
+			selection: createCollapsedSelection(blockId('moving'), 0),
+		});
+		const newState = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('container'), [paragraph('moving', 'move')], blockId('a')),
+				createBlockNode(nodeType('container'), [paragraph('b-child', 'B')], blockId('b')),
+			]),
+			selection: createCollapsedSelection(blockId('moving'), 0),
+		});
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => newState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, oldState, options);
+		reconcile(container, oldState, newState, options);
+
+		expect(destroys.get('moving')).toHaveLength(2);
+		expect(destroys.get('moving')?.[0]).toHaveBeenCalledTimes(1);
+		expect(destroys.get('moving')?.[1]).not.toHaveBeenCalled();
+		expect(nodeViews.get('moving')?.dom).toBe(instances.get('moving')?.[1]);
+		expect(container.querySelector('[data-block-id="a"] [data-block-id="moving"]')).toBe(
+			instances.get('moving')?.[1],
+		);
+	});
+});
+
+describe('widget decoration rendering', () => {
+	it('renders by offset and side, reuses keyed DOM, and removes stale widgets', () => {
+		const bid = blockId('paragraph');
+		const block = createBlockNode(nodeType('paragraph'), [createTextNode('abc')], bid);
+		const state = EditorState.create({
+			doc: createDocument([block]),
+			selection: createCollapsedSelection(bid, 0),
+		});
+		const container = document.createElement('div');
+		const stableFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'stable';
+			return element;
+		});
+		const afterFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'after';
+			return element;
+		});
+		const unkeyedFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'temporary';
+			return element;
+		});
+		const firstDecorations = DecorationSet.create([
+			widgetDeco(bid, 1, afterFactory, { side: 1, key: 'after' }),
+			widgetDeco(bid, 1, stableFactory, { side: -1, key: 'stable' }),
+			widgetDeco(bid, 2, unkeyedFactory),
+		]);
+
+		reconcile(container, null, state, { decorations: firstDecorations });
+		const paragraph = container.querySelector<HTMLElement>('[data-block-id="paragraph"]');
+		if (!paragraph) throw new Error('Expected paragraph');
+		const stableElement = paragraph.querySelector<HTMLElement>('[data-widget-key="stable"]');
+		const temporaryElement = Array.from(
+			paragraph.querySelectorAll<HTMLElement>('[data-decoration-widget]'),
+		).find((element) => element.textContent === 'temporary');
+		expect(stableElement).not.toBeNull();
+		expect(paragraph.textContent).toBe('astableafterbtemporaryc');
+		expect(
+			Array.from(paragraph.querySelectorAll<HTMLElement>('[data-decoration-widget]')).map(
+				(element) => element.getAttribute('data-widget-side'),
+			),
+		).toEqual(['-1', '1', '-1']);
+		expect(stableFactory).toHaveBeenCalledTimes(1);
+
+		const replacementFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'replacement';
+			return element;
+		});
+		const movedDecorations = DecorationSet.create([
+			widgetDeco(bid, 2, replacementFactory, { side: -1, key: 'stable' }),
+		]);
+		reconcile(container, state, state, {
+			oldDecorations: firstDecorations,
+			decorations: movedDecorations,
+		});
+
+		expect(paragraph.querySelector('[data-widget-key="stable"]')).toBe(stableElement);
+		expect(paragraph.textContent).toBe('abstablec');
+		expect(replacementFactory).not.toHaveBeenCalled();
+		expect(temporaryElement?.isConnected).toBe(false);
+
+		const updatedBlock = createBlockNode(nodeType('paragraph'), [createTextNode('abcd')], bid);
+		const updatedState = EditorState.create({
+			doc: createDocument([updatedBlock]),
+			selection: createCollapsedSelection(bid, 0),
+		});
+		reconcile(container, state, updatedState, {
+			oldDecorations: movedDecorations,
+			decorations: movedDecorations,
+		});
+		const updatedParagraph = container.querySelector<HTMLElement>('[data-block-id="paragraph"]');
+		expect(updatedParagraph?.querySelector('[data-widget-key="stable"]')).toBe(stableElement);
+		expect(updatedParagraph?.textContent).toBe('abstablecd');
+		expect(replacementFactory).not.toHaveBeenCalled();
+
+		reconcile(container, updatedState, updatedState, {
+			oldDecorations: movedDecorations,
+			decorations: DecorationSet.empty,
+		});
+		expect(updatedParagraph?.querySelector('[data-decoration-widget]')).toBeNull();
+		expect(updatedParagraph?.textContent).toBe('abcd');
+	});
+
+	it('reuses each pooled DOM node at most once when widget keys repeat', () => {
+		const bid = blockId('paragraph');
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: (node) => createBlockElement('p', node.id),
+		});
+		const nodeViewRegistry = new NodeViewRegistry();
+		nodeViewRegistry.registerNodeView('paragraph', (node) => {
+			const dom = createBlockElement('p', node.id);
+			return { dom, contentDOM: dom, update: () => true };
+		});
+		const initialBlock = createBlockNode(nodeType('paragraph'), [createTextNode('abc')], bid);
+		const initialState = EditorState.create({
+			doc: createDocument([initialBlock]),
+			selection: createCollapsedSelection(bid, 0),
+		});
+		const updatedBlock = createBlockNode(nodeType('paragraph'), [createTextNode('abcd')], bid);
+		const updatedState = EditorState.create({
+			doc: createDocument([updatedBlock]),
+			selection: createCollapsedSelection(bid, 0),
+		});
+		let currentState = initialState;
+		const container = document.createElement('div');
+		const nodeViews = new Map();
+		const initialFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'existing';
+			return element;
+		});
+		const additionalFactory = vi.fn(() => {
+			const element = document.createElement('span');
+			element.textContent = 'additional';
+			return element;
+		});
+		const initialDecorations = DecorationSet.create([
+			widgetDeco(bid, 1, initialFactory, { key: 'shared' }),
+		]);
+		const updatedDecorations = DecorationSet.create([
+			widgetDeco(bid, 1, () => document.createElement('span'), { key: 'shared' }),
+			widgetDeco(bid, 2, additionalFactory, { key: 'shared' }),
+		]);
+		const options = {
+			registry,
+			nodeViewRegistry,
+			nodeViews,
+			getState: () => currentState,
+			dispatch: () => {},
+		};
+
+		reconcile(container, null, initialState, {
+			...options,
+			decorations: initialDecorations,
+		});
+		const existing = container.querySelector<HTMLElement>('[data-widget-key="shared"]');
+		currentState = updatedState;
+		reconcile(container, initialState, updatedState, {
+			...options,
+			oldDecorations: initialDecorations,
+			decorations: updatedDecorations,
+		});
+
+		const widgets = container.querySelectorAll<HTMLElement>('[data-widget-key="shared"]');
+		expect(widgets).toHaveLength(2);
+		expect(widgets[0]).toBe(existing);
+		expect(widgets[1]?.textContent).toBe('additional');
+		expect(initialFactory).toHaveBeenCalledOnce();
+		expect(additionalFactory).toHaveBeenCalledOnce();
 	});
 });

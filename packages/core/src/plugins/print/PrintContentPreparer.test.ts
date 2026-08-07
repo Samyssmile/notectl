@@ -202,7 +202,7 @@ describe('PrintContentPreparer', () => {
 			const clone: HTMLElement = document.createElement('div');
 
 			insertHeaderFooter(clone, {
-				header: () => '<iframe src="evil.com"></iframe><p>Clean</p>',
+				header: () => '<iframe></iframe><p>Clean</p>',
 			});
 
 			const headerEl: Element | null = clone.querySelector('.notectl-print-header');

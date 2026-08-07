@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EditorState } from '../state/EditorState.js';
+import type { Step, Transaction } from '../state/Transaction.js';
 import { makePluginOptions } from '../test/TestUtils.js';
 import { EventKey, ServiceKey } from './Plugin.js';
 import type { Plugin, PluginContext } from './Plugin.js';
@@ -68,6 +69,27 @@ describe('PluginManager', () => {
 			expect(r1.status).toBe('fulfilled');
 			expect(r2.status).toBe('fulfilled');
 			expect(initFn).toHaveBeenCalledTimes(1);
+		});
+
+		it('propagates one in-flight init failure to every concurrent caller', async () => {
+			const pm = new PluginManager();
+			const release = deferred();
+			pm.register(
+				makePlugin({
+					id: 'slow',
+					init: vi.fn(async () => {
+						await release.promise;
+						throw new Error('shared init failure');
+					}),
+				}),
+			);
+
+			const first = pm.init(makePluginOptions());
+			const second = pm.init(makePluginOptions());
+			release.resolve();
+
+			const results = await Promise.allSettled([first, second]);
+			expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected']);
 		});
 
 		it('sets initialized only after all plugins have completed init', async () => {
@@ -242,6 +264,49 @@ describe('PluginManager', () => {
 			pm.dispatchWithMiddleware(tr, EditorState.create(), dispatch);
 			expect(dispatch).toHaveBeenCalledWith(tr);
 			expect(capturedContext).not.toBeNull();
+		});
+
+		it('rebuilds owned steps and frame-correct maps after middleware changes', async () => {
+			const pm = new PluginManager();
+			const attrs = { dir: 'ltr' };
+			pm.register(
+				makePlugin({
+					id: 'appender',
+					init: vi.fn((context) => {
+						context.registerMiddleware((transaction, state, next) => {
+							const block = state.doc.children[0];
+							if (!block) return;
+							const extraStep: Step = {
+								type: 'setNodeAttr',
+								path: [block.id],
+								attrs,
+								previousAttrs: block.attrs,
+							};
+							next({ ...transaction, steps: [...transaction.steps, extraStep] });
+						});
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+			const state = EditorState.create();
+			const block = state.doc.children[0];
+			if (!block) throw new Error('Expected the default paragraph.');
+			const original = state.transaction('input').insertText(block.id, 0, 'x', []).build();
+			const dispatched: Transaction[] = [];
+
+			pm.dispatchWithMiddleware(original, state, (transaction) => {
+				dispatched.push(transaction);
+			});
+			attrs.dir = 'rtl';
+
+			const finalized = dispatched[0];
+			if (!finalized) throw new Error('Expected middleware to dispatch a transaction.');
+			expect(finalized.steps).toHaveLength(2);
+			expect(finalized.forwardStepMaps).toHaveLength(2);
+			expect(finalized.forwardStepMaps.map((map) => map.type)).toEqual(['shift', 'identity']);
+			expect(Object.isFrozen(finalized)).toBe(true);
+			expect(Object.isFrozen(finalized.steps[1])).toBe(true);
+			expect(state.apply(finalized).doc.children[0]?.attrs?.dir).toBe('ltr');
 		});
 
 		it('middleware can suppress a transaction by not calling next', async () => {
@@ -870,6 +935,96 @@ describe('PluginManager', () => {
 			expect(pm.executeCommand('retry-command')).toBe(true);
 		});
 
+		it('rolls back every registration when onBeforeReady fails', async () => {
+			const pm = new PluginManager();
+			const destroy = vi.fn();
+			const markdown = { id: 'rollback-markdown' };
+			pm.schemaRegistry.registerNodeSpec({
+				type: 'extension_target',
+				toDOM: () => document.createElement('div'),
+			});
+
+			pm.register(
+				makePlugin({
+					id: 'registered',
+					init: vi.fn((ctx) => {
+						ctx.registerCommand('rolled-back-command', () => true);
+						ctx.registerNodeSpec({
+							type: 'rolled_back_node',
+							toDOM: () => document.createElement('div'),
+						});
+						ctx.registerMarkdownSyntax(markdown);
+						ctx.registerNodeSpecExtension('extension_target', (spec) => ({
+							...spec,
+							attrs: { extended: { default: true } },
+						}));
+					}),
+					destroy,
+				}),
+			);
+
+			await expect(
+				pm.init(
+					makePluginOptions({
+						onBeforeReady: () => {
+							throw new Error('view setup failed');
+						},
+					}),
+				),
+			).rejects.toThrow('view setup failed');
+
+			expect(destroy).toHaveBeenCalledTimes(1);
+			expect(pm.executeCommand('rolled-back-command')).toBe(false);
+			expect(pm.schemaRegistry.getNodeSpec('rolled_back_node')).toBeUndefined();
+			expect(pm.schemaRegistry.getNodeSpec('extension_target')?.attrs).toBeUndefined();
+			expect(pm.markdownSyntaxRegistry.getExtensions()).toEqual([]);
+		});
+
+		it('retries cleanly after onBeforeReady rollback without duplicate Markdown syntax', async () => {
+			const pm = new PluginManager();
+			let attempts = 0;
+			pm.register(
+				makePlugin({
+					id: 'retryable',
+					init: vi.fn((ctx) => {
+						ctx.registerMarkdownSyntax({ id: 'retry-markdown' });
+					}),
+				}),
+			);
+			const options = makePluginOptions({
+				onBeforeReady: () => {
+					attempts += 1;
+					if (attempts === 1) throw new Error('first setup failed');
+				},
+			});
+
+			await expect(pm.init(options)).rejects.toThrow('first setup failed');
+			expect(pm.markdownSyntaxRegistry.getExtensions()).toHaveLength(0);
+
+			await expect(pm.init(options)).resolves.toBeUndefined();
+			expect(pm.markdownSyntaxRegistry.getExtensions().map((extension) => extension.id)).toEqual([
+				'retry-markdown',
+			]);
+		});
+
+		it('rolls back a cancelled initialization so retry starts from an empty registry', async () => {
+			const pm = new PluginManager();
+			let cancelled = false;
+			const init = vi.fn((ctx: PluginContext) => {
+				ctx.registerMarkdownSyntax({ id: 'cancelled-markdown' });
+				cancelled = true;
+			});
+			pm.register(makePlugin({ id: 'cancelled', init }));
+
+			await pm.init(makePluginOptions({ isCancelled: () => cancelled }));
+			expect(pm.markdownSyntaxRegistry.getExtensions()).toEqual([]);
+
+			cancelled = false;
+			await pm.init(makePluginOptions());
+			expect(init).toHaveBeenCalledTimes(2);
+			expect(pm.markdownSyntaxRegistry.getExtensions()).toHaveLength(1);
+		});
+
 		it('onStateChange error does not prevent other plugins', async () => {
 			const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			const pm = new PluginManager();
@@ -919,6 +1074,100 @@ describe('PluginManager', () => {
 	});
 
 	describe('destruction', () => {
+		it('explicitly rejects init until destroy has finished clearing registries', async () => {
+			const destroyStarted = deferred();
+			const releaseDestroy = deferred();
+			const pm = new PluginManager();
+			pm.register(
+				makePlugin({
+					id: 'slow-destroy',
+					destroy: vi.fn(async () => {
+						destroyStarted.resolve();
+						await releaseDestroy.promise;
+					}),
+				}),
+			);
+			await pm.init(makePluginOptions());
+
+			const destroyPromise = pm.destroy();
+			await destroyStarted.promise;
+			const initDuringDestroy = pm.init(makePluginOptions());
+			releaseDestroy.resolve();
+			await expect(initDuringDestroy).rejects.toThrow('destruction is in progress');
+			await destroyPromise;
+		});
+
+		it('waits for in-flight init, removes late registrations, and remains reusable', async () => {
+			const initStarted = deferred();
+			const releaseInit = deferred();
+			const destroy = vi.fn();
+			const pm = new PluginManager();
+			pm.register(
+				makePlugin({
+					id: 'slow',
+					init: vi.fn(async (context) => {
+						initStarted.resolve();
+						await releaseInit.promise;
+						context.registerCommand('late-command', () => true);
+					}),
+					destroy,
+				}),
+			);
+
+			const initPromise = pm.init(makePluginOptions());
+			await initStarted.promise;
+			let destroySettled = false;
+			const destroyPromise = pm.destroy().then(() => {
+				destroySettled = true;
+			});
+			await Promise.resolve();
+			const settledBeforeRelease = destroySettled;
+			releaseInit.resolve();
+			await Promise.all([initPromise, destroyPromise]);
+
+			expect(settledBeforeRelease).toBe(false);
+			expect(destroy).toHaveBeenCalledTimes(1);
+			expect(pm.executeCommand('late-command')).toBe(false);
+			expect(pm.getPluginIds()).toEqual([]);
+
+			const retryInit = vi.fn();
+			pm.register(makePlugin({ id: 'retry', init: retryInit }));
+			await pm.init(makePluginOptions());
+			expect(retryInit).toHaveBeenCalledTimes(1);
+		});
+
+		it('cancels a delayed final onReady before it can resurrect registrations', async () => {
+			const onReadyStarted = deferred();
+			const releaseOnReady = deferred();
+			let context: PluginContext | undefined;
+			const destroy = vi.fn();
+			const pm = new PluginManager();
+			pm.register(
+				makePlugin({
+					id: 'ready',
+					init: vi.fn((pluginContext) => {
+						context = pluginContext;
+					}),
+					onReady: vi.fn(async () => {
+						onReadyStarted.resolve();
+						await releaseOnReady.promise;
+						context?.registerCommand('ready-command', () => true);
+					}),
+					destroy,
+				}),
+			);
+
+			const initPromise = pm.init(makePluginOptions());
+			await onReadyStarted.promise;
+			const destroyPromise = pm.destroy();
+			releaseOnReady.resolve();
+			await Promise.all([initPromise, destroyPromise]);
+
+			expect(destroy).toHaveBeenCalledTimes(1);
+			expect(pm.executeCommand('ready-command')).toBe(false);
+			expect(pm.getPluginIds()).toEqual([]);
+		});
+
 		it('only destroys plugins whose init has started when init is cancelled', async () => {
 			const initStarted = deferred();
 			const releaseInit = deferred();

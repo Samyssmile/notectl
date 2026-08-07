@@ -58,10 +58,29 @@ describe('EditorStyleCoordinator', () => {
 	});
 
 	describe('teardown', () => {
-		it('handles null shadow root gracefully', () => {
+		it('handles a missing lease gracefully', () => {
 			const coordinator = new EditorStyleCoordinator();
 
-			expect(() => coordinator.teardown(null, null)).not.toThrow();
+			expect(() => coordinator.teardown(null)).not.toThrow();
+		});
+
+		it('does not let a stale initialization tear down the active style registration', () => {
+			const coordinator = new EditorStyleCoordinator();
+			const shadow: ShadowRoot = mockShadowRoot();
+			const firstTheme: EditorThemeController = mockThemeController();
+			const secondTheme: EditorThemeController = mockThemeController();
+			const firstLease = coordinator.setup(shadow, undefined, firstTheme);
+			const secondLease = coordinator.setup(shadow, undefined, secondTheme);
+			vi.mocked(StyleRuntime.unregisterStyleRoot).mockClear();
+
+			coordinator.teardown(firstLease);
+
+			expect(StyleRuntime.unregisterStyleRoot).not.toHaveBeenCalled();
+			expect(secondTheme.setRuntimeStyleSheets).not.toHaveBeenCalledWith([]);
+
+			coordinator.teardown(secondLease);
+			expect(StyleRuntime.unregisterStyleRoot).toHaveBeenCalledWith(shadow);
+			expect(secondTheme.setRuntimeStyleSheets).toHaveBeenCalledWith([]);
 		});
 	});
 });

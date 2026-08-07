@@ -136,7 +136,7 @@ export class PasteRichBlockHandler {
 	}
 
 	/** Parses JSON and delegates to handleRichPaste (for HTML-embedded data). */
-	handleRichPasteFromJson(json: string): boolean {
+	handleRichPasteFromJson(json: string, state?: EditorState): boolean {
 		let blocks: RichBlockData[];
 		try {
 			blocks = JSON.parse(json) as RichBlockData[];
@@ -144,14 +144,14 @@ export class PasteRichBlockHandler {
 			return false;
 		}
 		if (!Array.isArray(blocks) || blocks.length === 0) return false;
-		return this.handleRichPaste(blocks);
+		return this.handleRichPaste(blocks, state);
 	}
 
 	/**
 	 * Handles paste of rich block data (text selections carrying block structure).
 	 * Returns true if handled, false to fall through to plain-text paste.
 	 */
-	handleRichPaste(blocks: readonly RichBlockData[]): boolean {
+	handleRichPaste(blocks: readonly RichBlockData[], initialState?: EditorState): boolean {
 		if (blocks.length === 0) return false;
 
 		const hasStructured: boolean = blocks.some(
@@ -162,7 +162,7 @@ export class PasteRichBlockHandler {
 		);
 		if (!hasStructured && blocks.length <= 1) return false;
 
-		let state = this.getState();
+		let state = initialState ?? this.getState();
 		const sel = state.selection;
 		const anchorBlockId: BlockId = resolveAnchorBlockId(sel);
 

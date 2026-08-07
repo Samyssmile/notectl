@@ -9,6 +9,7 @@ import {
 } from '../../test/PluginTestUtils.js';
 import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
+import { TablePlugin } from '../table/TablePlugin.js';
 import { CodeBlockPlugin } from './CodeBlockPlugin.js';
 import { CODE_BLOCK_SERVICE_KEY, SYNTAX_HIGHLIGHTER_SERVICE_KEY } from './CodeBlockTypes.js';
 
@@ -36,6 +37,12 @@ describe('CodeBlockPlugin', () => {
 		it('registers code_block NodeSpec', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			expectNodeSpec(h, 'code_block');
+		});
+
+		it('allows code blocks in table cells even when CodeBlock initializes before Table', async () => {
+			const h = await pluginHarness([new CodeBlockPlugin(), new TablePlugin()]);
+
+			expect(h.getNodeSpec('table_cell')?.content?.allow).toContain('code_block');
 		});
 
 		it('NodeSpec has correct attributes', async () => {

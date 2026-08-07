@@ -12,6 +12,7 @@ import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
+import type { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -52,6 +53,8 @@ export interface InputManagerDeps {
 	readonly announce?: (text: string) => void;
 	/** Localized "Markdown imported" announcement for the auto-detect paste path. */
 	readonly markdownImportedMessage?: string;
+	/** Shared plugin callback error boundary supplied by PluginManager. */
+	readonly callbackExecutor?: PluginCallbackExecutor;
 }
 
 export class InputManager {
@@ -73,6 +76,7 @@ export class InputManager {
 			shouldApplyInputRules: deps.shouldApplyInputRules,
 			compositionTracker: this.compositionTracker,
 			getTextInputInterceptors: deps.getTextInputInterceptors,
+			callbackExecutor: deps.callbackExecutor,
 		});
 
 		this.keyboardHandler = new KeyboardHandler(contentElement, {
@@ -85,6 +89,7 @@ export class InputManager {
 			compositionTracker: this.compositionTracker,
 			getTextDirection: deps.getTextDirection,
 			navigateFromGapCursor: deps.navigateFromGapCursor,
+			callbackExecutor: deps.callbackExecutor,
 		});
 
 		this.pasteHandler = new PasteHandler(contentElement, {
@@ -98,6 +103,7 @@ export class InputManager {
 			getMarkdownSyntaxExtensions: deps.getMarkdownSyntaxExtensions,
 			announce: deps.announce,
 			markdownImportedMessage: deps.markdownImportedMessage,
+			callbackExecutor: deps.callbackExecutor,
 		});
 
 		this.clipboardHandler = new ClipboardHandler(contentElement, {
@@ -107,6 +113,11 @@ export class InputManager {
 			syncSelection: deps.syncSelection,
 			isReadOnly: deps.isReadOnly,
 		});
+	}
+
+	/** Maps pending async input operations through every committed transaction. */
+	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
+		this.pasteHandler.onStateChange(oldState, state, tr);
 	}
 
 	/** Destroys all input handlers and releases event listeners. */

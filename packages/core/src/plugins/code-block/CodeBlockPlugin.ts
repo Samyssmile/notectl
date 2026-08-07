@@ -30,11 +30,11 @@ import {
 } from './CodeBlockLocale.js';
 import { type LanguagePickerDeps, createCodeBlockNodeViewFactory } from './CodeBlockNodeView.js';
 import {
-	patchTableCellContent,
 	registerCodeBlockInputRule,
 	registerCodeBlockMarkGuard,
 	registerCodeBlockNodeSpec,
 	registerCodeBlockPasteInterceptor,
+	registerCodeBlockSchemaExtensions,
 	registerCodeBlockToolbarItem,
 } from './CodeBlockSchema.js';
 import { registerCodeBlockService } from './CodeBlockService.js';
@@ -119,7 +119,7 @@ export class CodeBlockPlugin implements Plugin {
 			name: 'code-block:auto-pair',
 			priority: 10,
 		});
-		patchTableCellContent(context);
+		registerCodeBlockSchemaExtensions(context);
 	}
 
 	destroy(): void {

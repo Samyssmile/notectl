@@ -9,12 +9,18 @@ import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
+import type { ElementSanitizeValidator } from './SanitizeConfig.js';
 
 /** Priority assigned to parse rules that do not declare an explicit `priority`. */
 const DEFAULT_PARSE_PRIORITY = 50;
 
+/** Declarative transformation applied after a target NodeSpec is registered. */
+export type NodeSpecExtension = (spec: NodeSpec) => NodeSpec;
+
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
+	private readonly _nodeSpecExtensions = new Map<string, NodeSpecExtension[]>();
+	private _finalizedNodeSpecs: Map<string, NodeSpec> | null = null;
 	private readonly _markSpecs = new Map<string, MarkSpec>();
 	private readonly _inlineNodeSpecs = new Map<string, InlineNodeSpec>();
 
@@ -25,18 +31,64 @@ export class SchemaRegistry {
 			throw new Error(`NodeSpec for type "${spec.type}" is already registered.`);
 		}
 		this._nodeSpecs.set(spec.type, spec);
+		this.invalidateFinalizedNodeSpecs();
 	}
 
 	getNodeSpec(type: string): NodeSpec | undefined {
-		return this._nodeSpecs.get(type);
+		return this.getFinalizedNodeSpecs().get(type);
 	}
 
 	removeNodeSpec(type: string): void {
-		this._nodeSpecs.delete(type);
+		if (this._nodeSpecs.delete(type)) this.invalidateFinalizedNodeSpecs();
 	}
 
 	getNodeTypes(): string[] {
 		return [...this._nodeSpecs.keys()];
+	}
+
+	/**
+	 * Registers a composable NodeSpec extension independently of target order.
+	 * Extensions may be declared before their target plugin and are materialized
+	 * together by {@link finalize}. The function identity is also the cleanup key.
+	 */
+	registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void {
+		const extensions = this._nodeSpecExtensions.get(type) ?? [];
+		extensions.push(extension);
+		this._nodeSpecExtensions.set(type, extensions);
+		this.invalidateFinalizedNodeSpecs();
+	}
+
+	/** Removes one previously registered NodeSpec extension by identity. */
+	removeNodeSpecExtension(type: string, extension: NodeSpecExtension): void {
+		const extensions = this._nodeSpecExtensions.get(type);
+		if (!extensions) return;
+		const index = extensions.indexOf(extension);
+		if (index === -1) return;
+		extensions.splice(index, 1);
+		if (extensions.length === 0) this._nodeSpecExtensions.delete(type);
+		this.invalidateFinalizedNodeSpecs();
+	}
+
+	/**
+	 * Materializes the complete schema after all plugins have declared their base
+	 * specs and extensions. Calling it again after registrations change rebuilds
+	 * the snapshot; reads also finalize lazily for standalone registry consumers.
+	 */
+	finalize(): void {
+		const finalized = new Map<string, NodeSpec>();
+		for (const [type, baseSpec] of this._nodeSpecs) {
+			let resolved: NodeSpec = baseSpec;
+			for (const extension of this._nodeSpecExtensions.get(type) ?? []) {
+				resolved = extension(resolved);
+				if (resolved.type !== type) {
+					throw new Error(
+						`NodeSpec extension for "${type}" must preserve node type; received "${resolved.type}".`,
+					);
+				}
+			}
+			finalized.set(type, resolved);
+		}
+		this._finalizedNodeSpecs = finalized;
 	}
 
 	// --- MarkSpec ---
@@ -85,7 +137,7 @@ export class SchemaRegistry {
 
 	/** Returns all NodeSpec parseHTML rules, sorted by priority descending. */
 	getBlockParseRules(): readonly { readonly rule: ParseRule; readonly type: string }[] {
-		return this.collectParseRules(this._nodeSpecs);
+		return this.collectParseRules(this.getFinalizedNodeSpecs());
 	}
 
 	/** Returns all InlineNodeSpec parseHTML rules, sorted by priority descending. */
@@ -118,6 +170,22 @@ export class SchemaRegistry {
 		];
 	}
 
+	/** Returns registry-owned, per-tag element validators for one sanitize operation. */
+	getElementSanitizeValidators(): ReadonlyMap<string, readonly ElementSanitizeValidator[]> {
+		const validators = new Map<string, ElementSanitizeValidator[]>();
+		for (const specMap of this.getAllFinalizedSpecMaps()) {
+			for (const spec of specMap.values()) {
+				for (const [tag, validator] of Object.entries(spec.sanitize?.elementValidators ?? {})) {
+					const normalizedTag = tag.toLowerCase();
+					const entries = validators.get(normalizedTag) ?? [];
+					entries.push(validator);
+					validators.set(normalizedTag, entries);
+				}
+			}
+		}
+		return validators;
+	}
+
 	private collectParseRules(
 		specs: ReadonlyMap<string, { readonly parseHTML?: readonly ParseRule[] }>,
 	): { readonly rule: ParseRule; readonly type: string }[] {
@@ -141,7 +209,7 @@ export class SchemaRegistry {
 			readonly sanitize?: { readonly tags?: readonly string[]; readonly attrs?: readonly string[] };
 		}) => readonly string[] | undefined,
 	): Set<string> {
-		const allSpecs: ReadonlyMap<
+		const allSpecs: readonly ReadonlyMap<
 			string,
 			{
 				readonly sanitize?: {
@@ -149,7 +217,7 @@ export class SchemaRegistry {
 					readonly attrs?: readonly string[];
 				};
 			}
-		>[] = [this._nodeSpecs, this._inlineNodeSpecs, this._markSpecs];
+		>[] = this.getAllFinalizedSpecMaps();
 		for (const specMap of allSpecs) {
 			for (const spec of specMap.values()) {
 				const values: readonly string[] | undefined = extractor(spec);
@@ -161,10 +229,34 @@ export class SchemaRegistry {
 		return initial;
 	}
 
+	private getFinalizedNodeSpecs(): ReadonlyMap<string, NodeSpec> {
+		if (!this._finalizedNodeSpecs) this.finalize();
+		return this._finalizedNodeSpecs ?? new Map();
+	}
+
+	private getAllFinalizedSpecMaps(): readonly ReadonlyMap<
+		string,
+		{
+			readonly sanitize?: {
+				readonly tags?: readonly string[];
+				readonly attrs?: readonly string[];
+				readonly elementValidators?: Readonly<Record<string, ElementSanitizeValidator>>;
+			};
+		}
+	>[] {
+		return [this.getFinalizedNodeSpecs(), this._inlineNodeSpecs, this._markSpecs];
+	}
+
+	private invalidateFinalizedNodeSpecs(): void {
+		this._finalizedNodeSpecs = null;
+	}
+
 	// --- Bulk ---
 
 	clear(): void {
 		this._nodeSpecs.clear();
+		this._nodeSpecExtensions.clear();
+		this._finalizedNodeSpecs = null;
 		this._markSpecs.clear();
 		this._inlineNodeSpecs.clear();
 	}

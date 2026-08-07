@@ -210,7 +210,145 @@ export interface PositionRange {
 // --- Singletons / factories ---
 
 /** The shared identity StepMap; reuse instead of allocating per step. */
-export const IDENTITY_MAP: IdentityMap = { type: 'identity' };
+export const IDENTITY_MAP: IdentityMap = Object.freeze({ type: 'identity' });
+
+/**
+ * Runtime-immutable ReadonlySet facade.
+ *
+ * `Object.freeze(new Set())` only freezes the wrapper object; its internal
+ * slots remain mutable through `add`, `delete`, and `clear`. Keeping the real
+ * Set in an ECMAScript private field and exposing only ReadonlySet operations
+ * makes structural StepMap snapshots immutable at runtime as well as by type.
+ */
+class ImmutableReadonlySet<T> implements ReadonlySet<T> {
+	readonly #values: Set<T>;
+
+	constructor(values: Iterable<T>) {
+		this.#values = new Set(values);
+		Object.freeze(this);
+	}
+
+	get size(): number {
+		return this.#values.size;
+	}
+
+	has(value: T): boolean {
+		return this.#values.has(value);
+	}
+
+	entries(): SetIterator<[T, T]> {
+		return this.#values.entries();
+	}
+
+	keys(): SetIterator<T> {
+		return this.#values.keys();
+	}
+
+	values(): SetIterator<T> {
+		return this.#values.values();
+	}
+
+	[Symbol.iterator](): SetIterator<T> {
+		return this.#values[Symbol.iterator]();
+	}
+
+	forEach(callback: (value: T, value2: T, set: ReadonlySet<T>) => void, thisArg?: unknown): void {
+		for (const value of this.#values) callback.call(thisArg, value, value, this);
+	}
+
+	union<U>(other: ReadonlySetLike<U>): Set<T | U> {
+		return new Set<T | U>([...this.#values, ...setLikeValues(other)]);
+	}
+
+	intersection<U>(other: ReadonlySetLike<U>): Set<T & U> {
+		const otherValues = setLikeValues(other);
+		const intersection = new Set<T & U>();
+		for (const value of this.#values) {
+			if (hasSetValue(otherValues, value)) intersection.add(value as T & U);
+		}
+		return intersection;
+	}
+
+	difference<U>(other: ReadonlySetLike<U>): Set<T> {
+		const otherValues = setLikeValues(other);
+		return new Set([...this.#values].filter((value) => !hasSetValue(otherValues, value)));
+	}
+
+	symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U> {
+		const otherValues = setLikeValues(other);
+		const difference = new Set<T | U>();
+		for (const value of this.#values) {
+			if (!hasSetValue(otherValues, value)) difference.add(value);
+		}
+		for (const value of otherValues) {
+			if (!hasSetValue(this.#values, value)) difference.add(value);
+		}
+		return difference;
+	}
+
+	isSubsetOf(other: ReadonlySetLike<unknown>): boolean {
+		const otherValues = setLikeValues(other);
+		for (const value of this.#values) {
+			if (!otherValues.has(value)) return false;
+		}
+		return true;
+	}
+
+	isSupersetOf(other: ReadonlySetLike<unknown>): boolean {
+		for (const value of setLikeValues(other)) {
+			if (!hasSetValue(this.#values, value)) return false;
+		}
+		return true;
+	}
+
+	isDisjointFrom(other: ReadonlySetLike<unknown>): boolean {
+		for (const value of setLikeValues(other)) {
+			if (hasSetValue(this.#values, value)) return false;
+		}
+		return true;
+	}
+}
+
+function setLikeValues<T>(values: ReadonlySetLike<T>): Set<T> {
+	const copy = new Set<T>();
+	const iterator = values.keys();
+	for (let next = iterator.next(); !next.done; next = iterator.next()) copy.add(next.value);
+	return copy;
+}
+
+function hasSetValue(values: ReadonlySetLike<unknown>, value: unknown): boolean {
+	return values.has(value);
+}
+
+/** Creates a detached, deeply immutable snapshot of a StepMap payload. */
+export function snapshotStepMap(stepMap: StepMap): StepMap {
+	switch (stepMap.type) {
+		case 'identity':
+			return IDENTITY_MAP;
+		case 'blockRemoval':
+			return Object.freeze({
+				...stepMap,
+				removedBlockIds: new ImmutableReadonlySet(stepMap.removedBlockIds),
+				parentPath: Object.freeze([...stepMap.parentPath]),
+			});
+		case 'childIndexShift':
+			return Object.freeze({
+				...stepMap,
+				parentPath: Object.freeze([...stepMap.parentPath]),
+				...(stepMap.insertedBlockIds
+					? { insertedBlockIds: new ImmutableReadonlySet(stepMap.insertedBlockIds) }
+					: {}),
+			});
+		case 'moveNode':
+			return Object.freeze({
+				...stepMap,
+				fromParentPath: Object.freeze([...stepMap.fromParentPath]),
+				toParentPath: Object.freeze([...stepMap.toParentPath]),
+			});
+		default:
+			return Object.freeze({ ...stepMap });
+	}
+}
 
 /**
  * Walks a block subtree and returns the set of its own ID plus every
@@ -357,7 +495,8 @@ export class Mapping {
 	readonly maps: readonly StepMap[];
 
 	private constructor(maps: readonly StepMap[]) {
-		this.maps = maps;
+		this.maps = Object.freeze(maps.map(snapshotStepMap));
+		Object.freeze(this);
 	}
 
 	/** Creates a Mapping from a list of StepMaps, dropping identity maps. */

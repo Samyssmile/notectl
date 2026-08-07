@@ -14,7 +14,7 @@ import {
 } from '../model/Document.js';
 import type { ContentSegment, InlineNode } from '../model/Document.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
-import { inlineType } from '../model/TypeBrands.js';
+import { inlineType, markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { applyStep } from './StepHandlers.js';
 import { TransactionBuilder, invertStep, invertTransaction } from './Transaction.js';
@@ -27,6 +27,7 @@ import type {
 	SetInlineNodeAttrStep,
 	SplitBlockStep,
 } from './Transaction.js';
+import { finalizeTransaction } from './TransactionFinalizer.js';
 
 describe('Transaction', () => {
 	describe('TransactionBuilder', () => {
@@ -52,6 +53,141 @@ describe('Transaction', () => {
 				.build();
 
 			expect(tr.steps).toHaveLength(2);
+		});
+
+		it('detaches an inserted subtree from the caller-owned node', () => {
+			const selection = createCollapsedSelection('root', 0);
+			const externalChildren = [createTextNode('before')];
+			const externalNode = {
+				id: 'inserted',
+				type: 'paragraph',
+				children: externalChildren,
+			} as const;
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('root')], 'root')]);
+
+			const transaction = new TransactionBuilder(selection, null, 'api', doc)
+				.insertNode([], 1, externalNode)
+				.build();
+			externalChildren[0] = createTextNode('after');
+
+			const next = EditorState.create({ doc, selection }).apply(transaction);
+			expect(next.doc.children[1]?.children[0]).toMatchObject({ text: 'before' });
+		});
+
+		it('owns attribute records and structural paths without freezing caller objects', () => {
+			const first = createBlockNode('paragraph', [createTextNode('first')], 'first');
+			const second = createBlockNode('paragraph', [createTextNode('second')], 'second');
+			const doc = createDocument([first, second]);
+			const selection = createCollapsedSelection(first.id, 0);
+			const widths: (number | null)[] = [120, null];
+			const attrs = { widths };
+			const path = [first.id];
+			const transaction = new TransactionBuilder(selection, null, 'api', doc)
+				.setNodeAttr(path, attrs)
+				.build();
+
+			path[0] = second.id;
+			widths[0] = 999;
+			const next = EditorState.create({ doc, selection }).apply(transaction);
+
+			expect(next.doc.children[0]?.attrs).toEqual({ widths: [120, null] });
+			expect(next.doc.children[1]?.attrs).toBeUndefined();
+			expect(Object.isFrozen(path)).toBe(false);
+			expect(Object.isFrozen(attrs)).toBe(false);
+			expect(Object.isFrozen(widths)).toBe(false);
+		});
+
+		it('owns inline nodes, marks, segments, selections, and stored marks', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const selectionPath = [doc.children[0]?.id ?? 'b1'];
+			const selection = createSelection(
+				{ blockId: 'b1', offset: 0, path: selectionPath },
+				{ blockId: 'b1', offset: 0, path: selectionPath },
+			);
+			const inlineAttrs = { src: 'before.png' };
+			const markAttrs = { href: 'https://before.example' };
+			const inlineMarks = [{ type: markType('link'), attrs: markAttrs }];
+			const inlineNode: InlineNode = {
+				type: 'inline',
+				inlineType: inlineType('image'),
+				attrs: inlineAttrs,
+				marks: inlineMarks,
+			};
+			const segmentMarks = [{ type: markType('bold') }];
+			const segments: ContentSegment[] = [{ kind: 'text', text: 'A', marks: segmentMarks }];
+			const storedMarkAttrs = { color: 'red' };
+			const storedMarks = [{ type: markType('textColor'), attrs: storedMarkAttrs }];
+			const finalSelectionPath = [doc.children[0]?.id ?? 'b1'];
+			const finalSelection = createSelection(
+				{ blockId: 'b1', offset: 1, path: finalSelectionPath },
+				{ blockId: 'b1', offset: 1, path: finalSelectionPath },
+			);
+
+			const transaction = new TransactionBuilder(selection, null, 'api', doc)
+				.insertInlineNode('b1', 0, inlineNode)
+				.insertText('b1', 1, 'A', segmentMarks, segments)
+				.setStoredMarks(storedMarks, null)
+				.setSelection(finalSelection)
+				.build();
+
+			inlineAttrs.src = 'after.png';
+			markAttrs.href = 'https://after.example';
+			segmentMarks.push({ type: markType('italic') });
+			segments[0] = { kind: 'text', text: 'changed', marks: [] };
+			storedMarkAttrs.color = 'blue';
+			selectionPath[0] = 'changed';
+			finalSelectionPath[0] = 'changed';
+
+			const next = EditorState.create({ doc, selection }).apply(transaction);
+			const inserted = getContentAtOffset(next.doc.children[0], 0);
+			expect(inserted?.kind).toBe('inline');
+			if (inserted?.kind === 'inline') {
+				expect(inserted.node.attrs.src).toBe('before.png');
+				expect(inserted.node.marks[0]?.attrs?.href).toBe('https://before.example');
+			}
+			expect(getBlockText(next.doc.children[0])).toBe('Atext');
+			expect(next.storedMarks?.[0]?.attrs?.color).toBe('red');
+			expect(transaction.selectionBefore).toEqual(
+				createSelection(
+					{ blockId: 'b1', offset: 0, path: ['b1'] },
+					{ blockId: 'b1', offset: 0, path: ['b1'] },
+				),
+			);
+			expect(transaction.selectionAfter).toEqual(
+				createSelection(
+					{ blockId: 'b1', offset: 1, path: ['b1'] },
+					{ blockId: 'b1', offset: 1, path: ['b1'] },
+				),
+			);
+			expect(Object.isFrozen(inlineAttrs)).toBe(false);
+			expect(Object.isFrozen(markAttrs)).toBe(false);
+			expect(Object.isFrozen(storedMarkAttrs)).toBe(false);
+		});
+
+		it('builds a deeply immutable transaction snapshot', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('text')], 'b1')]);
+			const selection = createCollapsedSelection('b1', 0);
+			const transaction = new TransactionBuilder(selection, null, 'api', doc)
+				.setNodeAttr([doc.children[0]?.id ?? 'b1'], { widths: [80, 120] })
+				.setSelection(createCollapsedSelection('b1', 1))
+				.build();
+			const step = transaction.steps[0];
+
+			expect(Object.isFrozen(transaction)).toBe(true);
+			expect(Object.isFrozen(transaction.steps)).toBe(true);
+			expect(Object.isFrozen(step)).toBe(true);
+			if (step?.type === 'setNodeAttr') {
+				expect(Object.isFrozen(step.path)).toBe(true);
+				expect(Object.isFrozen(step.attrs)).toBe(true);
+				expect(Object.isFrozen(step.attrs?.widths)).toBe(true);
+			}
+			expect(Object.isFrozen(transaction.selectionBefore)).toBe(true);
+			expect(Object.isFrozen(transaction.selectionAfter)).toBe(true);
+			expect(Object.isFrozen(transaction.mapping)).toBe(true);
+			expect(Object.isFrozen(transaction.mapping.maps)).toBe(true);
+			expect(Object.isFrozen(transaction.forwardStepMaps)).toBe(true);
+			expect(transaction.forwardStepMaps).toHaveLength(transaction.steps.length);
+			expect(Object.isFrozen(transaction.metadata)).toBe(true);
 		});
 
 		it('restores a merged source block HTML ID through undo', () => {
@@ -240,6 +376,25 @@ describe('Transaction', () => {
 			expect(inverted.selectionAfter).toEqual(tr.selectionBefore);
 			expect(inverted.steps[0]?.type).toBe('deleteText');
 			expect(inverted.metadata.origin).toBe('history');
+		});
+
+		it('owns inverse payloads while leaving placeholder maps eligible for finalization', () => {
+			const state = EditorState.create({
+				doc: createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]),
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const forward = state.transaction('input').insertText('b1', 0, 'hello', []).build();
+			const edited = state.apply(forward);
+			const inverse = invertTransaction(forward);
+
+			expect(Object.isFrozen(inverse)).toBe(true);
+			expect(Object.isFrozen(inverse.steps[0])).toBe(true);
+			expect(inverse.forwardStepMaps[0]?.type).toBe('identity');
+
+			const finalized = finalizeTransaction(inverse, edited.doc);
+			expect(finalized).not.toBe(inverse);
+			expect(finalized.forwardStepMaps[0]?.type).toBe('shift');
+			expect(getBlockText(edited.apply(finalized).doc.children[0])).toBe('');
 		});
 	});
 

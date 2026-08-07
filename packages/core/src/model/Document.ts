@@ -227,7 +227,7 @@ export function generateBlockId(): BlockId {
 /** Creates a new empty {@link Document} with a single empty paragraph. */
 export function createDocument(children?: readonly BlockNode[]): Document {
 	return {
-		children: children ?? [createBlockNode('paragraph' as NodeTypeName)],
+		children: children ? [...children] : [createBlockNode('paragraph' as NodeTypeName)],
 	};
 }
 
@@ -244,8 +244,8 @@ export function createBlockNode(
 		id: id ?? generateBlockId(),
 		...(normalizedHTMLId ? { htmlId: normalizedHTMLId } : {}),
 		type,
-		...(attrs ? { attrs } : {}),
-		children: children ?? [createTextNode('')],
+		...(attrs ? { attrs: cloneBlockAttrs(attrs) } : {}),
+		children: children ? [...children] : [createTextNode('')],
 	};
 }
 
@@ -254,7 +254,7 @@ export function createTextNode(text: string, marks?: readonly Mark[]): TextNode 
 	return {
 		type: 'text',
 		text,
-		marks: marks ?? [],
+		marks: cloneMarks(marks ?? []),
 	};
 }
 
@@ -267,14 +267,199 @@ export function createInlineNode(
 	return {
 		type: 'inline',
 		inlineType,
-		attrs: attrs ?? {},
-		marks: marks ?? [],
+		attrs: attrs ? { ...attrs } : {},
+		marks: cloneMarks(marks ?? []),
 	};
 }
 
 /** Creates an empty paragraph block node with the given ID. */
 export function createEmptyParagraph(id?: BlockId): BlockNode {
 	return createBlockNode('paragraph' as NodeTypeName, [createTextNode('')], id);
+}
+
+// --- Snapshot Ownership -------------------------------------------------
+
+// `Object.isFrozen` is shallow and therefore cannot prove our deep-immutability
+// invariant for external values. These private brands are added only after a
+// complete traversal, allowing persistent state to skip verified shared
+// subtrees without trusting caller-applied shallow freezes.
+const VERIFIED_DOCUMENTS = new WeakSet<Document>();
+const VERIFIED_BLOCKS = new WeakSet<BlockNode>();
+const VERIFIED_BLOCK_ATTRS = new WeakSet<BlockAttrs>();
+const VERIFIED_MARKS = new WeakSet<Mark>();
+const VERIFIED_MARK_LISTS = new WeakSet<readonly Mark[]>();
+const VERIFIED_INLINE_NODES = new WeakSet<InlineNode>();
+const VERIFIED_TEXT_NODES = new WeakSet<TextNode>();
+const VERIFIED_SEGMENT_LISTS = new WeakSet<readonly ContentSegment[]>();
+
+/**
+ * Creates a fully detached document snapshot.
+ *
+ * Public JSON boundaries use this instead of exposing the structurally shared
+ * objects owned by an {@link EditorState}. Besides child arrays, attribute
+ * records, structured block attributes, marks, and mark attributes are copied.
+ */
+export function cloneDocument(doc: Document): Document {
+	return { ...doc, children: doc.children.map(cloneBlockNode) };
+}
+
+/** Creates a fully detached block snapshot, preserving its stable block ID. */
+export function cloneBlockNode(block: BlockNode): BlockNode {
+	const attrs: BlockAttrs | undefined = block.attrs ? cloneBlockAttrs(block.attrs) : undefined;
+	return {
+		...block,
+		...(attrs ? { attrs } : {}),
+		children: block.children.map(cloneChildNode),
+	};
+}
+
+/** Creates a detached mark set, including each mark's attribute record. */
+export function cloneMarks(marks: readonly Mark[]): Mark[] {
+	return marks.map(cloneMark);
+}
+
+/** Creates a detached mark, including its attribute record. */
+export function cloneMark(mark: Mark): Mark {
+	return {
+		...mark,
+		...(mark.attrs ? { attrs: { ...mark.attrs } } : {}),
+	};
+}
+
+/** Creates a detached inline node, including attrs, marks, and mark attrs. */
+export function cloneInlineNode(node: InlineNode): InlineNode {
+	return {
+		...node,
+		attrs: { ...node.attrs },
+		marks: cloneMarks(node.marks),
+	};
+}
+
+/** Creates a detached content-segment payload for transaction/history ownership. */
+export function cloneContentSegment(segment: ContentSegment): ContentSegment {
+	return segment.kind === 'text'
+		? { ...segment, marks: cloneMarks(segment.marks) }
+		: { ...segment, node: cloneInlineNode(segment.node) };
+}
+
+/** Creates a detached list of content-segment payloads. */
+export function cloneContentSegments(segments: readonly ContentSegment[]): ContentSegment[] {
+	return segments.map(cloneContentSegment);
+}
+
+/**
+ * Freezes a document and every mutable collection reachable from it.
+ *
+ * Already-frozen nodes are skipped. This keeps transaction application
+ * proportional to the changed branch because unchanged subtrees are
+ * structurally shared between states.
+ */
+export function freezeDocument(doc: Document): Document {
+	if (VERIFIED_DOCUMENTS.has(doc)) return doc;
+	for (const block of doc.children) freezeBlockNode(block);
+	if (!Object.isFrozen(doc.children)) Object.freeze(doc.children);
+	if (!Object.isFrozen(doc)) Object.freeze(doc);
+	VERIFIED_DOCUMENTS.add(doc);
+	return doc;
+}
+
+function cloneChildNode(child: ChildNode): ChildNode {
+	if (isTextNode(child)) {
+		const marks: readonly Mark[] | undefined = Array.isArray(child.marks)
+			? cloneMarks(child.marks)
+			: undefined;
+		return {
+			...child,
+			...(marks ? { marks } : {}),
+		};
+	}
+	if (isInlineNode(child)) {
+		return cloneInlineNode(child);
+	}
+	return cloneBlockNode(child);
+}
+
+/** Creates a detached block-attribute record, including structured array values. */
+export function cloneBlockAttrs(attrs: BlockAttrs): BlockAttrs {
+	const copy: Record<string, BlockAttrValue> = {};
+	for (const [key, value] of Object.entries(attrs)) {
+		copy[key] = Array.isArray(value) ? [...value] : value;
+	}
+	return copy;
+}
+
+/** Deep-freezes one detached block snapshot in place. */
+export function freezeBlockNode(block: BlockNode): void {
+	if (VERIFIED_BLOCKS.has(block)) return;
+	if (block.attrs) freezeBlockAttrs(block.attrs);
+	for (const child of block.children) {
+		if (isTextNode(child) || isInlineNode(child)) {
+			freezeInlineChild(child);
+		} else {
+			freezeBlockNode(child);
+		}
+	}
+	if (!Object.isFrozen(block.children)) Object.freeze(block.children);
+	if (!Object.isFrozen(block)) Object.freeze(block);
+	VERIFIED_BLOCKS.add(block);
+}
+
+/** Deep-freezes a block-attribute record in place. */
+export function freezeBlockAttrs(attrs: BlockAttrs): void {
+	if (VERIFIED_BLOCK_ATTRS.has(attrs)) return;
+	for (const value of Object.values(attrs)) {
+		if (Array.isArray(value) && !Object.isFrozen(value)) Object.freeze(value);
+	}
+	if (!Object.isFrozen(attrs)) Object.freeze(attrs);
+	VERIFIED_BLOCK_ATTRS.add(attrs);
+}
+
+/** Deep-freezes a mark and its attrs in place. */
+export function freezeMark(mark: Mark): void {
+	if (VERIFIED_MARKS.has(mark)) return;
+	if (mark.attrs && !Object.isFrozen(mark.attrs)) Object.freeze(mark.attrs);
+	if (!Object.isFrozen(mark)) Object.freeze(mark);
+	VERIFIED_MARKS.add(mark);
+}
+
+/** Deep-freezes a mark list in place. */
+export function freezeMarks(marks: readonly Mark[]): void {
+	if (VERIFIED_MARK_LISTS.has(marks)) return;
+	for (const mark of marks) freezeMark(mark);
+	if (!Object.isFrozen(marks)) Object.freeze(marks);
+	VERIFIED_MARK_LISTS.add(marks);
+}
+
+/** Deep-freezes an inline node and all of its payload records in place. */
+export function freezeInlineNode(node: InlineNode): void {
+	if (VERIFIED_INLINE_NODES.has(node)) return;
+	if (!Object.isFrozen(node.attrs)) Object.freeze(node.attrs);
+	freezeMarks(node.marks);
+	if (!Object.isFrozen(node)) Object.freeze(node);
+	VERIFIED_INLINE_NODES.add(node);
+}
+
+/** Deep-freezes transaction/history content-segment payloads in place. */
+export function freezeContentSegments(segments: readonly ContentSegment[]): void {
+	if (VERIFIED_SEGMENT_LISTS.has(segments)) return;
+	for (const segment of segments) {
+		if (segment.kind === 'text') freezeMarks(segment.marks);
+		else freezeInlineNode(segment.node);
+		if (!Object.isFrozen(segment)) Object.freeze(segment);
+	}
+	if (!Object.isFrozen(segments)) Object.freeze(segments);
+	VERIFIED_SEGMENT_LISTS.add(segments);
+}
+
+function freezeInlineChild(child: TextNode | InlineNode): void {
+	if (isInlineNode(child)) {
+		freezeInlineNode(child);
+		return;
+	}
+	if (VERIFIED_TEXT_NODES.has(child)) return;
+	freezeMarks(child.marks);
+	if (!Object.isFrozen(child)) Object.freeze(child);
+	VERIFIED_TEXT_NODES.add(child);
 }
 
 // --- Utility Functions ---

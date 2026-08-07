@@ -18,8 +18,8 @@
  * present (which real math sources always provide).
  */
 
-import DOMPurify from 'dompurify';
 import type { PasteInterceptor } from '../../model/PasteInterceptor.js';
+import { sanitizeHTML } from '../../serialization/HTMLSanitization.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { buildInsertDisplayFormulasTr, buildInsertInlineFormulasTr } from './FormulaCommands.js';
@@ -76,7 +76,7 @@ export function collectStandaloneMathElements(html: string): Element[] {
 
 /** Sanitizes a raw `<math>` fragment; returns null if nothing survives. */
 function sanitizeMath(source: string): string | null {
-	const clean: string = DOMPurify.sanitize(source, {
+	const clean: string = sanitizeHTML(source, {
 		ALLOWED_TAGS: [...MATHML_TAGS],
 		ALLOWED_ATTR: [...MATHML_ATTRS],
 	});

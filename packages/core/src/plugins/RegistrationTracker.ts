@@ -6,6 +6,7 @@
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { MarkdownSyntaxRegistry } from '../model/MarkdownSyntaxRegistry.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import type { CommandRegistry } from './CommandRegistry.js';
@@ -24,6 +25,7 @@ export interface RegistrationCleanupDeps {
 	readonly schemaRegistry: SchemaRegistry;
 	readonly keymapRegistry: KeymapRegistry;
 	readonly inputRuleRegistry: InputRuleRegistry;
+	readonly markdownSyntaxRegistry: MarkdownSyntaxRegistry;
 	readonly nodeViewRegistry: NodeViewRegistry;
 	readonly toolbarRegistry: ToolbarRegistry;
 	readonly fileHandlerRegistry: FileHandlerRegistry;
@@ -57,6 +59,9 @@ export class RegistrationTracker {
 		}
 		for (const unsub of reg.unsubscribers) unsub();
 
+		for (const { type, extension } of reg.nodeSpecExtensions) {
+			this.deps.schemaRegistry.removeNodeSpecExtension(type, extension);
+		}
 		for (const type of reg.nodeSpecs) this.deps.schemaRegistry.removeNodeSpec(type);
 		for (const type of reg.markSpecs) this.deps.schemaRegistry.removeMarkSpec(type);
 		for (const type of reg.inlineNodeSpecs) {
@@ -66,6 +71,9 @@ export class RegistrationTracker {
 		for (const type of reg.nodeViews) this.deps.nodeViewRegistry.removeNodeView(type);
 		for (const keymap of reg.keymaps) this.deps.keymapRegistry.removeKeymap(keymap);
 		for (const rule of reg.inputRules) this.deps.inputRuleRegistry.removeInputRule(rule);
+		for (const extension of reg.markdownSyntaxExtensions) {
+			this.deps.markdownSyntaxRegistry.remove(extension);
+		}
 		for (const itemId of reg.toolbarItems) {
 			this.deps.toolbarRegistry.removeToolbarItem(itemId);
 		}

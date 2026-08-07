@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { Schema } from '../model/Schema.js';
 import { createNodeSelection, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
@@ -271,6 +272,50 @@ describe('KeyboardHandler: Readonly mode', () => {
 });
 
 describe('KeyboardHandler: Keymap priority dispatch', () => {
+	it('isolates a throwing keymap and continues to the next matching handler', () => {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+		const registry = new KeymapRegistry();
+		const nextHandler = vi.fn(() => true);
+		const failures: string[] = [];
+		registry.registerKeymap(
+			{ Enter: nextHandler },
+			{ priority: 'default' },
+			{ pluginId: 'next-plugin', name: 'next-keymap' },
+		);
+		registry.registerKeymap(
+			{
+				Enter: () => {
+					throw new Error('broken keymap');
+				},
+			},
+			{ priority: 'default' },
+			{ pluginId: 'broken-plugin', name: 'broken-keymap' },
+		);
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch: vi.fn(),
+			undo: vi.fn(),
+			redo: vi.fn(),
+			keymapRegistry: registry,
+			callbackExecutor: new PluginCallbackExecutor((failure) => {
+				failures.push(`${failure.pluginId}:${failure.name}:${failure.kind}`);
+			}),
+		});
+
+		const event = makeKeyEvent('Enter');
+		element.dispatchEvent(event);
+
+		expect(nextHandler).toHaveBeenCalledOnce();
+		expect(event.defaultPrevented).toBe(true);
+		expect(failures).toEqual(['broken-plugin:broken-keymap (Enter):keymap']);
+		handler.destroy();
+	});
+
 	function createHandlerWithKeymaps(registry: KeymapRegistry): {
 		element: HTMLDivElement;
 		handler: KeyboardHandler;

@@ -13,10 +13,12 @@ import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { MarkdownSyntaxRegistry } from '../model/MarkdownSyntaxRegistry.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { finalizeTransaction } from '../state/TransactionFinalizer.js';
 import { NodeViewRegistry } from '../view/NodeViewRegistry.js';
 import { CommandRegistry } from './CommandRegistry.js';
 import { EventBus } from './EventBus.js';
@@ -46,8 +48,9 @@ export type { MiddlewareEntry, PluginRegistrations } from './PluginContextFactor
 /** Optional dependencies for PluginManager. */
 export interface PluginManagerOptions {
 	/**
-	 * Sink for editor runtime errors (plugin lifecycle failures, middleware
-	 * exceptions, event listener errors, command handler crashes).
+	 * Sink for editor runtime errors (plugin lifecycle failures, middleware,
+	 * input interceptor/rule/keymap/file-handler exceptions, event listener
+	 * errors, and command handler crashes).
 	 * Defaults to `consoleLogger`, which forwards to the global `console`.
 	 * Pass `silentLogger` to suppress output, or supply a custom adapter
 	 * to route into your own telemetry / logging pipeline.
@@ -86,9 +89,17 @@ export class PluginManager {
 	private readonly eventBus: EventBus;
 	private readonly registrationTracker: RegistrationTracker;
 	private readonly lifecycle: PluginLifecycle;
+	private readonly callbackExecutor: PluginCallbackExecutor;
+	private pendingDestroy: Promise<void> | null = null;
 
 	constructor(options: PluginManagerOptions = {}) {
 		this.logger = options.logger ?? consoleLogger;
+		this.callbackExecutor = new PluginCallbackExecutor((failure) => {
+			this.logger.error(
+				`[PluginCallback] Plugin "${failure.pluginId}" ${failure.kind} "${failure.name}" error`,
+				failure.cause,
+			);
+		});
 		this.commandRegistry = new CommandRegistry(this.logger);
 		this.middlewareChain = new MiddlewareChain(this.logger);
 		this.eventBus = new EventBus(this.logger);
@@ -99,6 +110,7 @@ export class PluginManager {
 			schemaRegistry: this.schemaRegistry,
 			keymapRegistry: this.keymapRegistry,
 			inputRuleRegistry: this.inputRuleRegistry,
+			markdownSyntaxRegistry: this.markdownSyntaxRegistry,
 			nodeViewRegistry: this.nodeViewRegistry,
 			toolbarRegistry: this.toolbarRegistry,
 			fileHandlerRegistry: this.fileHandlerRegistry,
@@ -116,13 +128,30 @@ export class PluginManager {
 	// --- Plugin Registration ---
 
 	register(plugin: Plugin): void {
+		if (this.pendingDestroy) {
+			throw new Error(`Cannot register plugin "${plugin.id}" while destruction is in progress.`);
+		}
 		this.lifecycle.register(plugin);
 	}
 
 	// --- Initialization ---
 
-	async init(options: PluginManagerInitOptions): Promise<void> {
-		return this.lifecycle.init(options, (id, opts) => this.createContext(id, opts));
+	init(options: PluginManagerInitOptions): Promise<void> {
+		if (this.pendingDestroy) {
+			return Promise.reject(
+				new Error('Cannot initialize PluginManager while destruction is in progress.'),
+			);
+		}
+		const lifecycleOptions: PluginManagerInitOptions = {
+			...options,
+			onBeforeReady: async () => {
+				// Base specs and cross-plugin extensions are declared throughout init.
+				// Materialize one coherent schema before any view/input consumer starts.
+				this.schemaRegistry.finalize();
+				await options.onBeforeReady?.();
+			},
+		};
+		return this.lifecycle.init(lifecycleOptions, (id, opts) => this.createContext(id, opts));
 	}
 
 	// --- State & Notifications ---
@@ -142,7 +171,9 @@ export class PluginManager {
 		state: EditorState,
 		finalDispatch: (tr: Transaction) => void,
 	): void {
-		this.middlewareChain.dispatch(tr, state, finalDispatch);
+		this.middlewareChain.dispatch(tr, state, (candidate) => {
+			finalDispatch(finalizeTransaction(candidate, state.doc));
+		});
 	}
 
 	// --- Commands ---
@@ -193,6 +224,11 @@ export class PluginManager {
 		return this.middlewareChain.getTextInputInterceptors();
 	}
 
+	/** Shared error boundary for every callback executed by input/view extension points. */
+	getCallbackExecutor(): PluginCallbackExecutor {
+		return this.callbackExecutor;
+	}
+
 	get(id: string): Plugin | undefined {
 		return this.lifecycle.get(id);
 	}
@@ -211,8 +247,18 @@ export class PluginManager {
 
 	// --- Destruction ---
 
-	async destroy(): Promise<void> {
-		await this.lifecycle.destroy();
+	destroy(): Promise<void> {
+		if (this.pendingDestroy) return this.pendingDestroy;
+
+		const operation = this.lifecycle.destroy().then(() => this.clearRegistries());
+		const tracked = operation.finally(() => {
+			if (this.pendingDestroy === tracked) this.pendingDestroy = null;
+		});
+		this.pendingDestroy = tracked;
+		return tracked;
+	}
+
+	private clearRegistries(): void {
 		this.commandRegistry.clear();
 		this.serviceRegistry.clear();
 		this.middlewareChain.clear();
@@ -250,6 +296,7 @@ export class PluginManager {
 			pluginStyleSheets: this.registrationTracker.rawStyleSheets,
 			plugins: this.lifecycle.rawPlugins,
 			eventBus: this.eventBus,
+			callbackExecutor: this.callbackExecutor,
 			schemaRegistry: this.schemaRegistry,
 			keymapRegistry: this.keymapRegistry,
 			inputRuleRegistry: this.inputRuleRegistry,

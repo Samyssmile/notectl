@@ -8,6 +8,7 @@ import {
 	getInlineChildren,
 } from '../model/Document.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import { blockId, inlineType, nodeType } from '../model/TypeBrands.js';
@@ -209,6 +210,51 @@ describe('InputHandler', () => {
 	});
 
 	describe('TextInputInterceptor', () => {
+		it('isolates a throwing interceptor and preserves the intercepted text via fallback', () => {
+			element = document.createElement('div');
+			let state = createState();
+			const failures: string[] = [];
+			const callbackExecutor = new PluginCallbackExecutor((failure) => {
+				failures.push(`${failure.pluginId}:${failure.name}:${failure.kind}`);
+			});
+			const throwing = vi.fn(() => {
+				throw new Error('broken interceptor');
+			});
+			const passing = vi.fn().mockReturnValue(null);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch: (tr: Transaction) => {
+					state = state.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				callbackExecutor,
+				getTextInputInterceptors: () => [
+					{
+						name: 'throwing',
+						pluginId: 'broken-plugin',
+						interceptor: throwing,
+						priority: 10,
+					},
+					{
+						name: 'passing',
+						pluginId: 'next-plugin',
+						interceptor: passing,
+						priority: 20,
+					},
+				],
+			});
+
+			const event = createBeforeInputEvent('insertText', 'A');
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(throwing).toHaveBeenCalledOnce();
+			expect(passing).toHaveBeenCalledOnce();
+			expect(getBlockText(state.doc.children[0])).toBe('helloA');
+			expect(failures).toEqual(['broken-plugin:throwing:text-input-interceptor']);
+		});
+
 		it('claims insertText when an interceptor returns a transaction', () => {
 			element = document.createElement('div');
 			let state = createState();
@@ -401,6 +447,45 @@ describe('InputHandler', () => {
 			const [txt] = children;
 			expect(txt && 'text' in txt ? txt.text : '').toBe('bold');
 			expect(txt && 'text' in txt ? txt.marks.map((m) => m.type) : []).toEqual(['bold']);
+		});
+	});
+
+	describe('InputRule runtime isolation', () => {
+		it('continues with later matching rules when one plugin rule throws', () => {
+			element = document.createElement('div');
+			let state = createState({ text: 'a' });
+			const callbackExecutor = new PluginCallbackExecutor(vi.fn());
+			const registry = new InputRuleRegistry();
+			const throwingHandler = vi.fn(() => {
+				throw new Error('broken rule');
+			});
+			const succeedingHandler = vi.fn((current: EditorState) =>
+				current.transaction('input').insertText(B1, 2, '!', []).build(),
+			);
+			registry.registerInputRule(
+				{ pattern: /ab$/, handler: throwingHandler },
+				{ pluginId: 'broken-plugin', name: 'throwing-rule' },
+			);
+			registry.registerInputRule(
+				{ pattern: /ab$/, handler: succeedingHandler },
+				{ pluginId: 'next-plugin', name: 'succeeding-rule' },
+			);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch: (tr: Transaction) => {
+					state = state.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				inputRuleRegistry: registry,
+				callbackExecutor,
+			});
+
+			element.dispatchEvent(createBeforeInputEvent('insertText', 'b'));
+
+			expect(throwingHandler).toHaveBeenCalledOnce();
+			expect(succeedingHandler).toHaveBeenCalledOnce();
+			expect(getBlockText(state.doc.children[0])).toBe('ab!');
 		});
 	});
 

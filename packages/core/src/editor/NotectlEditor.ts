@@ -6,7 +6,6 @@
  */
 
 import { selectAll } from '../commands/Commands.js';
-import type { InputManager } from '../input/InputManager.js';
 import type { Document } from '../model/Document.js';
 import type { PaperSize } from '../model/PaperSize.js';
 import { isMarkAllowed } from '../model/Schema.js';
@@ -48,8 +47,11 @@ import {
 import { EditorConfigController } from './EditorConfigController.js';
 import type { EditorDOMElements } from './EditorDOM.js';
 import { EditorEventEmitter, type EditorEventMap } from './EditorEventEmitter.js';
-import { initializeEditor } from './EditorInitializer.js';
-import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
+import { type InitResult, initializeEditor } from './EditorInitializer.js';
+import {
+	EditorInitializationAbortedError,
+	EditorLifecycleCoordinator,
+} from './EditorLifecycleCoordinator.js';
 import { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
 import type { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
@@ -61,7 +63,6 @@ export type { EditorEventMap } from './EditorEventEmitter.js';
 
 export class NotectlEditor extends HTMLElement {
 	private view: EditorView | null = null;
-	private inputManager: InputManager | null = null;
 	private pluginManager: PluginManager | null = null;
 	private domElements: EditorDOMElements | null = null;
 	private readonly configController = new EditorConfigController();
@@ -70,13 +71,14 @@ export class NotectlEditor extends HTMLElement {
 	private readonly styleCoordinator = new EditorStyleCoordinator();
 	private themeController: EditorThemeController | null = null;
 	private paperLayout: PaperLayoutController | null = null;
-	private pendingInitPromise: Promise<import('./EditorInitializer.js').InitResult | null> | null =
-		null;
+	private activeInitResult: InitResult | null = null;
+	private pendingInitPromise: Promise<void> | null = null;
+	private pendingDestroyPromise: Promise<void> | null = null;
 	private cancelPendingInit: (() => void) | null = null;
 	private autoInitToken = 0;
 	private autoInitQueued = false;
 	private initVersion = 0;
-	private releaseInit: (() => void) | null = null;
+	private destroyVersion = 0;
 	private announce: ((text: string) => void) | null = null;
 	private markdownImportedMessage = 'Markdown imported';
 
@@ -111,14 +113,57 @@ export class NotectlEditor extends HTMLElement {
 	 * Initializes the editor with the given config. Throws on static print
 	 * replicas (`data-notectl-static`): they carry replicated print markup and
 	 * must never boot a live editor over it.
+	 *
+	 * A config-less concurrent call joins the active initialization. Configuration
+	 * belongs exclusively to the call that starts a generation; supplying config
+	 * to a later call is rejected after the active initialization settles. Every
+	 * caller joined to a generation rejects with EditorInitializationAbortedError
+	 * when destroy() abandons that generation.
 	 */
 	async init(config?: import('./EditorConfig.js').NotectlEditorConfig): Promise<void> {
 		if (isStaticHostReplica(this)) {
 			throw createStaticReplicaError();
 		}
 		this.cancelAutoInit();
-		if (!this.lifecycle.markInitialized()) return;
+		const destroyVersionBeforeTeardown: number = this.destroyVersion;
+		const pendingDestroy: Promise<void> | null = this.pendingDestroyPromise;
+		if (pendingDestroy) {
+			await pendingDestroy;
+			// A later destroy request supersedes an init that was queued behind the
+			// first teardown. A sibling init starting after the same teardown does
+			// not: it becomes the owner that this call joins below.
+			if (destroyVersionBeforeTeardown !== this.destroyVersion) {
+				throw new EditorInitializationAbortedError();
+			}
+		}
+
+		const activeInit: Promise<void> | null = this.pendingInitPromise;
+		if (activeInit) {
+			// The first call owns this initialization generation and its config. A
+			// config-less call is an idempotent join. A later config cannot be merged
+			// safely once plugin/schema setup has started, so wait for the active call
+			// and then reject explicitly instead of silently ignoring it.
+			await activeInit;
+			if (config) {
+				throw new Error(
+					'Cannot apply init config while another initialization is in progress. ' +
+						'Await the active init, then destroy and initialize a new generation.',
+				);
+			}
+			return;
+		}
+
+		if (!this.lifecycle.markInitialized()) {
+			if (config) {
+				throw new Error(
+					'Cannot apply init config after the editor is initialized. ' +
+						'Use configure() for runtime options or destroy() before re-initializing.',
+				);
+			}
+			return;
+		}
 		if (config) this.configController.setConfig(config);
+		this.events.setLogger(this.configController.getConfig().logger);
 
 		let shadow: ShadowRoot;
 		try {
@@ -135,7 +180,7 @@ export class NotectlEditor extends HTMLElement {
 		this.cancelPendingInit = cancel;
 		const preInitPlugins = this.lifecycle.consumePreInitPlugins();
 
-		const initPromise = initializeEditor({
+		const initResultPromise: Promise<InitResult | null> = initializeEditor({
 			shadow,
 			config: this.configController.getConfig(),
 			hostDir: (this.getAttribute('dir') as 'ltr' | 'rtl' | null) ?? undefined,
@@ -145,38 +190,68 @@ export class NotectlEditor extends HTMLElement {
 			preInitPlugins,
 			isCancelled: () => cancelled || initVersion !== this.initVersion,
 		});
+		const initPromise: Promise<void> = this.completeInitialization(
+			initResultPromise,
+			initVersion,
+			() => cancelled || initVersion !== this.initVersion,
+			preInitPlugins,
+		);
 		this.pendingInitPromise = initPromise;
 		try {
-			const result = await initPromise;
+			await initPromise;
+		} finally {
+			if (this.pendingInitPromise === initPromise) {
+				this.pendingInitPromise = null;
+				this.cancelPendingInit = null;
+			}
+		}
+	}
+
+	/** Completes one initialization generation, including host publication and readiness. */
+	private async completeInitialization(
+		resultPromise: Promise<InitResult | null>,
+		generation: number,
+		isCancelled: () => boolean,
+		preInitPlugins: readonly Plugin[],
+	): Promise<void> {
+		let publishedResult: InitResult | null = null;
+		try {
+			const result: InitResult | null = await resultPromise;
 			if (!result) {
-				if (cancelled || initVersion !== this.initVersion) return;
+				if (isCancelled()) throw new EditorInitializationAbortedError();
 				throw new Error('Editor initialization completed without a result.');
 			}
-			if (initVersion !== this.initVersion) return;
+			if (generation !== this.initVersion) {
+				await result.dispose();
+				throw new EditorInitializationAbortedError();
+			}
 
+			// No asynchronous boundary exists between the generation check and this
+			// assignment: ownership moves to the host atomically within this turn.
+			this.activeInitResult = result;
+			publishedResult = result;
 			this.view = result.view;
-			this.inputManager = result.inputManager;
 			this.pluginManager = result.pluginManager;
 			this.domElements = result.domElements;
 			this.themeController = result.themeController;
 			this.paperLayout = result.paperLayout;
 			this.announce = result.announce;
 			this.markdownImportedMessage = result.markdownImportedMessage;
-			this.releaseInit = result.release;
 
 			this.lifecycle.resolveReady();
 			this.events.emit('ready', undefined);
+			if (generation !== this.initVersion) throw new EditorInitializationAbortedError();
 		} catch (error) {
-			if (initVersion === this.initVersion) {
+			if (publishedResult && this.activeInitResult === publishedResult) {
+				this.activeInitResult = null;
+				this.clearPublishedRuntime();
+				await publishedResult.dispose();
+			}
+			if (generation === this.initVersion) {
 				this.lifecycle.restorePreInitPlugins(preInitPlugins);
 				this.lifecycle.failReady(error);
 			}
 			throw error;
-		} finally {
-			if (this.pendingInitPromise === initPromise) {
-				this.pendingInitPromise = null;
-				this.cancelPendingInit = null;
-			}
 		}
 	}
 
@@ -272,23 +347,48 @@ export class NotectlEditor extends HTMLElement {
 	 */
 	async setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void> {
 		this.assertInitialized();
-		if (!this.view) return;
-		const syntaxExtensions = this.pluginManager?.markdownSyntaxRegistry.getExtensions();
+		const owningView: EditorView | null = this.view;
+		const owningPluginManager: PluginManager | null = this.pluginManager;
+		const owningAnnounce: ((text: string) => void) | null = this.announce;
+		const owningMarkdownImportedMessage: string = this.markdownImportedMessage;
+		if (!owningView) return;
+		const generation: number = this.initVersion;
+		const syntaxExtensions = owningPluginManager?.markdownSyntaxRegistry.getExtensions();
 		const merged: MarkdownParseOptions = {
 			...options,
 			syntaxExtensions: options?.syntaxExtensions ?? syntaxExtensions,
 		};
+		let committed = false;
 		await setEditorContentMarkdown(
 			markdown,
-			this.view.getState(),
-			this.pluginManager?.schemaRegistry,
-			(s) => this.replaceState(s),
+			owningView.getState(),
+			owningPluginManager?.schemaRegistry,
+			(state) => {
+				if (
+					generation !== this.initVersion ||
+					this.view !== owningView ||
+					this.pluginManager !== owningPluginManager
+				) {
+					return;
+				}
+				owningView.replaceState(state);
+				committed = true;
+			},
 			merged,
 		);
+		if (
+			!committed ||
+			generation !== this.initVersion ||
+			this.view !== owningView ||
+			this.pluginManager !== owningPluginManager ||
+			this.announce !== owningAnnounce
+		) {
+			return;
+		}
 		// `replaceState` ran synchronously above and cleared the live region (its
 		// api-origin no-step transaction yields no announcement), so this is the
 		// surviving message for screen readers.
-		this.announce?.(this.markdownImportedMessage);
+		owningAnnounce?.(owningMarkdownImportedMessage);
 	}
 
 	/** Returns plain text content. */
@@ -423,7 +523,8 @@ export class NotectlEditor extends HTMLElement {
 	/**
 	 * Waits for the editor to be ready. Rejects immediately on static print
 	 * replicas (`data-notectl-static`): they never boot, so the promise would
-	 * otherwise hang forever.
+	 * otherwise hang forever. Rejects with EditorInitializationAbortedError when
+	 * destroy() abandons the initialization generation being awaited.
 	 */
 	whenReady(): Promise<void> {
 		if (isStaticHostReplica(this)) {
@@ -435,6 +536,7 @@ export class NotectlEditor extends HTMLElement {
 	/** Updates configuration at runtime. */
 	configure(config: Partial<import('./EditorConfig.js').NotectlEditorConfig>): void {
 		this.configController.applyRuntimeConfig(config, this.getConfigDeps());
+		if ('logger' in config) this.events.setLogger(config.logger);
 	}
 
 	// --- Theme API ---
@@ -459,6 +561,17 @@ export class NotectlEditor extends HTMLElement {
 	/** Cleans up the editor. Awaiting ensures async plugin teardown completes. */
 	destroy(): Promise<void> {
 		this.cancelAutoInit();
+		if (this.pendingDestroyPromise) {
+			this.destroyVersion++;
+			this.initVersion++;
+			this.cancelPendingInit?.();
+			// A queued init waits on this teardown and owns the fresh readiness
+			// generation created by the first destroy. This later destroy supersedes
+			// that queued init, so its waiters must be aborted as well.
+			this.lifecycle.reset();
+			return this.pendingDestroyPromise;
+		}
+		this.destroyVersion++;
 		this.initVersion++;
 		this.cancelPendingInit?.();
 		this.cancelPendingInit = null;
@@ -468,25 +581,36 @@ export class NotectlEditor extends HTMLElement {
 				() => undefined,
 			) ?? Promise.resolve();
 		this.pendingInitPromise = null;
-		this.releaseInit?.();
-		this.releaseInit = null;
-		this.announce = null;
-		this.paperLayout?.destroy();
-		this.paperLayout = null;
-		this.styleCoordinator.teardown(this.shadowRoot, this.themeController);
-		this.themeController?.destroy();
-		this.themeController = null;
-		this.inputManager?.destroy();
-		this.inputManager = null;
-		this.view?.destroy();
-		const pluginTeardown = this.pluginManager?.destroy() ?? Promise.resolve();
-		this.view = null;
-		this.pluginManager = null;
+		const activeResult: InitResult | null = this.activeInitResult;
+		this.activeInitResult = null;
+		this.clearPublishedRuntime();
 		this.lifecycle.reset();
 		this.events.clear();
-		this.domElements?.wrapper.remove();
+		// Defer the first teardown callback until the host has synchronously
+		// published both the empty runtime and the tracked destruction barrier.
+		// Plugin/NodeView destroy hooks can safely re-enter init(): they will join
+		// this barrier instead of observing or reviving the retiring generation.
+		const completion: Promise<void> = Promise.resolve().then(() => {
+			const runtimeTeardown: Promise<void> = activeResult?.dispose() ?? Promise.resolve();
+			return Promise.all([runtimeTeardown, pendingInit]).then(() => undefined);
+		});
+		const trackedCompletion: Promise<void> = completion.finally(() => {
+			if (this.pendingDestroyPromise === trackedCompletion) {
+				this.pendingDestroyPromise = null;
+			}
+		});
+		this.pendingDestroyPromise = trackedCompletion;
+		return trackedCompletion;
+	}
+
+	/** Clears host aliases; resource destruction remains owned by InitResult.dispose(). */
+	private clearPublishedRuntime(): void {
+		this.view = null;
+		this.pluginManager = null;
 		this.domElements = null;
-		return Promise.all([pluginTeardown, pendingInit]).then(() => undefined);
+		this.themeController = null;
+		this.paperLayout = null;
+		this.announce = null;
 	}
 
 	/**

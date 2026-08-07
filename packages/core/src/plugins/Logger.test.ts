@@ -85,4 +85,24 @@ describe('scopedLogger', () => {
 		logger.error('direct', 'cause');
 		expect(calls).toEqual([['error', 'direct', 'cause']]);
 	});
+
+	it('isolates synchronous failures from an application logger', () => {
+		const logger = makeCapturingLogger().logger;
+		logger.error = () => {
+			throw new Error('logger failed');
+		};
+
+		expect(() => scopedLogger(logger, 'Scope').error('message')).not.toThrow();
+	});
+
+	it('consumes asynchronous failures from an application logger', async () => {
+		const logger = makeCapturingLogger().logger;
+		logger.error = async () => {
+			throw new Error('logger rejected');
+		};
+
+		scopedLogger(logger, 'Scope').error('message');
+		await Promise.resolve();
+		await Promise.resolve();
+	});
 });

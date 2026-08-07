@@ -54,6 +54,69 @@ describe('SchemaRegistry', () => {
 			registry.registerNodeSpec(makeNodeSpec('heading'));
 			expect(registry.getNodeTypes()).toEqual(['paragraph', 'heading']);
 		});
+
+		it('applies a NodeSpec extension registered before its target spec', () => {
+			const registry = new SchemaRegistry();
+			registry.registerNodeSpecExtension('table_cell', (spec) => ({
+				...spec,
+				content: { allow: [...(spec.content?.allow ?? []), 'code_block'] },
+			}));
+
+			registry.registerNodeSpec({
+				...makeNodeSpec('table_cell'),
+				content: { allow: ['paragraph'] },
+			});
+			registry.finalize();
+
+			expect(registry.getNodeSpec('table_cell')?.content?.allow).toEqual([
+				'paragraph',
+				'code_block',
+			]);
+		});
+
+		it('composes NodeSpec extensions in registration order', () => {
+			const registry = new SchemaRegistry();
+			registry.registerNodeSpec(makeNodeSpec('paragraph'));
+			registry.registerNodeSpecExtension('paragraph', (spec) => ({
+				...spec,
+				attrs: { first: { default: 'one' } },
+			}));
+			registry.registerNodeSpecExtension('paragraph', (spec) => ({
+				...spec,
+				attrs: { ...spec.attrs, second: { default: 'two' } },
+			}));
+
+			registry.finalize();
+
+			expect(registry.getNodeSpec('paragraph')?.attrs).toEqual({
+				first: { default: 'one' },
+				second: { default: 'two' },
+			});
+		});
+
+		it('removes a NodeSpec extension by identity and restores the base spec', () => {
+			const registry = new SchemaRegistry();
+			const base = makeNodeSpec('paragraph');
+			const extension = (spec: NodeSpec): NodeSpec => ({
+				...spec,
+				attrs: { align: { default: 'start' } },
+			});
+			registry.registerNodeSpec(base);
+			registry.registerNodeSpecExtension('paragraph', extension);
+			expect(registry.getNodeSpec('paragraph')?.attrs?.align).toBeDefined();
+
+			registry.removeNodeSpecExtension('paragraph', extension);
+
+			expect(registry.getNodeSpec('paragraph')).toBe(base);
+		});
+
+		it('rejects an extension that changes the target node type during finalization', () => {
+			const registry = new SchemaRegistry();
+			registry.registerNodeSpec(makeNodeSpec('paragraph'));
+			registry.registerNodeSpecExtension('paragraph', (spec) => ({ ...spec, type: 'heading' }));
+
+			expect(() => registry.finalize()).toThrow('must preserve node type');
+		});
 	});
 
 	describe('MarkSpec', () => {

@@ -7,6 +7,7 @@ import {
 	createInlineNode,
 	createTextNode,
 	forEachInlineChildInRange,
+	freezeDocument,
 	generateBlockId,
 	getBlockContentSegmentsInRange,
 	getBlockLength,
@@ -27,14 +28,62 @@ import {
 	walkInlineContent,
 } from './Document.js';
 import type { InlineNode, Mark, TextNode } from './Document.js';
-import { inlineType } from './TypeBrands.js';
+import { blockId, inlineType, nodeType } from './TypeBrands.js';
 
 describe('Document model', () => {
+	it('deep-freezes descendants even when an externally supplied block is only shallow-frozen', () => {
+		const attrs = { tags: ['external'] };
+		const children = [createTextNode('mutable')];
+		const block = Object.freeze({
+			id: blockId('shallow'),
+			type: nodeType('paragraph'),
+			attrs,
+			children,
+		});
+
+		freezeDocument({ children: [block] });
+
+		expect(Object.isFrozen(children)).toBe(true);
+		expect(Object.isFrozen(children[0])).toBe(true);
+		expect(Object.isFrozen(attrs)).toBe(true);
+		expect(Object.isFrozen(attrs.tags)).toBe(true);
+	});
+
+	it('recognizes a previously verified document without traversing it again', () => {
+		const target = freezeDocument(
+			createDocument([createBlockNode('paragraph', [createTextNode('stable')], 'b1')]),
+		);
+		let childReads = 0;
+		const observed = new Proxy(target, {
+			get(document, property, receiver) {
+				if (property === 'children') childReads++;
+				return Reflect.get(document, property, receiver);
+			},
+		});
+
+		freezeDocument(observed);
+		childReads = 0;
+		freezeDocument(observed);
+
+		expect(childReads).toBe(0);
+	});
 	describe('createBlockNode', () => {
 		it('generates unique IDs', () => {
 			const a = createBlockNode('paragraph');
 			const b = createBlockNode('paragraph');
 			expect(a.id).not.toBe(b.id);
+		});
+
+		it('takes ownership of child and structured-attribute collections', () => {
+			const sourceChildren = [createTextNode('first')];
+			const columnWidthsPx: Array<number | null> = [120, null];
+			const block = createBlockNode('table', sourceChildren, undefined, { columnWidthsPx });
+
+			sourceChildren.push(createTextNode('later'));
+			columnWidthsPx[0] = 999;
+
+			expect(block.children).toHaveLength(1);
+			expect(block.attrs?.columnWidthsPx).toEqual([120, null]);
 		});
 	});
 
@@ -77,7 +126,26 @@ describe('Document model', () => {
 				createBlockNode('paragraph', [createTextNode('second')]),
 			];
 			const doc = createDocument(blocks);
+			blocks.push(createBlockNode('paragraph', [createTextNode('later')]));
 			expect(doc.children).toHaveLength(2);
+		});
+	});
+
+	describe('inline factories', () => {
+		it('take ownership of marks and attribute records', () => {
+			const markAttrs = { href: '/before' };
+			const marks: Mark[] = [{ type: 'link', attrs: markAttrs }];
+			const inlineAttrs = { src: 'before.png' };
+			const text = createTextNode('link', marks);
+			const inline = createInlineNode(inlineType('image'), inlineAttrs, marks);
+
+			marks.push({ type: 'bold' });
+			markAttrs.href = '/after';
+			inlineAttrs.src = 'after.png';
+
+			expect(text.marks).toEqual([{ type: 'link', attrs: { href: '/before' } }]);
+			expect(inline.marks).toEqual([{ type: 'link', attrs: { href: '/before' } }]);
+			expect(inline.attrs).toEqual({ src: 'before.png' });
 		});
 	});
 

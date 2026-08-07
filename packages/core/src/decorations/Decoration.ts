@@ -3,6 +3,7 @@
  * Decorations are NOT part of the document model and do NOT affect undo/redo.
  */
 
+import type { PluginCallbackRegistration } from '../model/PluginCallbackExecutor.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { Transaction } from '../state/Transaction.js';
 import { mapDecorationThroughStepMap } from './PositionMapping.js';
@@ -17,6 +18,8 @@ export interface DecorationAttrs {
 }
 
 // --- Decoration Types ---
+
+const WIDGET_CALLBACK_OWNER: unique symbol = Symbol('notectl.widget-callback-owner');
 
 export interface InlineDecoration {
 	readonly type: 'inline';
@@ -39,9 +42,18 @@ export interface WidgetDecoration {
 	readonly toDOM: () => HTMLElement;
 	readonly side: -1 | 1;
 	readonly key?: string;
+	/** Plugin ownership attached by PluginLifecycle before the decoration reaches the view. */
+	readonly [WIDGET_CALLBACK_OWNER]?: PluginCallbackRegistration;
 }
 
 export type Decoration = InlineDecoration | NodeDecoration | WidgetDecoration;
+
+/** Returns lifecycle-owned attribution for a widget renderer, when available. */
+export function getWidgetCallbackOwner(
+	decoration: WidgetDecoration,
+): PluginCallbackRegistration | undefined {
+	return decoration[WIDGET_CALLBACK_OWNER];
+}
 
 // --- Factory Functions ---
 
@@ -188,6 +200,24 @@ export class DecorationSet {
 		return new DecorationSet(map);
 	}
 
+	/** Attaches plugin attribution to widget callbacks without mutating plugin-owned objects. */
+	withWidgetOwner(pluginId: string): DecorationSet {
+		let changed = false;
+		const map = new Map<BlockId, Decoration[]>();
+		for (const [bid, decorations] of this.byBlock) {
+			const attributed = decorations.map((decoration): Decoration => {
+				if (decoration.type !== 'widget') return decoration;
+				changed = true;
+				return {
+					...decoration,
+					[WIDGET_CALLBACK_OWNER]: { pluginId, name: 'widget' },
+				};
+			});
+			map.set(bid, attributed);
+		}
+		return changed ? new DecorationSet(map) : this;
+	}
+
 	/** Checks equality — reference first, then structural comparison. */
 	equals(other: DecorationSet): boolean {
 		if (this === other) return true;
@@ -279,9 +309,9 @@ function decorationsEqual(a: Decoration, b: Decoration): boolean {
 		}
 		case 'widget': {
 			const bw = b as WidgetDecoration;
-			return (
-				a.offset === bw.offset && a.side === bw.side && a.key === bw.key && a.toDOM === bw.toDOM
-			);
+			const sameIdentity: boolean =
+				a.key !== undefined || bw.key !== undefined ? a.key === bw.key : a.toDOM === bw.toDOM;
+			return a.offset === bw.offset && a.side === bw.side && a.key === bw.key && sameIdentity;
 		}
 	}
 }

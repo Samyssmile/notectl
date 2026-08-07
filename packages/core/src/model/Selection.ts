@@ -42,7 +42,7 @@ export type EditorSelection = Selection | NodeSelection | GapCursorSelection;
 
 /** Creates a NodeSelection for the given block. */
 export function createNodeSelection(nodeId: BlockId, path: readonly BlockId[]): NodeSelection {
-	return { type: 'node', nodeId, path };
+	return { type: 'node', nodeId, path: [...path] };
 }
 
 /** Creates a GapCursorSelection at the boundary of a void block. */
@@ -51,7 +51,7 @@ export function createGapCursor(
 	side: 'before' | 'after',
 	path: readonly BlockId[],
 ): GapCursorSelection {
-	return { type: 'gap', side, blockId, path };
+	return { type: 'gap', side, blockId, path: [...path] };
 }
 
 /** Type guard: returns true if the selection is a NodeSelection. */
@@ -94,7 +94,7 @@ export function createPosition(
 	offset: number,
 	path?: readonly BlockId[],
 ): Position {
-	return path ? { blockId, offset, path } : { blockId, offset };
+	return path ? { blockId, offset, path: [...path] } : { blockId, offset };
 }
 
 /** Creates a selection with distinct anchor and head. */
@@ -106,6 +106,45 @@ export function createSelection(anchor: Position, head: Position): Selection {
 export function createCollapsedSelection(blockId: BlockId, offset: number): Selection {
 	const pos: Position = { blockId, offset };
 	return { anchor: pos, head: pos };
+}
+
+/** Creates a fully detached copy of any editor selection. */
+export function cloneEditorSelection(selection: EditorSelection): EditorSelection {
+	if (isNodeSelection(selection)) {
+		return { ...selection, path: [...selection.path] };
+	}
+	if (isGapCursor(selection)) {
+		return { ...selection, path: [...selection.path] };
+	}
+	const anchor: Position = clonePosition(selection.anchor);
+	const head: Position =
+		selection.head === selection.anchor ? anchor : clonePosition(selection.head);
+	return createSelection(anchor, head);
+}
+
+/** Freezes a selection and its position/path objects in place. */
+export function freezeEditorSelection(selection: EditorSelection): EditorSelection {
+	if (isNodeSelection(selection) || isGapCursor(selection)) {
+		if (!Object.isFrozen(selection.path)) Object.freeze(selection.path);
+		return Object.isFrozen(selection) ? selection : Object.freeze(selection);
+	}
+	if (selection.anchor.path && !Object.isFrozen(selection.anchor.path)) {
+		Object.freeze(selection.anchor.path);
+	}
+	if (selection.head.path && !Object.isFrozen(selection.head.path)) {
+		Object.freeze(selection.head.path);
+	}
+	if (!Object.isFrozen(selection.anchor)) Object.freeze(selection.anchor);
+	if (!Object.isFrozen(selection.head)) Object.freeze(selection.head);
+	return Object.isFrozen(selection) ? selection : Object.freeze(selection);
+}
+
+function clonePosition(position: Position): Position {
+	return createPosition(
+		position.blockId,
+		position.offset,
+		position.path ? [...position.path] : undefined,
+	);
 }
 
 /** Returns true if the selection is collapsed (cursor with no range). NodeSelection and GapCursor are never collapsed. */

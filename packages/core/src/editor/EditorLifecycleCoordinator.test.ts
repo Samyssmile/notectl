@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Plugin } from '../plugins/Plugin.js';
-import { EditorLifecycleCoordinator } from './EditorLifecycleCoordinator.js';
+import {
+	EditorInitializationAbortedError,
+	EditorLifecycleCoordinator,
+} from './EditorLifecycleCoordinator.js';
 
 function stubPlugin(id: string): Plugin {
 	return { id, init: vi.fn() };
@@ -80,6 +83,20 @@ describe('EditorLifecycleCoordinator', () => {
 
 		expect(lc.isInitialized()).toBe(false);
 		expect(lc.consumePreInitPlugins()).toHaveLength(0);
+	});
+
+	it('reset rejects waiters belonging to an in-flight initialization', async () => {
+		const lc = new EditorLifecycleCoordinator();
+		lc.markInitialized();
+		const ready = lc.whenReady();
+
+		lc.reset();
+
+		await expect(ready).rejects.toBeInstanceOf(EditorInitializationAbortedError);
+		await expect(ready).rejects.toMatchObject({
+			name: 'AbortError',
+			message: 'Editor initialization was aborted because the editor was destroyed.',
+		});
 	});
 
 	it('allows registerPreInitPlugin after reset', () => {

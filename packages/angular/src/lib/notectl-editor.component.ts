@@ -28,7 +28,7 @@ import type {
 	Theme,
 	Transaction,
 } from '@notectl/core';
-import { NotectlEditor, ThemePreset } from '@notectl/core';
+import { EditorInitializationAbortedError, NotectlEditor, ThemePreset } from '@notectl/core';
 import type { Locale } from '@notectl/core';
 import type { ContentCSSResult, ContentHTMLOptions } from '@notectl/core/html';
 import type { TextFormattingConfig } from '@notectl/core/plugins/text-formatting';
@@ -45,6 +45,39 @@ interface InitConfigSnapshot {
 	readonly plugins: readonly Plugin[];
 	readonly styleNonce: string | undefined;
 	readonly toolbar: NotectlEditorConfig['toolbar'];
+}
+
+/** One publicly awaitable initialization generation with an internally owned observer. */
+class ReadyGeneration {
+	readonly promise: Promise<void>;
+	private resolvePromise: (() => void) | null = null;
+	private rejectPromise: ((reason: unknown) => void) | null = null;
+
+	constructor() {
+		this.promise = new Promise<void>((resolve, reject) => {
+			this.resolvePromise = resolve;
+			this.rejectPromise = reject;
+		});
+		// Angular owns the generation even when no consumer calls whenReady(). The
+		// original promise remains rejecting for explicit awaiters; this observer
+		// only prevents an abandoned component from producing an unhandled rejection.
+		void this.promise.catch(() => undefined);
+	}
+
+	resolve(): void {
+		this.resolvePromise?.();
+		this.clearSettlers();
+	}
+
+	reject(reason: unknown): void {
+		this.rejectPromise?.(reason);
+		this.clearSettlers();
+	}
+
+	private clearSettlers(): void {
+		this.resolvePromise = null;
+		this.rejectPromise = null;
+	}
 }
 
 function initConfigEquals(a: InitConfigSnapshot, b: InitConfigSnapshot): boolean {
@@ -184,6 +217,7 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 	private readonly hostRef = viewChild.required<ElementRef<HTMLDivElement>>('host');
 	private readonly initialized = signal(false);
 	private readonly disabledByForms = signal(false);
+	private readyGeneration = new ReadyGeneration();
 
 	private readonly valueController = new EditorValueController({
 		emitControlValue: (value: NotectlValue) => this.onChange(value),
@@ -193,23 +227,22 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 			this.content.set(doc);
 			this.value.set(doc);
 		},
-		whenReady: () => this.readyPromise,
+		whenReady: () => this.readyGeneration.promise,
 	});
 
 	private editorRef: NotectlEditor | null = null;
-	private readyResolve: (() => void) | null = null;
-	private readyPromise!: Promise<void>;
+	private initializationPromise: Promise<void> | null = null;
 	private lastInitConfig: InitConfigSnapshot | null = null;
 	private queuedInitConfig: InitConfigSnapshot | null = null;
 	private reinitializePromise: Promise<void> | null = null;
 	private pendingInitialDocument: Document | undefined;
+	private destroyed = false;
 	private onChange: (value: NotectlValue) => void = () => {};
 	private onTouched: () => void = () => {};
 
 	constructor() {
-		this.resetReadyPromise();
-
 		afterNextRender(() => {
+			if (this.destroyed) return;
 			this.initEditor(this.captureInitConfig());
 		});
 
@@ -243,7 +276,10 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		});
 
 		this.destroyRef.onDestroy(() => {
-			void this.destroyEditor();
+			this.destroyed = true;
+			this.queuedInitConfig = null;
+			const retiringGeneration: ReadyGeneration = this.readyGeneration;
+			void this.destroyEditor(retiringGeneration);
 		});
 	}
 
@@ -328,7 +364,7 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 	}
 
 	whenReady(): Promise<void> {
-		return this.readyPromise;
+		return this.readyGeneration.promise;
 	}
 
 	focus(options?: FocusOptions): void {
@@ -356,15 +392,11 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		this.disabledByForms.set(isDisabled);
 	}
 
-	private resetReadyPromise(): void {
-		this.readyPromise = new Promise<void>((resolve) => {
-			this.readyResolve = resolve;
-		});
-	}
-
 	private initEditor(snapshot: InitConfigSnapshot): void {
+		if (this.destroyed) return;
 		const hostElement: HTMLDivElement = this.hostRef().nativeElement;
 		const editor = new NotectlEditor();
+		const generation: ReadyGeneration = this.readyGeneration;
 		this.editorRef = editor;
 		this.lastInitConfig = snapshot;
 		this.valueController.reset();
@@ -393,17 +425,56 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 			this.editorBlur.emit();
 		});
 
-		editor.on('ready', () => {
-			this.initialized.set(true);
-			this.editorState.set(editor.getState());
-			void this.applyInitialContent(editor).finally(() => {
-				this.readyResolve?.();
-				this.ready.emit();
-			});
-		});
-
-		editor.init(this.buildConfig());
+		const coreInitialization: Promise<void> = editor.init(this.buildConfig());
 		hostElement.appendChild(editor);
+		const completion: Promise<void> = this.completeEditorInitialization(
+			editor,
+			generation,
+			coreInitialization,
+		);
+		const ownedCompletion: Promise<void> = completion.then(
+			() => undefined,
+			(error: unknown) => this.failEditorInitialization(editor, generation, error),
+		);
+		this.initializationPromise = ownedCompletion;
+		void ownedCompletion.then(() => {
+			if (this.initializationPromise === ownedCompletion) {
+				this.initializationPromise = null;
+			}
+		});
+	}
+
+	private async completeEditorInitialization(
+		editor: NotectlEditor,
+		generation: ReadyGeneration,
+		coreInitialization: Promise<void>,
+	): Promise<void> {
+		await coreInitialization;
+		this.assertCurrentInitialization(editor, generation);
+		await this.applyInitialContent(editor);
+		this.assertCurrentInitialization(editor, generation);
+
+		this.initialized.set(true);
+		this.editorState.set(editor.getState());
+		generation.resolve();
+		this.ready.emit();
+	}
+
+	private failEditorInitialization(
+		editor: NotectlEditor,
+		generation: ReadyGeneration,
+		error: unknown,
+	): void {
+		generation.reject(error);
+		if (this.editorRef !== editor || this.readyGeneration !== generation) return;
+		this.initialized.set(false);
+		this.editorState.set(null);
+	}
+
+	private assertCurrentInitialization(editor: NotectlEditor, generation: ReadyGeneration): void {
+		if (this.destroyed || this.editorRef !== editor || this.readyGeneration !== generation) {
+			throw new EditorInitializationAbortedError();
+		}
 	}
 
 	private async applyInitialContent(editor: NotectlEditor): Promise<void> {
@@ -456,30 +527,40 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 	}
 
 	private scheduleReinitialization(snapshot: InitConfigSnapshot): void {
-		if (!this.initialized() || !this.lastInitConfig) return;
+		if (this.destroyed || !this.initialized() || !this.lastInitConfig) return;
 		if (initConfigEquals(snapshot, this.lastInitConfig)) return;
 
 		this.queuedInitConfig = snapshot;
 		if (this.reinitializePromise) return;
 
-		this.reinitializePromise = (async () => {
+		const operation = (async () => {
 			while (this.queuedInitConfig) {
 				const nextSnapshot = this.queuedInitConfig;
 				this.queuedInitConfig = null;
 				this.pendingInitialDocument = this.editorRef?.getJSON();
-				this.resetReadyPromise();
+				const retiringGeneration: ReadyGeneration = this.readyGeneration;
+				const nextGeneration = new ReadyGeneration();
+				this.readyGeneration = nextGeneration;
 				this.initialized.set(false);
-				await this.destroyEditor();
+				await this.destroyEditor(retiringGeneration);
+				if (this.destroyed) throw new EditorInitializationAbortedError();
 				this.initEditor(nextSnapshot);
-				await this.readyPromise;
+				await nextGeneration.promise;
 			}
-		})().finally(() => {
-			this.reinitializePromise = null;
+		})();
+		const ownedOperation: Promise<void> = operation.then(
+			() => undefined,
+			(error: unknown) => this.readyGeneration.reject(error),
+		);
+		this.reinitializePromise = ownedOperation;
+		void ownedOperation.then(() => {
+			if (this.reinitializePromise === ownedOperation) this.reinitializePromise = null;
 		});
 	}
 
-	private async destroyEditor(): Promise<void> {
+	private async destroyEditor(generation: ReadyGeneration): Promise<void> {
 		const editor: NotectlEditor | null = this.editorRef;
+		generation.reject(new EditorInitializationAbortedError());
 		if (!editor) {
 			this.initialized.set(false);
 			this.editorState.set(null);
@@ -487,8 +568,9 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 		}
 
 		this.editorRef = null;
+		const initialization: Promise<void> | null = this.initializationPromise;
 		editor.remove();
-		await editor.destroy();
+		await Promise.all([editor.destroy(), initialization ?? Promise.resolve()]);
 		this.initialized.set(false);
 		this.editorState.set(null);
 	}

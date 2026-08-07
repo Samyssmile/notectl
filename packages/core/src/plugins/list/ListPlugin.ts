@@ -13,8 +13,11 @@
  * heading) is a container whose children are blocks.
  */
 
+import { DecorationSet, type WidgetDecoration, widget } from '../../decorations/Decoration.js';
 import { LIST_CSS, LIST_MARKER_WIDTH } from '../../editor/styles/list.js';
+import { isNodeOfType } from '../../model/AttrRegistry.js';
 import { blockId } from '../../model/TypeBrands.js';
+import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
@@ -87,6 +90,29 @@ export class ListPlugin implements Plugin {
 		if (this.config.inputRule !== false) registerListInputRules(context, enabledTypes);
 		registerListToolbarItems(context, enabledTypes, this.locale);
 		this.registerCheckboxClickHandler(context);
+	}
+
+	/**
+	 * Leaf content rendering replaces a NodeSpec element's children, so the
+	 * checklist marker is declared as zero-width view chrome at offset zero.
+	 * Container list items retain the marker created by `toDOM`; only leaf IDs
+	 * occur in `getBlockOrder()` and therefore receive this decoration.
+	 */
+	decorations(state: EditorState): DecorationSet {
+		const markers: WidgetDecoration[] = [];
+		for (const id of state.getBlockOrder()) {
+			const block = state.getBlock(id);
+			if (!block || !isNodeOfType(block, 'list_item') || block.attrs.listType !== 'checklist') {
+				continue;
+			}
+			const checked = block.attrs.checked;
+			markers.push(
+				widget(id, 0, () => createChecklistMarker(checked, this.locale.checkboxLabel), {
+					key: `checklist-marker:${checked}`,
+				}),
+			);
+		}
+		return DecorationSet.create(markers);
 	}
 
 	destroy(): void {

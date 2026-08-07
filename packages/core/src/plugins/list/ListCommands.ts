@@ -40,7 +40,7 @@ export function registerListCommands(
 			toggleChecked(context, { interactiveCheckboxes: config.interactiveCheckboxes, locale });
 
 		context.registerCommand('toggleChecklistItem', toggleChecklistItem, {
-			readonlyAllowed: true,
+			readonlyAllowed: config.interactiveCheckboxes,
 		});
 
 		// Mod-Enter gives keyboard-only users a way to toggle a checklist item
@@ -273,12 +273,25 @@ export function toggleChecked(context: PluginContext, options: ToggleCheckedOpti
 	const nextChecked: boolean = !block.attrs.checked;
 	const attrs = buildListItemAttrs(block.attrs.listType, block.attrs.indent, nextChecked);
 
-	const tr = state
+	const builder = state
 		.transaction('command')
 		.setBlockType(block.id, nodeType('list_item'), attrs)
-		.setSelection(state.selection)
-		.build();
-	context.dispatch(tr);
+		.setSelection(state.selection);
+	if (context.isReadOnly() && interactiveCheckboxes) builder.readonlyAllowed();
+	context.dispatch(builder.build());
+
+	// Dispatch is synchronous, but the production EditorView may reject a
+	// transaction (read-only guard or re-entrant update). Only report/announce a
+	// state transition that actually reached the authoritative editor state.
+	const applied = context.getState().getBlock(block.id);
+	if (
+		!applied ||
+		!isNodeOfType(applied, 'list_item') ||
+		applied.attrs.listType !== 'checklist' ||
+		applied.attrs.checked !== nextChecked
+	) {
+		return false;
+	}
 
 	// The marker is not focused while editing, so the aria-checked change alone is
 	// not spoken — announce the new state explicitly (WCAG 4.1.3).

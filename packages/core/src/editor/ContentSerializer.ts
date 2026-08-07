@@ -5,10 +5,10 @@
  * Every function is stateless — it receives EditorState / Document and returns data.
  */
 
-import type { BlockAttrs, BlockNode, ChildNode } from '../model/Document.js';
+import type { BlockNode, ChildNode } from '../model/Document.js';
 import {
 	type Document,
-	blockAttrsEqual,
+	cloneDocument,
 	createBlockNode,
 	createTextNode,
 	getBlockChildren,
@@ -18,6 +18,7 @@ import {
 	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { formatHTML, normalizeHTMLId } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -38,9 +39,11 @@ import type {
 } from '../serialization/index.js';
 import { EditorState } from '../state/EditorState.js';
 
+export { normalizeCompositeBlocks };
+
 /** Returns the document as JSON from the given state. */
 export function getEditorJSON(state: EditorState): Document {
-	return state.doc;
+	return cloneDocument(state.doc);
 }
 
 /** Replaces editor state from a JSON document. */
@@ -49,9 +52,14 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
+	// Compatibility normalization must precede the strict model clone: persisted
+	// documents from before marks became mandatory can legitimately omit that
+	// field. Both passes are non-mutating; the clone then establishes ownership
+	// before schema callbacks or EditorState observe the document.
 	const withHTMLIds: Document = normalizeHTMLIds(doc);
 	const withMarks: Document = defaultMissingMarks(withHTMLIds);
-	const normalized: Document = registry ? normalizeCompositeBlocks(withMarks, registry) : withMarks;
+	const owned: Document = cloneDocument(withMarks);
+	const normalized: Document = registry ? normalizeCompositeBlocks(owned, registry) : owned;
 	const schema = registry ? schemaFromRegistry(registry) : undefined;
 	const state: EditorState = EditorState.create({
 		doc: normalized,
@@ -125,74 +133,6 @@ function mapPreservingIdentity<T>(items: readonly T[], map: (item: T) => T): rea
 		return next;
 	});
 	return changed ? mapped : items;
-}
-
-/**
- * Normalizes composite blocks so bare inline children are wrapped in paragraphs.
- * Composite blocks (those with a `content` rule, e.g. table_cell) must contain
- * block-level children. When JSON input provides inline children directly,
- * this wraps them in a paragraph to enforce schema consistency.
- */
-export function normalizeCompositeBlocks(doc: Document, registry: SchemaRegistry): Document {
-	const children: readonly BlockNode[] = doc.children.map((block) =>
-		normalizeBlock(block, registry),
-	);
-	return { children };
-}
-
-/** Whether a content rule permits block-level children (beyond bare `text`). */
-function allowsBlockChildren(content: { readonly allow: readonly string[] }): boolean {
-	return content.allow.some((entry) => entry !== 'text');
-}
-
-function normalizeBlock(block: BlockNode, registry: SchemaRegistry): BlockNode {
-	const spec = registry.getNodeSpec(block.type);
-	let normalizedBlock: BlockNode = block;
-
-	if (spec?.content && allowsBlockChildren(spec.content)) {
-		const allowsInline: boolean = spec.content.allow.includes('text');
-
-		if (isLeafBlock(block)) {
-			// A hybrid block (list_item, #194) with inline children is already a valid
-			// leaf. A composite with min: 0 may intentionally be empty (for example a
-			// table row fully covered by rowspans); other pure composites get a paragraph.
-			if (!allowsInline && !(block.children.length === 0 && spec.content.min === 0)) {
-				const children: readonly ChildNode[] | undefined =
-					block.children.length > 0 ? block.children : undefined;
-				const paragraph: BlockNode = createBlockNode(nodeType('paragraph'), children);
-				normalizedBlock = createBlockNode(
-					block.type,
-					[paragraph],
-					block.id,
-					block.attrs,
-					block.htmlId,
-				);
-			}
-		} else {
-			// Block children → recurse, so nested composites get their own invariants.
-			const normalized: readonly ChildNode[] = block.children.map((child) => {
-				if (isTextNode(child) || isInlineNode(child)) return child;
-				return normalizeBlock(child, registry);
-			});
-			normalizedBlock = createBlockNode(
-				block.type,
-				normalized,
-				block.id,
-				block.attrs,
-				block.htmlId,
-			);
-		}
-	}
-
-	const normalizedAttrs: BlockAttrs | undefined = spec?.normalizeAttrs?.(normalizedBlock);
-	if (spec?.normalizeAttrs && !blockAttrsEqual(normalizedBlock.attrs, normalizedAttrs)) {
-		const { attrs: _attrs, ...withoutAttrs } = normalizedBlock;
-		normalizedBlock = {
-			...withoutAttrs,
-			...(normalizedAttrs ? { attrs: normalizedAttrs } : {}),
-		};
-	}
-	return spec?.normalizeNode?.(normalizedBlock) ?? normalizedBlock;
 }
 
 /** Returns sanitized HTML representation of the document. */

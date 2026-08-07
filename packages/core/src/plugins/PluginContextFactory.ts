@@ -7,13 +7,21 @@
 import type { CompositionState } from '../model/CompositionState.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
 import type { InputRule } from '../model/InputRule.js';
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import type { Keymap, KeymapOptions } from '../model/Keymap.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
-import type { MarkdownSyntaxRegistry } from '../model/MarkdownSyntaxRegistry.js';
+import type { MarkSpec } from '../model/MarkSpec.js';
+import type {
+	MarkdownSyntaxExtension,
+	MarkdownSyntaxRegistry,
+} from '../model/MarkdownSyntaxRegistry.js';
+import type { NodeSpec } from '../model/NodeSpec.js';
+import type { ParseRule } from '../model/ParseRule.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
+import type { NodeSpecExtension, SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -40,6 +48,7 @@ import type { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.
 import type { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
 const DEFAULT_PRIORITY = 100;
+const guardedDOMRenderers = new WeakSet<object>();
 
 export interface MiddlewareEntry {
 	readonly name: string;
@@ -56,11 +65,13 @@ export interface PluginRegistrations {
 	textInputInterceptors: TextInputInterceptorEntry[];
 	unsubscribers: (() => void)[];
 	nodeSpecs: string[];
+	nodeSpecExtensions: { readonly type: string; readonly extension: NodeSpecExtension }[];
 	markSpecs: string[];
 	inlineNodeSpecs: string[];
 	nodeViews: string[];
 	keymaps: Keymap[];
 	inputRules: InputRule[];
+	markdownSyntaxExtensions: MarkdownSyntaxExtension[];
 	toolbarItems: string[];
 	fileHandlers: FileHandler[];
 	blockTypePickerEntries: string[];
@@ -85,6 +96,7 @@ export interface ContextFactoryDeps {
 	readonly pluginStyleSheets: CSSStyleSheet[];
 	readonly plugins: Map<string, Plugin>;
 	readonly eventBus: EventBus;
+	readonly callbackExecutor: PluginCallbackExecutor;
 	readonly schemaRegistry: SchemaRegistry;
 	readonly keymapRegistry: KeymapRegistry;
 	readonly inputRuleRegistry: InputRuleRegistry;
@@ -111,11 +123,13 @@ export function createEmptyRegistrations(): PluginRegistrations {
 		textInputInterceptors: [],
 		unsubscribers: [],
 		nodeSpecs: [],
+		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
+		markdownSyntaxExtensions: [],
 		toolbarItems: [],
 		fileHandlers: [],
 		blockTypePickerEntries: [],
@@ -235,23 +249,143 @@ function createMiddlewareRegistrar(
 }
 
 function createSchemaRegistrar(
-	schemaRegistry: SchemaRegistry,
+	deps: Pick<ContextFactoryDeps, 'pluginId' | 'callbackExecutor' | 'schemaRegistry'>,
 	reg: PluginRegistrations,
-): Pick<PluginContext, 'registerNodeSpec' | 'registerMarkSpec' | 'registerInlineNodeSpec'> {
+): Pick<
+	PluginContext,
+	'registerNodeSpec' | 'registerNodeSpecExtension' | 'registerMarkSpec' | 'registerInlineNodeSpec'
+> {
 	return {
 		registerNodeSpec: (spec) => {
-			schemaRegistry.registerNodeSpec(spec);
+			deps.schemaRegistry.registerNodeSpec(
+				guardNodeSpec(spec, deps.pluginId, deps.callbackExecutor),
+			);
 			reg.nodeSpecs.push(spec.type);
 		},
+		registerNodeSpecExtension: (type, extension) => {
+			const guardedExtension: NodeSpecExtension = (spec) => {
+				const outcome = deps.callbackExecutor.execute(
+					{
+						pluginId: deps.pluginId,
+						name: `${type}:extension`,
+						kind: 'schema-extension',
+					},
+					() => extension(spec),
+				);
+				return outcome.ok
+					? guardNodeSpec(outcome.value, deps.pluginId, deps.callbackExecutor)
+					: spec;
+			};
+			deps.schemaRegistry.registerNodeSpecExtension(type, guardedExtension);
+			reg.nodeSpecExtensions.push({ type, extension: guardedExtension });
+		},
 		registerMarkSpec: (spec) => {
-			schemaRegistry.registerMarkSpec(spec);
+			deps.schemaRegistry.registerMarkSpec(
+				guardMarkSpec(spec, deps.pluginId, deps.callbackExecutor),
+			);
 			reg.markSpecs.push(spec.type);
 		},
 		registerInlineNodeSpec: (spec) => {
-			schemaRegistry.registerInlineNodeSpec(spec);
+			deps.schemaRegistry.registerInlineNodeSpec(
+				guardInlineNodeSpec(spec, deps.pluginId, deps.callbackExecutor),
+			);
 			reg.inlineNodeSpecs.push(spec.type);
 		},
 	};
+}
+
+function guardNodeSpec<T extends string>(
+	spec: NodeSpec<T>,
+	pluginId: string,
+	executor: PluginCallbackExecutor,
+): NodeSpec<T> {
+	const parseHTML = guardParseRules(spec.type, spec.parseHTML, pluginId, executor);
+	const originalToDOM = spec.toDOM;
+	const toDOM: NodeSpec<T>['toDOM'] = guardedDOMRenderers.has(originalToDOM)
+		? originalToDOM
+		: (node) => {
+				const outcome = executor.execute(
+					{ pluginId, name: `${spec.type}:toDOM`, kind: 'schema-render' },
+					() => requireHTMLElement(originalToDOM(node), `${spec.type}.toDOM`),
+				);
+				if (outcome.ok) return outcome.value;
+				const fallback = document.createElement('div');
+				fallback.setAttribute('data-block-id', node.id);
+				return fallback;
+			};
+	guardedDOMRenderers.add(toDOM);
+	return { ...spec, toDOM, parseHTML };
+}
+
+function guardMarkSpec<T extends string>(
+	spec: MarkSpec<T>,
+	pluginId: string,
+	executor: PluginCallbackExecutor,
+): MarkSpec<T> {
+	const parseHTML = guardParseRules(spec.type, spec.parseHTML, pluginId, executor);
+	const originalToDOM = spec.toDOM;
+	const toDOM: MarkSpec<T>['toDOM'] = guardedDOMRenderers.has(originalToDOM)
+		? originalToDOM
+		: (mark) => {
+				const outcome = executor.execute(
+					{ pluginId, name: `${spec.type}:toDOM`, kind: 'schema-render' },
+					() => requireHTMLElement(originalToDOM(mark), `${spec.type}.toDOM`),
+				);
+				return outcome.ok ? outcome.value : document.createElement('span');
+			};
+	guardedDOMRenderers.add(toDOM);
+	return { ...spec, toDOM, parseHTML };
+}
+
+function guardInlineNodeSpec<T extends string>(
+	spec: InlineNodeSpec<T>,
+	pluginId: string,
+	executor: PluginCallbackExecutor,
+): InlineNodeSpec<T> {
+	const parseHTML = guardParseRules(spec.type, spec.parseHTML, pluginId, executor);
+	const originalToDOM = spec.toDOM;
+	const toDOM: InlineNodeSpec<T>['toDOM'] = guardedDOMRenderers.has(originalToDOM)
+		? originalToDOM
+		: (node) => {
+				const outcome = executor.execute(
+					{ pluginId, name: `${spec.type}:toDOM`, kind: 'schema-render' },
+					() => requireHTMLElement(originalToDOM(node), `${spec.type}.toDOM`),
+				);
+				if (outcome.ok) return outcome.value;
+				const fallback = document.createElement('span');
+				fallback.setAttribute('data-inline-type', node.inlineType);
+				return fallback;
+			};
+	guardedDOMRenderers.add(toDOM);
+	return { ...spec, toDOM, parseHTML };
+}
+
+function requireHTMLElement(value: unknown, callbackName: string): HTMLElement {
+	if (value instanceof HTMLElement) return value;
+	throw new TypeError(`${callbackName} must return an HTMLElement.`);
+}
+
+function guardParseRules(
+	type: string,
+	rules: readonly ParseRule[] | undefined,
+	pluginId: string,
+	executor: PluginCallbackExecutor,
+): readonly ParseRule[] | undefined {
+	if (!rules?.some((rule) => rule.getAttrs)) return rules;
+	return rules.map((rule) => {
+		const getAttrs = rule.getAttrs;
+		if (!getAttrs) return rule;
+		return {
+			...rule,
+			getAttrs(element: HTMLElement): Record<string, unknown> | false {
+				const outcome = executor.execute(
+					{ pluginId, name: `${type}:${rule.tag}`, kind: 'schema-parse' },
+					() => getAttrs(element),
+				);
+				return outcome.ok ? outcome.value : false;
+			},
+		};
+	});
 }
 
 function createExtensionRegistrar(
@@ -262,6 +396,7 @@ function createExtensionRegistrar(
 		| 'keymapRegistry'
 		| 'inputRuleRegistry'
 		| 'markdownSyntaxRegistry'
+		| 'callbackExecutor'
 		| 'toolbarRegistry'
 		| 'blockTypePickerRegistry'
 		| 'fileHandlerRegistry'
@@ -281,19 +416,27 @@ function createExtensionRegistrar(
 > {
 	return {
 		registerNodeView: (type, factory) => {
-			deps.nodeViewRegistry.registerNodeView(type, factory);
+			deps.nodeViewRegistry.registerNodeView(type, factory, { pluginId, name: type });
 			reg.nodeViews.push(type);
 		},
 		registerKeymap: (keymap: Keymap, options?: KeymapOptions) => {
-			deps.keymapRegistry.registerKeymap(keymap, options);
+			deps.keymapRegistry.registerKeymap(keymap, options, {
+				pluginId,
+				name: Object.keys(keymap).join(', ') || 'anonymous-keymap',
+			});
 			reg.keymaps.push(keymap);
 		},
 		registerInputRule: (rule) => {
-			deps.inputRuleRegistry.registerInputRule(rule);
+			deps.inputRuleRegistry.registerInputRule(rule, {
+				pluginId,
+				name: rule.handler.name || rule.pattern.toString(),
+			});
 			reg.inputRules.push(rule);
 		},
 		registerMarkdownSyntax: (extension) => {
-			deps.markdownSyntaxRegistry.register(extension);
+			const guarded = guardMarkdownSyntaxExtension(extension, pluginId, deps.callbackExecutor);
+			deps.markdownSyntaxRegistry.register(guarded);
+			reg.markdownSyntaxExtensions.push(guarded);
 		},
 		registerToolbarItem: (item) => {
 			deps.toolbarRegistry.registerToolbarItem(item, pluginId);
@@ -304,7 +447,10 @@ function createExtensionRegistrar(
 			reg.blockTypePickerEntries.push(entry.id);
 		},
 		registerFileHandler: (pattern, handler) => {
-			deps.fileHandlerRegistry.registerFileHandler(pattern, handler);
+			deps.fileHandlerRegistry.registerFileHandler(pattern, handler, {
+				pluginId,
+				name: handler.name || pattern,
+			});
 			reg.fileHandlers.push(handler);
 		},
 		registerStyleSheet: (css: string) => {
@@ -314,6 +460,132 @@ function createExtensionRegistrar(
 			reg.stylesheets.push(sheet);
 		},
 	};
+}
+
+function guardMarkdownSyntaxExtension(
+	extension: MarkdownSyntaxExtension,
+	pluginId: string,
+	executor: PluginCallbackExecutor,
+): MarkdownSyntaxExtension {
+	const matchInline = extension.matchInline;
+	const matchBlock = extension.matchBlock;
+	return {
+		...extension,
+		...(matchInline
+			? {
+					matchInline(text: string, index: number) {
+						const outcome = executor.execute(
+							{
+								pluginId,
+								name: `${extension.id}:matchInline`,
+								kind: 'markdown-syntax',
+							},
+							() => validateInlineMarkdownMatch(matchInline(text, index), text.length - index),
+						);
+						return outcome.ok ? outcome.value : null;
+					},
+				}
+			: {}),
+		...(matchBlock
+			? {
+					matchBlock(lines: readonly string[], lineIndex: number) {
+						const outcome = executor.execute(
+							{
+								pluginId,
+								name: `${extension.id}:matchBlock`,
+								kind: 'markdown-syntax',
+							},
+							() =>
+								validateBlockMarkdownMatch(matchBlock(lines, lineIndex), lines.length - lineIndex),
+						);
+						return outcome.ok ? outcome.value : null;
+					},
+				}
+			: {}),
+	};
+}
+
+type MarkdownAttributeValue = string | number | boolean;
+
+interface ValidatedMarkdownMatch {
+	readonly type: string;
+	readonly attrs: Record<string, MarkdownAttributeValue>;
+	readonly consumed: number;
+}
+
+function validateInlineMarkdownMatch(
+	value: unknown,
+	remainingCharacters: number,
+): NonNullable<ReturnType<NonNullable<MarkdownSyntaxExtension['matchInline']>>> | null {
+	const match = validateMarkdownMatch(value, 'length', remainingCharacters);
+	return match ? { type: match.type, attrs: match.attrs, length: match.consumed } : null;
+}
+
+function validateBlockMarkdownMatch(
+	value: unknown,
+	remainingLines: number,
+): NonNullable<ReturnType<NonNullable<MarkdownSyntaxExtension['matchBlock']>>> | null {
+	const match = validateMarkdownMatch(value, 'linesConsumed', remainingLines);
+	return match ? { type: match.type, attrs: match.attrs, linesConsumed: match.consumed } : null;
+}
+
+function validateMarkdownMatch(
+	value: unknown,
+	consumedProperty: 'length' | 'linesConsumed',
+	remainingInput: number,
+): ValidatedMarkdownMatch | null {
+	if (value === null) return null;
+	if (!isRecord(value)) {
+		throw new TypeError('Markdown match must be null or an object descriptor.');
+	}
+
+	const type = value.type;
+	if (typeof type !== 'string' || type.trim().length === 0) {
+		throw new TypeError('Markdown match type must be a non-empty string.');
+	}
+
+	const attrs = validateMarkdownAttributes(value.attrs);
+	const consumed = value[consumedProperty];
+	if (
+		typeof consumed !== 'number' ||
+		!Number.isFinite(consumed) ||
+		!Number.isInteger(consumed) ||
+		consumed <= 0 ||
+		consumed > remainingInput
+	) {
+		throw new TypeError(
+			`Markdown match ${consumedProperty} must be a positive integer within the remaining input.`,
+		);
+	}
+
+	return { type, attrs, consumed };
+}
+
+function validateMarkdownAttributes(value: unknown): Record<string, MarkdownAttributeValue> {
+	if (!isRecord(value)) {
+		throw new TypeError('Markdown match attrs must be an object.');
+	}
+
+	const validatedEntries: [string, MarkdownAttributeValue][] = [];
+	for (const [name, attributeValue] of Object.entries(value)) {
+		if (!isMarkdownAttributeValue(attributeValue)) {
+			throw new TypeError('Markdown match attrs must contain only primitive finite values.');
+		}
+		validatedEntries.push([name, attributeValue]);
+	}
+	return Object.fromEntries(validatedEntries);
+}
+
+function isMarkdownAttributeValue(value: unknown): value is MarkdownAttributeValue {
+	return (
+		typeof value === 'string' ||
+		typeof value === 'boolean' ||
+		(typeof value === 'number' && Number.isFinite(value))
+	);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function createRegistryAccessors(
@@ -367,7 +639,7 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 		...createCommandRegistrar(deps.pluginId, deps.commands, reg, deps.executeCommand),
 		...createServiceRegistrar(deps.services, reg),
 		...createMiddlewareRegistrar(deps, reg),
-		...createSchemaRegistrar(deps.schemaRegistry, reg),
+		...createSchemaRegistrar(deps, reg),
 		...createExtensionRegistrar(deps.pluginId, deps, reg),
 		...createRegistryAccessors(deps),
 

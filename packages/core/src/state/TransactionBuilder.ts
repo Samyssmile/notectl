@@ -26,7 +26,7 @@ import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { findRangesMissingMark, findRangesWithMark } from './InlineContentOps.js';
-import { Mapping, type StepMap } from './Mapping.js';
+import { type StepMap, snapshotStepMap } from './Mapping.js';
 import { applyStep, getStepMap } from './StepHandlers.js';
 import { isMoveNodeNoOp } from './Steps.js';
 import type {
@@ -48,6 +48,12 @@ import type {
 	TransactionOrigin,
 } from './Steps.js';
 import type { Transaction } from './Transaction.js';
+import {
+	sealOwnedTransaction,
+	snapshotOptionalMarks,
+	snapshotSelection,
+	snapshotStep,
+} from './TransactionSnapshot.js';
 
 /** Fluent API for building transactions. */
 export class TransactionBuilder {
@@ -66,9 +72,10 @@ export class TransactionBuilder {
 		origin: TransactionOrigin = 'api',
 		doc?: Document,
 	) {
-		this.selection = currentSelection;
-		this.selectionBefore = currentSelection;
-		this.storedMarks = currentStoredMarks;
+		const ownedSelection = snapshotSelection(currentSelection);
+		this.selection = ownedSelection;
+		this.selectionBefore = ownedSelection;
+		this.storedMarks = snapshotOptionalMarks(currentStoredMarks);
 		this.origin = origin;
 		this.workingDoc = doc ?? null;
 	}
@@ -89,8 +96,7 @@ export class TransactionBuilder {
 			marks,
 			...(segments ? { segments } : {}),
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -123,8 +129,7 @@ export class TransactionBuilder {
 			deletedMarks,
 			deletedSegments: segments,
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -147,8 +152,7 @@ export class TransactionBuilder {
 	/** Adds a split-block step. Updates workingDoc if available. */
 	splitBlock(blockId: BlockId, offset: number, newBlockId: BlockId): this {
 		const step: SplitBlockStep = { type: 'splitBlock', blockId, offset, newBlockId };
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -177,8 +181,7 @@ export class TransactionBuilder {
 			...(sourceAttrs ? { sourceAttrs } : {}),
 			...(sourceHTMLId !== undefined ? { sourceHTMLId } : {}),
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -217,8 +220,7 @@ export class TransactionBuilder {
 		const block: BlockNode | null = this.tryGetBlock(blockId);
 		if (!block) {
 			const step: AddMarkStep = { type: 'addMark', blockId, from, to, mark };
-			this.steps.push(step);
-			this.advanceDoc(step);
+			this.appendStep(step);
 			return this;
 		}
 
@@ -231,8 +233,7 @@ export class TransactionBuilder {
 				to: range.to,
 				mark,
 			};
-			this.steps.push(step);
-			this.advanceDoc(step);
+			this.appendStep(step);
 		}
 		return this;
 	}
@@ -251,8 +252,7 @@ export class TransactionBuilder {
 		const block: BlockNode | null = this.tryGetBlock(blockId);
 		if (!block) {
 			const step: RemoveMarkStep = { type: 'removeMark', blockId, from, to, mark };
-			this.steps.push(step);
-			this.advanceDoc(step);
+			this.appendStep(step);
 			return this;
 		}
 
@@ -265,8 +265,7 @@ export class TransactionBuilder {
 				to: range.to,
 				mark: range.mark,
 			};
-			this.steps.push(step);
-			this.advanceDoc(step);
+			this.appendStep(step);
 		}
 		return this;
 	}
@@ -283,16 +282,19 @@ export class TransactionBuilder {
 			previousNodeType: block.type,
 			...(block.attrs ? { previousAttrs: block.attrs } : {}),
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
 	/** Inserts a node as a child of the parent at the given path and index. */
 	insertNode(parentPath: readonly BlockId[], index: number, node: BlockNode): this {
-		const step: InsertNodeStep = { type: 'insertNode', parentPath, index, node };
-		this.steps.push(step);
-		this.advanceDoc(step);
+		const step: InsertNodeStep = {
+			type: 'insertNode',
+			parentPath,
+			index,
+			node,
+		};
+		this.appendStep(step);
 		return this;
 	}
 
@@ -308,8 +310,7 @@ export class TransactionBuilder {
 		}
 
 		const step: RemoveNodeStep = { type: 'removeNode', parentPath, index, removedNode };
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -354,8 +355,7 @@ export class TransactionBuilder {
 			movedNode,
 		};
 		if (isMoveNodeNoOp(step)) return this;
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -374,8 +374,7 @@ export class TransactionBuilder {
 			attrs,
 			...(node.attrs ? { previousAttrs: node.attrs } : {}),
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -387,8 +386,7 @@ export class TransactionBuilder {
 			offset,
 			node,
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -406,8 +404,7 @@ export class TransactionBuilder {
 			offset,
 			removedNode: content.node,
 		};
-		this.steps.push(step);
-		this.advanceDoc(step);
+		this.appendStep(step);
 		return this;
 	}
 
@@ -430,8 +427,7 @@ export class TransactionBuilder {
 					attrs,
 					previousAttrs: child.attrs,
 				};
-				this.steps.push(step);
-				this.advanceDoc(step);
+				this.appendStep(step);
 				return this;
 			}
 			pos += isInlineNode(child) ? 1 : child.text.length;
@@ -447,38 +443,37 @@ export class TransactionBuilder {
 
 	/** Sets the selection for the resulting state. */
 	setSelection(selection: EditorSelection): this {
-		this.selection = selection;
+		this.selection = snapshotSelection(selection);
 		return this;
 	}
 
 	/** Sets a NodeSelection for the resulting state. */
 	setNodeSelection(nodeId: BlockId, path: readonly BlockId[]): this {
-		this.selection = createNodeSelection(nodeId, path);
+		this.selection = snapshotSelection(createNodeSelection(nodeId, path));
 		return this;
 	}
 
 	/** Sets stored marks for the resulting state. */
 	setStoredMarks(marks: readonly Mark[] | null, previousMarks: readonly Mark[] | null): this {
-		this.steps.push({ type: 'setStoredMarks', marks, previousMarks });
-		this.storedMarks = marks;
+		this.appendStep({ type: 'setStoredMarks', marks, previousMarks });
+		this.storedMarks = snapshotOptionalMarks(marks);
 		return this;
 	}
 
 	/** Builds the final transaction. */
 	build(): Transaction {
-		return {
-			steps: [...this.steps],
+		return sealOwnedTransaction({
+			steps: this.steps,
 			selectionBefore: this.selectionBefore,
 			selectionAfter: this.selection,
 			storedMarksAfter: this.storedMarks,
-			mapping: Mapping.from(this.stepMaps),
-			forwardStepMaps: [...this.stepMaps],
+			forwardStepMaps: this.stepMaps,
 			metadata: {
 				origin: this.origin,
 				timestamp: Date.now(),
 				...(this._readonlyAllowed ? { readonlyAllowed: true } : {}),
 			},
-		};
+		});
 	}
 
 	/** Returns the working document or throws if not available. */
@@ -511,6 +506,13 @@ export class TransactionBuilder {
 		return findNode(this.workingDoc, blockId) ?? null;
 	}
 
+	/** Takes ownership of one step before it reaches working state or transaction history. */
+	private appendStep(step: Step): void {
+		const ownedStep = snapshotStep(step);
+		this.steps.push(ownedStep);
+		this.advanceDoc(ownedStep);
+	}
+
 	/**
 	 * Advances the working document by applying a step and records its
 	 * position-mapping. The map is computed against the pre-apply document
@@ -524,7 +526,7 @@ export class TransactionBuilder {
 	 */
 	private advanceDoc(step: Step): void {
 		const docBefore: Document = this.workingDoc ?? EMPTY_DOC;
-		this.stepMaps.push(getStepMap(docBefore, step));
+		this.stepMaps.push(snapshotStepMap(getStepMap(docBefore, step)));
 		if (this.workingDoc) {
 			this.workingDoc = applyStep(this.workingDoc, step);
 		}

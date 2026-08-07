@@ -183,21 +183,20 @@ export function registerCodeBlockPasteInterceptor(context: PluginContext): void 
 	});
 }
 
-/** Extends `table_cell` content to allow nested code blocks, if not already allowed. */
-export function patchTableCellContent(context: PluginContext): void {
-	const registry = context.getSchemaRegistry();
-	const cellSpec = registry.getNodeSpec('table_cell');
-	if (!cellSpec?.content) return;
-
-	const currentAllow: readonly string[] = cellSpec.content.allow ?? [];
-	if (currentAllow.includes('code_block')) return;
-
-	registry.removeNodeSpec('table_cell');
-	registry.registerNodeSpec({
-		...cellSpec,
-		content: {
-			...cellSpec.content,
-			allow: [...currentAllow, 'code_block'],
-		},
+/**
+ * Declares cross-plugin schema capabilities. The extension is retained even if
+ * TablePlugin has not registered `table_cell` yet and is composed at schema
+ * finalization, so plugin priority is not a hidden dependency.
+ */
+export function registerCodeBlockSchemaExtensions(context: PluginContext): void {
+	context.registerNodeSpecExtension('table_cell', (cellSpec) => {
+		if (!cellSpec.content || cellSpec.content.allow.includes('code_block')) return cellSpec;
+		return {
+			...cellSpec,
+			content: {
+				...cellSpec.content,
+				allow: [...cellSpec.content.allow, 'code_block'],
+			},
+		};
 	});
 }

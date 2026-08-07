@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createBlockNode, createTextNode } from '../../model/Document.js';
 import { type BlockId, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import { HistoryManager } from '../../state/History.js';
+import type { Transaction } from '../../state/Transaction.js';
 import { makeBlockState, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
 import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
@@ -131,6 +133,31 @@ describe('TextDirectionAutoPlugin', () => {
 			h.dispatch(tr);
 
 			expect(h.getState().doc.children[0]?.attrs?.dir).toBe('ltr');
+		});
+
+		it('keeps appended direction steps frame-complete so undo restores auto', async () => {
+			const state: EditorState = makeState([
+				{ type: 'paragraph', text: '', id: 'b1', attrs: { dir: 'auto' } },
+			]);
+			const h = await pluginHarness([...plugins()], state, HARNESS_OPTIONS);
+			const source = state
+				.transaction('input')
+				.insertText('b1' as BlockId, 0, 'Hello')
+				.build();
+			const dispatched: Transaction[] = [];
+			h.pm.dispatchWithMiddleware(source, state, (transaction) => dispatched.push(transaction));
+			const finalized = dispatched[0];
+			if (!finalized) throw new Error('Expected auto-direction middleware to dispatch.');
+			const edited = state.apply(finalized);
+			const history = new HistoryManager();
+			history.push(finalized);
+
+			const undone = history.undo(edited);
+
+			expect(finalized.steps).toHaveLength(2);
+			expect(finalized.forwardStepMaps).toHaveLength(2);
+			expect(undone?.state.doc.children[0]?.attrs?.dir).toBe('auto');
+			expect(undone?.state.doc.children[0]?.children[0]).toMatchObject({ text: '' });
 		});
 
 		it('does not change dir for non-empty blocks with explicit direction', async () => {

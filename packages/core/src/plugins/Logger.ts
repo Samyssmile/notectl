@@ -88,16 +88,28 @@ export function scopedLogger(base: Logger, scope: string): Logger {
 	const prefix = `[${scope}]`;
 	return {
 		error(message: string, cause?: unknown): void {
-			base.error(`${prefix} ${message}`, cause);
+			invokeLogger(() => base.error(`${prefix} ${message}`, cause));
 		},
 		warn(message: string, cause?: unknown): void {
-			base.warn(`${prefix} ${message}`, cause);
+			invokeLogger(() => base.warn(`${prefix} ${message}`, cause));
 		},
 		info(message: string, cause?: unknown): void {
-			base.info(`${prefix} ${message}`, cause);
+			invokeLogger(() => base.info(`${prefix} ${message}`, cause));
 		},
 		debug(message: string, cause?: unknown): void {
-			base.debug(`${prefix} ${message}`, cause);
+			invokeLogger(() => base.debug(`${prefix} ${message}`, cause));
 		},
 	};
+}
+
+/** Keeps application-owned telemetry from escaping editor recovery boundaries. */
+function invokeLogger(callback: () => void): void {
+	try {
+		const result: unknown = callback();
+		if (result !== null && (typeof result === 'object' || typeof result === 'function')) {
+			void Promise.resolve(result).then(undefined, () => undefined);
+		}
+	} catch {
+		// Logging is best-effort and must never become a second runtime failure.
+	}
 }
