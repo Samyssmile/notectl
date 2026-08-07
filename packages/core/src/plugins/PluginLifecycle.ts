@@ -35,6 +35,10 @@ export class PluginLifecycle {
 	private startedInitOrder: string[] = [];
 	private initialized = false;
 	private initializing = false;
+	private destroying = false;
+	private lifecycleVersion = 0;
+	private pendingInit: Promise<void> | null = null;
+	private pendingDestroy: Promise<void> | null = null;
 	private readOnly = false;
 	private readonly log: Logger;
 
@@ -49,7 +53,7 @@ export class PluginLifecycle {
 
 	/** Registers a plugin. Must be called before init(). */
 	register(plugin: Plugin): void {
-		if (this.initialized || this.initializing) {
+		if (this.initialized || this.initializing || this.destroying) {
 			throw new Error(`Cannot register plugin "${plugin.id}" after initialization.`);
 		}
 		if (this.plugins.has(plugin.id)) {
@@ -71,36 +75,74 @@ export class PluginLifecycle {
 	// --- Initialization ---
 
 	/** Initializes all registered plugins in dependency/priority order. */
-	async init(options: PluginLifecycleInitOptions, createContext: ContextFactory): Promise<void> {
-		if (this.initialized || this.initializing) return;
+	init(options: PluginLifecycleInitOptions, createContext: ContextFactory): Promise<void> {
+		if (this.destroying) {
+			return Promise.reject(
+				new Error('Cannot initialize plugins while destruction is in progress.'),
+			);
+		}
+		if (this.initialized) return Promise.resolve();
+		if (this.pendingInit) return this.pendingInit;
+
 		this.initializing = true;
+		const version = this.lifecycleVersion;
+		const operation = Promise.resolve().then(() =>
+			this.runInitialization(options, createContext, version),
+		);
+		const tracked = operation.finally(() => {
+			if (this.pendingInit !== tracked) return;
+			this.pendingInit = null;
+			this.initializing = false;
+		});
+		this.pendingInit = tracked;
+		return tracked;
+	}
+
+	private async runInitialization(
+		options: PluginLifecycleInitOptions,
+		createContext: ContextFactory,
+		version: number,
+	): Promise<void> {
+		const isCancelled = (): boolean =>
+			version !== this.lifecycleVersion || options.isCancelled?.() === true;
 		try {
 			this.initOrder = this.resolveOrder();
 
 			for (const id of this.initOrder) {
-				if (options.isCancelled?.()) return;
+				if (isCancelled()) {
+					await this.rollbackStartedPlugins();
+					return;
+				}
 				const plugin = this.plugins.get(id);
 				if (!plugin) continue;
 				this.startedInitOrder.push(id);
 				const context = createContext(id, options);
-				try {
-					await plugin.init(context);
-				} catch (err) {
+				await plugin.init(context);
+				if (isCancelled()) {
 					await this.rollbackStartedPlugins();
-					throw err;
+					return;
 				}
 			}
 
-			if (options.isCancelled?.()) return;
+			if (isCancelled()) {
+				await this.rollbackStartedPlugins();
+				return;
+			}
 
 			if (options.onBeforeReady) {
 				await options.onBeforeReady();
 			}
 
-			if (options.isCancelled?.()) return;
+			if (isCancelled()) {
+				await this.rollbackStartedPlugins();
+				return;
+			}
 
 			for (const id of this.initOrder) {
-				if (options.isCancelled?.()) return;
+				if (isCancelled()) {
+					await this.rollbackStartedPlugins();
+					return;
+				}
 				const plugin = this.plugins.get(id);
 				if (!plugin?.onReady) continue;
 				try {
@@ -108,18 +150,52 @@ export class PluginLifecycle {
 				} catch (err) {
 					this.log.error(`Plugin "${id}" error in onReady`, err);
 				}
+				if (isCancelled()) {
+					await this.rollbackStartedPlugins();
+					return;
+				}
 			}
 
+			if (isCancelled()) {
+				await this.rollbackStartedPlugins();
+				return;
+			}
 			this.initialized = true;
-		} finally {
-			this.initializing = false;
+		} catch (err) {
+			await this.rollbackStartedPlugins();
+			throw err;
 		}
 	}
 
 	// --- Destruction ---
 
 	/** Destroys all plugins in reverse init order. */
-	async destroy(): Promise<void> {
+	destroy(): Promise<void> {
+		if (this.pendingDestroy) return this.pendingDestroy;
+
+		this.destroying = true;
+		this.lifecycleVersion += 1;
+		const activeInit = this.pendingInit;
+		const operation = Promise.resolve().then(() => this.runDestruction(activeInit));
+		const tracked = operation.finally(() => {
+			if (this.pendingDestroy !== tracked) return;
+			this.pendingDestroy = null;
+			this.destroying = false;
+		});
+		this.pendingDestroy = tracked;
+		return tracked;
+	}
+
+	private async runDestruction(activeInit: Promise<void> | null): Promise<void> {
+		if (activeInit) {
+			try {
+				await activeInit;
+			} catch {
+				// The init caller retains the attributed failure. Destruction still owns
+				// deterministic cleanup and therefore proceeds after rollback completes.
+			}
+		}
+
 		const reversed = [...this.startedInitOrder].reverse();
 		for (const id of reversed) {
 			await this.destroyPlugin(id);
@@ -153,7 +229,7 @@ export class PluginLifecycle {
 			const plugin = this.plugins.get(id);
 			if (!plugin?.decorations) continue;
 			try {
-				const decos = plugin.decorations(state, tr);
+				const decos = plugin.decorations(state, tr).withWidgetOwner(id);
 				if (!decos.isEmpty) {
 					result = result.merge(decos);
 				}

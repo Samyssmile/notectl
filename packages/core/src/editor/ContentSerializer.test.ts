@@ -37,13 +37,22 @@ function emptyParagraphDoc(): ReturnType<typeof createDocument> {
 }
 
 describe('getEditorJSON', () => {
-	it('returns the document from state', () => {
+	it('returns a detached document snapshot', () => {
 		const doc = singleParagraphDoc('hello');
 		const state: EditorState = EditorState.create({ doc });
+		state.getBlockOrder();
 
 		const result = getEditorJSON(state);
+		(result.children as BlockNode[]).push(
+			createBlockNode(nodeType('paragraph'), [createTextNode('external')], blockId('b2')),
+		);
+		const firstText = result.children[0]?.children[0] as { text: string } | undefined;
+		if (firstText) firstText.text = 'mutated';
 
-		expect(result).toBe(doc);
+		expect(result).not.toBe(state.doc);
+		expect(state.doc.children).toHaveLength(1);
+		expect(getBlockText(state.doc.children[0] as BlockNode)).toBe('hello');
+		expect(state.getBlockOrder()).toEqual(['b1']);
 	});
 });
 
@@ -92,9 +101,16 @@ describe('setEditorJSON', () => {
 		};
 
 		setEditorJSON(doc, undefined, replaceState);
+		(doc.children as BlockNode[]).push(
+			createBlockNode(nodeType('paragraph'), [createTextNode('later')], blockId('b2')),
+		);
+		const sourceText = doc.children[0]?.children[0] as { text: string } | undefined;
+		if (sourceText) sourceText.text = 'mutated after import';
 
 		expect(captured).not.toBeNull();
-		expect(captured?.doc).toBe(doc);
+		expect(captured?.doc).not.toBe(doc);
+		expect(captured?.doc.children).toHaveLength(1);
+		expect(getBlockText(captured?.doc.children[0] as BlockNode)).toBe('new content');
 	});
 
 	it('sets selection to first block offset 0', () => {
@@ -621,6 +637,56 @@ describe('normalizeCompositeBlocks', () => {
 		expect(paraChildren).toHaveLength(2);
 		expect(paraChildren[0]).toMatchObject({ type: 'text', text: 'Hello ' });
 		expect(paraChildren[1]).toMatchObject({ type: 'text', text: 'World' });
+	});
+
+	it('wraps inline runs around existing block children without losing their order', () => {
+		const registry = createTableRegistry();
+		const leadingText = createTextNode('Before ');
+		const leadingInline = createInlineNode(inlineType('mention'), { id: 'samuel' });
+		const firstExistingParagraph = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('First block')],
+			blockId('p1'),
+		);
+		const betweenText = createTextNode(' Between ');
+		const secondExistingParagraph = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('Second block')],
+			blockId('p2'),
+		);
+		const trailingText = createTextNode(' After');
+		const doc = createDocument([
+			createBlockNode(
+				nodeType('table_cell'),
+				[
+					leadingText,
+					leadingInline,
+					firstExistingParagraph,
+					betweenText,
+					secondExistingParagraph,
+					trailingText,
+				],
+				blockId('cell1'),
+			),
+		]);
+
+		const result = normalizeCompositeBlocks(doc, registry);
+
+		const cell = result.children[0] as BlockNode;
+		const children = getBlockChildren(cell);
+		expect(cell.children).toHaveLength(5);
+		expect(children.map((child) => child.type)).toEqual([
+			'paragraph',
+			'paragraph',
+			'paragraph',
+			'paragraph',
+			'paragraph',
+		]);
+		expect(children[0]?.children).toEqual([leadingText, leadingInline]);
+		expect(children[1]).toBe(firstExistingParagraph);
+		expect(children[2]?.children).toEqual([betweenText]);
+		expect(children[3]).toBe(secondExistingParagraph);
+		expect(children[4]?.children).toEqual([trailingText]);
 	});
 
 	it('handles empty composite block children with default text node', () => {

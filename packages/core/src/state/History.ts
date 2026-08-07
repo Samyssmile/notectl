@@ -26,6 +26,8 @@ import { mapSelection } from './SelectionMapping.js';
 import { applyStep, getStepMap, invertStep, mapStep } from './StepHandlers.js';
 import { deriveStoredMarksBefore } from './StepInversion.js';
 import type { Step, Transaction } from './Transaction.js';
+import { finalizeTransaction } from './TransactionFinalizer.js';
+import { sealOwnedTransaction, snapshotSelection } from './TransactionSnapshot.js';
 
 export interface HistoryResult {
 	readonly state: EditorState;
@@ -281,19 +283,22 @@ function rebaseGroupForReplay(
 
 	const storedMarksAfter: readonly Mark[] | null = deriveStoredMarksAfterReplay(group);
 
-	const summaryTr: Transaction = {
-		steps: rebasedSteps,
-		selectionBefore: state.selection,
-		selectionAfter: state.selection, // overwritten below with the mapped selection
-		storedMarksAfter,
-		mapping: Mapping.from(rebasedStepMaps),
-		forwardStepMaps: rebasedStepMaps,
-		metadata: {
-			origin: 'history',
-			timestamp: Date.now(),
-			historyDirection: direction,
+	const summaryTr: Transaction = finalizeTransaction(
+		{
+			steps: rebasedSteps,
+			selectionBefore: state.selection,
+			selectionAfter: state.selection, // overwritten below with the mapped selection
+			storedMarksAfter,
+			mapping: Mapping.from(rebasedStepMaps),
+			forwardStepMaps: rebasedStepMaps,
+			metadata: {
+				origin: 'history',
+				timestamp: Date.now(),
+				historyDirection: direction,
+			},
 		},
-	};
+		state.doc,
+	);
 
 	let newState: EditorState = state.apply(summaryTr);
 
@@ -308,10 +313,14 @@ function rebaseGroupForReplay(
 		}
 	}
 
-	const finalTr: Transaction = {
-		...summaryTr,
-		selectionAfter: newState.selection,
-	};
+	const finalTr: Transaction = sealOwnedTransaction({
+		steps: summaryTr.steps,
+		selectionBefore: summaryTr.selectionBefore,
+		selectionAfter: snapshotSelection(newState.selection),
+		storedMarksAfter: summaryTr.storedMarksAfter,
+		forwardStepMaps: summaryTr.forwardStepMaps,
+		metadata: summaryTr.metadata,
+	});
 
 	return { newState, transaction: finalTr };
 }

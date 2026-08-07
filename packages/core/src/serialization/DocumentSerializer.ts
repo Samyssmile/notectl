@@ -3,7 +3,6 @@
  * Pure functions — operates on Document/SchemaRegistry, no class state.
  */
 
-import DOMPurify from 'dompurify';
 import { isNodeOfType } from '../model/AttrRegistry.js';
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
@@ -20,7 +19,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
-import { preserveHTMLIdSanitizeConfig } from './HTMLSanitization.js';
+import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import {
 	buildMarkOrder,
 	serializeInlineNodeMarksToClassHTML,
@@ -259,12 +258,16 @@ export function serializeDocumentToHTML(
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir', 'id'];
 
-	return DOMPurify.sanitize(html, {
-		ALLOWED_TAGS: allowedTags,
-		ALLOWED_ATTR: allowedAttrs,
-		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
-		...blockIdSanitizeConfig(includeBlockIds),
-	});
+	return sanitizeHTML(
+		html,
+		{
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: allowedAttrs,
+			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			...blockIdSanitizeConfig(includeBlockIds),
+		},
+		registry,
+	);
 }
 
 /**
@@ -297,12 +300,16 @@ export function serializeDocumentToCSS(
 	// zero inline styles — even from third-party plugins that forgot to use ctx.styleAttr().
 	const filteredAttrs: string[] = withClass.filter((attr) => attr !== 'style');
 
-	const sanitizedHTML: string = DOMPurify.sanitize(html, {
-		ALLOWED_TAGS: allowedTags,
-		ALLOWED_ATTR: filteredAttrs,
-		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
-		...blockIdSanitizeConfig(includeBlockIds),
-	});
+	const sanitizedHTML: string = sanitizeHTML(
+		html,
+		{
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: filteredAttrs,
+			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			...blockIdSanitizeConfig(includeBlockIds),
+		},
+		registry,
+	);
 
 	return { html: sanitizedHTML, css: collector.toCSS(), styleMap: collector.toStyleMap() };
 }

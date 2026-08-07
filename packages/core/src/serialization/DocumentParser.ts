@@ -3,7 +3,6 @@
  * Pure functions — no class state, no DOM mutation beyond a temporary `<template>`.
  */
 
-import DOMPurify from 'dompurify';
 import { hoistDisallowedBlocks } from '../model/ContentModel.js';
 import type {
 	BlockAttrValue,
@@ -27,7 +26,7 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
-import { preserveHTMLIdSanitizeConfig } from './HTMLSanitization.js';
+import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
 import {
 	MAX_SERIALIZED_TABLE_COLUMNS,
@@ -69,12 +68,16 @@ export function parseHTMLToDocument(
 	}
 
 	const template = document.createElement('template');
-	template.innerHTML = DOMPurify.sanitize(html, {
-		ALLOWED_TAGS: allowedTags,
-		ALLOWED_ATTR: allowedAttrs,
-		ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
-		...preserveHTMLIdSanitizeConfig(),
-	});
+	template.innerHTML = sanitizeHTML(
+		html,
+		{
+			ALLOWED_TAGS: allowedTags,
+			ALLOWED_ATTR: allowedAttrs,
+			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+			...preserveHTMLIdSanitizeConfig(),
+		},
+		registry,
+	);
 	const root: DocumentFragment = template.content;
 
 	// Rehydrate class-based HTML: convert notectl class names back to inline styles

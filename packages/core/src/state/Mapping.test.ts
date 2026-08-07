@@ -304,6 +304,34 @@ describe('collectRemovedBlockIds', () => {
 // --- Mapping ---
 
 describe('Mapping', () => {
+	it('owns StepMap payloads and exposes immutable structural ID sets', () => {
+		const parentPath = [B1];
+		const removedBlockIds = new Set([B2]);
+		const source: BlockRemovalMap = {
+			type: 'blockRemoval',
+			removedBlockIds,
+			parentPath,
+			index: 1,
+		};
+		const mapping = Mapping.from([source]);
+
+		parentPath[0] = B3;
+		removedBlockIds.clear();
+		(source as { index: number }).index = 99;
+
+		expect(mapping.mapResult(pos(B2, 0)).deleted).toBe(true);
+		expect(mapChildIndex([B1], 2, mapping)).toBe(1);
+		const owned = mapping.maps[0];
+		expect(owned?.type).toBe('blockRemoval');
+		if (owned?.type === 'blockRemoval') {
+			expect(Object.isFrozen(owned)).toBe(true);
+			expect(Object.isFrozen(owned.parentPath)).toBe(true);
+			expect(Object.isFrozen(owned.removedBlockIds)).toBe(true);
+			expect(() => (owned.removedBlockIds as Set<typeof B2>).clear()).toThrow(TypeError);
+			expect(owned.removedBlockIds.has(B2)).toBe(true);
+		}
+	});
+
 	it('Mapping.empty returns the same instance', () => {
 		expect(Mapping.from([])).toBe(Mapping.empty);
 		expect(Mapping.from([IDENTITY_MAP, IDENTITY_MAP])).toBe(Mapping.empty);

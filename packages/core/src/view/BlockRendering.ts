@@ -6,25 +6,31 @@
  * inline nodes) into block containers.
  */
 
-import type { InlineDecoration } from '../decorations/Decoration.js';
-import type { NodeAttrsFor } from '../model/AttrRegistry.js';
-import type { BlockNode, TextNode } from '../model/Document.js';
 import {
-	getBlockChildren,
-	getInlineChildren,
-	isInlineNode,
-	isLeafBlock,
-	isTextNode,
-} from '../model/Document.js';
+	type Decoration,
+	type InlineDecoration,
+	type WidgetDecoration,
+	decorationArraysEqual,
+} from '../decorations/Decoration.js';
+import type { NodeAttrsFor } from '../model/AttrRegistry.js';
+import type { BlockNode } from '../model/Document.js';
+import { getBlockChildren, getInlineChildren, isLeafBlock } from '../model/Document.js';
 import { normalizeHTMLId } from '../model/HTMLUtils.js';
+import type { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { wrapBlocks } from './BlockWrapperManagement.js';
-import { applyNodeDecorations, renderDecoratedContent } from './DecorationRendering.js';
+import {
+	type WidgetDOMPool,
+	applyNodeDecorations,
+	renderDecoratedContent,
+} from './DecorationRendering.js';
 import { createBlockElement } from './DomUtils.js';
-import { preserveSpaces, renderInlineNode } from './InlineRendering.js';
-import { wrapNodeWithMarks } from './MarkRendering.js';
 import type { NodeView } from './NodeView.js';
+import { createGuardedNodeView } from './NodeViewCallbackBoundary.js';
+import { registerNodeView } from './NodeViewOwnership.js';
 import type { ReconcileOptions } from './Reconciler.js';
+
+const renderedContentDecorations = new WeakMap<HTMLElement, readonly Decoration[]>();
 
 /** Renders a block node to a DOM element, using registry specs or NodeViews. */
 export function renderBlock(
@@ -34,14 +40,21 @@ export function renderBlock(
 	options?: ReconcileOptions,
 ): HTMLElement {
 	const inlineDecos = options?.decorations?.findInline(block.id);
+	const widgetDecos = options?.decorations?.findWidget(block.id);
 
 	// 1. Try NodeViewFactory
 	const nodeViewRegistry = options?.nodeViewRegistry;
 	if (nodeViewRegistry && registry && nodeViews && options?.getState && options?.dispatch) {
-		const factory = nodeViewRegistry.getNodeViewFactory(block.type);
-		if (factory) {
-			const nv: NodeView = factory(block, options.getState, options.dispatch);
-			nodeViews.set(block.id, nv);
+		const entry = nodeViewRegistry.getNodeViewEntry(block.type);
+		if (entry) {
+			const nv = createGuardedNodeView(
+				entry,
+				block,
+				options.getState,
+				options.dispatch,
+				options.callbackExecutor,
+			);
+			if (!nv) return renderNodeSpecOrFallback(block, registry, nodeViews, options);
 
 			// Mark void blocks
 			const nvSpec = registry.getNodeSpec(block.type);
@@ -60,36 +73,47 @@ export function renderBlock(
 			// Render children into NodeView content area
 			if (isLeafBlock(block) && nv.contentDOM) {
 				// Leaf blocks: render inline content (TextNodes) into contentDOM
-				renderBlockContent(nv.contentDOM, block, registry, inlineDecos);
+				renderBlockContent(
+					nv.contentDOM,
+					block,
+					registry,
+					inlineDecos,
+					widgetDecos,
+					options?.widgetDOMPool,
+					options?.callbackExecutor,
+				);
 			} else {
-				// Container blocks: recursively render block children
-				const blockChildren = getBlockChildren(block);
-				const contentDOMChildren = new Map<HTMLElement, BlockNode[]>();
-				for (const child of blockChildren) {
-					const contentDOM = nv.getContentDOM?.(child.id) ?? nv.contentDOM;
-					if (contentDOM) {
-						const childEl: HTMLElement = renderBlock(child, registry, nodeViews, options);
-						contentDOM.appendChild(childEl);
-						let arr = contentDOMChildren.get(contentDOM);
-						if (!arr) {
-							arr = [];
-							contentDOMChildren.set(contentDOM, arr);
-						}
-						arr.push(child);
-					}
-				}
-				// Wrap blocks in each contentDOM (e.g., list items in table cells → <ul>/<ol>)
-				for (const [dom, children] of contentDOMChildren) {
-					wrapBlocks(dom, children, registry);
-				}
+				renderBlockChildren(
+					block,
+					(child) => nv.getContentDOM?.(child.id) ?? nv.contentDOM,
+					registry,
+					nodeViews,
+					options,
+				);
 			}
 
 			syncBlockHTMLId(nv.dom, block);
 			nv.dom.setAttribute('data-block-type', block.type);
 			applyNodeDecorations(nv.dom, block.id, options);
+			// Register after descendants so a moved/replaced subtree releases old
+			// child owners before replacing the old parent registration.
+			registerNodeView(nodeViews, block.id, nv);
 			return nv.dom;
 		}
 	}
+
+	return renderNodeSpecOrFallback(block, registry, nodeViews, options);
+}
+
+/** Renders through the schema callback, then the core paragraph fallback. */
+function renderNodeSpecOrFallback(
+	block: BlockNode,
+	registry?: SchemaRegistry,
+	nodeViews?: Map<string, NodeView>,
+	options?: ReconcileOptions,
+): HTMLElement {
+	const inlineDecos = options?.decorations?.findInline(block.id);
+	const widgetDecos = options?.decorations?.findWidget(block.id);
 
 	// 2. Try NodeSpec
 	if (registry) {
@@ -106,16 +130,17 @@ export function renderBlock(
 			}
 			if (!spec.isVoid) {
 				if (isLeafBlock(block)) {
-					renderBlockContent(el, block, registry, inlineDecos);
+					renderBlockContent(
+						el,
+						block,
+						registry,
+						inlineDecos,
+						widgetDecos,
+						options?.widgetDOMPool,
+						options?.callbackExecutor,
+					);
 				} else {
-					// Render block children recursively
-					const blockChildren = getBlockChildren(block);
-					for (const child of blockChildren) {
-						const childEl: HTMLElement = renderBlock(child, registry, nodeViews, options);
-						el.appendChild(childEl);
-					}
-					// Wrap blocks (e.g., list items → <ul>/<ol>)
-					wrapBlocks(el, blockChildren, registry);
+					renderBlockChildren(block, () => el, registry, nodeViews, options);
 				}
 			}
 			syncBlockHTMLId(el, block);
@@ -126,7 +151,14 @@ export function renderBlock(
 	}
 
 	// 3. Fallback — render as paragraph
-	return renderParagraphFallback(block, registry, inlineDecos);
+	return renderParagraphFallback(
+		block,
+		registry,
+		inlineDecos,
+		widgetDecos,
+		options?.widgetDOMPool,
+		options?.callbackExecutor,
+	);
 }
 
 /**
@@ -156,56 +188,116 @@ export function renderBlockContent(
 	block: BlockNode,
 	registry?: SchemaRegistry,
 	inlineDecos?: readonly InlineDecoration[],
+	widgetDecos?: readonly WidgetDecoration[],
+	widgetDOMPool?: WidgetDOMPool,
+	callbackExecutor?: PluginCallbackExecutor,
 ): void {
-	// Remove stale CursorWrapper spans that may survive into reconciliation
-	for (const el of container.querySelectorAll('[data-cursor-wrapper]')) {
-		el.remove();
-	}
-
 	const inlineChildren = getInlineChildren(block);
-
-	// Empty block: single empty text node → render <br> placeholder
-	if (
-		inlineChildren.length === 1 &&
-		isTextNode(inlineChildren[0]) &&
-		inlineChildren[0].text === ''
-	) {
-		container.appendChild(document.createElement('br'));
-		return;
-	}
-
-	// Fast path: no inline decorations
-	if (!inlineDecos || inlineDecos.length === 0) {
-		for (const child of inlineChildren) {
-			if (isTextNode(child)) {
-				container.appendChild(renderTextNode(child, registry));
-			} else {
-				container.appendChild(
-					wrapNodeWithMarks(renderInlineNode(child, registry), child.marks, registry),
-				);
-			}
-		}
-	} else {
-		// Decorated path: split content into micro-segments
-		renderDecoratedContent(container, inlineChildren, inlineDecos, registry);
-	}
-
-	// Trailing <br> hack: when the last child is a hard_break InlineNode,
-	// browsers won't render an empty line after a trailing <br>.
-	// Append an extra plain <br> so the cursor can be placed on the new line.
-	const lastChild = inlineChildren[inlineChildren.length - 1];
-	if (lastChild && isInlineNode(lastChild) && lastChild.inlineType === 'hard_break') {
-		container.appendChild(document.createElement('br'));
-	}
+	const desiredDecorations: readonly Decoration[] = [
+		...(inlineDecos ?? []),
+		...(widgetDecos ?? []),
+	];
+	renderDecoratedContent(
+		container,
+		inlineChildren,
+		inlineDecos ?? [],
+		registry,
+		widgetDecos ?? [],
+		{
+			blockId: block.id,
+			pool: widgetDOMPool,
+			callbackExecutor,
+		},
+	);
+	renderedContentDecorations.set(container, desiredDecorations);
 }
 
-/** Renders a text node with marks as nested inline elements. */
-function renderTextNode(node: TextNode, registry?: SchemaRegistry): Node {
-	if (node.text === '') {
-		return document.createTextNode('');
+/** Updates only the decoration-owned inline DOM when its rendered snapshot is stale. */
+export function syncBlockContentDecorations(
+	container: HTMLElement,
+	block: BlockNode,
+	registry: SchemaRegistry | undefined,
+	inlineDecos: readonly InlineDecoration[],
+	widgetDecos: readonly WidgetDecoration[],
+	callbackExecutor?: PluginCallbackExecutor,
+): void {
+	const desiredDecorations: readonly Decoration[] = [...inlineDecos, ...widgetDecos];
+	const renderedDecorations: readonly Decoration[] | undefined =
+		renderedContentDecorations.get(container);
+	if (renderedDecorations && decorationArraysEqual(renderedDecorations, desiredDecorations)) {
+		return;
 	}
-	const textNode: Text = document.createTextNode(preserveSpaces(node.text));
-	return wrapNodeWithMarks(textNode, node.marks, registry);
+	renderBlockContent(
+		container,
+		block,
+		registry,
+		inlineDecos,
+		widgetDecos,
+		undefined,
+		callbackExecutor,
+	);
+}
+
+/** Returns all content areas currently owned by a container NodeView. */
+export function getNodeViewContentDOMs(
+	nodeView: NodeView,
+	block: BlockNode,
+): readonly HTMLElement[] {
+	const contentDOMs = new Set<HTMLElement>();
+	if (nodeView.contentDOM) contentDOMs.add(nodeView.contentDOM);
+	for (const child of getBlockChildren(block)) {
+		const childContentDOM = nodeView.getContentDOM?.(child.id);
+		if (childContentDOM) contentDOMs.add(childContentDOM);
+	}
+	return [...contentDOMs];
+}
+
+/**
+ * Replaces the child DOM owned by a container NodeView after its descendants
+ * have been torn down. The parent NodeView itself remains mounted.
+ */
+export function replaceNodeViewChildren(
+	nodeView: NodeView,
+	block: BlockNode,
+	previousContentDOMs: readonly HTMLElement[],
+	registry?: SchemaRegistry,
+	nodeViews?: Map<string, NodeView>,
+	options?: ReconcileOptions,
+): void {
+	const contentDOMs = new Set<HTMLElement>([
+		...previousContentDOMs,
+		...getNodeViewContentDOMs(nodeView, block),
+	]);
+	for (const contentDOM of contentDOMs) contentDOM.replaceChildren();
+	renderBlockChildren(
+		block,
+		(child) => nodeView.getContentDOM?.(child.id) ?? nodeView.contentDOM,
+		registry,
+		nodeViews,
+		options,
+	);
+}
+
+/** Renders direct block children into their owner-provided content areas. */
+function renderBlockChildren(
+	block: BlockNode,
+	resolveContentDOM: (child: BlockNode) => HTMLElement | null,
+	registry?: SchemaRegistry,
+	nodeViews?: Map<string, NodeView>,
+	options?: ReconcileOptions,
+): void {
+	const contentDOMChildren = new Map<HTMLElement, BlockNode[]>();
+	for (const child of getBlockChildren(block)) {
+		const contentDOM = resolveContentDOM(child);
+		if (!contentDOM) continue;
+		contentDOM.appendChild(renderBlock(child, registry, nodeViews, options));
+		const children = contentDOMChildren.get(contentDOM) ?? [];
+		children.push(child);
+		contentDOMChildren.set(contentDOM, children);
+	}
+	for (const [contentDOM, children] of contentDOMChildren) {
+		wrapBlocks(contentDOM, children, registry);
+	}
 }
 
 /** Fallback paragraph rendering when no NodeSpec is found. */
@@ -213,10 +305,13 @@ function renderParagraphFallback(
 	block: BlockNode,
 	registry?: SchemaRegistry,
 	inlineDecos?: readonly InlineDecoration[],
+	widgetDecos?: readonly WidgetDecoration[],
+	widgetDOMPool?: WidgetDOMPool,
+	callbackExecutor?: PluginCallbackExecutor,
 ): HTMLElement {
 	const p: HTMLElement = createBlockElement('p', block.id);
 	syncBlockHTMLId(p, block);
 	p.setAttribute('data-block-type', block.type);
-	renderBlockContent(p, block, registry, inlineDecos);
+	renderBlockContent(p, block, registry, inlineDecos, widgetDecos, widgetDOMPool, callbackExecutor);
 	return p;
 }

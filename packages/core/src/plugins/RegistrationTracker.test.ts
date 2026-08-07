@@ -14,11 +14,13 @@ function makeDeps(): RegistrationCleanupDeps {
 		} as never,
 		schemaRegistry: {
 			removeNodeSpec: vi.fn(),
+			removeNodeSpecExtension: vi.fn(),
 			removeMarkSpec: vi.fn(),
 			removeInlineNodeSpec: vi.fn(),
 		} as never,
 		keymapRegistry: { removeKeymap: vi.fn() } as never,
 		inputRuleRegistry: { removeInputRule: vi.fn() } as never,
+		markdownSyntaxRegistry: { remove: vi.fn() } as never,
 		nodeViewRegistry: { removeNodeView: vi.fn() } as never,
 		toolbarRegistry: { removeToolbarItem: vi.fn() } as never,
 		fileHandlerRegistry: { removeFileHandler: vi.fn() } as never,
@@ -35,11 +37,13 @@ function makeRegistrations(overrides?: Partial<PluginRegistrations>): PluginRegi
 		textInputInterceptors: [],
 		unsubscribers: [],
 		nodeSpecs: [],
+		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
+		markdownSyntaxExtensions: [],
 		toolbarItems: [],
 		fileHandlers: [],
 		blockTypePickerEntries: [],
@@ -84,6 +88,28 @@ describe('RegistrationTracker', () => {
 		expect(deps.schemaRegistry.removeNodeSpec).toHaveBeenCalledWith('heading');
 		expect(deps.schemaRegistry.removeMarkSpec).toHaveBeenCalledWith('bold');
 		expect(deps.schemaRegistry.removeInlineNodeSpec).toHaveBeenCalledWith('emoji');
+	});
+
+	it('cleans up schema and Markdown extensions by identity', () => {
+		const deps = makeDeps();
+		const tracker = new RegistrationTracker(deps);
+		const nodeExtension = vi.fn((spec) => spec);
+		const markdownExtension = { id: 'formula' };
+		tracker.track(
+			'p1',
+			makeRegistrations({
+				nodeSpecExtensions: [{ type: 'table_cell', extension: nodeExtension }],
+				markdownSyntaxExtensions: [markdownExtension],
+			}),
+		);
+
+		tracker.cleanup('p1');
+
+		expect(deps.schemaRegistry.removeNodeSpecExtension).toHaveBeenCalledWith(
+			'table_cell',
+			nodeExtension,
+		);
+		expect(deps.markdownSyntaxRegistry.remove).toHaveBeenCalledWith(markdownExtension);
 	});
 
 	it('calls unsubscribers on cleanup', () => {

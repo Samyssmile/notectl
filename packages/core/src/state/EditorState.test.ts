@@ -14,6 +14,7 @@ import {
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { applySplitBlock } from './StepApplication.js';
 import { TransactionBuilder } from './Transaction.js';
@@ -31,6 +32,19 @@ describe('EditorState', () => {
 			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
 			const state = EditorState.create({ doc });
 			expect(getBlockText(state.doc.children[0])).toBe('hello');
+		});
+
+		it('owns and freezes the document snapshot supplied by the caller', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({ doc });
+			const sourceText = doc.children[0]?.children[0] as { text: string } | undefined;
+			if (sourceText) sourceText.text = 'changed outside';
+
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+			expect(Object.isFrozen(state.doc)).toBe(true);
+			expect(Object.isFrozen(state.doc.children)).toBe(true);
+			expect(Object.isFrozen(state.doc.children[0]?.children[0])).toBe(true);
+			expect(Object.isFrozen(state.getBlockOrder())).toBe(true);
 		});
 
 		it('defaults selection to the first leaf block in nested documents', () => {
@@ -115,6 +129,25 @@ describe('EditorState', () => {
 
 			const newState = state.apply(tr);
 			expect(getBlockText(newState.doc.children[0])).toBe('hello');
+		});
+	});
+
+	describe('apply - stored marks', () => {
+		it('owns and deeply freezes marks accepted from a transaction', () => {
+			const state = EditorState.create({
+				doc: createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]),
+				selection: createCollapsedSelection('b1', 0),
+			});
+			const transaction = state
+				.transaction('command')
+				.setStoredMarks([{ type: markType('link'), attrs: { href: 'https://example.com' } }], null)
+				.build();
+
+			const next = state.apply(transaction);
+
+			expect(Object.isFrozen(next.storedMarks)).toBe(true);
+			expect(Object.isFrozen(next.storedMarks?.[0])).toBe(true);
+			expect(Object.isFrozen(next.storedMarks?.[0]?.attrs)).toBe(true);
 		});
 	});
 
@@ -288,7 +321,18 @@ describe('EditorState', () => {
 			expect(newState.selection.anchor.offset).toBe(2);
 		});
 
-		it('passes through a valid selection unchanged', () => {
+		it('normalizes negative and non-finite offsets', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hi')], 'b1')]);
+			const state = EditorState.create({ doc });
+
+			const negative = state.withSelection(createCollapsedSelection('b1', -3));
+			const nonFinite = state.withSelection(createCollapsedSelection('b1', Number.NaN));
+
+			expect(negative.selection.anchor.offset).toBe(0);
+			expect(nonFinite.selection.anchor.offset).toBe(0);
+		});
+
+		it('preserves a valid selection value', () => {
 			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
 			const state = EditorState.create({
 				doc,
@@ -299,7 +343,8 @@ describe('EditorState', () => {
 			const tr = new TransactionBuilder(state.selection, null, 'command').setSelection(sel).build();
 
 			const newState = state.apply(tr);
-			expect(newState.selection).toBe(sel);
+			expect(newState.selection).toEqual(sel);
+			expect(newState.selection).not.toBe(sel);
 		});
 
 		it('handles multi-block selection where head block is removed', () => {
@@ -346,17 +391,41 @@ describe('EditorState', () => {
 			expect(getBlockText(restored.doc.children[0])).toBe('hello');
 			expect(restored.selection.anchor.offset).toBe(3);
 		});
+
+		it('does not share mutable JSON objects with either state', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection('b1', 3),
+			});
+
+			const json = state.toJSON() as {
+				doc: { children: Array<{ children: Array<{ text: string }> }> };
+				selection: { anchor: { offset: number }; head: { offset: number } };
+			};
+			const restored = EditorState.fromJSON(json as never);
+			json.doc.children[0]?.children.splice(0, 1, {
+				text: 'changed outside both states',
+			});
+			json.selection.anchor.offset = 0;
+
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+			expect(getBlockText(restored.doc.children[0])).toBe('hello');
+			expect(state.selection.anchor.offset).toBe(3);
+			expect(restored.selection.anchor.offset).toBe(3);
+		});
 	});
 
 	describe('withSelection', () => {
-		it('preserves a valid selection unchanged', () => {
+		it('preserves a valid selection without retaining the caller-owned object', () => {
 			const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]);
 			const state = EditorState.create({ doc, selection: createCollapsedSelection('b1', 0) });
 			const sel = createCollapsedSelection('b1', 3);
 
 			const result = state.withSelection(sel);
 
-			expect(result.selection).toBe(sel);
+			expect(result.selection).toEqual(sel);
+			expect(result.selection).not.toBe(sel);
 			expect(result.doc).toBe(state.doc);
 			expect(result.schema).toBe(state.schema);
 		});
@@ -388,7 +457,8 @@ describe('EditorState', () => {
 
 			const result = state.withSelection(nodeSel);
 
-			expect(result.selection).toBe(nodeSel);
+			expect(result.selection).toEqual(nodeSel);
+			expect(result.selection).not.toBe(nodeSel);
 		});
 
 		it('falls back from NodeSelection on a removed block', () => {
@@ -411,7 +481,8 @@ describe('EditorState', () => {
 
 			const result = state.withSelection(gapSel);
 
-			expect(result.selection).toBe(gapSel);
+			expect(result.selection).toEqual(gapSel);
+			expect(result.selection).not.toBe(gapSel);
 		});
 
 		it('falls back from GapCursor on a removed block', () => {
@@ -448,6 +519,56 @@ describe('EditorState', () => {
 	});
 
 	describe('validateSelection fallback', () => {
+		it('moves a text selection from a container block to its first leaf descendant', () => {
+			const doc = createDocument([
+				createBlockNode(
+					'table',
+					[
+						createBlockNode(
+							'table_row',
+							[
+								createBlockNode(
+									'table_cell',
+									[createBlockNode('paragraph', [createTextNode('cell')], 'p1')],
+									'cell1',
+								),
+							],
+							'row1',
+						),
+					],
+					'table1',
+				),
+			]);
+			const state = EditorState.create({ doc });
+
+			const result = state.withSelection(createCollapsedSelection('table1', 99));
+
+			expect(isTextSelection(result.selection)).toBe(true);
+			if (isTextSelection(result.selection)) {
+				expect(result.selection.anchor.blockId).toBe('p1');
+				expect(result.selection.anchor.offset).toBe(0);
+			}
+		});
+
+		it('falls back to the first leaf rather than the first top-level container', () => {
+			const doc = createDocument([
+				createBlockNode(
+					'blockquote',
+					[createBlockNode('paragraph', [createTextNode('nested')], 'p1')],
+					'quote1',
+				),
+			]);
+			const state = EditorState.create({ doc });
+
+			const result = state.withSelection(createCollapsedSelection('missing' as BlockId, 5));
+
+			expect(isTextSelection(result.selection)).toBe(true);
+			if (isTextSelection(result.selection)) {
+				expect(result.selection.anchor.blockId).toBe('p1');
+				expect(result.selection.anchor.offset).toBe(0);
+			}
+		});
+
 		it('GapCursor on deleted block falls back to first leaf block', () => {
 			const doc = createDocument([
 				createBlockNode('paragraph', [createTextNode('Hello')], 'b1'),

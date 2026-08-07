@@ -10,9 +10,9 @@
  *  - how to build the canonical embed/watch/thumbnail URLs from that id.
  *
  * The `embedHostnames` set is the load-bearing security boundary: it is the exact
- * set of hosts a video `<iframe src>` may point at. The sanitize host-allowlist
- * (see `VideoPlugin`) is built from the union of every provider's `embedHostnames`,
- * so adding a provider keeps the allowlist in sync automatically.
+ * set of hosts a video `<iframe src>` may point at. Each VideoPlugin's
+ * schema-owned sanitize policy is built from its configured providers, so adding
+ * a provider keeps that editor owner's allowlist in sync automatically.
  */
 
 /** A parsed reference to a hosted video. */

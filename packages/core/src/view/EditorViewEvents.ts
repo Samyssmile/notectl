@@ -9,7 +9,12 @@
 
 import type { CompositionState } from '../model/CompositionState.js';
 import { createEmptyParagraph, generateBlockId, getBlockLength } from '../model/Document.js';
+import {
+	type FileHandlerDispatchOutcome,
+	dispatchFilesToHandlers,
+} from '../model/FileHandlerDispatcher.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { Position } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
@@ -45,7 +50,13 @@ export interface EventCoordinatorDeps {
 	readonly cursorWrapper: CursorWrapper;
 	readonly isReadOnly: () => boolean;
 	readonly fileHandlerRegistry?: FileHandlerRegistry;
+	readonly callbackExecutor?: PluginCallbackExecutor;
 	readonly onMousedown?: () => void;
+}
+
+interface DropPositionBookmark {
+	position: Position | null;
+	cancelled: boolean;
 }
 
 export class EditorViewEvents {
@@ -58,9 +69,13 @@ export class EditorViewEvents {
 	private readonly handleCompositionEnd: (event: CompositionEvent) => void;
 	private pendingNodeSelectionClear = false;
 	private pendingGapCursorClear = false;
+	private readonly pendingDropBookmarks = new Set<DropPositionBookmark>();
+	private readonly callbackExecutor: PluginCallbackExecutor;
+	private active = true;
 
 	constructor(deps: EventCoordinatorDeps) {
 		this.deps = deps;
+		this.callbackExecutor = deps.callbackExecutor ?? PluginCallbackExecutor.silent;
 
 		this.handleCompositionStart = (event: CompositionEvent) => {
 			if (!isEventFromEditorContent(event, deps.contentElement)) return;
@@ -125,6 +140,8 @@ export class EditorViewEvents {
 
 	/** Removes all event listeners. */
 	destroy(): void {
+		if (!this.active) return;
+		this.active = false;
 		const el: HTMLElement = this.deps.contentElement;
 		el.removeEventListener('compositionstart', this.handleCompositionStart);
 		el.removeEventListener('compositionend', this.handleCompositionEnd);
@@ -132,6 +149,27 @@ export class EditorViewEvents {
 		el.removeEventListener('mousedown', this.handleMousedown);
 		el.removeEventListener('dragover', this.handleDragover);
 		el.removeEventListener('drop', this.handleDrop);
+		for (const bookmark of this.pendingDropBookmarks) bookmark.cancelled = true;
+		this.pendingDropBookmarks.clear();
+	}
+
+	/** Maps pending async file-drop positions through every committed transaction. */
+	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
+		for (const bookmark of this.pendingDropBookmarks) {
+			if (!bookmark.position) continue;
+			if (oldState.doc !== state.doc && tr.steps.length === 0) {
+				bookmark.cancelled = true;
+				this.pendingDropBookmarks.delete(bookmark);
+				continue;
+			}
+			const mapped = tr.mapping.mapResult(bookmark.position, -1);
+			if (mapped.deleted || !state.getBlock(mapped.pos.blockId)) {
+				bookmark.cancelled = true;
+				this.pendingDropBookmarks.delete(bookmark);
+				continue;
+			}
+			bookmark.position = mapped.pos;
+		}
 	}
 
 	/** Handles DOM selection changes (clicks, arrow keys). */
@@ -265,21 +303,43 @@ export class EditorViewEvents {
 		const files: File[] = Array.from(e.dataTransfer.files);
 		if (files.length === 0) return;
 
-		const position: Position | null = this.getPositionFromPoint(e.clientX, e.clientY);
-
-		let handled = false;
-		for (const file of files) {
-			const handlers = this.deps.fileHandlerRegistry.matchFileHandlers(file.type);
-			for (const handler of handlers) {
-				const result = handler(file, position);
-				if (result === true || result instanceof Promise) {
-					handled = true;
-					break;
-				}
-			}
-		}
-		if (handled) {
+		const bookmark: DropPositionBookmark = {
+			position: this.getPositionFromPoint(e.clientX, e.clientY),
+			cancelled: false,
+		};
+		this.pendingDropBookmarks.add(bookmark);
+		const outcome = dispatchFilesToHandlers({
+			registry: this.deps.fileHandlerRegistry,
+			executor: this.callbackExecutor,
+			files,
+			getPosition: () => bookmark.position,
+			isActive: () => this.active && !this.deps.isReadOnly() && !bookmark.cancelled,
+		});
+		if (outcome instanceof Promise) {
+			// The browser cannot be prevented retroactively. Once a plugin returns a
+			// Promise, this coordinator owns the drop while false/reject continue
+			// through the remaining registered handlers.
 			e.preventDefault();
+			void this.finishAsyncFileDrop(outcome, bookmark);
+			return;
+		}
+		this.pendingDropBookmarks.delete(bookmark);
+		if (outcome.handled) e.preventDefault();
+	}
+
+	private async finishAsyncFileDrop(
+		pending: Promise<FileHandlerDispatchOutcome>,
+		bookmark: DropPositionBookmark,
+	): Promise<void> {
+		try {
+			await pending;
+		} catch (cause) {
+			this.callbackExecutor.reportFailure(
+				{ pluginId: 'core', name: 'File drop continuation', kind: 'file-handler' },
+				cause,
+			);
+		} finally {
+			this.pendingDropBookmarks.delete(bookmark);
 		}
 	}
 

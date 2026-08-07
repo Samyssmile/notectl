@@ -16,8 +16,8 @@ import {
 	selectAll,
 	splitBlockCommand,
 } from '../commands/Commands.js';
-import type { Keymap } from '../model/Keymap.js';
-import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import type { KeymapEntry, KeymapRegistry } from '../model/KeymapRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { isGapCursor, isNodeSelection, selectionsEqual } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
@@ -48,6 +48,8 @@ export interface KeyboardHandlerOptions {
 	compositionTracker?: CompositionTracker;
 	getTextDirection?: TextDirectionFn;
 	navigateFromGapCursor?: GapCursorNavigateFn;
+	/** Shared plugin callback error boundary supplied by PluginManager. */
+	callbackExecutor?: PluginCallbackExecutor;
 }
 
 /** Maps arrow key names to navigation directions. */
@@ -68,6 +70,7 @@ export class KeyboardHandler {
 	private readonly compositionTracker?: CompositionTracker;
 	private readonly getTextDirectionFn: TextDirectionFn;
 	private readonly navigateFromGapCursorFn: GapCursorNavigateFn | undefined;
+	private readonly callbackExecutor: PluginCallbackExecutor;
 	private readonly handleKeydown: (e: KeyboardEvent) => void;
 
 	constructor(
@@ -83,6 +86,7 @@ export class KeyboardHandler {
 		this.compositionTracker = options.compositionTracker;
 		this.getTextDirectionFn = options.getTextDirection ?? (() => 'ltr');
 		this.navigateFromGapCursorFn = options.navigateFromGapCursor;
+		this.callbackExecutor = options.callbackExecutor ?? PluginCallbackExecutor.silent;
 
 		this.handleKeydown = this.onKeydown.bind(this);
 		element.addEventListener('keydown', this.handleKeydown);
@@ -102,7 +106,7 @@ export class KeyboardHandler {
 		// Readonly mode: allow navigation keymaps + escape, block everything else
 		if (this.isReadOnly()) {
 			if (this.keymapRegistry) {
-				const groups = this.keymapRegistry.getKeymapsByPriority();
+				const groups = this.keymapRegistry.getKeymapEntriesByPriority();
 				if (this.dispatchKeymaps(e, [groups.navigation])) return;
 			}
 			if (this.handleEscape(e)) return;
@@ -111,7 +115,7 @@ export class KeyboardHandler {
 
 		// Normal mode: try plugin keymaps in priority order (context > navigation > default).
 		if (this.keymapRegistry) {
-			const groups = this.keymapRegistry.getKeymapsByPriority();
+			const groups = this.keymapRegistry.getKeymapEntriesByPriority();
 			if (this.dispatchKeymaps(e, [groups.context, groups.navigation, groups.default])) return;
 		}
 
@@ -176,7 +180,7 @@ export class KeyboardHandler {
 	 * layout-aware descriptor first and a physical-position fallback (command
 	 * shortcuts only) second, so shortcuts resolve regardless of keyboard layout.
 	 */
-	private dispatchKeymaps(e: KeyboardEvent, groups: readonly (readonly Keymap[])[]): boolean {
+	private dispatchKeymaps(e: KeyboardEvent, groups: readonly (readonly KeymapEntry[])[]): boolean {
 		if (this.runDescriptor(e, groups, normalizeKeyDescriptor(e))) return true;
 		for (const physical of physicalKeyDescriptors(e)) {
 			if (this.runDescriptor(e, groups, physical)) return true;
@@ -190,13 +194,23 @@ export class KeyboardHandler {
 	 */
 	private runDescriptor(
 		e: KeyboardEvent,
-		groups: readonly (readonly Keymap[])[],
+		groups: readonly (readonly KeymapEntry[])[],
 		descriptor: string,
 	): boolean {
 		for (const keymaps of groups) {
 			for (let i = keymaps.length - 1; i >= 0; i--) {
-				const handler = keymaps[i]?.[descriptor];
-				if (handler?.()) {
+				const entry = keymaps[i];
+				const handler = entry?.keymap[descriptor];
+				if (!entry || !handler) continue;
+				const outcome = this.callbackExecutor.execute(
+					{
+						pluginId: entry.pluginId,
+						name: `${entry.name} (${descriptor})`,
+						kind: 'keymap',
+					},
+					handler,
+				);
+				if (outcome.ok && outcome.value === true) {
 					e.preventDefault();
 					return true;
 				}

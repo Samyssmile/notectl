@@ -8,7 +8,11 @@ import {
 	type ChildNode,
 	type Document,
 	type Mark,
+	cloneDocument,
+	cloneMarks,
 	createDocument,
+	freezeDocument,
+	freezeMarks,
 	getBlockLength,
 	isBlockNode,
 	isLeafBlock,
@@ -18,9 +22,11 @@ import type { Schema } from '../model/Schema.js';
 import { defaultSchema } from '../model/Schema.js';
 import type { EditorSelection, Position } from '../model/Selection.js';
 import {
+	cloneEditorSelection,
 	createCollapsedSelection,
 	createPosition,
 	createSelection,
+	freezeEditorSelection,
 	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
@@ -44,9 +50,15 @@ export class EditorState {
 		storedMarks: readonly Mark[] | null,
 		schema: Schema,
 	) {
-		this.doc = doc;
-		this.selection = selection;
-		this.storedMarks = storedMarks;
+		this.doc = freezeDocument(doc);
+		this.selection = freezeEditorSelection(selection);
+		if (storedMarks) {
+			const ownedMarks = cloneMarks(storedMarks);
+			freezeMarks(ownedMarks);
+			this.storedMarks = ownedMarks;
+		} else {
+			this.storedMarks = null;
+		}
 		this.schema = schema;
 	}
 
@@ -57,10 +69,11 @@ export class EditorState {
 		schema?: Schema;
 	}): EditorState {
 		const schema = options?.schema ?? defaultSchema();
-		const doc = options?.doc ?? createDocument();
+		const doc = options?.doc ? cloneDocument(options.doc) : createDocument();
 		const firstLeaf = findFirstLeafBlock(doc.children);
-		const selection =
-			options?.selection ?? createCollapsedSelection(firstLeaf ? firstLeaf.id : blockId(''), 0);
+		const selection = options?.selection
+			? validateSelection(doc, cloneEditorSelection(options.selection))
+			: createCollapsedSelection(firstLeaf ? firstLeaf.id : blockId(''), 0);
 
 		return new EditorState(doc, selection, null, schema);
 	}
@@ -80,7 +93,7 @@ export class EditorState {
 			doc = applyStep(doc, step);
 		}
 
-		const selection = validateSelection(doc, tr.selectionAfter);
+		const selection = validateSelection(doc, cloneEditorSelection(tr.selectionAfter));
 		return new EditorState(doc, selection, tr.storedMarksAfter, this.schema);
 	}
 
@@ -112,15 +125,15 @@ export class EditorState {
 
 	/** Returns a new state with the given selection validated against this document. */
 	withSelection(selection: EditorSelection): EditorState {
-		const validated: EditorSelection = validateSelection(this.doc, selection);
+		const validated: EditorSelection = validateSelection(this.doc, cloneEditorSelection(selection));
 		return new EditorState(this.doc, validated, this.storedMarks, this.schema);
 	}
 
 	/** Serializes the state to JSON. */
 	toJSON(): { readonly doc: Document; readonly selection: EditorSelection } {
 		return {
-			doc: this.doc,
-			selection: this.selection,
+			doc: cloneDocument(this.doc),
+			selection: cloneEditorSelection(this.selection),
 		};
 	}
 
@@ -129,24 +142,27 @@ export class EditorState {
 		json: { doc: Document; selection: EditorSelection },
 		schema?: Schema,
 	): EditorState {
-		return new EditorState(json.doc, json.selection, null, schema ?? defaultSchema());
+		return EditorState.create({ doc: json.doc, selection: json.selection, schema });
 	}
 }
 
 /** Validates a position against the document, clamping or falling back as needed. */
 function validatePosition(doc: Document, pos: Position): Position {
 	const block = findNode(doc, pos.blockId);
-	if (block) {
+	if (block && isLeafBlock(block)) {
 		const length = getBlockLength(block);
-		if (pos.offset > length) {
-			return createPosition(pos.blockId, length, pos.path);
+		const finiteOffset: number = Number.isFinite(pos.offset) ? Math.trunc(pos.offset) : 0;
+		const offset: number = Math.max(0, Math.min(length, finiteOffset));
+		if (offset !== pos.offset) {
+			return createPosition(pos.blockId, offset, pos.path);
 		}
 		return pos;
 	}
 
-	const firstBlock = doc.children[0];
-	if (!firstBlock) return pos;
-	return createPosition(firstBlock.id, 0);
+	const firstLeaf = findFirstLeafBlock(block ? block.children : doc.children);
+	if (firstLeaf) return createPosition(firstLeaf.id, 0);
+	const documentLeaf = findFirstLeafBlock(doc.children);
+	return documentLeaf ? createPosition(documentLeaf.id, 0) : pos;
 }
 
 /** Validates a selection against the document, ensuring blockIds exist and offsets are in bounds. */
@@ -203,7 +219,7 @@ function buildBlockMap(doc: Document): Map<BlockId, BlockNode> {
 }
 
 /** Returns leaf-block IDs in depth-first order. */
-function buildBlockOrder(doc: Document): BlockId[] {
+function buildBlockOrder(doc: Document): readonly BlockId[] {
 	const order: BlockId[] = [];
 	function walk(blocks: readonly ChildNode[]): void {
 		for (const child of blocks) {
@@ -217,5 +233,5 @@ function buildBlockOrder(doc: Document): BlockId[] {
 		}
 	}
 	walk(doc.children);
-	return order;
+	return Object.freeze(order);
 }

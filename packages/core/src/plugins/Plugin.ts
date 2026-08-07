@@ -13,7 +13,7 @@ import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
-import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { NodeSpecExtension, SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewFactory } from '../view/NodeView.js';
@@ -115,6 +115,8 @@ export interface PluginContext {
 
 	// --- Schema Extension ---
 	registerNodeSpec<T extends string>(spec: NodeSpec<T>): void;
+	/** Declares a composable extension that is finalized after all plugin specs exist. */
+	registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
 	registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
 	registerNodeView(type: string, factory: NodeViewFactory): void;
 	registerKeymap(keymap: Keymap, options?: KeymapOptions): void;

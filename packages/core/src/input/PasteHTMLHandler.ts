@@ -4,7 +4,6 @@
  * to HTMLParser or DocumentParser as appropriate.
  */
 
-import DOMPurify from 'dompurify';
 import {
 	type InsertionContext,
 	canContainerHoldBlocks,
@@ -19,13 +18,14 @@ import {
 	insertTextCommand,
 } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
-import { normalizeCompositeBlocks } from '../editor/ContentSerializer.js';
 import { plainTextSlice } from '../model/ContentSlice.js';
 import { type BlockNode, generateBlockId, getBlockText } from '../model/Document.js';
+import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
+	type EditorSelection,
 	createCollapsedSelection,
 	isCollapsed,
 	isGapCursor,
@@ -33,7 +33,7 @@ import {
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
-import { preserveHTMLIdSanitizeConfig } from '../serialization/HTMLSanitization.js';
+import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from '../serialization/HTMLSanitization.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HTMLParser } from './HTMLParser.js';
@@ -77,12 +77,16 @@ export class PasteHTMLHandler {
 		private readonly getState: GetStateFn,
 		private readonly dispatch: DispatchFn,
 		private readonly schemaRegistry: SchemaRegistry | undefined,
-		private readonly tryRichPasteFromJson: (json: string) => boolean,
+		private readonly tryRichPasteFromJson: (json: string, state?: EditorState) => boolean,
 	) {}
 
 	/** Handles HTML or plain text paste from system clipboard. */
-	handleHTMLOrTextPaste(clipboardData: DataTransfer, plainText: string): void {
-		const state = this.getState();
+	handleHTMLOrTextPaste(
+		clipboardData: DataTransfer,
+		plainText: string,
+		selection?: EditorSelection,
+	): void {
+		const state = this.stateAtSelection(selection);
 		const html: string = clipboardData.getData('text/html');
 
 		if (html) {
@@ -90,19 +94,19 @@ export class PasteHTMLHandler {
 			return;
 		}
 
-		if (plainText) this.pastePlainText(plainText);
+		if (plainText) this.pastePlainText(plainText, selection);
 	}
 
 	/** Inserts plain text through the standard paste pipeline (no HTML interpretation). */
-	pastePlainText(text: string): void {
+	pastePlainText(text: string, selection?: EditorSelection): void {
 		if (!text) return;
 		const slice = plainTextSlice(text);
-		this.dispatch(pasteSlice(this.getState(), slice));
+		this.dispatch(pasteSlice(this.stateAtSelection(selection), slice));
 	}
 
 	/** Inserts a pre-built HTML string through the standard paste pipeline. */
-	pasteHTMLString(html: string): void {
-		this.handleHTML(html, this.getState());
+	pasteHTMLString(html: string, selection?: EditorSelection): void {
+		this.handleHTML(html, this.stateAtSelection(selection));
 	}
 
 	/** Sanitizes and processes pasted HTML content. */
@@ -115,15 +119,19 @@ export class PasteHTMLHandler {
 		// `<annotation>` (and its `encoding` attr), which carry a formula's LaTeX
 		// source. Without this they are stripped here before the registry-aware
 		// passes run, dropping the annotation and leaving the formula uneditable.
-		const preSanitized: string = DOMPurify.sanitize(html, {
-			FORBID_TAGS: PRE_SANITIZE_FORBID,
-			ADD_TAGS: this.schemaRegistry ? this.schemaRegistry.getAllowedTags() : [],
-			ADD_ATTR: this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [],
-			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
-			...preserveHTMLIdSanitizeConfig(),
-		});
+		const preSanitized: string = sanitizeHTML(
+			html,
+			{
+				FORBID_TAGS: PRE_SANITIZE_FORBID,
+				ADD_TAGS: this.schemaRegistry ? this.schemaRegistry.getAllowedTags() : [],
+				ADD_ATTR: this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [],
+				ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+				...preserveHTMLIdSanitizeConfig(),
+			},
+			this.schemaRegistry,
+		);
 		const richJson: string | undefined = this.extractRichData(preSanitized);
-		if (richJson && this.tryRichPasteFromJson(richJson)) return;
+		if (richJson && this.tryRichPasteFromJson(richJson, state)) return;
 
 		const preTemplate: HTMLTemplateElement = document.createElement('template');
 		preTemplate.innerHTML = preSanitized;
@@ -134,12 +142,16 @@ export class PasteHTMLHandler {
 			? this.schemaRegistry.getAllowedTags()
 			: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'];
 		const allowedAttrs: string[] = this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [];
-		const sanitized: string = DOMPurify.sanitize(normalizedHTML, {
-			ALLOWED_TAGS: allowedTags,
-			ALLOWED_ATTR: allowedAttrs,
-			ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
-			...preserveHTMLIdSanitizeConfig(),
-		});
+		const sanitized: string = sanitizeHTML(
+			normalizedHTML,
+			{
+				ALLOWED_TAGS: allowedTags,
+				ALLOWED_ATTR: allowedAttrs,
+				ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
+				...preserveHTMLIdSanitizeConfig(),
+			},
+			this.schemaRegistry,
+		);
 
 		if (this.schemaRegistry) {
 			const template: HTMLTemplateElement = document.createElement('template');
@@ -345,5 +357,10 @@ export class PasteHTMLHandler {
 		const template: HTMLTemplateElement = document.createElement('template');
 		template.innerHTML = html;
 		return template.content.textContent ?? '';
+	}
+
+	private stateAtSelection(selection?: EditorSelection): EditorState {
+		const state = this.getState();
+		return selection ? state.withSelection(selection) : state;
 	}
 }

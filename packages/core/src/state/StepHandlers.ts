@@ -10,7 +10,7 @@
  */
 
 import type { Document } from '../model/Document.js';
-import { IDENTITY_MAP, Mapping, type StepMap } from './Mapping.js';
+import { IDENTITY_MAP, type Mapping, type StepMap } from './Mapping.js';
 import {
 	applyAddMark,
 	applyDeleteText,
@@ -82,6 +82,12 @@ import {
 } from './StepMaps.js';
 import type { Step } from './Steps.js';
 import type { Transaction } from './Transaction.js';
+import {
+	sealOwnedTransaction,
+	snapshotOptionalMarks,
+	snapshotSelection,
+	snapshotStep,
+} from './TransactionSnapshot.js';
 
 /**
  * Forward, inverse, position-mapping, and step-rebase behavior of one step
@@ -272,17 +278,19 @@ export function mapStep(step: Step, mapping: Mapping, doc: Document): Step | nul
  * tracks while walking.
  */
 export function invertTransaction(tr: Transaction): Transaction {
-	const invertedSteps: Step[] = tr.steps.map(invertStep).reverse();
-	return {
-		steps: invertedSteps,
-		selectionBefore: tr.selectionAfter,
-		selectionAfter: tr.selectionBefore,
-		storedMarksAfter: deriveStoredMarksBefore(tr),
-		mapping: Mapping.empty,
-		forwardStepMaps: invertedSteps.map(() => IDENTITY_MAP),
-		metadata: {
-			origin: 'history',
-			timestamp: Date.now(),
+	const invertedSteps: Step[] = tr.steps.map(invertStep).reverse().map(snapshotStep);
+	return sealOwnedTransaction(
+		{
+			steps: invertedSteps,
+			selectionBefore: snapshotSelection(tr.selectionAfter),
+			selectionAfter: snapshotSelection(tr.selectionBefore),
+			storedMarksAfter: snapshotOptionalMarks(deriveStoredMarksBefore(tr)),
+			forwardStepMaps: invertedSteps.map(() => IDENTITY_MAP),
+			metadata: {
+				origin: 'history',
+				timestamp: Date.now(),
+			},
 		},
-	};
+		{ mapsVerified: false },
+	);
 }

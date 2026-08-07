@@ -20,7 +20,7 @@ async function setupWithContainer(): Promise<{
 	container: HTMLElement;
 	getState: () => EditorState;
 	pm: PluginManager;
-	cleanup: () => void;
+	cleanup: () => Promise<void>;
 }> {
 	const container: HTMLElement = document.createElement('div');
 	document.body.appendChild(container);
@@ -51,8 +51,8 @@ async function setupWithContainer(): Promise<{
 		container,
 		getState: () => currentState,
 		pm,
-		cleanup: () => {
-			pm.destroy();
+		cleanup: async () => {
+			await pm.destroy();
 			container.remove();
 		},
 	};
@@ -100,7 +100,7 @@ describe('ShiftDirectionHandler — Ctrl+Shift direction shortcuts', () => {
 		keyup(container, 'Shift', 'ShiftLeft');
 
 		expect(getState().doc.children[0]?.attrs?.dir).toBe('ltr');
-		cleanup();
+		await cleanup();
 	});
 
 	it('Ctrl+ShiftRight then Shift keyup sets direction to RTL', async () => {
@@ -110,7 +110,7 @@ describe('ShiftDirectionHandler — Ctrl+Shift direction shortcuts', () => {
 		keyup(container, 'Shift', 'ShiftRight');
 
 		expect(getState().doc.children[0]?.attrs?.dir).toBe('rtl');
-		cleanup();
+		await cleanup();
 	});
 
 	it('cancels pending direction when another key is pressed between', async () => {
@@ -125,13 +125,13 @@ describe('ShiftDirectionHandler — Ctrl+Shift direction shortcuts', () => {
 		// Direction should remain auto (unchanged)
 		const dir = getState().doc.children[0]?.attrs?.dir;
 		expect(dir === 'auto' || dir === undefined).toBe(true);
-		cleanup();
+		await cleanup();
 	});
 
 	it('detaches event listeners on destroy', async () => {
 		const { container, getState, cleanup } = await setupWithContainer();
 
-		cleanup();
+		await cleanup();
 
 		// After destroy, keyboard events should have no effect
 		keydown(container, 'Shift', 'ShiftRight', { ctrlKey: true });
@@ -149,6 +149,6 @@ describe('ShiftDirectionHandler — Ctrl+Shift direction shortcuts', () => {
 
 		const dir = getState().doc.children[0]?.attrs?.dir;
 		expect(dir === 'auto' || dir === undefined).toBe(true);
-		cleanup();
+		await cleanup();
 	});
 });

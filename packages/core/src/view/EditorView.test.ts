@@ -12,6 +12,8 @@ import {
 	createTextNode,
 	getBlockText,
 } from '../model/Document.js';
+import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
 import { EditorState } from '../state/EditorState.js';
@@ -52,6 +54,16 @@ function makeInsertTransaction(blockId: string, offset: number, text: string): T
 		.insertText(blockId, offset, text, [])
 		.setSelection(createCollapsedSelection(blockId, offset + text.length))
 		.build();
+}
+
+function createFileDropEvent(file: File): DragEvent {
+	const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent;
+	Object.defineProperty(event, 'clientX', { value: 0 });
+	Object.defineProperty(event, 'clientY', { value: 0 });
+	Object.defineProperty(event, 'dataTransfer', {
+		value: { files: [file], types: ['Files'] },
+	});
+	return event;
 }
 
 // --- Tests ---
@@ -732,5 +744,117 @@ describe('EditorView.applyUpdate()', () => {
 			expect(firstBlockText(view)).toBe('hiZ');
 			view.destroy();
 		});
+	});
+});
+
+describe('EditorView file-drop plugin runtime', () => {
+	it('awaits false/rejection outcomes and continues to the next matching file handler', async () => {
+		const container = document.createElement('div');
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const registry = new FileHandlerRegistry();
+		let rejectFirst = (_reason?: unknown): void => {};
+		const firstResult = new Promise<boolean>((_resolve, reject) => {
+			rejectFirst = reject;
+		});
+		const first = vi.fn(() => firstResult);
+		const second = vi.fn(() => false);
+		const third = vi.fn(() => true);
+		registry.registerFileHandler('image/png', first, {
+			pluginId: 'first-plugin',
+			name: 'first-handler',
+		});
+		registry.registerFileHandler('image/png', second, {
+			pluginId: 'second-plugin',
+			name: 'second-handler',
+		});
+		registry.registerFileHandler('image/png', third, {
+			pluginId: 'third-plugin',
+			name: 'third-handler',
+		});
+		const failures: string[] = [];
+		const view = new EditorView(container, {
+			state,
+			fileHandlerRegistry: registry,
+			callbackExecutor: new PluginCallbackExecutor((failure) => {
+				failures.push(`${failure.pluginId}:${failure.name}`);
+			}),
+		});
+		const file = new File(['bytes'], 'image.png', { type: 'image/png' });
+
+		const event = createFileDropEvent(file);
+		container.dispatchEvent(event);
+		expect(event.defaultPrevented).toBe(true);
+		expect(first).toHaveBeenCalledOnce();
+		expect(second).not.toHaveBeenCalled();
+
+		rejectFirst(new Error('upload unavailable'));
+		await vi.waitFor(() => expect(third).toHaveBeenCalledOnce());
+		expect(second).toHaveBeenCalledOnce();
+		expect(failures).toEqual(['first-plugin:first-handler']);
+		view.destroy();
+	});
+
+	it('does not continue an async file-handler chain after the view is destroyed', async () => {
+		const container = document.createElement('div');
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const registry = new FileHandlerRegistry();
+		let resolveFirst = (_value: boolean): void => {};
+		const firstResult = new Promise<boolean>((resolve) => {
+			resolveFirst = resolve;
+		});
+		const next = vi.fn(() => true);
+		registry.registerFileHandler('image/png', () => firstResult);
+		registry.registerFileHandler('image/png', next);
+		const view = new EditorView(container, { state, fileHandlerRegistry: registry });
+
+		container.dispatchEvent(
+			createFileDropEvent(new File(['bytes'], 'image.png', { type: 'image/png' })),
+		);
+		view.destroy();
+		resolveFirst(false);
+		await firstResult;
+		await Promise.resolve();
+
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	it('does not continue an async file-handler chain after read-only mode is enabled', async () => {
+		const container = document.createElement('div');
+		const state = EditorState.create({
+			doc: createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]),
+			selection: createCollapsedSelection('b1', 0),
+		});
+		const registry = new FileHandlerRegistry();
+		let resolveFirst = (_value: boolean): void => {};
+		const firstResult = new Promise<boolean>((resolve) => {
+			resolveFirst = resolve;
+		});
+		const next = vi.fn(() => true);
+		registry.registerFileHandler('image/png', () => firstResult);
+		registry.registerFileHandler('image/png', next);
+		let readOnly = false;
+		const view = new EditorView(container, {
+			state,
+			fileHandlerRegistry: registry,
+			isReadOnly: () => readOnly,
+		});
+
+		container.dispatchEvent(
+			createFileDropEvent(new File(['bytes'], 'image.png', { type: 'image/png' })),
+		);
+		readOnly = true;
+		resolveFirst(false);
+		await firstResult;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(next).not.toHaveBeenCalled();
+		view.destroy();
 	});
 });

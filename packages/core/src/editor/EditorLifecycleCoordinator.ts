@@ -8,6 +8,20 @@ import type { Plugin } from '../plugins/Plugin.js';
 
 type LifecycleState = 'idle' | 'initializing' | 'ready' | 'failed';
 
+/**
+ * Rejection delivered to readiness waiters when their initialization generation
+ * is explicitly abandoned by {@link NotectlEditor.destroy}.
+ *
+ * The `AbortError` name follows the platform cancellation convention while the
+ * concrete class gives consumers a stable `instanceof` contract.
+ */
+export class EditorInitializationAbortedError extends Error {
+	constructor() {
+		super('Editor initialization was aborted because the editor was destroyed.');
+		this.name = 'AbortError';
+	}
+}
+
 export class EditorLifecycleCoordinator {
 	private state: LifecycleState = 'idle';
 	private readyPromiseResolve: (() => void) | null = null;
@@ -80,8 +94,14 @@ export class EditorLifecycleCoordinator {
 		this.preInitPlugins = [...plugins, ...this.preInitPlugins];
 	}
 
-	/** Resets all lifecycle state, including a fresh ready promise. */
+	/**
+	 * Abandons the current lifecycle generation and creates a fresh ready promise.
+	 * Any unresolved waiter belongs to the abandoned generation and is rejected;
+	 * replacing its promise without settling it would leave consumers pending
+	 * forever.
+	 */
 	reset(): void {
+		this.readyPromiseReject?.(new EditorInitializationAbortedError());
 		this.state = 'idle';
 		this.preInitPlugins = [];
 		this.readyPromise = this.createReadyPromise();

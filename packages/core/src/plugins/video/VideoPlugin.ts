@@ -3,9 +3,9 @@
  *
  * Embeds are produced entirely by client-side URL parsing (no oEmbed, no provider
  * SDK). The node stores structured data, never raw iframe HTML; the live iframe is
- * built only at view time behind a privacy-first click-to-load facade. A global
- * DOMPurify host-allowlist hook guards every sanitize sink against untrusted
- * iframes on import.
+ * built only at view time behind a privacy-first click-to-load facade. The
+ * schema-owned iframe policy guards every registry-aware sanitize sink against
+ * untrusted iframes on import.
  */
 
 import { type BlockNode, getBlockText } from '../../model/Document.js';
@@ -32,8 +32,7 @@ import { createVideoNodeSpec } from './VideoNodeSpec.js';
 import { createVideoNodeViewFactory } from './VideoNodeView.js';
 import { createVideoPasteInterceptor } from './VideoPasteInterceptor.js';
 import { VIDEO_POPUP_CSS } from './VideoPopupStyles.js';
-import { type VideoMatch, collectEmbedHostnames, providerLabel } from './VideoProviders.js';
-import { installVideoIframeHook, uninstallVideoIframeHook } from './VideoSanitizeHook.js';
+import { type VideoMatch, providerLabel } from './VideoProviders.js';
 import { VIDEO_CSS } from './VideoStyles.js';
 import {
 	DEFAULT_VIDEO_CONFIG,
@@ -74,8 +73,6 @@ export class VideoPlugin implements Plugin {
 
 		context.registerStyleSheet(VIDEO_CSS);
 		context.registerStyleSheet(VIDEO_POPUP_CSS);
-		installVideoIframeHook(collectEmbedHostnames(this.config.providers));
-
 		context.registerNodeSpec(createVideoNodeSpec(this.config, this.locale));
 		this.overlay = new VideoEditOverlay(context, this.config, this.locale);
 		this.registerNodeView(context);
@@ -89,7 +86,6 @@ export class VideoPlugin implements Plugin {
 	}
 
 	destroy(): void {
-		uninstallVideoIframeHook();
 		this.embedPrompt?.close();
 		this.embedPrompt = null;
 		this.overlay?.close(false);

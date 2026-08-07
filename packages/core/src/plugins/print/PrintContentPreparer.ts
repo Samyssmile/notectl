@@ -4,7 +4,7 @@
  * and inserts header/footer elements.
  */
 
-import DOMPurify from 'dompurify';
+import { sanitizeHTML } from '../../serialization/HTMLSanitization.js';
 import { setStyleProperties } from '../../style/StyleRuntime.js';
 import type { PrintOptions } from './PrintTypes.js';
 
@@ -110,7 +110,7 @@ const HEADER_FOOTER_ALLOWED_ATTRS: readonly string[] = [
 /** Resolves a header/footer value to a sanitized HTML string. */
 function resolveContent(value: string | (() => string)): string {
 	const raw: string = typeof value === 'function' ? value() : value;
-	return DOMPurify.sanitize(raw, {
+	return sanitizeHTML(raw, {
 		ALLOWED_TAGS: [...HEADER_FOOTER_ALLOWED_TAGS],
 		ALLOWED_ATTR: [...HEADER_FOOTER_ALLOWED_ATTRS],
 	});

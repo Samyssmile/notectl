@@ -28,7 +28,7 @@ import type { EditorConfigController } from './EditorConfigController.js';
 import { type EditorDOMElements, createEditorDOM } from './EditorDOM.js';
 import type { EditorEventEmitter } from './EditorEventEmitter.js';
 import { EDITOR_LOCALE_EN, type EditorLocale, loadEditorLocale } from './EditorLocale.js';
-import type { EditorStyleCoordinator } from './EditorStyleCoordinator.js';
+import type { EditorStyleCoordinator, EditorStyleLease } from './EditorStyleCoordinator.js';
 import { EditorThemeController } from './EditorThemeController.js';
 import { PaperLayoutController } from './PaperLayoutController.js';
 import { ensureEssentialPlugins, processToolbarConfig } from './PluginBootstrapper.js';
@@ -50,7 +50,6 @@ export interface InitializerDeps {
 /** Components created during initialization, returned to the editor for storage. */
 export interface InitResult {
 	readonly view: EditorView;
-	readonly inputManager: InputManager;
 	readonly pluginManager: PluginManager;
 	readonly domElements: EditorDOMElements;
 	readonly themeController: EditorThemeController;
@@ -59,8 +58,8 @@ export interface InitResult {
 	readonly announce: (text: string) => void;
 	/** Localized "Markdown imported" announcement, resolved from the editor locale. */
 	readonly markdownImportedMessage: string;
-	/** Nulls closure-captured references to prevent stale dispatches after destroy. */
-	readonly release: () => void;
+	/** Disposes every resource owned by this completed initialization session. */
+	dispose(): Promise<void>;
 }
 
 /** Performs the full editor initialization sequence. Returns null if setup fails. */
@@ -81,13 +80,18 @@ export async function initializeEditor(deps: InitializerDeps): Promise<InitResul
 class EditorInitSession {
 	private readonly cfg: NotectlEditorConfig;
 	private themeController: EditorThemeController | null = null;
+	private styleLease: EditorStyleLease | null = null;
 	private domElements: EditorDOMElements | null = null;
 	private paperLayout: PaperLayoutController | null = null;
 	private pluginManager: PluginManager | null = null;
 	private inputManager: InputManager | null = null;
 	private view: EditorView | null = null;
 	private locale: EditorLocale = EDITOR_LOCALE_EN;
+	private domEventTarget: HTMLElement | null = null;
+	private autofocusFrameId: number | null = null;
 	private cleanedUp = false;
+	private readonly handleFocus = (): void => this.deps.events.emit('focus', undefined);
+	private readonly handleBlur = (): void => this.deps.events.emit('blur', undefined);
 
 	constructor(private readonly deps: InitializerDeps) {
 		this.cfg = deps.config;
@@ -119,32 +123,15 @@ class EditorInitSession {
 				!this.inputManager ||
 				!this.pluginManager ||
 				!this.domElements ||
-				!this.themeController
+				!this.themeController ||
+				!this.styleLease
 			) {
 				return this.abort();
 			}
 
-			const view: EditorView = this.view;
-			const inputManager: InputManager = this.inputManager;
-			const pluginManager: PluginManager = this.pluginManager;
-			const domElements: EditorDOMElements = this.domElements;
-			const themeController: EditorThemeController = this.themeController;
+			this.finalizeSetup(this.pluginManager, this.domElements);
 
-			this.finalizeSetup(pluginManager, domElements);
-
-			return {
-				view,
-				inputManager,
-				pluginManager,
-				domElements,
-				themeController,
-				paperLayout: this.paperLayout,
-				announce: (text: string): void => this.announce(text),
-				markdownImportedMessage: this.locale.markdownImported,
-				release: (): void => {
-					this.view = null;
-				},
-			};
+			return this.release();
 		} catch (error) {
 			await this.cleanup();
 			throw error;
@@ -153,7 +140,11 @@ class EditorInitSession {
 
 	private setupTheme(): void {
 		this.themeController = new EditorThemeController(this.deps.shadow);
-		this.deps.styleCoordinator.setup(this.deps.shadow, this.cfg.styleNonce, this.themeController);
+		this.styleLease = this.deps.styleCoordinator.setup(
+			this.deps.shadow,
+			this.cfg.styleNonce,
+			this.themeController,
+		);
 		this.themeController.apply(this.cfg.theme ?? ThemePreset.Light);
 	}
 
@@ -194,12 +185,9 @@ class EditorInitSession {
 		}
 		ensureEssentialPlugins(this.pluginManager, this.cfg.features);
 
-		this.domElements.content.addEventListener('focus', () =>
-			this.deps.events.emit('focus', undefined),
-		);
-		this.domElements.content.addEventListener('blur', () =>
-			this.deps.events.emit('blur', undefined),
-		);
+		this.domEventTarget = this.domElements.content;
+		this.domEventTarget.addEventListener('focus', this.handleFocus);
+		this.domEventTarget.addEventListener('blur', this.handleBlur);
 	}
 
 	private async initPluginsAndView(): Promise<void> {
@@ -273,6 +261,7 @@ class EditorInitSession {
 			navigateFromGapCursor,
 			announce: (text: string) => this.announce(text),
 			markdownImportedMessage: this.locale.markdownImported,
+			callbackExecutor: pm.getCallbackExecutor(),
 		});
 
 		this.view = new EditorView(dom.content, {
@@ -280,10 +269,12 @@ class EditorInitSession {
 			schemaRegistry: pm.schemaRegistry,
 			keymapRegistry: pm.keymapRegistry,
 			fileHandlerRegistry: pm.fileHandlerRegistry,
+			callbackExecutor: pm.getCallbackExecutor(),
 			nodeViewRegistry: pm.nodeViewRegistry,
 			maxHistoryDepth: this.cfg.maxHistoryDepth,
 			getDecorations: (s, tr) => pm.collectDecorations(s, tr) ?? DecorationSet.empty,
 			onStateChange: (oldState, newState, tr) => {
+				this.inputManager?.onStateChange(oldState, newState, tr);
 				handleStateChange(oldState, newState, tr, dom, pm, this.deps.events);
 			},
 			isReadOnly: () => this.deps.configController.isReadOnly,
@@ -315,7 +306,10 @@ class EditorInitSession {
 
 		if (this.cfg.autofocus) {
 			const content: HTMLElement = dom.content;
-			requestAnimationFrame(() => content.focus());
+			this.autofocusFrameId = requestAnimationFrame(() => {
+				this.autofocusFrameId = null;
+				if (!this.cleanedUp) content.focus();
+			});
 		}
 	}
 
@@ -330,6 +324,41 @@ class EditorInitSession {
 		return this.deps.isCancelled?.() ?? false;
 	}
 
+	/**
+	 * Atomically releases the fully built session as one externally owned handle.
+	 * The handle retains the sole teardown capability, so accepted and stale
+	 * results always use the same idempotent cleanup path.
+	 */
+	private release(): InitResult {
+		const view = this.view;
+		const inputManager = this.inputManager;
+		const pluginManager = this.pluginManager;
+		const domElements = this.domElements;
+		const themeController = this.themeController;
+		const styleLease = this.styleLease;
+		if (
+			!view ||
+			!inputManager ||
+			!pluginManager ||
+			!domElements ||
+			!themeController ||
+			!styleLease
+		) {
+			throw new Error('Cannot release an incomplete editor initialization session.');
+		}
+
+		return {
+			view,
+			pluginManager,
+			domElements,
+			themeController,
+			paperLayout: this.paperLayout,
+			announce: (text: string): void => this.announce(text),
+			markdownImportedMessage: this.locale.markdownImported,
+			dispose: () => this.cleanup(),
+		};
+	}
+
 	private async abort(): Promise<null> {
 		await this.cleanup();
 		return null;
@@ -338,12 +367,20 @@ class EditorInitSession {
 	private async cleanup(): Promise<void> {
 		if (this.cleanedUp) return;
 		this.cleanedUp = true;
+		if (this.autofocusFrameId !== null) {
+			cancelAnimationFrame(this.autofocusFrameId);
+			this.autofocusFrameId = null;
+		}
+		this.domEventTarget?.removeEventListener('focus', this.handleFocus);
+		this.domEventTarget?.removeEventListener('blur', this.handleBlur);
+		this.domEventTarget = null;
 
 		const liveView: EditorView | null = this.view;
 		this.view = null;
 		this.paperLayout?.destroy();
 		this.paperLayout = null;
-		this.deps.styleCoordinator.teardown(this.deps.shadow, this.themeController);
+		this.deps.styleCoordinator.teardown(this.styleLease);
+		this.styleLease = null;
 		this.themeController?.destroy();
 		this.themeController = null;
 		this.inputManager?.destroy();
@@ -351,9 +388,10 @@ class EditorInitSession {
 		liveView?.destroy();
 		const livePluginManager: PluginManager | null = this.pluginManager;
 		this.pluginManager = null;
-		await livePluginManager?.destroy();
+		const pluginTeardown: Promise<void> = livePluginManager?.destroy() ?? Promise.resolve();
 		this.domElements?.wrapper.remove();
 		this.domElements = null;
+		await pluginTeardown;
 	}
 }
 

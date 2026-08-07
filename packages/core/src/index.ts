@@ -133,7 +133,7 @@ export type { InlineNodeSpec } from './model/InlineNodeSpec.js';
 
 // --- ParseRule & SanitizeConfig ---
 export type { ParseRule } from './model/ParseRule.js';
-export type { SanitizeConfig } from './model/SanitizeConfig.js';
+export type { ElementSanitizeValidator, SanitizeConfig } from './model/SanitizeConfig.js';
 export {
 	escapeAttr,
 	escapeHTML,
@@ -142,7 +142,7 @@ export {
 } from './model/HTMLUtils.js';
 
 // --- SchemaRegistry ---
-export { SchemaRegistry } from './model/SchemaRegistry.js';
+export { type NodeSpecExtension, SchemaRegistry } from './model/SchemaRegistry.js';
 
 // --- NodeResolver ---
 export {
@@ -427,3 +427,4 @@ export type {
 	StateChangeEvent,
 } from './editor/NotectlEditor.js';
 export { NotectlEditor, createEditor } from './editor/NotectlEditor.js';
+export { EditorInitializationAbortedError } from './editor/EditorLifecycleCoordinator.js';

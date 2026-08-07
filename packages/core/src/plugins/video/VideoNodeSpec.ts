@@ -13,7 +13,7 @@
  *     leak it on every page that renders the export.
  *
  * `parseHTML` reconstructs the node from `data-video-*`, and additionally tolerates
- * a known-provider embed `<iframe>` on import (host-validated by the sanitize hook).
+ * a known-provider embed `<iframe>` on import (host-validated by its registry policy).
  */
 
 import { escapeAttr, escapeHTML } from '../../model/HTMLUtils.js';
@@ -24,10 +24,12 @@ import {
 	type VideoMatch,
 	buildThumbnailForMatch,
 	buildWatchUrlForMatch,
+	collectEmbedHostnames,
 	findProvider,
 	parseVideoUrl,
 	providerLabel,
 } from './VideoProviders.js';
+import { createVideoIframeSanitizeValidator } from './VideoSanitizeHook.js';
 import {
 	type VideoAlign,
 	type VideoAttrs,
@@ -79,6 +81,7 @@ export function createVideoNodeSpec(
 	locale: VideoLocale,
 ): NodeSpec<'video'> {
 	const providers = config.providers;
+	const validateIframe = createVideoIframeSanitizeValidator(collectEmbedHostnames(providers));
 
 	return {
 		type: 'video',
@@ -183,9 +186,9 @@ export function createVideoNodeSpec(
 		],
 
 		// Tags/attrs needed for the figure export round-trip plus tolerant iframe
-		// import. The iframe host is additionally validated by the sanitize hook;
-		// declaring `iframe` here only lets DOMPurify keep it long enough for that
-		// hook and the parse rule to run. `data-video-*` pass via ALLOW_DATA_ATTR.
+		// import. Declaring `iframe` only lets DOMPurify keep it long enough for the
+		// owner-specific validator and parse rule to run. `data-video-*` pass via
+		// ALLOW_DATA_ATTR.
 		sanitize: {
 			tags: ['figure', 'figcaption', 'a', 'img', 'iframe'],
 			attrs: [
@@ -204,6 +207,7 @@ export function createVideoNodeSpec(
 				'class',
 				'style',
 			],
+			elementValidators: { iframe: validateIframe },
 		},
 	};
 }

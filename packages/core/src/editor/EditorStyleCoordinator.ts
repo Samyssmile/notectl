@@ -12,17 +12,37 @@ import {
 } from '../style/StyleRuntime.js';
 import type { EditorThemeController } from './EditorThemeController.js';
 
+/** Opaque ownership handle for one editor initialization's style registration. */
+export interface EditorStyleLease {
+	readonly id: symbol;
+	readonly shadow: ShadowRoot;
+	readonly themeController: EditorThemeController | null;
+}
+
 export class EditorStyleCoordinator {
 	private runtimeStyleSheet: CSSStyleSheet | null = null;
+	private activeLease: EditorStyleLease | null = null;
 
 	/** Sets up the runtime stylesheet and registers the shadow root as a style root. */
 	setup(
 		shadow: ShadowRoot,
 		nonce: string | undefined,
 		themeController: EditorThemeController | null,
-	): void {
-		unregisterStyleRoot(shadow);
+	): EditorStyleLease {
+		if (this.activeLease) {
+			this.release(this.activeLease);
+		} else {
+			// The coordinator may be booting over a declarative or externally reused
+			// root whose registration predates this instance.
+			unregisterStyleRoot(shadow);
+		}
 		this.runtimeStyleSheet = createRuntimeStyleSheet();
+		const lease: EditorStyleLease = {
+			id: Symbol('notectl-style-lease'),
+			shadow,
+			themeController,
+		};
+		this.activeLease = lease;
 
 		themeController?.setRuntimeStyleSheets(this.runtimeStyleSheet ? [this.runtimeStyleSheet] : []);
 
@@ -30,14 +50,19 @@ export class EditorStyleCoordinator {
 			nonce,
 			sheet: this.runtimeStyleSheet,
 		});
+		return lease;
 	}
 
-	/** Tears down the runtime stylesheet and unregisters the shadow root. */
-	teardown(shadow: ShadowRoot | null, themeController: EditorThemeController | null): void {
-		if (shadow) {
-			unregisterStyleRoot(shadow);
-		}
+	/** Tears down styles only when the caller still owns the active registration. */
+	teardown(lease: EditorStyleLease | null): void {
+		if (!lease || this.activeLease !== lease) return;
+		this.release(lease);
+	}
+
+	private release(lease: EditorStyleLease): void {
+		unregisterStyleRoot(lease.shadow);
 		this.runtimeStyleSheet = null;
-		themeController?.setRuntimeStyleSheets([]);
+		lease.themeController?.setRuntimeStyleSheets([]);
+		if (this.activeLease === lease) this.activeLease = null;
 	}
 }

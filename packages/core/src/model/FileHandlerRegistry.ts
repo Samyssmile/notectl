@@ -3,6 +3,7 @@
  * for paste and drop operations, with MIME pattern matching.
  */
 
+import type { PluginCallbackRegistration } from './PluginCallbackExecutor.js';
 import type { Position } from './Selection.js';
 
 /** Handler for a single file pasted or dropped into the editor. */
@@ -11,13 +12,24 @@ export type FileHandler = (file: File, position: Position | null) => boolean | P
 export interface FileHandlerEntry {
 	readonly pattern: string;
 	readonly handler: FileHandler;
+	readonly pluginId: string;
+	readonly name: string;
 }
 
 export class FileHandlerRegistry {
 	private readonly _fileHandlers: FileHandlerEntry[] = [];
 
-	registerFileHandler(pattern: string, handler: FileHandler): void {
-		this._fileHandlers.push({ pattern, handler });
+	registerFileHandler(
+		pattern: string,
+		handler: FileHandler,
+		registration?: PluginCallbackRegistration,
+	): void {
+		this._fileHandlers.push({
+			pattern,
+			handler,
+			pluginId: registration?.pluginId ?? 'unattributed',
+			name: registration?.name ?? (handler.name || pattern),
+		});
 	}
 
 	getFileHandlers(): readonly FileHandlerEntry[] {
@@ -25,13 +37,12 @@ export class FileHandlerRegistry {
 	}
 
 	matchFileHandlers(mimeType: string): FileHandler[] {
-		const handlers: FileHandler[] = [];
-		for (const entry of this._fileHandlers) {
-			if (matchMimePattern(entry.pattern, mimeType)) {
-				handlers.push(entry.handler);
-			}
-		}
-		return handlers;
+		return this.matchFileHandlerEntries(mimeType).map((entry) => entry.handler);
+	}
+
+	/** Returns matching handlers with plugin ownership retained for runtime attribution. */
+	matchFileHandlerEntries(mimeType: string): readonly FileHandlerEntry[] {
+		return this._fileHandlers.filter((entry) => matchMimePattern(entry.pattern, mimeType));
 	}
 
 	removeFileHandler(handler: FileHandler): void {

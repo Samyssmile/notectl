@@ -110,7 +110,7 @@ export class TextDirectionPlugin implements Plugin {
 	}
 
 	private patchNodeSpecs(context: PluginContext): void {
-		patchNodeSpecAttr(context.getSchemaRegistry(), this.config.directableTypes, {
+		patchNodeSpecAttr(context, this.config.directableTypes, {
 			attrName: 'dir',
 			getDefault: () => 'auto',
 			applyToDOM: applyDirection,

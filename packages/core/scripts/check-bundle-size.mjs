@@ -15,10 +15,10 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
  * entry as if all locales loaded at once.
  */
 const ENTRY_BUDGETS = [
-	['Core', 'src/index.ts', 100],
+	['Core', 'src/index.ts', 105],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
-	['HTML codec', 'src/html.ts', 12],
+	['HTML codec', 'src/html.ts', 13],
 	['Markdown codec', 'src/markdown.ts', 29],
 	['Fonts (compatibility barrel)', 'src/fonts.ts', 555],
 	['Fonts (starter)', 'src/fonts/starter.ts', 255],

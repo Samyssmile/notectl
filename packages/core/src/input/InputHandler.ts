@@ -20,6 +20,7 @@ import { isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -46,6 +47,8 @@ export interface InputHandlerOptions {
 	shouldApplyInputRules?: () => boolean;
 	compositionTracker?: CompositionTracker;
 	getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
+	/** Shared plugin callback error boundary supplied by PluginManager. */
+	callbackExecutor?: PluginCallbackExecutor;
 }
 
 export class InputHandler {
@@ -57,6 +60,7 @@ export class InputHandler {
 	private readonly shouldApplyInputRules: () => boolean;
 	private readonly compositionTracker: CompositionTracker;
 	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
+	private readonly callbackExecutor: PluginCallbackExecutor;
 	private compositionCommitHandled = false;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
@@ -75,6 +79,7 @@ export class InputHandler {
 		this.shouldApplyInputRules = options.shouldApplyInputRules ?? (() => true);
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
+		this.callbackExecutor = options.callbackExecutor ?? PluginCallbackExecutor.silent;
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
@@ -236,8 +241,15 @@ export class InputHandler {
 		if (entries.length === 0) return null;
 
 		for (const entry of entries) {
-			const tr = entry.interceptor(text, state);
-			if (tr) return tr;
+			const outcome = this.callbackExecutor.execute(
+				{
+					pluginId: entry.pluginId,
+					name: entry.name,
+					kind: 'text-input-interceptor',
+				},
+				() => entry.interceptor(text, state),
+			);
+			if (outcome.ok && outcome.value) return outcome.value;
 		}
 		return null;
 	}
@@ -245,8 +257,8 @@ export class InputHandler {
 	private checkInputRules(): void {
 		if (!this.shouldApplyInputRules()) return;
 		if (!this.inputRuleRegistry) return;
-		const rules = this.inputRuleRegistry.getInputRules();
-		if (rules.length === 0) return;
+		const entries = this.inputRuleRegistry.getInputRuleEntries();
+		if (entries.length === 0) return;
 
 		const state = this.getState();
 		if (!isTextSelection(state.selection)) return;
@@ -261,16 +273,24 @@ export class InputHandler {
 		const text = blockTextForRules(block);
 		const textBefore = text.slice(0, anchor.offset);
 
-		for (const rule of rules) {
-			const match = rule.pattern.exec(textBefore);
-			if (match) {
-				const start = match.index;
-				const end = start + match[0].length;
-				const tr = rule.handler(state, match, start, end);
-				if (tr) {
-					this.dispatch(tr);
-					return; // Only first matching rule fires
-				}
+		for (const entry of entries) {
+			const outcome = this.callbackExecutor.execute(
+				{
+					pluginId: entry.pluginId,
+					name: entry.name,
+					kind: 'input-rule',
+				},
+				() => {
+					const match = entry.rule.pattern.exec(textBefore);
+					if (!match) return null;
+					const start = match.index;
+					const end = start + match[0].length;
+					return entry.rule.handler(state, match, start, end);
+				},
+			);
+			if (outcome.ok && outcome.value) {
+				this.dispatch(outcome.value);
+				return; // Only first matching rule fires
 			}
 		}
 	}

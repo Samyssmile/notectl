@@ -5,7 +5,12 @@ import {
 	expectToolbarActive,
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
-import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { EditorView } from '../../view/EditorView.js';
+import { PluginManager } from '../PluginManager.js';
+import { toggleChecked } from './ListCommands.js';
+import { LIST_LOCALE_EN } from './ListLocale.js';
+import { CHECKLIST_MARKER_CLASS } from './ListMarker.js';
 import { ListPlugin } from './ListPlugin.js';
 
 // --- Helpers ---
@@ -39,6 +44,56 @@ function keymapHandler(
 		if (handler) return handler;
 	}
 	return undefined;
+}
+
+/** Builds a list plugin wired to the production EditorView dispatch guard. */
+async function readonlyInteractiveListEditor(): Promise<{
+	readonly pm: PluginManager;
+	readonly view: EditorView;
+	readonly container: HTMLElement;
+	readonly announce: ReturnType<typeof vi.fn>;
+	destroy(): Promise<void>;
+}> {
+	const state = makeState([
+		{
+			type: 'list_item',
+			text: 'Task',
+			id: 'b1',
+			attrs: { listType: 'checklist', indent: 0, checked: false },
+		},
+	]);
+	const pm = new PluginManager();
+	const container = document.createElement('div');
+	const announce = vi.fn();
+	let view: EditorView | null = null;
+	pm.register(new ListPlugin({ interactiveCheckboxes: true }));
+	await pm.init({
+		getState: () => view?.getState() ?? state,
+		dispatch: (transaction) => view?.dispatch(transaction),
+		getContainer: () => container,
+		getPluginContainer: () => container,
+		announce,
+	});
+	view = new EditorView(container, {
+		state,
+		schemaRegistry: pm.schemaRegistry,
+		keymapRegistry: pm.keymapRegistry,
+		isReadOnly: () => pm.isReadOnly(),
+		isReadonlyBypassed: () => pm.isReadonlyBypassed(),
+		getDecorations: (currentState, transaction) => pm.collectDecorations(currentState, transaction),
+	});
+	pm.setReadOnly(true);
+
+	return {
+		pm,
+		view,
+		container,
+		announce,
+		async destroy() {
+			view?.destroy();
+			await pm.destroy();
+		},
+	};
 }
 
 // --- Tests ---
@@ -392,6 +447,7 @@ describe('ListPlugin', () => {
 			const h = await pluginHarness(new ListPlugin(), state);
 			h.pm.setReadOnly(true);
 
+			expect(h.pm.canExecuteCommand('toggleChecklistItem')).toBe(false);
 			expect(h.executeCommand('toggleChecklistItem')).toBe(false);
 			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(false);
 		});
@@ -408,6 +464,7 @@ describe('ListPlugin', () => {
 			const h = await pluginHarness(new ListPlugin({ interactiveCheckboxes: true }), state);
 			h.pm.setReadOnly(true);
 
+			expect(h.pm.canExecuteCommand('toggleChecklistItem')).toBe(true);
 			h.executeCommand('toggleChecklistItem');
 			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
 		});
@@ -444,6 +501,32 @@ describe('ListPlugin', () => {
 
 			h.executeCommand('toggleChecklistItem');
 			expect(announce).toHaveBeenLastCalledWith('Unchecked');
+		});
+
+		it('does not announce success when dispatch does not apply the transaction', () => {
+			const announce = vi.fn();
+			const state = makeState([
+				{
+					type: 'list_item',
+					text: 'task',
+					id: 'b1',
+					attrs: { listType: 'checklist', indent: 0, checked: false },
+				},
+			]);
+			const context = mockPluginContext({
+				getState: () => state,
+				dispatch: vi.fn(),
+				isReadOnly: () => false,
+				announce,
+			});
+
+			expect(
+				toggleChecked(context, {
+					interactiveCheckboxes: true,
+					locale: LIST_LOCALE_EN,
+				}),
+			).toBe(false);
+			expect(announce).not.toHaveBeenCalled();
 		});
 	});
 
@@ -508,6 +591,36 @@ describe('ListPlugin', () => {
 			const toggle = keymapHandler(h, 'Mod-Enter');
 			expect(toggle?.()).toBe(true);
 			expect(h.getState().doc.children[0]?.attrs?.checked).toBe(true);
+		});
+
+		it('passes Mod-Enter through the real EditorView read-only guard', async () => {
+			const editor = await readonlyInteractiveListEditor();
+			try {
+				const toggle = editor.pm.keymapRegistry
+					.getKeymaps()
+					.find((keymap) => keymap['Mod-Enter'])?.['Mod-Enter'];
+
+				expect(toggle?.()).toBe(true);
+				expect(editor.view.getState().getBlock('b1')?.attrs?.checked).toBe(true);
+				expect(editor.announce).toHaveBeenLastCalledWith('Checked');
+			} finally {
+				await editor.destroy();
+			}
+		});
+
+		it('passes marker clicks through the real EditorView read-only guard', async () => {
+			const editor = await readonlyInteractiveListEditor();
+			try {
+				const marker = editor.container.querySelector<HTMLElement>(`.${CHECKLIST_MARKER_CLASS}`);
+				expect(marker).not.toBeNull();
+
+				marker?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+				expect(editor.view.getState().getBlock('b1')?.attrs?.checked).toBe(true);
+				expect(editor.announce).toHaveBeenLastCalledWith('Checked');
+			} finally {
+				await editor.destroy();
+			}
 		});
 
 		it('does not bind Mod-Enter when checklist is disabled', async () => {

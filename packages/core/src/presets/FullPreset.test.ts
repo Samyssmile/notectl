@@ -23,6 +23,7 @@ import { TextDirectionAutoPlugin } from '../plugins/text-direction-auto/TextDire
 import { TextDirectionPlugin } from '../plugins/text-direction/TextDirectionPlugin.js';
 import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingPlugin.js';
 import { VideoPlugin } from '../plugins/video/VideoPlugin.js';
+import { pluginHarness } from '../test/TestUtils.js';
 import { createFullPreset } from './FullPreset.js';
 
 describe('createFullPreset', () => {
@@ -127,6 +128,18 @@ describe('createFullPreset', () => {
 		expect(preset.toolbar).toHaveLength(8);
 		expect(preset.toolbar[5]?.[0]).toBeInstanceOf(ListPlugin);
 		expect(preset.toolbar[3]?.[0]).toBeInstanceOf(HeadingPlugin);
+	});
+
+	it('finalizes code_block as valid table-cell content in the complete preset', async () => {
+		const preset = createFullPreset();
+		const h = await pluginHarness([...preset.toolbar.flat(), ...preset.plugins], undefined, {
+			builtinSpecs: true,
+		});
+		try {
+			expect(h.getNodeSpec('table_cell')?.content?.allow).toContain('code_block');
+		} finally {
+			await h.pm.destroy();
+		}
 	});
 
 	it('allows overriding font config with custom fonts', () => {

@@ -57,6 +57,12 @@ export class MarkdownSyntaxRegistry {
 		this._extensions.push(extension);
 	}
 
+	/** Removes one plugin-owned extension by object identity. */
+	remove(extension: MarkdownSyntaxExtension): void {
+		const index = this._extensions.indexOf(extension);
+		if (index !== -1) this._extensions.splice(index, 1);
+	}
+
 	getExtensions(): readonly MarkdownSyntaxExtension[] {
 		return this._extensions;
 	}

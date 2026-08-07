@@ -12,8 +12,9 @@ import {
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
+import { createCollapsedSelection, isNodeSelection, isTextSelection } from '../model/Selection.js';
 import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -56,9 +57,20 @@ function createPasteEvent(options: {
 	if (options.html) dataTransfer.types.push('text/html');
 	if (options.text) dataTransfer.types.push('text/plain');
 
-	const event = new ClipboardEvent('paste');
+	const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
 	Object.defineProperty(event, 'clipboardData', { value: dataTransfer });
 	return event;
+}
+
+function deferred<T>(): {
+	readonly promise: Promise<T>;
+	readonly resolve: (value: T) => void;
+} {
+	let resolve = (_value: T): void => {};
+	const promise = new Promise<T>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
 }
 
 // --- Suite ---
@@ -148,6 +160,163 @@ describe('PasteHandler file paste', () => {
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
 		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('awaits Promise<boolean>, then continues in registration order after resolve(false)', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+		const pending = deferred<boolean>();
+		const first = vi.fn(() => pending.promise);
+		const second = vi.fn(() => true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', first, {
+			pluginId: 'first-plugin',
+			name: 'async-file',
+		});
+		fileHandlerRegistry.registerFileHandler('image/png', second, {
+			pluginId: 'second-plugin',
+			name: 'sync-file',
+		});
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(createPasteEvent({ files: [pngFile], text: 'fallback' }));
+
+		expect(first).toHaveBeenCalledOnce();
+		expect(second).not.toHaveBeenCalled();
+		pending.resolve(false);
+		await vi.waitFor(() => expect(second).toHaveBeenCalledOnce());
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('isolates sync throws and async rejections before falling back to captured text', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+		const failures: string[] = [];
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler(
+			'image/png',
+			() => {
+				throw new Error('sync failure');
+			},
+			{ pluginId: 'sync-plugin', name: 'sync-handler' },
+		);
+		fileHandlerRegistry.registerFileHandler(
+			'image/png',
+			() => Promise.reject(new Error('async failure')),
+			{ pluginId: 'async-plugin', name: 'async-handler' },
+		);
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			fileHandlerRegistry,
+			callbackExecutor: new PluginCallbackExecutor((failure) => {
+				failures.push(`${failure.pluginId}:${failure.name}`);
+			}),
+		});
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(createPasteEvent({ files: [pngFile], text: 'fallback' }));
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+		expect(getBlockText(state.doc.children[0])).toBe('hellofallback');
+		expect(failures).toEqual(['sync-plugin:sync-handler', 'async-plugin:async-handler']);
+	});
+
+	it('cancels an in-flight file-handler chain on destroy', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+		const pending = deferred<boolean>();
+		const next = vi.fn(() => false);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/png', () => pending.promise);
+		fileHandlerRegistry.registerFileHandler('image/png', next);
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(createPasteEvent({ files: [pngFile], text: 'fallback' }));
+		handler.destroy();
+		pending.resolve(false);
+		await pending.promise;
+		await Promise.resolve();
+
+		expect(next).not.toHaveBeenCalled();
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('cancels the fallback when readonly is enabled during an async file handler', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		const pending = deferred<boolean>();
+		let readOnly = false;
+		dispatch = vi.fn();
+		getState = () => state;
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', () => pending.promise);
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			fileHandlerRegistry,
+			isReadOnly: () => readOnly,
+		});
+
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [new File(['bytes'], 'photo.png', { type: 'image/png' })],
+				text: 'must not be inserted',
+			}),
+		);
+		readOnly = true;
+		pending.resolve(false);
+		await pending.promise;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+});
+
+describe('PasteHandler plugin callback isolation', () => {
+	it('continues after a throwing paste interceptor and preserves clipboard text', () => {
+		const element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const failures: string[] = [];
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			callbackExecutor: new PluginCallbackExecutor((failure) => {
+				failures.push(`${failure.pluginId}:${failure.name}:${failure.kind}`);
+			}),
+			getPasteInterceptors: () => [
+				{
+					pluginId: 'broken-plugin',
+					name: 'throwing-paste',
+					priority: 10,
+					interceptor: () => {
+						throw new Error('broken paste');
+					},
+				},
+			],
+		});
+
+		const event = createPasteEvent({ text: 'kept' });
+		element.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(getBlockText(state.doc.children[0])).toBe('hellokept');
+		expect(failures).toEqual(['broken-plugin:throwing-paste:paste-interceptor']);
+		handler.destroy();
 	});
 });
 
@@ -1469,6 +1638,143 @@ describe('PasteHandler markdown fallback', () => {
 		const allText: string = state.doc.children.map((b) => getBlockText(b)).join('\n');
 		expect(allText).toContain('```');
 		expect(allText).toContain('x');
+	});
+
+	it('falls back to captured text when the converted HTML cannot be committed', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const announce = vi.fn();
+		const failures: string[] = [];
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'heading',
+			attrs: { level: { default: 1 } },
+			toDOM: () => document.createElement('section'),
+			toHTML: (_node, content) => `<section>${content}</section>`,
+			parseHTML: [
+				{
+					tag: 'section',
+					getAttrs: () => {
+						throw new Error('cannot parse converted heading');
+					},
+				},
+			],
+			sanitize: { tags: ['section'] },
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			schemaRegistry: registry,
+			callbackExecutor: new PluginCallbackExecutor((failure) => {
+				failures.push(failure.name);
+			}),
+		});
+
+		const markdown = '# Heading\n\n- one\n- two';
+		element.dispatchEvent(createPasteEvent({ text: markdown }));
+
+		await vi.waitFor(() => expect(failures).toContain('Markdown HTML commit'));
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+		expect(state.doc.children.map((block) => getBlockText(block)).join('\n')).toContain(markdown);
+		expect(announce).not.toHaveBeenCalled();
+	});
+
+	it('inserts at the original bookmark mapped through intervening transactions', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const parserModule = await import('../serialization/MarkdownParser.js');
+		const loading = deferred<typeof parserModule>();
+		const dispatch = vi.fn((tr: Transaction) => {
+			const oldState = state;
+			state = state.apply(tr);
+			handler.onStateChange(oldState, state, tr);
+		});
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			loadMarkdownParser: () => loading.promise,
+		});
+
+		element.dispatchEvent(createPasteEvent({ text: '# Heading\n\n- one\n- two' }));
+
+		const intervening: Transaction = state
+			.transaction('input')
+			.insertText(B1, 0, 'X', [])
+			.setSelection(createCollapsedSelection(B1, 0))
+			.build();
+		const beforeIntervening = state;
+		state = state.apply(intervening);
+		handler.onStateChange(beforeIntervening, state, intervening);
+		loading.resolve(parserModule);
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+		const text = getBlockText(state.doc.children[0]);
+		expect(text.startsWith('Xhello')).toBe(true);
+		expect(text).toContain('Heading');
+		expect(isTextSelection(state.selection)).toBe(true);
+		if (isTextSelection(state.selection)) {
+			expect(state.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('does not dispatch or announce after destroy while the parser is loading', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		const parserModule = await import('../serialization/MarkdownParser.js');
+		const loading = deferred<typeof parserModule>();
+		const dispatch = vi.fn();
+		const announce = vi.fn();
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			loadMarkdownParser: () => loading.promise,
+		});
+
+		element.dispatchEvent(createPasteEvent({ text: '# Heading\n\n- one\n- two' }));
+		handler.destroy();
+		loading.resolve(parserModule);
+		await loading.promise;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(announce).not.toHaveBeenCalled();
+	});
+
+	it('does not dispatch or announce when readonly is enabled while the parser is loading', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		const parserModule = await import('../serialization/MarkdownParser.js');
+		const loading = deferred<typeof parserModule>();
+		const dispatch = vi.fn();
+		const announce = vi.fn();
+		let readOnly = false;
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			isReadOnly: () => readOnly,
+			loadMarkdownParser: () => loading.promise,
+		});
+
+		element.dispatchEvent(createPasteEvent({ text: '# Heading\n\n- one\n- two' }));
+		readOnly = true;
+		loading.resolve(parserModule);
+		await loading.promise;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(announce).not.toHaveBeenCalled();
 	});
 });
 

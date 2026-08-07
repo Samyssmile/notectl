@@ -7,17 +7,20 @@ import { DecorationSet } from '../decorations/Decoration.js';
 import type { CompositionState } from '../model/CompositionState.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
+import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
-import { Mapping } from '../state/Mapping.js';
 import { isAllowedInReadonly, isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
 import type { Transaction } from '../state/Transaction.js';
+import { finalizeTransaction } from '../state/TransactionFinalizer.js';
+import { sealOwnedTransaction } from '../state/TransactionSnapshot.js';
 import { CursorWrapper } from './CursorWrapper.js';
 import { EditorViewEvents } from './EditorViewEvents.js';
 import { EditorViewNavigation } from './EditorViewNavigation.js';
 import type { NodeView } from './NodeView.js';
+import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
 import { syncSelectionToDOM } from './SelectionSync.js';
@@ -45,6 +48,8 @@ export interface EditorViewOptions {
 	 */
 	isReadonlyBypassed?: () => boolean;
 	compositionState?: CompositionState;
+	/** Shared plugin callback error boundary supplied by PluginManager. */
+	callbackExecutor?: PluginCallbackExecutor;
 }
 
 export class EditorView {
@@ -55,6 +60,7 @@ export class EditorView {
 	private isUpdating = false;
 	private readonly schemaRegistry?: SchemaRegistry;
 	private readonly nodeViewRegistry?: NodeViewRegistry;
+	private readonly callbackExecutor: PluginCallbackExecutor;
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
@@ -70,6 +76,7 @@ export class EditorView {
 		this.contentElement = contentElement;
 		this.schemaRegistry = options.schemaRegistry;
 		this.nodeViewRegistry = options.nodeViewRegistry;
+		this.callbackExecutor = options.callbackExecutor ?? PluginCallbackExecutor.silent;
 		this.getDecorations = options.getDecorations;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.isReadonlyBypassed = options.isReadonlyBypassed ?? (() => false);
@@ -106,6 +113,7 @@ export class EditorView {
 			cursorWrapper: this.cursorWrapper,
 			isReadOnly: this.isReadOnly,
 			fileHandlerRegistry: options.fileHandlerRegistry,
+			callbackExecutor: this.callbackExecutor,
 			onMousedown: () => this.navigation.clearGoalColumn(),
 		});
 
@@ -137,25 +145,28 @@ export class EditorView {
 		this.isUpdating = true;
 		try {
 			const oldState = this.state;
+			const finalizedTransaction = finalizeTransaction(tr, oldState.doc);
 			this.state = newState;
+			this.events.onStateChange(oldState, newState, finalizedTransaction);
 
 			if (this.cursorWrapper.isActive && !newState.storedMarks?.length) {
 				this.cursorWrapper.cleanup();
 			}
 
-			if (options?.pushHistory && tr.metadata.origin !== 'history') {
-				this.history.push(tr);
-			} else if (isSelectionOnlyTransaction(tr)) {
+			if (options?.pushHistory && finalizedTransaction.metadata.origin !== 'history') {
+				this.history.push(finalizedTransaction);
+			} else if (isSelectionOnlyTransaction(finalizedTransaction)) {
 				// Selection-only updates are not undoable, but they must still
 				// break typing groups so later edits don't merge across cursor moves.
-				this.history.push(tr);
+				this.history.push(finalizedTransaction);
 			}
 
-			const newDecorations = this.getDecorations?.(newState, tr) ?? DecorationSet.empty;
+			const newDecorations =
+				this.getDecorations?.(newState, finalizedTransaction) ?? DecorationSet.empty;
 			this.reconcileAndSync(oldState, newState, newDecorations, options?.skipSelectionSync);
 
 			for (const cb of this.stateChangeCallbacks) {
-				cb(oldState, newState, tr);
+				cb(oldState, newState, finalizedTransaction);
 			}
 			this.navigation.resetAfterUpdate();
 		} finally {
@@ -165,11 +176,16 @@ export class EditorView {
 
 	/** Dispatches a transaction, updates state, reconciles DOM. */
 	dispatch(tr: Transaction): void {
-		if (this.isReadOnly() && !isAllowedInReadonly(tr) && !this.isReadonlyBypassed()) {
+		const finalizedTransaction = finalizeTransaction(tr, this.state.doc);
+		if (
+			this.isReadOnly() &&
+			!isAllowedInReadonly(finalizedTransaction) &&
+			!this.isReadonlyBypassed()
+		) {
 			return;
 		}
-		const newState = this.state.apply(tr);
-		this.applyUpdate(newState, tr, { pushHistory: true });
+		const newState = this.state.apply(finalizedTransaction);
+		this.applyUpdate(newState, finalizedTransaction, { pushHistory: true });
 	}
 
 	/** Performs undo. */
@@ -221,18 +237,18 @@ export class EditorView {
 				this.cursorWrapper.cleanup();
 			}
 
-			const tr: Transaction = {
+			const tr: Transaction = sealOwnedTransaction({
 				steps: [],
 				selectionBefore: oldState.selection,
 				selectionAfter: preserved.selection,
 				storedMarksAfter: preserved.storedMarks,
-				mapping: Mapping.empty,
 				forwardStepMaps: [],
 				metadata: {
 					origin: 'api',
 					timestamp: Date.now(),
 				},
-			};
+			});
+			this.events.onStateChange(oldState, preserved, tr);
 			const newDecorations = this.getDecorations?.(preserved, tr) ?? DecorationSet.empty;
 			this.reconcileAndSync(oldState, preserved, newDecorations);
 
@@ -295,6 +311,7 @@ export class EditorView {
 			nodeViews: this.nodeViews,
 			getState: () => this.state,
 			dispatch: (tr: Transaction) => this.dispatch(tr),
+			callbackExecutor: this.callbackExecutor,
 			selectedNodeId,
 			previousSelectedNodeId,
 		};
@@ -305,9 +322,6 @@ export class EditorView {
 		this.cursorWrapper.cleanup();
 		this.events.destroy();
 		this.navigation.destroy();
-		for (const nv of this.nodeViews.values()) {
-			nv.destroy?.();
-		}
-		this.nodeViews.clear();
+		destroyAllNodeViews(this.nodeViews);
 	}
 }

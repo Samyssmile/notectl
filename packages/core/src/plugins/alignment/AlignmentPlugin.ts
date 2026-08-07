@@ -100,7 +100,7 @@ export class AlignmentPlugin implements Plugin {
 	 * that already define an `align` attribute in their spec.
 	 */
 	private patchNodeSpecs(context: PluginContext): void {
-		patchNodeSpecAttr(context.getSchemaRegistry(), this.config.alignableTypes, {
+		patchNodeSpecAttr(context, this.config.alignableTypes, {
 			attrName: 'align',
 			getDefault: (type) => this.config.defaults[type] ?? 'start',
 			applyToDOM: applyAlignment,
