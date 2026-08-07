@@ -52,7 +52,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -60,3 +60,8 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # The Pages backend occasionally leaves a deployment queued for well
+          # over the action's 10 minute default, which aborts an otherwise
+          # healthy deploy. Wait longer instead of failing the run.
+          timeout: 1500000
