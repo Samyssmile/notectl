@@ -68,6 +68,10 @@ const IMAGE_REPRESENTATION_SELECTOR = 'img, picture, svg, canvas';
  * exception: copying an image on a web page can also ship HTML next to the
  * image file, and those pastes stay with the file handlers so blob URLs and
  * upload services keep working.
+ *
+ * Precedence is an ordering, not a verdict: when the preferred HTML turns out
+ * to paste nothing, the skipped files are dispatched after all (see
+ * `dispatchDeferredFiles`) so the clipboard is never silently discarded.
  */
 function htmlTakesPrecedenceOverFiles(html: string, files: readonly File[]): boolean {
 	// Only image files can be alternate renderings of copied rich content. Other
@@ -179,10 +183,9 @@ export class PasteHandler {
 		}
 
 		const bookmark = this.createBookmark();
+		const htmlPreferred: boolean = htmlTakesPrecedenceOverFiles(snapshot.html, snapshot.files);
 		const fileOutcome: FileHandlerDispatchOutcome | Promise<FileHandlerDispatchOutcome> =
-			this.fileHandlerRegistry &&
-			snapshot.files.length > 0 &&
-			!htmlTakesPrecedenceOverFiles(snapshot.html, snapshot.files)
+			this.fileHandlerRegistry && snapshot.files.length > 0 && !htmlPreferred
 				? dispatchFilesToHandlers({
 						registry: this.fileHandlerRegistry,
 						executor: this.callbackExecutor,
@@ -199,10 +202,14 @@ export class PasteHandler {
 			this.releaseBookmark(bookmark);
 			return;
 		}
-		this.processClipboardSnapshot(snapshot, bookmark);
+		this.processClipboardSnapshot(snapshot, bookmark, htmlPreferred ? snapshot.files : []);
 	}
 
-	private processClipboardSnapshot(snapshot: ClipboardSnapshot, bookmark: PasteBookmark): void {
+	private processClipboardSnapshot(
+		snapshot: ClipboardSnapshot,
+		bookmark: PasteBookmark,
+		deferredFiles: readonly File[],
+	): void {
 		if (!this.isBookmarkActive(bookmark)) {
 			this.releaseBookmark(bookmark);
 			return;
@@ -234,10 +241,46 @@ export class PasteHandler {
 		const target = this.consumeBookmark(bookmark);
 		if (!target) return;
 		if (snapshot.html) {
-			this.htmlHandler.pasteHTMLString(snapshot.html, target);
+			if (!this.htmlHandler.pasteHTMLString(snapshot.html, target)) {
+				this.dispatchDeferredFiles(deferredFiles);
+			}
 		} else if (snapshot.plainText) {
 			this.htmlHandler.pastePlainText(snapshot.plainText, target);
 		}
+	}
+
+	/**
+	 * Gives files their turn after clipboard HTML that took precedence over them
+	 * turned out to paste nothing (#216): metadata-only markup next to a bitmap
+	 * (a design-tool copy) must still paste the image rather than silently
+	 * discarding the clipboard.
+	 */
+	private dispatchDeferredFiles(files: readonly File[]): void {
+		const registry: FileHandlerRegistry | undefined = this.fileHandlerRegistry;
+		if (!registry || files.length === 0) return;
+		const bookmark: PasteBookmark = this.createBookmark();
+		const outcome: FileHandlerDispatchOutcome | Promise<FileHandlerDispatchOutcome> =
+			dispatchFilesToHandlers({
+				registry,
+				executor: this.callbackExecutor,
+				files,
+				getPosition: () => null,
+				isActive: () => this.isBookmarkActive(bookmark),
+			});
+		if (!(outcome instanceof Promise)) {
+			this.releaseBookmark(bookmark);
+			return;
+		}
+		void outcome
+			.catch((cause: unknown) => {
+				// The shared dispatcher catches plugin failures; this boundary protects
+				// the fire-and-forget tail against an invariant failure of its own.
+				this.callbackExecutor.reportFailure(
+					{ pluginId: 'core', name: 'Deferred file paste', kind: 'file-handler' },
+					cause,
+				);
+			})
+			.finally(() => this.releaseBookmark(bookmark));
 	}
 
 	/**
@@ -359,7 +402,8 @@ export class PasteHandler {
 				this.releaseBookmark(bookmark);
 				return;
 			}
-			this.processClipboardSnapshot(snapshot, bookmark);
+			// The files already had their turn in this branch, so none are deferred.
+			this.processClipboardSnapshot(snapshot, bookmark, []);
 		} catch (cause) {
 			// The shared dispatcher catches plugin failures. This boundary protects
 			// against an invariant failure in the continuation itself without leaking

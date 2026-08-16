@@ -27,6 +27,20 @@ export function segmentsLength(segments: readonly ContentSegment[]): number {
 	);
 }
 
+/**
+ * Whether a slice carries anything an insertion could materialize. The HTML
+ * parser represents "parsed to nothing" as a single empty paragraph; that
+ * sentinel (and a genuinely empty block list) reports false so paste callers
+ * can fall back to another clipboard flavor (#216).
+ */
+export function sliceHasContent(slice: ContentSlice): boolean {
+	if (slice.blocks.length > 1) return true;
+	const only: SliceBlock | undefined = slice.blocks[0];
+	if (!only) return false;
+	if (only.type !== nodeType('paragraph')) return true;
+	return segmentsLength(only.segments) > 0;
+}
+
 /** Creates a content slice from plain text, one paragraph block per line. */
 export function plainTextSlice(text: string): ContentSlice {
 	const lines: readonly string[] = text.split(/\r?\n/);

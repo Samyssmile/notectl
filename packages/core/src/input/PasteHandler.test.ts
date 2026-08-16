@@ -273,7 +273,55 @@ describe('PasteHandler file paste', () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
-	it('prefers clipboard HTML without images or text over a file item', () => {
+	it('prefers structural clipboard HTML without images or text over a file item', () => {
+		// A horizontal rule carries no textContent but is real block content; the
+		// HTML wins and materializes, so the file fallback must not fire.
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		const schemaRegistry = new SchemaRegistry();
+		schemaRegistry.registerNodeSpec({
+			type: 'horizontal_rule',
+			isVoid: true,
+			selectable: true,
+			toDOM: () => document.createElement('hr'),
+			parseHTML: [{ tag: 'hr' }],
+			sanitize: { tags: ['hr'], attrs: [] },
+		});
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			fileHandlerRegistry,
+			schemaRegistry,
+		});
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<hr>',
+			}),
+		);
+
+		expect(fileHandler).not.toHaveBeenCalled();
+		const hrBlock = state.doc.children.find((c) => isBlockNode(c) && c.type === 'horizontal_rule');
+		expect(hrBlock).toBeDefined();
+	});
+
+	it('falls back to the file handlers when the preferred HTML pastes nothing (#216)', () => {
+		// Design tools (Figma-style) put metadata-only markup next to the bitmap:
+		// spans that carry data attributes but no text and no <img>. The HTML wins
+		// the precedence check but materializes nothing, so the image file must
+		// still get its turn instead of the paste being silently discarded.
 		element = document.createElement('div');
 		const state: EditorState = createTestState();
 		dispatch = vi.fn();
@@ -285,15 +333,45 @@ describe('PasteHandler file paste', () => {
 
 		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
 
-		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
 		element.dispatchEvent(
 			createPasteEvent({
 				files: [pngFile],
-				html: '<hr>',
+				html: '<meta charset="utf-8"><span data-metadata="…"></span><span data-buffer="abc"></span>',
 			}),
 		);
 
-		expect(fileHandler).not.toHaveBeenCalled();
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+	});
+
+	it('resolves an async file handler on the deferred fallback path', async () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const settled = deferred<boolean>();
+		const fileHandler = vi.fn().mockReturnValue(settled.promise);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<span data-metadata="…"></span>',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		settled.resolve(true);
+		await settled.promise;
+
+		// The async claim completes without a stray fallback dispatch.
+		expect(dispatch).not.toHaveBeenCalled();
 	});
 
 	it('awaits Promise<boolean>, then continues in registration order after resolve(false)', async () => {

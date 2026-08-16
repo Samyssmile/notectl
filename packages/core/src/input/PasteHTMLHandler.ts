@@ -18,7 +18,7 @@ import {
 	insertTextCommand,
 } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
-import { plainTextSlice } from '../model/ContentSlice.js';
+import { plainTextSlice, sliceHasContent } from '../model/ContentSlice.js';
 import { type BlockNode, generateBlockId, getBlockText } from '../model/Document.js';
 import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
@@ -104,13 +104,18 @@ export class PasteHTMLHandler {
 		this.dispatch(pasteSlice(this.stateAtSelection(selection), slice));
 	}
 
-	/** Inserts a pre-built HTML string through the standard paste pipeline. */
-	pasteHTMLString(html: string, selection?: EditorSelection): void {
-		this.handleHTML(html, this.stateAtSelection(selection));
+	/**
+	 * Inserts a pre-built HTML string through the standard paste pipeline.
+	 * Returns whether the HTML materialized content (a claimed rich paste or a
+	 * dispatched insertion). Markup that parses to nothing reports false so the
+	 * caller can fall back to another clipboard flavor (#216).
+	 */
+	pasteHTMLString(html: string, selection?: EditorSelection): boolean {
+		return this.handleHTML(html, this.stateAtSelection(selection));
 	}
 
-	/** Sanitizes and processes pasted HTML content. */
-	private handleHTML(html: string, state: EditorState): void {
+	/** Sanitizes and processes pasted HTML content. Returns whether content materialized. */
+	private handleHTML(html: string, state: EditorState): boolean {
 		// The pre-sanitize pass scrubs active content while keeping DOMPurify's
 		// broad default allowlist so legacy normalization still sees deprecated
 		// tags (`<font>`, `<center>`, ...). Schema-registered tags/attrs are added
@@ -131,7 +136,7 @@ export class PasteHTMLHandler {
 			this.schemaRegistry,
 		);
 		const richJson: string | undefined = this.extractRichData(preSanitized);
-		if (richJson && this.tryRichPasteFromJson(richJson, state)) return;
+		if (richJson && this.tryRichPasteFromJson(richJson, state)) return true;
 
 		const preTemplate: HTMLTemplateElement = document.createElement('template');
 		preTemplate.innerHTML = preSanitized;
@@ -158,8 +163,7 @@ export class PasteHTMLHandler {
 			template.innerHTML = sanitized;
 
 			if (this.requiresDocumentParser(sanitized, template.content)) {
-				this.handleDocumentPaste(sanitized, state);
-				return;
+				return this.handleDocumentPaste(sanitized, state);
 			}
 
 			const schema = schemaFromRegistry(this.schemaRegistry);
@@ -169,10 +173,12 @@ export class PasteHTMLHandler {
 			});
 			const slice = parser.parse(template.content);
 			this.dispatch(pasteSlice(state, slice));
-		} else {
-			const text: string = this.extractTextFromHTML(sanitized);
-			if (text) this.dispatch(insertTextCommand(state, text, 'paste'));
+			return sliceHasContent(slice);
 		}
+		const text: string = this.extractTextFromHTML(sanitized);
+		if (!text) return false;
+		this.dispatch(insertTextCommand(state, text, 'paste'));
+		return true;
 	}
 
 	/** Extracts embedded rich block JSON from HTML (data-notectl-rich). */
@@ -285,13 +291,16 @@ export class PasteHTMLHandler {
 		return false;
 	}
 
-	/** Handles paste of HTML requiring the DocumentParser (tables, void blocks). */
-	private handleDocumentPaste(html: string, state: EditorState): void {
-		if (!this.schemaRegistry) return;
+	/**
+	 * Handles paste of HTML requiring the DocumentParser (tables, void blocks).
+	 * Returns whether a transaction was dispatched.
+	 */
+	private handleDocumentPaste(html: string, state: EditorState): boolean {
+		if (!this.schemaRegistry) return false;
 
 		const parsed = parseHTMLToDocument(html, this.schemaRegistry);
 		const doc = normalizeCompositeBlocks(parsed, this.schemaRegistry);
-		if (doc.children.length === 0) return;
+		if (doc.children.length === 0) return false;
 
 		const sel = state.selection;
 		const builder = state.transaction('paste');
@@ -306,7 +315,7 @@ export class PasteHTMLHandler {
 			(isNodeSelection(sel) ? sel.nodeId : isGapCursor(sel) ? sel.blockId : sel.anchor.blockId);
 
 		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
-		if (!ctx) return;
+		if (!ctx) return false;
 
 		// Schema guard (#166): a container such as a table cell does not allow every
 		// block type. When the parsed blocks do not fit the target container, escape
@@ -324,7 +333,7 @@ export class PasteHTMLHandler {
 		)
 			? ctx
 			: resolveRootEscapeContext(state, anchorBlockId);
-		if (!targetCtx) return;
+		if (!targetCtx) return false;
 
 		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
 		let insertIndex: number = targetCtx.anchorIndex + insertOffset;
@@ -351,6 +360,7 @@ export class PasteHTMLHandler {
 		}
 
 		this.dispatch(builder.build());
+		return true;
 	}
 
 	private extractTextFromHTML(html: string): string {

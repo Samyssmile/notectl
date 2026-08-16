@@ -56,6 +56,24 @@ test.describe('Paste precedence between HTML and file items (#216)', () => {
 		expect(imageBlocks).toHaveLength(0);
 	});
 
+	test('metadata-only HTML next to an image file falls back to the file handler', async ({
+		editor,
+		page,
+	}) => {
+		// Design tools put markup on the clipboard that carries only data
+		// attributes: it wins the precedence check but pastes nothing, so the
+		// bitmap must still land instead of the paste being silently discarded.
+		await editor.focus();
+		await pasteFileWithHtml(page, {
+			html: '<meta charset="utf-8"><span data-metadata="…"></span><span data-buffer="abc"></span>',
+		});
+
+		const img = page.locator('notectl-editor .notectl-image__img');
+		await expect(img).toBeVisible();
+		const src: string | null = await img.getAttribute('src');
+		expect(src).toMatch(/^blob:/);
+	});
+
 	test('copied web image (image-only HTML + file) still pastes through the file handler', async ({
 		editor,
 		page,

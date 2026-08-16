@@ -60,7 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Clipboard HTML that carries real content now takes precedence over accompanying image
   file items. Markup that is nothing but an image representation keeps routing to the file
   handlers, so copied web images still paste through the blob-URL and upload-service path;
-  non-image files also retain their registered handler precedence.
+  non-image files also retain their registered handler precedence. Precedence is an
+  ordering, not a verdict: when the preferred HTML turns out to parse to nothing (design
+  tools ship metadata-only markup next to a bitmap), the skipped image files are
+  dispatched after all, so such pastes insert the image instead of silently discarding
+  the clipboard.
 
 ## [2.3.4] - 2026-08-07
 
