@@ -551,6 +551,10 @@
 							"description": "Foreground color on primary backgrounds."
 						},
 						{
+							"name": "--notectl-accent-fg",
+							"description": "Primary-tinted text on neutral backgrounds (active states); falls back to --notectl-primary-fg."
+						},
+						{
 							"name": "--notectl-primary-muted",
 							"description": "Muted variant of the primary color."
 						},

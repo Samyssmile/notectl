@@ -50,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   themes compiled before the split, preserving their rendering. `ThemePrimitives` gains an
   optional `accentForeground` field, so existing full `Theme` object literals remain
   source-compatible; themes created via `createTheme()` inherit it from their base
-  automatically.
+  automatically. The shipped custom-elements manifest documents the new
+  `--notectl-accent-fg` custom property.
 
 - **Pasting text from Word on macOS inserted a screenshot instead of the text (#216).**
   Word and Excel on macOS put a bitmap rendition of the copied content on the clipboard
