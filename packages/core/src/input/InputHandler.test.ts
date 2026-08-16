@@ -9,7 +9,12 @@ import {
 } from '../model/Document.js';
 import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
-import { createCollapsedSelection, createSelection } from '../model/Selection.js';
+import {
+	type EditorSelection,
+	createCollapsedSelection,
+	createNodeSelection,
+	createSelection,
+} from '../model/Selection.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { createMarkInputRule } from '../plugins/shared/MarkInputRule.js';
@@ -46,7 +51,7 @@ function createCompositionEvent(
 
 function createState(options?: {
 	text?: string;
-	selection?: ReturnType<typeof createCollapsedSelection> | ReturnType<typeof createSelection>;
+	selection?: EditorSelection;
 }): EditorState {
 	const text = options?.text ?? 'hello';
 	return EditorState.create({
@@ -252,6 +257,37 @@ describe('InputHandler', () => {
 
 			expect(event.defaultPrevented).toBe(true);
 			expect(dispatch).not.toHaveBeenCalled();
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+		});
+
+		it('does not apply an unmappable replacement to a stale non-text selection', () => {
+			// A native replacement always targets editable text. If its reported
+			// range cannot be mapped while the model still holds a NodeSelection,
+			// applying at that stale selection would insert a paragraph after the
+			// selected node instead of correcting the browser-targeted word.
+			element = document.createElement('div');
+			let state = createState({ selection: createNodeSelection(B1, [B1]) });
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const resolveTargetRange = vi.fn().mockReturnValue(null);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				resolveTargetRange,
+			});
+
+			const event = createReplacementEvent({
+				dataTransferText: 'hello',
+				targetRange: {} as StaticRange,
+			});
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(dispatch).not.toHaveBeenCalled();
+			expect(state.doc.children).toHaveLength(1);
 			expect(getBlockText(state.doc.children[0])).toBe('hello');
 		});
 

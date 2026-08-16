@@ -155,9 +155,17 @@ export class InputHandler {
 				if (this.compositionTracker.isComposing) break;
 				// The browser reported the affected word range but it could not be
 				// mapped; inserting at a collapsed caret would duplicate the
-				// correction next to the typo, so degrade to a no-op. A range
-				// selection still replaces correctly without the mapping.
-				if (replacementRange && !replacementTarget && isCollapsed(state.selection)) break;
+				// correction next to the typo, so degrade to a no-op. A text-range
+				// selection still replaces correctly without the mapping; non-text
+				// selections are stale for a native text replacement and must not be
+				// used as an insertion target either.
+				if (
+					replacementRange &&
+					!replacementTarget &&
+					(!isTextSelection(state.selection) || isCollapsed(state.selection))
+				) {
+					break;
+				}
 				// A resolved word range overrides the selection; pending caret
 				// mark toggles must not bleed into the corrected word.
 				const targetState = replacementTarget

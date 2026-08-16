@@ -153,14 +153,20 @@ export class PasteRichBlockHandler {
 	 */
 	handleRichPaste(blocks: readonly RichBlockData[], initialState?: EditorState): boolean {
 		if (blocks.length === 0) return false;
+		const validatedBlocks: RichBlockData[] = [];
+		for (const raw of blocks) {
+			const block: RichBlockData | undefined = validateRichBlockData(raw, this.schemaRegistry);
+			if (block) validatedBlocks.push(block);
+		}
+		if (validatedBlocks.length === 0) return false;
 
-		const hasStructured: boolean = blocks.some(
+		const hasStructured: boolean = validatedBlocks.some(
 			(b) =>
 				b.htmlId !== undefined ||
 				(b.type !== undefined && b.type !== 'paragraph') ||
 				b.segments?.some((segment) => segment.kind === 'inline'),
 		);
-		if (!hasStructured && blocks.length <= 1) return false;
+		if (!hasStructured && validatedBlocks.length <= 1) return false;
 
 		let state = initialState ?? this.getState();
 		const sel = state.selection;
@@ -178,7 +184,7 @@ export class PasteRichBlockHandler {
 		//  - node selections and gap cursors have no text caret to split.
 		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
 		const isRootChild: boolean = state.doc.children.some((c) => c.id === anchorBlockId);
-		const carriesHTMLId: boolean = blocks.some((block) => normalizeHTMLId(block.htmlId));
+		const carriesHTMLId: boolean = validatedBlocks.some((block) => normalizeHTMLId(block.htmlId));
 		const splitsAtCaret: boolean =
 			!carriesHTMLId &&
 			isTextSelection(sel) &&
@@ -187,7 +193,7 @@ export class PasteRichBlockHandler {
 			anchorBlock !== undefined &&
 			getBlockLength(anchorBlock) > 0;
 		if (splitsAtCaret) {
-			this.dispatch(pasteSlice(state, richBlocksToSlice(blocks, this.schemaRegistry)));
+			this.dispatch(pasteSlice(state, richBlocksToSlice(validatedBlocks)));
 			return true;
 		}
 
@@ -198,15 +204,15 @@ export class PasteRichBlockHandler {
 			this.dispatch(delTr);
 			state = state.apply(delTr);
 			if (landingId) {
-				return this.resolveAndInsertRichBlocks(blocks, state, landingId);
+				return this.resolveAndInsertRichBlocks(validatedBlocks, state, landingId);
 			}
 		}
 
-		return this.resolveAndInsertRichBlocks(blocks, state, anchorBlockId);
+		return this.resolveAndInsertRichBlocks(validatedBlocks, state, anchorBlockId);
 	}
 
 	/**
-	 * Validates and builds the clipboard blocks, resolves the insertion context
+	 * Builds the validated clipboard blocks, resolves the insertion context
 	 * (cell or root), and inserts them. When the caret is in a table cell whose
 	 * content rule forbids one of the blocks (e.g. a copied code_block, which is a
 	 * leaf block not in the cell's allow-list), the whole run escapes to the
@@ -222,12 +228,7 @@ export class PasteRichBlockHandler {
 		state: EditorState,
 		anchorBlockId: BlockId,
 	): boolean {
-		const nodes: BlockNode[] = [];
-		for (const raw of blocks) {
-			const blockData: RichBlockData | undefined = validateRichBlockData(raw, this.schemaRegistry);
-			if (blockData) nodes.push(createBlockFromRichData(blockData));
-		}
-		if (nodes.length === 0) return false;
+		const nodes: BlockNode[] = blocks.map(createBlockFromRichData);
 
 		const sel = state.selection;
 		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);

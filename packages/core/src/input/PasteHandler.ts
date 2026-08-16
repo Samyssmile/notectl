@@ -242,7 +242,7 @@ export class PasteHandler {
 		if (!target) return;
 		if (snapshot.html) {
 			if (!this.htmlHandler.pasteHTMLString(snapshot.html, target)) {
-				this.dispatchDeferredFiles(deferredFiles);
+				this.handleContentlessHTMLFallback(deferredFiles, snapshot.plainText, target);
 			}
 		} else if (snapshot.plainText) {
 			this.htmlHandler.pastePlainText(snapshot.plainText, target);
@@ -250,15 +250,24 @@ export class PasteHandler {
 	}
 
 	/**
-	 * Gives files their turn after clipboard HTML that took precedence over them
-	 * turned out to paste nothing (#216): metadata-only markup next to a bitmap
-	 * (a design-tool copy) must still paste the image rather than silently
-	 * discarding the clipboard.
+	 * Continues through the remaining clipboard flavors after preferred HTML
+	 * materialized nothing (#216). Deferred image files get the next turn; when
+	 * none is handled, the captured plain text is the final lossless fallback.
 	 */
-	private dispatchDeferredFiles(files: readonly File[]): void {
+	private handleContentlessHTMLFallback(
+		files: readonly File[],
+		plainText: string,
+		target: EditorSelection,
+	): void {
 		const registry: FileHandlerRegistry | undefined = this.fileHandlerRegistry;
-		if (!registry || files.length === 0) return;
-		const bookmark: PasteBookmark = this.createBookmark();
+		if (!registry || files.length === 0) {
+			if (this.active && !this.isReadOnly() && plainText) {
+				this.htmlHandler.pastePlainText(plainText, target);
+			}
+			return;
+		}
+
+		const bookmark: PasteBookmark = this.createBookmark(target);
 		const outcome: FileHandlerDispatchOutcome | Promise<FileHandlerDispatchOutcome> =
 			dispatchFilesToHandlers({
 				registry,
@@ -268,19 +277,42 @@ export class PasteHandler {
 				isActive: () => this.isBookmarkActive(bookmark),
 			});
 		if (!(outcome instanceof Promise)) {
+			this.finishContentlessHTMLFallback(outcome, plainText, bookmark);
+			return;
+		}
+		void this.continueContentlessHTMLFallback(outcome, plainText, bookmark);
+	}
+
+	private async continueContentlessHTMLFallback(
+		pending: Promise<FileHandlerDispatchOutcome>,
+		plainText: string,
+		bookmark: PasteBookmark,
+	): Promise<void> {
+		try {
+			this.finishContentlessHTMLFallback(await pending, plainText, bookmark);
+		} catch (cause) {
+			// The shared dispatcher catches plugin failures; this boundary protects
+			// the fire-and-forget tail against an invariant failure of its own.
+			this.callbackExecutor.reportFailure(
+				{ pluginId: 'core', name: 'Deferred file paste', kind: 'file-handler' },
+				cause,
+			);
+			this.releaseBookmark(bookmark);
+		}
+	}
+
+	private finishContentlessHTMLFallback(
+		outcome: FileHandlerDispatchOutcome,
+		plainText: string,
+		bookmark: PasteBookmark,
+	): void {
+		if (outcome.handled || outcome.cancelled || !this.isBookmarkActive(bookmark)) {
 			this.releaseBookmark(bookmark);
 			return;
 		}
-		void outcome
-			.catch((cause: unknown) => {
-				// The shared dispatcher catches plugin failures; this boundary protects
-				// the fire-and-forget tail against an invariant failure of its own.
-				this.callbackExecutor.reportFailure(
-					{ pluginId: 'core', name: 'Deferred file paste', kind: 'file-handler' },
-					cause,
-				);
-			})
-			.finally(() => this.releaseBookmark(bookmark));
+
+		const target = this.consumeBookmark(bookmark);
+		if (target && plainText) this.htmlHandler.pastePlainText(plainText, target);
 	}
 
 	/**
@@ -437,8 +469,8 @@ export class PasteHandler {
 		}
 	}
 
-	private createBookmark(): PasteBookmark {
-		const bookmark: PasteBookmark = { selection: this.getState().selection, cancelled: false };
+	private createBookmark(selection: EditorSelection = this.getState().selection): PasteBookmark {
+		const bookmark: PasteBookmark = { selection, cancelled: false };
 		this.pendingBookmarks.add(bookmark);
 		return bookmark;
 	}

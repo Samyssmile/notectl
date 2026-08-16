@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **Theme foreground token split (#217).** Active and selected states no longer consume
+  `--notectl-primary-fg`; they now use the new `--notectl-accent-fg` token. CSS integrations
+  that override `--notectl-primary-fg` for active toolbar buttons, dropdown or picker items,
+  or selection outlines must set `--notectl-accent-fg` instead. `--notectl-primary-fg` now
+  applies only to text on solid primary backgrounds. Existing `Theme` object literals remain
+  source-compatible because `accentForeground` is optional, but the changed CSS custom-property
+  fallback is a behavioral breaking change.
+
 ### Fixed
 
 - **Pressing below the content inserted a paragraph on mousedown (#219).** The
@@ -58,12 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   source-compatible; themes created via `createTheme()` inherit it from their base
   automatically; `createTheme()` additionally derives the omitted `accentForeground` from
   an overridden `primaryForeground`, so themes derived from a preset before the split keep
-  their accent surfaces on the chosen color. **Migration note for CSS-variable users:**
-  host pages that set `--notectl-primary-fg` to restyle active states (active toolbar
-  buttons, dropdown/picker active items, selection outlines) must now set
-  `--notectl-accent-fg` instead; `--notectl-primary-fg` keeps styling text on solid
-  primary backgrounds only. The shipped custom-elements manifest documents the new
-  `--notectl-accent-fg` custom property.
+  their accent surfaces on the chosen color. The shipped custom-elements manifest documents
+  the new `--notectl-accent-fg` custom property.
 
 - **Pasting text from Word on macOS inserted a screenshot instead of the text (#216).**
   Word and Excel on macOS put a bitmap rendition of the copied content on the clipboard
@@ -77,12 +83,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ordering, not a verdict: when the preferred HTML turns out to parse to nothing (design
   tools ship metadata-only markup next to a bitmap), the skipped image files are
   dispatched after all, so such pastes insert the image instead of silently discarding
-  the clipboard. HTML counts as parsing to nothing when it materializes only empty
-  paragraphs (in any number) or text made of zero-width characters; a `<br>` is a content
-  signal, so blank-line-only markup still pastes as blank lines. Contentless HTML no
-  longer dispatches an empty paste transaction, so a range selection is not consumed
-  before the deferred files run, and Markdown that converts to contentless HTML falls
-  back to a plain-text paste of the captured text instead of being silently dropped.
+  the clipboard; if no deferred file handler claims them, the captured plain-text flavor
+  remains the final fallback. HTML counts as parsing to nothing when it materializes only
+  empty paragraphs (in any number) or text made of zero-width characters; a `<br>` is a
+  content signal, so blank-line-only markup still pastes as blank lines. Contentless HTML
+  no longer dispatches an empty paste transaction, so a range selection is not consumed
+  before the deferred files run. Embedded rich clipboard metadata is likewise validated
+  before replacing a selected range, so an invalid rich flavor falls through without a
+  delete-only transaction. Markdown that converts to contentless HTML falls back to a
+  plain-text paste of the captured text instead of being silently dropped.
   Known trade-off: a Word copy containing text plus an embedded picture pastes as the
   text without the picture (the picture's `file:///` source is unreachable from the
   clipboard HTML); previously such copies pasted as a single bitmap of the whole

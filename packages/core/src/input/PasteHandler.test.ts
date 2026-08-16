@@ -350,6 +350,84 @@ describe('PasteHandler file paste', () => {
 		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
 	});
 
+	it('falls back to plain text when preferred HTML and the deferred file are unhandled', () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(false);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<span data-metadata="clipboard-only"></span>',
+				text: 'fallback',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(getBlockText(state.doc.children[0])).toBe('hellofallback');
+	});
+
+	it('falls back to plain text when clipboard HTML materializes nothing and has no file', () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		handler = new PasteHandler(element, { getState, dispatch });
+
+		element.dispatchEvent(
+			createPasteEvent({
+				html: '<span data-metadata="clipboard-only"></span>',
+				text: 'fallback',
+			}),
+		);
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		expect(getBlockText(state.doc.children[0])).toBe('hellofallback');
+	});
+
+	it('awaits an unhandled deferred file before falling back to plain text', async () => {
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		const settled = deferred<boolean>();
+		const fileHandler = vi.fn().mockReturnValue(settled.promise);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<span data-metadata="clipboard-only"></span>',
+				text: 'fallback',
+			}),
+		);
+
+		expect(dispatch).not.toHaveBeenCalled();
+		settled.resolve(false);
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1));
+		expect(getBlockText(state.doc.children[0])).toBe('hellofallback');
+	});
+
 	it('defers to the file handlers when metadata markup parses to only empty paragraphs (#216)', () => {
 		// Structural divs parse into several empty paragraphs. None of them is
 		// content: the image must still paste, no junk paragraphs may be
@@ -993,17 +1071,77 @@ describe('PasteHandler rich paste schema validation', () => {
 		]);
 		element.dispatchEvent(event);
 
-		// The rich paste path dispatches even if all blocks are filtered out
-		// (it builds an empty transaction). The key assertion is that no
-		// invalid blocks end up in the document.
-		const tr: Transaction | undefined = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-		if (tr) {
-			const result: EditorState = state.apply(tr);
-			const fakes = result.doc.children.filter(
-				(c) => isBlockNode(c) && (c.type === 'fake_block' || c.type === 'another_fake'),
-			);
-			expect(fakes).toHaveLength(0);
-		}
+		// Validation happens before any transaction is built, so an invalid rich
+		// flavor remains unclaimed and ordinary clipboard fallbacks can run.
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('validates embedded rich blocks before replacing a range with the plain-text fallback', () => {
+		element = document.createElement('div');
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], B1)]);
+		let currentState: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 5 }),
+		});
+		dispatch = vi.fn((tr: Transaction) => {
+			currentState = currentState.apply(tr);
+		});
+
+		const registry: SchemaRegistry = createRegistryWithSpecs();
+		handler = new PasteHandler(element, {
+			getState: () => currentState,
+			dispatch,
+			schemaRegistry: registry,
+		});
+
+		const json: string = JSON.stringify([
+			{ type: 'fake_block', text: 'nope' },
+			{ type: 'another_fake', text: 'also nope' },
+		]);
+		element.dispatchEvent(
+			createPasteEvent({
+				html: `<div data-notectl-rich='${json}'></div>`,
+				text: 'fallback',
+			}),
+		);
+
+		// Invalid rich metadata must not dispatch a delete-only transaction before
+		// the ordinary clipboard flavors get their turn.
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		expect(getBlockText(currentState.doc.children[0])).toBe('fallback');
+	});
+
+	it('validates embedded rich blocks before dispatching the deferred file fallback', () => {
+		element = document.createElement('div');
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], B1)]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 5 }),
+		});
+		dispatch = vi.fn();
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			fileHandlerRegistry,
+			schemaRegistry: createRegistryWithSpecs(),
+		});
+
+		const json: string = JSON.stringify([{ type: 'fake_block', text: 'nope' }]);
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: `<div data-notectl-rich='${json}'></div>`,
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(getBlockText(state.doc.children[0])).toBe('hello');
 	});
 
 	it('sanitizes attributes in handleBlockPaste', () => {

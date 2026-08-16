@@ -38,8 +38,16 @@ interface InputManagerDeps {
     direction: 'left' | 'right' | 'up' | 'down',
     container?: HTMLElement,
   ) => Transaction | null;
+  /** Maps a browser-reported replacement range to the corresponding model selection. */
+  readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
 }
 ```
+
+The editor wires `resolveTargetRange` through its view automatically. Low-level integrations that
+construct `InputManager` directly should provide the equivalent DOM-to-model mapping so native
+spellcheck and autocorrect can replace the browser-reported word even when the DOM selection stays
+collapsed. If a reported range cannot be mapped, the input manager deliberately leaves the model
+unchanged rather than inserting the correction at a stale selection.
 
 ### Constructor
 
