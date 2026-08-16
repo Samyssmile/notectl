@@ -111,6 +111,15 @@ export class InputHandler {
 			return;
 		}
 
+		const replacement: string | null =
+			e.inputType === 'insertReplacementText' ? readReplacementText(e) : null;
+		// Resolve the browser-owned StaticRange before syncing selection. A
+		// selection-only update may reconcile selection-dependent decorations and
+		// replace the range's DOM endpoints, while StaticRange itself is not live.
+		const replacementTarget: Selection | null = replacement
+			? this.resolveReplacementTarget(e)
+			: null;
+
 		// Sync selection from DOM before processing non-insert operations
 		// (handles arrow key / mouse navigation that doesn't go through our state)
 		const needsSelectionSync =
@@ -138,9 +147,8 @@ export class InputHandler {
 			case 'insertReplacementText': {
 				// Spellcheck/autocorrect: Firefox delivers the replacement via
 				// `data`, Chromium and WebKit via `dataTransfer` (text/plain).
-				const replacement = readReplacementText(e);
 				if (replacement) {
-					const targetState = this.stateForReplacementTarget(e, state);
+					const targetState = replacementTarget ? state.withSelection(replacementTarget) : state;
 					tr =
 						this.runTextInputInterceptors(replacement, targetState) ??
 						insertTextCommand(targetState, replacement, 'input');
@@ -221,20 +229,18 @@ export class InputHandler {
 	}
 
 	/**
-	 * Returns the state whose selection covers the range the browser is about
-	 * to replace. Spellcheck and autocorrect report the affected word via
+	 * Resolves the range the browser is about to replace. Spellcheck and
+	 * autocorrect report the affected word via
 	 * `getTargetRanges()` while the DOM selection may stay collapsed (Safari
-	 * autocorrect, Firefox context menu), so the target range wins over the
-	 * synced selection. Falls back to the current selection when the range is
-	 * absent or cannot be mapped.
+	 * autocorrect, Firefox context menu), so the target range wins when it can
+	 * be mapped. The caller captures this before selection synchronization can
+	 * redraw the range's DOM nodes.
 	 */
-	private stateForReplacementTarget(e: InputEvent, state: EditorState): EditorState {
-		if (!this.resolveTargetRange) return state;
+	private resolveReplacementTarget(e: InputEvent): Selection | null {
+		if (!this.resolveTargetRange) return null;
 		const target: StaticRange | undefined =
 			typeof e.getTargetRanges === 'function' ? e.getTargetRanges()[0] : undefined;
-		if (!target) return state;
-		const selection: Selection | null = this.resolveTargetRange(target);
-		return selection ? state.withSelection(selection) : state;
+		return target ? this.resolveTargetRange(target) : null;
 	}
 
 	private onCompositionStart(e: CompositionEvent): void {

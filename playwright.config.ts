@@ -21,6 +21,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'code-block',
 		'marks',
 		'history',
+		'spellcheck-replacement',
 		'cut-paste-block-types',
 		'table-cut-paste',
 		'image-cut-paste',

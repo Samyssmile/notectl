@@ -15,6 +15,7 @@ import { blockId, inlineType, nodeType } from '../model/TypeBrands.js';
 import { createMarkInputRule } from '../plugins/shared/MarkInputRule.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
+import { domRangeToState } from '../view/SelectionSync.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { InputHandler } from './InputHandler.js';
 
@@ -160,6 +161,46 @@ describe('InputHandler', () => {
 			expect(resolveTargetRange).toHaveBeenCalledWith(targetRange);
 			expect(getBlockText(state.doc.children[0])).toBe('hXYlo');
 			expect(state.selection.anchor).toEqual(expect.objectContaining({ blockId: B1, offset: 3 }));
+		});
+
+		it('captures the target range before selection sync can redraw its DOM nodes', () => {
+			element = document.createElement('div');
+			const block = document.createElement('p');
+			block.setAttribute('data-block-id', B1);
+			const textNode = document.createTextNode('hello');
+			block.appendChild(textNode);
+			element.appendChild(block);
+
+			let state = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const targetRange: StaticRange = {
+				startContainer: textNode,
+				startOffset: 1,
+				endContainer: textNode,
+				endOffset: 3,
+				collapsed: false,
+			};
+			const resolveTargetRange = vi.fn((range: StaticRange) => domRangeToState(element, range));
+			const syncSelection = vi.fn(() => {
+				// Selection-dependent decorations may replace inline DOM while the
+				// state selection is synchronized. StaticRange is not live, so its
+				// endpoints remain attached to the removed text node.
+				textNode.replaceWith(document.createTextNode('hello'));
+			});
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection,
+				resolveTargetRange,
+			});
+
+			element.dispatchEvent(createReplacementEvent({ dataTransferText: 'XY', targetRange }));
+
+			expect(resolveTargetRange).toHaveBeenCalledWith(targetRange);
+			expect(getBlockText(state.doc.children[0])).toBe('hXYlo');
 		});
 
 		it('falls back to the current selection when the target range cannot be resolved', () => {
