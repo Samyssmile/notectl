@@ -113,6 +113,38 @@ describe('createTheme', () => {
 
 		expect(result.codeBlock?.syntax).toBe(LIGHT_THEME.codeBlock?.syntax);
 	});
+
+	// Themes derived before the #217 token split overrode `primaryForeground`
+	// while it still doubled as the accent color on neutral surfaces. The merge
+	// must keep those accent surfaces on the chosen color instead of silently
+	// inheriting the preset accent.
+	it('derives accentForeground from an overridden primaryForeground (#217 compat)', () => {
+		const result: Theme = createTheme(LIGHT_THEME, {
+			name: 'brand',
+			primitives: { primary: '#0052cc', primaryForeground: '#003380' },
+		});
+
+		expect(result.primitives.accentForeground).toBe('#003380');
+	});
+
+	it('respects an explicit accentForeground override alongside primaryForeground', () => {
+		const result: Theme = createTheme(LIGHT_THEME, {
+			name: 'brand',
+			primitives: { primaryForeground: '#003380', accentForeground: '#112233' },
+		});
+
+		expect(result.primitives.accentForeground).toBe('#112233');
+		expect(result.primitives.primaryForeground).toBe('#003380');
+	});
+
+	it('keeps the base accentForeground when primaryForeground is not overridden', () => {
+		const result: Theme = createTheme(LIGHT_THEME, {
+			name: 'brand',
+			primitives: { primary: '#0052cc' },
+		});
+
+		expect(result.primitives.accentForeground).toBe(LIGHT_THEME.primitives.accentForeground);
+	});
 });
 
 /** WCAG relative luminance for a #rrggbb hex color. */

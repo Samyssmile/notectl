@@ -218,9 +218,23 @@ export function createTheme(base: Theme, overrides: PartialTheme): Theme {
 		return { ...base.codeBlock.syntax, ...overrides.codeBlock.syntax } as ThemeSyntax;
 	};
 
+	const mergePrimitives = (): ThemePrimitives => {
+		const merged: ThemePrimitives = { ...base.primitives, ...overrides.primitives };
+		const overridden: Partial<ThemePrimitives> | undefined = overrides.primitives;
+		// Themes derived before the #217 token split overrode `primaryForeground`
+		// while it still doubled as the accent color. Deriving the omitted
+		// `accentForeground` from that override keeps their accent surfaces
+		// (active toolbar buttons, picker highlights, selection outlines) on the
+		// chosen color instead of silently inheriting the preset accent.
+		if (overridden?.primaryForeground !== undefined && overridden.accentForeground === undefined) {
+			return { ...merged, accentForeground: overridden.primaryForeground };
+		}
+		return merged;
+	};
+
 	return {
 		name: overrides.name,
-		primitives: { ...base.primitives, ...overrides.primitives },
+		primitives: mergePrimitives(),
 		toolbar: overrides.toolbar ? { ...base.toolbar, ...overrides.toolbar } : base.toolbar,
 		inlineCode: overrides.inlineCode
 			? { ...base.inlineCode, ...overrides.inlineCode }

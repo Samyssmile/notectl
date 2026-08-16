@@ -50,7 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   themes compiled before the split, preserving their rendering. `ThemePrimitives` gains an
   optional `accentForeground` field, so existing full `Theme` object literals remain
   source-compatible; themes created via `createTheme()` inherit it from their base
-  automatically. The shipped custom-elements manifest documents the new
+  automatically; `createTheme()` additionally derives the omitted `accentForeground` from
+  an overridden `primaryForeground`, so themes derived from a preset before the split keep
+  their accent surfaces on the chosen color. **Migration note for CSS-variable users:**
+  host pages that set `--notectl-primary-fg` to restyle active states (active toolbar
+  buttons, dropdown/picker active items, selection outlines) must now set
+  `--notectl-accent-fg` instead; `--notectl-primary-fg` keeps styling text on solid
+  primary backgrounds only. The shipped custom-elements manifest documents the new
   `--notectl-accent-fg` custom property.
 
 - **Pasting text from Word on macOS inserted a screenshot instead of the text (#216).**
