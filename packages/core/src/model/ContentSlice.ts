@@ -27,18 +27,32 @@ export function segmentsLength(segments: readonly ContentSegment[]): number {
 	);
 }
 
+/** Zero-width characters that render nothing (ZWSP, ZWNJ, ZWJ, word joiner, BOM). */
+const ZERO_WIDTH_CHARS = /\u200B|\u200C|\u200D|\u2060|\uFEFF/g;
+
+/** Whether the text renders any characters once zero-width characters are ignored. */
+export function hasVisibleTextContent(text: string): boolean {
+	return text.replace(ZERO_WIDTH_CHARS, '').length > 0;
+}
+
+/** Whether a segment renders anything: inline nodes always do, text only beyond zero-width characters. */
+function segmentHasVisibleContent(segment: ContentSegment): boolean {
+	if (segment.kind === 'inline') return true;
+	return hasVisibleTextContent(segment.text);
+}
+
 /**
- * Whether a slice carries anything an insertion could materialize. The HTML
- * parser represents "parsed to nothing" as a single empty paragraph; that
- * sentinel (and a genuinely empty block list) reports false so paste callers
- * can fall back to another clipboard flavor (#216).
+ * Whether a slice carries anything an insertion could materialize. A block
+ * counts when it has visible segment content or is not a plain paragraph (an
+ * empty code block is still a visible box). Empty paragraphs alone — the HTML
+ * parser's encoding for markup that parsed to nothing, in any number — report
+ * false so paste callers can fall back to another clipboard flavor (#216).
  */
 export function sliceHasContent(slice: ContentSlice): boolean {
-	if (slice.blocks.length > 1) return true;
-	const only: SliceBlock | undefined = slice.blocks[0];
-	if (!only) return false;
-	if (only.type !== nodeType('paragraph')) return true;
-	return segmentsLength(only.segments) > 0;
+	return slice.blocks.some(
+		(block: SliceBlock) =>
+			block.type !== nodeType('paragraph') || block.segments.some(segmentHasVisibleContent),
+	);
 }
 
 /** Creates a content slice from plain text, one paragraph block per line. */

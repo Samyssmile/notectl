@@ -14,7 +14,12 @@ import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js
 import type { NodeSpec } from '../model/NodeSpec.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection, isNodeSelection, isTextSelection } from '../model/Selection.js';
+import {
+	createCollapsedSelection,
+	createSelection,
+	isNodeSelection,
+	isTextSelection,
+} from '../model/Selection.js';
 import { blockId, inlineType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -343,6 +348,97 @@ describe('PasteHandler file paste', () => {
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
 		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+	});
+
+	it('defers to the file handlers when metadata markup parses to only empty paragraphs (#216)', () => {
+		// Structural divs parse into several empty paragraphs. None of them is
+		// content: the image must still paste, no junk paragraphs may be
+		// inserted, and the range selection must survive untouched (no
+		// delete-only transaction ahead of the file handler).
+		element = document.createElement('div');
+		const doc = createDocument([createBlockNode('paragraph', [createTextNode('hello')], B1)]);
+		const state: EditorState = EditorState.create({
+			doc,
+			selection: createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 5 }),
+		});
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			fileHandlerRegistry,
+			schemaRegistry: new SchemaRegistry(),
+		});
+
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<div><span data-metadata="a"></span></div><div><span data-buffer="b"></span></div>',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('defers to the file handlers when the HTML text is only zero-width characters (#216)', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			fileHandlerRegistry,
+			schemaRegistry: new SchemaRegistry(),
+		});
+
+		const pngFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<span>\u200B</span>',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('still pastes blank lines from br-only markup (#216 content-signal guard)', () => {
+		// `<p><br></p>` parses into empty split blocks on purpose; a line break is
+		// real content and must not be mistaken for the parsed-to-nothing case.
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		handler = new PasteHandler(element, {
+			getState,
+			dispatch,
+			schemaRegistry: new SchemaRegistry(),
+		});
+
+		element.dispatchEvent(createPasteEvent({ html: '<p><br></p><p><br></p>' }));
+
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		expect(state.doc.children.length).toBeGreaterThan(1);
+		expect(getBlockText(state.doc.children[0])).toBe('hello');
 	});
 
 	it('resolves an async file handler on the deferred fallback path', async () => {
@@ -1893,6 +1989,40 @@ describe('PasteHandler markdown fallback', () => {
 		await vi.waitFor(() => expect(failures).toContain('Markdown HTML commit'));
 		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
 		expect(state.doc.children.map((block) => getBlockText(block)).join('\n')).toContain(markdown);
+		expect(announce).not.toHaveBeenCalled();
+	});
+
+	it('falls back to captured text when markdown converts to contentless HTML (#216)', async () => {
+		// The commit reports whether the HTML materialized anything; markdown that
+		// converts to markup parsing to nothing must not be silently dropped
+		// (preventDefault already ran) nor announced as imported.
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		const dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		const announce = vi.fn();
+		const parserModule = await import('../serialization/MarkdownParser.js');
+
+		handler = new PasteHandler(element, {
+			getState: () => state,
+			dispatch,
+			announce,
+			loadMarkdownParser: () =>
+				Promise.resolve({
+					parseMarkdownToDocument: (): ReturnType<typeof parserModule.parseMarkdownToDocument> =>
+						createDocument([]),
+				}),
+		});
+
+		// Passes `looksLikeMarkdown`, converts to an empty document.
+		element.dispatchEvent(createPasteEvent({ text: '```\nx\n```' }));
+
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalled());
+
+		const allText: string = state.doc.children.map((b) => getBlockText(b)).join('\n');
+		expect(allText).toContain('```');
+		expect(allText).toContain('x');
 		expect(announce).not.toHaveBeenCalled();
 	});
 

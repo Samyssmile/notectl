@@ -65,7 +65,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ordering, not a verdict: when the preferred HTML turns out to parse to nothing (design
   tools ship metadata-only markup next to a bitmap), the skipped image files are
   dispatched after all, so such pastes insert the image instead of silently discarding
-  the clipboard.
+  the clipboard. HTML counts as parsing to nothing when it materializes only empty
+  paragraphs (in any number) or text made of zero-width characters; a `<br>` is a content
+  signal, so blank-line-only markup still pastes as blank lines. Contentless HTML no
+  longer dispatches an empty paste transaction, so a range selection is not consumed
+  before the deferred files run, and Markdown that converts to contentless HTML falls
+  back to a plain-text paste of the captured text instead of being silently dropped.
+  Known trade-off: a Word copy containing text plus an embedded picture pastes as the
+  text without the picture (the picture's `file:///` source is unreachable from the
+  clipboard HTML); previously such copies pasted as a single bitmap of the whole
+  selection.
 
 ## [2.3.4] - 2026-08-07
 

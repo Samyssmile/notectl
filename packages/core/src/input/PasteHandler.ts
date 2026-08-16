@@ -324,7 +324,10 @@ export class PasteHandler {
 			{ pluginId: 'core', name: 'Markdown HTML commit', kind: 'markdown-paste' },
 			() => this.htmlHandler.pasteHTMLString(conversion.value, target),
 		);
-		if (!committed.ok) {
+		// A commit that threw or materialized nothing (markdown that converts to
+		// contentless HTML) falls back to the captured text; `preventDefault()`
+		// already ran, so dropping it here would lose the clipboard silently.
+		if (!committed.ok || !committed.value) {
 			if (this.active && !this.isReadOnly()) {
 				this.commitMarkdownPlainTextFallback(text, target);
 			}

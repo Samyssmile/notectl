@@ -18,7 +18,7 @@ import {
 	insertTextCommand,
 } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
-import { plainTextSlice, sliceHasContent } from '../model/ContentSlice.js';
+import { hasVisibleTextContent, plainTextSlice, sliceHasContent } from '../model/ContentSlice.js';
 import { type BlockNode, generateBlockId, getBlockText } from '../model/Document.js';
 import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
@@ -171,12 +171,19 @@ export class PasteHTMLHandler {
 				schema,
 				schemaRegistry: this.schemaRegistry,
 			});
+			// `<br>`-only markup deliberately parses into empty split blocks (blank
+			// lines), so a line break is a content signal even when every block ends
+			// up empty. Without any signal, dispatching would consume a range
+			// selection while inserting nothing, ahead of the caller's fallback to
+			// another clipboard flavor (#216).
+			const hasLineBreak: boolean = template.content.querySelector('br') !== null;
 			const slice = parser.parse(template.content);
+			if (!sliceHasContent(slice) && !hasLineBreak) return false;
 			this.dispatch(pasteSlice(state, slice));
-			return sliceHasContent(slice);
+			return true;
 		}
 		const text: string = this.extractTextFromHTML(sanitized);
-		if (!text) return false;
+		if (!hasVisibleTextContent(text)) return false;
 		this.dispatch(insertTextCommand(state, text, 'paste'));
 		return true;
 	}
