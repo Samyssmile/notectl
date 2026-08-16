@@ -162,6 +162,140 @@ describe('PasteHandler file paste', () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
+	it('prefers clipboard HTML with real content over a bitmap file item (#216)', () => {
+		// Word/Excel on macOS put a bitmap rendition of the copied text next to the
+		// HTML flavor; Chromium exposes it as a file item. The HTML must win.
+		element = document.createElement('div');
+		let state: EditorState = createTestState();
+		dispatch = vi.fn((tr: Transaction) => {
+			state = state.apply(tr);
+		});
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const renditionFile = new File(['bytes'], 'rendition.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [renditionFile],
+				html: '<meta charset="utf-8"><p>Hello <b>Word</b></p>',
+				text: 'Hello Word',
+			}),
+		);
+
+		expect(fileHandler).not.toHaveBeenCalled();
+		expect(dispatch).toHaveBeenCalledTimes(1);
+		const tr: Transaction = (dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(tr.metadata.origin).toBe('paste');
+		const allText: string = state.doc.children.map((b) => getBlockText(b)).join('');
+		expect(allText).toContain('Hello Word');
+	});
+
+	it('routes image-only clipboard HTML with a file to the file handlers', () => {
+		// Copying an image on a web page ships `<img>` HTML next to the image file;
+		// the file handlers keep owning that paste (blob URLs, upload services).
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<meta charset="utf-8"><div><img src="https://example.com/photo.png" alt=""></div>',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('routes SVG-only clipboard HTML with an image file to the file handlers', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/svg+xml', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const svgFile = new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [svgFile],
+				html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>Logo</title><path d="M0 0h10v10H0z"/></svg>',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(svgFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('keeps non-image file handlers ahead of clipboard HTML', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('text/csv', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const csvFile = new File(['a,b,c'], 'data.csv', { type: 'text/csv' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [csvFile],
+				html: '<p>Clipboard preview</p>',
+				text: 'Clipboard preview',
+			}),
+		);
+
+		expect(fileHandler).toHaveBeenCalledTimes(1);
+		expect(fileHandler).toHaveBeenCalledWith(csvFile, null);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it('prefers clipboard HTML without images or text over a file item', () => {
+		element = document.createElement('div');
+		const state: EditorState = createTestState();
+		dispatch = vi.fn();
+		getState = () => state;
+
+		const fileHandler = vi.fn().mockReturnValue(true);
+		const fileHandlerRegistry = new FileHandlerRegistry();
+		fileHandlerRegistry.registerFileHandler('image/*', fileHandler);
+
+		handler = new PasteHandler(element, { getState, dispatch, fileHandlerRegistry });
+
+		const pngFile = new File(['bytes'], 'photo.png', { type: 'image/png' });
+		element.dispatchEvent(
+			createPasteEvent({
+				files: [pngFile],
+				html: '<hr>',
+			}),
+		);
+
+		expect(fileHandler).not.toHaveBeenCalled();
+	});
+
 	it('awaits Promise<boolean>, then continues in registration order after resolve(false)', async () => {
 		element = document.createElement('div');
 		const state: EditorState = createTestState();

@@ -54,6 +54,41 @@ function hasUsableHtml(html: string): boolean {
 	return html.trim() !== '' && /<\w/.test(html);
 }
 
+const IMAGE_REPRESENTATION_SELECTOR = 'img, picture, svg, canvas';
+
+/**
+ * Whether the clipboard HTML flavor should win over the file items captured
+ * next to it.
+ *
+ * Word and Excel on macOS put a bitmap rendition of the copied content on the
+ * clipboard alongside the HTML flavor, and Chromium exposes that bitmap as a
+ * file item. Dispatching the files first would paste a screenshot of the
+ * copied text instead of the text itself (#216), so usable HTML takes
+ * precedence. Markup that is nothing but an image representation is the
+ * exception: copying an image on a web page can also ship HTML next to the
+ * image file, and those pastes stay with the file handlers so blob URLs and
+ * upload services keep working.
+ */
+function htmlTakesPrecedenceOverFiles(html: string, files: readonly File[]): boolean {
+	// Only image files can be alternate renderings of copied rich content. Other
+	// MIME types belong to their registered handlers even when the clipboard also
+	// exposes an HTML preview.
+	if (files.length === 0 || files.some((file) => !file.type.startsWith('image/'))) return false;
+	if (!hasUsableHtml(html)) return false;
+	// Parse into a detached document that is inspected here and never inserted
+	// into the live page.
+	const body: HTMLElement = new DOMParser().parseFromString(html, 'text/html').body;
+	const imageRepresentations: NodeListOf<Element> = body.querySelectorAll(
+		IMAGE_REPRESENTATION_SELECTOR,
+	);
+	const hasImageRepresentation: boolean = imageRepresentations.length > 0;
+	for (const image of imageRepresentations) {
+		image.remove();
+	}
+	if ((body.textContent ?? '').trim() !== '') return true;
+	return !hasImageRepresentation;
+}
+
 export interface PasteHandlerOptions {
 	readonly getState: GetStateFn;
 	readonly dispatch: DispatchFn;
@@ -145,7 +180,9 @@ export class PasteHandler {
 
 		const bookmark = this.createBookmark();
 		const fileOutcome: FileHandlerDispatchOutcome | Promise<FileHandlerDispatchOutcome> =
-			this.fileHandlerRegistry && snapshot.files.length > 0
+			this.fileHandlerRegistry &&
+			snapshot.files.length > 0 &&
+			!htmlTakesPrecedenceOverFiles(snapshot.html, snapshot.files)
 				? dispatchFilesToHandlers({
 						registry: this.fileHandlerRegistry,
 						executor: this.callbackExecutor,

@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   source-compatible; themes created via `createTheme()` inherit it from their base
   automatically.
 
+- **Pasting text from Word on macOS inserted a screenshot instead of the text (#216).**
+  Word and Excel on macOS put a bitmap rendition of the copied content on the clipboard
+  alongside the HTML flavor, and Chromium exposes that bitmap as a file item. The paste
+  pipeline dispatched file items to the registered file handlers before considering the
+  HTML, so the image plugin claimed the paste and inserted a picture of the copied text.
+  Clipboard HTML that carries real content now takes precedence over accompanying image
+  file items. Markup that is nothing but an image representation keeps routing to the file
+  handlers, so copied web images still paste through the blob-URL and upload-service path;
+  non-image files also retain their registered handler precedence.
+
 ## [2.3.4] - 2026-08-07
 
 Reliability release. The editor no longer trusts data or callbacks it does not own: plugin

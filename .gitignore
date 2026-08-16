@@ -66,3 +66,5 @@ code-style-requirements.md
 
 ## Agents
 AGENTS.md
+/.agents/skills/review-fix/SKILL.md
+/.agents/skills/review-fix/agents/openai.yaml
