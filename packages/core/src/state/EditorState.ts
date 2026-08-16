@@ -129,6 +129,11 @@ export class EditorState {
 		return new EditorState(this.doc, validated, this.storedMarks, this.schema);
 	}
 
+	/** Returns a new state with the given stored marks (pending caret mark toggles), or none. */
+	withStoredMarks(storedMarks: readonly Mark[] | null): EditorState {
+		return new EditorState(this.doc, this.selection, storedMarks, this.schema);
+	}
+
 	/** Serializes the state to JSON. */
 	toJSON(): { readonly doc: Document; readonly selection: EditorSelection } {
 		return {

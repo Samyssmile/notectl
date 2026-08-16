@@ -11,7 +11,7 @@ import { InputRuleRegistry } from '../model/InputRuleRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
-import { blockId, inlineType, nodeType } from '../model/TypeBrands.js';
+import { blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { createMarkInputRule } from '../plugins/shared/MarkInputRule.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -224,6 +224,88 @@ describe('InputHandler', () => {
 			element.dispatchEvent(event);
 
 			expect(getBlockText(state.doc.children[0])).toBe('hXlo');
+		});
+
+		it('degrades to a no-op when the reported range is unresolvable at a collapsed caret', () => {
+			// Inserting at the collapsed caret would duplicate the correction next
+			// to the typo ("helohello"); swallowing the prevented event is the only
+			// safe degraded mode.
+			element = document.createElement('div');
+			let state = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const resolveTargetRange = vi.fn().mockReturnValue(null);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				resolveTargetRange,
+			});
+
+			const event = createReplacementEvent({
+				dataTransferText: 'hello',
+				targetRange: {} as StaticRange,
+			});
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(dispatch).not.toHaveBeenCalled();
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+		});
+
+		it('swallows a replacement that arrives during an active composition', () => {
+			// A replacement applied against uncommitted IME text would corrupt the
+			// model; the prevented event is dropped instead.
+			element = document.createElement('div');
+			let state = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const compositionTracker = new CompositionTracker();
+			compositionTracker.start(B1);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				compositionTracker,
+			});
+
+			element.dispatchEvent(createReplacementEvent({ dataTransferText: 'hello' }));
+
+			expect(dispatch).not.toHaveBeenCalled();
+			expect(getBlockText(state.doc.children[0])).toBe('hello');
+		});
+
+		it('does not apply pending stored marks to a resolved-range replacement', () => {
+			// A pending mark toggle at the caret (e.g. Ctrl+B before accepting the
+			// suggestion) must not bleed into the corrected word.
+			element = document.createElement('div');
+			let state = createState().withStoredMarks([{ type: markType('bold') }]);
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const wordSelection = createSelection({ blockId: B1, offset: 0 }, { blockId: B1, offset: 5 });
+			const resolveTargetRange = vi.fn().mockReturnValue(wordSelection);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				resolveTargetRange,
+			});
+
+			element.dispatchEvent(
+				createReplacementEvent({ dataTransferText: 'howdy', targetRange: {} as StaticRange }),
+			);
+
+			expect(getBlockText(state.doc.children[0])).toBe('howdy');
+			const children = getInlineChildren(state.doc.children[0]);
+			for (const child of children) {
+				expect(child.marks ?? []).toHaveLength(0);
+			}
 		});
 
 		it('routes the replacement text through text-input interceptors', () => {

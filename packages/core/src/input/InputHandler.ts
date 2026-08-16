@@ -16,7 +16,7 @@ import {
 } from '../commands/Commands.js';
 import { type BlockNode, getInlineChildren, isTextNode } from '../model/Document.js';
 import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
-import { type Selection, isTextSelection } from '../model/Selection.js';
+import { type Selection, isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
@@ -116,9 +116,11 @@ export class InputHandler {
 		// Resolve the browser-owned StaticRange before syncing selection. A
 		// selection-only update may reconcile selection-dependent decorations and
 		// replace the range's DOM endpoints, while StaticRange itself is not live.
-		const replacementTarget: Selection | null = replacement
-			? this.resolveReplacementTarget(e)
-			: null;
+		const replacementRange: StaticRange | undefined = replacement ? firstTargetRange(e) : undefined;
+		const replacementTarget: Selection | null =
+			replacementRange && this.resolveTargetRange
+				? this.resolveTargetRange(replacementRange)
+				: null;
 
 		// Sync selection from DOM before processing non-insert operations
 		// (handles arrow key / mouse navigation that doesn't go through our state)
@@ -147,12 +149,23 @@ export class InputHandler {
 			case 'insertReplacementText': {
 				// Spellcheck/autocorrect: Firefox delivers the replacement via
 				// `data`, Chromium and WebKit via `dataTransfer` (text/plain).
-				if (replacement) {
-					const targetState = replacementTarget ? state.withSelection(replacementTarget) : state;
-					tr =
-						this.runTextInputInterceptors(replacement, targetState) ??
-						insertTextCommand(targetState, replacement, 'input');
-				}
+				if (!replacement) break;
+				// A replacement arriving mid-IME would be applied against
+				// uncommitted composition text; swallow it instead.
+				if (this.compositionTracker.isComposing) break;
+				// The browser reported the affected word range but it could not be
+				// mapped; inserting at a collapsed caret would duplicate the
+				// correction next to the typo, so degrade to a no-op. A range
+				// selection still replaces correctly without the mapping.
+				if (replacementRange && !replacementTarget && isCollapsed(state.selection)) break;
+				// A resolved word range overrides the selection; pending caret
+				// mark toggles must not bleed into the corrected word.
+				const targetState = replacementTarget
+					? state.withSelection(replacementTarget).withStoredMarks(null)
+					: state;
+				tr =
+					this.runTextInputInterceptors(replacement, targetState) ??
+					insertTextCommand(targetState, replacement, 'input');
 				break;
 			}
 
@@ -226,21 +239,6 @@ export class InputHandler {
 				this.checkInputRules();
 			}
 		}
-	}
-
-	/**
-	 * Resolves the range the browser is about to replace. Spellcheck and
-	 * autocorrect report the affected word via
-	 * `getTargetRanges()` while the DOM selection may stay collapsed (Safari
-	 * autocorrect, Firefox context menu), so the target range wins when it can
-	 * be mapped. The caller captures this before selection synchronization can
-	 * redraw the range's DOM nodes.
-	 */
-	private resolveReplacementTarget(e: InputEvent): Selection | null {
-		if (!this.resolveTargetRange) return null;
-		const target: StaticRange | undefined =
-			typeof e.getTargetRanges === 'function' ? e.getTargetRanges()[0] : undefined;
-		return target ? this.resolveTargetRange(target) : null;
 	}
 
 	private onCompositionStart(e: CompositionEvent): void {
@@ -349,6 +347,17 @@ function blockTextForRules(block: BlockNode): string {
 		text += isTextNode(child) ? child.text : INLINE_NODE_PLACEHOLDER;
 	}
 	return text;
+}
+
+/**
+ * Returns the first range reported by `InputEvent.getTargetRanges()`, if any.
+ * Spellcheck and autocorrect report the word about to be replaced this way
+ * while the DOM selection may stay collapsed (Safari autocorrect, Firefox
+ * context menu). Callers capture it before selection synchronization can
+ * redraw the range's DOM nodes.
+ */
+function firstTargetRange(e: InputEvent): StaticRange | undefined {
+	return typeof e.getTargetRanges === 'function' ? e.getTargetRanges()[0] : undefined;
 }
 
 /**

@@ -31,7 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   static range is mapped to a model selection by the new view-layer `domRangeToState`
   (wired through `EditorView.resolveDOMRange` into the input layer), so the correction
   lands on the right word even when the DOM selection stays collapsed (Safari autocorrect,
-  Firefox context menu) and remains undoable as a regular input transaction.
+  Firefox context menu) and remains undoable as a regular input transaction. Three guards
+  harden the new branch: a replacement arriving during an active IME composition is
+  swallowed instead of being applied against uncommitted composition text; a reported word
+  range that cannot be mapped degrades to a no-op at a collapsed caret instead of
+  duplicating the correction next to the typo; and pending caret mark toggles (e.g. Ctrl+B
+  pressed before accepting the suggestion) no longer bleed into the corrected word when the
+  browser-reported range replaces the selection.
 
 - **Dark preset rendered solid-primary button labels invisible (#217).** The dark theme
   shipped the same value (`#89b4fa`) for `primary` and `primaryForeground`, so every control
