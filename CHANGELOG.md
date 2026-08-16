@@ -23,9 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `primaryForeground` keeps its documented "text on primary background" meaning with
   WCAG-AA-readable values (light `#1a1a1a`, 5.2:1 on `#4a90d9`; dark `#1e1e2e`, 7.8:1 on
   `#89b4fa`). The theme engine emits `--notectl-accent-fg: var(--notectl-primary-fg)` for
-  themes compiled before the split, preserving their rendering. `ThemePrimitives` gains the
-  required `accentForeground` field; themes created via `createTheme()` inherit it from
-  their base automatically.
+  themes compiled before the split, preserving their rendering. `ThemePrimitives` gains an
+  optional `accentForeground` field, so existing full `Theme` object literals remain
+  source-compatible; themes created via `createTheme()` inherit it from their base
+  automatically.
 
 ## [2.3.4] - 2026-08-07
 

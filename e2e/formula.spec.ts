@@ -25,6 +25,21 @@ test.describe('Formula plugin', () => {
 		await editor.goto();
 	});
 
+	test('dark theme gives the primary formula action a contrasting foreground (#217)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.root.evaluate((element) => {
+			(element as HTMLElement & { setTheme(theme: string): void }).setTheme('dark');
+		});
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+
+		const primaryAction = page.locator('.notectl-formula-editor__btn--primary');
+		await expect(primaryAction).toHaveCSS('background-color', 'rgb(137, 180, 250)');
+		await expect(primaryAction).toHaveCSS('color', 'rgb(30, 30, 46)');
+	});
+
 	test('inserts an inline formula via the toolbar popup, rendered as native MathML', async ({
 		editor,
 		page,

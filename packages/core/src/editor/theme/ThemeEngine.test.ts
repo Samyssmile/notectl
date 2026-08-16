@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SYNTAX_TOKEN_TYPES } from './SyntaxTokenTypes.js';
 import { createThemeStyleSheet, generateThemeCSS } from './ThemeEngine.js';
 import { DARK_THEME, LIGHT_THEME, createTheme } from './ThemeTokens.js';
-import type { PartialTheme, Theme, ThemePrimitives } from './ThemeTokens.js';
+import type { PartialTheme, Theme } from './ThemeTokens.js';
 
 describe('generateThemeCSS', () => {
 	it('generates valid CSS with :host selector', () => {
@@ -61,11 +61,12 @@ describe('generateThemeCSS', () => {
 	it('falls back accentForeground to primaryForeground for legacy themes', () => {
 		// Themes compiled against the pre-#217 ThemePrimitives lack accentForeground;
 		// their primaryForeground doubled as the accent color, so the engine must
-		// preserve that behavior instead of dropping the variable.
+		// preserve that behavior instead of dropping the variable. Keep this object
+		// cast-free so the fixture mirrors the public compatibility contract.
 		const { accentForeground: _omitted, ...legacyPrimitives } = LIGHT_THEME.primitives;
 		const legacy: Theme = {
 			name: 'legacy',
-			primitives: legacyPrimitives as ThemePrimitives,
+			primitives: legacyPrimitives,
 		};
 		const css: string = generateThemeCSS(legacy);
 

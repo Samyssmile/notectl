@@ -15,8 +15,12 @@ export interface ThemePrimitives {
 	readonly primary: string;
 	/** Text drawn on a solid `primary` background (filled buttons and controls). */
 	readonly primaryForeground: string;
-	/** Primary-tinted text and indicators on neutral backgrounds (active/selected states). */
-	readonly accentForeground: string;
+	/**
+	 * Primary-tinted text and indicators on neutral backgrounds (active/selected states).
+	 * Optional for source compatibility with themes created before this token was introduced.
+	 * The theme engine falls back to `primaryForeground` when it is omitted.
+	 */
+	readonly accentForeground?: string;
 	readonly primaryMuted: string;
 	readonly surfaceRaised: string;
 	readonly surfaceOverlay: string;

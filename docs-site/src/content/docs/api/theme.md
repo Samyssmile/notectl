@@ -50,7 +50,7 @@ interface ThemePrimitives {
   readonly borderFocus: string;
   readonly primary: string;
   readonly primaryForeground: string;
-  readonly accentForeground: string;
+  readonly accentForeground?: string;
   readonly primaryMuted: string;
   readonly surfaceRaised: string;
   readonly surfaceOverlay: string;
@@ -73,7 +73,7 @@ interface ThemePrimitives {
 | `borderFocus` | `--notectl-border-focus` | Focused element border |
 | `primary` | `--notectl-primary` | Accent/primary color |
 | `primaryForeground` | `--notectl-primary-fg` | Text on a solid primary background (filled buttons) |
-| `accentForeground` | `--notectl-accent-fg` | Primary-tinted text on neutral backgrounds (active states) |
+| `accentForeground` | `--notectl-accent-fg` | Optional primary-tinted text on neutral backgrounds (active states); falls back to `primaryForeground` |
 | `primaryMuted` | `--notectl-primary-muted` | Muted primary (selection, highlights) |
 | `surfaceRaised` | `--notectl-surface-raised` | Elevated surface (toolbar, panels) |
 | `surfaceOverlay` | `--notectl-surface-overlay` | Overlay surface (dropdowns, dialogs) |

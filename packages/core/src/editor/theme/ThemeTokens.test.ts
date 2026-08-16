@@ -153,10 +153,11 @@ describe('preset foreground contrast (#217)', () => {
 	it.each([LIGHT_THEME, DARK_THEME])(
 		'$name preset: accentForeground is readable on the editor background',
 		(theme: Theme) => {
-			const ratio: number = contrastRatio(
-				theme.primitives.background,
-				theme.primitives.accentForeground,
-			);
+			const accentForeground: string | undefined = theme.primitives.accentForeground;
+			if (accentForeground === undefined) {
+				expect.fail(`${theme.name} preset must define accentForeground`);
+			}
+			const ratio: number = contrastRatio(theme.primitives.background, accentForeground);
 			expect(ratio).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
 		},
 	);

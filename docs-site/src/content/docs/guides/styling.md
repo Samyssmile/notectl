@@ -413,7 +413,7 @@ interface ThemePrimitives {
   readonly borderFocus: string;
   readonly primary: string;
   readonly primaryForeground: string;
-  readonly accentForeground: string;
+  readonly accentForeground?: string;
   readonly primaryMuted: string;
   readonly surfaceRaised: string;
   readonly surfaceOverlay: string;

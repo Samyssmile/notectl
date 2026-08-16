@@ -82,6 +82,7 @@ describe('Theming contract', () => {
 		it('solid-primary buttons keep the on-primary foreground token', () => {
 			expect(FORMULA_EDITOR_CSS).toContain('var(--notectl-primary-fg');
 			expect(VIDEO_POPUP_CSS).toContain('var(--notectl-primary-fg)');
+			expect(TABLE_CSS).toContain('color: var(--notectl-primary-fg)');
 		});
 	});
 
