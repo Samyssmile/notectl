@@ -29,10 +29,10 @@ test.describe('Click below content', () => {
 		await page.mouse.down();
 		await page.mouse.move(blockBox.x + 2, blockBox.y + blockBox.height / 2, { steps: 10 });
 		await page.mouse.up();
-		await page.waitForTimeout(100);
 
-		const selectedText = await page.evaluate(() => window.getSelection()?.toString() ?? '');
-		expect(selectedText).toContain('line of text');
+		await expect
+			.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ''))
+			.toContain('line of text');
 
 		const json = await editor.getJSON();
 		expect(json.children).toHaveLength(1);
@@ -54,7 +54,6 @@ test.describe('Click below content', () => {
 			contentBox.y + contentBox.height - 10,
 			{ button: 'right' },
 		);
-		await page.waitForTimeout(100);
 
 		const json = await editor.getJSON();
 		expect(json.children).toHaveLength(1);

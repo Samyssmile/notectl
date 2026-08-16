@@ -16,7 +16,12 @@ import {
 import { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { createCollapsedSelection, isNodeSelection } from '../model/Selection.js';
+import {
+	type EditorSelection,
+	createCollapsedSelection,
+	createNodeSelection,
+	isNodeSelection,
+} from '../model/Selection.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { TransactionBuilder } from '../state/Transaction.js';
@@ -416,7 +421,7 @@ describe('EditorView.applyUpdate()', () => {
 	});
 
 	describe('click below content', () => {
-		function createBelowContentView(blocks?: readonly BlockNode[]) {
+		function createBelowContentView(blocks?: readonly BlockNode[], selection?: EditorSelection) {
 			const container = document.createElement('div');
 			container.setAttribute('contenteditable', 'true');
 			document.body.appendChild(container);
@@ -428,7 +433,7 @@ describe('EditorView.applyUpdate()', () => {
 			const lastId = doc.children[doc.children.length - 1]?.id ?? 'b1';
 			const state = EditorState.create({
 				doc,
-				selection: createCollapsedSelection(firstId, 0),
+				selection: selection ?? createCollapsedSelection(firstId, 0),
 			});
 
 			const receivedTransactions: Transaction[] = [];
@@ -469,6 +474,17 @@ describe('EditorView.applyUpdate()', () => {
 			);
 		}
 
+		function move(init: MouseEventInit): void {
+			document.dispatchEvent(
+				new MouseEvent('mousemove', {
+					bubbles: true,
+					cancelable: true,
+					buttons: 1,
+					...init,
+				}),
+			);
+		}
+
 		it('leaves mousedown below the content to the browser so drag-selection can start', () => {
 			const { container, view, cleanup } = createBelowContentView();
 
@@ -501,6 +517,77 @@ describe('EditorView.applyUpdate()', () => {
 
 			expect(view.getState().doc.children).toHaveLength(1);
 			cleanup();
+		});
+
+		it('does not append when a drag returns to its starting point before release', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, buttons: 1, clientX: 10, clientY: 100 });
+			move({ clientX: 10, clientY: 30 });
+			move({ clientX: 10, clientY: 100 });
+			release({ button: 0, clientX: 10, clientY: 100 });
+
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('does not complete a pending primary press on a non-primary release', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, buttons: 1, clientX: 10, clientY: 100 });
+			release({ button: 2, buttons: 1, clientX: 10, clientY: 100 });
+
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('does not apply a pending click to content replaced during the gesture', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, buttons: 1, clientX: 10, clientY: 100 });
+
+			const replacementDoc = createDocument([
+				createBlockNode('paragraph', [createTextNode('first')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('replacement')], 'b2'),
+			]);
+			view.replaceState(
+				EditorState.create({
+					doc: replacementDoc,
+					selection: createCollapsedSelection('b1', 0),
+				}),
+			);
+
+			release({ button: 0, clientX: 10, clientY: 100 });
+
+			expect(view.getState().doc.children).toHaveLength(2);
+			expect(getBlockText(view.getState().doc.children[1])).toBe('replacement');
+			cleanup();
+		});
+
+		it('lets a native below-content drag replace an active node selection', () => {
+			const { container, view, cleanup } = createBelowContentView(
+				undefined,
+				createNodeSelection('b1', ['b1']),
+			);
+			container.focus();
+			const readSpy = vi
+				.spyOn(SelectionSync, 'readSelectionFromDOM')
+				.mockReturnValue(createCollapsedSelection('b1', 3));
+
+			try {
+				press(container, { button: 0, buttons: 1, clientX: 10, clientY: 100 });
+				move({ clientX: 10, clientY: 30 });
+				document.dispatchEvent(new Event('selectionchange'));
+
+				const selection = view.getState().selection;
+				expect(isNodeSelection(selection)).toBe(false);
+				if (!isNodeSelection(selection) && !('side' in selection)) {
+					expect(selection.anchor.offset).toBe(3);
+				}
+			} finally {
+				readSpy.mockRestore();
+				cleanup();
+			}
 		});
 
 		it('ignores non-primary-button presses below the content', () => {

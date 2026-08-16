@@ -68,15 +68,28 @@ interface DropPositionBookmark {
 interface BelowContentPress {
 	readonly clientX: number;
 	readonly clientY: number;
+	dragged: boolean;
 }
 
 /** Pointer travel (per axis, in px) beyond which a press counts as a drag. */
 const CLICK_DRAG_THRESHOLD_PX = 4;
 
+function hasMouseModifiers(event: MouseEvent): boolean {
+	return event.shiftKey || event.ctrlKey || event.altKey || event.metaKey;
+}
+
+function exceededDragThreshold(press: BelowContentPress, event: MouseEvent): boolean {
+	return (
+		Math.abs(event.clientX - press.clientX) > CLICK_DRAG_THRESHOLD_PX ||
+		Math.abs(event.clientY - press.clientY) > CLICK_DRAG_THRESHOLD_PX
+	);
+}
+
 export class EditorViewEvents {
 	private readonly deps: EventCoordinatorDeps;
 	private readonly handleSelectionChange: () => void;
 	private readonly handleMousedown: (e: MouseEvent) => void;
+	private readonly handleMousemove: (e: MouseEvent) => void;
 	private readonly handleMouseup: (e: MouseEvent) => void;
 	private readonly handleDragover: (e: DragEvent) => void;
 	private readonly handleDrop: (e: DragEvent) => void;
@@ -109,6 +122,8 @@ export class EditorViewEvents {
 
 		this.handleMousedown = this.onMousedown.bind(this);
 		deps.contentElement.addEventListener('mousedown', this.handleMousedown);
+
+		this.handleMousemove = this.onMousemove.bind(this);
 
 		// A below-content drag may end anywhere, so the release is
 		// observed on the document rather than the content element.
@@ -169,7 +184,7 @@ export class EditorViewEvents {
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
 		document.removeEventListener('mouseup', this.handleMouseup);
 		el.removeEventListener('mousedown', this.handleMousedown);
-		this.pendingBelowContentPress = null;
+		this.clearBelowContentPress();
 		el.removeEventListener('dragover', this.handleDragover);
 		el.removeEventListener('drop', this.handleDrop);
 		for (const bookmark of this.pendingDropBookmarks) bookmark.cancelled = true;
@@ -178,6 +193,14 @@ export class EditorViewEvents {
 
 	/** Maps pending async file-drop positions through every committed transaction. */
 	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
+		if (oldState.doc !== state.doc) {
+			this.clearBelowContentPress();
+			this.pendingNodeSelectionClear = false;
+			this.pendingGapCursorClear = false;
+		}
+		if (!isNodeSelection(state.selection)) this.pendingNodeSelectionClear = false;
+		if (!isGapCursor(state.selection)) this.pendingGapCursorClear = false;
+
 		for (const bookmark of this.pendingDropBookmarks) {
 			if (!bookmark.position) continue;
 			if (oldState.doc !== state.doc && tr.steps.length === 0) {
@@ -213,7 +236,7 @@ export class EditorViewEvents {
 
 	/** Handles mousedown on selectable/void blocks. */
 	private onMousedown(e: MouseEvent): void {
-		this.pendingBelowContentPress = null;
+		this.clearBelowContentPress();
 		if (this.deps.isUpdating()) return;
 		if (!isEventFromEditorContent(e, this.deps.contentElement)) return;
 		this.deps.onMousedown?.();
@@ -272,34 +295,64 @@ export class EditorViewEvents {
 	 */
 	private trackBelowContentPress(e: MouseEvent): void {
 		if (this.deps.isReadOnly()) return;
-		if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+		if (e.defaultPrevented || e.button !== 0 || hasMouseModifiers(e)) return;
+		if (!this.isBelowLastRootBlock(e.clientY)) return;
 
-		const state: EditorState = this.deps.getState();
-		const lastRoot = state.doc.children[state.doc.children.length - 1];
-		if (!lastRoot) return;
+		this.markPendingSelectionClear();
+		this.pendingBelowContentPress = {
+			clientX: e.clientX,
+			clientY: e.clientY,
+			dragged: false,
+		};
+		document.addEventListener('mousemove', this.handleMousemove);
+	}
 
-		const lastBlockEl: Element | null = this.deps.contentElement.querySelector(
-			`[data-block-id="${lastRoot.id}"]`,
-		);
-		if (!lastBlockEl) return;
-		if (e.clientY <= lastBlockEl.getBoundingClientRect().bottom) return;
+	/** Records threshold crossings for the full gesture, not only its final displacement. */
+	private onMousemove(e: MouseEvent): void {
+		const press: BelowContentPress | null = this.pendingBelowContentPress;
+		if (!press) return;
 
-		this.pendingBelowContentPress = { clientX: e.clientX, clientY: e.clientY };
+		if ((e.buttons & 1) === 0) {
+			this.clearBelowContentPress();
+			return;
+		}
+		if (!exceededDragThreshold(press, e)) return;
+
+		press.dragged = true;
+		document.removeEventListener('mousemove', this.handleMousemove);
 	}
 
 	/** Completes a pending below-content press released without dragging. */
 	private onMouseup(e: MouseEvent): void {
-		const press: BelowContentPress | null = this.pendingBelowContentPress;
+		const press: BelowContentPress | null = this.clearBelowContentPress();
 		if (!press) return;
-		this.pendingBelowContentPress = null;
 
 		if (this.deps.isUpdating()) return;
-		const isDrag: boolean =
-			Math.abs(e.clientX - press.clientX) > CLICK_DRAG_THRESHOLD_PX ||
-			Math.abs(e.clientY - press.clientY) > CLICK_DRAG_THRESHOLD_PX;
-		if (isDrag) return;
+		if (e.defaultPrevented || e.button !== 0 || e.buttons !== 0 || hasMouseModifiers(e)) return;
+		if (press.dragged || exceededDragThreshold(press, e)) return;
+		if (!this.isBelowLastRootBlock(e.clientY)) return;
 
 		this.handleClickBelowContent();
+	}
+
+	/** Cancels and returns the current gesture while releasing its temporary listener. */
+	private clearBelowContentPress(): BelowContentPress | null {
+		const press: BelowContentPress | null = this.pendingBelowContentPress;
+		this.pendingBelowContentPress = null;
+		document.removeEventListener('mousemove', this.handleMousemove);
+		return press;
+	}
+
+	/** Returns whether the viewport point is still below the current last root block. */
+	private isBelowLastRootBlock(clientY: number): boolean {
+		const state: EditorState = this.deps.getState();
+		const lastRoot = state.doc.children[state.doc.children.length - 1];
+		if (!lastRoot) return false;
+
+		const lastBlockEl: Element | null = this.deps.contentElement.querySelector(
+			`[data-block-id="${lastRoot.id}"]`,
+		);
+		return !!lastBlockEl && clientY > lastBlockEl.getBoundingClientRect().bottom;
 	}
 
 	/**

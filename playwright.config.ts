@@ -19,6 +19,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'input-rules',
 		'special-characters',
 		'code-block',
+		'click-below-content',
 		'marks',
 		'history',
 		'spellcheck-replacement',
