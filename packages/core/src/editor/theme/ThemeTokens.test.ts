@@ -115,6 +115,53 @@ describe('createTheme', () => {
 	});
 });
 
+/** WCAG relative luminance for a #rrggbb hex color. */
+function relativeLuminance(hex: string): number {
+	const channel = (value: number): number => {
+		const scaled: number = value / 255;
+		return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+	};
+	const r: number = Number.parseInt(hex.slice(1, 3), 16);
+	const g: number = Number.parseInt(hex.slice(3, 5), 16);
+	const b: number = Number.parseInt(hex.slice(5, 7), 16);
+	return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two #rrggbb hex colors. */
+function contrastRatio(hexA: string, hexB: string): number {
+	const lumA: number = relativeLuminance(hexA);
+	const lumB: number = relativeLuminance(hexB);
+	const lighter: number = Math.max(lumA, lumB);
+	const darker: number = Math.min(lumA, lumB);
+	return (lighter + 0.05) / (darker + 0.05);
+}
+
+describe('preset foreground contrast (#217)', () => {
+	const WCAG_AA_NORMAL_TEXT = 4.5;
+
+	it.each([LIGHT_THEME, DARK_THEME])(
+		'$name preset: primaryForeground is readable on a solid primary background',
+		(theme: Theme) => {
+			const ratio: number = contrastRatio(
+				theme.primitives.primary,
+				theme.primitives.primaryForeground,
+			);
+			expect(ratio).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+		},
+	);
+
+	it.each([LIGHT_THEME, DARK_THEME])(
+		'$name preset: accentForeground is readable on the editor background',
+		(theme: Theme) => {
+			const ratio: number = contrastRatio(
+				theme.primitives.background,
+				theme.primitives.accentForeground,
+			);
+			expect(ratio).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+		},
+	);
+});
+
 describe('built-in themes have all token types', () => {
 	it('LIGHT_THEME has all canonical syntax token types', () => {
 		const syntax = LIGHT_THEME.codeBlock?.syntax;

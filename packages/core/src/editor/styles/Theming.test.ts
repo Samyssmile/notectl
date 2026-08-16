@@ -10,6 +10,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { BLOCKQUOTE_CSS } from '../../plugins/blockquote/BlockquoteStyles.js';
+import { FORMULA_EDITOR_CSS } from '../../plugins/formula/FormulaStyles.js';
+import { VIDEO_POPUP_CSS } from '../../plugins/video/VideoPopupStyles.js';
 import { BASE_CSS } from './base.js';
 import { TABLE_CSS } from './table.js';
 import { TOOLBAR_CSS } from './toolbar.js';
@@ -61,6 +63,25 @@ describe('Theming contract', () => {
 			// Without an initial-value, an invalid value would un-set the property entirely
 			// and break downstream rules. The @property spec requires it for typed registration.
 			expect(BASE_CSS).toMatch(/@property\s+--notectl-border[\s\S]*?initial-value:/);
+		});
+	});
+
+	describe('Primary vs accent foreground split (#217)', () => {
+		it('registers --notectl-accent-fg as a typed public token', () => {
+			expect(BASE_CSS).toMatch(/@property\s+--notectl-accent-fg\s*\{[^}]*syntax:\s*'<color>'/);
+		});
+
+		it('toolbar active foreground cascades to the accent token, not the on-primary token', () => {
+			// Active toolbar buttons sit on a muted background, so their text must use
+			// the accent foreground; the on-primary foreground would be unreadable there.
+			expect(TOOLBAR_CSS).toContain(
+				'var(--notectl-toolbar-button-active-fg, var(--notectl-accent-fg))',
+			);
+		});
+
+		it('solid-primary buttons keep the on-primary foreground token', () => {
+			expect(FORMULA_EDITOR_CSS).toContain('var(--notectl-primary-fg');
+			expect(VIDEO_POPUP_CSS).toContain('var(--notectl-primary-fg)');
 		});
 	});
 

@@ -56,7 +56,7 @@ export const COLOR_PICKER_CSS = `
 }
 
 .notectl-color-picker__swatch--active {
-	border: 2px solid var(--notectl-primary-fg);
+	border: 2px solid var(--notectl-accent-fg);
 	border-radius: 3px;
 }
 

@@ -42,7 +42,7 @@ export const HEADING_SELECT_CSS = `
 
 .notectl-heading-picker__item--active {
 	background: var(--notectl-active-bg);
-	color: var(--notectl-primary-fg);
+	color: var(--notectl-accent-fg);
 }
 
 @media (hover: hover) {
@@ -59,7 +59,7 @@ export const HEADING_SELECT_CSS = `
 	flex-shrink: 0;
 	font-size: 13px;
 	font-weight: 600;
-	color: var(--notectl-primary-fg);
+	color: var(--notectl-accent-fg);
 }
 
 .notectl-heading-picker__label {

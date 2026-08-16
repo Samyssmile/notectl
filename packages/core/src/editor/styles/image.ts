@@ -72,7 +72,7 @@ export const IMAGE_CSS = `
 
 .notectl-image__align-btn--active {
 	background: var(--notectl-active-bg);
-	color: var(--notectl-primary-fg);
+	color: var(--notectl-accent-fg);
 }
 
 .notectl-image__align-btn svg {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SYNTAX_TOKEN_TYPES } from './SyntaxTokenTypes.js';
 import { createThemeStyleSheet, generateThemeCSS } from './ThemeEngine.js';
 import { DARK_THEME, LIGHT_THEME, createTheme } from './ThemeTokens.js';
-import type { PartialTheme, Theme } from './ThemeTokens.js';
+import type { PartialTheme, Theme, ThemePrimitives } from './ThemeTokens.js';
 
 describe('generateThemeCSS', () => {
 	it('generates valid CSS with :host selector', () => {
@@ -20,6 +20,7 @@ describe('generateThemeCSS', () => {
 		expect(css).toContain('--notectl-border-focus:');
 		expect(css).toContain('--notectl-primary:');
 		expect(css).toContain('--notectl-primary-fg:');
+		expect(css).toContain('--notectl-accent-fg:');
 		expect(css).toContain('--notectl-primary-muted:');
 		expect(css).toContain('--notectl-surface-raised:');
 		expect(css).toContain('--notectl-surface-overlay:');
@@ -55,6 +56,20 @@ describe('generateThemeCSS', () => {
 		// Inline code tokens should fall back
 		expect(css).toContain('--notectl-code-bg: var(--notectl-surface-raised)');
 		expect(css).toContain('--notectl-code-color: var(--notectl-fg)');
+	});
+
+	it('falls back accentForeground to primaryForeground for legacy themes', () => {
+		// Themes compiled against the pre-#217 ThemePrimitives lack accentForeground;
+		// their primaryForeground doubled as the accent color, so the engine must
+		// preserve that behavior instead of dropping the variable.
+		const { accentForeground: _omitted, ...legacyPrimitives } = LIGHT_THEME.primitives;
+		const legacy: Theme = {
+			name: 'legacy',
+			primitives: legacyPrimitives as ThemePrimitives,
+		};
+		const css: string = generateThemeCSS(legacy);
+
+		expect(css).toContain('--notectl-accent-fg: var(--notectl-primary-fg)');
 	});
 
 	it('maps correct values for light theme', () => {

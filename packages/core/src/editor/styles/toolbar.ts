@@ -67,7 +67,7 @@ export const TOOLBAR_CSS = `
 .notectl-toolbar-btn--active {
 	background: var(--notectl-toolbar-button-active-bg, var(--notectl-active-bg));
 	border-color: var(--notectl-primary-muted);
-	color: var(--notectl-toolbar-button-active-fg, var(--notectl-primary-fg));
+	color: var(--notectl-toolbar-button-active-fg, var(--notectl-accent-fg));
 }
 
 .notectl-toolbar-btn:focus-visible {
@@ -260,7 +260,7 @@ export const TOOLBAR_CSS = `
 }
 
 .notectl-dropdown__item--active {
-	color: var(--notectl-primary-fg);
+	color: var(--notectl-accent-fg);
 }
 
 .notectl-dropdown__item-icon svg {

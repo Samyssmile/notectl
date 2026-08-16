@@ -22,6 +22,7 @@ const STATIC_ENTRIES: ReadonlyArray<readonly [string, string]> = [
 	['primitives.borderFocus', '--notectl-border-focus'],
 	['primitives.primary', '--notectl-primary'],
 	['primitives.primaryForeground', '--notectl-primary-fg'],
+	['primitives.accentForeground', '--notectl-accent-fg'],
 	['primitives.primaryMuted', '--notectl-primary-muted'],
 	['primitives.surfaceRaised', '--notectl-surface-raised'],
 	['primitives.surfaceOverlay', '--notectl-surface-overlay'],
@@ -64,6 +65,9 @@ const VARIABLE_MAP: ReadonlyArray<readonly [string, string]> = [
 // --- Static fallbacks (non-syntax) ---
 
 const STATIC_FALLBACKS: ReadonlyArray<readonly [string, string]> = [
+	// Themes built before accentForeground existed used primaryForeground for
+	// accent text on neutral backgrounds — keep that rendering for them.
+	['--notectl-accent-fg', 'var(--notectl-primary-fg)'],
 	['--notectl-toolbar-bg', 'var(--notectl-surface-raised)'],
 	['--notectl-toolbar-border', 'var(--notectl-border)'],
 	['--notectl-code-bg', 'var(--notectl-surface-raised)'],

@@ -108,7 +108,7 @@ export const TABLE_CSS = `
 }
 
 .ntbl-container.notectl-table--selected .notectl-table-wrapper {
-	outline: 2px solid var(--notectl-primary-fg);
+	outline: 2px solid var(--notectl-accent-fg);
 	outline-offset: 2px;
 	border-radius: 6px;
 }

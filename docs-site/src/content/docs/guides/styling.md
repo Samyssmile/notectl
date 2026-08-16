@@ -77,7 +77,8 @@ const corporate: Theme = createTheme(LIGHT_THEME, {
   name: 'corporate',
   primitives: {
     primary: '#6B21A8',
-    primaryForeground: '#6B21A8',
+    primaryForeground: '#ffffff',
+    accentForeground: '#6B21A8',
     primaryMuted: 'rgba(107, 33, 168, 0.15)',
     borderFocus: '#6B21A8',
     focusRing: 'rgba(107, 33, 168, 0.2)',
@@ -233,7 +234,8 @@ These are the core tokens that all components derive their colors from.
 | `--notectl-border` | `border` | Default borders (editor, toolbar, inputs, separators) |
 | `--notectl-border-focus` | `borderFocus` | Focus state border |
 | `--notectl-primary` | `primary` | Accent color (selection outlines, insert lines, active states) |
-| `--notectl-primary-fg` | `primaryForeground` | Text on primary-tinted backgrounds |
+| `--notectl-primary-fg` | `primaryForeground` | Text on a solid primary background (filled buttons) |
+| `--notectl-accent-fg` | `accentForeground` | Primary-tinted text on neutral backgrounds (active/selected states) |
 | `--notectl-primary-muted` | `primaryMuted` | Subtle primary background (active toolbar button, selected cells) |
 | `--notectl-surface-raised` | `surfaceRaised` | Elevated surfaces (toolbar background) |
 | `--notectl-surface-overlay` | `surfaceOverlay` | Overlay surfaces (popups, context menus, dropdowns) |
@@ -255,7 +257,7 @@ These are the core tokens that all components derive their colors from.
 | `--notectl-toolbar-button-fg` | — (CSS-only) | `var(--notectl-fg)` |
 | `--notectl-toolbar-button-hover-bg` | — (CSS-only) | `var(--notectl-hover-bg)` |
 | `--notectl-toolbar-button-active-bg` | — (CSS-only) | `var(--notectl-active-bg)` |
-| `--notectl-toolbar-button-active-fg` | — (CSS-only) | `var(--notectl-primary-fg)` |
+| `--notectl-toolbar-button-active-fg` | — (CSS-only) | `var(--notectl-accent-fg)` |
 
 ### Component: Table
 
@@ -411,6 +413,7 @@ interface ThemePrimitives {
   readonly borderFocus: string;
   readonly primary: string;
   readonly primaryForeground: string;
+  readonly accentForeground: string;
   readonly primaryMuted: string;
   readonly surfaceRaised: string;
   readonly surfaceOverlay: string;

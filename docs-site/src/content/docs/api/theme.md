@@ -50,6 +50,7 @@ interface ThemePrimitives {
   readonly borderFocus: string;
   readonly primary: string;
   readonly primaryForeground: string;
+  readonly accentForeground: string;
   readonly primaryMuted: string;
   readonly surfaceRaised: string;
   readonly surfaceOverlay: string;
@@ -71,7 +72,8 @@ interface ThemePrimitives {
 | `border` | `--notectl-border` | Default border color |
 | `borderFocus` | `--notectl-border-focus` | Focused element border |
 | `primary` | `--notectl-primary` | Accent/primary color |
-| `primaryForeground` | `--notectl-primary-fg` | Text on primary background |
+| `primaryForeground` | `--notectl-primary-fg` | Text on a solid primary background (filled buttons) |
+| `accentForeground` | `--notectl-accent-fg` | Primary-tinted text on neutral backgrounds (active states) |
 | `primaryMuted` | `--notectl-primary-muted` | Muted primary (selection, highlights) |
 | `surfaceRaised` | `--notectl-surface-raised` | Elevated surface (toolbar, panels) |
 | `surfaceOverlay` | `--notectl-surface-overlay` | Overlay surface (dropdowns, dialogs) |
@@ -252,7 +254,8 @@ const custom = createTheme(LIGHT_THEME, {
   name: 'corporate',
   primitives: {
     primary: '#0052cc',
-    primaryForeground: '#003380',
+    primaryForeground: '#ffffff',
+    accentForeground: '#003380',
   },
 });
 ```
@@ -309,8 +312,8 @@ shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, sheet];
 
 The theme engine generates CSS custom properties for all theme tokens. The total count varies depending on which `TokenStyle` objects include `fontStyle` or `fontWeight` overrides.
 
-**Primitives (17):**
-`--notectl-bg`, `--notectl-fg`, `--notectl-fg-muted`, `--notectl-border`, `--notectl-border-focus`, `--notectl-primary`, `--notectl-primary-fg`, `--notectl-primary-muted`, `--notectl-surface-raised`, `--notectl-surface-overlay`, `--notectl-hover-bg`, `--notectl-active-bg`, `--notectl-danger`, `--notectl-danger-muted`, `--notectl-success`, `--notectl-shadow`, `--notectl-focus-ring`
+**Primitives (18):**
+`--notectl-bg`, `--notectl-fg`, `--notectl-fg-muted`, `--notectl-border`, `--notectl-border-focus`, `--notectl-primary`, `--notectl-primary-fg`, `--notectl-accent-fg`, `--notectl-primary-muted`, `--notectl-surface-raised`, `--notectl-surface-overlay`, `--notectl-hover-bg`, `--notectl-active-bg`, `--notectl-danger`, `--notectl-danger-muted`, `--notectl-success`, `--notectl-shadow`, `--notectl-focus-ring`
 
 **Toolbar (2 theme-driven + 5 CSS-only):**
 `--notectl-toolbar-bg`, `--notectl-toolbar-border`, `--notectl-toolbar-button-bg`, `--notectl-toolbar-button-fg`, `--notectl-toolbar-button-hover-bg`, `--notectl-toolbar-button-active-bg`, `--notectl-toolbar-button-active-fg`

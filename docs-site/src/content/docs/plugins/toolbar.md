@@ -194,7 +194,7 @@ notectl-editor {
 | `--notectl-toolbar-button-fg` | `var(--notectl-fg)` |
 | `--notectl-toolbar-button-hover-bg` | `var(--notectl-hover-bg)` |
 | `--notectl-toolbar-button-active-bg` | `var(--notectl-active-bg)` |
-| `--notectl-toolbar-button-active-fg` | `var(--notectl-primary-fg)` |
+| `--notectl-toolbar-button-active-fg` | `var(--notectl-accent-fg)` |
 
 ### Shadow Parts
 

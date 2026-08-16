@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dark preset rendered solid-primary button labels invisible (#217).** The dark theme
+  shipped the same value (`#89b4fa`) for `primary` and `primaryForeground`, so every control
+  that pairs `background: var(--notectl-primary)` with `color: var(--notectl-primary-fg)`
+  (the formula editor's primary button, the video popup's Embed and Submit buttons, the
+  table size editor's Apply button) drew its label in its own background color, a 1:1
+  contrast ratio. Root cause: `--notectl-primary-fg` was overloaded with two conflicting
+  roles, text on a solid primary background versus primary-tinted text on neutral
+  backgrounds (active toolbar buttons, dropdown and picker active items, selection
+  outlines). The token is now split. A new `accentForeground` primitive
+  (`--notectl-accent-fg`) carries the accent role with the exact values those surfaces used
+  before (light `#1a5fa0`, dark `#89b4fa`, so they do not change visually), while
+  `primaryForeground` keeps its documented "text on primary background" meaning with
+  WCAG-AA-readable values (light `#1a1a1a`, 5.2:1 on `#4a90d9`; dark `#1e1e2e`, 7.8:1 on
+  `#89b4fa`). The theme engine emits `--notectl-accent-fg: var(--notectl-primary-fg)` for
+  themes compiled before the split, preserving their rendering. `ThemePrimitives` gains the
+  required `accentForeground` field; themes created via `createTheme()` inherit it from
+  their base automatically.
+
 ## [2.3.4] - 2026-08-07
 
 Reliability release. The editor no longer trusts data or callbacks it does not own: plugin

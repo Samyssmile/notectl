@@ -22,6 +22,7 @@ export const BASE_CSS = `
 @property --notectl-border-focus { syntax: '<color>'; initial-value: #0969da; inherits: true; }
 @property --notectl-primary { syntax: '<color>'; initial-value: #0969da; inherits: true; }
 @property --notectl-primary-fg { syntax: '<color>'; initial-value: #ffffff; inherits: true; }
+@property --notectl-accent-fg { syntax: '<color>'; initial-value: #0969da; inherits: true; }
 @property --notectl-focus-ring { syntax: '<color>'; initial-value: rgba(9, 105, 218, 0.3); inherits: true; }
 
 :host {

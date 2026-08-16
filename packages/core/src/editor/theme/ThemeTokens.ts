@@ -13,7 +13,10 @@ export interface ThemePrimitives {
 	readonly border: string;
 	readonly borderFocus: string;
 	readonly primary: string;
+	/** Text drawn on a solid `primary` background (filled buttons and controls). */
 	readonly primaryForeground: string;
+	/** Primary-tinted text and indicators on neutral backgrounds (active/selected states). */
+	readonly accentForeground: string;
 	readonly primaryMuted: string;
 	readonly surfaceRaised: string;
 	readonly surfaceOverlay: string;
@@ -97,7 +100,8 @@ export const LIGHT_THEME: Theme = {
 		border: '#d0d0d0',
 		borderFocus: '#4a90d9',
 		primary: '#4a90d9',
-		primaryForeground: '#1a5fa0',
+		primaryForeground: '#1a1a1a',
+		accentForeground: '#1a5fa0',
 		primaryMuted: '#d0e0f0',
 		surfaceRaised: '#f8f8f8',
 		surfaceOverlay: '#ffffff',
@@ -154,7 +158,8 @@ export const DARK_THEME: Theme = {
 		border: '#45475a',
 		borderFocus: '#89b4fa',
 		primary: '#89b4fa',
-		primaryForeground: '#89b4fa',
+		primaryForeground: '#1e1e2e',
+		accentForeground: '#89b4fa',
 		primaryMuted: 'rgba(137, 180, 250, 0.15)',
 		surfaceRaised: '#313244',
 		surfaceOverlay: '#313244',
