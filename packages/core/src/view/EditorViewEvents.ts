@@ -5,6 +5,12 @@
  * Handles selection changes, mousedown (NodeSelection,
  * click-below-content), drag-and-drop, and composition events
  * for the CursorWrapper.
+ *
+ * A press below the last block only records a pending gesture;
+ * the trailing paragraph is appended on mouseup, and only when
+ * the unmodified primary-button press was released without
+ * dragging. Everything else (drag-selection started in the empty
+ * area, shift-extension, context menu) stays native.
  */
 
 import type { CompositionState } from '../model/CompositionState.js';
@@ -59,16 +65,26 @@ interface DropPositionBookmark {
 	cancelled: boolean;
 }
 
+interface BelowContentPress {
+	readonly clientX: number;
+	readonly clientY: number;
+}
+
+/** Pointer travel (per axis, in px) beyond which a press counts as a drag. */
+const CLICK_DRAG_THRESHOLD_PX = 4;
+
 export class EditorViewEvents {
 	private readonly deps: EventCoordinatorDeps;
 	private readonly handleSelectionChange: () => void;
 	private readonly handleMousedown: (e: MouseEvent) => void;
+	private readonly handleMouseup: (e: MouseEvent) => void;
 	private readonly handleDragover: (e: DragEvent) => void;
 	private readonly handleDrop: (e: DragEvent) => void;
 	private readonly handleCompositionStart: (event: CompositionEvent) => void;
 	private readonly handleCompositionEnd: (event: CompositionEvent) => void;
 	private pendingNodeSelectionClear = false;
 	private pendingGapCursorClear = false;
+	private pendingBelowContentPress: BelowContentPress | null = null;
 	private readonly pendingDropBookmarks = new Set<DropPositionBookmark>();
 	private readonly callbackExecutor: PluginCallbackExecutor;
 	private active = true;
@@ -93,6 +109,11 @@ export class EditorViewEvents {
 
 		this.handleMousedown = this.onMousedown.bind(this);
 		deps.contentElement.addEventListener('mousedown', this.handleMousedown);
+
+		// A below-content drag may end anywhere, so the release is
+		// observed on the document rather than the content element.
+		this.handleMouseup = this.onMouseup.bind(this);
+		document.addEventListener('mouseup', this.handleMouseup);
 
 		this.handleDragover = this.onDragover.bind(this);
 		deps.contentElement.addEventListener('dragover', this.handleDragover);
@@ -146,7 +167,9 @@ export class EditorViewEvents {
 		el.removeEventListener('compositionstart', this.handleCompositionStart);
 		el.removeEventListener('compositionend', this.handleCompositionEnd);
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
+		document.removeEventListener('mouseup', this.handleMouseup);
 		el.removeEventListener('mousedown', this.handleMousedown);
+		this.pendingBelowContentPress = null;
 		el.removeEventListener('dragover', this.handleDragover);
 		el.removeEventListener('drop', this.handleDrop);
 		for (const bookmark of this.pendingDropBookmarks) bookmark.cancelled = true;
@@ -190,6 +213,7 @@ export class EditorViewEvents {
 
 	/** Handles mousedown on selectable/void blocks. */
 	private onMousedown(e: MouseEvent): void {
+		this.pendingBelowContentPress = null;
 		if (this.deps.isUpdating()) return;
 		if (!isEventFromEditorContent(e, this.deps.contentElement)) return;
 		this.deps.onMousedown?.();
@@ -204,7 +228,7 @@ export class EditorViewEvents {
 			!this.deps.contentElement.contains(nearestBlockEl)
 		) {
 			if (this.deps.contentElement.contains(target) || target === this.deps.contentElement) {
-				this.handleClickBelowContent(e);
+				this.trackBelowContentPress(e);
 			}
 			return;
 		}
@@ -242,24 +266,53 @@ export class EditorViewEvents {
 	}
 
 	/**
-	 * When the user clicks below all rendered blocks, appends a
-	 * new paragraph after the last block and focuses it.
+	 * Records an unmodified primary-button press below the last
+	 * block. The default is deliberately not prevented so the
+	 * browser can start a drag-selection from the empty area.
 	 */
-	private handleClickBelowContent(e: MouseEvent): void {
+	private trackBelowContentPress(e: MouseEvent): void {
+		if (this.deps.isReadOnly()) return;
+		if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+
+		const state: EditorState = this.deps.getState();
+		const lastRoot = state.doc.children[state.doc.children.length - 1];
+		if (!lastRoot) return;
+
+		const lastBlockEl: Element | null = this.deps.contentElement.querySelector(
+			`[data-block-id="${lastRoot.id}"]`,
+		);
+		if (!lastBlockEl) return;
+		if (e.clientY <= lastBlockEl.getBoundingClientRect().bottom) return;
+
+		this.pendingBelowContentPress = { clientX: e.clientX, clientY: e.clientY };
+	}
+
+	/** Completes a pending below-content press released without dragging. */
+	private onMouseup(e: MouseEvent): void {
+		const press: BelowContentPress | null = this.pendingBelowContentPress;
+		if (!press) return;
+		this.pendingBelowContentPress = null;
+
+		if (this.deps.isUpdating()) return;
+		const isDrag: boolean =
+			Math.abs(e.clientX - press.clientX) > CLICK_DRAG_THRESHOLD_PX ||
+			Math.abs(e.clientY - press.clientY) > CLICK_DRAG_THRESHOLD_PX;
+		if (isDrag) return;
+
+		this.handleClickBelowContent();
+	}
+
+	/**
+	 * Appends a new paragraph after the last block and focuses it,
+	 * reusing a trailing empty paragraph when one already exists.
+	 */
+	private handleClickBelowContent(): void {
 		if (this.deps.isReadOnly()) return;
 
 		const state: EditorState = this.deps.getState();
 		const lastRoot = state.doc.children[state.doc.children.length - 1];
 		if (!lastRoot) return;
 		const lastBlockId: BlockId = lastRoot.id;
-
-		const lastBlockEl: Element | null = this.deps.contentElement.querySelector(
-			`[data-block-id="${lastBlockId}"]`,
-		);
-		if (!lastBlockEl) return;
-
-		const lastRect: DOMRect = lastBlockEl.getBoundingClientRect();
-		if (e.clientY <= lastRect.bottom) return;
 
 		const lastBlock = state.getBlock(lastBlockId);
 		if (lastBlock?.type === 'paragraph' && getBlockLength(lastBlock) === 0) {
@@ -268,11 +321,9 @@ export class EditorViewEvents {
 				.setSelection(createCollapsedSelection(lastBlockId, 0))
 				.build();
 			this.deps.dispatch(tr);
-			e.preventDefault();
 			return;
 		}
 
-		e.preventDefault();
 		this.deps.contentElement.focus();
 
 		const newId: BlockId = generateBlockId();

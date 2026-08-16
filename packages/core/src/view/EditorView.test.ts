@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DecorationSet } from '../decorations/Decoration.js';
 import {
+	type BlockNode,
 	createBlockNode,
 	createDocument,
 	createTextNode,
@@ -415,6 +416,147 @@ describe('EditorView.applyUpdate()', () => {
 	});
 
 	describe('click below content', () => {
+		function createBelowContentView(blocks?: readonly BlockNode[]) {
+			const container = document.createElement('div');
+			container.setAttribute('contenteditable', 'true');
+			document.body.appendChild(container);
+
+			const doc = createDocument(
+				blocks ? [...blocks] : [createBlockNode('paragraph', [createTextNode('hello')], 'b1')],
+			);
+			const firstId = doc.children[0]?.id ?? 'b1';
+			const lastId = doc.children[doc.children.length - 1]?.id ?? 'b1';
+			const state = EditorState.create({
+				doc,
+				selection: createCollapsedSelection(firstId, 0),
+			});
+
+			const receivedTransactions: Transaction[] = [];
+			const onStateChange: StateChangeCallback = (_old, _new, tr) => {
+				receivedTransactions.push(tr);
+			};
+			const view = new EditorView(container, { state, onStateChange });
+
+			const lastEl = container.querySelector(`[data-block-id="${lastId}"]`);
+			if (!(lastEl instanceof HTMLElement)) {
+				throw new Error('Last block not rendered');
+			}
+			Object.defineProperty(lastEl, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => new DOMRect(0, 0, 100, 50),
+			});
+
+			const cleanup = (): void => {
+				view.destroy();
+				container.remove();
+			};
+			return { container, view, receivedTransactions, cleanup };
+		}
+
+		function press(container: HTMLElement, init: MouseEventInit): MouseEvent {
+			const event = new MouseEvent('mousedown', {
+				bubbles: true,
+				cancelable: true,
+				...init,
+			});
+			container.dispatchEvent(event);
+			return event;
+		}
+
+		function release(init: MouseEventInit): void {
+			document.dispatchEvent(
+				new MouseEvent('mouseup', { bubbles: true, cancelable: true, ...init }),
+			);
+		}
+
+		it('leaves mousedown below the content to the browser so drag-selection can start', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			const event = press(container, { button: 0, clientX: 10, clientY: 100 });
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('appends a paragraph when a primary press below the content is released without dragging', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, clientX: 10, clientY: 100 });
+			release({ button: 0, clientX: 11, clientY: 101 });
+
+			const nextState = view.getState();
+			expect(nextState.doc.children).toHaveLength(2);
+			expect(nextState.doc.children[1]?.type).toBe('paragraph');
+			expect(nextState.selection.anchor.blockId).toBe(nextState.doc.children[1]?.id);
+			expect(nextState.selection.anchor.offset).toBe(0);
+			cleanup();
+		});
+
+		it('does not append a paragraph when the press turns into a drag', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, clientX: 10, clientY: 100 });
+			release({ button: 0, clientX: 10, clientY: 30 });
+
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('ignores non-primary-button presses below the content', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			for (const button of [1, 2]) {
+				press(container, { button, clientX: 10, clientY: 100 });
+				release({ button, clientX: 10, clientY: 100 });
+			}
+
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('leaves shift-clicks below the content to native selection extension', () => {
+			const { container, view, cleanup } = createBelowContentView();
+
+			const event = press(container, {
+				button: 0,
+				shiftKey: true,
+				clientX: 10,
+				clientY: 100,
+			});
+			release({ button: 0, shiftKey: true, clientX: 10, clientY: 100 });
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(view.getState().doc.children).toHaveLength(1);
+			cleanup();
+		});
+
+		it('moves the caret into a trailing empty paragraph instead of inserting another', () => {
+			const { container, view, cleanup } = createBelowContentView([
+				createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+				createBlockNode('paragraph', [createTextNode('')], 'b2'),
+			]);
+
+			press(container, { button: 0, clientX: 10, clientY: 100 });
+			release({ button: 0, clientX: 10, clientY: 100 });
+
+			const nextState = view.getState();
+			expect(nextState.doc.children).toHaveLength(2);
+			expect(nextState.selection.anchor.blockId).toBe('b2');
+			expect(nextState.selection.anchor.offset).toBe(0);
+			cleanup();
+		});
+
+		it('does not dispatch when the view is destroyed while a press is pending', () => {
+			const { container, receivedTransactions, cleanup } = createBelowContentView();
+
+			press(container, { button: 0, clientX: 10, clientY: 100 });
+			cleanup();
+			release({ button: 0, clientX: 10, clientY: 100 });
+
+			expect(receivedTransactions).toHaveLength(0);
+		});
+
 		it('appends a root paragraph after the last root block instead of splitting the last leaf', () => {
 			const container = document.createElement('div');
 			container.setAttribute('contenteditable', 'true');
@@ -474,6 +616,15 @@ describe('EditorView.applyUpdate()', () => {
 				new MouseEvent('mousedown', {
 					bubbles: true,
 					cancelable: true,
+					button: 0,
+					clientY: 100,
+				}),
+			);
+			document.dispatchEvent(
+				new MouseEvent('mouseup', {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
 					clientY: 100,
 				}),
 			);

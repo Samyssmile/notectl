@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pressing below the content inserted a paragraph on mousedown (#219).** The
+  click-below-content handler in `EditorViewEvents` ran on `mousedown`, called
+  `preventDefault()`, and never checked `event.button`. That made it impossible to start a
+  drag-selection from the empty area below the last block (noticeable in full-height
+  editors), and a middle- or right-button press appended a paragraph instead of leaving
+  autoscroll or the context menu alone. The handler now only records an unmodified
+  primary-button press below the last block, without preventing the default, and completes
+  the append on `mouseup` when the pointer stayed within a 4px drag threshold. Drags,
+  shift-extensions, modified clicks, and non-primary buttons fall through to native
+  behavior; a trailing empty paragraph is still reused instead of stacking new ones.
+
 - **Accepting a native spellcheck suggestion did nothing (#218).** `InputHandler` cancels
   every handled `beforeinput` event and re-applies the change as a transaction, but the
   `insertReplacementText` branch only read `event.data`. On a contenteditable host,
