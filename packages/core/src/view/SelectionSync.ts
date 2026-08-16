@@ -216,6 +216,23 @@ export function readSelectionFromDOM(container: HTMLElement): Selection | null {
 	return createSelection(anchor, head);
 }
 
+/**
+ * Converts a DOM range (e.g. a `StaticRange` from `InputEvent.getTargetRanges()`)
+ * to a state selection. Returns `null` when either endpoint lies outside the
+ * container or cannot be mapped to a block position.
+ */
+export function domRangeToState(container: HTMLElement, range: AbstractRange): Selection | null {
+	if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+		return null;
+	}
+
+	const anchor = domPositionToState(container, range.startContainer, range.startOffset);
+	const head = domPositionToState(container, range.endContainer, range.endOffset);
+	if (!anchor || !head) return null;
+
+	return createSelection(anchor, head);
+}
+
 /** Converts a state position (blockId + offset) to a DOM position (node + offset). */
 function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition | null {
 	// If path is available, navigate directly to the leaf block

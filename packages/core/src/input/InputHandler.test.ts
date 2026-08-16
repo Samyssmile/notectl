@@ -87,6 +87,130 @@ describe('InputHandler', () => {
 		expect(getBlockText(state.doc.children[0])).toBe('hXlo');
 	});
 
+	// Native spellcheck/autocorrect (#218): Chromium and WebKit deliver the
+	// replacement string on `dataTransfer` (data === null), and the replaced
+	// word arrives as a static target range — the selection may stay collapsed.
+	describe('native spellcheck replacement (#218)', () => {
+		function createReplacementEvent(options: {
+			data?: string;
+			dataTransferText?: string;
+			targetRange?: StaticRange;
+		}): InputEvent {
+			const event = createBeforeInputEvent('insertReplacementText', options.data);
+			if (options.dataTransferText !== undefined) {
+				const dataTransfer: Pick<DataTransfer, 'getData'> = {
+					getData: (type: string): string =>
+						type === 'text/plain' ? (options.dataTransferText ?? '') : '',
+				};
+				Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+			}
+			if (options.targetRange) {
+				Object.defineProperty(event, 'getTargetRanges', {
+					value: (): StaticRange[] => (options.targetRange ? [options.targetRange] : []),
+				});
+			}
+			return event;
+		}
+
+		it('applies the replacement delivered via dataTransfer when data is null', () => {
+			element = document.createElement('div');
+			let state = createState({
+				selection: createSelection({ blockId: B1, offset: 1 }, { blockId: B1, offset: 3 }),
+			});
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+			});
+
+			const event = createReplacementEvent({ dataTransferText: 'XY' });
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(dispatch).toHaveBeenCalledOnce();
+			expect(getBlockText(state.doc.children[0])).toBe('hXYlo');
+		});
+
+		it('replaces the browser-reported target range when the caret is collapsed', () => {
+			element = document.createElement('div');
+			// Caret collapsed at the end of "hello" — the autocorrect shape where
+			// nothing is selected while the word to replace sits behind the caret.
+			let state = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const targetRange = {} as StaticRange;
+			const wordSelection = createSelection({ blockId: B1, offset: 1 }, { blockId: B1, offset: 3 });
+			const resolveTargetRange = vi.fn().mockReturnValue(wordSelection);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				resolveTargetRange,
+			});
+
+			const event = createReplacementEvent({ dataTransferText: 'XY', targetRange });
+			element.dispatchEvent(event);
+
+			expect(resolveTargetRange).toHaveBeenCalledWith(targetRange);
+			expect(getBlockText(state.doc.children[0])).toBe('hXYlo');
+			expect(state.selection.anchor).toEqual(expect.objectContaining({ blockId: B1, offset: 3 }));
+		});
+
+		it('falls back to the current selection when the target range cannot be resolved', () => {
+			element = document.createElement('div');
+			let state = createState({
+				selection: createSelection({ blockId: B1, offset: 1 }, { blockId: B1, offset: 3 }),
+			});
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const resolveTargetRange = vi.fn().mockReturnValue(null);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				resolveTargetRange,
+			});
+
+			const event = createReplacementEvent({ data: 'X', targetRange: {} as StaticRange });
+			element.dispatchEvent(event);
+
+			expect(getBlockText(state.doc.children[0])).toBe('hXlo');
+		});
+
+		it('routes the replacement text through text-input interceptors', () => {
+			element = document.createElement('div');
+			let state = createState({
+				selection: createSelection({ blockId: B1, offset: 1 }, { blockId: B1, offset: 3 }),
+			});
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const interceptor = vi.fn().mockReturnValue(null);
+
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection: vi.fn(),
+				getTextInputInterceptors: () => [
+					{ name: 'test', pluginId: 'test', interceptor, priority: 100 },
+				],
+			});
+
+			element.dispatchEvent(createReplacementEvent({ dataTransferText: 'XY' }));
+
+			expect(interceptor).toHaveBeenCalledWith('XY', expect.any(Object));
+			expect(getBlockText(state.doc.children[0])).toBe('hXYlo');
+		});
+	});
+
 	it('does not swallow unsupported beforeinput types', () => {
 		element = document.createElement('div');
 		const state = createState();

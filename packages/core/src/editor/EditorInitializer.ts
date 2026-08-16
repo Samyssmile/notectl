@@ -262,6 +262,7 @@ class EditorInitSession {
 			announce: (text: string) => this.announce(text),
 			markdownImportedMessage: this.locale.markdownImported,
 			callbackExecutor: pm.getCallbackExecutor(),
+			resolveTargetRange: (range) => this.view?.resolveDOMRange(range) ?? null,
 		});
 
 		this.view = new EditorView(dom.content, {

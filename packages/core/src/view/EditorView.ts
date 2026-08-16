@@ -9,7 +9,7 @@ import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { isNodeSelection } from '../model/Selection.js';
+import { type Selection as ModelSelection, isNodeSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import { isAllowedInReadonly, isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
@@ -23,7 +23,7 @@ import type { NodeView } from './NodeView.js';
 import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile } from './Reconciler.js';
-import { syncSelectionToDOM } from './SelectionSync.js';
+import { domRangeToState, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
 	oldState: EditorState,
@@ -264,6 +264,14 @@ export class EditorView {
 	/** Syncs the DOM selection into editor state. */
 	syncSelection(): void {
 		this.events.syncSelectionFromDOM();
+	}
+
+	/**
+	 * Maps a DOM range (e.g. a `beforeinput` target range) to a state text
+	 * selection, or `null` when the range lies outside this view's content.
+	 */
+	resolveDOMRange(range: AbstractRange): ModelSelection | null {
+		return domRangeToState(this.contentElement, range);
 	}
 
 	/**

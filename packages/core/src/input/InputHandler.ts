@@ -16,7 +16,7 @@ import {
 } from '../commands/Commands.js';
 import { type BlockNode, getInlineChildren, isTextNode } from '../model/Document.js';
 import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
-import { isTextSelection } from '../model/Selection.js';
+import { type Selection, isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
 import type { InputRuleRegistry } from '../model/InputRuleRegistry.js';
@@ -49,6 +49,12 @@ export interface InputHandlerOptions {
 	getTextInputInterceptors?: () => readonly TextInputInterceptorEntry[];
 	/** Shared plugin callback error boundary supplied by PluginManager. */
 	callbackExecutor?: PluginCallbackExecutor;
+	/**
+	 * Maps a DOM static range from `InputEvent.getTargetRanges()` to a model
+	 * selection. Supplied by the composition root from the view layer; lets
+	 * `insertReplacementText` target the exact browser-reported word range.
+	 */
+	resolveTargetRange?: (range: StaticRange) => Selection | null;
 }
 
 export class InputHandler {
@@ -61,6 +67,7 @@ export class InputHandler {
 	private readonly compositionTracker: CompositionTracker;
 	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
 	private readonly callbackExecutor: PluginCallbackExecutor;
+	private readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
 	private compositionCommitHandled = false;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
@@ -80,6 +87,7 @@ export class InputHandler {
 		this.compositionTracker = options.compositionTracker ?? new CompositionTracker();
 		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
 		this.callbackExecutor = options.callbackExecutor ?? PluginCallbackExecutor.silent;
+		this.resolveTargetRange = options.resolveTargetRange;
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
@@ -127,13 +135,18 @@ export class InputHandler {
 				}
 				break;
 
-			case 'insertReplacementText':
-				if (e.data) {
+			case 'insertReplacementText': {
+				// Spellcheck/autocorrect: Firefox delivers the replacement via
+				// `data`, Chromium and WebKit via `dataTransfer` (text/plain).
+				const replacement = readReplacementText(e);
+				if (replacement) {
+					const targetState = this.stateForReplacementTarget(e, state);
 					tr =
-						this.runTextInputInterceptors(e.data, state) ??
-						insertTextCommand(state, e.data, 'input');
+						this.runTextInputInterceptors(replacement, targetState) ??
+						insertTextCommand(targetState, replacement, 'input');
 				}
 				break;
+			}
 
 			case 'insertFromComposition':
 				if (e.data) {
@@ -205,6 +218,23 @@ export class InputHandler {
 				this.checkInputRules();
 			}
 		}
+	}
+
+	/**
+	 * Returns the state whose selection covers the range the browser is about
+	 * to replace. Spellcheck and autocorrect report the affected word via
+	 * `getTargetRanges()` while the DOM selection may stay collapsed (Safari
+	 * autocorrect, Firefox context menu), so the target range wins over the
+	 * synced selection. Falls back to the current selection when the range is
+	 * absent or cannot be mapped.
+	 */
+	private stateForReplacementTarget(e: InputEvent, state: EditorState): EditorState {
+		if (!this.resolveTargetRange) return state;
+		const target: StaticRange | undefined =
+			typeof e.getTargetRanges === 'function' ? e.getTargetRanges()[0] : undefined;
+		if (!target) return state;
+		const selection: Selection | null = this.resolveTargetRange(target);
+		return selection ? state.withSelection(selection) : state;
 	}
 
 	private onCompositionStart(e: CompositionEvent): void {
@@ -313,6 +343,17 @@ function blockTextForRules(block: BlockNode): string {
 		text += isTextNode(child) ? child.text : INLINE_NODE_PLACEHOLDER;
 	}
 	return text;
+}
+
+/**
+ * Extracts the replacement string from an `insertReplacementText` event.
+ * Firefox carries it on `data`; Chromium and WebKit carry it on the event's
+ * `dataTransfer` as `text/plain` with `data` left null (Input Events Level 2).
+ */
+function readReplacementText(e: InputEvent): string | null {
+	if (e.data) return e.data;
+	const text: string | undefined = e.dataTransfer?.getData('text/plain');
+	return text ? text : null;
 }
 
 function shouldHandleBeforeInput(inputType: string): boolean {

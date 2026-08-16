@@ -14,6 +14,7 @@ import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { Selection } from '../model/Selection.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -55,6 +56,11 @@ export interface InputManagerDeps {
 	readonly markdownImportedMessage?: string;
 	/** Shared plugin callback error boundary supplied by PluginManager. */
 	readonly callbackExecutor?: PluginCallbackExecutor;
+	/**
+	 * Maps a DOM static range from `InputEvent.getTargetRanges()` to a model
+	 * selection (view-layer DOM mapping, wired by the composition root).
+	 */
+	readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
 }
 
 export class InputManager {
@@ -77,6 +83,7 @@ export class InputManager {
 			compositionTracker: this.compositionTracker,
 			getTextInputInterceptors: deps.getTextInputInterceptors,
 			callbackExecutor: deps.callbackExecutor,
+			resolveTargetRange: deps.resolveTargetRange,
 		});
 
 		this.keyboardHandler = new KeyboardHandler(contentElement, {

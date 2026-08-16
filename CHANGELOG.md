@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Accepting a native spellcheck suggestion did nothing (#218).** `InputHandler` cancels
+  every handled `beforeinput` event and re-applies the change as a transaction, but the
+  `insertReplacementText` branch only read `event.data`. On a contenteditable host,
+  Chromium and WebKit deliver the replacement string on the event's `dataTransfer`
+  (`text/plain`) with `data === null`, so picking a suggestion from the browser's context
+  menu (or a macOS autocorrect) inserted nothing while the native replacement was already
+  prevented. The handler now reads `data` with a `dataTransfer` fallback and applies the
+  correction to the exact word range the browser reports via `getTargetRanges()`. The
+  static range is mapped to a model selection by the new view-layer `domRangeToState`
+  (wired through `EditorView.resolveDOMRange` into the input layer), so the correction
+  lands on the right word even when the DOM selection stays collapsed (Safari autocorrect,
+  Firefox context menu) and remains undoable as a regular input transaction.
+
 - **Dark preset rendered solid-primary button labels invisible (#217).** The dark theme
   shipped the same value (`#89b4fa`) for `primary` and `primaryForeground`, so every control
   that pairs `background: var(--notectl-primary)` with `color: var(--notectl-primary-fg)`

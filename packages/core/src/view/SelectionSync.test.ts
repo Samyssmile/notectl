@@ -5,6 +5,7 @@ import {
 	createSelection,
 } from '../model/Selection.js';
 import {
+	domRangeToState,
 	readComposedSelection,
 	readDOMSelectionEndpoints,
 	readSelectionFromDOM,
@@ -914,5 +915,80 @@ describe('SelectionSync view-widget (data-widget) support', () => {
 
 			document.body.removeChild(container);
 		});
+	});
+});
+
+// insertReplacementText (#218) maps the browser-reported word range via
+// domRangeToState — a StaticRange has no live Range API, only the four
+// container/offset fields of AbstractRange.
+describe('domRangeToState', () => {
+	function makeBlockEl(id: string): HTMLElement {
+		const el = document.createElement('p');
+		el.setAttribute('data-block-id', id);
+		return el;
+	}
+
+	function staticRange(
+		startContainer: Node,
+		startOffset: number,
+		endContainer: Node,
+		endOffset: number,
+	): AbstractRange {
+		return { startContainer, startOffset, endContainer, endOffset, collapsed: false };
+	}
+
+	it('maps a text range inside a block to a state selection', () => {
+		const container = document.createElement('div');
+		const block = makeBlockEl('b1');
+		const textNode = document.createTextNode('helo world');
+		block.appendChild(textNode);
+		container.appendChild(block);
+		document.body.appendChild(container);
+
+		const result = domRangeToState(container, staticRange(textNode, 0, textNode, 4));
+
+		expect(result).not.toBeNull();
+		expect(result?.anchor).toEqual(expect.objectContaining({ blockId: 'b1', offset: 0 }));
+		expect(result?.head).toEqual(expect.objectContaining({ blockId: 'b1', offset: 4 }));
+
+		document.body.removeChild(container);
+	});
+
+	it('accounts for preceding text nodes and mark wrappers', () => {
+		const container = document.createElement('div');
+		const block = makeBlockEl('b1');
+		const bold = document.createElement('strong');
+		bold.appendChild(document.createTextNode('ab'));
+		const textNode = document.createTextNode('cd efg');
+		block.appendChild(bold);
+		block.appendChild(textNode);
+		container.appendChild(block);
+		document.body.appendChild(container);
+
+		// "ef" inside the second text node — offsets 3..5 in model space.
+		const result = domRangeToState(container, staticRange(textNode, 3, textNode, 5));
+
+		expect(result?.anchor.offset).toBe(5);
+		expect(result?.head.offset).toBe(7);
+
+		document.body.removeChild(container);
+	});
+
+	it('returns null when an endpoint lies outside the container', () => {
+		const container = document.createElement('div');
+		const block = makeBlockEl('b1');
+		const textNode = document.createTextNode('hello');
+		block.appendChild(textNode);
+		container.appendChild(block);
+		const outside = document.createTextNode('elsewhere');
+		document.body.appendChild(container);
+		document.body.appendChild(outside);
+
+		const result = domRangeToState(container, staticRange(outside, 0, textNode, 2));
+
+		expect(result).toBeNull();
+
+		document.body.removeChild(container);
+		document.body.removeChild(outside);
 	});
 });
