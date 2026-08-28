@@ -1,0 +1,16 @@
+# Line endings are decided here, not by each contributor's core.autocrlf.
+#
+# The repository stores LF and checks out LF on every platform. Without this
+# file, a clone with core.autocrlf=true materializes the working tree as CRLF,
+# which Biome — whose formatter targets LF — then reports as a format error in
+# every checked-out file, drowning out real diagnostics.
+* text=auto eol=lf
+
+# Binary assets must never be touched by line-ending conversion.
+*.png   binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.ttf   binary
+*.woff  binary
+*.woff2 binary
