@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createDocument, createTextNode } from '../../model/Document.js';
 import { createCollapsedSelection } from '../../model/Selection.js';
 import { EditorState } from '../../state/EditorState.js';
@@ -7,11 +7,15 @@ import type { Plugin } from '../Plugin.js';
 import { PluginManager } from '../PluginManager.js';
 import type { ToolbarItem, ToolbarItemCombobox } from './ToolbarItem.js';
 import { ToolbarOverflowBehavior } from './ToolbarOverflowBehavior.js';
-import { ToolbarPlugin } from './ToolbarPlugin.js';
+import { ToolbarPlugin, ToolbarServiceKey } from './ToolbarPlugin.js';
 import type { ToolbarLayoutConfig } from './ToolbarPlugin.js';
 import { ToolbarRegistry } from './ToolbarRegistry.js';
 
 // --- Helpers ---
+
+afterEach(() => {
+	document.body.replaceChildren();
+});
 
 function makeState(): EditorState {
 	const block = createBlockNode('paragraph', [createTextNode('')], 'b1');
@@ -50,7 +54,8 @@ function createFakePlugin(id: string, items: ToolbarItem[], opts?: { priority?: 
 async function initWithPlugins(
 	plugins: Plugin[],
 	toolbarPlugin: ToolbarPlugin,
-): Promise<{ pm: PluginManager; container: HTMLElement }> {
+	opts?: { attach?: boolean },
+): Promise<{ pm: PluginManager; container: HTMLElement; content: HTMLElement }> {
 	const pm = new PluginManager();
 	let currentState = makeState();
 
@@ -60,17 +65,25 @@ async function initWithPlugins(
 	pm.register(toolbarPlugin);
 
 	const container = document.createElement('div');
+	// Focus tests need real, attached elements: `focus()` is a no-op on a
+	// detached node and `isConnected` gates entering the toolbar.
+	const content = document.createElement('div');
+	content.tabIndex = 0;
+	if (opts?.attach) {
+		document.body.appendChild(container);
+		document.body.appendChild(content);
+	}
 
 	await pm.init({
 		getState: () => currentState,
 		dispatch: vi.fn((tr: Transaction) => {
 			currentState = currentState.apply(tr);
 		}),
-		getContainer: () => document.createElement('div'),
+		getContainer: () => content,
 		getPluginContainer: () => container,
 	});
 
-	return { pm, container };
+	return { pm, container, content };
 }
 
 // --- ToolbarRegistry pluginId tracking ---
@@ -299,6 +312,177 @@ describe('ToolbarPlugin', () => {
 
 			pm.setReadOnly(false);
 			expect(toolbarEl.hidden).toBe(false);
+		});
+	});
+
+	describe('keyboard access', () => {
+		// Flow mode keeps the button list deterministic: in BurgerMenu mode the
+		// zero-width happy-dom layout pushes every item into the overflow menu.
+		function flowToolbar(): ToolbarPlugin {
+			return new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.Flow,
+			});
+		}
+
+		function toolbarButtons(container: HTMLElement): HTMLButtonElement[] {
+			return [...container.querySelectorAll<HTMLButtonElement>('button[data-toolbar-item]')];
+		}
+
+		it('exposes the focus shortcut via aria-keyshortcuts', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+
+			const { container } = await initWithPlugins([pluginA], flowToolbar());
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbarEl.getAttribute('aria-keyshortcuts')).toBe('Alt+F10');
+		});
+
+		it('registers Alt-F10 and Shift-Tab at fallback priority', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+
+			const { pm } = await initWithPlugins([pluginA], flowToolbar());
+			const { fallback } = pm.keymapRegistry.getKeymapsByPriority();
+
+			expect(fallback).toHaveLength(1);
+			expect(Object.keys(fallback[0] ?? {}).sort()).toEqual(['Alt-F10', 'Shift-Tab']);
+		});
+
+		it('focus() moves focus to the first enabled button', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = flowToolbar();
+
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+
+			expect(toolbar.focus()).toBe(true);
+			expect(document.activeElement).toBe(toolbarButtons(container)[0]);
+		});
+
+		it('focus() keeps the roving tabindex in sync', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = flowToolbar();
+
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			toolbar.focus();
+			const buttons = toolbarButtons(container);
+
+			expect(buttons[0]?.getAttribute('tabindex')).toBe('0');
+			expect(buttons[1]?.getAttribute('tabindex')).toBe('-1');
+		});
+
+		it('focus() returns to the button that was focused last', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1' }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = flowToolbar();
+
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+			const buttons = toolbarButtons(container);
+
+			toolbar.focus();
+			buttons[0]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			expect(document.activeElement).toBe(buttons[1]);
+
+			toolbarEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+			expect(toolbar.focus()).toBe(true);
+			expect(document.activeElement).toBe(buttons[1]);
+		});
+
+		it('focus() skips disabled buttons', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1', isEnabled: () => false }),
+				makeToolbarItem({ id: 'a2' }),
+			]);
+			const toolbar = flowToolbar();
+
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+
+			expect(toolbar.focus()).toBe(true);
+			expect(document.activeElement).toBe(toolbarButtons(container)[1]);
+		});
+
+		it('focus() declines when every button is disabled', async () => {
+			const pluginA = createFakePlugin('plugin-a', [
+				makeToolbarItem({ id: 'a1', isEnabled: () => false }),
+			]);
+			const toolbar = flowToolbar();
+
+			await initWithPlugins([pluginA], toolbar, { attach: true });
+
+			expect(toolbar.focus()).toBe(false);
+		});
+
+		it('focus() declines while the toolbar is hidden in read-only mode', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = flowToolbar();
+
+			const { pm } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			pm.setReadOnly(true);
+
+			expect(toolbar.focus()).toBe(false);
+		});
+
+		it('focus() declines when the toolbar has no items', async () => {
+			const toolbar = flowToolbar();
+
+			await initWithPlugins([], toolbar, { attach: true });
+
+			expect(toolbar.focus()).toBe(false);
+		});
+
+		it('focus() lands on a toolbar button in BurgerMenu mode', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.BurgerMenu,
+			});
+
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbar.focus()).toBe(true);
+			expect(document.activeElement?.tagName).toBe('BUTTON');
+			expect(toolbarEl.contains(document.activeElement)).toBe(true);
+		});
+
+		it('Escape in the toolbar returns focus to the editable content', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = flowToolbar();
+
+			const { container, content } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			toolbar.focus();
+			expect(document.activeElement).not.toBe(content);
+
+			const event = new KeyboardEvent('keydown', {
+				key: 'Escape',
+				bubbles: true,
+				cancelable: true,
+			});
+			toolbarEl.dispatchEvent(event);
+
+			expect(document.activeElement).toBe(content);
+			expect(event.defaultPrevented).toBe(true);
+		});
+
+		it('exposes focus() through the toolbar service', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = flowToolbar();
+
+			const { pm, container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			const service = pm.getService(ToolbarServiceKey);
+
+			expect(service?.focus()).toBe(true);
+			expect(document.activeElement).toBe(toolbarButtons(container)[0]);
 		});
 	});
 

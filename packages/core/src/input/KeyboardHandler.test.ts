@@ -478,6 +478,141 @@ describe('KeyboardHandler: Keymap priority dispatch', () => {
 		expect(log).toEqual(['context', 'navigation', 'default']);
 		handler.destroy();
 	});
+
+	it('default keymap has precedence over fallback keymap', () => {
+		const registry = new KeymapRegistry();
+		const log: string[] = [];
+		registry.registerKeymap(
+			{
+				'Shift-Tab': () => {
+					log.push('fallback');
+					return true;
+				},
+			},
+			{ priority: 'fallback' },
+		);
+		registry.registerKeymap({
+			'Shift-Tab': () => {
+				log.push('default');
+				return true;
+			},
+		});
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('Tab', { shiftKey: true }));
+
+		expect(log).toEqual(['default']);
+		handler.destroy();
+	});
+
+	it('default keymap returning false falls through to fallback keymap', () => {
+		const registry = new KeymapRegistry();
+		const log: string[] = [];
+		registry.registerKeymap(
+			{
+				'Shift-Tab': () => {
+					log.push('fallback');
+					return true;
+				},
+			},
+			{ priority: 'fallback' },
+		);
+		registry.registerKeymap({
+			'Shift-Tab': () => {
+				log.push('default');
+				return false;
+			},
+		});
+
+		const { element, handler } = createHandlerWithKeymaps(registry);
+		element.dispatchEvent(makeKeyEvent('Tab', { shiftKey: true }));
+
+		expect(log).toEqual(['default', 'fallback']);
+		handler.destroy();
+	});
+});
+
+describe('KeyboardHandler: fallback keymaps vs. built-in Tab handling', () => {
+	function createHandler(
+		registry: KeymapRegistry,
+		opts: { readonly: boolean } = { readonly: false },
+	): {
+		element: HTMLDivElement;
+		handler: KeyboardHandler;
+		dispatch: ReturnType<typeof vi.fn>;
+	} {
+		const element: HTMLDivElement = document.createElement('div');
+		const state = stateBuilder()
+			.paragraph('Hello', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+		const dispatch = vi.fn();
+		const handler = new KeyboardHandler(element, {
+			getState: () => state,
+			dispatch,
+			undo: vi.fn(),
+			redo: vi.fn(),
+			keymapRegistry: registry,
+			isReadOnly: () => opts.readonly,
+		});
+		return { element, handler, dispatch };
+	}
+
+	it('a fallback keymap claims Tab before the built-in tab-character insert', () => {
+		const registry = new KeymapRegistry();
+		const handled = vi.fn(() => true);
+		registry.registerKeymap({ Tab: handled }, { priority: 'fallback' });
+
+		const { element, handler, dispatch } = createHandler(registry);
+		const event = makeKeyEvent('Tab');
+		element.dispatchEvent(event);
+
+		expect(handled).toHaveBeenCalledOnce();
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(event.defaultPrevented).toBe(true);
+		handler.destroy();
+	});
+
+	it('a fallback keymap returning false falls through to the built-in tab insert', () => {
+		const registry = new KeymapRegistry();
+		const declined = vi.fn(() => false);
+		registry.registerKeymap({ Tab: declined }, { priority: 'fallback' });
+
+		const { element, handler, dispatch } = createHandler(registry);
+		element.dispatchEvent(makeKeyEvent('Tab'));
+
+		expect(declined).toHaveBeenCalledOnce();
+		expect(dispatch).toHaveBeenCalledOnce();
+		handler.destroy();
+	});
+
+	it('a fallback keymap claims Shift-Tab, which the built-in handler would swallow', () => {
+		const registry = new KeymapRegistry();
+		const handled = vi.fn(() => true);
+		registry.registerKeymap({ 'Shift-Tab': handled }, { priority: 'fallback' });
+
+		const { element, handler, dispatch } = createHandler(registry);
+		const event = makeKeyEvent('Tab', { shiftKey: true });
+		element.dispatchEvent(event);
+
+		expect(handled).toHaveBeenCalledOnce();
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(event.defaultPrevented).toBe(true);
+		handler.destroy();
+	});
+
+	it('does not dispatch fallback keymaps in read-only mode', () => {
+		const registry = new KeymapRegistry();
+		const handled = vi.fn(() => true);
+		registry.registerKeymap({ 'Alt-F10': handled }, { priority: 'fallback' });
+
+		const { element, handler } = createHandler(registry, { readonly: true });
+		element.dispatchEvent(makeKeyEvent('F10', { altKey: true }));
+
+		expect(handled).not.toHaveBeenCalled();
+		handler.destroy();
+	});
 });
 
 describe('KeyboardHandler: GapCursor key handling', () => {

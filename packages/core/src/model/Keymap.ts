@@ -15,9 +15,12 @@ export type Keymap = Readonly<Record<string, KeymapHandler>>;
  * Dispatch priority for keymaps.
  * - `context`: highest priority, for context-sensitive keymaps (table, code-block)
  * - `navigation`: middle priority, for caret-movement and cross-block navigation
- * - `default`: lowest priority, for general editing shortcuts
+ * - `default`: for general editing shortcuts
+ * - `fallback`: lowest priority, for last-resort bindings that only claim a key
+ *   when no other plugin wanted it (e.g. Shift-Tab moving focus to the toolbar,
+ *   which must never win over list outdent or table cell navigation)
  */
-export type KeymapPriority = 'context' | 'navigation' | 'default';
+export type KeymapPriority = 'context' | 'navigation' | 'default' | 'fallback';
 
 /** Options for keymap registration. */
 export interface KeymapOptions {

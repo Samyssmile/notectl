@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.6] - 2026-08-28
+
+### Added
+
+- **The toolbar can be reached from the caret (a11y).** With focus in the text there was no way
+  into the toolbar at all: `Tab` inserts a tab character, `Shift+Tab` was swallowed outright, and
+  `Escape` blurred the editor to `document.body`. The toolbar sits before the content in the DOM,
+  so it was only reachable by tabbing forward from somewhere above the editor — meaning
+  keyboard-only users could not operate anything that exists only in the toolbar (font size, color
+  picker, insert table, the overflow menu). `Alt+F10` (`⌥+F10` on macOS) now moves focus into the
+  toolbar, matching the shortcut used by TinyMCE and CKEditor and the one the ARIA Authoring
+  Practices Guide recommends documenting; `Shift+Tab` does the same without a function key.
+  `Escape` inside the toolbar returns to the text with the caret intact, `Tab` moves forward into
+  the text, and `Shift+Tab` leaves the editor — so the toolbar is never a focus trap. Inside a
+  list, table, or code block `Shift+Tab` keeps its existing meaning. The toolbar exposes the
+  shortcut via `aria-keyshortcuts`, and `ToolbarServiceAPI` gained `focus()` so host applications
+  can trigger the same jump.
+- **`fallback` keymap priority.** `registerKeymap` accepts `{ priority: 'fallback' }`, a tier below
+  `default` that is dispatched after every other plugin keymap but before the built-in `Tab` and
+  `Escape` handling. It lets a plugin claim a key only when nothing else wanted it, without
+  depending on plugin initialization order.
+
 ## [2.3.5] - 2026-08-16
 
 ### Breaking Changes

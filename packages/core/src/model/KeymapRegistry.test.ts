@@ -52,18 +52,41 @@ describe('KeymapRegistry', () => {
 		expect(groups.default).toEqual([]);
 	});
 
-	it('getKeymaps returns all keymaps in priority order: context > navigation > default', () => {
+	it('registerKeymap with fallback priority stores in fallback group', () => {
+		const registry = new KeymapRegistry();
+		const keymap: Keymap = { 'Shift-Tab': () => true };
+		registry.registerKeymap(keymap, { priority: 'fallback' });
+		const groups = registry.getKeymapsByPriority();
+		expect(groups.fallback).toEqual([keymap]);
+		expect(groups.context).toEqual([]);
+		expect(groups.navigation).toEqual([]);
+		expect(groups.default).toEqual([]);
+	});
+
+	it('getKeymaps returns all keymaps in priority order: context > navigation > default > fallback', () => {
 		const registry = new KeymapRegistry();
 		const ctxKeymap: Keymap = { Tab: () => true };
 		const navKeymap: Keymap = { ArrowDown: () => true };
 		const defKeymap: Keymap = { 'Mod-B': () => true };
+		const fallbackKeymap: Keymap = { 'Shift-Tab': () => true };
 
+		registry.registerKeymap(fallbackKeymap, { priority: 'fallback' });
 		registry.registerKeymap(defKeymap);
 		registry.registerKeymap(ctxKeymap, { priority: 'context' });
 		registry.registerKeymap(navKeymap, { priority: 'navigation' });
 
 		const all = registry.getKeymaps();
-		expect(all).toEqual([ctxKeymap, navKeymap, defKeymap]);
+		expect(all).toEqual([ctxKeymap, navKeymap, defKeymap, fallbackKeymap]);
+	});
+
+	it('removeKeymap removes from the fallback priority array', () => {
+		const registry = new KeymapRegistry();
+		const fallbackKeymap: Keymap = { 'Shift-Tab': () => true };
+		registry.registerKeymap(fallbackKeymap, { priority: 'fallback' });
+
+		registry.removeKeymap(fallbackKeymap);
+
+		expect(registry.getKeymapsByPriority().fallback).toEqual([]);
 	});
 
 	it('removeKeymap removes from the correct priority array', () => {
@@ -85,6 +108,7 @@ describe('KeymapRegistry', () => {
 		registry.registerKeymap({ Tab: () => true }, { priority: 'context' });
 		registry.registerKeymap({ ArrowDown: () => true }, { priority: 'navigation' });
 		registry.registerKeymap({ 'Mod-B': () => true });
+		registry.registerKeymap({ 'Shift-Tab': () => true }, { priority: 'fallback' });
 
 		registry.clear();
 
@@ -92,6 +116,7 @@ describe('KeymapRegistry', () => {
 		expect(groups.context).toEqual([]);
 		expect(groups.navigation).toEqual([]);
 		expect(groups.default).toEqual([]);
+		expect(groups.fallback).toEqual([]);
 		expect(registry.getKeymaps()).toEqual([]);
 	});
 });

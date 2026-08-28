@@ -227,3 +227,24 @@ const editor = await createEditor({
 ```
 
 To reorder buttons, rearrange the plugins within the group arrays.
+
+## Keyboard Access
+
+The toolbar follows the WAI-ARIA toolbar pattern: it is a single stop in the page's tab order
+(roving tabindex), and arrow keys move between the buttons.
+
+From the text, `Alt+F10` (`⌥+F10` on macOS) or `Shift+Tab` moves focus into the toolbar, and
+`Escape` returns to the text with the caret intact. `Alt+F10` is also exposed on the toolbar
+element via `aria-keyshortcuts`.
+
+Plugins and host applications can trigger the same jump through the toolbar service:
+
+```ts
+import { ToolbarServiceKey } from '@notectl/core/plugins/toolbar';
+
+const toolbar = editor.getService(ToolbarServiceKey);
+toolbar?.focus(); // false when the toolbar is hidden (read-only) or has no enabled button
+```
+
+See the [keyboard navigation guide](/notectl/guides/keyboard-navigation/#toolbar) for the full
+key table.

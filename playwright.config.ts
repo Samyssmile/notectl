@@ -33,6 +33,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'tab-key',
 		'dom-move',
 		'accessibility',
+		'toolbar-keyboard-access',
 	].join('|'),
 );
 

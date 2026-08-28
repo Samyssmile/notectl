@@ -79,9 +79,18 @@ export interface ToolbarServiceAPI {
 	refresh(): void;
 	/** Closes the currently open popup, if any. */
 	closePopup(): void;
+	/**
+	 * Moves keyboard focus into the toolbar. Returns `false` when the toolbar
+	 * cannot take focus (not rendered, hidden in read-only mode, or no enabled
+	 * button), so callers can leave the caret where it is.
+	 */
+	focus(): boolean;
 }
 
 export const ToolbarServiceKey = new ServiceKey<ToolbarServiceAPI>('toolbar');
+
+/** Value of `aria-keyshortcuts` on the toolbar, matching the registered keymap. */
+const TOOLBAR_FOCUS_SHORTCUT = 'Alt+F10';
 
 // --- Plugin ---
 
@@ -130,7 +139,25 @@ export class ToolbarPlugin implements Plugin {
 		context.registerService(ToolbarServiceKey, {
 			refresh: () => this.updateButtonStates(context.getState()),
 			closePopup: () => this.popupController?.close(),
+			focus: () => this.focus(),
 		});
+
+		// `Alt-F10` is the cross-editor convention for moving focus into an editor
+		// toolbar (TinyMCE, CKEditor) and the shortcut the ARIA Authoring Practices
+		// Guide asks toolbars to document. `Shift-Tab` is the discoverable companion:
+		// the toolbar precedes the content in the DOM, so reverse tabbing lands
+		// exactly where the tab order already implies.
+		//
+		// Registered at `fallback` priority so both bindings run after every other
+		// plugin keymap: inside a list, table, or code block `Shift-Tab` keeps its
+		// existing meaning and never reaches the toolbar.
+		context.registerKeymap(
+			{
+				'Alt-F10': () => this.focus(),
+				'Shift-Tab': () => this.focus(),
+			},
+			{ priority: 'fallback' },
+		);
 
 		this.createToolbarElement();
 	}
@@ -206,6 +233,7 @@ export class ToolbarPlugin implements Plugin {
 		this.toolbarElement = document.createElement('div');
 		this.toolbarElement.setAttribute('role', 'toolbar');
 		this.toolbarElement.setAttribute('aria-label', this.locale.formattingOptionsAria);
+		this.toolbarElement.setAttribute('aria-keyshortcuts', TOOLBAR_FOCUS_SHORTCUT);
 		this.toolbarElement.setAttribute('data-notectl-no-print', '');
 		this.toolbarElement.setAttribute('part', 'toolbar');
 		this.toolbarElement.className = 'notectl-toolbar';
@@ -314,6 +342,40 @@ export class ToolbarPlugin implements Plugin {
 		elements[index]?.focus();
 	}
 
+	/**
+	 * Moves keyboard focus into the toolbar, honouring the roving tabindex: the
+	 * previously focused button wins when it is still enabled, otherwise the
+	 * first enabled one. Returns `false` when the toolbar cannot take focus.
+	 */
+	focus(): boolean {
+		if (!this.isFocusable()) return false;
+
+		const elements: HTMLButtonElement[] = this.getTabElements();
+		const remembered: number = this.focusedIndex;
+		const index: number =
+			remembered >= 0 && remembered < elements.length && !elements[remembered]?.disabled
+				? remembered
+				: findFirstEnabled(elements);
+		if (index < 0) return false;
+
+		// A popup left open would swallow the focus ring behind it.
+		this.popupController?.close();
+		this.setRovingFocus(index);
+		return true;
+	}
+
+	/** Whether the toolbar is currently rendered, visible, and has an enabled button. */
+	private isFocusable(): boolean {
+		const toolbar: HTMLElement | null = this.toolbarElement;
+		if (!toolbar || !toolbar.isConnected || toolbar.hidden) return false;
+		return findFirstEnabled(this.getTabElements()) >= 0;
+	}
+
+	/** Returns focus to the editable content, leaving the caret where it was. */
+	private returnFocusToContent(): void {
+		this.context?.getContainer().focus();
+	}
+
 	/** Returns the active element, respecting shadow DOM boundaries. */
 	private getActiveElement(): Element | null {
 		const root: Node | undefined = this.toolbarElement?.getRootNode();
@@ -368,6 +430,13 @@ export class ToolbarPlugin implements Plugin {
 				const focused: HTMLButtonElement | undefined = elements[this.focusedIndex];
 				const btn: ToolbarButton | undefined = this.buttons.find((b) => b.element === focused);
 				if (btn) this.activateButton(btn.element, btn.item);
+				break;
+			}
+			case 'Escape': {
+				// An open popup owns Escape first (it closes and refocuses its trigger).
+				if (this.popupController?.isOpen()) break;
+				e.preventDefault();
+				this.returnFocusToContent();
 				break;
 			}
 		}

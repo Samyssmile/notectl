@@ -161,6 +161,12 @@ interface ToolbarServiceAPI {
   refresh(): void;
   /** Closes any open toolbar popup (font picker, color picker, etc.). */
   closePopup(): void;
+  /**
+   * Moves keyboard focus into the toolbar. Returns `false` when the toolbar
+   * cannot take focus (not rendered, hidden in read-only mode, or no enabled
+   * button), so callers can leave the caret where it is.
+   */
+  focus(): boolean;
 }
 ```
 
@@ -268,8 +274,19 @@ APG toolbar example, where unlabeled sub-groups stay purely structural.
 The toolbar element has:
 - `role="toolbar"` for screen readers
 - Localized `aria-label` (defaults to "Formatting options" in English)
+- `aria-keyshortcuts="Alt+F10"` for the shortcut that moves focus into it
 - Individual buttons with `aria-pressed` and `aria-label`
 - Tooltip on hover (500ms delay)
+
+**Entering and leaving the toolbar** from the editable content:
+
+| Key | Action |
+|-----|--------|
+| `Alt+F10` (`⌥+F10`) | Move focus into the toolbar |
+| `Shift+Tab` | Move focus into the toolbar — only when nothing else claims it, so list outdent, table cell navigation, and code block dedent are unaffected |
+| `Escape` | Return focus to the content, caret preserved |
+
+Both shortcuts decline while the toolbar is hidden in read-only mode or has no enabled button, leaving the caret untouched. `Tab` from the toolbar moves forward into the content and `Shift+Tab` leaves the editor, so the toolbar is never a focus trap. See the [keyboard navigation guide](/notectl/guides/keyboard-navigation/#toolbar) for the macOS function-key caveat.
 
 **Keyboard navigation** (roving tabindex):
 

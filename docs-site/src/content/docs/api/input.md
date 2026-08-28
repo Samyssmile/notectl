@@ -85,16 +85,16 @@ const registry = new KeymapRegistry();
 |--------|-----------|-------------|
 | `registerKeymap` | `(keymap: Keymap, options?: KeymapOptions) => void` | Register a keymap at a priority level |
 | `getKeymaps` | `() => readonly Keymap[]` | Get all keymaps (flat list) |
-| `getKeymapsByPriority` | `() => { context, navigation, default }` | Get keymaps grouped by priority |
+| `getKeymapsByPriority` | `() => { context, navigation, default, fallback }` | Get keymaps grouped by priority |
 | `removeKeymap` | `(keymap: Keymap) => void` | Remove a specific keymap |
 | `clear` | `() => void` | Remove all keymaps |
 
 ### Priority System
 
-Keymaps are dispatched in priority order: `context` > `navigation` > `default`.
+Keymaps are dispatched in priority order: `context` > `navigation` > `default` > `fallback`.
 
 ```ts
-type KeymapPriority = 'context' | 'navigation' | 'default';
+type KeymapPriority = 'context' | 'navigation' | 'default' | 'fallback';
 
 interface KeymapOptions {
   readonly priority?: KeymapPriority;
@@ -106,6 +106,11 @@ interface KeymapOptions {
 | `context` | Context-sensitive shortcuts (e.g. code block Tab handling) |
 | `navigation` | Caret/selection movement (e.g. arrow keys, Home/End) |
 | `default` | General commands (e.g. Ctrl+B for bold) — this is the default |
+| `fallback` | Last-resort bindings that only claim a key when no other plugin wanted it |
+
+Within a priority level, the last-registered keymap is tried first, and a handler returning `false` falls through to the next candidate. `fallback` exists for bindings whose correctness must not depend on plugin initialization order — the toolbar's `Shift+Tab` uses it so that list outdent, table cell navigation, and code block dedent always win.
+
+Only `navigation` keymaps are dispatched in read-only mode.
 
 ### Keymap Types
 

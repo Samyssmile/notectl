@@ -1,6 +1,6 @@
 /**
  * KeymapRegistry: manages plugin-registered keyboard shortcuts
- * with a 3-priority system (context > navigation > default).
+ * with a 4-priority system (context > navigation > default > fallback).
  */
 
 import type { Keymap, KeymapOptions, KeymapPriority } from './Keymap.js';
@@ -16,12 +16,14 @@ export interface KeymapEntryGroups {
 	readonly context: readonly KeymapEntry[];
 	readonly navigation: readonly KeymapEntry[];
 	readonly default: readonly KeymapEntry[];
+	readonly fallback: readonly KeymapEntry[];
 }
 
 export class KeymapRegistry {
 	private readonly _contextKeymaps: KeymapEntry[] = [];
 	private readonly _navigationKeymaps: KeymapEntry[] = [];
 	private readonly _defaultKeymaps: KeymapEntry[] = [];
+	private readonly _fallbackKeymaps: KeymapEntry[] = [];
 
 	registerKeymap(
 		keymap: Keymap,
@@ -37,11 +39,14 @@ export class KeymapRegistry {
 		});
 	}
 
-	/** Returns all keymaps in priority order: context > navigation > default. */
+	/** Returns all keymaps in priority order: context > navigation > default > fallback. */
 	getKeymaps(): readonly Keymap[] {
-		return [...this._contextKeymaps, ...this._navigationKeymaps, ...this._defaultKeymaps].map(
-			(entry) => entry.keymap,
-		);
+		return [
+			...this._contextKeymaps,
+			...this._navigationKeymaps,
+			...this._defaultKeymaps,
+			...this._fallbackKeymaps,
+		].map((entry) => entry.keymap);
 	}
 
 	/** Returns keymaps grouped by priority level (defensive copies). */
@@ -49,11 +54,13 @@ export class KeymapRegistry {
 		readonly context: readonly Keymap[];
 		readonly navigation: readonly Keymap[];
 		readonly default: readonly Keymap[];
+		readonly fallback: readonly Keymap[];
 	} {
 		return {
 			context: this._contextKeymaps.map((entry) => entry.keymap),
 			navigation: this._navigationKeymaps.map((entry) => entry.keymap),
 			default: this._defaultKeymaps.map((entry) => entry.keymap),
+			fallback: this._fallbackKeymaps.map((entry) => entry.keymap),
 		};
 	}
 
@@ -63,11 +70,17 @@ export class KeymapRegistry {
 			context: [...this._contextKeymaps],
 			navigation: [...this._navigationKeymaps],
 			default: [...this._defaultKeymaps],
+			fallback: [...this._fallbackKeymaps],
 		};
 	}
 
 	removeKeymap(keymap: Keymap): void {
-		for (const arr of [this._contextKeymaps, this._navigationKeymaps, this._defaultKeymaps]) {
+		for (const arr of [
+			this._contextKeymaps,
+			this._navigationKeymaps,
+			this._defaultKeymaps,
+			this._fallbackKeymaps,
+		]) {
 			const idx: number = arr.findIndex((entry) => entry.keymap === keymap);
 			if (idx !== -1) {
 				arr.splice(idx, 1);
@@ -80,6 +93,7 @@ export class KeymapRegistry {
 		this._contextKeymaps.length = 0;
 		this._navigationKeymaps.length = 0;
 		this._defaultKeymaps.length = 0;
+		this._fallbackKeymaps.length = 0;
 	}
 
 	private keymapArrayForPriority(priority: KeymapPriority): KeymapEntry[] {
@@ -90,6 +104,8 @@ export class KeymapRegistry {
 				return this._navigationKeymaps;
 			case 'default':
 				return this._defaultKeymaps;
+			case 'fallback':
+				return this._fallbackKeymaps;
 		}
 	}
 }

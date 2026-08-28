@@ -113,10 +113,12 @@ export class KeyboardHandler {
 			return;
 		}
 
-		// Normal mode: try plugin keymaps in priority order (context > navigation > default).
+		// Normal mode: try plugin keymaps in priority order
+		// (context > navigation > default > fallback).
 		if (this.keymapRegistry) {
 			const groups = this.keymapRegistry.getKeymapEntriesByPriority();
-			if (this.dispatchKeymaps(e, [groups.context, groups.navigation, groups.default])) return;
+			const ordered = [groups.context, groups.navigation, groups.default, groups.fallback];
+			if (this.dispatchKeymaps(e, ordered)) return;
 		}
 
 		// GapCursor arrow fallback: if no plugin keymap handled the arrow,

@@ -102,6 +102,37 @@ The gap cursor is a virtual cursor at void-block boundaries. It appears as a bli
 
 See the [Gap Cursor plugin documentation](/notectl/plugins/gap-cursor/) for details.
 
+## Toolbar
+
+The toolbar sits before the editable content in the DOM, so tabbing forward from the page reaches
+it before the text. From inside the text there are two ways in:
+
+| Action | Mac | Windows / Linux |
+|--------|-----|-----------------|
+| Move focus into the toolbar | `⌥+F10` | `Alt+F10` |
+| Move focus into the toolbar (alternative) | `Shift+Tab` | `Shift+Tab` |
+| Move between toolbar buttons | `ArrowLeft` / `ArrowRight` | `ArrowLeft` / `ArrowRight` |
+| Jump to first / last button | `Home` / `End` | `Home` / `End` |
+| Activate the focused button | `Enter` / `Space` | `Enter` / `Space` |
+| Return to the text (caret preserved) | `Escape` | `Escape` |
+
+`Alt+F10` is the shortcut established by other editors (TinyMCE, CKEditor) and the one the
+[ARIA Authoring Practices Guide](https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/) recommends
+documenting for an editor toolbar. The toolbar advertises it via `aria-keyshortcuts`.
+
+<Aside type="note">
+  On macOS, `⌥+F10` only reaches the browser when the function keys act as standard function keys.
+  Otherwise press `Fn+⌥+F10` — or use `Shift+Tab`, which needs no function key at all.
+</Aside>
+
+`Shift+Tab` only moves focus when nothing else claims it: inside a list it still outdents, inside a
+table it still moves to the previous cell, and inside a code block it still dedents. Pressing
+`Shift+Tab` again while the toolbar has focus leaves the editor entirely, and `Tab` moves from the
+toolbar into the text — so the toolbar is never a focus trap.
+
+Both shortcuts are provided by the toolbar plugin. Without a toolbar there is nothing to focus and
+they do nothing.
+
 ## Table Cell Navigation
 
 Inside tables, navigation is scoped to the current cell with some special shortcuts:
