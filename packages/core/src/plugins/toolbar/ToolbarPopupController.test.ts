@@ -48,14 +48,16 @@ describe('ToolbarPopupController custom popup keyboard activation', () => {
 	});
 
 	it('activates a click-based custom popup button on Enter and Space', () => {
-		// The formula-palette convention: action on `click`; `mousedown` only guards
-		// focus. Dispatching `mousedown` alone (the old behaviour) never activated these.
 		const onActivate = vi.fn();
+		const onMouseDown = vi.fn();
 		const ref: ActiveRef = { el: null };
 		controller = openCustomPopup((popup) => {
 			const btn: HTMLButtonElement = document.createElement('button');
 			btn.type = 'button';
-			btn.addEventListener('mousedown', (e) => e.preventDefault());
+			btn.addEventListener('mousedown', (e) => {
+				e.preventDefault();
+				onMouseDown();
+			});
 			btn.addEventListener('click', onActivate);
 			popup.appendChild(btn);
 			ref.el = btn;
@@ -66,26 +68,6 @@ describe('ToolbarPopupController custom popup keyboard activation', () => {
 		pressKey(button, ' ');
 
 		expect(onActivate).toHaveBeenCalledTimes(2);
-	});
-
-	it('still activates a mousedown-based custom popup button (link/image convention)', () => {
-		// These buttons run their action on `mousedown` and have no `click` action,
-		// so the full press must keep activating them exactly once.
-		const onMousedownAction = vi.fn();
-		const ref: ActiveRef = { el: null };
-		controller = openCustomPopup((popup) => {
-			const btn: HTMLButtonElement = document.createElement('button');
-			btn.type = 'button';
-			btn.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				onMousedownAction();
-			});
-			popup.appendChild(btn);
-			ref.el = btn;
-		}, ref);
-
-		pressKey(ref.el as HTMLElement, 'Enter');
-
-		expect(onMousedownAction).toHaveBeenCalledTimes(1);
+		expect(onMouseDown).not.toHaveBeenCalled();
 	});
 });

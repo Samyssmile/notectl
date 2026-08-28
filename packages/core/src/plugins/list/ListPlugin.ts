@@ -72,6 +72,7 @@ export class ListPlugin implements Plugin {
 	private readonly config: ListConfig;
 	private locale!: ListLocale;
 	private context: PluginContext | null = null;
+	private checkboxMouseDownHandler: ((e: MouseEvent) => void) | null = null;
 	private checkboxClickHandler: ((e: MouseEvent) => void) | null = null;
 
 	constructor(config?: Partial<ListConfig>) {
@@ -89,7 +90,7 @@ export class ListPlugin implements Plugin {
 		registerListKeymaps(context);
 		if (this.config.inputRule !== false) registerListInputRules(context, enabledTypes);
 		registerListToolbarItems(context, enabledTypes, this.locale);
-		this.registerCheckboxClickHandler(context);
+		this.registerCheckboxHandlers(context);
 	}
 
 	/**
@@ -116,10 +117,16 @@ export class ListPlugin implements Plugin {
 	}
 
 	destroy(): void {
-		if (this.checkboxClickHandler && this.context) {
+		if (this.context) {
 			const container: HTMLElement = this.context.getContainer();
-			container.removeEventListener('mousedown', this.checkboxClickHandler);
+			if (this.checkboxMouseDownHandler) {
+				container.removeEventListener('mousedown', this.checkboxMouseDownHandler);
+			}
+			if (this.checkboxClickHandler) {
+				container.removeEventListener('click', this.checkboxClickHandler);
+			}
 		}
+		this.checkboxMouseDownHandler = null;
 		this.checkboxClickHandler = null;
 		this.context = null;
 	}
@@ -203,21 +210,25 @@ export class ListPlugin implements Plugin {
 		});
 	}
 
-	private registerCheckboxClickHandler(context: PluginContext): void {
+	private registerCheckboxHandlers(context: PluginContext): void {
 		if (!this.config.types.includes('checklist')) return;
+
+		const findChecklistItem = (target: EventTarget | null): Element | null => {
+			if (!(target instanceof HTMLElement)) return null;
+			const marker: Element | null = target.closest(`.${CHECKLIST_MARKER_CLASS}`);
+			if (!marker) return null;
+			return marker.closest('.notectl-list-item--checklist');
+		};
+
+		this.checkboxMouseDownHandler = (e: MouseEvent) => {
+			if (context.isReadOnly() && !this.config.interactiveCheckboxes) return;
+			if (!findChecklistItem(e.target)) return;
+			e.preventDefault();
+		};
 
 		this.checkboxClickHandler = (e: MouseEvent) => {
 			if (context.isReadOnly() && !this.config.interactiveCheckboxes) return;
-
-			const target: EventTarget | null = e.target;
-			if (!(target instanceof HTMLElement)) return;
-
-			// Toggle only when the checkbox marker itself is clicked. The marker is a
-			// real element, so this is precise — no geometry/RTL math needed.
-			const marker: Element | null = target.closest(`.${CHECKLIST_MARKER_CLASS}`);
-			if (!marker) return;
-
-			const li: Element | null = marker.closest('.notectl-list-item--checklist');
+			const li: Element | null = findChecklistItem(e.target);
 			if (!li) return;
 
 			e.preventDefault();
@@ -233,7 +244,8 @@ export class ListPlugin implements Plugin {
 		};
 
 		const container: HTMLElement = context.getContainer();
-		container.addEventListener('mousedown', this.checkboxClickHandler);
+		container.addEventListener('mousedown', this.checkboxMouseDownHandler);
+		container.addEventListener('click', this.checkboxClickHandler);
 	}
 
 	private getEnabledTypes(): readonly ListTypeDefinition[] {

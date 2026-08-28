@@ -154,6 +154,40 @@ describe('ToolbarRegistry toolbar pluginId tracking', () => {
 // --- ToolbarPlugin layout rendering ---
 
 describe('ToolbarPlugin', () => {
+	it('uses semantic click as the toolbar activation path', async () => {
+		const executeCommand = vi.fn(() => true);
+		const plugin: Plugin = {
+			id: 'plugin-a',
+			name: 'plugin-a',
+			init(context) {
+				context.registerCommand('cmd-action', executeCommand);
+				context.registerToolbarItem(
+					makeToolbarItem({
+						id: 'action',
+						command: 'cmd-action',
+					}),
+				);
+			},
+		};
+		const toolbar = new ToolbarPlugin({
+			groups: [['plugin-a']],
+			overflow: ToolbarOverflowBehavior.Flow,
+		});
+		const { container } = await initWithPlugins([plugin], toolbar);
+		const button = container.querySelector<HTMLButtonElement>('[data-toolbar-item="action"]');
+		const mouseDown = new MouseEvent('mousedown', {
+			bubbles: true,
+			cancelable: true,
+		});
+
+		button?.dispatchEvent(mouseDown);
+		expect(mouseDown.defaultPrevented).toBe(true);
+		expect(executeCommand).not.toHaveBeenCalled();
+
+		button?.click();
+		expect(executeCommand).toHaveBeenCalledOnce();
+	});
+
 	it('renders items in layout-group order with separators between groups', async () => {
 		const pluginA = createFakePlugin('plugin-a', [
 			makeToolbarItem({ id: 'a1' }),
@@ -451,6 +485,30 @@ describe('ToolbarPlugin', () => {
 			expect(toolbar.focus()).toBe(true);
 			expect(document.activeElement?.tagName).toBe('BUTTON');
 			expect(toolbarEl.contains(document.activeElement)).toBe(true);
+		});
+
+		it('Enter activates the focused overflow button through click', async () => {
+			const pluginA = createFakePlugin('plugin-a', [makeToolbarItem({ id: 'a1' })]);
+			const toolbar = new ToolbarPlugin({
+				groups: [['plugin-a']],
+				overflow: ToolbarOverflowBehavior.BurgerMenu,
+			});
+			const { container } = await initWithPlugins([pluginA], toolbar, { attach: true });
+			const toolbarEl = container.querySelector('.notectl-toolbar') as HTMLElement;
+
+			expect(toolbar.focus()).toBe(true);
+			const focused = document.activeElement as HTMLButtonElement;
+			expect(focused.classList.contains('notectl-toolbar-overflow-btn')).toBe(true);
+
+			const event = new KeyboardEvent('keydown', {
+				key: 'Enter',
+				bubbles: true,
+				cancelable: true,
+			});
+			focused.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(document.querySelector('.notectl-toolbar-popup')).not.toBeNull();
 		});
 
 		it('Escape in the toolbar returns focus to the editable content', async () => {

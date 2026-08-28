@@ -180,13 +180,13 @@ describe('ColorGrid', () => {
 		});
 	});
 
-	describe('mouse interaction', () => {
-		it('clicking swatch calls onSelect', () => {
+	describe('activation', () => {
+		it('programmatic click on a swatch calls onSelect', () => {
 			const onSelect = vi.fn();
 			const { container } = renderGrid({ onSelect });
-			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
+			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLButtonElement;
 
-			swatch.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			swatch.click();
 			expect(onSelect).toHaveBeenCalledWith('#ff0000');
 		});
 	});

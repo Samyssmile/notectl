@@ -154,6 +154,8 @@ export function renderBorderColorPicker(
 	defaultBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+	});
+	defaultBtn.addEventListener('click', () => {
 		resetTableBorderColor(context, locale);
 		onClose();
 	});
@@ -173,6 +175,8 @@ export function renderBorderColorPicker(
 	noBordersBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+	});
+	noBordersBtn.addEventListener('click', () => {
 		setTableBorderColor(context, 'none', locale);
 		onClose();
 	});

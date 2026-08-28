@@ -206,6 +206,37 @@ describe('TableBorderColor', () => {
 			expect(buttons[1]?.textContent).toBe('No borders');
 		});
 
+		it('activates Default through semantic click', () => {
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context, getState } = createMockContext(state);
+			setTableBorderColor(context, '#ff0000');
+			const container = document.createElement('div');
+			const onClose = vi.fn();
+			renderBorderColorPicker(container, context, 't1' as BlockId, onClose);
+
+			container
+				.querySelectorAll<HTMLButtonElement>('button.notectl-color-picker__default')[0]
+				?.click();
+
+			expect(getState().getBlock('t1' as BlockId)?.attrs?.borderColor).toBeUndefined();
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('activates No borders through semantic click', () => {
+			const state = createTableState({ rows: 2, cols: 2 });
+			const { context, getState } = createMockContext(state);
+			const container = document.createElement('div');
+			const onClose = vi.fn();
+			renderBorderColorPicker(container, context, 't1' as BlockId, onClose);
+
+			container
+				.querySelectorAll<HTMLButtonElement>('button.notectl-color-picker__default')[1]
+				?.click();
+
+			expect(getState().getBlock('t1' as BlockId)?.attrs?.borderColor).toBe('none');
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
 		it('calls onClose when Escape is pressed on grid', () => {
 			const state = createTableState({ rows: 2, cols: 2 });
 			const { context } = createMockContext(state);

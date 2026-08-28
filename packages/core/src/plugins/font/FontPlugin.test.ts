@@ -197,6 +197,24 @@ describe('FontPlugin', () => {
 	});
 
 	describe('popup rendering', () => {
+		it('activates a font option through semantic click', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
+			const executeCommand = vi.fn(() => true);
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const context = mockPluginContext({
+				getState: () => defaultState(),
+				executeCommand,
+			});
+
+			item?.renderPopup?.(container, context, onClose);
+			container.querySelector<HTMLButtonElement>('[role="option"]')?.click();
+
+			expect(executeCommand).toHaveBeenCalledWith('removeFont');
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
 		it('renders font list without separate Default entry', async () => {
 			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT] }));
 			const item = h.getToolbarItem('font');

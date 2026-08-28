@@ -92,6 +92,8 @@ function buildSizeList(
 		item.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
+		});
+		item.addEventListener('click', () => {
 			selectSize(context, size, config.defaultSize);
 			config.onClose({ restoreFocusTo: config.contentElement });
 		});
@@ -216,11 +218,7 @@ function attachKeyboardNavigation(
 			}
 		} else if (e.key === 'Enter') {
 			consume(e);
-			const selectedSize: number | undefined = config.sizes[focusedIndex];
-			if (focusedIndex >= 0 && focusedIndex < config.sizes.length && selectedSize !== undefined) {
-				selectSize(context, selectedSize, config.defaultSize);
-				config.onClose({ restoreFocusTo: config.contentElement });
-			}
+			items[focusedIndex]?.click();
 		} else if (e.key === 'Escape') {
 			consume(e);
 			config.onClose({ restoreFocusTo: config.contentElement });

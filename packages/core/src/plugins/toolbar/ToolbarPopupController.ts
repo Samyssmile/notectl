@@ -274,29 +274,9 @@ export class ToolbarPopupController {
 			case 'Enter':
 			case ' ': {
 				e.preventDefault();
-				if (active) activateButton(active);
+				buttons[currentIdx]?.click();
 				break;
 			}
 		}
 	}
-}
-
-/**
- * Activates a popup control from the keyboard by replaying a full mouse press.
- *
- * Custom-popup action buttons split across two conventions: some run their action
- * on `mousedown` and `preventDefault` it to keep focus on a text field (the link and
- * image popups), while others run it on `click` (the formula dialog's Insert/Cancel).
- * Dispatching both, in pointer order, activates either kind exactly once, because no
- * button runs its action on *both* events: a button that listens on both uses
- * `mousedown` only as a focus guard and runs its action on `click`.
- *
- * Self-managing custom popups that own their full keyboard (the color grid, the
- * structural math palette) handle Enter/Space themselves and stop the event before it
- * reaches here, so this path serves the popups that rely on the controller.
- */
-function activateButton(target: HTMLElement): void {
-	target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-	target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-	target.click();
 }

@@ -223,7 +223,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			applyBtn.click();
 
 			expect(dispatchSpy).not.toHaveBeenCalled();
 			expect(onClose).not.toHaveBeenCalled();
@@ -265,7 +265,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			applyBtn.click();
 
 			expect(h.dispatch).toHaveBeenCalled();
 			expect(onClose).toHaveBeenCalledOnce();
@@ -303,7 +303,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			applyBtn.click();
 
 			const alert = container.querySelector('[role="alert"]') as HTMLElement;
 			expect(alert.hidden).toBe(false);
@@ -519,7 +519,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container2.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			applyBtn.click();
 
 			// Verify dispatch was called with a transaction containing the new link
 			expect(h2.dispatch).toHaveBeenCalled();
@@ -665,7 +665,7 @@ describe('LinkPlugin', () => {
 			expect(button?.textContent).toBe('Remove Link');
 		});
 
-		it('onClose called after Apply button mousedown', async () => {
+		it('onClose called after programmatic Apply button click', async () => {
 			const state = makeState([{ text: 'text', id: 'b1' }], {
 				anchorBlock: 'b1',
 				anchorOffset: 0,
@@ -695,7 +695,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			applyBtn.click();
 
 			expect(onClose).toHaveBeenCalledOnce();
 		});
@@ -767,7 +767,7 @@ describe('LinkPlugin', () => {
 			const removeBtn = container.querySelector(
 				'button[aria-label="Remove link"]',
 			) as HTMLButtonElement;
-			removeBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			removeBtn.click();
 
 			expect(onClose).toHaveBeenCalledOnce();
 		});

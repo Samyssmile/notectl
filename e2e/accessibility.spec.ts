@@ -181,6 +181,24 @@ test.describe('Toolbar Keyboard Navigation', () => {
 });
 
 test.describe('Button Activation', () => {
+	test('assistive click action activates toolbar and popup buttons', async ({ editor, page }) => {
+		await editor.typeText('Hello');
+		await page.keyboard.press('Control+a');
+		const boldBtn = editor.markButton('bold');
+
+		await boldBtn.evaluate((element: HTMLElement) => element.click());
+		await expect.poll(() => editor.getContentHTML()).toContain('<strong>');
+
+		const headingBtn = editor.markButton('heading');
+		await headingBtn.evaluate((element: HTMLElement) => element.click());
+		await expect(editor.popup()).toBeVisible();
+		const headingOption = editor.root.locator('.notectl-heading-picker__item').nth(1);
+
+		await headingOption.evaluate((element: HTMLElement) => element.click());
+		await expect(editor.popup()).not.toBeVisible();
+		await expect.poll(() => editor.getContentHTML()).toContain('<h1');
+	});
+
 	test('Enter key activates toolbar button and toggles formatting', async ({ editor, page }) => {
 		await editor.typeText('Hello');
 		await page.keyboard.press('Control+a');

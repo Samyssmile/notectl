@@ -125,9 +125,7 @@ function renderHeadingPopup(
 			createPickerItem(
 				entry.label,
 				active,
-				(e: MouseEvent) => {
-					e.preventDefault();
-					e.stopPropagation();
+				() => {
 					context.executeCommand(entry.command);
 					onClose({ restoreFocusTo: contentElement });
 				},
@@ -142,7 +140,7 @@ function renderHeadingPopup(
 function createPickerItem(
 	label: string,
 	isActive: boolean,
-	handler: (e: MouseEvent) => void,
+	onActivate: () => void,
 	style?: PickerEntryStyle,
 ): HTMLButtonElement {
 	const item: HTMLButtonElement = document.createElement('button');
@@ -171,7 +169,11 @@ function createPickerItem(
 	}
 	item.appendChild(labelSpan);
 
-	item.addEventListener('mousedown', handler);
+	item.addEventListener('mousedown', (e: MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+	});
+	item.addEventListener('click', onActivate);
 	return item;
 }
 

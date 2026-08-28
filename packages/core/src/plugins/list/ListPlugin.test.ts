@@ -614,7 +614,7 @@ describe('ListPlugin', () => {
 				const marker = editor.container.querySelector<HTMLElement>(`.${CHECKLIST_MARKER_CLASS}`);
 				expect(marker).not.toBeNull();
 
-				marker?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+				marker?.click();
 
 				expect(editor.view.getState().getBlock('b1')?.attrs?.checked).toBe(true);
 				expect(editor.announce).toHaveBeenLastCalledWith('Checked');

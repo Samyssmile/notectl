@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode } from '../../model/Document.js';
 import { blockId, nodeType } from '../../model/TypeBrands.js';
 import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
@@ -177,6 +177,46 @@ describe('ImagePlugin', () => {
 			);
 			expect(uploadBtn).not.toBeNull();
 			expect(uploadBtn?.type).toBe('button');
+		});
+
+		it('programmatic upload button click opens the file input', async () => {
+			const plugin = new ImagePlugin();
+			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
+			const item = pm.toolbarRegistry.getToolbarItem('image');
+			const container = document.createElement('div');
+			const ctx = mockPluginContext({ getState, dispatch });
+			item?.renderPopup?.(container, ctx, vi.fn());
+			const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+			const uploadButton = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Upload image from computer"]',
+			);
+			const openFilePicker = fileInput
+				? vi.spyOn(fileInput, 'click').mockImplementation(() => {})
+				: null;
+
+			uploadButton?.click();
+
+			expect(openFilePicker).toHaveBeenCalledOnce();
+		});
+
+		it('programmatic insert button click inserts the URL image', async () => {
+			const plugin = new ImagePlugin();
+			const { pm, getState, dispatch } = await pluginHarness(plugin, defaultState());
+			const item = pm.toolbarRegistry.getToolbarItem('image');
+			const container = document.createElement('div');
+			const onClose = vi.fn();
+			const ctx = mockPluginContext({ getState, dispatch });
+			item?.renderPopup?.(container, ctx, onClose);
+			const urlInput = container.querySelector<HTMLInputElement>('input[type="url"]');
+			const insertButton = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Insert image"]',
+			);
+			if (urlInput) urlInput.value = 'https://example.com/image.png';
+
+			insertButton?.click();
+
+			expect(dispatch).toHaveBeenCalled();
+			expect(onClose).toHaveBeenCalledOnce();
 		});
 
 		it('insert button has aria-label', async () => {

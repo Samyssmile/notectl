@@ -179,36 +179,36 @@ describe('ColorPickerPopup', () => {
 		});
 	});
 
-	describe('mouse interaction', () => {
-		it('clicking swatch calls onClose with restoreFocusTo contentElement', () => {
+	describe('activation', () => {
+		it('programmatic click on swatch restores focus on close', () => {
 			const onClose = vi.fn();
 			const { container, ctx } = renderPopup({ onClose });
-			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLElement;
+			const swatch = container.querySelector('.notectl-color-picker__swatch') as HTMLButtonElement;
 
-			swatch.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			swatch.click();
 			expect(onClose).toHaveBeenCalledOnce();
 			expect(onClose).toHaveBeenCalledWith({
 				restoreFocusTo: ctx.getContainer(),
 			});
 		});
 
-		it('clicking reset button calls onClose with restoreFocusTo contentElement', () => {
+		it('programmatic click on reset restores focus on close', () => {
 			const onClose = vi.fn();
 			const { container, ctx } = renderPopup({ onClose });
-			const btn = container.querySelector('.notectl-color-picker__default') as HTMLElement;
+			const btn = container.querySelector('.notectl-color-picker__default') as HTMLButtonElement;
 
-			btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			btn.click();
 			expect(onClose).toHaveBeenCalledOnce();
 			expect(onClose).toHaveBeenCalledWith({
 				restoreFocusTo: ctx.getContainer(),
 			});
 		});
 
-		it('clicking reset button executes reset command', () => {
+		it('programmatic click on reset executes reset command', () => {
 			const { container, ctx } = renderPopup({ resetCommand: 'removeHighlight' });
-			const btn = container.querySelector('.notectl-color-picker__default') as HTMLElement;
+			const btn = container.querySelector('.notectl-color-picker__default') as HTMLButtonElement;
 
-			btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			btn.click();
 			expect(ctx.executeCommand).toHaveBeenCalledWith('removeHighlight');
 		});
 	});

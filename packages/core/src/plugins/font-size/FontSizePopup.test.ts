@@ -248,12 +248,14 @@ describe('renderFontSizePopup', () => {
 		});
 	});
 
-	describe('mouse interaction', () => {
-		it('mousedown on item closes popup with focus restoration', () => {
+	describe('activation', () => {
+		it('programmatic click on item closes popup with focus restoration', () => {
 			const { container, config } = renderPopup({ sizes: [12, 16, 24] });
 
-			const items = container.querySelectorAll('.notectl-font-size-picker__item');
-			items[0]?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			const items = container.querySelectorAll<HTMLButtonElement>(
+				'.notectl-font-size-picker__item',
+			);
+			items[0]?.click();
 
 			expect(config.onClose).toHaveBeenCalledWith({
 				restoreFocusTo: config.contentElement,

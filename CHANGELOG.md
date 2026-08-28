@@ -27,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Escape` handling. It lets a plugin claim a key only when nothing else wanted it, without
   depending on plugin initialization order.
 
+### Fixed
+
+- **Toolbar and popup controls now use native click activation (a11y).** Many real buttons ran
+  their action only from `mousedown`. Custom key handlers made Enter and Space work, but assistive
+  technologies that invoke the element's semantic click action could not activate the main
+  toolbar, overflow menu, heading/font/size pickers, color controls, image/link actions, table
+  border actions, or checklist markers. Every action now runs from `click`; `mousedown` only
+  preserves the editor selection. Toolbar and popup keyboard handlers call the same click path
+  instead of replaying synthetic mouse presses, preventing divergent behavior and duplicate
+  activation.
+
 ## [2.3.5] - 2026-08-16
 
 ### Breaking Changes

@@ -53,6 +53,8 @@ export function renderColorPickerPopup(
 	resetBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+	});
+	resetBtn.addEventListener('click', () => {
 		context.executeCommand(config.resetCommand);
 		config.onClose({ restoreFocusTo: contentElement });
 	});

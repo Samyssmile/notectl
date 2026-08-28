@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	type BlockNode,
 	type Mark,
@@ -17,7 +17,12 @@ import {
 	expectToolbarActive,
 	expectToolbarItem,
 } from '../../test/PluginTestUtils.js';
-import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import {
+	assertDefined,
+	mockPluginContext,
+	pluginHarness,
+	stateBuilder,
+} from '../../test/TestUtils.js';
 import { HeadingPlugin } from './HeadingPlugin.js';
 
 // --- Helpers ---
@@ -371,6 +376,27 @@ describe('HeadingPlugin', () => {
 	});
 
 	describe('toolbar item', () => {
+		it('activates a block type option through semantic click', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const item = h.getToolbarItem('heading');
+			const executeCommand = vi.fn(() => true);
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const context = mockPluginContext({
+				getState: () => state,
+				executeCommand,
+				getBlockTypePickerRegistry: () => h.pm.blockTypePickerRegistry,
+			});
+
+			item?.renderPopup?.(container, context, onClose);
+			const headingOption = container.querySelectorAll<HTMLButtonElement>('[role="option"]')[3];
+			headingOption?.click();
+
+			expect(executeCommand).toHaveBeenCalledWith('setHeading1');
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
 		it('registers a heading toolbar item with combobox popup', async () => {
 			const h = await pluginHarness(new HeadingPlugin());
 			expectToolbarItem(h, 'heading', {

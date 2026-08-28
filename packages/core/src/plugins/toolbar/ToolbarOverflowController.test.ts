@@ -176,7 +176,7 @@ describe('ToolbarOverflowController', () => {
 		);
 		expect(overflowBtn).not.toBeNull();
 
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 
 		const dropdown: HTMLElement | null = document.querySelector('.notectl-toolbar-popup');
 		expect(dropdown).not.toBeNull();
@@ -214,13 +214,13 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 
 		const menuItems: NodeListOf<Element> = document.querySelectorAll('.notectl-dropdown__item');
 		expect(menuItems.length).toBeGreaterThan(0);
 
 		const firstMenuItem: HTMLElement = menuItems[0] as HTMLElement;
-		firstMenuItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		firstMenuItem.click();
 
 		expect(executeCommand).toHaveBeenCalled();
 
@@ -260,14 +260,14 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 
 		const dropdown: HTMLElement | null = document.querySelector('.notectl-toolbar-popup');
 		expect(dropdown).not.toBeNull();
 		const tableItem: HTMLElement | null =
 			dropdown?.querySelector('[data-toolbar-item="table"]') ?? null;
 		expect(tableItem).not.toBeNull();
-		tableItem?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		tableItem?.click();
 
 		expect(onItemActivated).toHaveBeenCalledWith(
 			expect.any(HTMLButtonElement),
@@ -299,7 +299,7 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 
 		const dropdown: HTMLElement | null = document.querySelector('.notectl-toolbar-popup');
 		expect(dropdown).not.toBeNull();
@@ -341,7 +341,7 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 
 		const dropdown: HTMLElement | null = document.querySelector('.notectl-toolbar-popup');
 		expect(dropdown).not.toBeNull();
@@ -439,7 +439,7 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		overflowBtn?.click();
 		controller.destroy();
 		vi.runAllTimers();
 
@@ -663,7 +663,7 @@ describe('ToolbarOverflowController', () => {
 				'.notectl-toolbar-overflow-btn',
 			);
 			expect(overflowBtn).not.toBeNull();
-			overflowBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			overflowBtn?.click();
 
 			const menuItems: NodeListOf<Element> = document.querySelectorAll('.notectl-dropdown__item');
 			const ids: string[] = Array.from(menuItems).map(

@@ -95,6 +95,8 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 			swatch.addEventListener('mousedown', (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
+			});
+			swatch.addEventListener('click', () => {
 				config.onSelect(color);
 			});
 
@@ -118,13 +120,9 @@ export function renderColorGrid(container: HTMLElement, config: ColorGridConfig)
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			e.stopPropagation();
-			const target = e.target as HTMLElement;
-			const idx: string | undefined = target.dataset.index;
-			if (idx !== undefined) {
-				const color: string | undefined = config.colors[Number(idx)];
-				if (color) {
-					config.onSelect(color);
-				}
+			const target: EventTarget | null = e.target;
+			if (target instanceof HTMLButtonElement) {
+				target.click();
 			}
 			return;
 		}

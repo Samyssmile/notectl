@@ -428,8 +428,7 @@ export class ToolbarPlugin implements Plugin {
 			case ' ': {
 				e.preventDefault();
 				const focused: HTMLButtonElement | undefined = elements[this.focusedIndex];
-				const btn: ToolbarButton | undefined = this.buttons.find((b) => b.element === focused);
-				if (btn) this.activateButton(btn.element, btn.item);
+				focused?.click();
 				break;
 			}
 			case 'Escape': {
@@ -574,6 +573,8 @@ export class ToolbarPlugin implements Plugin {
 
 		btn.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
+		});
+		btn.addEventListener('click', () => {
 			this.activateButton(btn, item);
 		});
 

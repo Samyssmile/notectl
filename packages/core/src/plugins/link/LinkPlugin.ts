@@ -415,6 +415,8 @@ export class LinkPlugin implements Plugin {
 			removeBtn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
+			});
+			removeBtn.addEventListener('click', () => {
 				context.executeCommand('removeLink');
 				onClose();
 				context.getContainer().focus();
@@ -460,6 +462,8 @@ export class LinkPlugin implements Plugin {
 			applyBtn.addEventListener('mousedown', (e) => {
 				e.preventDefault();
 				e.stopPropagation();
+			});
+			applyBtn.addEventListener('click', () => {
 				applyLink();
 			});
 

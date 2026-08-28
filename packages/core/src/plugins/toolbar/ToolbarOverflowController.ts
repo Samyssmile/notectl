@@ -301,6 +301,8 @@ export class ToolbarOverflowController {
 
 		btn.addEventListener('mousedown', (e: MouseEvent) => {
 			e.preventDefault();
+		});
+		btn.addEventListener('click', () => {
 			this.toggleDropdown();
 		});
 
@@ -401,6 +403,9 @@ export class ToolbarOverflowController {
 
 			menuBtn.addEventListener('mousedown', (ev: MouseEvent) => {
 				ev.preventDefault();
+				ev.stopPropagation();
+			});
+			menuBtn.addEventListener('click', (ev: MouseEvent) => {
 				ev.stopPropagation();
 				this.activateOverflowItem(entry);
 			});
@@ -514,12 +519,7 @@ export class ToolbarOverflowController {
 			case ' ': {
 				e.preventDefault();
 				const focusedItem: HTMLElement | undefined = items[current];
-				if (!focusedItem) break;
-				const itemId: string | null = focusedItem.getAttribute('data-toolbar-item');
-				const entry: OverflowEntry | undefined = this.overflowEntries.find(
-					(oe) => oe.item.id === itemId,
-				);
-				if (entry) this.activateOverflowItem(entry);
+				focusedItem?.click();
 				break;
 			}
 		}

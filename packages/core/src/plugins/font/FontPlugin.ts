@@ -262,21 +262,14 @@ export class FontPlugin implements Plugin {
 				? !activeFont || activeFont === font.family
 				: activeFont === font.family;
 
-			const item: HTMLButtonElement = this.createFontItem(
-				font.name,
-				font.family,
-				isActive,
-				(e: MouseEvent) => {
-					e.preventDefault();
-					e.stopPropagation();
-					if (isDefault) {
-						context.executeCommand('removeFont');
-					} else {
-						this.applyFont(context, context.getState(), font.family);
-					}
-					onClose({ restoreFocusTo: contentElement });
-				},
-			);
+			const item: HTMLButtonElement = this.createFontItem(font.name, font.family, isActive, () => {
+				if (isDefault) {
+					context.executeCommand('removeFont');
+				} else {
+					this.applyFont(context, context.getState(), font.family);
+				}
+				onClose({ restoreFocusTo: contentElement });
+			});
 
 			if (font.category) {
 				item.setAttribute('data-category', font.category);
@@ -292,7 +285,7 @@ export class FontPlugin implements Plugin {
 		name: string,
 		family: string,
 		isActive: boolean,
-		handler: (e: MouseEvent) => void,
+		onActivate: () => void,
 	): HTMLButtonElement {
 		const item: HTMLButtonElement = document.createElement('button');
 		item.type = 'button';
@@ -319,7 +312,11 @@ export class FontPlugin implements Plugin {
 		}
 		item.appendChild(label);
 
-		item.addEventListener('mousedown', handler);
+		item.addEventListener('mousedown', (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+		});
+		item.addEventListener('click', onActivate);
 		return item;
 	}
 }

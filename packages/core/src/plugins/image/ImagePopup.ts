@@ -52,6 +52,8 @@ function appendFileUploadSection(
 	uploadBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+	});
+	uploadBtn.addEventListener('click', () => {
 		fileInput.click();
 	});
 
@@ -121,6 +123,8 @@ function appendUrlSection(
 	insertBtn.addEventListener('mousedown', (e: MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+	});
+	insertBtn.addEventListener('click', () => {
 		applyUrl();
 	});
 
