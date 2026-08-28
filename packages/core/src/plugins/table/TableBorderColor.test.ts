@@ -3,6 +3,7 @@ import { getBlockChildren } from '../../model/Document.js';
 import { createCollapsedSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import type { PluginContext } from '../Plugin.js';
 import {
 	BORDER_COLOR_PALETTE,
@@ -214,11 +215,14 @@ describe('TableBorderColor', () => {
 			const onClose = vi.fn();
 			renderBorderColorPicker(container, context, 't1' as BlockId, onClose);
 
-			container
-				.querySelectorAll<HTMLButtonElement>('button.notectl-color-picker__default')[0]
-				?.click();
+			const defaultBtn = container.querySelectorAll<HTMLButtonElement>(
+				'button.notectl-color-picker__default',
+			)[0];
+			expectClickActivation(
+				defaultBtn,
+				() => getState().getBlock('t1' as BlockId)?.attrs?.borderColor === undefined,
+			);
 
-			expect(getState().getBlock('t1' as BlockId)?.attrs?.borderColor).toBeUndefined();
 			expect(onClose).toHaveBeenCalledOnce();
 		});
 
@@ -229,11 +233,14 @@ describe('TableBorderColor', () => {
 			const onClose = vi.fn();
 			renderBorderColorPicker(container, context, 't1' as BlockId, onClose);
 
-			container
-				.querySelectorAll<HTMLButtonElement>('button.notectl-color-picker__default')[1]
-				?.click();
+			const noBordersBtn = container.querySelectorAll<HTMLButtonElement>(
+				'button.notectl-color-picker__default',
+			)[1];
+			expectClickActivation(
+				noBordersBtn,
+				() => getState().getBlock('t1' as BlockId)?.attrs?.borderColor === 'none',
+			);
 
-			expect(getState().getBlock('t1' as BlockId)?.attrs?.borderColor).toBe('none');
 			expect(onClose).toHaveBeenCalledOnce();
 		});
 

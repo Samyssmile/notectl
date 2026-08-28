@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	expectClickActivation,
 	expectComboboxLabel,
 	expectCommandRegistered,
 	expectMarkSpec,
@@ -212,6 +213,25 @@ describe('FontPlugin', () => {
 			container.querySelector<HTMLButtonElement>('[role="option"]')?.click();
 
 			expect(executeCommand).toHaveBeenCalledWith('removeFont');
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('a font option activates from click only, with mousedown guarding the selection', async () => {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const item = h.getToolbarItem('font');
+			const executeCommand = vi.fn(() => true);
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const context = mockPluginContext({
+				getState: () => defaultState(),
+				executeCommand,
+			});
+
+			item?.renderPopup?.(container, context, onClose);
+			const option = container.querySelector<HTMLButtonElement>('[role="option"]');
+
+			expectClickActivation(option, () => executeCommand.mock.calls.length > 0);
+			expect(executeCommand).toHaveBeenCalledOnce();
 			expect(onClose).toHaveBeenCalledOnce();
 		});
 

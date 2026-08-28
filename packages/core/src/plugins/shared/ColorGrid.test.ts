@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import { renderColorGrid } from './ColorGrid.js';
 import type { ColorGridConfig } from './ColorGrid.js';
 
@@ -188,6 +189,15 @@ describe('ColorGrid', () => {
 
 			swatch.click();
 			expect(onSelect).toHaveBeenCalledWith('#ff0000');
+		});
+
+		it('a swatch activates from click only, with mousedown guarding the selection', () => {
+			const onSelect = vi.fn();
+			const { container } = renderGrid({ onSelect });
+			const swatch = container.querySelector<HTMLButtonElement>('.notectl-color-picker__swatch');
+
+			expectClickActivation(swatch, () => onSelect.mock.calls.length > 0);
+			expect(onSelect).toHaveBeenCalledOnce();
 		});
 	});
 

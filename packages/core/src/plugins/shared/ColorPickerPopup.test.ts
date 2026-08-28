@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTextNode } from '../../model/Document.js';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import { mockPluginContext, stateBuilder } from '../../test/TestUtils.js';
 import { renderColorPickerPopup } from './ColorPickerPopup.js';
 import type { ColorPickerConfig } from './ColorPickerPopup.js';
@@ -210,6 +211,14 @@ describe('ColorPickerPopup', () => {
 
 			btn.click();
 			expect(ctx.executeCommand).toHaveBeenCalledWith('removeHighlight');
+		});
+
+		it('reset activates from click only, with mousedown guarding the selection', () => {
+			const { container, ctx } = renderPopup({ resetCommand: 'removeHighlight' });
+			const btn = container.querySelector<HTMLButtonElement>('.notectl-color-picker__default');
+
+			expectClickActivation(btn, () => vi.mocked(ctx.executeCommand).mock.calls.length > 0);
+			expect(ctx.executeCommand).toHaveBeenCalledOnce();
 		});
 	});
 

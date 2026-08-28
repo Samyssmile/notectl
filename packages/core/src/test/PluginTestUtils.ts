@@ -3,15 +3,70 @@
  *
  * Provides composable, single-call assertions for the patterns that repeat
  * across every plugin test file: MarkSpec checks, NodeSpec checks,
- * toolbar-item verification, active-state testing, keymap and command checks.
+ * toolbar-item verification, active-state testing, keymap and command checks,
+ * and the activation contract shared by every clickable control.
  *
- * All helpers accept a {@link PluginHarnessResult} and throw via `expect()`
+ * Most helpers accept a {@link PluginHarnessResult} and throw via `expect()`
  * so they integrate naturally with vitest's reporting.
  */
 
 import { expect } from 'vitest';
 import type { EditorState } from '../state/EditorState.js';
 import type { PluginHarnessResult } from './TestUtils.js';
+
+// ---------------------------------------------------------------------------
+// Activation assertions
+// ---------------------------------------------------------------------------
+
+/**
+ * Assert that a control follows the native-click activation contract.
+ *
+ * Every clickable control in the editor splits its mouse handling in two:
+ * `mousedown` is a pure guard that calls `preventDefault()` so focus and the
+ * DOM selection stay in the content, and the action itself runs from the
+ * semantic `click`. Assistive technologies invoke that click action directly,
+ * without a preceding press, so an action left on `mousedown` is unreachable
+ * for them (WCAG 2.1.1, 4.1.2).
+ *
+ * This asserts both halves at once — the guard is in place, `mousedown` alone
+ * changes nothing, and `click` activates exactly once. The second assertion is
+ * what keeps the action from silently drifting back onto `mousedown`, where it
+ * would fire twice per real mouse press.
+ *
+ * `hasActivated` is a predicate rather than a spy so callback-based controls
+ * and controls that mutate document state assert the same contract.
+ *
+ * @example
+ * ```ts
+ * const swatch = container.querySelector<HTMLButtonElement>('.notectl-color-picker__swatch');
+ * expectClickActivation(swatch, () => onSelect.mock.calls.length > 0);
+ * ```
+ */
+export function expectClickActivation(
+	element: HTMLElement | null | undefined,
+	hasActivated: () => boolean,
+): void {
+	expect(element, 'control should be rendered').toBeTruthy();
+	if (!element) return;
+
+	expect(hasActivated(), 'control should not be activated before the interaction').toBe(false);
+
+	const mouseDown: MouseEvent = new MouseEvent('mousedown', {
+		bubbles: true,
+		cancelable: true,
+	});
+	element.dispatchEvent(mouseDown);
+
+	expect(
+		mouseDown.defaultPrevented,
+		'mousedown should preventDefault so the editor selection survives the press',
+	).toBe(true);
+	expect(hasActivated(), 'mousedown alone should not activate the control').toBe(false);
+
+	element.click();
+
+	expect(hasActivated(), 'click should activate the control').toBe(true);
+}
 
 // ---------------------------------------------------------------------------
 // MarkSpec assertions

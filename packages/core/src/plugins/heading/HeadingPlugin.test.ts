@@ -10,6 +10,7 @@ import {
 } from '../../model/Document.js';
 import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
 import {
+	expectClickActivation,
 	expectComboboxLabel,
 	expectCommandRegistered,
 	expectKeyBinding,
@@ -394,6 +395,27 @@ describe('HeadingPlugin', () => {
 			headingOption?.click();
 
 			expect(executeCommand).toHaveBeenCalledWith('setHeading1');
+			expect(onClose).toHaveBeenCalledOnce();
+		});
+
+		it('a block type option activates from click only, with mousedown guarding the selection', async () => {
+			const state = makeState();
+			const h = await pluginHarness(new HeadingPlugin(), state);
+			const item = h.getToolbarItem('heading');
+			const executeCommand = vi.fn(() => true);
+			const onClose = vi.fn();
+			const container = document.createElement('div');
+			const context = mockPluginContext({
+				getState: () => state,
+				executeCommand,
+				getBlockTypePickerRegistry: () => h.pm.blockTypePickerRegistry,
+			});
+
+			item?.renderPopup?.(container, context, onClose);
+			const headingOption = container.querySelectorAll<HTMLButtonElement>('[role="option"]')[3];
+
+			expectClickActivation(headingOption, () => executeCommand.mock.calls.length > 0);
+			expect(executeCommand).toHaveBeenCalledOnce();
 			expect(onClose).toHaveBeenCalledOnce();
 		});
 

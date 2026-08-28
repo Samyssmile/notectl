@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import { mockPluginContext, stateBuilder } from '../../test/TestUtils.js';
 import { FONT_SIZE_LOCALE_EN } from './FontSizeLocale.js';
 import type { FontSizePopupConfig } from './FontSizePopup.js';
@@ -260,6 +261,15 @@ describe('renderFontSizePopup', () => {
 			expect(config.onClose).toHaveBeenCalledWith({
 				restoreFocusTo: config.contentElement,
 			});
+		});
+
+		it('an item activates from click only, with mousedown guarding the selection', () => {
+			const { container, config } = renderPopup({ sizes: [12, 16, 24] });
+
+			const item = container.querySelector<HTMLButtonElement>('.notectl-font-size-picker__item');
+
+			expectClickActivation(item, () => vi.mocked(config.onClose).mock.calls.length > 0);
+			expect(config.onClose).toHaveBeenCalledOnce();
 		});
 	});
 });

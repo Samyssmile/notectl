@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import type { PluginContext } from '../Plugin.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import {
@@ -214,15 +215,18 @@ describe('ToolbarOverflowController', () => {
 		const overflowBtn: HTMLButtonElement | null = toolbar.querySelector(
 			'.notectl-toolbar-overflow-btn',
 		);
-		overflowBtn?.click();
+		expectClickActivation(
+			overflowBtn,
+			() => document.querySelector('.notectl-toolbar-popup') !== null,
+		);
 
 		const menuItems: NodeListOf<Element> = document.querySelectorAll('.notectl-dropdown__item');
 		expect(menuItems.length).toBeGreaterThan(0);
 
 		const firstMenuItem: HTMLElement = menuItems[0] as HTMLElement;
-		firstMenuItem.click();
+		expectClickActivation(firstMenuItem, () => executeCommand.mock.calls.length > 0);
 
-		expect(executeCommand).toHaveBeenCalled();
+		expect(executeCommand).toHaveBeenCalledOnce();
 
 		controller.destroy();
 	});

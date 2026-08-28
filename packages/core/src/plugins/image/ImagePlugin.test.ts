@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode } from '../../model/Document.js';
 import { blockId, nodeType } from '../../model/TypeBrands.js';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import { mockPluginContext, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { ImagePlugin } from './ImagePlugin.js';
 
@@ -194,7 +195,7 @@ describe('ImagePlugin', () => {
 				? vi.spyOn(fileInput, 'click').mockImplementation(() => {})
 				: null;
 
-			uploadButton?.click();
+			expectClickActivation(uploadButton, () => (openFilePicker?.mock.calls.length ?? 0) > 0);
 
 			expect(openFilePicker).toHaveBeenCalledOnce();
 		});
@@ -213,7 +214,7 @@ describe('ImagePlugin', () => {
 			);
 			if (urlInput) urlInput.value = 'https://example.com/image.png';
 
-			insertButton?.click();
+			expectClickActivation(insertButton, () => onClose.mock.calls.length > 0);
 
 			expect(dispatch).toHaveBeenCalled();
 			expect(onClose).toHaveBeenCalledOnce();

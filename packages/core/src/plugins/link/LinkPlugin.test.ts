@@ -3,6 +3,7 @@ import type { Mark } from '../../model/Document.js';
 import { getBlockMarksAtOffset, getTextChildren, hasMark } from '../../model/Document.js';
 import { markType } from '../../model/TypeBrands.js';
 import {
+	expectClickActivation,
 	expectKeyBinding,
 	expectToolbarActive,
 	expectToolbarEnabled,
@@ -265,7 +266,7 @@ describe('LinkPlugin', () => {
 			const applyBtn = container.querySelector(
 				'button[aria-label="Apply link"]',
 			) as HTMLButtonElement;
-			applyBtn.click();
+			expectClickActivation(applyBtn, () => onClose.mock.calls.length > 0);
 
 			expect(h.dispatch).toHaveBeenCalled();
 			expect(onClose).toHaveBeenCalledOnce();
@@ -767,7 +768,7 @@ describe('LinkPlugin', () => {
 			const removeBtn = container.querySelector(
 				'button[aria-label="Remove link"]',
 			) as HTMLButtonElement;
-			removeBtn.click();
+			expectClickActivation(removeBtn, () => onClose.mock.calls.length > 0);
 
 			expect(onClose).toHaveBeenCalledOnce();
 		});

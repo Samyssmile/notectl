@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBlockNode, createTextNode, getBlockText } from '../../model/Document.js';
 import {
+	expectClickActivation,
 	expectKeyBinding,
 	expectToolbarActive,
 	expectToolbarItem,
@@ -614,9 +615,11 @@ describe('ListPlugin', () => {
 				const marker = editor.container.querySelector<HTMLElement>(`.${CHECKLIST_MARKER_CLASS}`);
 				expect(marker).not.toBeNull();
 
-				marker?.click();
+				expectClickActivation(
+					marker,
+					() => editor.view.getState().getBlock('b1')?.attrs?.checked === true,
+				);
 
-				expect(editor.view.getState().getBlock('b1')?.attrs?.checked).toBe(true);
 				expect(editor.announce).toHaveBeenLastCalledWith('Checked');
 			} finally {
 				await editor.destroy();

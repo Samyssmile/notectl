@@ -3,6 +3,7 @@ import { createBlockNode, createDocument, createTextNode } from '../../model/Doc
 import { createCollapsedSelection } from '../../model/Selection.js';
 import { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
+import { expectClickActivation } from '../../test/PluginTestUtils.js';
 import type { Plugin } from '../Plugin.js';
 import { PluginManager } from '../PluginManager.js';
 import type { ToolbarItem, ToolbarItemCombobox } from './ToolbarItem.js';
@@ -175,16 +176,8 @@ describe('ToolbarPlugin', () => {
 		});
 		const { container } = await initWithPlugins([plugin], toolbar);
 		const button = container.querySelector<HTMLButtonElement>('[data-toolbar-item="action"]');
-		const mouseDown = new MouseEvent('mousedown', {
-			bubbles: true,
-			cancelable: true,
-		});
 
-		button?.dispatchEvent(mouseDown);
-		expect(mouseDown.defaultPrevented).toBe(true);
-		expect(executeCommand).not.toHaveBeenCalled();
-
-		button?.click();
+		expectClickActivation(button, () => executeCommand.mock.calls.length > 0);
 		expect(executeCommand).toHaveBeenCalledOnce();
 	});
 
