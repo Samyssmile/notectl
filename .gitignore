@@ -16,6 +16,9 @@ dist/
 # Astro
 .astro/
 
+# Angular
+.angular/
+
 # Test results
 playwright-report/
 test-results/
@@ -53,6 +56,7 @@ Desktop.ini
 
 # Claude Code
 .claude/
+.claude-flow/
 
 # Bug-finder harness (disposable, out-of-band probes)
 /e2e/bugfinder/

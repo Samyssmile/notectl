@@ -39,6 +39,8 @@
 			"**/*.d.ts",
 			"**/.turbo/**",
 			"**/.claude/**",
+			"**/.claude-flow/**",
+			"**/.vscode/**",
 			"**/.angular/**",
 			"docs-site/**",
 			"test-results/**",
