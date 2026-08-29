@@ -1,0 +1,4 @@
+# Maps the author identities used over the project's history to one person.
+# See `git help shortlog` (MAPPING AUTHORS) for the format.
+
+Samuel Abramov <info@abramov-samuel.de> <git@abramov-samuel.de>
