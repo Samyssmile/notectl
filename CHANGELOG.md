@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.7] - 2026-09-10
+
+### Security
+
+- **Bumped vulnerable dependencies to close all 14 open Dependabot alerts.** `sharp` 0.35.3 → 0.35.4 in the docs site (libheif advisories, GHSA-rgj7-g3m4-5g8c) and `vitest` / `@vitest/mocker` 4.1.10 → 4.1.11 (path traversal in redirect mocks, GHSA-82fw-gwwq-j7x9) are direct bumps. The transitive `js-yaml` 4.3.2, `nanoid` 3.3.18, `qs` 6.16.0, `fast-uri` 3.1.7 and `hono` 4.13.7 were re-resolved in the lockfile only, because every parent range already allowed the patched release. No `pnpm.overrides` were added. All affected packages are build and test tooling; the editor runtime bundle is unchanged.
+
 ## [2.3.6] - 2026-08-28
 
 ### Added

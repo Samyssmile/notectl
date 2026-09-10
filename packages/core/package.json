@@ -1,6 +1,6 @@
 {
 	"name": "@notectl/core",
-	"version": "2.3.6",
+	"version": "2.3.7",
 	"description": "A modern and accessible rich text editor shipped as a single Web Component. Immutable state, transaction-based architecture, and a plugin system that powers every feature.",
 	"license": "MIT",
 	"type": "module",
@@ -225,6 +225,6 @@
 		"terser": "^5.49.2",
 		"vite": "^8.2.0",
 		"vite-plugin-dts": "^4.5.4",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	}
 }
