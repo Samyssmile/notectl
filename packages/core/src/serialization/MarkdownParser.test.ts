@@ -127,6 +127,15 @@ describe('parseMarkdownToDocument — blocks', () => {
 		expect(getBlockText(firstBlock(doc))).toBe('raw html');
 	});
 
+	it('keeps the block structure of an HTML block wrapped in a div (#223)', () => {
+		const doc = parseMarkdownToDocument('<div>\n<h1>Title</h1>\n<p>a</p>\n<p>b</p>\n</div>');
+		expect(shapeDoc(doc)).toEqual([
+			{ type: 'heading', attrs: { level: 1 }, text: 'Title' },
+			{ type: 'paragraph', attrs: {}, text: 'a' },
+			{ type: 'paragraph', attrs: {}, text: 'b' },
+		]);
+	});
+
 	it('parses registry-free raw HTML with baseline block and inline semantics', () => {
 		const markdown = [
 			'<h3 id="intro"><strong>Bold</strong> <a href="/guide">link</a><br>tail</h3>',

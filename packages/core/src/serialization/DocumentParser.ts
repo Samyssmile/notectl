@@ -146,6 +146,20 @@ function parseChildNode(
 
 		// Try block parse rules
 		const match = matchBlockParseRule(el, blockRules);
+
+		// A paragraph cannot hold blocks. An element that resolves to `paragraph`
+		// (the generic `<div>` rule or the fallback below) but wraps block-level
+		// children is a transparent wrapper, the shape web pages, Google Docs and
+		// Word put around their content: its children become sibling blocks
+		// instead of being flattened into one inline run (#223).
+		if (
+			(match?.type ?? 'paragraph') === 'paragraph' &&
+			hasBlockLevelChild(el, blockRules, registry)
+		) {
+			parseWrapperElement(el, blocks, blockRules, adoptedIds, registry);
+			return;
+		}
+
 		if (match) {
 			const spec = registry?.getNodeSpec(match.type);
 			const children: (TextNode | InlineNode)[] = spec?.isVoid
@@ -289,13 +303,14 @@ function parseListItemBlock(
 ): BlockNode {
 	const htmlId: string | undefined = extractHTMLId(li);
 	const blockRules = registry?.getBlockParseRules() ?? [];
+	const inlineRules = registry?.getInlineParseRules() ?? [];
 	const isHoistedList = (node: ChildNode): boolean => {
 		if (node.nodeType !== Node.ELEMENT_NODE) return false;
 		const tag: string = (node as Element).tagName.toLowerCase();
 		return tag === 'ul' || tag === 'ol';
 	};
 	const hasBlockContent: boolean = Array.from(li.childNodes).some(
-		(node) => !isHoistedList(node) && isBlockLevelChild(node, blockRules),
+		(node) => !isHoistedList(node) && isBlockLevelChild(node, blockRules, inlineRules),
 	);
 
 	if (!hasBlockContent) {
@@ -595,10 +610,12 @@ function parseTableCellContent(
 }
 
 type BlockParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
+type InlineParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
 
 /**
- * Parses the children of a block container (blockquote, table cell) into block
- * nodes. Consecutive inline content (text nodes and inline elements such as
+ * Parses the children of a block container (blockquote, table cell, multi-block
+ * list item, transparent wrapper) into block nodes. Consecutive inline content
+ * (text nodes and inline elements such as
  * `<em>`, `<strong>`, `<a>`) is coalesced into a single paragraph with its marks
  * intact, while genuine block children (paragraphs, headings, lists, tables,
  * nested blockquotes) are parsed recursively. This preserves the common quote
@@ -612,6 +629,7 @@ function parseBlockContainerChildren(
 	skip?: (node: ChildNode) => boolean,
 ): BlockNode[] {
 	const blocks: BlockNode[] = [];
+	const inlineRules = registry?.getInlineParseRules() ?? [];
 	let inlineRun: ChildNode[] = [];
 
 	const flushInlineRun = (): void => {
@@ -625,7 +643,7 @@ function parseBlockContainerChildren(
 
 	for (const child of Array.from(el.childNodes)) {
 		if (skip?.(child)) continue;
-		if (isBlockLevelChild(child, blockRules)) {
+		if (isBlockLevelChild(child, blockRules, inlineRules)) {
 			flushInlineRun();
 			parseChildNode(child, blocks, blockRules, adoptedIds, registry);
 		} else {
@@ -638,19 +656,110 @@ function parseBlockContainerChildren(
 }
 
 /**
- * Whether a child node is block-level content. Known container tags (lists,
- * tables, nested blockquotes) and any element matching a block parse rule
- * (paragraphs, headings, code blocks, ...) are block-level; text nodes and
- * inline elements (`<em>`, `<a>`, `<br>`, ...) are not.
+ * Tags that are block-level regardless of the registered parse rules: the
+ * generic HTML block containers and the structures this parser handles itself.
  */
-function isBlockLevelChild(node: ChildNode, blockRules: BlockParseRules): boolean {
+const INTRINSIC_BLOCK_TAGS: ReadonlySet<string> = new Set([
+	'p',
+	'div',
+	'ul',
+	'ol',
+	'table',
+	'blockquote',
+]);
+
+/**
+ * Whether a child node is block-level content. Intrinsic block tags (paragraphs,
+ * divs, lists, tables, blockquotes) and any element matching a block parse rule
+ * (headings, code blocks, ...) are block-level; text nodes and inline elements
+ * (`<em>`, `<a>`, `<br>`, ...) are not. An element the registry can also
+ * represent inline (an `<img>` with an inline image spec) stays inline, matching
+ * the inline-first precedence of `walkElement`, so a mid-paragraph image never
+ * splits its paragraph.
+ */
+function isBlockLevelChild(
+	node: ChildNode,
+	blockRules: BlockParseRules,
+	inlineRules: InlineParseRules,
+): boolean {
 	if (node.nodeType !== Node.ELEMENT_NODE) return false;
 	const el = node as HTMLElement;
-	const tag: string = el.tagName.toLowerCase();
-	if (tag === 'p' || tag === 'ul' || tag === 'ol' || tag === 'table' || tag === 'blockquote') {
-		return true;
-	}
+	if (INTRINSIC_BLOCK_TAGS.has(el.tagName.toLowerCase())) return true;
+	if (matchesInlineParseRule(el, inlineRules)) return false;
 	return matchBlockParseRule(el, blockRules) !== null;
+}
+
+/** Whether an inline node parse rule accepts the element (same test as `walkElement`). */
+function matchesInlineParseRule(el: HTMLElement, inlineRules: InlineParseRules): boolean {
+	const tag: string = el.tagName.toLowerCase();
+	return inlineRules.some(
+		(entry) =>
+			entry.rule.tag === tag && (!entry.rule.getAttrs || entry.rule.getAttrs(el) !== false),
+	);
+}
+
+/** Whether any direct child of the element is block-level content. */
+function hasBlockLevelChild(
+	el: HTMLElement,
+	blockRules: BlockParseRules,
+	registry?: SchemaRegistry,
+): boolean {
+	const inlineRules = registry?.getInlineParseRules() ?? [];
+	return Array.from(el.childNodes).some((node) => isBlockLevelChild(node, blockRules, inlineRules));
+}
+
+/**
+ * Parses a transparent wrapper (a `<div>` or an unknown element around
+ * block-level children) into the blocks it wraps (#223). The wrapper itself
+ * yields no block, so its `id` is not adopted as an `htmlId` (wrapper-only
+ * elements never own one). Its `dir` and `text-align`, which CSS inherits into
+ * every child, are carried onto child blocks that accept the attribute but do
+ * not set their own.
+ */
+function parseWrapperElement(
+	el: HTMLElement,
+	blocks: BlockNode[],
+	blockRules: BlockParseRules,
+	adoptedIds: Set<string>,
+	registry?: SchemaRegistry,
+): void {
+	const inherited: Record<string, string | number | boolean> = {};
+	extractAlignment(el, inherited);
+	extractDirection(el, inherited);
+
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
+		el,
+		blockRules,
+		adoptedIds,
+		registry,
+	);
+	for (const block of innerBlocks) {
+		blocks.push(inheritBlockAttrs(block, inherited, registry));
+	}
+}
+
+/**
+ * Returns the block extended with every inherited attribute it accepts but does
+ * not set itself. With a registry, a block accepts an attribute only when its
+ * NodeSpec declares it (mirroring the block parse rule path); without one, all
+ * attributes are accepted (mirroring the paragraph fallback path).
+ */
+function inheritBlockAttrs(
+	block: BlockNode,
+	inherited: Record<string, string | number | boolean>,
+	registry?: SchemaRegistry,
+): BlockNode {
+	const spec = registry?.getNodeSpec(block.type);
+	const attrs: Record<string, BlockAttrValue> = { ...block.attrs };
+	let changed = false;
+	for (const [name, value] of Object.entries(inherited)) {
+		if (attrs[name] !== undefined) continue;
+		if (registry && !spec?.attrs?.[name]) continue;
+		attrs[name] = value;
+		changed = true;
+	}
+	if (!changed) return block;
+	return createBlockNode(block.type, block.children, block.id, attrs, block.htmlId);
 }
 
 /** Whether an inline run carries meaningful content (non-whitespace text or any element). */

@@ -255,6 +255,27 @@ describe('HTMLParser', () => {
 			expect(slice.blocks[0]?.type).toBe('paragraph');
 		});
 
+		it('unwraps a div holding block children into those blocks (#223)', () => {
+			const slice = parseHTML('<div><p>a</p><p>b</p></div>');
+			expect(slice.blocks.map((b) => b.type)).toEqual(['paragraph', 'paragraph']);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'a', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'b', marks: [] }]);
+		});
+
+		it('keeps a heading and a list wrapped in a div (#223)', () => {
+			const slice = parseHTML('<div><h1>Title</h1><ul><li>one</li></ul></div>');
+			expect(slice.blocks.map((b) => b.type)).toEqual(['heading', 'list_item']);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'Title', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'one', marks: [] }]);
+		});
+
+		it('coalesces inline content preceding a block child of a div into a paragraph', () => {
+			const slice = parseHTML('<div>intro<p>a</p></div>');
+			expect(slice.blocks.map((b) => b.type)).toEqual(['paragraph', 'paragraph']);
+			expect(slice.blocks[0]?.segments).toEqual([{ kind: 'text', text: 'intro', marks: [] }]);
+			expect(slice.blocks[1]?.segments).toEqual([{ kind: 'text', text: 'a', marks: [] }]);
+		});
+
 		it('falls back unknown elements to paragraph', () => {
 			const slice = parseHTML('<section>content</section>');
 			// section is not in block elements, treated as inline

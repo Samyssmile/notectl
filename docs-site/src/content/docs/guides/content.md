@@ -151,6 +151,12 @@ The HTML is parsed into the document model. Supported elements depend on registe
 | `<table>`, `<colgroup>/<col>`, `<tr>`, `<td>` | `table`, logical column widths, `table_row`, `table_cell` |
 | `<figure>`, `<img>` | `image` |
 
+A `<div>` becomes a paragraph only when it holds inline content. A `<div>` that wraps
+block-level elements (paragraphs, headings, lists, tables) is a transparent container: its
+children are imported as blocks, and its `dir` and `text-align` carry over to child blocks that
+accept those attributes but do not set their own. The same applies to any other element that
+would otherwise become a paragraph but wraps blocks, such as the `<b>` wrapper Google Docs emits.
+
 Inline formatting maps:
 
 | HTML | Mark / Inline Type |

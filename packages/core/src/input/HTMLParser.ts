@@ -144,11 +144,15 @@ export class HTMLParser {
 	private buildBlockTagHandlers(): ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]> {
 		const parseParagraph = (el: HTMLElement): SliceBlock[] =>
 			this.parseBlockWithLineBreaks(el, this.resolveBlockType(nodeType('paragraph')));
+		// A `<div>` around block children is a transparent wrapper (#223); only a
+		// `<div>` holding inline content is a paragraph.
+		const parseDiv = (el: HTMLElement): SliceBlock[] =>
+			this.hasBlockChildren(el) ? this.parseContainer(el) : parseParagraph(el);
 		const parseTable = (el: HTMLElement): SliceBlock[] => this.parseTableAsParagraphs(el);
 
 		return new Map<string, (el: HTMLElement) => SliceBlock[]>([
 			['P', parseParagraph],
-			['DIV', parseParagraph],
+			['DIV', parseDiv],
 			['BLOCKQUOTE', (el: HTMLElement) => this.parseBlockquote(el)],
 			['UL', (el: HTMLElement) => this.parseList(el, 'bullet', 0)],
 			['OL', (el: HTMLElement) => this.parseList(el, 'ordered', 0)],
@@ -253,12 +257,8 @@ export class HTMLParser {
 
 	private parseBlockquote(element: HTMLElement): SliceBlock[] {
 		const blockType: NodeTypeName = this.resolveBlockType(nodeType('blockquote'));
-		const children: Node[] = Array.from(element.childNodes);
-		const hasBlockChildren: boolean = children.some(
-			(c: Node) => c.nodeType === Node.ELEMENT_NODE && this.isBlockElement(c as HTMLElement),
-		);
 
-		if (hasBlockChildren) {
+		if (this.hasBlockChildren(element)) {
 			const innerBlocks: SliceBlock[] = this.parseContainer(element as HTMLElement);
 			return innerBlocks.map(
 				(b: SliceBlock): SliceBlock => ({
@@ -554,6 +554,13 @@ export class HTMLParser {
 		if (BLOCK_ELEMENTS.has(el.tagName)) return true;
 		const tag: string = el.tagName.toLowerCase();
 		return this.blockParseRules.some((entry) => entry.rule.tag === tag);
+	}
+
+	/** Whether any direct child is a block element (a wrapper rather than a leaf). */
+	private hasBlockChildren(element: HTMLElement): boolean {
+		return Array.from(element.childNodes).some(
+			(c: Node) => c.nodeType === Node.ELEMENT_NODE && this.isBlockElement(c as HTMLElement),
+		);
 	}
 
 	private hasCheckbox(element: HTMLElement): boolean {

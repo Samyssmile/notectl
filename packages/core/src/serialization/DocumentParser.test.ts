@@ -2229,3 +2229,218 @@ describe('blockquote mixed inline content (#141)', () => {
 		expect(getBlockText(children[0] as never)).toBe('');
 	});
 });
+
+describe('wrapper element unwrapping (#223)', () => {
+	/**
+	 * Mirrors the built-in registry shape: `div` is a low-priority paragraph
+	 * rule, paragraphs/headings accept `align` and `dir`, list items only `dir`,
+	 * and tables accept neither.
+	 */
+	function createWrapperRegistry(): SchemaRegistry {
+		const nodeSpecs = new Map<string, { attrs?: Record<string, { default: unknown }> }>([
+			['paragraph', { attrs: { align: { default: 'start' }, dir: { default: 'ltr' } } }],
+			[
+				'heading',
+				{ attrs: { level: { default: 1 }, align: { default: 'start' }, dir: { default: 'ltr' } } },
+			],
+			['list_item', { attrs: { dir: { default: 'ltr' } } }],
+			['table', {}],
+			['table_row', {}],
+			['table_cell', {}],
+			['image', { isVoid: true, attrs: { src: { default: '' } } }],
+		]);
+		const imageAttrs = (el: HTMLElement): Record<string, unknown> => ({
+			src: el.getAttribute('src') ?? '',
+		});
+		const blockRules = [
+			{ rule: { tag: 'h1', getAttrs: () => ({ level: 1 }) }, type: 'heading' },
+			{ rule: { tag: 'p' }, type: 'paragraph' },
+			{ rule: { tag: 'li' }, type: 'list_item' },
+			{ rule: { tag: 'img', getAttrs: imageAttrs }, type: 'image' },
+			{ rule: { tag: 'div', priority: 10 }, type: 'paragraph' },
+		];
+		const inlineRules = [{ rule: { tag: 'img', getAttrs: imageAttrs }, type: 'image_inline' }];
+		return {
+			getNodeSpec: (type: string) => nodeSpecs.get(type) ?? undefined,
+			getInlineNodeSpec: () => undefined,
+			getMarkSpec: () => undefined,
+			getMarkTypes: () => ['bold'],
+			getBlockParseRules: () => blockRules,
+			getMarkParseRules: () => [
+				{ rule: { tag: 'strong' }, type: 'bold' },
+				{ rule: { tag: 'b' }, type: 'bold' },
+			],
+			getInlineParseRules: () => inlineRules,
+			getAllowedTags: () => [
+				'p',
+				'br',
+				'div',
+				'span',
+				'h1',
+				'ul',
+				'ol',
+				'li',
+				'strong',
+				'b',
+				'img',
+				'table',
+				'tbody',
+				'tr',
+				'td',
+				'th',
+			],
+			getAllowedAttrs: () => ['style', 'dir', 'id', 'src'],
+		} as unknown as SchemaRegistry;
+	}
+
+	function outline(doc: ReturnType<typeof parseHTMLToDocument>): string[] {
+		return doc.children.map((block) =>
+			isLeafBlock(block) ? `${block.type}:${getBlockText(block)}` : block.type,
+		);
+	}
+
+	it('imports the paragraphs wrapped in a div as separate blocks (#223)', () => {
+		const doc = parseHTMLToDocument('<div><p>a</p><p>b</p></div>', createWrapperRegistry());
+
+		expect(outline(doc)).toEqual(['paragraph:a', 'paragraph:b']);
+	});
+
+	it('keeps a heading and a list wrapped in a div as heading and list items (#223)', () => {
+		const doc = parseHTMLToDocument(
+			'<div><h1>Title</h1><ul><li>one</li><li>two</li></ul></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['heading:Title', 'list_item:one', 'list_item:two']);
+		expect(doc.children[0]?.attrs?.level).toBe(1);
+		expect(doc.children[1]?.attrs?.listType).toBe('bullet');
+	});
+
+	it('keeps a table wrapped in a div (#223)', () => {
+		const doc = parseHTMLToDocument(
+			'<div><table><tr><td>x</td><td>y</td></tr></table></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['table']);
+		const row = getBlockChildren(doc.children[0] as never)[0];
+		expect(getBlockChildren(row as never)).toHaveLength(2);
+	});
+
+	it('coalesces leading inline content of a wrapper into its own paragraph', () => {
+		const doc = parseHTMLToDocument(
+			'<div>intro <b>bold</b><p>a</p></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['paragraph:intro bold', 'paragraph:a']);
+		const inline = getInlineChildren(doc.children[0] as never);
+		expect(inline[1]?.marks.map((m) => m.type)).toEqual(['bold']);
+	});
+
+	it('unwraps nested wrapper divs while an inline-only div stays a paragraph', () => {
+		const doc = parseHTMLToDocument(
+			'<div><div><p>a</p></div><div>b</div></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['paragraph:a', 'paragraph:b']);
+	});
+
+	it('still maps a div holding only inline content to a single paragraph', () => {
+		const doc = parseHTMLToDocument('<div>plain <b>text</b></div>', createWrapperRegistry());
+
+		expect(outline(doc)).toEqual(['paragraph:plain text']);
+	});
+
+	it('propagates wrapper dir and align to child blocks that do not set their own', () => {
+		const doc = parseHTMLToDocument(
+			'<div dir="rtl" style="text-align: center"><p>a</p><p dir="ltr">b</p></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(doc.children[0]?.attrs).toEqual({ dir: 'rtl', align: 'center' });
+		expect(doc.children[1]?.attrs).toEqual({ dir: 'ltr', align: 'center' });
+	});
+
+	it('does not propagate wrapper attributes a block type does not declare', () => {
+		const doc = parseHTMLToDocument(
+			'<div dir="rtl" style="text-align: center"><ul><li>x</li></ul><table><tr><td>y</td></tr></table></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['list_item:x', 'table']);
+		expect(doc.children[0]?.attrs?.dir).toBe('rtl');
+		expect(doc.children[0]?.attrs?.align).toBeUndefined();
+		expect(doc.children[1]?.attrs).toBeUndefined();
+	});
+
+	it('does not adopt the id of a wrapper as a block htmlId', () => {
+		const doc = parseHTMLToDocument('<div id="wrapper"><p>a</p></div>', createWrapperRegistry());
+
+		expect(outline(doc)).toEqual(['paragraph:a']);
+		expect(doc.children[0]?.htmlId).toBeUndefined();
+	});
+
+	it('keeps inline-capable images inside a div as one paragraph with inline nodes', () => {
+		const doc = parseHTMLToDocument(
+			'<div><img src="a.png"> icon <img src="b.png"></div>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['paragraph:icon']);
+		const inline = getInlineChildren(doc.children[0] as never);
+		expect(inline.map((node) => (isInlineNode(node) ? node.inlineType : 'text'))).toEqual([
+			'image_inline',
+			'text',
+			'image_inline',
+		]);
+	});
+
+	it('keeps an image inside a paragraph inline even though a block image rule exists', () => {
+		const doc = parseHTMLToDocument('<p><img src="a.png"></p>', createWrapperRegistry());
+
+		expect(doc.children.map((block) => block.type)).toEqual(['paragraph']);
+		const inline = getInlineChildren(doc.children[0] as never);
+		expect(inline).toHaveLength(1);
+		expect(isInlineNode(inline[0] as never)).toBe(true);
+	});
+
+	it('promotes a figure inside a div to an image block', () => {
+		const registry = createWrapperRegistry();
+		const doc = parseHTMLToDocument('<div><p>a</p><figure><img src="a.png"></figure></div>', {
+			...registry,
+			getBlockParseRules: () => [
+				...registry.getBlockParseRules(),
+				{
+					rule: {
+						tag: 'figure',
+						getAttrs: (el: HTMLElement) => ({ src: el.querySelector('img')?.getAttribute('src') }),
+					},
+					type: 'image',
+				},
+			],
+			getAllowedTags: () => [...registry.getAllowedTags(), 'figure'],
+		} as unknown as SchemaRegistry);
+
+		expect(outline(doc)).toEqual(['paragraph:a', 'image:']);
+		expect(doc.children[1]?.attrs?.src).toBe('a.png');
+	});
+
+	it('unwraps a non-block element that wraps block children (Google Docs shape)', () => {
+		const doc = parseHTMLToDocument(
+			'<b style="font-weight:normal"><p>a</p><p>b</p></b>',
+			createWrapperRegistry(),
+		);
+
+		expect(outline(doc)).toEqual(['paragraph:a', 'paragraph:b']);
+	});
+
+	it('unwraps a div without a registry and inherits its direction', () => {
+		const doc = parseHTMLToDocument('<div dir="rtl"><p>a</p><div>b</div></div>');
+
+		expect(outline(doc)).toEqual(['paragraph:a', 'paragraph:b']);
+		expect(doc.children[0]?.attrs).toEqual({ dir: 'rtl' });
+		expect(doc.children[1]?.attrs).toEqual({ dir: 'rtl' });
+	});
+});

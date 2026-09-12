@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.8] - 2026-09-12
+
+### Fixed
+
+- **HTML import no longer flattens block content wrapped in a `<div>` into one paragraph (#223).** `parseHTMLToDocument('<div><p>a</p><p>b</p></div>')` produced a single paragraph `ab`, a `<div>` around a heading and a list yielded `Titleonetwo`, and a table inside a `<div>` disappeared. The generic `div` parse rule mapped every `<div>` to a paragraph and then walked all descendants as inline text, and the paste slice parser did the same. Wrapper divs are the standard shape of HTML coming from web pages, Google Docs and Word, so this affected `setContentHTML()`, HTML blocks in Markdown, and HTML paste alike. Both parsers now treat an element that would become a paragraph but holds block-level children as a transparent wrapper: its children are imported as sibling blocks, leading or trailing inline runs become their own paragraphs, and the wrapper's `dir` and `text-align` carry over to child blocks whose spec declares the attribute but which do not set their own (a wrapper never owns an `htmlId`). A `<div>` holding only inline content still becomes a paragraph. Deciding what counts as a block-level child now gives inline node rules precedence over block rules, mirroring the inline walker, so a bare `<img>` the registry can represent inline stays an inline image inside a `<div>`, a list item or a table cell, as it already did inside `<p>`. Covered by regression tests in `DocumentParser.test.ts`, `HTMLParser.test.ts` and `MarkdownParser.test.ts`.
+
 ## [2.3.7] - 2026-09-10
 
 ### Security
