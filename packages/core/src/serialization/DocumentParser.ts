@@ -23,9 +23,15 @@ import {
 import { SAFE_URI_REGEXP, normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { type InlineTypeName, inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import { type InlineTypeName, inlineType, nodeType } from '../model/TypeBrands.js';
 import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
+import {
+	hasHTMLBlockDescendants,
+	isHTMLBlockElement,
+	matchHTMLParseRule,
+	parseHTMLMarks,
+} from './HTMLParseRules.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
 import {
@@ -145,7 +151,7 @@ function parseChildNode(
 		}
 
 		// Try block parse rules
-		const match = matchBlockParseRule(el, blockRules);
+		const match = matchHTMLParseRule(el, blockRules);
 
 		// A paragraph cannot hold blocks. An element that resolves to `paragraph`
 		// (the generic `<div>` rule or the fallback below) but wraps block-level
@@ -154,47 +160,27 @@ function parseChildNode(
 		// instead of being flattened into one inline run (#223).
 		if (
 			(match?.type ?? 'paragraph') === 'paragraph' &&
-			hasBlockLevelChild(el, blockRules, registry)
+			hasHTMLBlockDescendants(el, blockRules, registry?.getInlineParseRules() ?? [])
 		) {
 			parseWrapperElement(el, blocks, blockRules, adoptedIds, registry);
 			return;
 		}
 
-		if (match) {
-			const spec = registry?.getNodeSpec(match.type);
-			const children: (TextNode | InlineNode)[] = spec?.isVoid
-				? [createTextNode('')]
-				: parseElementToInlineContent(el, registry);
-			const attrs: Record<string, string | number | boolean> = {
-				...(match.attrs as Record<string, string | number | boolean> | undefined),
-			};
-			if (spec?.attrs?.align) {
-				extractAlignment(el, attrs);
-			}
-			if (spec?.attrs?.dir) {
-				extractDirection(el, attrs);
-			}
-			blocks.push(
-				createBlockNode(
-					nodeType(match.type),
-					children,
-					adoptBlockId(el, adoptedIds),
-					Object.keys(attrs).length > 0 ? attrs : undefined,
-					extractHTMLId(el),
-				),
-			);
-			return;
-		}
-
-		// Fallback to paragraph
-		const inlineContent = parseElementToInlineContent(el, registry);
-		const attrs: Record<string, string | number | boolean> = {};
-		extractAlignment(el, attrs);
-		extractDirection(el, attrs);
+		const spec = match ? registry?.getNodeSpec(match.type) : undefined;
+		const children: (TextNode | InlineNode)[] = spec?.isVoid
+			? [createTextNode('')]
+			: parseElementToInlineContent(el, registry);
+		const attrs: Record<string, string | number | boolean> = {
+			...(match?.attrs as Record<string, string | number | boolean> | undefined),
+		};
+		// Known block types only accept declared attributes. The paragraph
+		// fallback retains the permissive behavior of registry-free import.
+		if (!match || spec?.attrs?.align) extractAlignment(el, attrs);
+		if (!match || spec?.attrs?.dir) extractDirection(el, attrs);
 		blocks.push(
 			createBlockNode(
-				nodeType('paragraph'),
-				inlineContent,
+				nodeType(match?.type ?? 'paragraph'),
+				children,
 				adoptBlockId(el, adoptedIds),
 				Object.keys(attrs).length > 0 ? attrs : undefined,
 				extractHTMLId(el),
@@ -656,26 +642,8 @@ function parseBlockContainerChildren(
 }
 
 /**
- * Tags that are block-level regardless of the registered parse rules: the
- * generic HTML block containers and the structures this parser handles itself.
- */
-const INTRINSIC_BLOCK_TAGS: ReadonlySet<string> = new Set([
-	'p',
-	'div',
-	'ul',
-	'ol',
-	'table',
-	'blockquote',
-]);
-
-/**
- * Whether a child node is block-level content. Intrinsic block tags (paragraphs,
- * divs, lists, tables, blockquotes) and any element matching a block parse rule
- * (headings, code blocks, ...) are block-level; text nodes and inline elements
- * (`<em>`, `<a>`, `<br>`, ...) are not. An element the registry can also
- * represent inline (an `<img>` with an inline image spec) stays inline, matching
- * the inline-first precedence of `walkElement`, so a mid-paragraph image never
- * splits its paragraph.
+ * Both blocks and transparent wrappers around blocks end an inline run.
+ * Ordinary inline elements and atomic inline nodes stay inside that run.
  */
 function isBlockLevelChild(
 	node: ChildNode,
@@ -684,28 +652,10 @@ function isBlockLevelChild(
 ): boolean {
 	if (node.nodeType !== Node.ELEMENT_NODE) return false;
 	const el = node as HTMLElement;
-	if (INTRINSIC_BLOCK_TAGS.has(el.tagName.toLowerCase())) return true;
-	if (matchesInlineParseRule(el, inlineRules)) return false;
-	return matchBlockParseRule(el, blockRules) !== null;
-}
-
-/** Whether an inline node parse rule accepts the element (same test as `walkElement`). */
-function matchesInlineParseRule(el: HTMLElement, inlineRules: InlineParseRules): boolean {
-	const tag: string = el.tagName.toLowerCase();
-	return inlineRules.some(
-		(entry) =>
-			entry.rule.tag === tag && (!entry.rule.getAttrs || entry.rule.getAttrs(el) !== false),
+	return (
+		isHTMLBlockElement(el, blockRules, inlineRules) ||
+		hasHTMLBlockDescendants(el, blockRules, inlineRules)
 	);
-}
-
-/** Whether any direct child of the element is block-level content. */
-function hasBlockLevelChild(
-	el: HTMLElement,
-	blockRules: BlockParseRules,
-	registry?: SchemaRegistry,
-): boolean {
-	const inlineRules = registry?.getInlineParseRules() ?? [];
-	return Array.from(el.childNodes).some((node) => isBlockLevelChild(node, blockRules, inlineRules));
 }
 
 /**
@@ -785,9 +735,9 @@ function parseElementToInlineContent(
 
 /**
  * Walks a list of sibling DOM nodes into inline content, applying mark and
- * inline-node parse rules. Each node is walked from an empty mark set, so a run
- * mixing text and inline elements (e.g. `text <em>x</em> end`) coalesces into a
- * single inline sequence with marks preserved on the styled run.
+ * inline-node parse rules. DOM ancestors retain the formatting of transparent
+ * wrappers even after those wrappers cease to be model blocks. Mixed text and
+ * inline elements still coalesce into one sequence with their own marks intact.
  */
 function parseNodesToInlineContent(
 	nodes: readonly ChildNode[],
@@ -798,7 +748,14 @@ function parseNodesToInlineContent(
 	const markRules = registry?.getMarkParseRules() ?? [];
 	const inlineRules = registry?.getInlineParseRules() ?? [];
 	for (const node of nodes) {
-		walkElement(node, [], result, markRules, inlineRules, skipNestedLists);
+		walkElement(
+			node,
+			parseAncestorMarks(node, markRules),
+			result,
+			markRules,
+			inlineRules,
+			skipNestedLists,
+		);
 	}
 
 	// A lone <br> as the only content of a block is a placeholder for an empty
@@ -841,58 +798,32 @@ function walkElement(
 	// Skip checkbox inputs inside list items (already handled by parseListElement)
 	if (skipNestedLists && tag === 'input' && el.getAttribute('type') === 'checkbox') return;
 
-	// Try inline node parse rules first (atomic — no recursion)
-	for (const entry of inlineRules) {
-		if (entry.rule.tag !== tag) continue;
-
-		if (entry.rule.getAttrs) {
-			const attrs = entry.rule.getAttrs(el);
-			if (attrs === false) continue;
-			result.push(
-				createInlineNode(
-					inlineType(entry.type) as InlineTypeName,
-					attrs as Readonly<Record<string, string | number | boolean>>,
-					[...currentMarks],
-				),
-			);
-			return;
-		}
-
+	// Inline nodes are atomic and take precedence over descendant markup.
+	const inlineMatch = matchHTMLParseRule(el, inlineRules);
+	if (inlineMatch) {
 		result.push(
-			createInlineNode(inlineType(entry.type) as InlineTypeName, undefined, [...currentMarks]),
+			createInlineNode(
+				inlineType(inlineMatch.type) as InlineTypeName,
+				inlineMatch.attrs as Readonly<Record<string, string | number | boolean>> | undefined,
+				currentMarks,
+			),
 		);
 		return;
 	}
 
-	const marks: Mark[] = [...currentMarks];
-
-	// Try mark parse rules — collect all matching marks for this element
-	const matchedTypes = new Set<string>();
-	for (const entry of markRules) {
-		if (entry.rule.tag !== tag) continue;
-		if (matchedTypes.has(entry.type)) continue;
-
-		if (entry.rule.getAttrs) {
-			const attrs = entry.rule.getAttrs(el);
-			if (attrs === false) continue;
-			if (!marks.some((m) => m.type === entry.type)) {
-				marks.push({
-					type: markType(entry.type),
-					...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-				} as Mark);
-				matchedTypes.add(entry.type);
-			}
-		} else {
-			if (!marks.some((m) => m.type === entry.type)) {
-				marks.push({ type: markType(entry.type) });
-				matchedTypes.add(entry.type);
-			}
-		}
-	}
-
+	const marks: Mark[] = parseHTMLMarks(el, currentMarks, markRules);
 	for (const child of Array.from(el.childNodes)) {
 		walkElement(child, marks, result, markRules, inlineRules, skipNestedLists);
 	}
+}
+
+/** Resolves wrapper formatting without cloning or modifying the parsed block tree. */
+function parseAncestorMarks(
+	node: Node,
+	markRules: readonly { readonly rule: ParseRule; readonly type: string }[],
+): Mark[] {
+	const parent: HTMLElement | null = node.parentElement;
+	return parent ? parseHTMLMarks(parent, parseAncestorMarks(parent, markRules), markRules) : [];
 }
 
 /** Extracts a validated `dir` attribute or inline `direction` style from an element. */
@@ -969,22 +900,4 @@ function rehydrateClasses(root: DocumentFragment, styleMap: ReadonlyMap<string, 
 			htmlEl.classList.remove(cls);
 		}
 	}
-}
-
-/** Matches an element against block parse rules. Returns matched type and attrs. */
-function matchBlockParseRule(
-	el: HTMLElement,
-	rules: readonly { readonly rule: ParseRule; readonly type: string }[],
-): { readonly type: string; readonly attrs?: Record<string, unknown> } | null {
-	const tag: string = el.tagName.toLowerCase();
-	for (const entry of rules) {
-		if (entry.rule.tag !== tag) continue;
-		if (entry.rule.getAttrs) {
-			const attrs = entry.rule.getAttrs(el);
-			if (attrs === false) continue;
-			return { type: entry.type, attrs };
-		}
-		return { type: entry.type };
-	}
-	return null;
 }

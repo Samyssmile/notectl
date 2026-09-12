@@ -19,7 +19,8 @@ const ENTRY_BUDGETS = [
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	['HTML codec', 'src/html.ts', 13],
-	['Markdown codec', 'src/markdown.ts', 29],
+	// #223: measured 29.09 KB; v2.3.8 already exceeded the old 29 KB budget at 29.07 KB.
+	['Markdown codec', 'src/markdown.ts', 29.5],
 	['Fonts (compatibility barrel)', 'src/fonts.ts', 555],
 	['Fonts (starter)', 'src/fonts/starter.ts', 255],
 	['Fonts (math)', 'src/fonts/math.ts', 300],

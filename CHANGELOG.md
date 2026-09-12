@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Preserve nested HTML wrappers and inline content (#223).** HTML import, Markdown HTML blocks and paste now preserve blocks behind intermediate wrappers such as `<div><span>…</span></div>`, including tables and multi-paragraph list items. Links and text formatting on transparent wrappers survive document import. Both parsers use the same rule-aware block detection: rejected block rules do not split inline content, and atomic inline nodes keep their markup. This fixes the v2.3.8 regression that turned inline formulas inside a `<div>` into separate plain-text paragraphs. Covered by parser, import/paste integration and browser regression tests.
+
 ## [2.3.8] - 2026-09-12
 
 ### Fixed

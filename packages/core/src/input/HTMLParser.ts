@@ -13,6 +13,12 @@ import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { InlineTypeName, NodeTypeName } from '../model/TypeBrands.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import {
+	hasHTMLBlockDescendants,
+	isHTMLBlockElement,
+	matchHTMLParseRule,
+	parseHTMLMarks,
+} from '../serialization/HTMLParseRules.js';
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 
 export interface HTMLParserOptions {
@@ -24,24 +30,24 @@ export interface HTMLParserOptions {
 type ListType = 'bullet' | 'ordered' | 'checklist';
 
 const BLOCK_ELEMENTS: ReadonlySet<string> = new Set([
-	'P',
-	'DIV',
-	'H1',
-	'H2',
-	'H3',
-	'H4',
-	'H5',
-	'H6',
-	'BLOCKQUOTE',
-	'UL',
-	'OL',
-	'LI',
-	'HR',
-	'PRE',
-	'TABLE',
-	'THEAD',
-	'TBODY',
-	'TR',
+	'p',
+	'div',
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'blockquote',
+	'ul',
+	'ol',
+	'li',
+	'hr',
+	'pre',
+	'table',
+	'thead',
+	'tbody',
+	'tr',
 ]);
 
 const INLINE_ELEMENTS: ReadonlySet<string> = new Set([
@@ -147,7 +153,9 @@ export class HTMLParser {
 		// A `<div>` around block children is a transparent wrapper (#223); only a
 		// `<div>` holding inline content is a paragraph.
 		const parseDiv = (el: HTMLElement): SliceBlock[] =>
-			this.hasBlockChildren(el) ? this.parseContainer(el) : parseParagraph(el);
+			this.containsBlockDescendants(el)
+				? this.parseContainerWithMarks(el, this.marksFromElement(el))
+				: parseParagraph(el);
 		const parseTable = (el: HTMLElement): SliceBlock[] => this.parseTableAsParagraphs(el);
 
 		return new Map<string, (el: HTMLElement) => SliceBlock[]>([
@@ -238,6 +246,12 @@ export class HTMLParser {
 
 	private parseUnknownBlock(element: HTMLElement): SliceBlock[] {
 		const blockMatch = this.matchBlockRule(element);
+		if (
+			(blockMatch?.type ?? 'paragraph') === 'paragraph' &&
+			this.containsBlockDescendants(element)
+		) {
+			return this.parseContainerWithMarks(element, this.marksFromElement(element));
+		}
 		if (blockMatch) {
 			return [
 				{
@@ -258,7 +272,7 @@ export class HTMLParser {
 	private parseBlockquote(element: HTMLElement): SliceBlock[] {
 		const blockType: NodeTypeName = this.resolveBlockType(nodeType('blockquote'));
 
-		if (this.hasBlockChildren(element)) {
+		if (this.containsBlockDescendants(element)) {
 			const innerBlocks: SliceBlock[] = this.parseContainer(element as HTMLElement);
 			return innerBlocks.map(
 				(b: SliceBlock): SliceBlock => ({
@@ -391,24 +405,13 @@ export class HTMLParser {
 
 	/** Matches an element against inline-node parse rules, returning a built InlineNode or null. */
 	private matchInlineNodeRule(el: HTMLElement): InlineNode | null {
-		if (this.inlineParseRules.length === 0) return null;
-
-		const tag: string = el.tagName.toLowerCase();
-		for (const entry of this.inlineParseRules) {
-			if (entry.rule.tag !== tag) continue;
-
-			if (entry.rule.getAttrs) {
-				const attrs = entry.rule.getAttrs(el);
-				if (attrs === false) continue;
-				return createInlineNode(
-					inlineType(entry.type) as InlineTypeName,
-					attrs as Readonly<Record<string, string | number | boolean>>,
-				);
-			}
-			return createInlineNode(inlineType(entry.type) as InlineTypeName);
-		}
-
-		return null;
+		const match = matchHTMLParseRule(el, this.inlineParseRules);
+		return match
+			? createInlineNode(
+					inlineType(match.type) as InlineTypeName,
+					match.attrs as Readonly<Record<string, string | number | boolean>> | undefined,
+				)
+			: null;
 	}
 
 	private parsePreContent(element: HTMLElement): ContentSegment[] {
@@ -445,30 +448,8 @@ export class HTMLParser {
 	}
 
 	private matchMarkRules(element: HTMLElement): readonly Mark[] | null {
-		if (this.markParseRules.length === 0) return null;
-
-		const tag: string = element.tagName.toLowerCase();
-		const marks: Mark[] = [];
-		const matchedTypes = new Set<string>();
-
-		for (const entry of this.markParseRules) {
-			if (entry.rule.tag !== tag) continue;
-			if (matchedTypes.has(entry.type)) continue;
-
-			if (entry.rule.getAttrs) {
-				const attrs = entry.rule.getAttrs(element);
-				if (attrs === false) continue;
-				marks.push({
-					type: markType(entry.type),
-					...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-				} as Mark);
-			} else {
-				marks.push({ type: markType(entry.type) });
-			}
-			matchedTypes.add(entry.type);
-		}
-
-		return matchedTypes.size > 0 ? marks : null;
+		const marks = parseHTMLMarks(element, [], this.markParseRules);
+		return marks.length > 0 ? marks : null;
 	}
 
 	private fallbackMarksFromElement(element: HTMLElement): readonly Mark[] {
@@ -534,33 +515,19 @@ export class HTMLParser {
 		readonly type: NodeTypeName;
 		readonly attrs?: Record<string, string | number | boolean>;
 	} | null {
-		const tag: string = el.tagName.toLowerCase();
-		for (const entry of this.blockParseRules) {
-			if (entry.rule.tag !== tag) continue;
-			if (entry.rule.getAttrs) {
-				const attrs = entry.rule.getAttrs(el);
-				if (attrs === false) continue;
-				return {
-					type: nodeType(entry.type),
-					attrs: attrs as Record<string, string | number | boolean>,
-				};
-			}
-			return { type: nodeType(entry.type) };
-		}
-		return null;
+		const match = matchHTMLParseRule(el, this.blockParseRules);
+		return match
+			? {
+					type: nodeType(match.type),
+					...(match.attrs
+						? { attrs: match.attrs as Record<string, string | number | boolean> }
+						: {}),
+				}
+			: null;
 	}
 
 	private isBlockElement(el: HTMLElement): boolean {
-		if (BLOCK_ELEMENTS.has(el.tagName)) return true;
-		const tag: string = el.tagName.toLowerCase();
-		return this.blockParseRules.some((entry) => entry.rule.tag === tag);
-	}
-
-	/** Whether any direct child is a block element (a wrapper rather than a leaf). */
-	private hasBlockChildren(element: HTMLElement): boolean {
-		return Array.from(element.childNodes).some(
-			(c: Node) => c.nodeType === Node.ELEMENT_NODE && this.isBlockElement(c as HTMLElement),
-		);
+		return isHTMLBlockElement(el, this.blockParseRules, this.inlineParseRules, BLOCK_ELEMENTS);
 	}
 
 	private hasCheckbox(element: HTMLElement): boolean {
@@ -575,13 +542,7 @@ export class HTMLParser {
 
 	/** Checks whether an element contains any block-level descendants. */
 	private containsBlockDescendants(el: HTMLElement): boolean {
-		for (const child of Array.from(el.children)) {
-			if (this.isBlockElement(child as HTMLElement)) return true;
-			if (this.containsBlockDescendants(child as HTMLElement)) {
-				return true;
-			}
-		}
-		return false;
+		return hasHTMLBlockDescendants(el, this.blockParseRules, this.inlineParseRules, BLOCK_ELEMENTS);
 	}
 
 	/** Parses a container element, prepending inherited marks. */

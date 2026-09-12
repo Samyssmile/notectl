@@ -33,6 +33,7 @@ import {
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
+import { hasHTMLBlockDescendants } from '../serialization/HTMLParseRules.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from '../serialization/HTMLSanitization.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
@@ -247,6 +248,8 @@ export class PasteHTMLHandler {
 	 * represents those losslessly.
 	 */
 	private containsMultiBlockListItem(container: DocumentFragment): boolean {
+		const blockRules = this.schemaRegistry?.getBlockParseRules() ?? [];
+		const inlineRules = this.schemaRegistry?.getInlineParseRules() ?? [];
 		const nonParagraphBlockTags: ReadonlySet<string> = new Set([
 			'PRE',
 			'BLOCKQUOTE',
@@ -267,6 +270,9 @@ export class PasteHTMLHandler {
 					const tag: string = (child as Element).tagName;
 					if (tag === 'UL' || tag === 'OL' || tag === 'INPUT' || tag === 'LI') continue;
 					if (nonParagraphBlockTags.has(tag)) return true;
+					// A paragraph-shaped wrapper can hide multiple blocks (#223).
+					// Only the document parser can represent those inside a list item.
+					if (hasHTMLBlockDescendants(child as HTMLElement, blockRules, inlineRules)) return true;
 					if (tag === 'P' || tag === 'DIV') {
 						paragraphCount++;
 						continue;

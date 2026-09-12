@@ -156,6 +156,10 @@ block-level elements (paragraphs, headings, lists, tables) is a transparent cont
 children are imported as blocks, and its `dir` and `text-align` carry over to child blocks that
 accept those attributes but do not set their own. The same applies to any other element that
 would otherwise become a paragraph but wraps blocks, such as the `<b>` wrapper Google Docs emits.
+Intermediate wrappers such as `<div><span><p>…</p></span></div>` are also transparent.
+Links and text formatting on a transparent wrapper are preserved on its imported content.
+Registered inline nodes remain atomic: their internal markup is not unwrapped, and an inline
+formula inside a `<div>` stays in the paragraph's text flow when pasted.
 
 Inline formatting maps:
 

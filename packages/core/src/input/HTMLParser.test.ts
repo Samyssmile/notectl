@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { registerBuiltinSpecs } from '../editor/BuiltinSpecs.js';
 import type { Schema } from '../model/Schema.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { createDisplayMathNodeSpec } from '../plugins/formula/DisplayMathNodeSpec.js';
+import { createInlineMathNodeSpec } from '../plugins/formula/InlineMathNodeSpec.js';
 import { HTMLParser } from './HTMLParser.js';
 
 function createTestSchema(opts?: {
@@ -398,6 +401,79 @@ describe('HTMLParser', () => {
 	});
 
 	describe('inline nodes (parseHTML rules)', () => {
+		it('does not unwrap block markup inside an atomic inline node (#223)', () => {
+			const registry = new SchemaRegistry();
+			registerBuiltinSpecs(registry);
+			registry.registerInlineNodeSpec({
+				type: 'badge',
+				toDOM: () => document.createElement('span'),
+				parseHTML: [{ tag: 'span', getAttrs: (el) => ({ label: el.textContent ?? '' }) }],
+			});
+			const parser = new HTMLParser({
+				schema: schemaFromRegistry(registry),
+				schemaRegistry: registry,
+			});
+			const slice = parseWith(parser, 'before<span><p>layout</p></span>after');
+			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'before', marks: [] },
+				expect.objectContaining({
+					kind: 'inline',
+					node: expect.objectContaining({ inlineType: 'badge' }),
+				}),
+				{ kind: 'text', text: 'after', marks: [] },
+			]);
+		});
+
+		it('keeps inline math inside a div when a display-math rule shares its tag (#223)', () => {
+			const registry = new SchemaRegistry();
+			registerBuiltinSpecs(registry);
+			registry.registerInlineNodeSpec(createInlineMathNodeSpec());
+			registry.registerNodeSpec(createDisplayMathNodeSpec());
+			const parser = new HTMLParser({
+				schema: schemaFromRegistry(registry),
+				schemaRegistry: registry,
+			});
+			const slice = parseWith(
+				parser,
+				'<div>before<math display="inline"><semantics><mi>x</mi>' +
+					'<annotation encoding="application/x-tex">x</annotation></semantics></math>after</div>',
+			);
+			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'before', marks: [] },
+				expect.objectContaining({
+					kind: 'inline',
+					node: expect.objectContaining({
+						inlineType: 'math_inline',
+						attrs: expect.objectContaining({ latex: 'x' }),
+					}),
+				}),
+				{ kind: 'text', text: 'after', marks: [] },
+			]);
+		});
+
+		it('does not split inline content when a conditional block rule rejects a span (#223)', () => {
+			const registry = new SchemaRegistry();
+			registerBuiltinSpecs(registry);
+			registry.registerNodeSpec({
+				type: 'widget',
+				toDOM: () => document.createElement('span'),
+				parseHTML: [
+					{ tag: 'span', getAttrs: (el) => (el.hasAttribute('data-widget') ? {} : false) },
+				],
+			});
+			const parser = new HTMLParser({
+				schema: schemaFromRegistry(registry),
+				schemaRegistry: registry,
+			});
+			const slice = parseWith(parser, '<div>before<span>middle</span>after</div>');
+			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.segments).toEqual([
+				{ kind: 'text', text: 'beforemiddleafter', marks: [] },
+			]);
+		});
+
 		function parserWithInlineMath(): HTMLParser {
 			const registry = new SchemaRegistry();
 			registry.registerInlineNodeSpec({
