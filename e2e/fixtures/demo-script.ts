@@ -120,7 +120,9 @@ export async function buildDemoDocument(
 	await typeText(page, ', a ');
 	await toggled(editor, page, 'italic', 'framework-agnostic');
 	await typeText(page, ' rich text editor shipped as a Web Component. See the ');
-	await styled(page, 'API reference', () => applyLink(editor, page, 'https://notectl.dev'));
+	await styled(page, 'API reference', () =>
+		applyLink(editor, page, 'https://samyssmile.github.io/notectl/'),
+	);
 	await typeText(page, ' for the full contract. Bootstrap it with ');
 	await styled(page, 'createEditor()', () => pickFont(editor, page));
 	await page.keyboard.press('Enter');
@@ -249,7 +251,7 @@ export async function buildDemoDocument(
 
 	await typeText(page, 'notectl team');
 	await page.keyboard.press('Shift+Enter');
-	await typeText(page, 'specs@notectl.dev');
+	await typeText(page, 'team@example.com');
 	await page.keyboard.press('Enter');
 
 	await insertImage(editor, page, imageUri);

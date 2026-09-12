@@ -647,7 +647,7 @@ const MARKDOWN_SAMPLE: string = [
 	'',
 	'> Postel’s law, applied strictly.',
 	'',
-	'Read the [documentation](https://notectl.dev/guides/markdown) for details.',
+	'Read the [documentation](https://samyssmile.github.io/notectl/guides/markdown/) for details.',
 ].join('\n');
 
 // ── Test Suite ─────────────────────────────────────────────────
