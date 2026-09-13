@@ -1651,3 +1651,73 @@ describe('Commands', () => {
 		});
 	});
 });
+
+describe('Commands — text ranges that start on a void block (#224)', () => {
+	const voidSchema: Schema = {
+		nodeTypes: ['paragraph', 'horizontal_rule'],
+		markTypes: ['bold', 'italic', 'underline'],
+		getNodeSpec: (type: string) => {
+			if (type !== 'horizontal_rule') return undefined;
+			return {
+				type,
+				isVoid: true,
+				toDOM: () => document.createElement('hr'),
+			} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+		},
+	};
+
+	function ruleThenParagraph(): EditorState {
+		const doc = createDocument([
+			createBlockNode('horizontal_rule', [], 'hr1'),
+			createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+		]);
+		return EditorState.create({
+			doc,
+			selection: createCollapsedSelection('b1', 2),
+			schema: voidSchema,
+		});
+	}
+
+	it('typing over a select-all replaces the document with one paragraph holding the text (#224)', () => {
+		const state = ruleThenParagraph();
+		const selected = state.apply(selectAll(state));
+
+		const result = selected.apply(insertTextCommand(selected, 'x'));
+
+		expect(result.doc.children.map((b) => b.type)).toEqual(['paragraph']);
+		const only = result.doc.children[0];
+		if (!only) throw new Error('expected one block');
+		expect(getBlockText(only)).toBe('x');
+		expect(isTextSelection(result.selection)).toBe(true);
+		if (isTextSelection(result.selection)) {
+			expect(result.selection.anchor.blockId).toBe(only.id);
+			expect(result.selection.anchor.offset).toBe(1);
+		}
+	});
+
+	it('Enter over a select-all yields paragraphs instead of duplicating the void block (#224)', () => {
+		const state = ruleThenParagraph();
+		const selected = state.apply(selectAll(state));
+
+		const tr = splitBlockCommand(selected);
+		expect(tr).not.toBeNull();
+		if (!tr) return;
+		const result = selected.apply(tr);
+
+		expect(result.doc.children.map((b) => b.type)).toEqual(['paragraph', 'paragraph']);
+	});
+
+	it('typing over a range from the void block into the paragraph keeps the unselected tail (#224)', () => {
+		const state = ruleThenParagraph();
+		const selected = state.withSelection(
+			createSelection({ blockId: 'hr1', offset: 0 }, { blockId: 'b1', offset: 3 }),
+		);
+
+		const result = selected.apply(insertTextCommand(selected, 'x'));
+
+		expect(result.doc.children.map((b) => b.type)).toEqual(['paragraph']);
+		const only = result.doc.children[0];
+		if (!only) throw new Error('expected one block');
+		expect(getBlockText(only)).toBe('xlo');
+	});
+});

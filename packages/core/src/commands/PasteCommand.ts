@@ -175,7 +175,8 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 
 	let blockIdx: number;
 	if (landingId) {
-		// Landing block was inserted at the from-block's root-level position
+		// The landing block sits in the from-block's root-level slot: either
+		// inserted there, or the to-leaf that slid into it after the deletion.
 		const fromPath = findNodePath(state.doc, resolved.blockId);
 		const rootId: string | undefined = fromPath?.[0];
 		blockIdx = rootId ? state.doc.children.findIndex((c) => c.id === rootId) : 0;

@@ -6,6 +6,7 @@
  * or whether navigation between two blocks is allowed.
  */
 
+import { isVoidNodeType } from '../model/Schema.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from './EditorState.js';
 
@@ -13,9 +14,7 @@ import type { EditorState } from './EditorState.js';
 export function isVoidBlock(state: EditorState, bid: BlockId): boolean {
 	const block = state.getBlock(bid);
 	if (!block) return false;
-	const getNodeSpec = state.schema.getNodeSpec;
-	if (!getNodeSpec) return false;
-	return getNodeSpec(block.type)?.isVoid === true;
+	return isVoidNodeType(state.schema, block.type);
 }
 
 /** Checks whether two blocks share the same parent in the document tree. */

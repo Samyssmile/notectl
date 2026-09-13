@@ -425,8 +425,7 @@ export function addDeleteSelectionSteps(
 	const toRootIdx: number = getRootBlockIndex(state, range.to.blockId);
 
 	if (fromRootIdx === toRootIdx || fromRootIdx < 0 || toRootIdx < 0) {
-		deleteLeafRange(state, builder, blockOrder, range, fromIdx, toIdx);
-		return undefined;
+		return deleteLeafRange(state, builder, blockOrder, range, fromIdx, toIdx);
 	}
 
 	return deleteCrossRootRange(state, builder, range, fromRootIdx, toRootIdx);

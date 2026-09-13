@@ -514,12 +514,10 @@ describe('PasteCommand', () => {
 			const tr = pasteSlice(state, slice);
 			const newState = state.apply(tr);
 
-			// Table removed, landing paragraph created with pasted text, b2 tail preserved
+			// Table removed; the pasted text lands ahead of the surviving "ld" tail,
+			// which hosts the caret once the from-root is gone (#224)
 			const texts: string[] = newState.doc.children.map((c) => getBlockText(c));
-			expect(texts).toContain('pasted');
-			expect(newState.doc.children.length).toBeGreaterThanOrEqual(2);
-			// "Hello" paragraph (b1) should survive
-			expect(getBlockText(newState.doc.children[0])).toBe('Hello');
+			expect(texts).toEqual(['Hello', 'pastedld']);
 		});
 
 		it('pasteSingleBlock replaces cross-root selection with typed block', () => {
@@ -537,10 +535,11 @@ describe('PasteCommand', () => {
 			const tr = pasteSlice(state, slice);
 			const newState = state.apply(tr);
 
-			// Table removed, landing paragraph replaced with heading containing "Title"
+			// Table removed; the surviving "ld" tail takes the pasted block's type
+			// and text, as a collapsed caret inside it would (#224)
 			const headings = newState.doc.children.filter((c) => c.type === 'heading');
 			expect(headings.length).toBe(1);
-			expect(getBlockText(headings[0])).toBe('Title');
+			expect(getBlockText(headings[0])).toBe('Titleld');
 		});
 
 		it('pasteMultiBlock replaces cross-root selection with multiple blocks', () => {

@@ -24,6 +24,7 @@ import {
 	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import type { Schema } from '../model/Schema.js';
 import { createSelection, isCollapsed, isTextSelection } from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
@@ -235,8 +236,8 @@ describe('deleteCrossRootRange — boundary at a container edge (wholesale)', ()
 			{ id: 'c1', offset: 0 },
 			{ id: 'p9', offset: 2 },
 		);
-		// Whole list item covered from its start → removed; landing paragraph + "rld".
-		expect(renderDoc(applyDelete(state).doc)).toBe('paragraph(""),paragraph("rld")');
+		// Whole list item covered from its start → removed; the caret lands in "rld".
+		expect(renderDoc(applyDelete(state).doc)).toBe('paragraph("rld")');
 	});
 
 	it('removes the whole container when the to-boundary is at its very end', () => {
@@ -306,8 +307,8 @@ describe('deleteCrossRootRange — structured containers stay valid', () => {
 		);
 		const result = applyDelete(state).doc;
 		assertNoRaggedTable(result);
-		// From-table removed wholesale with a landing paragraph; "side" survives.
-		expect(renderDoc(result)).toBe('paragraph(""),paragraph("side")');
+		// From-table removed wholesale; "side" survives and hosts the caret.
+		expect(renderDoc(result)).toBe('paragraph("side")');
 	});
 });
 
@@ -339,6 +340,106 @@ describe('deleteCrossRootRange — undo round-trip', () => {
 		if (!tr) throw new Error('expected a transaction');
 		const deleted = state.apply(tr);
 		const restored = deleted.apply(invertTransaction(tr));
+		expect(restored.doc).toEqual(original);
+	});
+});
+
+// --- void endpoints: a void block is removed, never merged into (#224) ---
+
+describe('range deletion with void endpoints (#224)', () => {
+	const VOID_SCHEMA: Schema = {
+		nodeTypes: [...SCHEMA.nodeTypes, 'horizontal_rule'],
+		markTypes: [],
+		getNodeSpec: (type: string) => {
+			if (type !== 'horizontal_rule') return undefined;
+			return {
+				type,
+				isVoid: true,
+				toDOM: () => document.createElement('hr'),
+			} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+		},
+	};
+	const rule = (id: string): BlockNode => createBlockNode('horizontal_rule', [], blockId(id));
+
+	function voidStateOf(
+		blocks: readonly BlockNode[],
+		from: { id: string; offset: number },
+		to: { id: string; offset: number },
+	): EditorState {
+		return EditorState.create({
+			doc: createDocument([...blocks]),
+			selection: createSelection(
+				{ blockId: blockId(from.id), offset: from.offset },
+				{ blockId: blockId(to.id), offset: to.offset },
+			),
+			schema: VOID_SCHEMA,
+		});
+	}
+
+	function caretOf(state: EditorState): { id: string; offset: number } {
+		if (!isTextSelection(state.selection) || !isCollapsed(state.selection)) {
+			throw new Error('expected a collapsed text selection');
+		}
+		return { id: state.selection.anchor.blockId, offset: state.selection.anchor.offset };
+	}
+
+	it('removes a from-endpoint void root and lands the caret in the trimmed paragraph (#224)', () => {
+		const state = voidStateOf(
+			[rule('hr1'), para('hello', 'p1'), para('after', 'p2')],
+			{ id: 'hr1', offset: 0 },
+			{ id: 'p1', offset: 3 },
+		);
+		const result = applyDelete(state);
+		expect(renderDoc(result.doc)).toBe('paragraph("lo"),paragraph("after")');
+		expect(caretOf(result)).toEqual({ id: 'p1', offset: 0 });
+	});
+
+	it('removes to-endpoint and middle void roots without merging them (#224)', () => {
+		const state = voidStateOf(
+			[para('hello', 'p0'), rule('hr1'), rule('hr2'), para('after', 'p9')],
+			{ id: 'p0', offset: 2 },
+			{ id: 'hr2', offset: 0 },
+		);
+		const result = applyDelete(state);
+		expect(renderDoc(result.doc)).toBe('paragraph("he"),paragraph("after")');
+		expect(caretOf(result)).toEqual({ id: 'p0', offset: 2 });
+	});
+
+	it('replaces a range of only void roots with an empty landing paragraph (#224)', () => {
+		const state = voidStateOf(
+			[rule('hr1'), rule('hr2'), para('tail', 'p9')],
+			{ id: 'hr1', offset: 0 },
+			{ id: 'hr2', offset: 0 },
+		);
+		const result = applyDelete(state);
+		expect(renderDoc(result.doc)).toBe('paragraph(""),paragraph("tail")');
+		expect(caretOf(result).offset).toBe(0);
+		expect(caretOf(result).id).toBe(result.doc.children[0]?.id);
+	});
+
+	it('same root: removes a leading void block inside a cell and keeps the paragraph tail (#224)', () => {
+		const table = grid('t1', [
+			trow('r0', [
+				createBlockNode('table_cell', [rule('img1'), para('hello', 'cp')], blockId('c0')),
+			]),
+		]);
+		const state = voidStateOf([table], { id: 'img1', offset: 0 }, { id: 'cp', offset: 3 });
+		const result = applyDelete(state);
+		assertNoRaggedTable(result.doc);
+		expect(renderDoc(result.doc)).toBe('table[table_row[table_cell[paragraph("lo")]]]');
+		expect(caretOf(result)).toEqual({ id: 'cp', offset: 0 });
+	});
+
+	it('inverting a delete with void endpoints restores the original document (#224)', () => {
+		const state = voidStateOf(
+			[rule('hr1'), para('hello', 'p1'), rule('hr2'), para('after', 'p2')],
+			{ id: 'hr1', offset: 0 },
+			{ id: 'hr2', offset: 0 },
+		);
+		const original: Document = state.doc;
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('expected a transaction');
+		const restored = state.apply(tr).apply(invertTransaction(tr));
 		expect(restored.doc).toEqual(original);
 	});
 });

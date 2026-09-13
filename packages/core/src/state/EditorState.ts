@@ -13,24 +13,20 @@ import {
 	createDocument,
 	freezeDocument,
 	freezeMarks,
-	getBlockLength,
 	isBlockNode,
 	isLeafBlock,
 } from '../model/Document.js';
 import { findNode, findNodePath } from '../model/NodeResolver.js';
 import type { Schema } from '../model/Schema.js';
 import { defaultSchema } from '../model/Schema.js';
-import type { EditorSelection, Position } from '../model/Selection.js';
+import type { EditorSelection } from '../model/Selection.js';
 import {
 	cloneEditorSelection,
 	createCollapsedSelection,
-	createPosition,
-	createSelection,
 	freezeEditorSelection,
-	isGapCursor,
-	isNodeSelection,
 } from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
+import { homeSelection, validateSelection } from './SelectionValidation.js';
 import { applyStep } from './StepHandlers.js';
 import type { Transaction } from './Transaction.js';
 import { TransactionBuilder } from './Transaction.js';
@@ -70,10 +66,9 @@ export class EditorState {
 	}): EditorState {
 		const schema = options?.schema ?? defaultSchema();
 		const doc = options?.doc ? cloneDocument(options.doc) : createDocument();
-		const firstLeaf = findFirstLeafBlock(doc.children);
-		const selection = options?.selection
-			? validateSelection(doc, cloneEditorSelection(options.selection))
-			: createCollapsedSelection(firstLeaf ? firstLeaf.id : blockId(''), 0);
+		const selection: EditorSelection = options?.selection
+			? validateSelection(doc, schema, cloneEditorSelection(options.selection))
+			: (homeSelection(doc, schema) ?? createCollapsedSelection(blockId(''), 0));
 
 		return new EditorState(doc, selection, null, schema);
 	}
@@ -93,7 +88,11 @@ export class EditorState {
 			doc = applyStep(doc, step);
 		}
 
-		const selection = validateSelection(doc, cloneEditorSelection(tr.selectionAfter));
+		const selection: EditorSelection = validateSelection(
+			doc,
+			this.schema,
+			cloneEditorSelection(tr.selectionAfter),
+		);
 		return new EditorState(doc, selection, tr.storedMarksAfter, this.schema);
 	}
 
@@ -125,7 +124,11 @@ export class EditorState {
 
 	/** Returns a new state with the given selection validated against this document. */
 	withSelection(selection: EditorSelection): EditorState {
-		const validated: EditorSelection = validateSelection(this.doc, cloneEditorSelection(selection));
+		const validated: EditorSelection = validateSelection(
+			this.doc,
+			this.schema,
+			cloneEditorSelection(selection),
+		);
 		return new EditorState(this.doc, validated, this.storedMarks, this.schema);
 	}
 
@@ -149,63 +152,6 @@ export class EditorState {
 	): EditorState {
 		return EditorState.create({ doc: json.doc, selection: json.selection, schema });
 	}
-}
-
-/** Validates a position against the document, clamping or falling back as needed. */
-function validatePosition(doc: Document, pos: Position): Position {
-	const block = findNode(doc, pos.blockId);
-	if (block && isLeafBlock(block)) {
-		const length = getBlockLength(block);
-		const finiteOffset: number = Number.isFinite(pos.offset) ? Math.trunc(pos.offset) : 0;
-		const offset: number = Math.max(0, Math.min(length, finiteOffset));
-		if (offset !== pos.offset) {
-			return createPosition(pos.blockId, offset, pos.path);
-		}
-		return pos;
-	}
-
-	const firstLeaf = findFirstLeafBlock(block ? block.children : doc.children);
-	if (firstLeaf) return createPosition(firstLeaf.id, 0);
-	const documentLeaf = findFirstLeafBlock(doc.children);
-	return documentLeaf ? createPosition(documentLeaf.id, 0) : pos;
-}
-
-/** Validates a selection against the document, ensuring blockIds exist and offsets are in bounds. */
-function validateSelection(doc: Document, sel: EditorSelection): EditorSelection {
-	if (isNodeSelection(sel)) {
-		const node = findNode(doc, sel.nodeId);
-		if (node) return sel;
-		// Node was deleted — fall back to first leaf block
-		return fallbackSelection(doc, sel);
-	}
-	if (isGapCursor(sel)) {
-		const node = findNode(doc, sel.blockId);
-		if (node) return sel;
-		// Referenced block was deleted — fall back to first leaf block
-		return fallbackSelection(doc, sel);
-	}
-	const anchor = validatePosition(doc, sel.anchor);
-	const head = validatePosition(doc, sel.head);
-	if (anchor === sel.anchor && head === sel.head) return sel;
-	return createSelection(anchor, head);
-}
-
-/** Returns a collapsed selection on the first leaf block, or the original selection if no blocks exist. */
-function fallbackSelection(doc: Document, sel: EditorSelection): EditorSelection {
-	const leaf = findFirstLeafBlock(doc.children);
-	if (!leaf) return sel;
-	return createCollapsedSelection(leaf.id, 0);
-}
-
-/** Descends into the first child of each container block to find the first leaf block. */
-function findFirstLeafBlock(children: readonly ChildNode[]): BlockNode | null {
-	for (const child of children) {
-		if (!isBlockNode(child)) continue;
-		if (isLeafBlock(child)) return child;
-		const nested: BlockNode | null = findFirstLeafBlock(child.children);
-		if (nested) return nested;
-	}
-	return null;
 }
 
 /** Recursively builds a Map of blockId → BlockNode for all nodes in the tree. */

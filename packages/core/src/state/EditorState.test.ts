@@ -6,11 +6,13 @@ import {
 	getBlockText,
 	getTextChildren,
 } from '../model/Document.js';
+import type { Schema } from '../model/Schema.js';
 import {
 	createCollapsedSelection,
 	createGapCursor,
 	createNodeSelection,
 	createSelection,
+	isNodeSelection,
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
@@ -616,5 +618,74 @@ describe('EditorState', () => {
 				expect(newState.selection.anchor.blockId).toBe('b1');
 			}
 		});
+	});
+});
+
+describe('EditorState — void blocks never host a text cursor (#224)', () => {
+	const voidSchema: Schema = {
+		nodeTypes: ['paragraph', 'horizontal_rule'],
+		markTypes: [],
+		getNodeSpec: (type: string) => {
+			if (type !== 'horizontal_rule') return undefined;
+			return {
+				type,
+				isVoid: true,
+				toDOM: () => document.createElement('hr'),
+			} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+		},
+	};
+
+	function ruleThenParagraph() {
+		return createDocument([
+			createBlockNode('horizontal_rule', [], 'hr1'),
+			createBlockNode('paragraph', [createTextNode('hello')], 'b1'),
+		]);
+	}
+
+	it('seeds the initial cursor on the first text block, skipping a leading void block (#224)', () => {
+		const state = EditorState.create({ doc: ruleThenParagraph(), schema: voidSchema });
+
+		expect(isTextSelection(state.selection)).toBe(true);
+		if (isTextSelection(state.selection)) {
+			expect(state.selection.anchor.blockId).toBe('b1');
+			expect(state.selection.anchor.offset).toBe(0);
+		}
+	});
+
+	it('turns a collapsed text cursor on a void block into a NodeSelection (#224)', () => {
+		const state = EditorState.create({ doc: ruleThenParagraph(), schema: voidSchema });
+
+		const result = state.withSelection(createCollapsedSelection('hr1', 0));
+
+		expect(isNodeSelection(result.selection)).toBe(true);
+		if (isNodeSelection(result.selection)) {
+			expect(result.selection.nodeId).toBe('hr1');
+		}
+	});
+
+	it('falls back to a NodeSelection when the document holds only void blocks (#224)', () => {
+		const doc = createDocument([createBlockNode('horizontal_rule', [], 'hr1')]);
+
+		const state = EditorState.create({ doc, schema: voidSchema });
+
+		expect(isNodeSelection(state.selection)).toBe(true);
+		if (isNodeSelection(state.selection)) {
+			expect(state.selection.nodeId).toBe('hr1');
+		}
+	});
+
+	it('keeps a range selection whose anchor sits on a void block (#224)', () => {
+		const state = EditorState.create({ doc: ruleThenParagraph(), schema: voidSchema });
+
+		const result = state.withSelection(
+			createSelection({ blockId: 'hr1', offset: 0 }, { blockId: 'b1', offset: 3 }),
+		);
+
+		expect(isTextSelection(result.selection)).toBe(true);
+		if (isTextSelection(result.selection)) {
+			expect(result.selection.anchor.blockId).toBe('hr1');
+			expect(result.selection.head.blockId).toBe('b1');
+			expect(result.selection.head.offset).toBe(3);
+		}
 	});
 });

@@ -48,3 +48,8 @@ export function isMarkAllowed(schema: Schema, markType: string): boolean {
 export function isNodeTypeAllowed(schema: Schema, nodeType: string): boolean {
 	return schema.nodeTypes.includes(nodeType);
 }
+
+/** Checks whether the schema declares the node type void (no editable text, e.g. image, HR). */
+export function isVoidNodeType(schema: Schema, nodeType: string): boolean {
+	return schema.getNodeSpec?.(nodeType)?.isVoid === true;
+}

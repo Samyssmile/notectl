@@ -5,6 +5,7 @@ import {
 	createTextNode,
 	getBlockChildren,
 } from '../../model/Document.js';
+import type { Schema } from '../../model/Schema.js';
 import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
@@ -13,7 +14,7 @@ import type { PluginContext } from '../Plugin.js';
 import { TABLE_LOCALE_EN } from './TableLocale.js';
 import { registerTableKeymaps, resolveTableMenuSizeTarget } from './TableNavigation.js';
 import { TableSelectionServiceKey } from './TableSelection.js';
-import { TABLE_SCHEMA, createTableState } from './TableTestUtils.js';
+import { TABLE_SCHEMA, createTableState, createTestTableNode } from './TableTestUtils.js';
 
 // --- Test-specific Helpers ---
 
@@ -343,5 +344,42 @@ describe('TableNavigation', () => {
 
 			expect(pressKey('Delete')).toBe(false);
 		});
+	});
+});
+
+describe('TableNavigation — leaving a table towards a void block (#224)', () => {
+	const schemaWithRule = {
+		nodeTypes: [...TABLE_SCHEMA.nodeTypes, 'horizontal_rule'],
+		markTypes: TABLE_SCHEMA.markTypes,
+		getNodeSpec: (type: string) => {
+			if (type !== 'horizontal_rule') return undefined;
+			return {
+				type,
+				isVoid: true,
+				toDOM: () => document.createElement('hr'),
+			} as ReturnType<NonNullable<Schema['getNodeSpec']>>;
+		},
+	};
+
+	it('Escape selects a following void block as a node instead of placing a text cursor on it (#224)', () => {
+		const { table } = createTestTableNode(1, 1, 't1', () => 'cell');
+		const doc = createDocument([
+			table,
+			createBlockNode('horizontal_rule' as NodeTypeName, [], 'hr1' as BlockId),
+		]);
+		const state = EditorState.create({
+			doc,
+			selection: createCollapsedSelection('p0_0' as BlockId, 0),
+			schema: schemaWithRule,
+		});
+		const { pressKey, getState } = createContextWithKeymaps(state);
+
+		expect(pressKey('Escape')).toBe(true);
+
+		const sel = getState().selection;
+		expect(isNodeSelection(sel)).toBe(true);
+		if (isNodeSelection(sel)) {
+			expect(sel.nodeId).toBe('hr1');
+		}
 	});
 });

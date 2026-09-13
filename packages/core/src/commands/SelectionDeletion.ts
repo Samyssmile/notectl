@@ -3,6 +3,10 @@
  * Commands.ts. Handles two cases: a selection whose blocks share one root
  * ancestor (leaf range) and a selection spanning different root ancestors
  * (cross-root range).
+ *
+ * A void block (image, horizontal rule) at either end of a range is wholly
+ * selected — it has no partial content and cannot host the caret — so it is
+ * removed outright and never merged into (#224).
  */
 
 import type { BlockNode } from '../model/Document.js';
@@ -16,7 +20,9 @@ import {
 import { findNodePath } from '../model/NodeResolver.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import { isVoidBlock } from '../state/NavigationQueries.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
+import { resolveSiblingContext } from './CommandHelpers.js';
 
 /**
  * Root container types whose children are free-flowing blocks and may be
@@ -42,7 +48,15 @@ export function getRootBlockIndex(state: EditorState, blockId: BlockId): number 
 	return state.doc.children.findIndex((c) => c.id === rootId);
 }
 
-/** Deletes a multi-block selection where all blocks share the same root ancestor. */
+/**
+ * Deletes a multi-block selection where all blocks share the same root ancestor.
+ *
+ * The first block in the range that can hold a caret survives and absorbs what
+ * the later blocks keep; void blocks ahead of it are removed in place. Returns
+ * the survivor when it is not the from-block (the caret then lands at its
+ * offset 0), or the landing paragraph swapped in when the range is void-only;
+ * undefined when the from-block itself survives.
+ */
 export function deleteLeafRange(
 	state: EditorState,
 	builder: TransactionBuilder,
@@ -50,32 +64,97 @@ export function deleteLeafRange(
 	range: DeletionRange,
 	fromIdx: number,
 	toIdx: number,
+): BlockId | undefined {
+	const rangeIds: readonly BlockId[] = blockOrder.slice(fromIdx, toIdx + 1);
+	const survivorIdx: number = rangeIds.findIndex((id) => !isVoidBlock(state, id));
+	if (survivorIdx < 0) return replaceVoidOnlyRange(state, builder, rangeIds);
+	const survivorId: BlockId = rangeIds[survivorIdx] as BlockId;
+
+	for (const id of rangeIds) {
+		const block: BlockNode | undefined = state.getBlock(id);
+		if (block) deleteSelectedText(builder, block, range);
+	}
+	removeVoidBlocks(state, builder, rangeIds.slice(0, survivorIdx));
+	for (const id of rangeIds.slice(survivorIdx + 1)) {
+		builder.mergeBlocksAt(survivorId, id);
+	}
+
+	return survivorIdx === 0 ? undefined : survivorId;
+}
+
+/** Deletes the part of `block`'s inline content that lies inside `range`. */
+function deleteSelectedText(
+	builder: TransactionBuilder,
+	block: BlockNode,
+	range: DeletionRange,
 ): void {
-	const firstBlock = state.getBlock(range.from.blockId);
-	if (!firstBlock) return;
-	const firstLen = getBlockLength(firstBlock);
+	const length: number = getBlockLength(block);
+	const from: number = block.id === range.from.blockId ? range.from.offset : 0;
+	const to: number = block.id === range.to.blockId ? range.to.offset : length;
+	if (from < to) builder.deleteTextAt(block.id, from, to);
+}
 
-	if (range.from.offset < firstLen) {
-		builder.deleteTextAt(range.from.blockId, range.from.offset, firstLen);
-	}
+/**
+ * Removes a range made only of void blocks and returns the empty paragraph
+ * that takes their place and hosts the caret.
+ */
+function replaceVoidOnlyRange(
+	state: EditorState,
+	builder: TransactionBuilder,
+	ids: readonly BlockId[],
+): BlockId | undefined {
+	const first: BlockId | undefined = ids[0];
+	if (!first) return undefined;
+	const { parentPath, index } = resolveSiblingContext(state, first);
+	if (index < 0) return undefined;
 
-	if (range.to.offset > 0) {
-		builder.deleteTextAt(range.to.blockId, 0, range.to.offset);
-	}
+	const swappedIn: BlockId | undefined = removeVoidBlocks(state, builder, ids);
+	if (swappedIn) return swappedIn;
 
-	for (let i = fromIdx + 1; i < toIdx; i++) {
-		const midBlockId = blockOrder[i];
-		if (!midBlockId) continue;
-		const midBlock = state.getBlock(midBlockId);
-		if (!midBlock) continue;
-		const midLen = getBlockLength(midBlock);
-		if (midLen > 0) {
-			builder.deleteTextAt(midBlockId, 0, midLen);
+	// Earlier siblings are untouched, so the first block's slot is still `index`.
+	const landingId: BlockId = generateBlockId();
+	builder.insertNode(parentPath, index, createEmptyParagraph(landingId));
+	return landingId;
+}
+
+/**
+ * Removes void blocks in place, last first so positional indexes stay valid.
+ * A parent about to lose its last child keeps an empty paragraph instead, so
+ * containers such as table cells never end up empty. Returns the paragraph
+ * swapped in for the first block, if one was needed.
+ */
+function removeVoidBlocks(
+	state: EditorState,
+	builder: TransactionBuilder,
+	ids: readonly BlockId[],
+): BlockId | undefined {
+	const removedPerParent = new Map<string, number>();
+	let swappedInForFirst: BlockId | undefined;
+
+	for (let i = ids.length - 1; i >= 0; i--) {
+		const { parentPath, siblings, index } = resolveSiblingContext(state, ids[i] as BlockId);
+		if (index < 0) continue;
+		const parentKey: string = parentPath.join('/');
+		const removedBefore: number = removedPerParent.get(parentKey) ?? 0;
+		removedPerParent.set(parentKey, removedBefore + 1);
+
+		if (siblings.length - removedBefore > 1) {
+			builder.removeNode(parentPath, index);
+			continue;
 		}
-		builder.mergeBlocksAt(range.from.blockId, midBlockId);
+		// Last remaining child (so at index 0): swap in an empty paragraph.
+		const replacementId: BlockId = generateBlockId();
+		builder.insertNode(parentPath, 0, createEmptyParagraph(replacementId));
+		builder.removeNode(parentPath, 1);
+		if (i === 0) swappedInForFirst = replacementId;
 	}
 
-	builder.mergeBlocksAt(range.from.blockId, range.to.blockId);
+	return swappedInForFirst;
+}
+
+/** A leaf block that can hold a caret: any leaf except a void one. */
+function isTextLeaf(state: EditorState, block: BlockNode): boolean {
+	return isLeafBlock(block) && !isVoidBlock(state, block.id);
 }
 
 /**
@@ -88,10 +167,12 @@ export function deleteLeafRange(
  * `range.to`. A container is removed wholesale only when the boundary lands at
  * its very edge (offset 0 of its first leaf, or the end of its last leaf), so
  * the whole container is genuinely inside the selection. Root blocks strictly
- * between the endpoints are always removed.
+ * between the endpoints are always removed, and a void root at either end is
+ * always removed wholesale.
  *
- * Returns a replacement cursor block ID when the from-root was removed wholesale
- * (its cursor block went with it); undefined otherwise, since the from boundary
+ * Returns the block hosting the caret when the from-root was removed wholesale
+ * (its cursor block went with it): the surviving to-leaf, or a landing paragraph
+ * inserted in the from-root's slot. Undefined otherwise, since the from boundary
  * leaf then survives and hosts the caret.
  */
 export function deleteCrossRootRange(
@@ -108,13 +189,13 @@ export function deleteCrossRootRange(
 	const toLeaf = state.getBlock(range.to.blockId);
 	if (!toLeaf) return undefined;
 
-	const fromIsLeaf: boolean = isLeafBlock(fromRoot);
-	const toIsLeaf: boolean = isLeafBlock(toRoot);
+	const fromIsLeaf: boolean = isTextLeaf(state, fromRoot);
+	const toIsLeaf: boolean = isTextLeaf(state, toRoot);
 
-	// A composite root is removed wholesale (rather than trimmed) when it is not
-	// a flat block container, or when the boundary sits at its very edge and so
-	// covers the whole container: the from-root's edge is offset 0 of its first
-	// leaf, the to-root's is the end of its last leaf.
+	// A non-leaf root is removed wholesale (rather than trimmed) when it is void
+	// or not a flat block container, or when the boundary sits at its very edge
+	// and so covers the whole container: the from-root's edge is offset 0 of its
+	// first leaf, the to-root's is the end of its last leaf.
 	const fromAtStart: boolean =
 		range.from.offset === 0 && firstLeafId(fromRoot) === range.from.blockId;
 	const toAtEnd: boolean =
@@ -125,10 +206,7 @@ export function deleteCrossRootRange(
 
 	// --- from side: keep everything before range.from within the from-root ---
 	if (fromIsLeaf) {
-		const fromLen: number = getBlockLength(fromRoot);
-		if (range.from.offset < fromLen) {
-			builder.deleteTextAt(range.from.blockId, range.from.offset, fromLen);
-		}
+		deleteSelectedText(builder, fromRoot, range);
 	} else if (!fromWholesale) {
 		trimContainerTail(
 			builder,
@@ -142,7 +220,7 @@ export function deleteCrossRootRange(
 
 	// --- to side: keep everything after range.to within the to-root ---
 	if (toIsLeaf) {
-		if (range.to.offset > 0) builder.deleteTextAt(range.to.blockId, 0, range.to.offset);
+		deleteSelectedText(builder, toRoot, range);
 	} else if (!toWholesale) {
 		trimContainerHead(
 			builder,
@@ -155,11 +233,15 @@ export function deleteCrossRootRange(
 	}
 
 	// --- root-level removals: middle roots always, endpoints only when wholesale ---
-	// A wholesale-removed from-root takes its cursor block with it, so a landing
-	// paragraph is inserted to host the caret and any follow-up insert.
+	// A wholesale-removed from-root takes its cursor block with it. A surviving
+	// to-leaf slides into the from-root's slot and hosts the caret at its start;
+	// otherwise a landing paragraph is inserted there for the caret and any
+	// follow-up insert.
 	let landingId: BlockId | undefined;
 	let shift = 0;
-	if (fromWholesale) {
+	if (fromWholesale && toIsLeaf) {
+		landingId = range.to.blockId;
+	} else if (fromWholesale) {
 		landingId = generateBlockId();
 		builder.insertNode([], fromRootIdx, createEmptyParagraph(landingId));
 		shift = 1;
