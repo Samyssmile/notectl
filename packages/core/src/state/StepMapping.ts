@@ -127,6 +127,23 @@ function isRangeUnchanged(
 	);
 }
 
+/**
+ * Maps an inline node's atomic `[offset, offset + 1)` slot. Its edges are
+ * pinned inward (`from` sticky-right, `to` sticky-left), so an insertion or
+ * split at either boundary lands outside the slot. Returns `null` unless the
+ * slot still spans exactly one unit, i.e. when the node was removed or replaced.
+ */
+function mapInlineNodeSlot(
+	blockId: BlockId,
+	offset: number,
+	mapping: Mapping,
+): MappedInBlockRange | null {
+	const mapped = mapInBlockRange(blockId, offset, offset + 1, mapping, 1, -1);
+	if (!mapped) return null;
+	if (mapped.to - mapped.from !== 1) return null;
+	return mapped;
+}
+
 // --- Content-shifting steps ---
 
 export function mapInsertText(step: InsertTextStep, mapping: Mapping, _doc: Document): Step | null {
@@ -195,13 +212,8 @@ export function mapRemoveInlineNode(
 	mapping: Mapping,
 	doc: Document,
 ): Step | null {
-	// Inline nodes occupy [offset, offset+1) atomically. Treating the position
-	// as a width-1 range with sticky-right `from` is what keeps the rebased
-	// offset pointing at the SAME slot even when intervening edits inserted
-	// content immediately before it.
-	const mapped = mapInBlockRange(step.blockId, step.offset, step.offset + 1, mapping, 1, 1);
+	const mapped = mapInlineNodeSlot(step.blockId, step.offset, mapping);
 	if (!mapped) return null;
-	if (mapped.to - mapped.from !== 1) return null;
 
 	// Verify the inline at the rebased slot is still the one the user wanted
 	// to remove. The position mapping does not track inline identity, so an
@@ -388,9 +400,8 @@ export function mapSetInlineNodeAttr(
 	mapping: Mapping,
 	doc: Document,
 ): Step | null {
-	const mapped = mapInBlockRange(step.blockId, step.offset, step.offset + 1, mapping, 1, 1);
+	const mapped = mapInlineNodeSlot(step.blockId, step.offset, mapping);
 	if (!mapped) return null;
-	if (mapped.to - mapped.from !== 1) return null;
 	if (mapped.blockId === step.blockId && mapped.from === step.offset) {
 		return step;
 	}

@@ -548,9 +548,30 @@ describe('mapStep', () => {
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 
-		it('returns null when the rebased range is no longer width-1', () => {
+		it('keeps the slot when text was inserted right after the inline node', () => {
 			const m = Mapping.from([shift(B1, 6, 6, 3)]);
 			const doc = docWith(blockWithInline(mention, 'hello', 'XXX world'));
+			expect(mapStep(baseStep, m, doc)).toBe(baseStep);
+		});
+
+		it('keeps the slot when the block was split right after the inline node', () => {
+			const m = Mapping.from([split(B1, 6, B2)]);
+			const doc = docWith(
+				createBlockNode('paragraph', [createTextNode('hello'), mention], B1),
+				paragraphBlock(' world', B2),
+			);
+			expect(mapStep(baseStep, m, doc)).toBe(baseStep);
+		});
+
+		it('returns null when the inline node was replaced by wider content', () => {
+			const m = Mapping.from([shift(B1, 5, 6, 3)]);
+			const doc = docWith(paragraphBlock('helloXXX world'));
+			expect(mapStep(baseStep, m, doc)).toBeNull();
+		});
+
+		it('returns null when the inline node itself was removed', () => {
+			const m = Mapping.from([shift(B1, 5, 6, 0)]);
+			const doc = docWith(paragraphBlock('hello world'));
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 
@@ -599,9 +620,29 @@ describe('mapStep', () => {
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 
-		it('returns null when the rebased range is no longer width-1', () => {
+		it('keeps the slot when text was inserted right after the inline node', () => {
 			const m = Mapping.from([shift(B1, 6, 6, 3)]);
-			const doc = docWith(blockWithInline(mention, 'hello'));
+			const doc = docWith(
+				createBlockNode('paragraph', [createTextNode('hello'), mention, createTextNode('XXX')], B1),
+			);
+			expect(mapStep(baseStep, m, doc)).toBe(baseStep);
+		});
+
+		it('keeps the slot when the block was split right after the inline node', () => {
+			const m = Mapping.from([split(B1, 6, B2)]);
+			const doc = docWith(blockWithInline(mention, 'hello'), paragraphBlock('', B2));
+			expect(mapStep(baseStep, m, doc)).toBe(baseStep);
+		});
+
+		it('returns null when the inline node was replaced by wider content', () => {
+			const m = Mapping.from([shift(B1, 5, 6, 3)]);
+			const doc = docWith(paragraphBlock('helloXXX'));
+			expect(mapStep(baseStep, m, doc)).toBeNull();
+		});
+
+		it('returns null when the inline node itself was removed', () => {
+			const m = Mapping.from([shift(B1, 5, 6, 0)]);
+			const doc = docWith(paragraphBlock('hello'));
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 
