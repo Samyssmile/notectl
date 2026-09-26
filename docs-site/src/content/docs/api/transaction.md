@@ -65,6 +65,14 @@ builder.mergeBlocksAt(targetBlockId, sourceBlockId)
 builder.setBlockType(blockId, nodeType, attrs?)
 ```
 
+Merging requires both blocks to exist under the same immediate parent. Builders
+created with `state.transaction()` check this against their working document,
+including all preceding steps, and throw before recording an invalid merge or
+position map. Container boundaries must be handled by the calling command.
+Manual `TransactionBuilder` instances created without a document cannot check
+this precondition; callers of `mergeBlocks` remain responsible for it.
+`mergeBlocksAt` always requires a document.
+
 ### Structural Operations (Nested Documents)
 
 ```ts

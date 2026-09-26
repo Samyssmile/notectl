@@ -278,9 +278,8 @@ function mergeAdjacentBlock(
 	if (isIsolatingBlock(state, sel.anchor.blockId) || isIsolatingBlock(state, adjacentId)) {
 		return null;
 	}
-	if (!sharesParent(state, sel.anchor.blockId, adjacentId)) {
-		if (isInsideIsolating(state, sel.anchor.blockId)) return null;
-	}
+	const sameParent: boolean = sharesParent(state, sel.anchor.blockId, adjacentId);
+	if (!sameParent && isInsideIsolating(state, sel.anchor.blockId)) return null;
 
 	if (isVoidBlock(state, adjacentId)) {
 		const path = findNodePath(state.doc, adjacentId) ?? [];
@@ -289,6 +288,10 @@ function mergeAdjacentBlock(
 			.setSelection(createNodeSelection(adjacentId, path as BlockId[]))
 			.build();
 	}
+
+	// Text merges cannot cross container boundaries: their inverse split must
+	// restore the source under the same parent as the target.
+	if (!sameParent) return null;
 
 	if (direction === 'backward') {
 		const prevBlock = state.getBlock(adjacentId);

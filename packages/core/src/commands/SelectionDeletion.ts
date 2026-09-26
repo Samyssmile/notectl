@@ -20,7 +20,7 @@ import {
 import { findNodePath } from '../model/NodeResolver.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
-import { isVoidBlock } from '../state/NavigationQueries.js';
+import { isVoidBlock, sharesParent } from '../state/NavigationQueries.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
 import { resolveSiblingContext } from './CommandHelpers.js';
 
@@ -51,11 +51,11 @@ export function getRootBlockIndex(state: EditorState, blockId: BlockId): number 
 /**
  * Deletes a multi-block selection where all blocks share the same root ancestor.
  *
- * The first block in the range that can hold a caret survives and absorbs what
- * the later blocks keep; void blocks ahead of it are removed in place. Returns
- * the survivor when it is not the from-block (the caret then lands at its
- * offset 0), or the landing paragraph swapped in when the range is void-only;
- * undefined when the from-block itself survives.
+ * Container boundaries survive: only consecutive leaves with the same immediate
+ * parent merge into their group's first text leaf. Selected void blocks are
+ * removed in place before any merges. Returns the first text leaf when it is
+ * not the from-block (the caret then lands at offset 0), or the landing paragraph
+ * swapped in when the range is void-only; undefined when the from-block survives.
  */
 export function deleteLeafRange(
 	state: EditorState,
@@ -70,13 +70,32 @@ export function deleteLeafRange(
 	if (survivorIdx < 0) return replaceVoidOnlyRange(state, builder, rangeIds);
 	const survivorId: BlockId = rangeIds[survivorIdx] as BlockId;
 
+	// Group the original leaf order, including voids: returning to a parent
+	// after a nested container starts a new group, even if that container's
+	// only leaf is a selected void that will be replaced below.
+	const groups: BlockId[][] = [];
+	let previousId: BlockId | undefined;
+	let group: BlockId[] = [];
 	for (const id of rangeIds) {
+		if (!previousId || !sharesParent(state, previousId, id)) {
+			group = [];
+			groups.push(group);
+		}
+		if (!isVoidBlock(state, id)) group.push(id);
+		previousId = id;
 		const block: BlockNode | undefined = state.getBlock(id);
 		if (block) deleteSelectedText(builder, block, range);
 	}
-	removeVoidBlocks(state, builder, rangeIds.slice(0, survivorIdx));
-	for (const id of rangeIds.slice(survivorIdx + 1)) {
-		builder.mergeBlocksAt(survivorId, id);
+	// Positional removals still refer to the original sibling indexes. All voids
+	// must be removed (last first) before merging shifts any of those indexes.
+	removeVoidBlocks(
+		state,
+		builder,
+		rangeIds.filter((id) => isVoidBlock(state, id)),
+	);
+	for (const [targetId, ...sourceIds] of groups) {
+		if (!targetId) continue;
+		for (const sourceId of sourceIds) builder.mergeBlocksAt(targetId, sourceId);
 	}
 
 	return survivorIdx === 0 ? undefined : survivorId;

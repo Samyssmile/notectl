@@ -19,9 +19,85 @@ import {
 	getTextChildren,
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
+import { blockId } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager } from './History.js';
 import { TransactionBuilder } from './Transaction.js';
+
+describe('merge parent validation (#225)', () => {
+	const target = blockId('target');
+	const source = blockId('source');
+	const quote = blockId('quote');
+	function nestedState(): EditorState {
+		return EditorState.create({
+			doc: createDocument([
+				createBlockNode('paragraph', [createTextNode('abc')], target),
+				createBlockNode(
+					'blockquote',
+					[
+						createBlockNode('paragraph', [createTextNode('def')], source),
+						createBlockNode('paragraph', [createTextNode('keep')], blockId('keep')),
+					],
+					quote,
+				),
+			]),
+			selection: createCollapsedSelection(target, 3),
+		});
+	}
+
+	for (const method of ['mergeBlocks', 'mergeBlocksAt'] as const) {
+		const merge = (builder: TransactionBuilder): TransactionBuilder =>
+			method === 'mergeBlocks'
+				? builder.mergeBlocks(target, source, 3)
+				: builder.mergeBlocksAt(target, source);
+		it(`${method} rejects different parents without recording a step or map`, () => {
+			const state = nestedState();
+			const builder = state.transaction();
+			const before = builder.build();
+			expect(() => merge(builder)).toThrow(/same parent/);
+			const after = builder.build();
+			expect(after.steps).toEqual(before.steps);
+			expect(after.forwardStepMaps).toEqual(before.forwardStepMaps);
+			expect(state.apply(after).doc).toEqual(state.doc);
+		});
+
+		it(`${method} rejects blocks moved apart earlier in the transaction`, () => {
+			const nested = nestedState();
+			const state = nested.apply(nested.transaction().moveNode([quote], 0, [], 1).build());
+			const builder = state.transaction().moveNode([], 1, [quote], 0);
+			const before = builder.build();
+			expect(() => merge(builder)).toThrow(/same parent/);
+			expect(builder.build().steps).toEqual(before.steps);
+			expect(builder.build().forwardStepMaps).toEqual(before.forwardStepMaps);
+		});
+	}
+
+	it('accepts siblings created by an earlier move and round-trips through history', () => {
+		const state = nestedState();
+		const tr = state
+			.transaction()
+			.moveNode([quote], 0, [], 1)
+			.mergeBlocksAt(target, source)
+			.build();
+		const history = new HistoryManager();
+		history.push(tr);
+		const merged = state.apply(tr);
+		const mergedBlock = merged.getBlock(target);
+		if (!mergedBlock) throw new Error('Expected merged block');
+		expect(getBlockText(mergedBlock)).toBe('abcdef');
+		expect(merged.getBlock(source)).toBeUndefined();
+		const restored = history.undo(merged)?.state;
+		expect(restored?.doc).toEqual(state.doc);
+		expect(restored?.selection).toEqual(state.selection);
+		if (!restored) throw new Error('Expected undo');
+		expect(history.redo(restored)?.state.doc).toEqual(merged.doc);
+	});
+
+	it('keeps manual builders without a document compatible', () => {
+		const builder = new TransactionBuilder(createCollapsedSelection(target, 3), null);
+		expect(builder.mergeBlocks(target, source, 3).build().steps).toHaveLength(1);
+	});
+});
 
 // --- Helpers ---
 

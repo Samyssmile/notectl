@@ -19,17 +19,26 @@ import {
 	type Document,
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockChildren,
 	isLeafBlock,
 	isTextNode,
 } from '../model/Document.js';
+import { walkNodes } from '../model/NodeResolver.js';
 import type { Schema } from '../model/Schema.js';
-import { createSelection, isCollapsed, isTextSelection } from '../model/Selection.js';
-import { type BlockId, blockId } from '../model/TypeBrands.js';
+import {
+	createCollapsedSelection,
+	createSelection,
+	isCollapsed,
+	isTextSelection,
+} from '../model/Selection.js';
+import { type BlockId, blockId, inlineType, markType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { HistoryManager } from '../state/History.js';
 import { invertTransaction } from '../state/StepHandlers.js';
-import { deleteSelectionCommand } from './Commands.js';
+import type { Transaction } from '../state/Transaction.js';
+import { deleteSelectionCommand, insertTextCommand } from './Commands.js';
 
 // --- Builders ---
 
@@ -106,6 +115,136 @@ function applyDelete(state: EditorState): EditorState {
 	if (!tr) throw new Error('expected a delete transaction');
 	return state.apply(tr);
 }
+
+/** Compare the whole tree and selection, including ordering, IDs and inline metadata. */
+function expectHistoryRoundTrip(state: EditorState, tr: Transaction): EditorState {
+	const history = new HistoryManager();
+	const deleted = state.apply(tr);
+	history.push(tr);
+	const restored = history.undo(deleted)?.state;
+	expect(restored?.doc).toEqual(state.doc);
+	expect(restored?.selection).toEqual(state.selection);
+	if (!restored) throw new Error('Expected undo');
+	const redone = history.redo(restored)?.state;
+	expect(redone?.doc).toEqual(deleted.doc);
+	expect(redone?.selection).toEqual(deleted.selection);
+	for (const doc of [deleted.doc, restored.doc]) {
+		const ids: BlockId[] = [];
+		walkNodes(doc, (node) => ids.push(node.id));
+		expect(new Set(ids).size).toBe(ids.length);
+	}
+	return deleted;
+}
+
+describe('leaf-range deletion preserves container boundaries (#225)', () => {
+	const nested = [
+		quote('q', [
+			para('abc', 'p1'),
+			quote('nested', [para('def', 'p2'), para('ghi', 'p3')]),
+			para('jkl', 'p4'),
+			para('mno', 'p5'),
+		]),
+	];
+	const cases = [
+		{
+			name: 'different depths',
+			blocks: nested,
+			to: 'p3',
+			expected: (text: string) => [
+				quote('q', [
+					para(text, 'p1'),
+					quote('nested', [para('i', 'p2')]),
+					para('jkl', 'p4'),
+					para('mno', 'p5'),
+				]),
+			],
+		},
+		{
+			name: 'parent sequence A → B → A',
+			blocks: nested,
+			to: 'p5',
+			expected: (text: string) => [
+				quote('q', [para(text, 'p1'), quote('nested', [para('', 'p2')]), para('o', 'p4')]),
+			],
+		},
+		{
+			name: 'different parents at the same depth',
+			blocks: [
+				quote('q', [
+					quote('a', [para('abc', 'p1'), para('def', 'p2')]),
+					quote('b', [para('ghi', 'p3'), para('jkl', 'p4')]),
+				]),
+			],
+			to: 'p4',
+			expected: (text: string) => [
+				quote('q', [quote('a', [para(text, 'p1')]), quote('b', [para('l', 'p3')])]),
+			],
+		},
+		{
+			name: 'multiple table cells',
+			blocks: [
+				grid('t', [
+					trow('row', [
+						createBlockNode('table_cell', [para('abc', 'p1'), para('def', 'p2')], blockId('c1')),
+						createBlockNode('table_cell', [para('ghi', 'p3')], blockId('c2')),
+						createBlockNode('table_cell', [para('jkl', 'p4'), para('mno', 'p5')], blockId('c3')),
+					]),
+				]),
+			],
+			to: 'p5',
+			expected: (text: string) => [
+				grid('t', [
+					trow('row', [
+						createBlockNode('table_cell', [para(text, 'p1')], blockId('c1')),
+						createBlockNode('table_cell', [para('', 'p3')], blockId('c2')),
+						createBlockNode('table_cell', [para('o', 'p4')], blockId('c3')),
+					]),
+				]),
+			],
+		},
+	];
+	for (const scenario of cases) {
+		for (const backward of [false, true]) {
+			for (const replace of [false, true]) {
+				it(`${scenario.name}, ${backward ? 'backward' : 'forward'}, ${replace ? 'typing' : 'deletion'}`, () => {
+					const from = { id: 'p1', offset: 1 };
+					const to = { id: scenario.to, offset: 2 };
+					const state = stateOf(scenario.blocks, backward ? to : from, backward ? from : to);
+					const tr = replace ? insertTextCommand(state, 'X') : deleteSelectionCommand(state);
+					if (!tr) throw new Error('Expected deletion');
+					const deleted = state.apply(tr);
+					expect(deleted.doc).toEqual(createDocument(scenario.expected(replace ? 'aX' : 'a')));
+					expect(deleted.selection).toEqual(
+						createCollapsedSelection(blockId('p1'), replace ? 2 : 1),
+					);
+					assertNoRaggedTable(deleted.doc);
+					expectHistoryRoundTrip(state, tr);
+				});
+			}
+		}
+	}
+
+	it('restores marks and inline nodes across sibling merges and nested boundaries', () => {
+		const atom = createInlineNode(inlineType('hard_break'), {});
+		const rich = createBlockNode(
+			'paragraph',
+			[
+				createTextNode('ab', [{ type: markType('bold') }]),
+				atom,
+				createTextNode('cd', [{ type: markType('italic') }]),
+			],
+			blockId('rich'),
+		);
+		const state = stateOf(
+			[quote('q', [para('abc', 'p1'), rich, quote('nested', [para('def', 'p3')])])],
+			{ id: 'p1', offset: 1 },
+			{ id: 'p3', offset: 1 },
+		);
+		const tr = insertTextCommand(state, 'X');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(renderDoc(deleted.doc)).toBe('blockquote[paragraph("aX"),blockquote[paragraph("ef")]]');
+	});
+});
 
 // --- Regression: pure leaf roots still merge across the boundary ---
 
@@ -382,6 +521,108 @@ describe('range deletion with void endpoints (#224)', () => {
 		}
 		return { id: state.selection.anchor.blockId, offset: state.selection.anchor.offset };
 	}
+
+	it('removes leading, middle and trailing void siblings before merging text (#225)', () => {
+		const state = voidStateOf(
+			[
+				quote('q', [
+					rule('v1'),
+					para('abc', 'p1'),
+					rule('v2'),
+					para('def', 'p2'),
+					rule('v3'),
+					para('keep', 'tail'),
+				]),
+			],
+			{ id: 'v1', offset: 0 },
+			{ id: 'v3', offset: 0 },
+		);
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('Expected deletion');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(deleted.doc).toEqual(
+			createDocument([quote('q', [para('', 'p1'), para('keep', 'tail')])]),
+		);
+		expect(caretOf(deleted)).toEqual({ id: 'p1', offset: 0 });
+	});
+
+	it('keeps a replacement paragraph in a cell whose selected children are all void (#225)', () => {
+		const state = voidStateOf(
+			[
+				grid('t', [
+					trow('r', [
+						cell('abc', 'a'),
+						createBlockNode('table_cell', [rule('v1'), rule('v2')], blockId('b')),
+						cell('def', 'c'),
+					]),
+				]),
+			],
+			{ id: 'ap', offset: 1 },
+			{ id: 'cp', offset: 1 },
+		);
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('Expected deletion');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[table_row[table_cell[paragraph("a")],table_cell[paragraph("")],table_cell[paragraph("ef")]]]',
+		);
+		expect(caretOf(deleted)).toEqual({ id: 'ap', offset: 1 });
+	});
+
+	it('does not merge across a nested container after its void leaf was removed (#225)', () => {
+		const state = voidStateOf(
+			[quote('q', [para('abc', 'p1'), quote('nested', [rule('v')]), para('def', 'p2')])],
+			{ id: 'p1', offset: 1 },
+			{ id: 'p2', offset: 1 },
+		);
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('Expected deletion');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(renderDoc(deleted.doc)).toBe(
+			'blockquote[paragraph("a"),blockquote[paragraph("")],paragraph("ef")]',
+		);
+	});
+
+	it('keeps the first text leaf as cursor target after leading void cells (#225)', () => {
+		const state = voidStateOf(
+			[
+				grid('t', [
+					trow('r', [createBlockNode('table_cell', [rule('v')], blockId('a')), cell('def', 'b')]),
+				]),
+			],
+			{ id: 'v', offset: 0 },
+			{ id: 'bp', offset: 1 },
+		);
+		const tr = insertTextCommand(state, 'X');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[table_row[table_cell[paragraph("")],table_cell[paragraph("Xef")]]]',
+		);
+		expect(caretOf(deleted)).toEqual({ id: 'bp', offset: 1 });
+	});
+
+	it('round-trips void-only ranges spanning multiple cells (#225)', () => {
+		const state = voidStateOf(
+			[
+				grid('t', [
+					trow('r', [
+						createBlockNode('table_cell', [rule('v1')], blockId('a')),
+						createBlockNode('table_cell', [rule('v2')], blockId('b')),
+						cell('keep', 'c'),
+					]),
+				]),
+			],
+			{ id: 'v1', offset: 0 },
+			{ id: 'v2', offset: 0 },
+		);
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('Expected deletion');
+		const deleted = expectHistoryRoundTrip(state, tr);
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[table_row[table_cell[paragraph("")],table_cell[paragraph("")],table_cell[paragraph("keep")]]]',
+		);
+		expect(caretOf(deleted)).toEqual({ id: deleted.getBlockOrder()[0], offset: 0 });
+	});
 
 	it('removes a from-endpoint void root and lands the caret in the trimmed paragraph (#224)', () => {
 		const state = voidStateOf(

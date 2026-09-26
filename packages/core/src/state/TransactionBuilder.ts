@@ -21,7 +21,12 @@ import {
 	isInlineNode,
 	textSegment,
 } from '../model/Document.js';
-import { findNode, resolveChildAt, resolveNodeByPath } from '../model/NodeResolver.js';
+import {
+	findNode,
+	nodesShareParent,
+	resolveChildAt,
+	resolveNodeByPath,
+} from '../model/NodeResolver.js';
 import type { EditorSelection } from '../model/Selection.js';
 import { createNodeSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
@@ -163,6 +168,11 @@ export class TransactionBuilder {
 	 * inverse split can restore it on undo. Callers that do not know the source
 	 * identity should prefer {@link mergeBlocksAt}, which derives both from the
 	 * working document.
+	 *
+	 * With a working document, both blocks must exist under the same immediate
+	 * parent after all preceding steps. Otherwise throws before recording a step
+	 * or position map. Manual builders without a document cannot validate this
+	 * precondition; their callers remain responsible for it.
 	 */
 	mergeBlocks(
 		targetBlockId: BlockId,
@@ -172,6 +182,11 @@ export class TransactionBuilder {
 		sourceAttrs?: BlockAttrs,
 		sourceHTMLId?: string,
 	): this {
+		if (this.workingDoc && !nodesShareParent(this.workingDoc, targetBlockId, sourceBlockId)) {
+			throw new Error(
+				`Cannot merge blocks "${targetBlockId}" and "${sourceBlockId}": both must exist under the same parent in the working document.`,
+			);
+		}
 		const step: MergeBlocksStep = {
 			type: 'mergeBlocks',
 			targetBlockId,
@@ -188,7 +203,8 @@ export class TransactionBuilder {
 	/**
 	 * Merges two blocks, auto-deriving targetLengthBefore and the source
 	 * block's identity (type + attrs) from the working document. Requires a
-	 * document to be provided at construction.
+	 * document to be provided at construction and the same parent precondition
+	 * as {@link mergeBlocks}.
 	 */
 	mergeBlocksAt(targetBlockId: BlockId, sourceBlockId: BlockId): this {
 		const doc: Document = this.requireDoc('mergeBlocksAt');

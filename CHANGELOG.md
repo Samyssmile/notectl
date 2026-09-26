@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Delete/Backspace at container boundaries no longer corrupt undo history (#225).** Text merges now require a shared immediate parent. Previously a merge across a quote, nested list or table boundary could do nothing to the document while recording a history step whose undo duplicated block IDs. Blocked merges now preserve the document, selection and existing undo/redo entries. Range deletion within a container merges only consecutive sibling groups, preserving nested containers and table cells. Selected void blocks are removed before merging, with replacement paragraphs where needed; undo restores their exact position and content.
+- **Document-backed transaction builders reject merges between blocks without a shared parent (#225).** `mergeBlocks` and `mergeBlocksAt` validate the working document after preceding steps and throw before recording an invalid step or position map. Signatures and step formats are unchanged; manual builders without a document still leave this precondition to their callers.
+
 ## [2.3.9] - 2026-09-13
 
 ### Fixed

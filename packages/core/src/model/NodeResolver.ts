@@ -94,6 +94,14 @@ export function findNodePath(doc: Document, nodeId: string): string[] | undefine
 	return undefined;
 }
 
+/** Checks whether two existing blocks have the same immediate parent (including the root). */
+export function nodesShareParent(doc: Document, nodeIdA: string, nodeIdB: string): boolean {
+	const pathA = findNodePath(doc, nodeIdA);
+	const pathB = findNodePath(doc, nodeIdB);
+	if (!pathA || !pathB || pathA.length !== pathB.length) return false;
+	return pathA.slice(0, -1).every((id, index) => id === pathB[index]);
+}
+
 function findNodePathInBlock(block: BlockNode, nodeId: string): string[] | undefined {
 	for (const child of block.children) {
 		if (!isBlockNode(child)) continue;

@@ -6,6 +6,7 @@
  * or whether navigation between two blocks is allowed.
  */
 
+import { nodesShareParent } from '../model/NodeResolver.js';
 import { isVoidNodeType } from '../model/Schema.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from './EditorState.js';
@@ -19,15 +20,7 @@ export function isVoidBlock(state: EditorState, bid: BlockId): boolean {
 
 /** Checks whether two blocks share the same parent in the document tree. */
 export function sharesParent(state: EditorState, blockIdA: BlockId, blockIdB: BlockId): boolean {
-	const pathA = state.getNodePath(blockIdA);
-	const pathB = state.getNodePath(blockIdB);
-	if (!pathA || !pathB) return false;
-	if (pathA.length !== pathB.length) return false;
-	// Compare parent paths (all but last element)
-	for (let i = 0; i < pathA.length - 1; i++) {
-		if (pathA[i] !== pathB[i]) return false;
-	}
-	return true;
+	return nodesShareParent(state.doc, blockIdA, blockIdB);
 }
 
 /** Checks whether a block is inside an isolating node (e.g. table_cell). */
