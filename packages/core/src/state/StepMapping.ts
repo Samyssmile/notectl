@@ -128,17 +128,17 @@ function isRangeUnchanged(
 }
 
 /**
- * Maps an inline node's atomic `[offset, offset + 1)` slot. Its edges are
- * pinned inward (`from` sticky-right, `to` sticky-left), so an insertion or
- * split at either boundary lands outside the slot. Returns `null` unless the
- * slot still spans exactly one unit, i.e. when the node was removed or replaced.
+ * Maps an inline node's atomic `[offset, offset + 1)` slot using the default
+ * inward biases (`from` sticky-right, `to` sticky-left). Insertions and splits
+ * at either boundary stay outside the slot. The slot must survive in one
+ * block and still span exactly one unit.
  */
 function mapInlineNodeSlot(
 	blockId: BlockId,
 	offset: number,
 	mapping: Mapping,
 ): MappedInBlockRange | null {
-	const mapped = mapInBlockRange(blockId, offset, offset + 1, mapping, 1, -1);
+	const mapped = mapInBlockRange(blockId, offset, offset + 1, mapping);
 	if (!mapped) return null;
 	if (mapped.to - mapped.from !== 1) return null;
 	return mapped;

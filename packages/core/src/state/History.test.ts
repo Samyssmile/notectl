@@ -2,13 +2,16 @@ import { assert, describe, expect, it } from 'vitest';
 import { insertTextCommand } from '../commands/Commands.js';
 import { toggleBold } from '../commands/MarkCommands.js';
 import {
+	type InlineNode,
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockText,
+	getInlineChildren,
 } from '../model/Document.js';
 import { createCollapsedSelection } from '../model/Selection.js';
-import { markType } from '../model/TypeBrands.js';
+import { inlineType, markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
 import { HistoryManager, type HistoryResult } from './History.js';
 import { Mapping } from './Mapping.js';
@@ -651,6 +654,160 @@ describe('HistoryManager', () => {
 			expectReplayResult(history.redo(state), 'ZZWZ');
 			expect(history.canUndo()).toBe(true);
 			expect(history.canRedo()).toBe(false);
+		});
+	});
+
+	describe('inline node rebasing (issue #227)', () => {
+		const mention: InlineNode = createInlineNode(inlineType('mention'), { user: 'alice' });
+		const updatedMention: InlineNode = createInlineNode(inlineType('mention'), { user: 'carol' });
+
+		function stateWithMention(): EditorState {
+			return EditorState.create({
+				doc: createDocument([
+					createBlockNode('paragraph', [createTextNode('a'), mention, createTextNode('b')], 'b1'),
+				]),
+			});
+		}
+
+		it('undoes, redoes and undoes an insertion while preserving text directly after the node', () => {
+			const history = new HistoryManager();
+			let state = EditorState.create({
+				doc: createDocument([createBlockNode('paragraph', [createTextNode('ab')], 'b1')]),
+			});
+			const user = new TransactionBuilder(state.selection, null, 'input', state.doc)
+				.insertInlineNode('b1', 1, mention)
+				.build();
+			state = state.apply(user);
+			history.push(user);
+			const external = new TransactionBuilder(state.selection, null, 'api', state.doc)
+				.insertText('b1', 2, 'Z', [])
+				.build();
+			state = state.apply(external);
+			history.recordIntervening(external.mapping);
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
+
+			for (const direction of ['undo', 'redo', 'undo'] as const) {
+				state = expectReplayResult(history[direction](state), 'aZb');
+				expect(getInlineChildren(state.doc.children[0])).toEqual(
+					direction === 'undo'
+						? [createTextNode('aZb')]
+						: [createTextNode('a'), mention, createTextNode('Zb')],
+				);
+				expect(history.canUndo()).toBe(direction === 'redo');
+				expect(history.canRedo()).toBe(direction === 'undo');
+			}
+		});
+
+		it('undoes, redoes and undoes attributes while preserving text directly after the node', () => {
+			const history = new HistoryManager();
+			let state = stateWithMention();
+			const user = new TransactionBuilder(state.selection, null, 'input', state.doc)
+				.setInlineNodeAttr('b1', 1, updatedMention.attrs)
+				.build();
+			state = state.apply(user);
+			history.push(user);
+			const external = new TransactionBuilder(state.selection, null, 'api', state.doc)
+				.insertText('b1', 2, 'Z', [])
+				.build();
+			state = state.apply(external);
+			history.recordIntervening(external.mapping);
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
+
+			for (const direction of ['undo', 'redo', 'undo'] as const) {
+				state = expectReplayResult(history[direction](state), 'aZb');
+				expect(getInlineChildren(state.doc.children[0])).toEqual([
+					createTextNode('a'),
+					direction === 'undo' ? mention : updatedMention,
+					createTextNode('Zb'),
+				]);
+				expect(history.canUndo()).toBe(direction === 'redo');
+				expect(history.canRedo()).toBe(direction === 'undo');
+			}
+		});
+
+		it.each(['removeInlineNode', 'setInlineNodeAttr'] as const)(
+			'rebases %s on redo through insertions at both node boundaries',
+			(operation) => {
+				const history = new HistoryManager();
+				let state = stateWithMention();
+				const builder = new TransactionBuilder(state.selection, null, 'input', state.doc);
+				if (operation === 'removeInlineNode') builder.removeInlineNode('b1', 1);
+				else builder.setInlineNodeAttr('b1', 1, updatedMention.attrs);
+				const user = builder.build();
+				state = state.apply(user);
+				history.push(user);
+				state = expectReplayResult(history.undo(state), 'ab');
+				expect(getInlineChildren(state.doc.children[0])).toEqual([
+					createTextNode('a'),
+					mention,
+					createTextNode('b'),
+				]);
+				expect(history.canUndo()).toBe(false);
+				expect(history.canRedo()).toBe(true);
+
+				const before = new TransactionBuilder(state.selection, null, 'api', state.doc)
+					.insertText('b1', 1, 'X', [])
+					.build();
+				state = state.apply(before);
+				history.recordIntervening(before.mapping);
+				const after = new TransactionBuilder(state.selection, null, 'api', state.doc)
+					.insertText('b1', 3, 'Z', [])
+					.build();
+				state = state.apply(after);
+				history.recordIntervening(after.mapping);
+				expect(history.canUndo()).toBe(false);
+				expect(history.canRedo()).toBe(true);
+
+				state = expectReplayResult(history.redo(state), 'aXZb');
+				expect(getInlineChildren(state.doc.children[0])).toEqual(
+					operation === 'removeInlineNode'
+						? [createTextNode('aXZb')]
+						: [createTextNode('aX'), updatedMention, createTextNode('Zb')],
+				);
+				expect(history.canUndo()).toBe(true);
+				expect(history.canRedo()).toBe(false);
+				state = expectReplayResult(history.undo(state), 'aXZb');
+				expect(getInlineChildren(state.doc.children[0])).toEqual([
+					createTextNode('aX'),
+					mention,
+					createTextNode('Zb'),
+				]);
+				expect(history.canUndo()).toBe(false);
+				expect(history.canRedo()).toBe(true);
+			},
+		);
+
+		it('replays multiple inline steps as one group while preserving external inline nodes and text', () => {
+			const history = new HistoryManager();
+			const otherMention = createInlineNode(inlineType('mention'), { user: 'bob' });
+			let state = stateWithMention();
+			const user = new TransactionBuilder(state.selection, null, 'input', state.doc)
+				.setInlineNodeAttr('b1', 1, updatedMention.attrs)
+				.insertInlineNode('b1', 2, mention)
+				.build();
+			state = state.apply(user);
+			history.push(user);
+			const external = new TransactionBuilder(state.selection, null, 'api', state.doc)
+				.insertInlineNode('b1', 2, otherMention)
+				.insertText('b1', 4, 'Z', [])
+				.build();
+			state = state.apply(external);
+			history.recordIntervening(external.mapping);
+
+			for (const direction of ['undo', 'redo', 'undo'] as const) {
+				const result = history[direction](state);
+				state = expectReplayResult(result, 'aZb');
+				expect(result?.transaction.steps).toHaveLength(2);
+				expect(getInlineChildren(state.doc.children[0])).toEqual(
+					direction === 'undo'
+						? [createTextNode('a'), mention, otherMention, createTextNode('Zb')]
+						: [createTextNode('a'), updatedMention, otherMention, mention, createTextNode('Zb')],
+				);
+				expect(history.canUndo()).toBe(direction === 'redo');
+				expect(history.canRedo()).toBe(direction === 'undo');
+			}
 		});
 	});
 

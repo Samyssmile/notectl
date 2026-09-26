@@ -548,6 +548,27 @@ describe('mapStep', () => {
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 
+		it.each([
+			{ name: 'different attributes', node: otherMention },
+			{ name: 'a different type', node: createInlineNode(inlineType('other'), mention.attrs) },
+		])('rejects removal of a surviving slot with $name', ({ node }) => {
+			// Attribute/type changes do not change width; the identity guard must reject them.
+			const m = Mapping.from([shift(B1, 0, 0, 2)]);
+			const doc = docWith(blockWithInline(node, 'xxhello', ' world'));
+			expect(mapStep(baseStep, m, doc)).toBeNull();
+		});
+
+		it('accepts a node with equal attributes after a boundary insertion', () => {
+			const equivalent = createInlineNode(inlineType('mention'), { user: 'alice' });
+			const m = Mapping.from([shift(B1, 5, 5, 2)]);
+			const doc = docWith(blockWithInline(equivalent, 'helloXX', ' world'));
+			expect(mapStep(baseStep, m, doc)).toEqual({
+				...baseStep,
+				offset: 7,
+				removedNode: equivalent,
+			});
+		});
+
 		it('keeps the slot when text was inserted right after the inline node', () => {
 			const m = Mapping.from([shift(B1, 6, 6, 3)]);
 			const doc = docWith(blockWithInline(mention, 'hello', 'XXX world'));
@@ -652,6 +673,80 @@ describe('mapStep', () => {
 			expect(mapStep(baseStep, m, doc)).toBeNull();
 		});
 	});
+
+	describe.each(['removeInlineNode', 'setInlineNodeAttr'] as const)(
+		'%s boundary rebasing',
+		(type) => {
+			const mention = createInlineNode(inlineType('mention'), { user: 'alice' });
+			const otherMention = createInlineNode(inlineType('mention'), { user: 'bob' });
+			const step: RemoveInlineNodeStep | SetInlineNodeAttrStep =
+				type === 'removeInlineNode'
+					? { type, blockId: B1, offset: 1, removedNode: mention, path: [B1] }
+					: {
+							type,
+							blockId: B1,
+							offset: 1,
+							attrs: { user: 'carol' },
+							previousAttrs: mention.attrs,
+							path: [B1],
+						};
+
+			it.each([
+				{
+					name: 'text directly before',
+					mapping: Mapping.from([shift(B1, 1, 1, 2)]),
+					children: [createTextNode('aXY'), mention, createTextNode('b')],
+					offset: 3,
+				},
+				{
+					name: 'text directly after',
+					mapping: Mapping.from([shift(B1, 2, 2, 2)]),
+					children: [createTextNode('a'), mention, createTextNode('XYb')],
+					offset: 1,
+				},
+				{
+					name: 'an inline node directly before',
+					mapping: Mapping.from([shift(B1, 1, 1, 1)]),
+					children: [createTextNode('a'), otherMention, mention, createTextNode('b')],
+					offset: 2,
+				},
+				{
+					name: 'an inline node directly after',
+					mapping: Mapping.from([shift(B1, 2, 2, 1)]),
+					children: [createTextNode('a'), mention, otherMention, createTextNode('b')],
+					offset: 1,
+				},
+				{
+					name: 'composed insertions at both boundaries',
+					mapping: Mapping.from([shift(B1, 1, 1, 2), shift(B1, 4, 4, 1), shift(B1, 3, 3, 1)]),
+					children: [createTextNode('aXY'), otherMention, mention, createTextNode('Zb')],
+					offset: 4,
+				},
+			])('excludes $name from the atomic slot', ({ mapping, children, offset }) => {
+				const doc = docWith(createBlockNode('paragraph', children, B1));
+				expect(mapStep(step, mapping, doc)).toEqual({ ...step, offset });
+			});
+
+			it('follows a split directly before the node and drops the old block path', () => {
+				const mapping = Mapping.from([split(B1, 1, B2)]);
+				const doc = docWith(
+					paragraphBlock('a'),
+					createBlockNode('paragraph', [mention, createTextNode('b')], B2),
+				);
+				const { path, ...withoutPath } = step;
+				expect(mapStep(step, mapping, doc)).toEqual({ ...withoutPath, blockId: B2, offset: 0 });
+			});
+
+			it('stays in its block after a split directly after the node', () => {
+				const mapping = Mapping.from([split(B1, 2, B2)]);
+				const doc = docWith(
+					createBlockNode('paragraph', [createTextNode('a'), mention], B1),
+					paragraphBlock('b', B2),
+				);
+				expect(mapStep(step, mapping, doc)).toBe(step);
+			});
+		},
+	);
 
 	// --- setNodeAttr ---
 
