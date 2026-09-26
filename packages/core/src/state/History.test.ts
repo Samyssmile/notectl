@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { insertTextCommand } from '../commands/Commands.js';
 import { toggleBold } from '../commands/MarkCommands.js';
 import {
@@ -10,9 +10,20 @@ import {
 import { createCollapsedSelection } from '../model/Selection.js';
 import { markType } from '../model/TypeBrands.js';
 import { EditorState } from './EditorState.js';
-import { HistoryManager } from './History.js';
+import { HistoryManager, type HistoryResult } from './History.js';
 import { Mapping } from './Mapping.js';
-import { TransactionBuilder } from './Transaction.js';
+import { type Transaction, TransactionBuilder } from './Transaction.js';
+
+function withTimestamp(tr: Transaction, timestamp: number): Transaction {
+	return { ...tr, metadata: { ...tr.metadata, timestamp } };
+}
+
+function expectReplayResult(result: HistoryResult | null, expectedText: string): EditorState {
+	assert(result !== null, 'Expected a history result');
+	expect(result.transaction.steps.length).toBeGreaterThan(0);
+	expect(getBlockText(result.state.doc.children[0])).toBe(expectedText);
+	return result.state;
+}
 
 function makeInsertTr(blockId: string, offset: number, text: string, timestamp: number) {
 	const sel = createCollapsedSelection(blockId, offset);
@@ -20,12 +31,7 @@ function makeInsertTr(blockId: string, offset: number, text: string, timestamp: 
 	builder.insertText(blockId, offset, text, []);
 	builder.setSelection(createCollapsedSelection(blockId, offset + text.length));
 
-	const tr = builder.build();
-	// Override timestamp for testing
-	return {
-		...tr,
-		metadata: { ...tr.metadata, timestamp },
-	};
+	return withTimestamp(builder.build(), timestamp);
 }
 
 describe('HistoryManager', () => {
@@ -474,6 +480,177 @@ describe('HistoryManager', () => {
 
 			// Cursor returns to the original literal position — no mapping needed.
 			expect(state.selection.head.offset).toBe(0);
+		});
+	});
+
+	describe('input grouping across intervening mappings (issue #226)', () => {
+		it.each([
+			{ initialText: '', subsequentInput: 'b' },
+			{ initialText: 'WXYZ', subsequentInput: 'b' },
+			{ initialText: '', subsequentInput: 'bc' },
+		])(
+			'separates input before an intervening insert, then groups "$subsequentInput" with initial text "$initialText"',
+			({ initialText, subsequentInput }) => {
+				const doc = createDocument([
+					createBlockNode('paragraph', [createTextNode(initialText)], 'b1'),
+				]);
+				let state = EditorState.create({ doc, selection: createCollapsedSelection('b1', 0) });
+				const history = new HistoryManager();
+
+				const firstInput = withTimestamp(
+					state
+						.transaction('input')
+						.insertText('b1', 0, 'a', [])
+						.setSelection(createCollapsedSelection('b1', 1))
+						.build(),
+					1000,
+				);
+				state = state.apply(firstInput);
+				history.push(firstInput);
+
+				const external = withTimestamp(
+					state
+						.transaction('api')
+						.insertText('b1', 0, 'ZZ', [])
+						.setSelection(createCollapsedSelection('b1', 3))
+						.build(),
+					1050,
+				);
+				state = state.apply(external);
+				history.recordIntervening(external.mapping);
+
+				for (const [index, character] of [...subsequentInput].entries()) {
+					const offset = 3 + index;
+					const input = withTimestamp(
+						state
+							.transaction('input')
+							.insertText('b1', offset, character, [])
+							.setSelection(createCollapsedSelection('b1', offset + 1))
+							.build(),
+						1100 + index * 100,
+					);
+					state = state.apply(input);
+					history.push(input);
+				}
+
+				expect(getBlockText(state.doc.children[0])).toBe(`ZZa${subsequentInput}${initialText}`);
+				expect(history.canUndo()).toBe(true);
+				expect(history.canRedo()).toBe(false);
+
+				state = expectReplayResult(history.undo(state), `ZZa${initialText}`);
+				expect(history.canUndo()).toBe(true);
+				expect(history.canRedo()).toBe(true);
+
+				state = expectReplayResult(history.undo(state), `ZZ${initialText}`);
+				expect(history.canUndo()).toBe(false);
+				expect(history.canRedo()).toBe(true);
+
+				state = expectReplayResult(history.redo(state), `ZZa${initialText}`);
+				expect(history.canUndo()).toBe(true);
+				expect(history.canRedo()).toBe(true);
+
+				expectReplayResult(history.redo(state), `ZZa${subsequentInput}${initialText}`);
+				expect(history.canUndo()).toBe(true);
+				expect(history.canRedo()).toBe(false);
+			},
+		);
+
+		it('keeps rapid inputs grouped when the intervening mapping is empty', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('')], 'b1')]);
+			let state = EditorState.create({ doc, selection: createCollapsedSelection('b1', 0) });
+			const history = new HistoryManager();
+
+			const firstInput = withTimestamp(
+				state
+					.transaction('input')
+					.insertText('b1', 0, 'a', [])
+					.setSelection(createCollapsedSelection('b1', 1))
+					.build(),
+				1000,
+			);
+			state = state.apply(firstInput);
+			history.push(firstInput);
+			history.recordIntervening(Mapping.empty);
+
+			const secondInput = withTimestamp(
+				state
+					.transaction('input')
+					.insertText('b1', 1, 'b', [])
+					.setSelection(createCollapsedSelection('b1', 2))
+					.build(),
+				1100,
+			);
+			state = state.apply(secondInput);
+			history.push(secondInput);
+			expect(getBlockText(state.doc.children[0])).toBe('ab');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
+
+			state = expectReplayResult(history.undo(state), '');
+			expect(history.canUndo()).toBe(false);
+			expect(history.canRedo()).toBe(true);
+
+			expectReplayResult(history.redo(state), 'ab');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
+		});
+
+		it('separates rapid deletions around an intervening insert', () => {
+			const doc = createDocument([createBlockNode('paragraph', [createTextNode('WXYZ')], 'b1')]);
+			let state = EditorState.create({ doc, selection: createCollapsedSelection('b1', 1) });
+			const history = new HistoryManager();
+
+			const firstDeletion = withTimestamp(
+				state
+					.transaction('input')
+					.deleteTextAt('b1', 1, 2)
+					.setSelection(createCollapsedSelection('b1', 1))
+					.build(),
+				1000,
+			);
+			state = state.apply(firstDeletion);
+			history.push(firstDeletion);
+
+			const external = withTimestamp(
+				state
+					.transaction('api')
+					.insertText('b1', 0, 'ZZ', [])
+					.setSelection(createCollapsedSelection('b1', 3))
+					.build(),
+				1050,
+			);
+			state = state.apply(external);
+			history.recordIntervening(external.mapping);
+
+			const secondDeletion = withTimestamp(
+				state
+					.transaction('input')
+					.deleteTextAt('b1', 3, 4)
+					.setSelection(createCollapsedSelection('b1', 3))
+					.build(),
+				1100,
+			);
+			state = state.apply(secondDeletion);
+			history.push(secondDeletion);
+			expect(getBlockText(state.doc.children[0])).toBe('ZZWZ');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
+
+			state = expectReplayResult(history.undo(state), 'ZZWYZ');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(true);
+
+			state = expectReplayResult(history.undo(state), 'ZZWXYZ');
+			expect(history.canUndo()).toBe(false);
+			expect(history.canRedo()).toBe(true);
+
+			state = expectReplayResult(history.redo(state), 'ZZWYZ');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(true);
+
+			expectReplayResult(history.redo(state), 'ZZWZ');
+			expect(history.canUndo()).toBe(true);
+			expect(history.canRedo()).toBe(false);
 		});
 	});
 

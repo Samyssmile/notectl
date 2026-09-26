@@ -120,7 +120,8 @@ export class HistoryManager {
 	 * redos fold their steps and restored selection through it. Use for
 	 * transactions applied to the editor without going through {@link push}
 	 * (e.g. collaboration or agent updates that the user is not supposed to
-	 * undo / redo). Empty mappings are a no-op.
+	 * undo / redo). Non-empty mappings end the current input group so the
+	 * next input starts a new group. Empty mappings are a no-op.
 	 *
 	 * Propagates to **both** stacks so a `undo → intervening → redo` flow
 	 * is safe: the redo group's steps get rebased through the new mapping
@@ -128,6 +129,9 @@ export class HistoryManager {
 	 */
 	recordIntervening(mapping: Mapping): void {
 		if (mapping.isEmpty) return;
+		// Inputs before and after this mapping use different document versions
+		// and cannot share a group's intervening mapping.
+		this.lastOrigin = null;
 		extendInterveningMapping(this.undoStack, mapping);
 		extendInterveningMapping(this.redoStack, mapping);
 	}

@@ -122,6 +122,17 @@ Pushes a transaction onto the undo stack. Consecutive input transactions within 
 history.push(transaction);
 ```
 
+#### `recordIntervening(mapping)`
+
+Records the mapping of an external transaction applied without `push`, such as a collaboration update that should not be undoable. Both undo and redo adjust their steps and restored selections through these external changes.
+
+A non-empty mapping ends the current input group. The next input starts a new group, and subsequent rapid inputs can group normally. Empty mappings are a no-op and leave input grouping unchanged.
+
+```ts
+state = state.apply(externalTransaction);
+history.recordIntervening(externalTransaction.mapping);
+```
+
 #### `undo(state)`
 
 Undoes the last group. Returns a `HistoryResult` with the new state and the inverse transaction, or `null` if nothing to undo:
