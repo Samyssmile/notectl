@@ -11,6 +11,7 @@
 import { mi, mstyle, mtext } from '../../mathml/index.js';
 import { atom } from '../LatexParserTypes.js';
 import type { Atom, ParserApi } from '../LatexParserTypes.js';
+import { lookupOwn } from '../LookupOwn.js';
 import {
 	type MathAlphabetStyle,
 	applyMathAlphabet,
@@ -50,9 +51,9 @@ const TEXT_COMMANDS: Readonly<Record<string, string | undefined>> = {
 /** Returns true when `name` is a font/style or text command. */
 export function isFontCommand(name: string): boolean {
 	return (
-		name in ALPHABET_STYLES ||
-		name in VARIANTS ||
-		name in TEXT_COMMANDS ||
+		Object.hasOwn(ALPHABET_STYLES, name) ||
+		Object.hasOwn(VARIANTS, name) ||
+		Object.hasOwn(TEXT_COMMANDS, name) ||
 		name === 'mathrm' ||
 		name === 'operatorname'
 	);
@@ -63,12 +64,12 @@ export function parseFontCommand(name: string, api: ParserApi): Atom {
 	if (name === 'operatorname') {
 		return atom(mi(api.parseRawArgument(), { mathvariant: 'normal' }));
 	}
-	if (name in TEXT_COMMANDS) {
-		const variant: string | undefined = TEXT_COMMANDS[name];
+	if (Object.hasOwn(TEXT_COMMANDS, name)) {
+		const variant: string | undefined = lookupOwn(TEXT_COMMANDS, name);
 		const raw: string = api.parseRawArgument();
 		return atom(variant ? mtext(raw, { mathvariant: variant }) : mtext(raw));
 	}
-	const alphabet: MathAlphabetStyle | undefined = ALPHABET_STYLES[name];
+	const alphabet: MathAlphabetStyle | undefined = lookupOwn(ALPHABET_STYLES, name);
 	if (alphabet !== undefined) {
 		return atom(applyMathAlphabet(api.parseArgument(), alphabet));
 	}
@@ -77,7 +78,7 @@ export function parseFontCommand(name: string, api: ParserApi): Atom {
 	}
 	// The only commands left are the mathvariant-only families (\boldsymbol, \bm),
 	// which have no dedicated Unicode glyph block.
-	const variant: string | undefined = VARIANTS[name];
+	const variant: string | undefined = lookupOwn(VARIANTS, name);
 	const body: string = api.parseArgument();
 	if (variant === undefined) return atom(body);
 	return atom(mstyle(body, { mathvariant: variant }));

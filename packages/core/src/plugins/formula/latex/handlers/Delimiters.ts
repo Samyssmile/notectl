@@ -18,27 +18,24 @@ import { nbSpaceMarkup } from './Spacing.js';
 
 /** Parses `\left<delim> … \right<delim>` into a stretchy-fenced group. */
 export function parseLeftRight(api: ParserApi): Atom {
-	const openEntry: SymbolEntry | undefined = resolveDelimiter(readDelimiterSpec(api));
+	const open: DelimiterMarkup = readDelimiter(api);
 	const body: readonly Atom[] = api.parseAtomsUntil(isRight);
 	const closeTok: Token | undefined = api.peek();
-	let closeSpec = '.';
+	let close = '';
 	if (closeTok !== undefined && isRight(closeTok)) {
 		api.next();
-		closeSpec = readDelimiterSpec(api);
+		close = readDelimiter(api).markup;
 	} else {
 		api.error({ message: 'Unmatched \\left' });
 	}
-	const closeEntry: SymbolEntry | undefined = resolveDelimiter(closeSpec);
-	const open: string = fenceMarkup(openEntry);
-	const close: string = fenceMarkup(closeEntry);
-	return atom(group([open, ...body.map((a) => a.node), close]));
+	return atom(group([open.markup, ...body.map((a) => a.node), close]));
 }
 
 /** Handles a stray `\right`: consumes its delimiter and records the mismatch. */
 export function parseStrayRight(api: ParserApi, position: number): Atom {
-	readDelimiterSpec(api);
+	const delimiter: DelimiterMarkup = readDelimiter(api);
 	api.error({ message: 'Unmatched \\right', position });
-	return atom(group([]));
+	return atom(delimiter.kind === 'error' ? delimiter.markup : group([]));
 }
 
 /** Parses `\begin{env} … \end{env}`, dispatching to the environment builder. */
@@ -87,16 +84,28 @@ function isRight(tok: Token): boolean {
 	return tok.type === TokenType.Command && tok.value === 'right';
 }
 
-function readDelimiterSpec(api: ParserApi): string {
-	const tok: Token | undefined = api.next();
-	if (tok === undefined) return '.';
-	if (tok.type === TokenType.Command) return `\\${tok.value}`;
-	return tok.value;
+interface DelimiterMarkup {
+	readonly kind: 'fence' | 'error';
+	readonly markup: string;
 }
 
-function fenceMarkup(entry: SymbolEntry | undefined): string {
+/** Resolves one delimiter token, retaining its spelling and position on error. */
+function readDelimiter(api: ParserApi): DelimiterMarkup {
+	const tok: Token | undefined = api.next();
+	// Incomplete input at EOF keeps the existing invisible-delimiter behavior.
+	if (tok === undefined) return { kind: 'fence', markup: '' };
+	const spec: string = tok.type === TokenType.Command ? `\\${tok.value}` : tok.value;
+	const entry: SymbolEntry | undefined = resolveDelimiter(spec);
+	if (entry === undefined) {
+		api.error({ message: 'Unknown delimiter', command: spec, position: tok.position });
+		return { kind: 'error', markup: element('merror', mtext(spec)) };
+	}
+	return { kind: 'fence', markup: fenceMarkup(entry) };
+}
+
+function fenceMarkup(entry: SymbolEntry): string {
 	// Null delimiter (\left. / \right.): emit nothing; group() joins it away.
-	if (!entry || entry.char === '') return '';
+	if (entry.char === '') return '';
 	return mo(entry.char, { fence: true, stretchy: true });
 }
 

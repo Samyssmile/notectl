@@ -6,6 +6,7 @@
  */
 
 import { mspace } from '../../mathml/index.js';
+import { lookupOwn } from '../LookupOwn.js';
 
 const SPACE_WIDTHS: Readonly<Record<string, string>> = {
 	',': '0.167em',
@@ -26,12 +27,12 @@ const SPACE_WIDTHS: Readonly<Record<string, string>> = {
 
 /** Returns true when `name` is a spacing command. */
 export function isSpacing(name: string): boolean {
-	return name in SPACE_WIDTHS;
+	return Object.hasOwn(SPACE_WIDTHS, name);
 }
 
 /** Returns the `mspace` markup for a spacing command, or undefined if unknown. */
 export function spacingMarkup(name: string): string | undefined {
-	const width: string | undefined = SPACE_WIDTHS[name];
+	const width: string | undefined = lookupOwn(SPACE_WIDTHS, name);
 	if (width === undefined) return undefined;
 	return mspace({ width });
 }

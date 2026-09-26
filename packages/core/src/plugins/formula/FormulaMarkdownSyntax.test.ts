@@ -69,6 +69,65 @@ describe('formula Markdown syntax — import', () => {
 });
 
 describe('formula Markdown syntax — export & round-trip', () => {
+	it.each([
+		'\\toString + x',
+		'\\constructor + x',
+		'\\valueOf + x',
+		'\\hasOwnProperty + x',
+		'\\isPrototypeOf + x',
+		'\\propertyIsEnumerable + x',
+		'\\toLocaleString + x',
+		'\\left\\constructor x\\right\\notadelimiter',
+	])('preserves invalid formulas and the rest of the Markdown document: %s (#228)', (latex) => {
+		const markdown = [
+			`Before $${latex}$ after.`,
+			`$$${latex}$$`,
+			'Between.',
+			`$$\n${latex}\n+ y\n$$`,
+			'Later $a^2$ end.',
+			'$$\nb^2\n$$',
+			'Last paragraph.',
+		].join('\n\n');
+		const registry = formulaRegistry();
+		const imported = parseMarkdownToDocument(markdown, registry, { syntaxExtensions: SYNTAX });
+		const exported = serializeDocumentToMarkdown(imported, registry).trim();
+		const normalized = markdown.replace(`$$${latex}$$`, () => `$$\n${latex}\n$$`);
+		expect(exported).toBe(normalized);
+		const reimported = parseMarkdownToDocument(exported, registry, { syntaxExtensions: SYNTAX });
+
+		for (const doc of [imported, reimported]) {
+			expect(doc.children.map((block) => block.type)).toEqual([
+				'paragraph',
+				'math_display',
+				'paragraph',
+				'math_display',
+				'paragraph',
+				'math_display',
+				'paragraph',
+			]);
+			const first = doc.children[0];
+			const later = doc.children[4];
+			expect(first).toBeDefined();
+			expect(later).toBeDefined();
+			if (!first || !later) return;
+			const inline = getInlineChildren(first).find((c): c is InlineNode => 'inlineType' in c);
+			const valid = getInlineChildren(later).find((c): c is InlineNode => 'inlineType' in c);
+			expect(inline?.attrs.latex).toBe(latex);
+			expect(doc.children[1]?.attrs?.latex).toBe(latex);
+			expect(doc.children[3]?.attrs?.latex).toBe(`${latex}\n+ y`);
+			for (const attrs of [inline?.attrs, doc.children[1]?.attrs, doc.children[3]?.attrs]) {
+				expect(attrs?.mathml).toContain('<merror><mtext>\\');
+				expect(attrs?.mathml).toContain('<mi>x</mi>');
+			}
+			expect(doc.children[3]?.attrs?.mathml).toContain('<mi>y</mi>');
+			expect(valid?.attrs.latex).toBe('a^2');
+			expect(valid?.attrs.mathml).toContain('<msup><mi>a</mi><mn>2</mn></msup>');
+			expect(valid?.attrs.mathml).not.toContain('<merror>');
+			expect(doc.children[5]?.attrs?.latex).toBe('b^2');
+			expect(doc.children[5]?.attrs?.mathml).not.toContain('<merror>');
+		}
+	});
+
 	it('serializes inline math via the spec toMarkdown hook', () => {
 		const doc = createDocument([
 			createBlockNode(nodeType('paragraph'), [

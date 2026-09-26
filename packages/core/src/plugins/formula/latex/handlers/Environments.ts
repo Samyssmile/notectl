@@ -11,6 +11,7 @@ import { atom } from '../LatexParserTypes.js';
 import type { Atom, ParserApi } from '../LatexParserTypes.js';
 import { TokenType } from '../LatexTokenizer.js';
 import type { Token } from '../LatexTokenizer.js';
+import { lookupOwn } from '../LookupOwn.js';
 
 interface EnvSpec {
 	/** Opening fence glyph, or '' for none. */
@@ -37,7 +38,7 @@ const ENVIRONMENTS: Readonly<Record<string, EnvSpec>> = {
 
 /** Returns true when `name` is a supported environment. */
 export function isEnvironment(name: string): boolean {
-	return name in ENVIRONMENTS || name === 'array';
+	return Object.hasOwn(ENVIRONMENTS, name) || name === 'array';
 }
 
 /**
@@ -53,7 +54,7 @@ export function parseEnvironment(name: string, api: ParserApi): Atom {
 	}
 	const rows: string[][] = collectRows(name, api);
 	const cellRows: string[][] = rows.map((row) => row.map((cell) => cell));
-	const spec: EnvSpec = ENVIRONMENTS[name] ?? { open: '', close: '' };
+	const spec: EnvSpec = lookupOwn(ENVIRONMENTS, name) ?? { open: '', close: '' };
 	const tableAttrs: Readonly<Record<string, string>> | undefined = spec.columnalign
 		? { columnalign: spec.columnalign }
 		: undefined;

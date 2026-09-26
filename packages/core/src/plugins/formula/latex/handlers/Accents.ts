@@ -8,6 +8,7 @@
 import { mo, mover, munder } from '../../mathml/index.js';
 import { atom } from '../LatexParserTypes.js';
 import type { Atom, ParserApi } from '../LatexParserTypes.js';
+import { lookupOwn } from '../LookupOwn.js';
 
 interface AccentSpec {
 	/** The combining/standalone glyph drawn over or under the base. */
@@ -54,12 +55,12 @@ const ACCENTS: Readonly<Record<string, AccentSpec>> = {
 
 /** Returns true when `name` is an accent/brace command. */
 export function isAccent(name: string): boolean {
-	return name in ACCENTS;
+	return Object.hasOwn(ACCENTS, name);
 }
 
 /** Parses an accent command's argument and returns the accented atom. */
 export function parseAccent(name: string, api: ParserApi): Atom {
-	const spec: AccentSpec | undefined = ACCENTS[name];
+	const spec: AccentSpec | undefined = lookupOwn(ACCENTS, name);
 	if (!spec) return atom('');
 	const base: string = api.parseArgument();
 	const mark: string = mo(spec.glyph, { stretchy: spec.stretchy });

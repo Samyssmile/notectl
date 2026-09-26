@@ -109,6 +109,10 @@ The bundled converter covers a curated subset of roughly 200 of the most common 
 
 Unknown commands render as a visible, announced error marker so nothing fails silently.
 
+Unknown delimiter specifications after `\left` or `\right` also render an error marker at the affected fence, while the formula body and following content remain visible. The converter reports `Unknown delimiter` with the original specification and its zero-based source position. This also applies to a standalone `\right`, which retains its unmatched-delimiter diagnostic. The null delimiter `.` remains invisible.
+
+Only registered commands and environments are recognized; names such as `\toString` and `\constructor` are handled as unknown commands. Invalid formulas remain editable and can be imported and exported through Markdown without losing their LaTeX source or interrupting the rest of the document.
+
 ## Configuration
 
 ```ts

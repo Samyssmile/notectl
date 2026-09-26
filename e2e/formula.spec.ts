@@ -25,6 +25,87 @@ test.describe('Formula plugin', () => {
 		await editor.goto();
 	});
 
+	for (const latex of ['\\toString + x', '\\left\\constructor x\\right)']) {
+		test(`previews, commits and corrects invalid LaTeX: ${latex} (#228)`, async ({
+			editor,
+			page,
+		}) => {
+			const pageErrors: string[] = [];
+			page.on('pageerror', (error) => pageErrors.push(error.message));
+			await editor.focus();
+			await editor.root.locator('[aria-label="Insert formula"]').click();
+			const input = page.locator('.notectl-formula-editor__input');
+			await input.fill(latex);
+			await expect(page.locator('.notectl-formula-editor__preview merror')).toHaveCount(1);
+			await expect(page.locator('.notectl-formula-editor__errors li')).toHaveCount(1);
+			await page.locator('.notectl-formula-editor__btn--primary').click();
+			const formula = editor.content.locator('.notectl-math--inline');
+			await expect(formula.locator('merror')).toHaveCount(1);
+			await expect(formula.locator('annotation')).toHaveText(latex);
+
+			await formula.click();
+			await expect(input).toHaveValue(latex);
+			await expect(page.locator('.notectl-formula-editor__preview merror')).toHaveCount(1);
+			await input.fill('\\alpha + x');
+			await expect(page.locator('.notectl-formula-editor__preview merror')).toHaveCount(0);
+			await expect(page.locator('.notectl-formula-editor__errors li')).toHaveCount(0);
+			await page.locator('.notectl-formula-editor__btn--primary').click();
+			await expect(formula.locator('merror')).toHaveCount(0);
+			await expect(formula.locator('annotation')).toHaveText('\\alpha + x');
+			expect(pageErrors).toEqual([]);
+		});
+	}
+
+	test('setContentMarkdown preserves invalid formulas and the complete document (#228)', async ({
+		editor,
+		page,
+	}) => {
+		const pageErrors: string[] = [];
+		page.on('pageerror', (error) => pageErrors.push(error.message));
+		const inline = '\\toString + x';
+		const display = '\\constructor + x';
+		const multiline = '\\left\\constructor x\n+ y\\right\\notadelimiter';
+		const markdown = [
+			`Before $${inline}$ after.`,
+			`$$${display}$$`,
+			'Between.',
+			`$$\n${multiline}\n$$`,
+			'Later $a^2$ end.',
+			'$$\nb^2\n$$',
+			'Last paragraph.',
+		].join('\n\n');
+		const exported = await editor.root.evaluate(async (element, source) => {
+			const el = element as import('../packages/core/src/editor/NotectlEditor.js').NotectlEditor;
+			await el.setContentMarkdown(source);
+			return el.getContentMarkdown();
+		}, markdown);
+		expect(exported.trim()).toBe(markdown.replace(`$$${display}$$`, () => `$$\n${display}\n$$`));
+		const formulas = editor.content.locator('.notectl-math');
+		await expect(formulas).toHaveCount(5);
+		await expect(formulas.locator('annotation')).toHaveText([
+			inline,
+			display,
+			multiline,
+			'a^2',
+			'b^2',
+		]);
+		await expect(formulas.nth(0).locator('merror')).toHaveText('\\toString');
+		await expect(formulas.nth(1).locator('merror')).toHaveText('\\constructor');
+		await expect(formulas.nth(2).locator('merror')).toHaveText([
+			'\\constructor',
+			'\\notadelimiter',
+		]);
+		await expect(formulas.nth(3).locator('merror')).toHaveCount(0);
+		await expect(formulas.nth(4).locator('merror')).toHaveCount(0);
+		await expect(editor.content).toContainText('Before');
+		await expect(editor.content).toContainText('after.');
+		await expect(editor.content).toContainText('Between.');
+		await expect(editor.content).toContainText('Later');
+		await expect(editor.content).toContainText('end.');
+		await expect(editor.content).toContainText('Last paragraph.');
+		expect(pageErrors).toEqual([]);
+	});
+
 	test('dark theme gives the primary formula action a contrasting foreground (#217)', async ({
 		editor,
 		page,

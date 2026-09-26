@@ -1,10 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { SymbolKind, lookupSymbol, resolveDelimiter } from './LatexSymbols.js';
 import { latexToMathML } from './LatexToMathML.js';
+import { isAccent } from './handlers/Accents.js';
+import { isEnvironment } from './handlers/Environments.js';
+import { isFontCommand } from './handlers/Fonts.js';
+import { isSpacing, spacingMarkup } from './handlers/Spacing.js';
 
 function render(latex: string): string {
 	return latexToMathML(latex).presentation;
 }
+
+describe('registered table entries (#228)', () => {
+	it.each(Object.getOwnPropertyNames(Object.prototype))('rejects inherited name %s', (name) => {
+		expect.soft(lookupSymbol(name)).toBeUndefined();
+		expect.soft(resolveDelimiter(name)).toBeUndefined();
+		expect.soft(resolveDelimiter(`\\${name}`)).toBeUndefined();
+		expect.soft(isAccent(name)).toBe(false);
+		expect.soft(isEnvironment(name)).toBe(false);
+		expect.soft(isFontCommand(name)).toBe(false);
+		expect.soft(isSpacing(name)).toBe(false);
+		expect(spacingMarkup(name)).toBeUndefined();
+	});
+
+	it('recognizes registered handler commands, including entries with undefined values', () => {
+		expect(isAccent('hat')).toBe(true);
+		expect(isEnvironment('matrix')).toBe(true);
+		expect(isEnvironment('array')).toBe(true);
+		for (const name of ['mathbb', 'boldsymbol', 'text', 'mbox', 'mathrm', 'operatorname']) {
+			expect(isFontCommand(name)).toBe(true);
+		}
+		expect(isSpacing('quad')).toBe(true);
+		expect(spacingMarkup('quad')).toBe('<mspace width="1em"></mspace>');
+	});
+});
 
 describe('greek letters', () => {
 	it('renders lowercase greek as identifiers', () => {

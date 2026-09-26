@@ -29,6 +29,46 @@ function makeField(overrides?: Partial<MathFieldOptions>): MathField {
 	});
 }
 
+describe('MathField error recovery (#228)', () => {
+	it.each([
+		['\\toString + x', '\\toString'],
+		['\\left\\constructor x\\right)', '\\constructor'],
+	])('previews, commits, reopens and corrects %s after an input event', (latex, command) => {
+		const onCommit = vi.fn();
+		const field = makeField({ initialLatex: 'a', onCommit });
+		const textarea = field.root.querySelector<HTMLTextAreaElement>('textarea');
+		expect(textarea).not.toBeNull();
+		if (!textarea) return;
+		textarea.value = latex;
+		textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		expect(field.root.querySelector('.notectl-formula-editor__preview merror')?.textContent).toBe(
+			command,
+		);
+		expect(
+			field.root.querySelector('.notectl-formula-editor__errors[aria-live="polite"]')?.textContent,
+		).toBe(`Unknown: ${command}`);
+		textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		expect(onCommit).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				latex,
+				mathml: expect.stringContaining(`<merror><mtext>${command}</mtext></merror>`),
+			}),
+		);
+
+		const reopened = makeField({ mode: 'edit', initialLatex: field.getResult().latex });
+		expect(reopened.root.querySelector('merror')?.textContent).toBe(command);
+		const edit = reopened.root.querySelector<HTMLTextAreaElement>('textarea');
+		expect(edit).not.toBeNull();
+		if (!edit) return;
+		edit.value = '\\alpha + x';
+		edit.dispatchEvent(new Event('input', { bubbles: true }));
+		expect(reopened.root.querySelector('merror')).toBeNull();
+		expect(reopened.root.querySelector('.notectl-formula-editor__errors')?.textContent).toBe('');
+		expect(reopened.getResult().mathml).toContain('<mi>α</mi><mo>+</mo><mi>x</mi>');
+	});
+});
+
 describe('MathField size control', () => {
 	it('renders a labelled size select when fontSizes are provided', () => {
 		const field = makeField({ fontSizes: [16, 24, 48] });

@@ -48,6 +48,8 @@
  * environments are handled in the parser, not these tables.
  */
 
+import { lookupOwn } from './LookupOwn.js';
+
 /** How a symbol maps onto MathML markup. */
 export enum SymbolKind {
 	/** Ordinary atom: rendered as `<mi>` (variable-like). */
@@ -393,7 +395,7 @@ export const SYMBOLS: Readonly<Record<string, SymbolEntry>> = {
 
 /** Returns the symbol entry for a command name (without the leading backslash). */
 export function lookupSymbol(name: string): SymbolEntry | undefined {
-	return SYMBOLS[name];
+	return lookupOwn(SYMBOLS, name);
 }
 
 /** Maps a single literal delimiter character to its fence kind, if it is one. */
@@ -418,7 +420,7 @@ export function resolveDelimiter(spec: string): SymbolEntry | undefined {
 		if (name === '}') return entry('}', SymbolKind.Close);
 		if (name === '|') return entry('‖', SymbolKind.Relation);
 		if (name === '\\') return entry('\\', O);
-		return DELIMITERS[name];
+		return lookupOwn(DELIMITERS, name);
 	}
-	return DELIMITER_CHARS[spec];
+	return lookupOwn(DELIMITER_CHARS, spec);
 }
