@@ -62,6 +62,12 @@ const INTEGRAL_CHARS: ReadonlySet<string> = new Set(['∫', '∬', '∭', '∮']
  * would otherwise overflow the call stack and throw, breaking the documented
  * "never throws" contract. Real formulas nest only a handful of levels, so this
  * is never reached in practice.
+ *
+ * The guard lives in `parseBaseAtom`, so every recursive path back into
+ * `parseExpression` must run inside a `parseBaseAtom` frame. Groups and
+ * arguments (including script arguments) are parsed as base atoms; handlers
+ * reach `parseOptionalArgument`/`parseAtomsUntil` only via `parseCommand`,
+ * inside the command's own frame.
  */
 const MAX_PARSE_DEPTH = 256;
 
@@ -388,21 +394,9 @@ class LatexParser implements ParserApi {
 	}
 
 	public parseArgument(): string {
-		return nonEmpty(this.parseArgumentRaw());
-	}
-
-	private parseArgumentRaw(): string {
-		const tok: Token | undefined = this.peek();
-		if (tok === undefined) return '';
-		if (tok.type === TokenType.GroupOpen) {
-			this.next();
-			const atoms: readonly Atom[] = this.parseExpression(() => false);
-			this.expect(TokenType.GroupClose);
-			return group(atoms.map((a) => a.node));
-		}
-		// Single-token argument: parse exactly one base atom (with no scripts).
-		const single: Atom | undefined = this.parseBaseAtom();
-		return single?.node ?? '';
+		// A `{…}` group or a single token, parsed as exactly one base atom (with no
+		// scripts) so every argument, including script arguments, passes the guard.
+		return nonEmpty(this.parseBaseAtom()?.node ?? '');
 	}
 
 	public parseOptionalArgument(): string | undefined {

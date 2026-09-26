@@ -66,6 +66,33 @@ describe('formula Markdown syntax — import', () => {
 		expect(doc.children[0]?.type).toBe('math_display');
 		expect(doc.children[0]?.attrs?.latex).toBe('x = 1');
 	});
+
+	it('imports pathologically nested scripts without aborting the document (#229)', () => {
+		const latex = `${'x^{'.repeat(20000)}x${'}'.repeat(20000)}`;
+		const markdown: string = [
+			'Before.',
+			`Inline $${latex}$ end.`,
+			`$$\n${latex}\n$$`,
+			'After.',
+		].join('\n\n');
+		const registry = formulaRegistry();
+		const doc = parseMarkdownToDocument(markdown, registry, { syntaxExtensions: SYNTAX });
+
+		expect(doc.children.map((block) => block.type)).toEqual([
+			'paragraph',
+			'paragraph',
+			'math_display',
+			'paragraph',
+		]);
+		const inline = getInlineChildren(doc.children[1] as BlockNode).find(
+			(c): c is InlineNode => 'inlineType' in c,
+		);
+		for (const attrs of [inline?.attrs, doc.children[2]?.attrs]) {
+			expect(attrs?.latex).toBe(latex);
+			expect(attrs?.mathml).toContain('<merror>');
+		}
+		expect(serializeDocumentToMarkdown(doc, registry).trim()).toBe(markdown);
+	});
 });
 
 describe('formula Markdown syntax — export & round-trip', () => {

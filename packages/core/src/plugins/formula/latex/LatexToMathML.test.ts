@@ -28,16 +28,43 @@ describe('entry contract', () => {
 		expect(() => render('}{)(^_&\\\\\\right\\end{x}')).not.toThrow();
 	});
 
-	it('recovers from pathologically deep nesting instead of overflowing the stack', () => {
-		const deep = '{'.repeat(20000) + '}'.repeat(20000);
-		expect(() => latexToMathML(deep)).not.toThrow();
-		const result = latexToMathML(deep);
-		expect(result.presentation).toBeTypeOf('string');
-		expect(result.errors.some((e) => e.message.toLowerCase().includes('depth'))).toBe(true);
-	});
+	/** Every construct the descent recurses through, repeated to pathological depth. */
+	const NESTING_UNITS: readonly string[] = [
+		'{',
+		'x^{',
+		'x_{',
+		"x'^{",
+		'x^{}_{',
+		'\\sum_{',
+		'^{',
+		'\\frac{',
+		'\\frac{}{',
+		'\\sqrt{',
+		'\\sqrt[',
+		'\\mathbf{',
+		'\\left(',
+		'\\begin{matrix}',
+		'x^\\frac{',
+		'\\left(x^{',
+		'\\begin{cases}x^{',
+	];
 
-	it('recovers from deep unbalanced nesting instead of overflowing the stack', () => {
-		expect(() => latexToMathML('{'.repeat(20000))).not.toThrow();
+	it.each(NESTING_UNITS)(
+		'recovers from 20000 nested "%s" (bare and with trailing closers) without overflowing the stack',
+		(unit) => {
+			const deep: string = unit.repeat(20000);
+			for (const source of [deep, `${deep}x${'}'.repeat(20000)}`]) {
+				const result = latexToMathML(source);
+				expect(result.presentation).toBeTypeOf('string');
+				expect(result.errors.map((e) => e.message)).toContain('Maximum nesting depth exceeded');
+			}
+		},
+	);
+
+	it('renders realistically deep script nesting without hitting the depth limit', () => {
+		const result = latexToMathML(`${'x^{'.repeat(20)}x${'}'.repeat(20)}`);
+		expect(result.errors).toEqual([]);
+		expect(result.presentation.match(/<msup>/g)).toHaveLength(20);
 	});
 });
 

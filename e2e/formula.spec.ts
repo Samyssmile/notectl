@@ -106,6 +106,29 @@ test.describe('Formula plugin', () => {
 		expect(pageErrors).toEqual([]);
 	});
 
+	test('setContentMarkdown survives pathologically nested scripts (#229)', async ({
+		editor,
+		page,
+	}) => {
+		const pageErrors: string[] = [];
+		page.on('pageerror', (error) => pageErrors.push(error.message));
+		const latex = `${'x^{'.repeat(20000)}x${'}'.repeat(20000)}`;
+		const markdown = ['Before.', `Inline $${latex}$ end.`, 'After.'].join('\n\n');
+		const exported = await editor.root.evaluate(async (element, source) => {
+			const el = element as import('../packages/core/src/editor/NotectlEditor.js').NotectlEditor;
+			await el.setContentMarkdown(source);
+			return el.getContentMarkdown();
+		}, markdown);
+		expect(exported.trim() === markdown).toBe(true);
+		const formula = editor.content.locator('.notectl-math--inline');
+		await expect(formula).toHaveCount(1);
+		await expect(formula.locator('merror')).toHaveCount(1);
+		await expect(editor.content).toContainText('Before.');
+		await expect(editor.content).toContainText('end.');
+		await expect(editor.content).toContainText('After.');
+		expect(pageErrors).toEqual([]);
+	});
+
 	test('dark theme gives the primary formula action a contrasting foreground (#217)', async ({
 		editor,
 		page,

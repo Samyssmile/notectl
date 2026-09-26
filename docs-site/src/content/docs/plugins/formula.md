@@ -113,6 +113,8 @@ Unknown delimiter specifications after `\left` or `\right` also render an error 
 
 Only registered commands and environments are recognized; names such as `\toString` and `\constructor` are handled as unknown commands. Invalid formulas remain editable and can be imported and exported through Markdown without losing their LaTeX source or interrupting the rest of the document.
 
+Pathologically deep nesting (more than a hundred levels of groups, arguments, or superscripts and subscripts) is cut off at a fixed depth limit. The converter renders a visible error marker in place of the dropped part and reports `Maximum nesting depth exceeded`, while the LaTeX source is kept unchanged.
+
 ## Configuration
 
 ```ts
