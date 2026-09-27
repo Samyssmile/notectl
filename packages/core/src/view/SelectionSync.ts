@@ -11,27 +11,16 @@ import {
 } from '../model/Selection.js';
 import { blockId as toBlockId } from '../model/TypeBrands.js';
 import { buildBlockPath, findBlockAncestor } from './DomUtils.js';
+import {
+	createInlineContentWalker,
+	isInlineNodeEl,
+	isWidgetEl,
+	resolveContentRoot,
+} from './InlineContentDOM.js';
 
 interface DOMPosition {
 	node: Node;
 	offset: number;
-}
-
-/**
- * True when `node` is an InlineNode element — rendered `contenteditable="false"`
- * and counted as width 1 in state offset space.
- */
-function isInlineNodeEl(node: Node | null | undefined): node is HTMLElement {
-	return node instanceof HTMLElement && node.getAttribute('contenteditable') === 'false';
-}
-
-/**
- * True when `node` is a view-chrome widget (`data-widget`), such as the checklist
- * checkbox marker. Widgets are rendered into the editable DOM for accessibility
- * but are not document content, so they count as zero width in offset space.
- */
-function isWidgetEl(node: Node | null | undefined): node is HTMLElement {
-	return node instanceof HTMLElement && node.hasAttribute('data-widget');
 }
 
 /**
@@ -403,51 +392,6 @@ function inlineOffsetBeforeNode(root: Element, node: Node): number | null {
 	return current === root ? offset : null;
 }
 
-/** Checks if a node is inside a contentEditable="false" inline element. */
-function isInsideInlineElement(node: Node, root: Element): boolean {
-	let parent: Node | null = node.parentNode;
-	while (parent && parent !== root) {
-		if (isInlineNodeEl(parent)) {
-			return true;
-		}
-		parent = parent.parentNode;
-	}
-	return false;
-}
-
-/**
- * Creates a TreeWalker that visits text nodes and contentEditable="false"
- * inline elements within a block, skipping mark wrappers and nested blocks.
- */
-function createInlineContentWalker(blockEl: Element): TreeWalker {
-	return document.createTreeWalker(blockEl, NodeFilter.SHOW_ALL, {
-		acceptNode: (n: Node) => {
-			// Skip cursor wrapper (ZWS for stored marks during IME composition)
-			if (n instanceof HTMLElement && n.hasAttribute('data-cursor-wrapper')) {
-				return NodeFilter.FILTER_REJECT;
-			}
-			// Skip view-chrome widgets (e.g. the checklist checkbox marker). They are
-			// contentEditable="false" but not document content, so they carry zero
-			// width in offset space and must never become a caret position.
-			if (isWidgetEl(n)) return NodeFilter.FILTER_REJECT;
-			// Skip anything inside an inline element (contentEditable="false")
-			if (isInsideInlineElement(n, blockEl)) return NodeFilter.FILTER_REJECT;
-			// Skip nested block elements and their descendants
-			if (n instanceof HTMLElement && n.hasAttribute('data-block-id') && n !== blockEl) {
-				return NodeFilter.FILTER_REJECT;
-			}
-			// Accept text nodes
-			if (n.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
-			// Accept inline elements (contentEditable="false")
-			if (isInlineNodeEl(n)) {
-				return NodeFilter.FILTER_ACCEPT;
-			}
-			// Skip other elements (mark wrappers, decoration wrappers) — descend
-			return NodeFilter.FILTER_SKIP;
-		},
-	});
-}
-
 /** Returns the child index of a node within its parent. */
 function childIndexOf(parent: Node, child: Node): number {
 	let idx = 0;
@@ -456,16 +400,6 @@ function childIndexOf(parent: Node, child: Node): number {
 		idx++;
 	}
 	return idx;
-}
-
-/**
- * Resolves the content root for inline content walking.
- * If the block element has a contentDOM (marked with data-content-dom),
- * returns it so the walker skips NodeView structural elements (headers, etc.).
- */
-function resolveContentRoot(blockEl: Element): Element {
-	const contentDOM: Element | null = blockEl.querySelector('[data-content-dom]');
-	return contentDOM ?? blockEl;
 }
 
 /** Counts the inline content width of a DOM node (text length + 1 per inline element). */

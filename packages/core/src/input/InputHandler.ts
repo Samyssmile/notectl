@@ -14,8 +14,7 @@ import {
 	insertTextCommand,
 	splitBlockCommand,
 } from '../commands/Commands.js';
-import { type BlockNode, getInlineChildren, isTextNode } from '../model/Document.js';
-import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
+import { getBlockOffsetText } from '../model/BlockOffsetText.js';
 import { type Selection, isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { Transaction } from '../state/Transaction.js';
 
@@ -24,6 +23,7 @@ import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
 import type { EditorState } from '../state/EditorState.js';
+import { CompositionController, type CompositionDOM } from './CompositionController.js';
 import { CompositionTracker } from './CompositionTracker.js';
 
 export type DispatchFn = (tr: Transaction) => void;
@@ -55,6 +55,12 @@ export interface InputHandlerOptions {
 	 * `insertReplacementText` target the exact browser-reported word range.
 	 */
 	resolveTargetRange?: (range: StaticRange) => Selection | null;
+	/**
+	 * View-side DOM access for committing IME compositions from the rendered
+	 * text. Supplied by the composition root; without it a composition commit
+	 * inserts the `compositionend` data at the caret.
+	 */
+	compositionDOM?: CompositionDOM;
 }
 
 export class InputHandler {
@@ -68,7 +74,7 @@ export class InputHandler {
 	private readonly getTextInputInterceptors: () => readonly TextInputInterceptorEntry[];
 	private readonly callbackExecutor: PluginCallbackExecutor;
 	private readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
-	private compositionCommitHandled = false;
+	private readonly composition: CompositionController;
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
 	private readonly handleCompositionStart: (e: CompositionEvent) => void;
@@ -88,12 +94,22 @@ export class InputHandler {
 		this.getTextInputInterceptors = options.getTextInputInterceptors ?? (() => []);
 		this.callbackExecutor = options.callbackExecutor ?? PluginCallbackExecutor.silent;
 		this.resolveTargetRange = options.resolveTargetRange;
+		this.composition = new CompositionController({
+			getState: this.getState,
+			dispatch: this.dispatch,
+			isReadOnly: this.isReadOnly,
+			tracker: this.compositionTracker,
+			compositionDOM: options.compositionDOM,
+		});
 
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
 		this.handleCompositionEnd = this.onCompositionEnd.bind(this);
 
 		element.addEventListener('beforeinput', this.handleBeforeInput);
+		// Registered before the view's composition listeners (the input layer is
+		// created first): the commit reads the composed text before the view
+		// removes the IME cursor wrapper that holds it.
 		element.addEventListener('compositionstart', this.handleCompositionStart);
 		element.addEventListener('compositionend', this.handleCompositionEnd);
 	}
@@ -187,7 +203,7 @@ export class InputHandler {
 
 			case 'insertFromComposition':
 				if (e.data) {
-					this.compositionCommitHandled = true;
+					this.composition.markCommitHandled();
 					tr =
 						this.runTextInputInterceptors(e.data, state) ??
 						insertTextCommand(state, e.data, 'input');
@@ -268,26 +284,12 @@ export class InputHandler {
 
 	private onCompositionStart(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
-		const state = this.getState();
-		if (!isTextSelection(state.selection)) return;
-		this.compositionCommitHandled = false;
-		this.compositionTracker.start(state.selection.anchor.blockId);
+		this.composition.start();
 	}
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
-		this.compositionTracker.end();
-		if (this.isReadOnly()) return;
-		if (this.compositionCommitHandled) {
-			this.compositionCommitHandled = false;
-			return;
-		}
-		const composedText = e.data;
-		if (!composedText) return;
-
-		const state = this.getState();
-		const tr = insertTextCommand(state, composedText, 'input');
-		this.dispatch(tr);
+		this.composition.end(e.data);
 	}
 
 	/**
@@ -329,7 +331,7 @@ export class InputHandler {
 		// char) so `match.index`/`end` are real offsets even when inline nodes
 		// precede the match. Plain `getBlockText` drops inline nodes (width 0),
 		// which desyncs `anchor.offset` (width 1) and corrupts the deleted range.
-		const text = blockTextForRules(block);
+		const text = getBlockOffsetText(block);
 		const textBefore = text.slice(0, anchor.offset);
 
 		for (const entry of entries) {
@@ -359,19 +361,6 @@ export class InputHandler {
 		this.element.removeEventListener('compositionstart', this.handleCompositionStart);
 		this.element.removeEventListener('compositionend', this.handleCompositionEnd);
 	}
-}
-
-/**
- * Renders a block's inline content in model-offset space: text verbatim, each
- * inline node as a single {@link INLINE_NODE_PLACEHOLDER}. Indices into the
- * result equal model offsets, which input-rule handlers feed to step builders.
- */
-function blockTextForRules(block: BlockNode): string {
-	let text = '';
-	for (const child of getInlineChildren(block)) {
-		text += isTextNode(child) ? child.text : INLINE_NODE_PLACEHOLDER;
-	}
-	return text;
 }
 
 /**

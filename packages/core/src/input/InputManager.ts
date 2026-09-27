@@ -19,6 +19,7 @@ import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { ClipboardHandler } from './ClipboardHandler.js';
+import type { CompositionDOM } from './CompositionController.js';
 import { CompositionTracker } from './CompositionTracker.js';
 import { InputHandler } from './InputHandler.js';
 import { KeyboardHandler } from './KeyboardHandler.js';
@@ -61,6 +62,8 @@ export interface InputManagerDeps {
 	 * selection (view-layer DOM mapping, wired by the composition root).
 	 */
 	readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
+	/** View-side DOM access for committing IME compositions (wired by the composition root). */
+	readonly compositionDOM?: CompositionDOM;
 }
 
 export class InputManager {
@@ -84,6 +87,7 @@ export class InputManager {
 			getTextInputInterceptors: deps.getTextInputInterceptors,
 			callbackExecutor: deps.callbackExecutor,
 			resolveTargetRange: deps.resolveTargetRange,
+			compositionDOM: deps.compositionDOM,
 		});
 
 		this.keyboardHandler = new KeyboardHandler(contentElement, {

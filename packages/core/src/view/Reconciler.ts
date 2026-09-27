@@ -277,6 +277,40 @@ export function reconcile(
 }
 
 /**
+ * Re-renders the inline content of leaf block `blockId` from `state`,
+ * discarding whatever the browser left in that DOM, such as edits made while
+ * the block was skipped during an IME composition. Does nothing when the block
+ * is missing, not a leaf, or owns no inline content DOM.
+ */
+export function rerenderLeafContent(
+	container: HTMLElement,
+	state: EditorState,
+	blockId: BlockId,
+	options: ReconcileOptions,
+): void {
+	const block: BlockNode | undefined = state.getBlock(blockId);
+	if (!block || !isLeafBlock(block)) return;
+	const element: HTMLElement | null = container.querySelector(`[data-block-id="${blockId}"]`);
+	if (!element) return;
+	const contentDOM: HTMLElement | null = resolveLeafContentDOM(
+		element,
+		block,
+		options.registry,
+		options.nodeViews,
+	);
+	if (!contentDOM) return;
+	renderBlockContent(
+		contentDOM,
+		block,
+		options.registry,
+		options.decorations?.findInline(blockId),
+		options.decorations?.findWidget(blockId),
+		undefined,
+		options.callbackExecutor,
+	);
+}
+
+/**
  * Resolves the DOM region owned by inline content without treating an atomic
  * node's presentation DOM as editable content. A null NodeView contentDOM and
  * a void NodeSpec are explicit ownership boundaries, not missing values that

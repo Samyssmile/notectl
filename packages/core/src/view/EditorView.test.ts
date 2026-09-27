@@ -22,6 +22,7 @@ import {
 	createNodeSelection,
 	isNodeSelection,
 } from '../model/Selection.js';
+import { blockId } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import { TransactionBuilder } from '../state/Transaction.js';
@@ -1093,6 +1094,39 @@ describe('EditorView file-drop plugin runtime', () => {
 		await Promise.resolve();
 
 		expect(next).not.toHaveBeenCalled();
+		view.destroy();
+	});
+});
+
+describe('EditorView composition DOM access', () => {
+	function createHelloView(): { container: HTMLElement; view: EditorView; paragraph: Element } {
+		const container: HTMLElement = document.createElement('div');
+		const state: EditorState = EditorState.create({
+			doc: createDocument([createBlockNode('paragraph', [createTextNode('hello')], 'b1')]),
+			selection: createCollapsedSelection('b1', 5),
+		});
+		const view = new EditorView(container, { state });
+		const paragraph: Element | null = container.querySelector('[data-block-id="b1"]');
+		if (!paragraph) throw new Error('Expected rendered paragraph');
+		return { container, view, paragraph };
+	}
+
+	it('reads text the browser left in a block', () => {
+		const { view, paragraph } = createHelloView();
+		paragraph.textContent = 'hellowo';
+
+		expect(view.readRenderedBlockText(blockId('b1'))).toBe('hellowo');
+		view.destroy();
+	});
+
+	it('restoreBlock replaces browser-mutated inline DOM with the state rendering', () => {
+		const { view, paragraph } = createHelloView();
+		paragraph.textContent = 'hell';
+
+		view.restoreBlock(blockId('b1'));
+
+		expect(paragraph.textContent).toBe('hello');
+		expect(view.readRenderedBlockText(blockId('b1'))).toBe('hello');
 		view.destroy();
 	});
 });

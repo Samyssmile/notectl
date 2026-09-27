@@ -121,7 +121,7 @@ Readonly guard:
 - `Reconciler` works at block granularity: builds a block map from `data-block-id` elements, diffs changed blocks (including decoration changes), delegates to `NodeView.update()` where possible, and falls back to full `renderBlock()` replacement. List items are unwrapped before reconciliation and re-wrapped after.
 - `InputHandler` maps `beforeinput` event types to commands and checks `InputRuleRegistry` after text insertion.
 - `KeyboardHandler` processes keydown events with priority: NodeSelection navigation -> plugin keymaps -> built-in shortcuts (undo/redo/selectAll) -> GapCursor navigation.
-- IME composition is handled natively — both handlers pass through to the browser during active composition.
+- IME composition is handled natively. While a composition is active, the browser owns the composition block: both handlers pass composition input through, the reconciler skips the block and selection sync pauses. At `compositionend`, `CompositionController` reads the block's rendered text through the `CompositionDOM` port (implemented by `EditorView`, wired by `EditorInitializer`, because `input/` must not import `view/`), diffs it against the model and dispatches the difference via `commitComposedText`. If nothing is dispatched, the block is re-rendered from the model so no browser-owned DOM outlives the composition.
 
 ### 5.4 Serialization
 

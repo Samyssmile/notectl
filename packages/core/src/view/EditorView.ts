@@ -10,6 +10,7 @@ import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type Selection as ModelSelection, isNodeSelection } from '../model/Selection.js';
+import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HistoryManager } from '../state/History.js';
 import { isAllowedInReadonly, isSelectionOnlyTransaction } from '../state/ReadonlyGuard.js';
@@ -22,7 +23,8 @@ import { EditorViewNavigation } from './EditorViewNavigation.js';
 import type { NodeView } from './NodeView.js';
 import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
-import { type ReconcileOptions, reconcile } from './Reconciler.js';
+import { type ReconcileOptions, reconcile, rerenderLeafContent } from './Reconciler.js';
+import { readRenderedBlockText } from './RenderedBlockText.js';
 import { domRangeToState, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
@@ -272,6 +274,32 @@ export class EditorView {
 	 */
 	resolveDOMRange(range: AbstractRange): ModelSelection | null {
 		return domRangeToState(this.contentElement, range);
+	}
+
+	/**
+	 * Reads the text block `blockId` currently renders, in model-offset space,
+	 * including edits the browser made during an IME composition. Returns
+	 * `null` when no element renders the block.
+	 */
+	readRenderedBlockText(blockId: BlockId): string | null {
+		return readRenderedBlockText(this.contentElement, blockId);
+	}
+
+	/**
+	 * Replaces block `blockId`'s inline DOM with a fresh rendering of the
+	 * current state and writes the state selection back to the DOM. Used after
+	 * an IME composition whose DOM edits the state did not adopt, so the view
+	 * shows what the model holds.
+	 */
+	restoreBlock(blockId: BlockId): void {
+		this.cursorWrapper.cleanup();
+		rerenderLeafContent(this.contentElement, this.state, blockId, {
+			...this.reconcileOptions(),
+			decorations: this.decorations,
+		});
+		if (!this.compositionState.isComposing) {
+			syncSelectionToDOM(this.contentElement, this.state.selection);
+		}
 	}
 
 	/**

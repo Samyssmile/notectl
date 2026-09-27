@@ -14,11 +14,9 @@ import type { Mark } from '../model/Document.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { isCollapsed, isTextSelection } from '../model/Selection.js';
 import type { EditorState } from '../state/EditorState.js';
+import { CURSOR_WRAPPER_ATTR, ZERO_WIDTH_SPACE } from './InlineContentDOM.js';
 import { wrapNodeWithMarks } from './MarkRendering.js';
 import { getSelection, readComposedSelection } from './SelectionSync.js';
-
-const ZWS = '\u200B';
-const CURSOR_WRAPPER_ATTR = 'data-cursor-wrapper';
 
 export class CursorWrapper {
 	private wrapperElement: HTMLElement | null = null;
@@ -53,7 +51,7 @@ export class CursorWrapper {
 		// Build the wrapper: <span data-cursor-wrapper>ZWS</span>
 		const wrapper: HTMLElement = document.createElement('span');
 		wrapper.setAttribute(CURSOR_WRAPPER_ATTR, '');
-		const textNode: Text = document.createTextNode(ZWS);
+		const textNode: Text = document.createTextNode(ZERO_WIDTH_SPACE);
 
 		// Wrap the text node in sorted mark elements (innermost → outermost)
 		const wrapped: Node = wrapNodeWithMarks(textNode, marks, this.registry);
