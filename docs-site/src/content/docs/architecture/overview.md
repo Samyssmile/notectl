@@ -174,6 +174,21 @@ Plugins never access editor internals directly. Everything goes through `PluginC
 - Safe from breaking changes in internal APIs
 - Composable without conflicts
 
+### Stylesheet Delivery
+
+Static editor and plugin styles live in `.css` files and are imported with Vite's
+`?inline` query. The build processes and minifies them into JavaScript strings;
+consumers do not need a separate CSS import. Both ESM and UMD use the same CSS
+build options, targeting Chrome 67, Firefox 63, Safari 12.1, and Edge 79 as listed
+in the installation requirements. JavaScript build targets are configured separately.
+
+At runtime, the editor adopts its base and theme stylesheets in the Shadow DOM.
+Plugins continue to register their styles through `PluginContext.registerStyleSheet()`.
+The existing runtime style and nonce handling is unchanged. Styles generated from
+shared constants, such as paper dimensions and syntax token rules, remain TypeScript.
+Tests process CSS imports through Vite too, so theme and accessibility checks
+exercise real styles instead of empty CSS mocks.
+
 ### Block-Level Reconciliation
 
 The Reconciler diffs at block granularity — if a block hasn't changed, its DOM is untouched. Within a changed block, inline content is fully rebuilt. This is a good balance between performance and simplicity.

@@ -9,12 +9,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { BLOCKQUOTE_CSS } from '../../plugins/blockquote/BlockquoteStyles.js';
-import { FORMULA_EDITOR_CSS } from '../../plugins/formula/FormulaStyles.js';
-import { VIDEO_POPUP_CSS } from '../../plugins/video/VideoPopupStyles.js';
-import { BASE_CSS } from './base.js';
-import { TABLE_CSS } from './table.js';
-import { TOOLBAR_CSS } from './toolbar.js';
+import BLOCKQUOTE_CSS from '../../plugins/blockquote/BlockquoteStyles.css?inline';
+import FORMULA_EDITOR_CSS from '../../plugins/formula/FormulaEditorStyles.css?inline';
+import VIDEO_POPUP_CSS from '../../plugins/video/VideoPopupStyles.css?inline';
+import BASE_CSS from './base.css?inline';
+import TABLE_CSS from './table.css?inline';
+import TOOLBAR_CSS from './toolbar.css?inline';
 
 describe('Theming contract', () => {
 	describe('Three-tier cascade (component → global → fallback)', () => {
@@ -53,10 +53,10 @@ describe('Theming contract', () => {
 
 	describe('@property declarations for documented public tokens', () => {
 		it('declares core color tokens with <color> syntax and initial-value', () => {
-			expect(BASE_CSS).toMatch(/@property\s+--notectl-bg\s*\{[^}]*syntax:\s*'<color>'/);
-			expect(BASE_CSS).toMatch(/@property\s+--notectl-fg\s*\{[^}]*syntax:\s*'<color>'/);
-			expect(BASE_CSS).toMatch(/@property\s+--notectl-border\s*\{[^}]*syntax:\s*'<color>'/);
-			expect(BASE_CSS).toMatch(/@property\s+--notectl-primary\s*\{[^}]*syntax:\s*'<color>'/);
+			expect(BASE_CSS).toMatch(/@property\s+--notectl-bg\s*\{[^}]*syntax:\s*(['"])<color>\1/);
+			expect(BASE_CSS).toMatch(/@property\s+--notectl-fg\s*\{[^}]*syntax:\s*(['"])<color>\1/);
+			expect(BASE_CSS).toMatch(/@property\s+--notectl-border\s*\{[^}]*syntax:\s*(['"])<color>\1/);
+			expect(BASE_CSS).toMatch(/@property\s+--notectl-primary\s*\{[^}]*syntax:\s*(['"])<color>\1/);
 		});
 
 		it('public color tokens declare initial-value so invalid values fall back gracefully', () => {
@@ -68,7 +68,9 @@ describe('Theming contract', () => {
 
 	describe('Primary vs accent foreground split (#217)', () => {
 		it('registers --notectl-accent-fg as a typed public token', () => {
-			expect(BASE_CSS).toMatch(/@property\s+--notectl-accent-fg\s*\{[^}]*syntax:\s*'<color>'/);
+			expect(BASE_CSS).toMatch(
+				/@property\s+--notectl-accent-fg\s*\{[^}]*syntax:\s*(['"])<color>\1/,
+			);
 		});
 
 		it('toolbar active foreground cascades to the accent token, not the on-primary token', () => {

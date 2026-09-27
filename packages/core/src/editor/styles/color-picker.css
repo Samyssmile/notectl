@@ -1,5 +1,4 @@
 /** Color picker popup styles (text-color + highlight plugins). */
-export const COLOR_PICKER_CSS = `
 /* Color Picker Popup */
 .notectl-color-picker {
 	padding: 8px;
@@ -67,4 +66,3 @@ export const COLOR_PICKER_CSS = `
 	margin-top: 1px;
 	border-radius: 1px;
 }
-`;

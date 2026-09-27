@@ -1,5 +1,4 @@
 /** Styles for the video insert/edit overlay panel and its form. */
-export const VIDEO_POPUP_CSS = `
 .notectl-video-overlay {
 	position: fixed;
 	z-index: 1000;
@@ -150,4 +149,3 @@ export const VIDEO_POPUP_CSS = `
 		border: 1px solid ButtonText;
 	}
 }
-`;

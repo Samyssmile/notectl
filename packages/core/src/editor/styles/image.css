@@ -1,5 +1,4 @@
 /** Image styles — display, alignment, resize handles, upload overlay. */
-export const IMAGE_CSS = `
 /* Image */
 .notectl-image {
 	margin: 8px 0;
@@ -223,4 +222,3 @@ export const IMAGE_CSS = `
 .notectl-image--resizing .notectl-image__img {
 	opacity: 0.85;
 }
-`;

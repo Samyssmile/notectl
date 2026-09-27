@@ -1,5 +1,4 @@
 /** Image insert popup styles (file upload + URL input). */
-export const IMAGE_POPUP_CSS = `
 .notectl-image-popup {
 	padding: 8px;
 	min-width: 240px;
@@ -64,4 +63,3 @@ export const IMAGE_POPUP_CSS = `
 	background: var(--notectl-surface-raised);
 	color: var(--notectl-fg);
 }
-`;

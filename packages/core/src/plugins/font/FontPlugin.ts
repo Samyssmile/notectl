@@ -10,7 +10,7 @@ import {
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
-import { FONT_SELECT_CSS } from '../../editor/styles/font-select.js';
+import FONT_SELECT_CSS from '../../editor/styles/font-select.css?inline';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';

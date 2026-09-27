@@ -6,6 +6,7 @@ import {
 	bundleStatsPlugin,
 	stripEmbeddedFontSourcesFromMaps,
 } from './scripts/BundleStatsPlugin.js';
+import { CSS_BUILD_OPTIONS } from './scripts/CSSBuildOptions.js';
 
 const pluginEntries: Record<string, string> = {
 	'plugins/text-formatting': resolve(__dirname, 'src/plugins/text-formatting/index.ts'),
@@ -58,6 +59,7 @@ export default defineConfig({
 		...analyzePlugins,
 	],
 	build: {
+		...CSS_BUILD_OPTIONS,
 		lib: {
 			entry: {
 				'notectl-core': resolve(__dirname, 'src/index.ts'),
@@ -92,6 +94,7 @@ export default defineConfig({
 		},
 	},
 	test: {
+		css: { include: /\.css(?:\?|$)/ },
 		environment: 'happy-dom',
 		setupFiles: ['./vitest.setup.ts'],
 		include: ['src/**/*.test.ts'],

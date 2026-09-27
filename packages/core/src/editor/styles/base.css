@@ -1,5 +1,4 @@
 /** Core editor styles — :host, .notectl-editor, .notectl-content, generic utilities. */
-export const BASE_CSS = `
 /**
  * Public theme tokens.
  *
@@ -15,19 +14,55 @@ export const BASE_CSS = `
  * Components use the three-tier cascade:
  *   var(--notectl-<component>-<prop>, var(--notectl-<prop>, <fallback>))
  */
-@property --notectl-bg { syntax: '<color>'; initial-value: #ffffff; inherits: true; }
-@property --notectl-fg { syntax: '<color>'; initial-value: #1f2328; inherits: true; }
-@property --notectl-fg-muted { syntax: '<color>'; initial-value: #6e7781; inherits: true; }
-@property --notectl-border { syntax: '<color>'; initial-value: #d0d7de; inherits: true; }
-@property --notectl-border-focus { syntax: '<color>'; initial-value: #0969da; inherits: true; }
-@property --notectl-primary { syntax: '<color>'; initial-value: #0969da; inherits: true; }
-@property --notectl-primary-fg { syntax: '<color>'; initial-value: #ffffff; inherits: true; }
-@property --notectl-accent-fg { syntax: '<color>'; initial-value: #0969da; inherits: true; }
-@property --notectl-focus-ring { syntax: '<color>'; initial-value: rgba(9, 105, 218, 0.3); inherits: true; }
+@property --notectl-bg {
+	syntax: "<color>";
+	initial-value: #ffffff;
+	inherits: true;
+}
+@property --notectl-fg {
+	syntax: "<color>";
+	initial-value: #1f2328;
+	inherits: true;
+}
+@property --notectl-fg-muted {
+	syntax: "<color>";
+	initial-value: #6e7781;
+	inherits: true;
+}
+@property --notectl-border {
+	syntax: "<color>";
+	initial-value: #d0d7de;
+	inherits: true;
+}
+@property --notectl-border-focus {
+	syntax: "<color>";
+	initial-value: #0969da;
+	inherits: true;
+}
+@property --notectl-primary {
+	syntax: "<color>";
+	initial-value: #0969da;
+	inherits: true;
+}
+@property --notectl-primary-fg {
+	syntax: "<color>";
+	initial-value: #ffffff;
+	inherits: true;
+}
+@property --notectl-accent-fg {
+	syntax: "<color>";
+	initial-value: #0969da;
+	inherits: true;
+}
+@property --notectl-focus-ring {
+	syntax: "<color>";
+	initial-value: rgba(9, 105, 218, 0.3);
+	inherits: true;
+}
 
 :host {
 	display: block;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	font-size: 16px;
 	line-height: 1.6;
 	color: var(--notectl-fg);
@@ -148,4 +183,3 @@ export const BASE_CSS = `
 		outline-color: Highlight;
 	}
 }
-`;

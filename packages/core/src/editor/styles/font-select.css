@@ -1,23 +1,22 @@
-/** Heading picker toolbar combobox + popup styles. */
-export const HEADING_SELECT_CSS = `
-/* Heading Select — Width overrides for combobox button */
-.notectl-toolbar-btn--heading {
+/** Font picker toolbar combobox + popup styles. */
+/* Font Select — Width overrides for combobox button */
+.notectl-toolbar-btn--font {
 	min-width: 100px;
 	max-width: 160px;
 }
 
-/* Heading Picker Popup */
-.notectl-heading-picker {
+/* Font Picker Popup */
+.notectl-font-picker {
 	min-width: 200px;
 	max-height: 320px;
 	overflow-y: auto;
 }
 
-.notectl-heading-picker__list {
+.notectl-font-picker__list {
 	padding: 4px 0;
 }
 
-.notectl-heading-picker__item {
+.notectl-font-picker__item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -28,6 +27,7 @@ export const HEADING_SELECT_CSS = `
 	cursor: pointer;
 	font-size: 14px;
 	color: var(--notectl-fg);
+	line-height: 1.4;
 	text-align: start;
 	white-space: nowrap;
 	font-family: inherit;
@@ -35,23 +35,23 @@ export const HEADING_SELECT_CSS = `
 }
 
 @media (hover: hover) {
-	.notectl-heading-picker__item:hover {
+	.notectl-font-picker__item:hover {
 		background: var(--notectl-hover-bg);
 	}
 }
 
-.notectl-heading-picker__item--active {
+.notectl-font-picker__item--active {
 	background: var(--notectl-active-bg);
 	color: var(--notectl-accent-fg);
 }
 
 @media (hover: hover) {
-	.notectl-heading-picker__item--active:hover {
+	.notectl-font-picker__item--active:hover {
 		background: var(--notectl-active-bg);
 	}
 }
 
-.notectl-heading-picker__check {
+.notectl-font-picker__check {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -62,7 +62,12 @@ export const HEADING_SELECT_CSS = `
 	color: var(--notectl-accent-fg);
 }
 
-.notectl-heading-picker__label {
+.notectl-font-picker__label {
 	flex: 1;
 }
-`;
+
+.notectl-font-picker__separator {
+	height: 1px;
+	background: var(--notectl-border);
+	margin: 4px 8px;
+}

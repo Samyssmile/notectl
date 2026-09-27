@@ -4,7 +4,7 @@
  * keyboard resize with screenreader announcements.
  */
 
-import { IMAGE_CSS } from '../../editor/styles/image.js';
+import IMAGE_CSS from '../../editor/styles/image.css?inline';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';
 import { isNodeSelection } from '../../model/Selection.js';
@@ -25,7 +25,7 @@ import {
 import { IMAGE_LOCALE_EN, type ImageLocale, loadImageLocale } from './ImageLocale.js';
 import { createImageNodeViewFactory } from './ImageNodeView.js';
 import { renderImagePopup } from './ImagePopup.js';
-import { IMAGE_POPUP_CSS } from './ImagePopupStyles.js';
+import IMAGE_POPUP_CSS from './ImagePopupStyles.css?inline';
 import {
 	DEFAULT_IMAGE_CONFIG,
 	DEFAULT_IMAGE_KEYMAP,

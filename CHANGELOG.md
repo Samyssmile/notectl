@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Smaller core bundle through compiled static stylesheets.** Static editor and plugin styles now use Vite's CSS pipeline in both ESM and UMD builds, with explicit CSS targets matching the documented browser minimums. Styles remain embedded in JavaScript and are registered through the existing Shadow DOM and plugin APIs; consumers need no additional CSS imports. Existing bundle budgets are unchanged.
+
 ### Fixed
 
 - **Backspace inside an IME composition no longer deletes committed text (#230).** Android Chrome with Gboard reports a backspace inside the word being composed as a `deleteContentBackward` `beforeinput` with `isComposing` set. The input handler only left `insertCompositionText` to the browser during a composition, so this deletion ran against the model, which does not contain the in-progress text yet and whose caret still sits at the composition start: in `hello`, composing `wo` and backspacing removed the committed `o` and the commit produced `hellw`. Every deletion input type now stays with the browser while a composition is active, detected by the composition tracker or the event's own `isComposing` flag, and the composition commit carries the final text. Covered by regression tests in `InputHandler.test.ts` and `e2e/ime-composition.spec.ts`.

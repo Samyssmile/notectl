@@ -31,9 +31,9 @@ import { VIDEO_LOCALE_EN, type VideoLocale, loadVideoLocale } from './VideoLocal
 import { createVideoNodeSpec } from './VideoNodeSpec.js';
 import { createVideoNodeViewFactory } from './VideoNodeView.js';
 import { createVideoPasteInterceptor } from './VideoPasteInterceptor.js';
-import { VIDEO_POPUP_CSS } from './VideoPopupStyles.js';
+import VIDEO_POPUP_CSS from './VideoPopupStyles.css?inline';
 import { type VideoMatch, providerLabel } from './VideoProviders.js';
-import { VIDEO_CSS } from './VideoStyles.js';
+import VIDEO_CSS from './VideoStyles.css?inline';
 import {
 	DEFAULT_VIDEO_CONFIG,
 	DEFAULT_VIDEO_KEYMAP,

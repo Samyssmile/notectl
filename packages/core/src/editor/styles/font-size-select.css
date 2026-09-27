@@ -1,5 +1,4 @@
 /** Font size picker toolbar combobox + popup styles. */
-export const FONT_SIZE_SELECT_CSS = `
 /* Font Size Select — Width overrides for combobox button */
 .notectl-toolbar-btn--fontSize {
 	min-width: 60px;
@@ -103,4 +102,3 @@ export const FONT_SIZE_SELECT_CSS = `
 .notectl-font-size-picker__label {
 	flex: 1;
 }
-`;

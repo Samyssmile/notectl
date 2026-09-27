@@ -7,7 +7,7 @@
  * handlers, and picker/toolbar rendering are delegated to dedicated modules.
  */
 
-import { HEADING_SELECT_CSS } from '../../editor/styles/heading-select.js';
+import HEADING_SELECT_CSS from '../../editor/styles/heading-select.css?inline';
 import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import { createBlockElement } from '../../view/DomUtils.js';
 import type { Plugin, PluginContext } from '../Plugin.js';

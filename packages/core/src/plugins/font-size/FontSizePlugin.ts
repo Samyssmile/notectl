@@ -4,7 +4,7 @@
  * increasing / decreasing font size.
  */
 
-import { FONT_SIZE_SELECT_CSS } from '../../editor/styles/font-size-select.js';
+import FONT_SIZE_SELECT_CSS from '../../editor/styles/font-size-select.css?inline';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';

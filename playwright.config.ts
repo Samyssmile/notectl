@@ -34,6 +34,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'dom-move',
 		'accessibility',
 		'toolbar-keyboard-access',
+		'style-delivery',
 	].join('|'),
 );
 

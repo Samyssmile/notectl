@@ -7,7 +7,7 @@
 import type { Decoration, DecorationSet } from '../../decorations/Decoration.js';
 import { node as nodeDecoration } from '../../decorations/Decoration.js';
 import { DecorationSet as DecorationSetClass } from '../../decorations/Decoration.js';
-import { TABLE_CSS } from '../../editor/styles/table.js';
+import TABLE_CSS from '../../editor/styles/table.css?inline';
 import type { BlockAttrValue, BlockAttrs, BlockNode } from '../../model/Document.js';
 import { getBlockChildren } from '../../model/Document.js';
 import { escapeHTML } from '../../model/HTMLUtils.js';

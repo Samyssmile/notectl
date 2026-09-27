@@ -16,50 +16,7 @@ import {
 	type GapCursorLocale,
 	loadGapCursorLocale,
 } from './GapCursorLocale.js';
-
-const GAP_CURSOR_CSS = `
-.notectl-gap-cursor--before,
-.notectl-gap-cursor--after {
-	position: relative;
-}
-.notectl-gap-cursor--before::before {
-	content: '';
-	display: block;
-	position: absolute;
-	top: 0;
-	inset-inline-start: 0;
-	width: 100%;
-	height: 1px;
-	background: currentColor;
-	transform: translateY(-50%);
-	pointer-events: none;
-	z-index: 1;
-	animation: notectl-gap-blink 1.1s step-end infinite;
-}
-.notectl-gap-cursor--after::after {
-	content: '';
-	display: block;
-	position: absolute;
-	bottom: 0;
-	inset-inline-start: 0;
-	width: 100%;
-	height: 1px;
-	background: currentColor;
-	transform: translateY(50%);
-	pointer-events: none;
-	z-index: 1;
-	animation: notectl-gap-blink 1.1s step-end infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-	.notectl-gap-cursor--before::before,
-	.notectl-gap-cursor--after::after {
-		animation: none;
-	}
-}
-@keyframes notectl-gap-blink {
-	50% { opacity: 0; }
-}
-`;
+import GAP_CURSOR_CSS from './GapCursorStyles.css?inline';
 
 export class GapCursorPlugin implements Plugin {
 	readonly id = 'gap-cursor';

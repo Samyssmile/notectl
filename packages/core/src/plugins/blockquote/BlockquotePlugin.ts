@@ -22,7 +22,7 @@ import {
 	type BlockquoteLocale,
 	loadBlockquoteLocale,
 } from './BlockquoteLocale.js';
-import { BLOCKQUOTE_CSS } from './BlockquoteStyles.js';
+import BLOCKQUOTE_CSS from './BlockquoteStyles.css?inline';
 
 // --- Attribute Registry Augmentation ---
 

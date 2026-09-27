@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	appendStyleText,
 	createRuntimeStyleSheet,
@@ -13,6 +13,7 @@ import {
 
 describe('StyleRuntime', () => {
 	afterEach(() => {
+		vi.restoreAllMocks();
 		unregisterStyleRoot(document);
 		document.body.innerHTML = '';
 	});
@@ -47,6 +48,29 @@ describe('StyleRuntime', () => {
 		expect(getStyleNonceForNode(el)).toBe('nonce-123');
 
 		unregisterStyleRoot(shadow);
+	});
+
+	it('uses a nonce-bearing style element when adopted sheets are unavailable', () => {
+		const host: HTMLDivElement = document.createElement('div');
+		document.body.appendChild(host);
+		const shadow: ShadowRoot = host.attachShadow({ mode: 'open' });
+		vi.spyOn(shadow, 'adoptedStyleSheets', 'set').mockImplementation(() => {
+			throw new Error('Stylesheet adoption is unavailable');
+		});
+		registerStyleRoot(shadow, { nonce: 'style-nonce' });
+		const el: HTMLDivElement = document.createElement('div');
+		shadow.appendChild(el);
+
+		setStyleProperty(el, 'width', '140px');
+
+		expect(el.getAttribute('style')).toBeNull();
+		const style: HTMLStyleElement | null = shadow.querySelector('style');
+		expect(style?.getAttribute('nonce')).toBe('style-nonce');
+		expect(Array.from(style?.sheet?.cssRules ?? [], (rule) => rule.cssText).join('\n')).toContain(
+			'width: 140px',
+		);
+		unregisterStyleRoot(shadow);
+		expect(shadow.querySelector('style')).toBeNull();
 	});
 
 	it('reuses token for identical declarations and removes runtime rule when released', () => {

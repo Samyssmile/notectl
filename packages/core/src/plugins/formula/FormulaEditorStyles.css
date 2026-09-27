@@ -1,69 +1,3 @@
-/**
- * CSS for formula nodes and the authoring surfaces (editor panel + overlay).
- *
- * The `font-family: 'Notectl Math', math` cascade is essential: a real-browser
- * spike showed Chromium renders stretchy constructs (matrix brackets, large
- * integrals/roots) incorrectly without an explicit OpenType MATH font, and
- * correctly once one is applied. The bundled font is opt-in (see ./fonts); the
- * `math` generic keyword is the graceful fallback.
- */
-
-export const FORMULA_CSS = `
-.notectl-math math {
-	font-family: 'Notectl Math', math;
-}
-
-.notectl-math--inline {
-	display: inline-block;
-	vertical-align: middle;
-	padding: 0 1px;
-	border-radius: 3px;
-	cursor: pointer;
-}
-
-.notectl-math--inline:hover {
-	background: var(--notectl-highlight, rgba(0, 0, 0, 0.06));
-}
-
-.notectl-math--inline:focus-visible {
-	outline: 2px solid var(--notectl-primary);
-	outline-offset: 1px;
-}
-
-.notectl-math--inline math {
-	font-size: 1.15em;
-}
-
-.notectl-math--display {
-	display: block;
-	margin: 12px 0;
-	text-align: center;
-	cursor: pointer;
-	user-select: none;
-	-webkit-user-select: none;
-}
-
-.notectl-math--display math {
-	font-size: 1.35em;
-	display: inline-block;
-}
-
-.notectl-math--display.notectl-math--selected {
-	outline: 2px solid var(--notectl-primary);
-	outline-offset: 4px;
-	border-radius: 6px;
-}
-
-.notectl-math__error,
-.notectl-math merror {
-	color: var(--notectl-danger, #c0392b);
-	background: var(--notectl-danger-bg, rgba(192, 57, 43, 0.1));
-	border-radius: 3px;
-	padding: 0 2px;
-}
-`;
-
-export const FORMULA_EDITOR_CSS = `
 .notectl-formula-editor {
 	display: flex;
 	flex-direction: column;
@@ -90,7 +24,7 @@ export const FORMULA_EDITOR_CSS = `
 	width: 100%;
 	box-sizing: border-box;
 	padding: 6px 8px;
-	font-family: 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
+	font-family: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
 	font-size: 13px;
 	line-height: 1.5;
 	resize: vertical;
@@ -139,7 +73,8 @@ export const FORMULA_EDITOR_CSS = `
 }
 
 .notectl-formula-editor__preview math {
-	font-family: 'Notectl Math', math;
+	/* biome-ignore lint/a11y/useGenericFontNames: math is a CSS Fonts Level 4 generic family, unrecognized by Biome 1.9. */
+	font-family: "Notectl Math", math;
 	font-size: 1.3em;
 }
 
@@ -249,4 +184,3 @@ export const FORMULA_EDITOR_CSS = `
 	outline: 2px solid var(--notectl-primary);
 	outline-offset: 1px;
 }
-`;

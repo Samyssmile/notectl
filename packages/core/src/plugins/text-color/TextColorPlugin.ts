@@ -3,7 +3,7 @@
  * toolbar button with a color picker popup, and removeTextColor command.
  */
 
-import { COLOR_PICKER_CSS } from '../../editor/styles/color-picker.js';
+import COLOR_PICKER_CSS from '../../editor/styles/color-picker.css?inline';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';

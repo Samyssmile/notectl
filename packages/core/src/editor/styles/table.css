@@ -1,5 +1,4 @@
 /** Table styles — table layout, selection, context menu, controls, insert lines. */
-export const TABLE_CSS = `
 /* Table */
 .notectl-table-wrapper {
 	margin: 8px 0;
@@ -230,8 +229,7 @@ export const TABLE_CSS = `
 	padding: 0;
 	opacity: 0;
 	transform: scale(0.7);
-	transition: opacity 0.15s, transform 0.15s,
-		background 0.15s, color 0.15s;
+	transition: opacity 0.15s, transform 0.15s, background 0.15s, color 0.15s;
 	z-index: 1;
 }
 
@@ -312,7 +310,7 @@ export const TABLE_CSS = `
 	border-radius: 4px;
 	background: var(--notectl-fg);
 	color: var(--notectl-bg);
-	font: 12px/1.4 monospace;
+	font: 12px / 1.4 monospace;
 	pointer-events: none;
 	white-space: nowrap;
 }
@@ -404,8 +402,7 @@ export const TABLE_CSS = `
 	justify-content: center;
 	padding: 0;
 	box-shadow: 0 2px 8px var(--notectl-focus-ring);
-	transition: background 0.15s, color 0.15s,
-		transform 0.15s, box-shadow 0.15s;
+	transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
 .ntbl-insert-line--horizontal .ntbl-insert-btn {
@@ -449,8 +446,7 @@ export const TABLE_CSS = `
 	cursor: pointer;
 	user-select: none;
 	opacity: 0;
-	transition: opacity 0.2s ease, background 0.2s ease,
-		border-color 0.2s ease;
+	transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .ntbl-container:hover .ntbl-add-zone,
@@ -725,19 +721,20 @@ export const TABLE_CSS = `
 	padding-inline-start: 0;
 }
 
-.ntbl-container[data-notectl-table-readonly] > :is(
-	.ntbl-col-bar,
-	.ntbl-row-bar,
-	.ntbl-col-resize-bar,
-	.ntbl-row-resize-bar,
-	.ntbl-insert-line,
-	.ntbl-add-zone,
-	.ntbl-delete-table-btn,
-	.ntbl-border-color-btn,
-	.ntbl-actions-btn,
-	.ntbl-context-hint,
-	.ntbl-resize-indicator
-) {
+.ntbl-container[data-notectl-table-readonly]
+	> :is(
+		.ntbl-col-bar,
+		.ntbl-row-bar,
+		.ntbl-col-resize-bar,
+		.ntbl-row-resize-bar,
+		.ntbl-insert-line,
+		.ntbl-add-zone,
+		.ntbl-delete-table-btn,
+		.ntbl-border-color-btn,
+		.ntbl-actions-btn,
+		.ntbl-context-hint,
+		.ntbl-resize-indicator
+	) {
 	display: none !important;
 }
 
@@ -816,4 +813,3 @@ export const TABLE_CSS = `
 		display: none !important;
 	}
 }
-`;

@@ -1,5 +1,4 @@
 /** Blockquote styles using CSS logical properties for RTL support. */
-export const BLOCKQUOTE_CSS = `
 .notectl-content blockquote {
 	margin: 0;
 	padding: 2px 0;
@@ -9,4 +8,3 @@ export const BLOCKQUOTE_CSS = `
 	color: var(--notectl-blockquote-fg, inherit);
 	min-height: 1.6em;
 }
-`;

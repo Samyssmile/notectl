@@ -18,6 +18,7 @@ import {
 	type InlineCodeLocale,
 	loadInlineCodeLocale,
 } from './InlineCodeLocale.js';
+import INLINE_CODE_CSS from './InlineCodeStyles.css?inline';
 
 // --- Attribute Registry Augmentation ---
 
@@ -45,25 +46,6 @@ const DEFAULT_CONFIG: InlineCodeConfig = {
 	keymap: 'Mod-E',
 	inputRule: true,
 };
-
-// --- CSS ---
-
-const INLINE_CODE_CSS = `
-.notectl-content code {
-	font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-	font-size: 0.9em;
-	padding: 0.15em 0.35em;
-	border-radius: 4px;
-	background-color: var(--notectl-code-bg);
-	color: var(--notectl-code-color);
-	word-break: break-word;
-}
-@media (forced-colors: active) {
-	.notectl-content code {
-		border: 1px solid LinkText;
-	}
-}
-`;
 
 // --- Mark Exclusivity ---
 

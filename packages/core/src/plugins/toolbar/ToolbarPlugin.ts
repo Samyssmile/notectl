@@ -5,7 +5,7 @@
  * Implements WAI-ARIA Toolbar pattern with roving tabindex.
  */
 
-import { TOOLBAR_CSS } from '../../editor/styles/toolbar.js';
+import TOOLBAR_CSS from '../../editor/styles/toolbar.css?inline';
 import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';

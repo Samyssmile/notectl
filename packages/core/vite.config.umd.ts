@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { stripEmbeddedFontSourcesFromMaps } from './scripts/BundleStatsPlugin.js';
+import { CSS_BUILD_OPTIONS } from './scripts/CSSBuildOptions.js';
 
 /**
  * Separate UMD build for CDN / script-tag consumers.
@@ -9,6 +10,7 @@ import { stripEmbeddedFontSourcesFromMaps } from './scripts/BundleStatsPlugin.js
 export default defineConfig({
 	plugins: [stripEmbeddedFontSourcesFromMaps()],
 	build: {
+		...CSS_BUILD_OPTIONS,
 		lib: {
 			entry: resolve(__dirname, 'src/full.ts'),
 			name: 'NotectlCore',

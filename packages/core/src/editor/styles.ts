@@ -8,9 +8,9 @@
  * Plugin-specific CSS is registered via `PluginContext.registerStyleSheet()`.
  */
 
-import { BASE_CSS } from './styles/base.js';
+import BASE_CSS from './styles/base.css?inline';
 import { PAPER_CSS } from './styles/paper.js';
-import { REDUCED_MOTION_CSS } from './styles/reduced-motion.js';
+import REDUCED_MOTION_CSS from './styles/reduced-motion.css?inline';
 
 /**
  * Combined CSS for the core editor shell.

@@ -1,0 +1,14 @@
+.notectl-content code {
+	font-family: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", monospace;
+	font-size: 0.9em;
+	padding: 0.15em 0.35em;
+	border-radius: 4px;
+	background-color: var(--notectl-code-bg);
+	color: var(--notectl-code-color);
+	word-break: break-word;
+}
+@media (forced-colors: active) {
+	.notectl-content code {
+		border: 1px solid LinkText;
+	}
+}

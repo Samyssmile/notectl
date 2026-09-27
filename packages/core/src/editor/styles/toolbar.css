@@ -1,5 +1,4 @@
 /** Toolbar styles — buttons, separators, tooltips, popups, dropdowns. */
-export const TOOLBAR_CSS = `
 /* Toolbar */
 .notectl-plugin-container--top {
 	display: flex;
@@ -114,7 +113,7 @@ export const TOOLBAR_CSS = `
 	z-index: 10001;
 	line-height: 1.4;
 	letter-spacing: 0.01em;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .notectl-toolbar-separator {
@@ -364,4 +363,3 @@ export const TOOLBAR_CSS = `
 	outline: 2px solid var(--notectl-focus-ring);
 	outline-offset: -1px;
 }
-`;

@@ -1,5 +1,4 @@
 /** Reduced motion preference (WCAG 2.3.3). */
-export const REDUCED_MOTION_CSS = `
 @media (prefers-reduced-motion: reduce) {
 	.notectl-toolbar-btn,
 	.notectl-image__resize-handle,
@@ -21,4 +20,3 @@ export const REDUCED_MOTION_CSS = `
 		transition: none !important;
 	}
 }
-`;

@@ -23,12 +23,13 @@ import {
 	inlineEditTargetFromElement,
 	selectedDisplayBlockId,
 } from './FormulaEditTrigger.js';
+import FORMULA_EDITOR_CSS from './FormulaEditorStyles.css?inline';
 import { createFormulaInputRules } from './FormulaInputRules.js';
 import { FORMULA_LOCALE_EN, type FormulaLocale, loadFormulaLocale } from './FormulaLocale.js';
 import { createFormulaMarkdownSyntax } from './FormulaMarkdownSyntax.js';
 import { FormulaOverlay } from './FormulaOverlay.js';
 import { createFormulaPasteInterceptor } from './FormulaPasteInterceptor.js';
-import { FORMULA_CSS, FORMULA_EDITOR_CSS } from './FormulaStyles.js';
+import FORMULA_CSS from './FormulaStyles.css?inline';
 import { registerFormulaToolbar } from './FormulaToolbar.js';
 import {
 	DEFAULT_FORMULA_CONFIG,
