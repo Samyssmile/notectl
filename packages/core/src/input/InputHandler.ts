@@ -107,6 +107,14 @@ export class InputHandler {
 			return;
 		}
 
+		// Deletions inside an active composition (Android Gboard backspace) edit
+		// text the browser owns and the model does not contain yet; the model
+		// caret still sits at the composition start, so applying them would
+		// remove committed text. The composition commit carries the final text.
+		if (isDeleteInputType(e.inputType) && this.isCompositionActive(e)) {
+			return;
+		}
+
 		if (!shouldHandleBeforeInput(e.inputType)) {
 			return;
 		}
@@ -249,6 +257,15 @@ export class InputHandler {
 		}
 	}
 
+	/**
+	 * Whether `e` belongs to an active IME composition. The event's own flag
+	 * covers compositions the tracker skipped, e.g. one started on a non-text
+	 * selection.
+	 */
+	private isCompositionActive(e: InputEvent): boolean {
+		return this.compositionTracker.isComposing || e.isComposing;
+	}
+
 	private onCompositionStart(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
 		const state = this.getState();
@@ -377,6 +394,21 @@ function readReplacementText(e: InputEvent): string | null {
 	if (e.data) return e.data;
 	const text: string | undefined = e.dataTransfer?.getData('text/plain');
 	return text ? text : null;
+}
+
+/** Whether `inputType` is a Backspace/Delete deletion, including word and line variants. */
+function isDeleteInputType(inputType: string): boolean {
+	switch (inputType) {
+		case 'deleteContentBackward':
+		case 'deleteContentForward':
+		case 'deleteWordBackward':
+		case 'deleteWordForward':
+		case 'deleteSoftLineBackward':
+		case 'deleteSoftLineForward':
+			return true;
+		default:
+			return false;
+	}
 }
 
 function shouldHandleBeforeInput(inputType: string): boolean {

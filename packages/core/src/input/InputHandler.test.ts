@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type Mock, afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createBlockNode,
 	createDocument,
@@ -26,11 +26,21 @@ import { InputHandler } from './InputHandler.js';
 
 const B1 = blockId('b1');
 
-function createBeforeInputEvent(inputType: string, data?: string): InputEvent {
+interface BeforeInputInit {
+	readonly isComposing?: boolean;
+	readonly cancelable?: boolean;
+}
+
+function createBeforeInputEvent(
+	inputType: string,
+	data?: string,
+	init?: BeforeInputInit,
+): InputEvent {
 	const event = new InputEvent('beforeinput', {
 		bubbles: true,
-		cancelable: true,
+		cancelable: init?.cancelable ?? true,
 		data: data ?? null,
+		isComposing: init?.isComposing ?? false,
 	});
 	Object.defineProperty(event, 'inputType', { value: inputType });
 	return event;
@@ -490,6 +500,93 @@ describe('InputHandler', () => {
 
 		expect(dispatch).toHaveBeenCalledOnce();
 		expect(getBlockText(state.doc.children[0])).toBe('ä');
+	});
+
+	describe('deletions during IME composition (#230)', () => {
+		const DELETE_INPUT_TYPES: readonly string[] = [
+			'deleteContentBackward',
+			'deleteContentForward',
+			'deleteWordBackward',
+			'deleteWordForward',
+			'deleteSoftLineBackward',
+			'deleteSoftLineForward',
+		];
+		const COMPOSING: BeforeInputInit = { isComposing: true, cancelable: false };
+
+		interface CompositionHarness {
+			readonly dispatch: Mock<(tr: Transaction) => void>;
+			readonly syncSelection: Mock<() => void>;
+			readonly text: () => string;
+		}
+
+		function setupHarness(): CompositionHarness {
+			element = document.createElement('div');
+			let state: EditorState = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const syncSelection = vi.fn();
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection,
+				compositionTracker: new CompositionTracker(),
+			});
+			return { dispatch, syncSelection, text: () => getBlockText(state.doc.children[0]) };
+		}
+
+		it('keeps committed text when Backspace edits the in-progress composition', () => {
+			// Android Gboard: the model holds `hello`, the DOM `hellowo`; the
+			// backspace removes the composed `o`, never the committed one.
+			const h = setupHarness();
+
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertCompositionText', 'wo', COMPOSING));
+			element.dispatchEvent(createBeforeInputEvent('deleteContentBackward', undefined, COMPOSING));
+			element.dispatchEvent(createCompositionEvent('compositionend', 'w'));
+
+			expect(h.dispatch).toHaveBeenCalledOnce();
+			expect(h.text()).toBe('hellow');
+		});
+
+		it.each(DELETE_INPUT_TYPES)(
+			'leaves %s to the browser while a composition is tracked',
+			(inputType) => {
+				const h = setupHarness();
+				element.dispatchEvent(createCompositionEvent('compositionstart'));
+
+				const event = createBeforeInputEvent(inputType);
+				element.dispatchEvent(event);
+
+				expect(event.defaultPrevented).toBe(false);
+				expect(h.syncSelection).not.toHaveBeenCalled();
+				expect(h.dispatch).not.toHaveBeenCalled();
+				expect(h.text()).toBe('hello');
+			},
+		);
+
+		it('leaves a deletion flagged isComposing to the browser without a tracked composition', () => {
+			const h = setupHarness();
+
+			const event = createBeforeInputEvent('deleteContentBackward', undefined, COMPOSING);
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(h.dispatch).not.toHaveBeenCalled();
+			expect(h.text()).toBe('hello');
+		});
+
+		it('applies deletions again once the composition has ended', () => {
+			const h = setupHarness();
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createCompositionEvent('compositionend', ''));
+
+			const event = createBeforeInputEvent('deleteContentBackward');
+			element.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(h.text()).toBe('hell');
+		});
 	});
 
 	describe('TextInputInterceptor', () => {
