@@ -25,9 +25,9 @@ import {
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 
 /**
- * Whether the `<br>`s of an inline run split it into paragraphs (`<p>` and
- * `<div>` content) or stay in the text, as they did before #223 in the other
- * container paths.
+ * Whether the `<br>`s of an inline run split it into paragraphs, as for `<p>`
+ * and `<div>` content including inline wrappers inside a `<div>`, or stay in
+ * the text, as they did before #223 in the other container paths.
  */
 type LineBreaks = 'split' | 'keep';
 
@@ -231,7 +231,8 @@ export class HTMLParser {
 				} else if (el.children.length > 0 && this.containsBlockDescendants(el)) {
 					this.flushPendingSegments(blocks, pendingSegments, lineBreaks);
 					pendingSegments = [];
-					blocks.push(...this.parseContainerWithMarks(el, this.marksFromElement(el)));
+					// An inline wrapper around blocks inherits how its container treats line breaks.
+					blocks.push(...this.parseContainerWithMarks(el, this.marksFromElement(el), lineBreaks));
 				} else {
 					pendingSegments.push(...this.parseInlineNode(child, []));
 				}

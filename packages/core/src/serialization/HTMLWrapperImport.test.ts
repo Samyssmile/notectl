@@ -211,6 +211,12 @@ describe('line breaks in wrapped inline runs (#262)', () => {
 		expect(texts(reloaded.children)).toEqual(texts(pasted.children));
 	});
 
+	it('splits a line-broken run inside an inline wrapper of a div wrapper', () => {
+		const signature = '<div><font color="#888888">Bob<br>CEO<div>Company</div></font></div>';
+
+		expect(texts(paste(signature).children)).toEqual(['Bob', 'CEO', 'Company']);
+	});
+
 	it('adds no empty paragraph for a line break right before a wrapped block', () => {
 		expect(texts(paste('<div>Signature<br><div>Bob</div></div>').children)).toEqual([
 			'Signature',
