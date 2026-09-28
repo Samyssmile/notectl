@@ -308,11 +308,108 @@ describe('commitComposedText', () => {
 
 			const { result } = run({
 				start,
-				rendered: { text: `a${PH}${PH}b`, caretOffset: 3, inlineNodeOrigins: new Map([[1, 1]]) },
+				rendered: {
+					text: `a${PH}${PH}b`,
+					caretOffset: 3,
+					inlineNodeOrigins: new Map([
+						[1, 1],
+						[2, null],
+					]),
+				},
 				from: 2,
 			});
 
 			expect(result).toEqual({ kind: 'conflict' });
+		});
+	});
+
+	describe('edits at the composition boundaries (#260)', () => {
+		it('keeps a host insertion at the composition start in front of the composed text', () => {
+			const start = helloState();
+
+			const next = commit({
+				start,
+				rendered: { text: 'hellowo', caretOffset: 7 },
+				from: 5,
+				during: [hostInsert(start, 5, 'Z')],
+			});
+
+			expect(text(next)).toBe('helloZwo');
+			expectCursorAt(next, 'b1', 8);
+		});
+
+		it('keeps the caret behind the composed text when the host inserts right after it', () => {
+			const start = stateBuilder()
+				.paragraph('hello world', 'b1')
+				.cursor('b1', 5)
+				.schema(['paragraph'], [])
+				.build();
+
+			const next = commit({
+				start,
+				rendered: { text: 'hellox world', caretOffset: 6 },
+				from: 5,
+				during: [hostInsert(start, 6, 'Z')],
+			});
+
+			expect(text(next)).toBe('hellox Zworld');
+			expectCursorAt(next, 'b1', 6);
+		});
+
+		it('moves a caret behind the change past a host insertion at the caret', () => {
+			const start = stateBuilder()
+				.paragraph('ab cd', 'b1')
+				.cursor('b1', 2)
+				.schema(['paragraph'], [])
+				.build();
+
+			const next = commit({
+				start,
+				rendered: { text: 'abx cd', caretOffset: 6 },
+				from: 2,
+				during: [hostInsert(start, 5, 'Z')],
+			});
+
+			expect(text(next)).toBe('abx cdZ');
+			expectCursorAt(next, 'b1', 7);
+		});
+
+		it('reports a conflict when a split moved the composed range to another block', () => {
+			// Rebasing across a split is a follow-up; until then the v2.3.7 fallback applies.
+			const start = stateBuilder()
+				.paragraph('hello world', 'b1')
+				.cursor('b1', 11)
+				.schema(['paragraph'], [])
+				.build();
+			const split = start.transaction('api').splitBlock(B1, 5, blockId('b2')).build();
+
+			const { result } = run({
+				start,
+				rendered: { text: 'hello worldx', caretOffset: 12 },
+				from: 11,
+				during: [split],
+			});
+
+			expect(result).toEqual({ kind: 'conflict' });
+		});
+	});
+
+	describe('placeholder characters typed as text', () => {
+		it('recomposes a word in a block that holds a literal placeholder character', () => {
+			const start = stateBuilder()
+				.paragraph(`a${PH}b hello`, 'b1')
+				.cursor('b1', 9)
+				.schema(['paragraph'], [])
+				.build();
+
+			const next = commit({
+				start,
+				rendered: { text: `a${PH}b help`, caretOffset: 8, inlineNodeOrigins: new Map() },
+				from: 4,
+				to: 9,
+			});
+
+			expect(text(next)).toBe(`a${PH}b help`);
 		});
 	});
 

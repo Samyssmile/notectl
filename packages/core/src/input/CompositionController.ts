@@ -18,12 +18,13 @@ import {
 	type CompositionCommitResult,
 	commitComposedText,
 } from '../commands/CompositionCommands.js';
+import { getBlockOffsetText } from '../model/BlockOffsetText.js';
 import type { CompositionSnapshot } from '../model/CompositionState.js';
 import { type BlockNode, isLeafBlock } from '../model/Document.js';
 import { type Selection, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
-import { Mapping } from '../state/Mapping.js';
+import { Mapping, type StepMap } from '../state/Mapping.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { CompositionTracker } from './CompositionTracker.js';
 
@@ -59,6 +60,8 @@ export interface CompositionControllerOptions {
 /** Where a composition started: a leaf block, the selection it replaces, and the block itself. */
 interface CompositionAnchor {
 	readonly blockId: BlockId;
+	/** The top-level block holding the leaf; the view keeps its DOM while composing. */
+	readonly rootId: BlockId;
 	readonly from: number;
 	readonly to: number;
 	/** The block when the composition started; its DOM shows this plus the browser's edits. */
@@ -74,8 +77,11 @@ interface CommitPlan {
 export class CompositionController {
 	private readonly options: CompositionControllerOptions;
 	private anchor: CompositionAnchor | null = null;
-	/** Mapping of the transactions applied while composing; `null` once the document was replaced. */
-	private mapping: Mapping | null = Mapping.empty;
+	/**
+	 * Step maps of the transactions applied while composing, or `null` once the
+	 * document was replaced in a way positions cannot be carried through.
+	 */
+	private stepMaps: StepMap[] | null = [];
 	private commitHandled = false;
 
 	constructor(options: CompositionControllerOptions) {
@@ -93,7 +99,7 @@ export class CompositionController {
 		const selection = state.selection;
 		if (!isTextSelection(selection)) return;
 		this.commitHandled = false;
-		this.mapping = Mapping.empty;
+		this.stepMaps = [];
 		this.options.tracker.start(selection.anchor.blockId);
 		this.anchor = singleBlockAnchor(state, selection);
 		if (this.anchor) this.options.compositionDOM?.captureBlock(this.anchor.blockId);
@@ -102,12 +108,25 @@ export class CompositionController {
 	/**
 	 * Records a state change applied while composing, so the commit carries the
 	 * browser's edit over it (#260). A document replaced without steps, such as
-	 * `setJSON`, cannot be mapped.
+	 * `setJSON`, keeps positions only when it left the composition block's
+	 * content unchanged.
+	 *
+	 * @returns `true` when the change removed the composition block or moved it
+	 *   to another top-level block. The view then renders it anew, the browser
+	 *   drops the composition without `compositionend`, and the caller must end
+	 *   it (#265).
 	 */
-	observeStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
-		if (!this.anchor || !this.mapping) return;
-		const replaced: boolean = tr.steps.length === 0 && oldState.doc !== newState.doc;
-		this.mapping = replaced ? null : this.mapping.appendMapping(tr.mapping);
+	observeStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): boolean {
+		const anchor: CompositionAnchor | null = this.anchor;
+		if (!anchor) return false;
+		if (newState.getNodePath(anchor.blockId)?.[0] !== anchor.rootId) return true;
+		if (!this.stepMaps) return false;
+		if (tr.steps.length === 0 && oldState.doc !== newState.doc) {
+			if (!sameBlockContent(oldState, newState, anchor.blockId)) this.stepMaps = null;
+			return false;
+		}
+		this.stepMaps.push(...tr.mapping.maps);
+		return false;
 	}
 
 	/**
@@ -153,7 +172,7 @@ export class CompositionController {
 			const result: CompositionCommitResult = commitComposedText(state, {
 				...anchor,
 				rendered,
-				mapping: this.mapping,
+				mapping: this.stepMaps ? Mapping.from(this.stepMaps) : null,
 			});
 			if (result.kind === 'commit') return { tr: result.tr, restore: false };
 			// The browser's edit cannot be adopted without overwriting other edits:
@@ -175,13 +194,22 @@ function singleBlockAnchor(state: EditorState, selection: Selection): Compositio
 	const { anchor, head } = selection;
 	if (anchor.blockId !== head.blockId) return null;
 	const baseline: BlockNode | undefined = state.getBlock(anchor.blockId);
-	if (!baseline || !isLeafBlock(baseline)) return null;
+	const rootId: BlockId | undefined = state.getNodePath(anchor.blockId)?.[0];
+	if (!baseline || !isLeafBlock(baseline) || rootId === undefined) return null;
 	return {
 		blockId: anchor.blockId,
+		rootId,
 		from: Math.min(anchor.offset, head.offset),
 		to: Math.max(anchor.offset, head.offset),
 		baseline,
 	};
+}
+
+/** Whether block `blockId` has the same text and inline node positions in both states. */
+function sameBlockContent(oldState: EditorState, newState: EditorState, blockId: BlockId): boolean {
+	const before: BlockNode | undefined = oldState.getBlock(blockId);
+	const after: BlockNode | undefined = newState.getBlock(blockId);
+	return !!before && !!after && getBlockOffsetText(before) === getBlockOffsetText(after);
 }
 
 function insertAtCaret(state: EditorState, composedText: string): Transaction | null {

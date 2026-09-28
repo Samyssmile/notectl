@@ -5,6 +5,7 @@
 
 import { DecorationSet } from '../decorations/Decoration.js';
 import type { CompositionSnapshot, CompositionState } from '../model/CompositionState.js';
+import type { BlockNode } from '../model/Document.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
@@ -23,7 +24,12 @@ import { EditorViewNavigation } from './EditorViewNavigation.js';
 import type { NodeView } from './NodeView.js';
 import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
-import { type ReconcileOptions, reconcile, rerenderLeafContent } from './Reconciler.js';
+import {
+	type ReconcileOptions,
+	reconcile,
+	rerenderBlock,
+	rerenderLeafContent,
+} from './Reconciler.js';
 import {
 	type InlineNodeOrigins,
 	captureInlineNodeOrigins,
@@ -71,6 +77,11 @@ export class EditorView {
 	private decorations: DecorationSet = DecorationSet.empty;
 	/** Inline node elements of the block captured when the last composition started. */
 	private compositionOrigins: InlineNodeOrigins | undefined;
+	/**
+	 * The top-level container holding the composing leaf, as rendered when the
+	 * composition started. Reconciliation skips it while composing.
+	 */
+	private compositionContainer: BlockNode | undefined;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
 	private readonly isReadonlyBypassed: () => boolean;
@@ -241,7 +252,13 @@ export class EditorView {
 			this.state = preserved;
 			this.history.clear();
 
-			if (this.cursorWrapper.isActive && !preserved.storedMarks?.length) {
+			// The browser composes into the cursor wrapper; removing it mid-composition
+			// drops the composition without compositionend (#265).
+			if (
+				this.cursorWrapper.isActive &&
+				!preserved.storedMarks?.length &&
+				!this.compositionState.isComposing
+			) {
 				this.cursorWrapper.cleanup();
 			}
 
@@ -284,10 +301,14 @@ export class EditorView {
 
 	/**
 	 * Records which inline node elements block `blockId` renders when a
-	 * composition starts, so the commit can tell them apart (#261).
+	 * composition starts, so the commit can tell them apart (#261), and the
+	 * container reconciliation skips while the block is composing (#264).
 	 */
 	captureCompositionBlock(blockId: BlockId): void {
 		this.compositionOrigins = captureInlineNodeOrigins(this.contentElement, blockId);
+		const rootId: BlockId | undefined = this.state.getNodePath(blockId)?.[0];
+		this.compositionContainer =
+			rootId !== undefined && rootId !== blockId ? this.state.getBlock(rootId) : undefined;
 	}
 
 	/** Reads browser-owned composition text and caret without updating the model. */
@@ -299,14 +320,19 @@ export class EditorView {
 	 * Replaces block `blockId`'s inline DOM with a fresh rendering of the
 	 * current state and writes the state selection back to the DOM. Used after
 	 * an IME composition whose DOM edits the state did not adopt, so the view
-	 * shows what the model holds.
+	 * shows what the model holds. A container that changed while its
+	 * reconciliation was skipped for the composition is rendered anew.
 	 */
 	restoreBlock(blockId: BlockId): void {
 		this.cursorWrapper.cleanup();
-		rerenderLeafContent(this.contentElement, this.state, blockId, {
-			...this.reconcileOptions(),
-			decorations: this.decorations,
-		});
+		const options: ReconcileOptions = { ...this.reconcileOptions(), decorations: this.decorations };
+		const container: BlockNode | undefined = this.compositionContainer;
+		this.compositionContainer = undefined;
+		if (container && this.state.getBlock(container.id) !== container) {
+			rerenderBlock(this.contentElement, container, this.state, options);
+		} else {
+			rerenderLeafContent(this.contentElement, this.state, blockId, options);
+		}
 		if (!this.compositionState.isComposing) {
 			syncSelectionToDOM(this.contentElement, this.state.selection);
 		}

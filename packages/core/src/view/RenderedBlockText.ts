@@ -106,7 +106,7 @@ function readInlineContent(
 ): CompositionSnapshot {
 	let text = '';
 	let caretOffset: number | null = beforeCaret ? 0 : null;
-	const inlineNodeOrigins: Map<number, number> | undefined = origins ? new Map() : undefined;
+	const inlineNodeOrigins: Map<number, number | null> | undefined = origins ? new Map() : undefined;
 	for (const unit of renderedUnits(contentRoot)) {
 		const { node, data } = unit;
 		if (beforeCaret?.isPointInRange(node, 0)) {
@@ -114,8 +114,7 @@ function readInlineContent(
 				beforeCaret.endContainer === node ? data.slice(0, beforeCaret.endOffset) : data;
 			caretOffset = text.length + contentText({ ...unit, data: prefix }).length;
 		}
-		const origin: number | undefined = node instanceof Element ? origins?.get(node) : undefined;
-		if (origin !== undefined) inlineNodeOrigins?.set(text.length, origin);
+		if (node instanceof Element) inlineNodeOrigins?.set(text.length, origins?.get(node) ?? null);
 		text += contentText(unit);
 	}
 	return inlineNodeOrigins ? { text, caretOffset, inlineNodeOrigins } : { text, caretOffset };

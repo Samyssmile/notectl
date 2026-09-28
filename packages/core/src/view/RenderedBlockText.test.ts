@@ -201,7 +201,7 @@ describe('readCompositionSnapshot inline node origins', () => {
 		expect(snapshot?.inlineNodeOrigins).toEqual(new Map([[1, 1]]));
 	});
 
-	it('leaves out inline node elements the capture did not see', () => {
+	it('reports inline node elements the capture did not see without an origin', () => {
 		const container: HTMLElement = containerWith(TWO_FORMULAS);
 		const origins = captureInlineNodeOrigins(container, blockId('b1'));
 
@@ -213,6 +213,7 @@ describe('readCompositionSnapshot inline node origins', () => {
 			new Map([
 				[1, 1],
 				[2, 2],
+				[4, null],
 			]),
 		);
 	});

@@ -82,6 +82,7 @@ export class InputHandler {
 	private readonly handleBeforeInput: (e: InputEvent) => void;
 	private readonly handleCompositionStart: (e: CompositionEvent) => void;
 	private readonly handleCompositionEnd: (e: CompositionEvent) => void;
+	private readonly handleKeydown: (e: KeyboardEvent) => void;
 
 	constructor(
 		private readonly element: HTMLElement,
@@ -108,6 +109,7 @@ export class InputHandler {
 		this.handleBeforeInput = this.onBeforeInput.bind(this);
 		this.handleCompositionStart = this.onCompositionStart.bind(this);
 		this.handleCompositionEnd = this.onCompositionEnd.bind(this);
+		this.handleKeydown = this.onKeydown.bind(this);
 
 		element.addEventListener('beforeinput', this.handleBeforeInput);
 		// Registered before the view's composition listeners (the input layer is
@@ -115,6 +117,8 @@ export class InputHandler {
 		// removes the IME cursor wrapper that holds it.
 		element.addEventListener('compositionstart', this.handleCompositionStart);
 		element.addEventListener('compositionend', this.handleCompositionEnd);
+		// Registered before the keyboard handler, which ignores keys while composing.
+		element.addEventListener('keydown', this.handleKeydown);
 	}
 
 	private onBeforeInput(e: InputEvent): void {
@@ -299,9 +303,31 @@ export class InputHandler {
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
+		this.finishComposition(e.data);
+	}
+
+	/**
+	 * A key the IME does not own arrived while the tracker still reports a
+	 * composition: the browser dropped it without `compositionend`, for example
+	 * because its DOM was replaced. Ending it keeps Backspace, Delete and Enter
+	 * from being held back for a composition that no longer exists (#265).
+	 */
+	private onKeydown(e: KeyboardEvent): void {
+		if (!this.compositionTracker.isComposing || isCompositionKeydown(e)) return;
+		if (!isEventFromEditorContent(e, this.element)) return;
+		this.finishComposition('');
+	}
+
+	/** Ends a composition the browser dropped without `compositionend`. */
+	private abandonComposition(): void {
+		if (this.compositionTracker.isComposing) this.finishComposition('');
+	}
+
+	/** Commits the composition, then applies the line breaks deferred while it was open (#256). */
+	private finishComposition(composedText: string): void {
 		const pendingBreaks = this.pendingBreaks;
 		this.pendingBreaks = [];
-		this.composition.end(e.data);
+		this.composition.end(composedText);
 		for (const inputType of pendingBreaks) {
 			if (this.isReadOnly()) break;
 			// The commit owns the final selection. Syncing from DOM here could
@@ -375,9 +401,16 @@ export class InputHandler {
 		}
 	}
 
-	/** Forwards a state change to the active composition, which must not revert it (#260). */
+	/**
+	 * Forwards a state change to the active composition, which must not revert
+	 * it (#260). A change that removed or moved the composition block ends the
+	 * composition once the update is rendered, because the browser drops it
+	 * without `compositionend` (#265).
+	 */
 	onStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
-		this.composition.observeStateChange(oldState, newState, tr);
+		if (this.composition.observeStateChange(oldState, newState, tr)) {
+			queueMicrotask(() => this.abandonComposition());
+		}
 	}
 
 	destroy(): void {
@@ -385,6 +418,7 @@ export class InputHandler {
 		this.element.removeEventListener('beforeinput', this.handleBeforeInput);
 		this.element.removeEventListener('compositionstart', this.handleCompositionStart);
 		this.element.removeEventListener('compositionend', this.handleCompositionEnd);
+		this.element.removeEventListener('keydown', this.handleKeydown);
 	}
 }
 
@@ -450,6 +484,14 @@ function shouldHandleBeforeInput(inputType: string): boolean {
 		default:
 			return false;
 	}
+}
+
+/**
+ * Whether a keydown belongs to an IME composition. Browsers flag it with
+ * `isComposing` or report the IME process key (`keyCode` 229, key `Process`).
+ */
+function isCompositionKeydown(e: KeyboardEvent): boolean {
+	return e.isComposing || e.keyCode === 229 || e.key === 'Process';
 }
 
 /** The same structural command serves immediate and deferred beforeinput events. */

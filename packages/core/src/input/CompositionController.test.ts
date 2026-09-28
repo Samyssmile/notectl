@@ -277,6 +277,47 @@ describe('CompositionController', () => {
 		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
+	it('keeps positions when a stepless replace left the composition block unchanged (#260)', () => {
+		// setJSON(getJSON()) or a host sync that only changed another block.
+		const h = harness({ rendered: 'help' });
+		const synced: EditorState = stateBuilder()
+			.paragraph('hello', 'b1')
+			.paragraph('WORLD', 'b2')
+			.cursor('b1', 5)
+			.schema(['paragraph'], [])
+			.build();
+
+		h.controller.start();
+		h.replace(synced);
+		h.controller.end('help');
+
+		expect(h.text()).toBe('help');
+		expect(h.text('b2')).toBe('WORLD');
+	});
+
+	it('reports a composition whose block was removed (#265)', () => {
+		const h = harness({ rendered: 'hellowo' });
+		const state: EditorState = h.getState();
+		h.controller.start();
+
+		const removal: Transaction = state.transaction('api').removeNode([], 0).build();
+
+		expect(h.controller.observeStateChange(state, state.apply(removal), removal)).toBe(true);
+	});
+
+	it('does not report a composition whose block stayed in place (#265)', () => {
+		const h = harness({ rendered: 'hellowo' });
+		const state: EditorState = h.getState();
+		h.controller.start();
+
+		const edit: Transaction = state
+			.transaction('api')
+			.insertText(blockId('b2'), 0, 'Z', [])
+			.build();
+
+		expect(h.controller.observeStateChange(state, state.apply(edit), edit)).toBe(false);
+	});
+
 	it('ignores state changes after the composition ended', () => {
 		const h = harness({ rendered: 'hellowo' });
 

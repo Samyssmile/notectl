@@ -22,7 +22,7 @@ import { EditorState } from '../state/EditorState.js';
 import { getStyleText, setStyleText } from '../style/StyleRuntime.js';
 import { createBlockElement } from './DomUtils.js';
 import { NodeViewRegistry } from './NodeViewRegistry.js';
-import { reconcile, renderBlock, renderBlockContent } from './Reconciler.js';
+import { reconcile, renderBlock, renderBlockContent, rerenderBlock } from './Reconciler.js';
 
 describe('Reconciler InlineNode support', () => {
 	describe('renderBlockContent', () => {
@@ -877,6 +877,79 @@ describe('Block wrapper reconciliation', () => {
 		expect(container.querySelectorAll('[data-block-id="b2"]')).toHaveLength(1);
 		expect(wrapper?.textContent).toContain('first');
 		expect(wrapper?.textContent).toContain('second!');
+	});
+});
+
+describe('IME composition inside a container (#264)', () => {
+	function quoteRegistry(): SchemaRegistry {
+		const registry = new SchemaRegistry();
+		registry.registerNodeSpec({
+			type: 'paragraph',
+			toDOM: (node) => createBlockElement('p', node.id),
+		});
+		registry.registerNodeSpec({
+			type: 'quote',
+			content: { allow: ['paragraph'] },
+			toDOM: (node) => createBlockElement('blockquote', node.id),
+		});
+		return registry;
+	}
+
+	function paragraph(id: string, text: string) {
+		return createBlockNode(nodeType('paragraph'), [createTextNode(text)], blockId(id));
+	}
+
+	function stateOf(blocks: Parameters<typeof createDocument>[0]): EditorState {
+		return EditorState.create({
+			doc: createDocument(blocks),
+			selection: createCollapsedSelection(blockId('p1'), 0),
+		});
+	}
+
+	function quote(...children: ReturnType<typeof paragraph>[]) {
+		return createBlockNode(nodeType('quote'), children, blockId('q'));
+	}
+
+	it('keeps the composing paragraph element when a sibling in its container changes', () => {
+		const registry = quoteRegistry();
+		const before = stateOf([quote(paragraph('p1', 'composing'), paragraph('p2', 'sibling'))]);
+		const after = stateOf([quote(paragraph('p1', 'composing'), paragraph('p2', 'sibling!'))]);
+		const container = document.createElement('div');
+		reconcile(container, null, before, { registry });
+		const composing = container.querySelector('[data-block-id="p1"]');
+
+		reconcile(container, before, after, { registry, compositionBlockId: blockId('p1') });
+
+		expect(container.querySelector('[data-block-id="p1"]')).toBe(composing);
+	});
+
+	it('renders the container anew when the composing paragraph moves out of it', () => {
+		const registry = quoteRegistry();
+		const before = stateOf([quote(paragraph('p1', 'composing'), paragraph('p2', 'sibling'))]);
+		const after = stateOf([paragraph('p1', 'composing'), quote(paragraph('p2', 'sibling'))]);
+		const container = document.createElement('div');
+		reconcile(container, null, before, { registry });
+
+		reconcile(container, before, after, { registry, compositionBlockId: blockId('p1') });
+
+		expect(container.querySelector('blockquote [data-block-id="p1"]')).toBeNull();
+		expect(container.querySelector('[data-block-id="p1"]')?.textContent).toBe('composing');
+	});
+
+	it('rerenderBlock brings edits a skipped container received into the DOM', () => {
+		const registry = quoteRegistry();
+		const previous = quote(paragraph('p1', 'composing'), paragraph('p2', 'sibling'));
+		const before = stateOf([previous]);
+		const after = stateOf([quote(paragraph('p1', 'composing'), paragraph('p2', 'sibling!'))]);
+		const container = document.createElement('div');
+		reconcile(container, null, before, { registry });
+		reconcile(container, before, after, { registry, compositionBlockId: blockId('p1') });
+		expect(container.querySelector('[data-block-id="p2"]')?.textContent).toBe('sibling');
+
+		rerenderBlock(container, previous, after, { registry });
+
+		expect(container.querySelector('[data-block-id="p2"]')?.textContent).toBe('sibling!');
+		expect(container.querySelectorAll('[data-block-id="q"]')).toHaveLength(1);
 	});
 });
 

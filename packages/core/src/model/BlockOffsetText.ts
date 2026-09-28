@@ -19,3 +19,18 @@ export function getBlockOffsetText(block: BlockNode): string {
 	}
 	return text;
 }
+
+/** Model offsets of the inline nodes in a block, the positions {@link getBlockOffsetText} fills with placeholders. */
+export function getInlineNodeOffsets(block: BlockNode): ReadonlySet<number> {
+	const offsets = new Set<number>();
+	let offset = 0;
+	for (const child of getInlineChildren(block)) {
+		if (isTextNode(child)) {
+			offset += child.text.length;
+		} else {
+			offsets.add(offset);
+			offset += 1;
+		}
+	}
+	return offsets;
+}

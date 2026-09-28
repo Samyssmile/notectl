@@ -17,7 +17,7 @@
  * (#261).
  */
 
-import { getBlockOffsetText } from '../model/BlockOffsetText.js';
+import { getBlockOffsetText, getInlineNodeOffsets } from '../model/BlockOffsetText.js';
 import type { CompositionSnapshot } from '../model/CompositionState.js';
 import { type BlockNode, isLeafBlock } from '../model/Document.js';
 import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
@@ -83,11 +83,11 @@ export function commitComposedText(
 	const change: TextChange | null = findTextChange(baselineText, commit.rendered.text, {
 		preferredFrom: commit.from,
 		preferredDeletionEnd: commit.from === commit.to ? commit.from : undefined,
-		equals: renderedEquality(baselineText, commit.rendered),
+		equals: renderedEquality(baselineText, getInlineNodeOffsets(commit.baseline), commit.rendered),
 	});
-	// The browser cannot create inline nodes; a placeholder in the change means
-	// the rendered text no longer lines up with the model.
-	if (change?.text.includes(INLINE_NODE_PLACEHOLDER)) return CONFLICT;
+	// The browser cannot create inline nodes; an inline node inside the change
+	// means the rendered text no longer lines up with the model.
+	if (change && insertsInlineNode(change, commit.rendered)) return CONFLICT;
 
 	const target: TextChange | null = change
 		? rebaseComposedChange(
@@ -150,17 +150,33 @@ function withCaret(
 /**
  * Equality between a baseline position and a rendered position: an inline node
  * matches only the element that rendered it when the composition started, and
- * a space matches the NBSP the view may render for it.
+ * a space matches the NBSP the view may render for it. A placeholder character
+ * typed as text is plain text on both sides.
  */
-function renderedEquality(baselineText: string, rendered: CompositionSnapshot): PositionEquality {
-	const origins: ReadonlyMap<number, number> | undefined = rendered.inlineNodeOrigins;
+function renderedEquality(
+	baselineText: string,
+	inlineNodeOffsets: ReadonlySet<number>,
+	rendered: CompositionSnapshot,
+): PositionEquality {
+	const origins: ReadonlyMap<number, number | null> | undefined = rendered.inlineNodeOrigins;
 	return (baselineIndex: number, renderedIndex: number): boolean => {
+		if (origins) {
+			if (inlineNodeOffsets.has(baselineIndex)) return origins.get(renderedIndex) === baselineIndex;
+			if (origins.has(renderedIndex)) return false;
+		}
 		const modelChar: string = baselineText.charAt(baselineIndex);
 		const renderedChar: string = rendered.text.charAt(renderedIndex);
-		if (origins && modelChar === INLINE_NODE_PLACEHOLDER) {
-			return origins.get(renderedIndex) === baselineIndex;
-		}
 		if (modelChar === renderedChar) return true;
 		return modelChar === ' ' && renderedChar === NBSP;
 	};
+}
+
+/** Whether the rendered text `change` would insert holds an inline node element. */
+function insertsInlineNode(change: TextChange, rendered: CompositionSnapshot): boolean {
+	const origins: ReadonlyMap<number, number | null> | undefined = rendered.inlineNodeOrigins;
+	if (!origins) return change.text.includes(INLINE_NODE_PLACEHOLDER);
+	for (let index = change.from; index < change.from + change.text.length; index++) {
+		if (origins.has(index)) return true;
+	}
+	return false;
 }

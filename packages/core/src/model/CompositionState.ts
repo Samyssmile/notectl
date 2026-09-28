@@ -22,9 +22,11 @@ export interface CompositionSnapshot {
 	/** Collapsed caret in rendered-text offset space, or null when outside this block. */
 	readonly caretOffset: number | null;
 	/**
-	 * For each surviving inline node element, keyed by its offset in `text`, the
-	 * model offset it rendered at when the composition started. Absent when the
-	 * view did not capture the block; inline nodes then compare by placeholder only.
+	 * For each inline node element, keyed by its offset in `text`, the model
+	 * offset it rendered at when the composition started, or `null` for an
+	 * element the view did not see then. A placeholder character without an
+	 * entry is text. Absent when the view did not capture the block; inline
+	 * nodes then compare by placeholder only.
 	 */
-	readonly inlineNodeOrigins?: ReadonlyMap<number, number>;
+	readonly inlineNodeOrigins?: ReadonlyMap<number, number | null>;
 }

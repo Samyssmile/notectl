@@ -3,8 +3,9 @@ import { type EditorPage, expect, test } from './fixtures/editor-page';
 import { type ImeDriver, imeDriver } from './fixtures/ime-driver';
 
 /**
- * IME commits next to other edits (#260) and next to identical inline nodes
- * (#261).
+ * IME commits next to other edits (#260), next to identical inline nodes
+ * (#261), inside containers (#264), and after the browser dropped a
+ * composition (#265).
  *
  * The composition block's DOM shows the block as it was when the composition
  * started, plus the browser's edits. A commit must keep edits the model
@@ -29,6 +30,13 @@ interface TextJSON {
 }
 
 type ChildJSON = InlineJSON | TextJSON;
+
+interface BlockJSON {
+	readonly id: string;
+	readonly type: string;
+	readonly attrs?: Readonly<Record<string, string | number | boolean>>;
+	readonly children: readonly (BlockJSON | ChildJSON)[];
+}
 
 /** Minimal editor surface for model-level setup from the page. */
 interface ModelEditor extends HTMLElement {
@@ -59,35 +67,79 @@ function text(value: string): TextJSON {
 	return { type: 'text', text: value, marks: [] };
 }
 
+function paragraph(id: string, value: string): BlockJSON {
+	return { id, type: 'paragraph', children: [text(value)] };
+}
+
+/** Replaces the document with `blocks` and puts the caret into block `block` at `offset`. */
+async function seedDoc(
+	editor: EditorPage,
+	blocks: readonly BlockJSON[],
+	block: string,
+	offset: number,
+): Promise<void> {
+	await editor.setJSON({ children: blocks });
+	await editor.content.focus();
+	await editor.page.evaluate(
+		({ id, at }) => {
+			const el = document.querySelector('notectl-editor') as ModelEditor;
+			const position = { blockId: id, offset: at };
+			el.dispatch(
+				el.getState().transaction('api').setSelection({ anchor: position, head: position }).build(),
+			);
+		},
+		{ id: block, at: offset },
+	);
+}
+
 /** Replaces the document with one paragraph and puts the caret at `caret`. */
 async function seed(
 	editor: EditorPage,
 	children: readonly ChildJSON[],
 	caret: number,
 ): Promise<void> {
-	await editor.setJSON({ children: [{ id: BLOCK, type: 'paragraph', children }] });
-	await editor.content.focus();
-	await editor.page.evaluate(
-		({ block, offset }) => {
-			const el = document.querySelector('notectl-editor') as ModelEditor;
-			const position = { blockId: block, offset };
-			el.dispatch(
-				el.getState().transaction('api').setSelection({ anchor: position, head: position }).build(),
-			);
-		},
-		{ block: BLOCK, offset: caret },
-	);
+	await seedDoc(editor, [{ id: BLOCK, type: 'paragraph', children }], BLOCK, caret);
 }
 
 /** A transaction from outside the composition, as a host or collaborator would dispatch it. */
-async function hostInsert(page: Page, offset: number, value: string): Promise<void> {
+async function hostInsert(page: Page, offset: number, value: string, block = BLOCK): Promise<void> {
 	await page.evaluate(
-		({ block, at, insert }) => {
+		({ id, at, insert }) => {
 			const el = document.querySelector('notectl-editor') as ModelEditor;
-			el.dispatch(el.getState().transaction('api').insertText(block, at, insert, []).build());
+			el.dispatch(el.getState().transaction('api').insertText(id, at, insert, []).build());
 		},
-		{ block: BLOCK, at: offset, insert: value },
+		{ id: block, at: offset, insert: value },
 	);
+}
+
+/** Model text of block `id`, found at any depth. */
+async function modelText(editor: EditorPage, id: string): Promise<string> {
+	const find = (nodes: readonly (BlockJSON | ChildJSON)[]): BlockJSON | undefined => {
+		for (const node of nodes) {
+			if (!('id' in node)) continue;
+			if (node.id === id) return node;
+			const nested: BlockJSON | undefined = find(node.children);
+			if (nested) return nested;
+		}
+		return undefined;
+	};
+	const json = (await editor.getJSON()) as { children: readonly BlockJSON[] };
+	return (find(json.children)?.children ?? [])
+		.map((child) => ('text' in child ? child.text : ''))
+		.join('');
+}
+
+/** Rendered text of block `id`, with the NBSPs the renderer draws read as spaces. */
+async function renderedTextOf(editor: EditorPage, id: string): Promise<string> {
+	const rendered: string = await editor.content
+		.locator(`[data-block-id="${id}"]`)
+		.evaluate((element) => element.textContent ?? '');
+	return rendered.replaceAll('\u00a0', ' ');
+}
+
+async function expectBlockText(editor: EditorPage, id: string, expected: string): Promise<void> {
+	expect(await modelText(editor, id)).toBe(expected);
+	expect(await renderedTextOf(editor, id)).toBe(expected);
 }
 
 /** Model inline content as text runs and `math:latex` / `break` entries. */
@@ -189,6 +241,7 @@ test.describe('IME commits keep edits made while composing (#260)', () => {
 		await ime.compose('x');
 		await hostInsert(page, 0, 'Z');
 		await ime.commit('x');
+		await expectInlines(editor, ['Zpre ', 'math:F', ' postx']);
 		await page.keyboard.press('Control+z');
 
 		await expectInlines(editor, ['Zpre ', 'math:F', ' post']);
@@ -233,5 +286,125 @@ test.describe('IME deletions next to identical inline nodes (#261)', () => {
 		});
 
 		await expectInlines(editor, ['x', 'math:B', 'z']);
+	});
+});
+
+test.describe('IME compositions inside containers (#264)', () => {
+	function cell(id: string, value: string): BlockJSON {
+		return { id: `${id}-cell`, type: 'table_cell', children: [paragraph(id, value)] };
+	}
+
+	const TABLE: readonly BlockJSON[] = [
+		{
+			id: 'table',
+			type: 'table',
+			children: [
+				{ id: 'row1', type: 'table_row', children: [cell('a', 'c1'), cell('b', 'c2')] },
+				{ id: 'row2', type: 'table_row', children: [cell('c', 'c3'), cell('d', 'c4')] },
+			],
+		},
+	];
+	const QUOTE: readonly BlockJSON[] = [
+		{
+			id: 'quote',
+			type: 'blockquote',
+			children: [paragraph('q1', 'first quoted'), paragraph('q2', 'second quoted')],
+		},
+	];
+	const LIST: readonly BlockJSON[] = [
+		{
+			id: 'item',
+			type: 'list_item',
+			attrs: { listType: 'bullet', indent: 0, checked: false },
+			children: [paragraph('l1', 'first para'), paragraph('l2', 'second para')],
+		},
+	];
+
+	const CASES = [
+		{ name: 'a table cell', doc: TABLE, composing: 'a', value: 'c1', sibling: 'd', other: 'c4' },
+		{
+			name: 'a blockquote paragraph',
+			doc: QUOTE,
+			composing: 'q2',
+			value: 'second quoted',
+			sibling: 'q1',
+			other: 'first quoted',
+		},
+		{
+			name: 'a list item paragraph',
+			doc: LIST,
+			composing: 'l2',
+			value: 'second para',
+			sibling: 'l1',
+			other: 'first para',
+		},
+	];
+
+	for (const { name, doc, composing, value, sibling, other } of CASES) {
+		test(`a composition in ${name} survives an edit elsewhere in its container`, async ({
+			editor,
+			page,
+		}) => {
+			await seedDoc(editor, doc, composing, value.length);
+			const ime: ImeDriver = await imeDriver(page);
+
+			await ime.compose('k');
+			await ime.compose('ka');
+			await hostInsert(page, 0, 'Z', sibling);
+			await ime.compose('kan');
+			await ime.commit('かん');
+
+			await expectBlockText(editor, composing, `${value}かん`);
+			await expectBlockText(editor, sibling, `Z${other}`);
+		});
+	}
+
+	test('a cancelled composition in a table cell shows the edit the container received', async ({
+		editor,
+		page,
+	}) => {
+		await seedDoc(editor, TABLE, 'a', 2);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('k');
+		await hostInsert(page, 0, 'Z', 'd');
+		await ime.compose('');
+
+		await expectBlockText(editor, 'a', 'c1');
+		await expectBlockText(editor, 'd', 'Zc4');
+	});
+});
+
+test.describe('IME compositions the browser dropped (#265)', () => {
+	test('Backspace and Enter work after setJSON replaced the composing block', async ({
+		editor,
+		page,
+	}) => {
+		await seedDoc(editor, [paragraph(BLOCK, 'hello world')], BLOCK, 11);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('x');
+		await editor.setJSON({ children: [paragraph('fresh', 'hello world')] });
+		await page.keyboard.press('End');
+		await page.keyboard.press('Backspace');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('y');
+
+		const json = (await editor.getJSON()) as { children: readonly BlockJSON[] };
+		expect(json.children).toHaveLength(2);
+		await expectBlockText(editor, 'fresh', 'hello worl');
+	});
+
+	test('a composition in bold text survives setJSON(getJSON())', async ({ editor, page }) => {
+		await seedDoc(editor, [paragraph(BLOCK, 'hello')], BLOCK, 5);
+		await page.keyboard.press('Control+b');
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('x');
+		await editor.setJSON(await editor.getJSON());
+		await ime.commit('x');
+		await page.keyboard.type('!');
+
+		await expectBlockText(editor, BLOCK, 'hellox!');
 	});
 });

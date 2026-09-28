@@ -61,7 +61,10 @@ export interface ReconcileOptions {
 	oldDecorations?: DecorationSet;
 	selectedNodeId?: BlockId;
 	previousSelectedNodeId?: BlockId;
-	/** When set, the block with this ID is skipped during reconciliation to preserve IME composition. */
+	/**
+	 * When set, the top-level block that holds this leaf is skipped during
+	 * reconciliation to preserve the IME composition inside it.
+	 */
 	compositionBlockId?: BlockId;
 	/** Reconciliation-scoped keyed widget DOM available while block elements are replaced. @internal */
 	widgetDOMPool?: WidgetDOMPool;
@@ -90,6 +93,11 @@ export function reconcile(
 	// (based on block types) and don't change during text composition; the next
 	// non-composing reconcile will fix them.
 	const isComposing = options?.compositionBlockId != null;
+	const compositionRootId: BlockId | undefined = findCompositionRoot(
+		oldState,
+		newState,
+		options?.compositionBlockId,
+	);
 
 	const oldBlockMap = new Map<BlockId, HTMLElement>();
 	for (const el of getRenderedBlockElements(container)) {
@@ -126,8 +134,10 @@ export function reconcile(
 		const existingEl = oldBlockMap.get(block.id);
 		const oldBlock = oldBlockById.get(block.id);
 
-		// Skip reconciliation for the block under active IME composition
-		if (options?.compositionBlockId === block.id && existingEl) {
+		// Skip reconciliation for the block under active IME composition. Rebuilding
+		// any ancestor would recreate the composing element, and the browser drops
+		// a composition whose element it loses without firing compositionend.
+		if (compositionRootId === block.id && existingEl) {
 			previousSibling = existingEl;
 			continue;
 		}
@@ -274,6 +284,47 @@ export function reconcile(
 			options?.callbackExecutor,
 		);
 	}
+}
+
+/**
+ * The top-level block that holds the composing leaf, when it holds it both
+ * before and after this update. A leaf moved to another top-level block is
+ * rendered anew; the browser drops that composition and the input layer ends it.
+ */
+function findCompositionRoot(
+	oldState: EditorState | null,
+	newState: EditorState,
+	compositionBlockId: BlockId | undefined,
+): BlockId | undefined {
+	if (!compositionBlockId || !oldState) return undefined;
+	const root: BlockId | undefined = newState.getNodePath(compositionBlockId)?.[0];
+	return root !== undefined && root === oldState.getNodePath(compositionBlockId)?.[0]
+		? root
+		: undefined;
+}
+
+/**
+ * Re-renders top-level block `previous.id` from `state`. Used after an IME
+ * composition for a container whose reconciliation was skipped while it held
+ * the composing leaf, so edits it received meanwhile reach the DOM.
+ *
+ * @param previous - The block as it was last rendered, whose NodeViews are released.
+ */
+export function rerenderBlock(
+	container: HTMLElement,
+	previous: BlockNode,
+	state: EditorState,
+	options: ReconcileOptions,
+): void {
+	const block: BlockNode | undefined = state.getBlock(previous.id);
+	const element: HTMLElement | null = container.querySelector(`[data-block-id="${previous.id}"]`);
+	if (!block || !element) return;
+	destroyNodeViewSubtree(previous, options.nodeViews, { ownerDOM: element });
+	const rendered: HTMLElement = renderBlock(block, options.registry, options.nodeViews, {
+		...options,
+		widgetDOMPool: collectWidgetDOMPool(container),
+	});
+	replaceBlockElement(element, rendered, container);
 }
 
 /**

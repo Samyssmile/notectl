@@ -733,6 +733,78 @@ describe('InputHandler', () => {
 		});
 	});
 
+	describe('compositions the browser dropped (#265)', () => {
+		function setup(state: EditorState = createState()) {
+			element = document.createElement('div');
+			let current: EditorState = state;
+			const tracker = new CompositionTracker();
+			handler = new InputHandler(element, {
+				getState: () => current,
+				dispatch: (tr: Transaction) => {
+					current = current.apply(tr);
+				},
+				syncSelection: vi.fn(),
+				compositionTracker: tracker,
+				compositionDOM: {
+					captureBlock: vi.fn(),
+					readBlock: () => ({ text: 'hello', caretOffset: null }),
+					restoreBlock: vi.fn(),
+				},
+			});
+			return {
+				tracker,
+				state: () => current,
+				blocks: () => current.doc.children.map(getBlockOffsetText),
+			};
+		}
+
+		function keydown(init: KeyboardEventInit): void {
+			element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init }));
+		}
+
+		it('ends the composition and applies deferred breaks when a key the IME does not own arrives', () => {
+			const h = setup();
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+
+			keydown({ key: 'Backspace' });
+
+			expect(h.tracker.isComposing).toBe(false);
+			expect(h.blocks()).toEqual(['hello', '']);
+		});
+
+		it.each([{ isComposing: true }, { key: 'Process' }])(
+			'keeps the composition for a key the IME owns (%o)',
+			(init) => {
+				const h = setup();
+				element.dispatchEvent(createCompositionEvent('compositionstart'));
+
+				keydown(init);
+
+				expect(h.tracker.isComposing).toBe(true);
+			},
+		);
+
+		it('ends the composition once a state change that removed its block is rendered', async () => {
+			const start: EditorState = EditorState.create({
+				doc: createDocument([
+					createBlockNode(nodeType('paragraph'), [createTextNode('hello')], B1),
+					createBlockNode(nodeType('paragraph'), [createTextNode('other')], blockId('b2')),
+				]),
+				selection: createCollapsedSelection(B1, 5),
+			});
+			const h = setup(start);
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			const removal: Transaction = start.transaction('api').removeNode([], 0).build();
+
+			handler.onStateChange(start, start.apply(removal), removal);
+			expect(h.tracker.isComposing).toBe(true);
+			await Promise.resolve();
+
+			expect(h.tracker.isComposing).toBe(false);
+		});
+	});
+
 	describe('TextInputInterceptor', () => {
 		it('isolates a throwing interceptor and preserves the intercepted text via fallback', () => {
 			element = document.createElement('div');
