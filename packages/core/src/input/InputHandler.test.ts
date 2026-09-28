@@ -1,4 +1,5 @@
 import { type Mock, afterEach, describe, expect, it, vi } from 'vitest';
+import { getBlockOffsetText } from '../model/BlockOffsetText.js';
 import {
 	createBlockNode,
 	createDocument,
@@ -586,6 +587,148 @@ describe('InputHandler', () => {
 
 			expect(event.defaultPrevented).toBe(true);
 			expect(h.text()).toBe('hell');
+		});
+	});
+
+	describe('line breaks during IME composition (#256)', () => {
+		const cases = [
+			{ inputType: 'insertParagraph', expected: ['hellowo', ''], offset: 0 },
+			{ inputType: 'insertLineBreak', expected: ['hellowo\uFFFC'], offset: 8 },
+		];
+
+		function setup(rendered?: string) {
+			element = document.createElement('div');
+			let state = createState();
+			const dispatch = vi.fn((tr: Transaction) => {
+				state = state.apply(tr);
+			});
+			const syncSelection = vi.fn();
+			const isReadOnly = vi.fn(() => false);
+			handler = new InputHandler(element, {
+				getState: () => state,
+				dispatch,
+				syncSelection,
+				isReadOnly,
+				compositionDOM:
+					rendered === undefined
+						? undefined
+						: {
+								readBlock: () => ({ text: rendered, caretOffset: null }),
+								restoreBlock: vi.fn(),
+							},
+			});
+			return {
+				dispatch,
+				syncSelection,
+				isReadOnly,
+				state: () => state,
+				blocks: () => state.doc.children.map(getBlockOffsetText),
+			};
+		}
+
+		it.each(cases)(
+			'applies $inputType after the composed text, not before it',
+			({ inputType, expected, offset }) => {
+				const h = setup();
+				element.dispatchEvent(createCompositionEvent('compositionstart'));
+				element.dispatchEvent(
+					createBeforeInputEvent('insertCompositionText', 'wo', { isComposing: true }),
+				);
+				element.dispatchEvent(createBeforeInputEvent(inputType, undefined, { isComposing: true }));
+				element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+
+				expect(h.blocks()).toEqual(expected);
+				expect(h.state().selection).toEqual({
+					anchor: { blockId: h.state().doc.children.at(-1)?.id, offset },
+					head: { blockId: h.state().doc.children.at(-1)?.id, offset },
+				});
+			},
+		);
+
+		it.each(cases)(
+			'cancels and defers $inputType even when only the tracker reports composition',
+			({ inputType, expected }) => {
+				const h = setup('hellowo');
+				element.dispatchEvent(createCompositionEvent('compositionstart'));
+				const event = createBeforeInputEvent(inputType);
+				element.dispatchEvent(event);
+
+				expect(event.defaultPrevented).toBe(true);
+				expect(h.dispatch).not.toHaveBeenCalled();
+				expect(h.syncSelection).not.toHaveBeenCalled();
+				expect(h.blocks()).toEqual(['hello']);
+
+				element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+				expect(h.blocks()).toEqual(expected);
+				expect(h.syncSelection).not.toHaveBeenCalled();
+			},
+		);
+
+		it.each(cases)(
+			'defers $inputType when only the event reports composition',
+			({ inputType, expected }) => {
+				const h = setup();
+				element.dispatchEvent(createBeforeInputEvent(inputType, undefined, { isComposing: true }));
+				expect(h.dispatch).not.toHaveBeenCalled();
+				element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+				expect(h.blocks()).toEqual(expected);
+			},
+		);
+
+		it.each(cases)(
+			'does not duplicate an explicit composition commit before $inputType',
+			({ inputType, expected }) => {
+				const h = setup();
+				element.dispatchEvent(createCompositionEvent('compositionstart'));
+				element.dispatchEvent(createBeforeInputEvent(inputType));
+				element.dispatchEvent(createBeforeInputEvent('insertFromComposition', 'wo'));
+				element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+				expect(h.blocks()).toEqual(expected);
+			},
+		);
+
+		it('keeps multiple requested breaks in order and consumes them only once', () => {
+			const h = setup();
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertLineBreak'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+			element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+			expect(h.blocks()).toEqual(['hellowo\uFFFC', '', '']);
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createCompositionEvent('compositionend', 'next'));
+			expect(h.blocks()).toEqual(['hellowo\uFFFC', '', 'next']);
+		});
+
+		it('preserves Enter when the composition commits no text', () => {
+			const h = setup('hello');
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+			expect(h.blocks()).toEqual(['hello']);
+			element.dispatchEvent(createCompositionEvent('compositionend', ''));
+			expect(h.blocks()).toEqual(['hello', '']);
+		});
+
+		it('discards pending breaks if the editor becomes read-only', () => {
+			const h = setup();
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+			h.isReadOnly.mockReturnValue(true);
+			element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+			expect(h.blocks()).toEqual(['hello']);
+			h.isReadOnly.mockReturnValue(false);
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createCompositionEvent('compositionend', '!'));
+			expect(h.blocks()).toEqual(['hello!']);
+		});
+
+		it('does not carry pending breaks into a new composition', () => {
+			const h = setup();
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createBeforeInputEvent('insertParagraph'));
+			element.dispatchEvent(createCompositionEvent('compositionstart'));
+			element.dispatchEvent(createCompositionEvent('compositionend', 'wo'));
+			expect(h.blocks()).toEqual(['hellowo']);
 		});
 	});
 

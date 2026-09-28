@@ -13,7 +13,13 @@
 
 import { insertTextCommand } from '../commands/Commands.js';
 import { commitComposedText } from '../commands/CompositionCommands.js';
-import { type Selection, isTextSelection } from '../model/Selection.js';
+import type { CompositionSnapshot } from '../model/CompositionState.js';
+import {
+	type Selection,
+	createCollapsedSelection,
+	isTextSelection,
+	selectionsEqual,
+} from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -26,10 +32,10 @@ import type { CompositionTracker } from './CompositionTracker.js';
  */
 export interface CompositionDOM {
 	/**
-	 * Returns the text leaf block `blockId` currently renders, in model-offset
-	 * space, or `null` when no element renders it.
+	 * Captures the rendered text and caret of leaf block `blockId` together,
+	 * or returns `null` when no element renders it.
 	 */
-	readBlockText(blockId: BlockId): string | null;
+	readBlock(blockId: BlockId): CompositionSnapshot | null;
 	/** Re-renders block `blockId` from the current state, discarding browser-owned DOM. */
 	restoreBlock(blockId: BlockId): void;
 }
@@ -103,18 +109,27 @@ export class CompositionController {
 		const tr: Transaction | null = this.buildCommit(anchor, composedText);
 		if (tr) {
 			this.options.dispatch(tr);
-			return;
+			if (tr.steps.length > 0) return;
 		}
 		this.restore(anchor);
 	}
 
 	private buildCommit(anchor: CompositionAnchor | null, composedText: string): Transaction | null {
 		const state: EditorState = this.options.getState();
-		const rendered: string | null = anchor
-			? (this.options.compositionDOM?.readBlockText(anchor.blockId) ?? null)
+		const rendered = anchor
+			? (this.options.compositionDOM?.readBlock(anchor.blockId) ?? null)
 			: null;
 		if (anchor && rendered !== null) {
-			return commitComposedText(state, anchor.blockId, rendered, anchor.from);
+			const tr = commitComposedText(state, anchor.blockId, rendered.text, anchor.from);
+			const caret = rendered.caretOffset;
+			if (caret === null) return tr;
+			// A minimal text diff can stop before an unchanged suffix of the
+			// composed word. Its insertion endpoint is not the final IME caret.
+			const selection = createCollapsedSelection(anchor.blockId, caret);
+			if (tr) return { ...tr, selectionAfter: selection };
+			return selectionsEqual(state.selection, selection)
+				? null
+				: state.transaction('input').setSelection(selection).build();
 		}
 		// Without readable DOM, assume the composition inserted its text at the caret.
 		return composedText ? insertTextCommand(state, composedText, 'input') : null;

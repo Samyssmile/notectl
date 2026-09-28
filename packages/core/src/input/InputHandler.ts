@@ -33,6 +33,8 @@ export type RedoFn = () => void;
 
 export type SyncSelectionFn = () => void;
 
+type BreakInputType = 'insertParagraph' | 'insertLineBreak';
+
 export interface InputHandlerOptions {
 	getState: GetStateFn;
 	dispatch: DispatchFn;
@@ -75,6 +77,7 @@ export class InputHandler {
 	private readonly callbackExecutor: PluginCallbackExecutor;
 	private readonly resolveTargetRange?: (range: StaticRange) => Selection | null;
 	private readonly composition: CompositionController;
+	private pendingBreaks: BreakInputType[] = [];
 
 	private readonly handleBeforeInput: (e: InputEvent) => void;
 	private readonly handleCompositionStart: (e: CompositionEvent) => void;
@@ -128,6 +131,15 @@ export class InputHandler {
 		// caret still sits at the composition start, so applying them would
 		// remove committed text. The composition commit carries the final text.
 		if (isDeleteInputType(e.inputType) && this.isCompositionActive(e)) {
+			return;
+		}
+
+		// Structural edits must wait until the browser-owned text and caret
+		// have been committed. Cancel the native split so the composition DOM
+		// remains intact for the commit, and preserve every requested break.
+		if (isBreakInputType(e.inputType) && this.isCompositionActive(e)) {
+			e.preventDefault();
+			this.pendingBreaks.push(e.inputType);
 			return;
 		}
 
@@ -211,11 +223,8 @@ export class InputHandler {
 				break;
 
 			case 'insertParagraph':
-				tr = splitBlockCommand(state);
-				break;
-
 			case 'insertLineBreak':
-				tr = insertHardBreakCommand(state);
+				tr = breakCommand(state, e.inputType);
 				break;
 
 			case 'deleteContentBackward':
@@ -284,12 +293,22 @@ export class InputHandler {
 
 	private onCompositionStart(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
+		this.pendingBreaks = [];
 		this.composition.start();
 	}
 
 	private onCompositionEnd(e: CompositionEvent): void {
 		if (!isEventFromEditorContent(e, this.element)) return;
+		const pendingBreaks = this.pendingBreaks;
+		this.pendingBreaks = [];
 		this.composition.end(e.data);
+		for (const inputType of pendingBreaks) {
+			if (this.isReadOnly()) break;
+			// The commit owns the final selection. Syncing from DOM here could
+			// overwrite it with a pre-commit selection or an IME wrapper position.
+			const tr = breakCommand(this.getState(), inputType);
+			if (tr) this.dispatch(tr);
+		}
 	}
 
 	/**
@@ -357,6 +376,7 @@ export class InputHandler {
 	}
 
 	destroy(): void {
+		this.pendingBreaks = [];
 		this.element.removeEventListener('beforeinput', this.handleBeforeInput);
 		this.element.removeEventListener('compositionstart', this.handleCompositionStart);
 		this.element.removeEventListener('compositionend', this.handleCompositionEnd);
@@ -425,4 +445,13 @@ function shouldHandleBeforeInput(inputType: string): boolean {
 		default:
 			return false;
 	}
+}
+
+/** The same structural command serves immediate and deferred beforeinput events. */
+function breakCommand(state: EditorState, inputType: BreakInputType): Transaction | null {
+	return inputType === 'insertParagraph' ? splitBlockCommand(state) : insertHardBreakCommand(state);
+}
+
+function isBreakInputType(inputType: string): inputType is BreakInputType {
+	return inputType === 'insertParagraph' || inputType === 'insertLineBreak';
 }

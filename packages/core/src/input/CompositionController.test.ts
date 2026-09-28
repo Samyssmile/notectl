@@ -1,5 +1,7 @@
 import { type Mock, describe, expect, it, vi } from 'vitest';
+import type { CompositionSnapshot } from '../model/CompositionState.js';
 import { getBlockText } from '../model/Document.js';
+import { createCollapsedSelection } from '../model/Selection.js';
 import { type BlockId, blockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -13,7 +15,8 @@ interface Harness {
 	readonly controller: CompositionController;
 	readonly tracker: CompositionTracker;
 	readonly dispatch: Mock<(tr: Transaction) => void>;
-	readonly readBlockText: Mock<(id: BlockId) => string | null>;
+	readonly getState: () => EditorState;
+	readonly readBlock: Mock<(id: BlockId) => CompositionSnapshot | null>;
 	readonly restoreBlock: Mock<(id: BlockId) => void>;
 	text(id?: string): string;
 }
@@ -23,6 +26,7 @@ interface HarnessOptions {
 	/** What the view renders for the composition block at `compositionend`. */
 	readonly rendered?: string | null;
 	readonly withDOM?: boolean;
+	readonly caretOffset?: number | null;
 	readonly readOnly?: boolean;
 }
 
@@ -41,9 +45,13 @@ function harness(options: HarnessOptions = {}): Harness {
 	const dispatch = vi.fn((tr: Transaction) => {
 		state = state.apply(tr);
 	});
-	const readBlockText = vi.fn((_id: BlockId) => options.rendered ?? null);
+	const readBlock = vi.fn((_id: BlockId) =>
+		options.rendered == null
+			? null
+			: { text: options.rendered, caretOffset: options.caretOffset ?? null },
+	);
 	const restoreBlock = vi.fn((_id: BlockId) => {});
-	const compositionDOM: CompositionDOM = { readBlockText, restoreBlock };
+	const compositionDOM: CompositionDOM = { readBlock, restoreBlock };
 	const controller = new CompositionController({
 		getState: () => state,
 		dispatch,
@@ -53,9 +61,10 @@ function harness(options: HarnessOptions = {}): Harness {
 	});
 	return {
 		controller,
+		getState: () => state,
 		tracker,
 		dispatch,
-		readBlockText,
+		readBlock,
 		restoreBlock,
 		text: (id = 'b1') => {
 			const block = state.getBlock(blockId(id));
@@ -82,7 +91,7 @@ describe('CompositionController', () => {
 		h.controller.start();
 		h.controller.end('wo');
 
-		expect(h.readBlockText).toHaveBeenCalledWith(B1);
+		expect(h.readBlock).toHaveBeenCalledWith(B1);
 		expect(h.text()).toBe('hellowo');
 		expect(h.restoreBlock).not.toHaveBeenCalled();
 	});
@@ -135,7 +144,7 @@ describe('CompositionController', () => {
 		h.controller.end('wo');
 
 		expect(h.dispatch).not.toHaveBeenCalled();
-		expect(h.readBlockText).not.toHaveBeenCalled();
+		expect(h.readBlock).not.toHaveBeenCalled();
 		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
@@ -170,8 +179,22 @@ describe('CompositionController', () => {
 		h.controller.start();
 		h.controller.end('X');
 
-		expect(h.readBlockText).not.toHaveBeenCalled();
+		expect(h.readBlock).not.toHaveBeenCalled();
 		expect(h.text()).toBe('heXld');
+	});
+
+	it.each(['cart', 'cat'])('keeps the final caret after recomposing cat as %s', (rendered) => {
+		const state = stateBuilder()
+			.paragraph('cat', 'b1')
+			.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 3 })
+			.schema(['paragraph'], [])
+			.build();
+		const h = harness({ state, rendered, caretOffset: rendered.length });
+		h.controller.start();
+		h.controller.end(rendered);
+		expect(h.text()).toBe(rendered);
+		expect(h.getState().selection).toEqual(createCollapsedSelection(B1, rendered.length));
+		if (rendered === 'cat') expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
 	it('changes nothing in read-only mode', () => {

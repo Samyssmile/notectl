@@ -264,7 +264,7 @@ class EditorInitSession {
 			callbackExecutor: pm.getCallbackExecutor(),
 			resolveTargetRange: (range) => this.view?.resolveDOMRange(range) ?? null,
 			compositionDOM: {
-				readBlockText: (blockId) => this.view?.readRenderedBlockText(blockId) ?? null,
+				readBlock: (blockId) => this.view?.readCompositionSnapshot(blockId) ?? null,
 				restoreBlock: (blockId) => this.view?.restoreBlock(blockId),
 			},
 		});

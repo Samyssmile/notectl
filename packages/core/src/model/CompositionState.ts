@@ -15,3 +15,10 @@ export interface CompositionState {
 	/** The block in which the composition is happening, or null if idle. */
 	readonly activeBlockId: BlockId | null;
 }
+
+/** Browser-owned text and caret captured together before a composition is reconciled. */
+export interface CompositionSnapshot {
+	readonly text: string;
+	/** Collapsed caret in rendered-text offset space, or null when outside this block. */
+	readonly caretOffset: number | null;
+}

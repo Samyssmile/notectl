@@ -1115,8 +1115,42 @@ describe('EditorView composition DOM access', () => {
 		const { view, paragraph } = createHelloView();
 		paragraph.textContent = 'hellowo';
 
-		expect(view.readRenderedBlockText(blockId('b1'))).toBe('hellowo');
+		expect(view.readCompositionSnapshot(blockId('b1'))?.text).toBe('hellowo');
 		view.destroy();
+	});
+
+	it('reads the final composition caret without changing the model', () => {
+		const { container, view, paragraph } = createHelloView();
+		document.body.append(container);
+		paragraph.textContent = 'hellowo';
+		const text = paragraph.firstChild;
+		if (!text) throw new Error('Expected composed text');
+		window.getSelection()?.collapse(text, 7);
+
+		expect(view.readCompositionSnapshot(blockId('b1'))?.caretOffset).toBe(7);
+		expect(view.readCompositionSnapshot(blockId('other'))).toBeNull();
+		expect(view.getState().selection).toEqual(createCollapsedSelection('b1', 5));
+		expect(getBlockText(view.getState().doc.children[0])).toBe('hello');
+
+		window.getSelection()?.setBaseAndExtent(text, 5, text, 7);
+		expect(view.readCompositionSnapshot(blockId('b1'))?.caretOffset).toBeNull();
+		window.getSelection()?.removeAllRanges();
+		expect(view.readCompositionSnapshot(blockId('b1'))?.caretOffset).toBeNull();
+		view.destroy();
+		container.remove();
+	});
+
+	it('counts composed wrapper text but not its placeholder when reading the caret', () => {
+		const { container, view, paragraph } = createHelloView();
+		document.body.append(container);
+		paragraph.innerHTML = 'hello<span data-cursor-wrapper><strong>\u200Bwo</strong></span>tail';
+		const text = paragraph.querySelector('strong')?.firstChild;
+		if (!text) throw new Error('Expected composed text');
+		window.getSelection()?.collapse(text, 3);
+		expect(view.readCompositionSnapshot(blockId('b1'))?.caretOffset).toBe(7);
+		window.getSelection()?.removeAllRanges();
+		view.destroy();
+		container.remove();
 	});
 
 	it('restoreBlock replaces browser-mutated inline DOM with the state rendering', () => {
@@ -1126,7 +1160,7 @@ describe('EditorView composition DOM access', () => {
 		view.restoreBlock(blockId('b1'));
 
 		expect(paragraph.textContent).toBe('hello');
-		expect(view.readRenderedBlockText(blockId('b1'))).toBe('hello');
+		expect(view.readCompositionSnapshot(blockId('b1'))?.text).toBe('hello');
 		view.destroy();
 	});
 });

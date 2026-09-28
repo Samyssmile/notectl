@@ -15,8 +15,8 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
  * entry as if all locales loaded at once.
  */
 const ENTRY_BUDGETS = [
-	// #257: measured 105.35 KB after the IME CompositionController landed in the core entry.
-	['Core', 'src/index.ts', 105.5],
+	// #256: measured 105.64 KB with deferred IME breaks and a shared text/caret snapshot.
+	['Core', 'src/index.ts', 106],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	['HTML codec', 'src/html.ts', 13],

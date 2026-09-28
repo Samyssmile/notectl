@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { commitComposedText } from '../commands/CompositionCommands.js';
 import {
 	DecorationSet,
@@ -20,7 +20,7 @@ import { type BlockId, blockId, inlineType, markType, nodeType } from '../model/
 import { EditorState } from '../state/EditorState.js';
 import { createBlockElement } from './DomUtils.js';
 import { reconcile } from './Reconciler.js';
-import { readRenderedBlockText } from './RenderedBlockText.js';
+import { readCompositionSnapshot } from './RenderedBlockText.js';
 
 const PH: string = INLINE_NODE_PLACEHOLDER;
 
@@ -31,10 +31,10 @@ function containerWith(html: string): HTMLElement {
 }
 
 function read(html: string, id = 'b1'): string | null {
-	return readRenderedBlockText(containerWith(html), blockId(id));
+	return readCompositionSnapshot(containerWith(html), blockId(id))?.text ?? null;
 }
 
-describe('readRenderedBlockText', () => {
+describe('readCompositionSnapshot text', () => {
 	it('reads text through mark and decoration wrappers', () => {
 		const html = '<p data-block-id="b1">he<strong>ll</strong><span class="deco">o</span></p>';
 
@@ -154,16 +154,67 @@ describe('readRenderedBlockText', () => {
 		const container: HTMLElement = document.createElement('div');
 		reconcile(container, null, state, { registry, decorations });
 		// The risky cases are really rendered: NBSP-drawn spaces and widget text.
-		expect(readRenderedBlockText(container, blockId('spaces'))).toContain('\u00a0');
+		expect(readCompositionSnapshot(container, blockId('spaces'))?.text).toContain('\u00a0');
 		expect(container.textContent).toContain('widget');
 
 		const leafIds: readonly BlockId[] = [...leaves, nested]
 			.filter((block) => isLeafBlock(block))
 			.map((block) => block.id);
 		for (const id of leafIds) {
-			const rendered: string | null = readRenderedBlockText(container, id);
+			const rendered: string | null = readCompositionSnapshot(container, id)?.text ?? null;
 			expect(rendered, id).not.toBeNull();
 			expect(commitComposedText(state, id, rendered ?? '', 0), id).toBeNull();
 		}
+	});
+});
+
+describe('readCompositionSnapshot caret', () => {
+	afterEach(() => {
+		window.getSelection()?.removeAllRanges();
+		document.body.replaceChildren();
+	});
+
+	it.each([
+		{ childOffset: 0, expected: 0 },
+		{ childOffset: 1, expected: 2 },
+		{ childOffset: 2, expected: 3 },
+		{ childOffset: 3, expected: 5 },
+		{ childOffset: 4, expected: 9 },
+	])(
+		'maps a block boundary at child $childOffset to rendered offset $expected',
+		({ childOffset, expected }) => {
+			const container = containerWith(
+				'<p data-block-id="b1">ab<br contenteditable="false"><span data-cursor-wrapper><strong>\u200Bwo</strong></span>tail</p>',
+			);
+			document.body.append(container);
+			window.getSelection()?.collapse(container.firstChild, childOffset);
+			expect(readCompositionSnapshot(container, blockId('b1'))?.caretOffset).toBe(expected);
+		},
+	);
+
+	it('counts inline nodes once and skips widgets before a caret inside marks', () => {
+		const container = containerWith(
+			'<p data-block-id="b1">ab<span contenteditable="false">formula</span><span data-widget>widget</span><strong>\u200Bcd</strong>tail</p>',
+		);
+		document.body.append(container);
+		const text = container.querySelector('strong')?.firstChild;
+		if (!text) throw new Error('Expected marked text');
+		window.getSelection()?.collapse(text, 2);
+		// The ZWS outside an IME wrapper is actual document text.
+		expect(readCompositionSnapshot(container, blockId('b1'))?.caretOffset).toBe(5);
+	});
+
+	it('reads only the content DOM of a NodeView and rejects its header', () => {
+		const container = containerWith(
+			'<pre data-block-id="b1"><div>JavaScript</div><code data-content-dom>let x</code></pre>',
+		);
+		document.body.append(container);
+		const code = container.querySelector('code');
+		const header = container.querySelector('div');
+		if (!code || !header) throw new Error('Expected NodeView content and header');
+		window.getSelection()?.collapse(code, 1);
+		expect(readCompositionSnapshot(container, blockId('b1'))?.caretOffset).toBe(5);
+		window.getSelection()?.collapse(header, 1);
+		expect(readCompositionSnapshot(container, blockId('b1'))?.caretOffset).toBeNull();
 	});
 });

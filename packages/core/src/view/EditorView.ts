@@ -4,7 +4,7 @@
  */
 
 import { DecorationSet } from '../decorations/Decoration.js';
-import type { CompositionState } from '../model/CompositionState.js';
+import type { CompositionSnapshot, CompositionState } from '../model/CompositionState.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { KeymapRegistry } from '../model/KeymapRegistry.js';
 import { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
@@ -24,7 +24,7 @@ import type { NodeView } from './NodeView.js';
 import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile, rerenderLeafContent } from './Reconciler.js';
-import { readRenderedBlockText } from './RenderedBlockText.js';
+import { readCompositionSnapshot } from './RenderedBlockText.js';
 import { domRangeToState, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
@@ -276,13 +276,9 @@ export class EditorView {
 		return domRangeToState(this.contentElement, range);
 	}
 
-	/**
-	 * Reads the text block `blockId` currently renders, in model-offset space,
-	 * including edits the browser made during an IME composition. Returns
-	 * `null` when no element renders the block.
-	 */
-	readRenderedBlockText(blockId: BlockId): string | null {
-		return readRenderedBlockText(this.contentElement, blockId);
+	/** Reads browser-owned composition text and caret without updating the model. */
+	readCompositionSnapshot(blockId: BlockId): CompositionSnapshot | null {
+		return readCompositionSnapshot(this.contentElement, blockId);
 	}
 
 	/**
