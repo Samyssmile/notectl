@@ -24,6 +24,13 @@ import {
 } from '../serialization/HTMLParseRules.js';
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 
+/**
+ * Whether the `<br>`s of an inline run split it into paragraphs (`<p>` and
+ * `<div>` content) or stay in the text, as they did before #223 in the other
+ * container paths.
+ */
+type LineBreaks = 'split' | 'keep';
+
 export interface HTMLParserOptions {
 	readonly schema: Schema;
 	readonly schemaRegistry?: SchemaRegistry;
@@ -170,7 +177,7 @@ export class HTMLParser {
 		// `<div>` holding inline content is a paragraph.
 		const parseDiv = (el: HTMLElement): SliceBlock[] =>
 			this.containsBlockDescendants(el)
-				? this.parseContainerWithMarks(el, this.marksFromElement(el))
+				? this.parseContainerWithMarks(el, this.marksFromElement(el), 'split')
 				: parseParagraph(el);
 		const parseTable = (el: HTMLElement): SliceBlock[] => this.parseTableAsParagraphs(el);
 
@@ -206,7 +213,10 @@ export class HTMLParser {
 		]);
 	}
 
-	private parseContainer(container: DocumentFragment | HTMLElement): SliceBlock[] {
+	private parseContainer(
+		container: DocumentFragment | HTMLElement,
+		lineBreaks: LineBreaks = 'keep',
+	): SliceBlock[] {
 		const blocks: SliceBlock[] = [];
 		let pendingSegments: ContentSegment[] = [];
 
@@ -215,11 +225,11 @@ export class HTMLParser {
 				const el = child as HTMLElement;
 
 				if (this.isBlockElement(el)) {
-					this.flushPendingSegments(blocks, pendingSegments);
+					this.flushPendingSegments(blocks, pendingSegments, lineBreaks);
 					pendingSegments = [];
 					blocks.push(...this.parseBlockElement(el));
 				} else if (el.children.length > 0 && this.containsBlockDescendants(el)) {
-					this.flushPendingSegments(blocks, pendingSegments);
+					this.flushPendingSegments(blocks, pendingSegments, lineBreaks);
 					pendingSegments = [];
 					blocks.push(...this.parseContainerWithMarks(el, this.marksFromElement(el)));
 				} else {
@@ -233,7 +243,7 @@ export class HTMLParser {
 			}
 		}
 
-		this.flushPendingSegments(blocks, pendingSegments);
+		this.flushPendingSegments(blocks, pendingSegments, lineBreaks);
 		return blocks;
 	}
 
@@ -580,8 +590,9 @@ export class HTMLParser {
 	private parseContainerWithMarks(
 		container: HTMLElement,
 		inheritedMarks: readonly Mark[],
+		lineBreaks: LineBreaks = 'keep',
 	): SliceBlock[] {
-		const innerBlocks: SliceBlock[] = this.parseContainer(container);
+		const innerBlocks: SliceBlock[] = this.parseContainer(container, lineBreaks);
 		const alignedBlocks: SliceBlock[] = this.applyElementAlignment(innerBlocks, container, true);
 		if (inheritedMarks.length === 0) return alignedBlocks;
 
@@ -666,7 +677,11 @@ export class HTMLParser {
 		return blocks;
 	}
 
-	private flushPendingSegments(blocks: SliceBlock[], segments: ContentSegment[]): void {
+	private flushPendingSegments(
+		blocks: SliceBlock[],
+		segments: ContentSegment[],
+		lineBreaks: LineBreaks,
+	): void {
 		const normalized: ContentSegment[] = this.normalizeSegments(segments);
 		if (normalized.length === 0) return;
 		// Skip whitespace-only runs, but keep anything that carries an inline node.
@@ -675,8 +690,21 @@ export class HTMLParser {
 		);
 		if (isBlank) return;
 
-		blocks.push(
-			...this.splitAtLineBreaks(normalized, this.resolveBlockType(nodeType('paragraph'))),
-		);
+		const paragraph: NodeTypeName = this.resolveBlockType(nodeType('paragraph'));
+		if (lineBreaks === 'keep') {
+			blocks.push({ type: paragraph, segments: normalized });
+			return;
+		}
+		// A run always ends at a block boundary, where a final `<br>` renders no empty line.
+		blocks.push(...this.splitAtLineBreaks(withoutTrailingLineBreak(normalized), paragraph));
 	}
+}
+
+/** `segments` without the one line break that may end them. */
+function withoutTrailingLineBreak(segments: readonly ContentSegment[]): readonly ContentSegment[] {
+	const last: ContentSegment | undefined = segments.at(-1);
+	if (last?.kind !== 'text' || !last.text.endsWith('\n')) return segments;
+	const text: string = last.text.slice(0, -1);
+	const head: readonly ContentSegment[] = segments.slice(0, -1);
+	return text ? [...head, textSegment(text, last.marks)] : head;
 }

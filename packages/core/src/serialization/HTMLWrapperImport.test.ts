@@ -3,13 +3,17 @@ import { registerBuiltinSpecs } from '../editor/BuiltinSpecs.js';
 import { PasteHTMLHandler } from '../input/PasteHTMLHandler.js';
 import {
 	type BlockNode,
+	createBlockNode,
+	createDocument,
+	createTextNode,
 	getBlockChildren,
 	getBlockText,
 	getInlineChildren,
 } from '../model/Document.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { markType } from '../model/TypeBrands.js';
+import { createCollapsedSelection } from '../model/Selection.js';
+import { blockId, markType, nodeType } from '../model/TypeBrands.js';
 import { AlignmentPlugin } from '../plugins/alignment/AlignmentPlugin.js';
 import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
@@ -48,14 +52,21 @@ function outline(blocks: readonly BlockNode[]): string[] {
 	return blocks.map((block) => `${block.type}:${getBlockText(block)}`);
 }
 
-function paste(html: string): ReturnType<typeof parseHTMLToDocument> {
-	let state = EditorState.create({ schema: schemaFromRegistry(registry) });
+interface PasteTarget {
+	/** The state to paste into; an empty document when omitted. */
+	readonly state?: EditorState;
+	readonly registry?: SchemaRegistry;
+}
+
+function paste(html: string, target: PasteTarget = {}): ReturnType<typeof parseHTMLToDocument> {
+	const schemaRegistry: SchemaRegistry = target.registry ?? registry;
+	let state = target.state ?? EditorState.create({ schema: schemaFromRegistry(schemaRegistry) });
 	const handler = new PasteHTMLHandler(
 		() => state,
 		(tr) => {
 			state = state.apply(tr);
 		},
-		registry,
+		schemaRegistry,
 		() => false,
 	);
 	expect(handler.pasteHTMLString(html)).toBe(true);
@@ -200,8 +211,33 @@ describe('line breaks in wrapped inline runs (#262)', () => {
 		expect(texts(reloaded.children)).toEqual(texts(pasted.children));
 	});
 
-	it('splits a top-level run beside a block at its line breaks', () => {
-		expect(texts(paste('a<br>b<p>c</p>').children)).toEqual(['a', 'b', 'c']);
+	it('adds no empty paragraph for a line break right before a wrapped block', () => {
+		expect(texts(paste('<div>Signature<br><div>Bob</div></div>').children)).toEqual([
+			'Signature',
+			'Bob',
+		]);
+	});
+
+	it('keeps every line of a pasted top-level run inside the table cell it is pasted into', () => {
+		const cellParagraph = createBlockNode(
+			nodeType('paragraph'),
+			[createTextNode('PrePost')],
+			blockId('cp'),
+		);
+		const cell = createBlockNode(nodeType('table_cell'), [cellParagraph], blockId('c1'));
+		const row = createBlockNode(nodeType('table_row'), [cell], blockId('r1'));
+		const table = createBlockNode(nodeType('table'), [row], blockId('t1'));
+		const tail = createBlockNode(nodeType('paragraph'), [createTextNode('Tail')], blockId('tail'));
+		const state = EditorState.create({
+			doc: createDocument([table, tail]),
+			selection: createCollapsedSelection(blockId('cp'), 3),
+			schema: schemaFromRegistry(registry),
+		});
+
+		const pasted = paste('a<br>b<br>c', { state });
+
+		expect(pasted.children.map((block) => block.id)).toEqual(['t1', 'tail']);
+		expect(getBlockText(pasted.children[1] as BlockNode)).toBe('Tail');
 	});
 
 	it('keeps marks on both sides of the split', () => {
@@ -281,6 +317,14 @@ describe('deeply wrapped long inline runs (#263)', () => {
 		parseHTMLToDocument(WIDE_AT_DEPTH, counting);
 
 		expect(wrapperMarkChecks()).toBeLessThanOrEqual(2 * DEPTH);
+	});
+
+	it('scans a pasted inline run a bounded number of times instead of once per wrapper level', () => {
+		const { registry: counting, runBlockChecks } = countingRegistry();
+
+		paste(WIDE_AT_DEPTH, { registry: counting });
+
+		expect(runBlockChecks()).toBeLessThanOrEqual(4 * WIDTH);
 	});
 
 	it('scans the inline run a bounded number of times instead of once per wrapper level', () => {
