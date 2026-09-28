@@ -375,9 +375,9 @@ export class InputHandler {
 		}
 	}
 
-	/** Lets an open composition follow a transaction applied while composing. */
-	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
-		this.composition.onStateChange(oldState, state, tr);
+	/** Forwards a state change to the active composition, which must not revert it (#260). */
+	onStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
+		this.composition.observeStateChange(oldState, newState, tr);
 	}
 
 	destroy(): void {

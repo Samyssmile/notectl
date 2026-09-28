@@ -18,8 +18,11 @@ interface Harness {
 	readonly getState: () => EditorState;
 	readonly readBlock: Mock<(id: BlockId) => CompositionSnapshot | null>;
 	readonly restoreBlock: Mock<(id: BlockId) => void>;
-	/** Applies `tr` while composing, reporting it to the controller as the view does. */
-	applyMeanwhile(tr: Transaction): void;
+	readonly captureBlock: Mock<(id: BlockId) => void>;
+	/** Applies a transaction from outside the composition, as a host or collaborator would. */
+	external(tr: Transaction): void;
+	/** Replaces the state without steps, as `setJSON` does. */
+	replace(next: EditorState): void;
 	text(id?: string): string;
 }
 
@@ -30,8 +33,6 @@ interface HarnessOptions {
 	readonly withDOM?: boolean;
 	readonly caretOffset?: number | null;
 	readonly readOnly?: boolean;
-	/** Simulates middleware that drops the commit transaction. */
-	readonly dropCommits?: boolean;
 }
 
 function helloState(): EditorState {
@@ -47,7 +48,7 @@ function harness(options: HarnessOptions = {}): Harness {
 	let state: EditorState = options.state ?? helloState();
 	const tracker = new CompositionTracker();
 	const dispatch = vi.fn((tr: Transaction) => {
-		if (!options.dropCommits) state = state.apply(tr);
+		state = state.apply(tr);
 	});
 	const readBlock = vi.fn((_id: BlockId) =>
 		options.rendered == null
@@ -55,7 +56,8 @@ function harness(options: HarnessOptions = {}): Harness {
 			: { text: options.rendered, caretOffset: options.caretOffset ?? null },
 	);
 	const restoreBlock = vi.fn((_id: BlockId) => {});
-	const compositionDOM: CompositionDOM = { readBlock, restoreBlock };
+	const captureBlock = vi.fn((_id: BlockId) => {});
+	const compositionDOM: CompositionDOM = { captureBlock, readBlock, restoreBlock };
 	const controller = new CompositionController({
 		getState: () => state,
 		dispatch,
@@ -70,10 +72,16 @@ function harness(options: HarnessOptions = {}): Harness {
 		dispatch,
 		readBlock,
 		restoreBlock,
-		applyMeanwhile: (tr) => {
+		captureBlock,
+		external: (tr: Transaction) => {
 			const oldState: EditorState = state;
 			state = state.apply(tr);
-			controller.onStateChange(oldState, state, tr);
+			controller.observeStateChange(oldState, state, tr);
+		},
+		replace: (next: EditorState) => {
+			const oldState: EditorState = state;
+			state = next;
+			controller.observeStateChange(oldState, next, next.transaction('api').build());
 		},
 		text: (id = 'b1') => {
 			const block = state.getBlock(blockId(id));
@@ -206,38 +214,79 @@ describe('CompositionController', () => {
 		if (rendered === 'cat') expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
-	it('places the commit through edits applied while composing (#260)', () => {
+	it('captures the composition block when the composition starts', () => {
+		const h = harness({ rendered: 'hellowo' });
+
+		h.controller.start();
+
+		expect(h.captureBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('keeps a transaction applied while composing and adds the composed text (#260)', () => {
 		const h = harness({ rendered: 'hellowo', caretOffset: 7 });
 
 		h.controller.start();
-		h.applyMeanwhile(h.getState().transaction('api').insertText(B1, 0, 'Z', []).build());
+		h.external(h.getState().transaction('api').insertText(B1, 0, 'Z', []).build());
 		h.controller.end('wo');
 
 		expect(h.text()).toBe('Zhellowo');
 		expect(h.getState().selection).toEqual(createCollapsedSelection(B1, 8));
-		expect(h.restoreBlock).not.toHaveBeenCalled();
 	});
 
-	it('re-renders the composition block when the commit lands in another block', () => {
-		const h = harness({ rendered: 'hellowo', caretOffset: 7 });
+	it('rebuilds the block when only a transaction applied while composing changed it (#260)', () => {
+		const h = harness({ rendered: 'hello', caretOffset: 5 });
 
 		h.controller.start();
-		h.applyMeanwhile(h.getState().transaction('api').splitBlock(B1, 2, blockId('b3')).build());
-		h.controller.end('wo');
+		h.external(h.getState().transaction('api').insertText(B1, 0, 'Z', []).build());
+		h.controller.end('');
 
-		expect([h.text(), h.text('b3')]).toEqual(['he', 'llowo']);
+		expect(h.text()).toBe('Zhello');
 		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
-	it('re-renders the composition block when the commit is not applied', () => {
-		const h = harness({ rendered: 'hellowo', dropCommits: true });
+	it('keeps a document replaced while composing and inserts the composed text at the caret (#260)', () => {
+		const h = harness({ rendered: 'hellowo' });
+		const replacement: EditorState = stateBuilder()
+			.paragraph('NEW CONTENT', 'b1')
+			.cursor('b1', 11)
+			.schema(['paragraph'], [])
+			.build();
+
+		h.controller.start();
+		h.replace(replacement);
+		h.controller.end('wo');
+
+		expect(h.text()).toBe('NEW CONTENTwo');
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('rebuilds the block when a conflict leaves no composed text to insert (#260)', () => {
+		const h = harness({ rendered: 'hell' });
+		const replacement: EditorState = stateBuilder()
+			.paragraph('NEW', 'b1')
+			.cursor('b1', 3)
+			.schema(['paragraph'], [])
+			.build();
+
+		h.controller.start();
+		h.replace(replacement);
+		h.controller.end('');
+
+		expect(h.dispatch).not.toHaveBeenCalled();
+		expect(h.text()).toBe('NEW');
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('ignores state changes after the composition ended', () => {
+		const h = harness({ rendered: 'hellowo' });
 
 		h.controller.start();
 		h.controller.end('wo');
+		h.replace(helloState());
+		h.controller.start();
+		h.controller.end('wo');
 
-		expect(h.dispatch).toHaveBeenCalledOnce();
-		expect(h.text()).toBe('hello');
-		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+		expect(h.text()).toBe('hellowo');
 	});
 
 	it('changes nothing in read-only mode', () => {

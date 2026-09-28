@@ -1,5 +1,6 @@
-import type { CDPSession, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { type EditorPage, expect, test } from './fixtures/editor-page';
+import { type ImeDriver, imeDriver } from './fixtures/ime-driver';
 
 /**
  * IME composition commits (#230, #257).
@@ -12,30 +13,6 @@ import { type EditorPage, expect, test } from './fixtures/editor-page';
  * the browser's DOM edit themselves, because synthetic events have no default
  * action.
  */
-
-interface ImeDriver {
-	/** Sets the composition text, optionally replacing an existing plain-text range. */
-	compose(text: string, replace?: { readonly start: number; readonly end: number }): Promise<void>;
-	/** Commits the active composition with `text`. */
-	commit(text: string): Promise<void>;
-}
-
-async function imeDriver(page: Page): Promise<ImeDriver> {
-	const cdp: CDPSession = await page.context().newCDPSession(page);
-	return {
-		async compose(text, replace): Promise<void> {
-			await cdp.send('Input.imeSetComposition', {
-				text,
-				selectionStart: text.length,
-				selectionEnd: text.length,
-				...(replace ? { replacementStart: replace.start, replacementEnd: replace.end } : {}),
-			});
-		},
-		async commit(text): Promise<void> {
-			await cdp.send('Input.insertText', { text });
-		},
-	};
-}
 
 /**
  * Text of the first rendered paragraph, as the user sees it. The renderer

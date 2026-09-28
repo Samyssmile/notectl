@@ -1,176 +1,237 @@
-import type { CDPSession, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { type EditorPage, expect, test } from './fixtures/editor-page';
+import { type ImeDriver, imeDriver } from './fixtures/ime-driver';
 
 /**
- * #260: document changes made while an IME composition is open survive its
- * commit. Chromium performs the composition through CDP; the concurrent edits
- * come from the host API (`dispatch`, `setJSON`) and a paste.
+ * IME commits next to other edits (#260) and next to identical inline nodes
+ * (#261).
+ *
+ * The composition block's DOM shows the block as it was when the composition
+ * started, plus the browser's edits. A commit must keep edits the model
+ * received meanwhile and must delete exactly the inline node the browser
+ * removed.
  */
 
-interface InlineSnapshot {
-	readonly text?: string;
-	readonly inlineType?: string;
+const BLOCK = 'p';
+const PLACEHOLDER = '￼';
+
+interface InlineJSON {
+	readonly type: 'inline';
+	readonly inlineType: string;
+	readonly attrs: Readonly<Record<string, string>>;
+	readonly marks: readonly unknown[];
 }
 
-const FORMULA = {
-	type: 'inline',
-	inlineType: 'math_inline',
-	attrs: { mathml: '<math><mi>F</mi></math>', latex: 'F', alt: '', fontSize: '' },
-	marks: [],
-};
-
-const text = (value: string) => ({ type: 'text', text: value, marks: [] });
-
-async function seed(editor: EditorPage, children: readonly object[]): Promise<void> {
-	await editor.setJSON({ children: [{ id: 'p', type: 'paragraph', children }] });
+interface TextJSON {
+	readonly type: 'text';
+	readonly text: string;
+	readonly marks: readonly unknown[];
 }
 
-/** Collapses the DOM caret in the first text node of the paragraph and waits for the model. */
-async function placeCaret(
+type ChildJSON = InlineJSON | TextJSON;
+
+/** Minimal editor surface for model-level setup from the page. */
+interface ModelEditor extends HTMLElement {
+	getState(): { transaction(origin: string): TransactionBuilder };
+	dispatch(tr: unknown): void;
+}
+
+interface TransactionBuilder {
+	insertText(block: string, offset: number, text: string, marks: readonly unknown[]): this;
+	setSelection(selection: unknown): this;
+	build(): unknown;
+}
+
+function formula(latex: string): InlineJSON {
+	return {
+		type: 'inline',
+		inlineType: 'math_inline',
+		attrs: { mathml: `<math><mi>${latex}</mi></math>`, latex, alt: '', fontSize: '' },
+		marks: [],
+	};
+}
+
+function hardBreak(): InlineJSON {
+	return { type: 'inline', inlineType: 'hard_break', attrs: {}, marks: [] };
+}
+
+function text(value: string): TextJSON {
+	return { type: 'text', text: value, marks: [] };
+}
+
+/** Replaces the document with one paragraph and puts the caret at `caret`. */
+async function seed(
 	editor: EditorPage,
-	domOffset: number,
-	modelOffset: number,
+	children: readonly ChildJSON[],
+	caret: number,
 ): Promise<void> {
-	await editor.content.evaluate((content: HTMLElement, offset: number) => {
-		const first: Node | null | undefined = content.querySelector('[data-block-id="p"]')?.firstChild;
-		if (!(first instanceof Text)) throw new Error('Paragraph does not start with text');
-		content.focus();
-		document.getSelection()?.collapse(first, offset);
-	}, domOffset);
-	await expectCaret(editor.page, modelOffset);
-}
-
-async function caretAtEnd(editor: EditorPage, modelOffset: number): Promise<void> {
+	await editor.setJSON({ children: [{ id: BLOCK, type: 'paragraph', children }] });
 	await editor.content.focus();
-	await editor.page.keyboard.press('End');
-	await expectCaret(editor.page, modelOffset);
-}
-
-async function expectCaret(page: Page, offset: number): Promise<void> {
-	await expect
-		.poll(() =>
-			page.evaluate(() => {
-				const el = document.querySelector('notectl-editor') as unknown as {
-					getState(): { selection: { head: { offset: number } } };
-				};
-				return el.getState().selection.head.offset;
-			}),
-		)
-		.toBe(offset);
-}
-
-async function startComposition(page: Page, composed: string): Promise<CDPSession> {
-	const cdp: CDPSession = await page.context().newCDPSession(page);
-	await cdp.send('Input.imeSetComposition', {
-		text: composed,
-		selectionStart: composed.length,
-		selectionEnd: composed.length,
-	});
-	return cdp;
-}
-
-/** Inserts `value` at `offset` of the paragraph through the public `dispatch` API. */
-async function hostInsert(page: Page, offset: number, value: string): Promise<void> {
-	await page.evaluate(
-		({ at, insert }) => {
-			type Builder = { insertText(...args: unknown[]): Builder; build(): unknown };
-			const el = document.querySelector('notectl-editor') as unknown as {
-				getState(): { transaction(origin: string): Builder };
-				dispatch(tr: unknown): void;
-			};
-			el.dispatch(el.getState().transaction('api').insertText('p', at, insert, []).build());
+	await editor.page.evaluate(
+		({ block, offset }) => {
+			const el = document.querySelector('notectl-editor') as ModelEditor;
+			const position = { blockId: block, offset };
+			el.dispatch(
+				el.getState().transaction('api').setSelection({ anchor: position, head: position }).build(),
+			);
 		},
-		{ at: offset, insert: value },
+		{ block: BLOCK, offset: caret },
 	);
 }
 
-/** Paragraph content from the model: text verbatim, inline nodes as `[type]`. */
-async function modelContent(editor: EditorPage): Promise<string> {
+/** A transaction from outside the composition, as a host or collaborator would dispatch it. */
+async function hostInsert(page: Page, offset: number, value: string): Promise<void> {
+	await page.evaluate(
+		({ block, at, insert }) => {
+			const el = document.querySelector('notectl-editor') as ModelEditor;
+			el.dispatch(el.getState().transaction('api').insertText(block, at, insert, []).build());
+		},
+		{ block: BLOCK, at: offset, insert: value },
+	);
+}
+
+/** Model inline content as text runs and `math:latex` / `break` entries. */
+async function modelInlines(editor: EditorPage): Promise<string[]> {
 	const json = await editor.getJSON();
-	return (json.children[0]?.children ?? [])
-		.map((node: InlineSnapshot) => (node.inlineType ? `[${node.inlineType}]` : node.text))
-		.join('');
+	const children: readonly ChildJSON[] =
+		(json.children[0] as { children?: readonly ChildJSON[] } | undefined)?.children ?? [];
+	return children.map((child) => {
+		if (child.type === 'text') return child.text;
+		return child.inlineType === 'math_inline' ? `math:${child.attrs.latex}` : 'break';
+	});
 }
 
-async function expectContent(editor: EditorPage, expected: string): Promise<void> {
-	await expect.poll(() => modelContent(editor)).toBe(expected);
-	expect(await editor.getContentHTML()).not.toContain('￼');
-	const rendered: string = await editor.content
-		.locator('[data-block-id="p"]')
-		.evaluate((p) => p.textContent ?? '');
-	expect(rendered).not.toContain('￼');
+/** Rendered inline content in the same notation as {@link modelInlines}. */
+async function renderedInlines(editor: EditorPage): Promise<string[]> {
+	return editor.content.locator('p').evaluate((p) => {
+		const out: string[] = [];
+		for (const node of Array.from(p.childNodes)) {
+			if (node.nodeType === Node.TEXT_NODE) {
+				out.push((node.textContent ?? '').replaceAll(' ', ' '));
+			} else if (node instanceof HTMLElement && node.getAttribute('contenteditable') === 'false') {
+				out.push(node.tagName === 'BR' ? 'break' : `math:${node.textContent?.trim() ?? ''}`);
+			}
+		}
+		return out;
+	});
 }
 
-test.describe('IME composition with concurrent document changes (#260)', () => {
-	test('keeps a host dispatch in front of the composition and the formula a node', async ({
-		editor,
-		page,
-	}) => {
-		await seed(editor, [text('pre '), FORMULA, text(' post')]);
-		await caretAtEnd(editor, 10);
+async function expectInlines(editor: EditorPage, expected: readonly string[]): Promise<void> {
+	expect(await modelInlines(editor)).toEqual(expected);
+	expect(await renderedInlines(editor)).toEqual(expected);
+}
 
-		const cdp: CDPSession = await startComposition(page, 'x');
+test.describe('IME commits keep edits made while composing (#260)', () => {
+	test('a host edit in front of the composition survives the commit', async ({ editor, page }) => {
+		await seed(editor, [text('pre '), formula('F'), text(' post')], 10);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('x');
 		await hostInsert(page, 0, 'Z');
-		await cdp.send('Input.insertText', { text: 'x' });
+		await ime.commit('x');
 
-		await expectContent(editor, 'Zpre [math_inline] postx');
-		expect(await editor.getContentHTML()).toContain('<math');
-		await expectCaret(page, 12);
+		await expectInlines(editor, ['Zpre ', 'math:F', ' postx']);
+		expect(await editor.getContentHTML()).not.toContain(PLACEHOLDER);
 	});
 
-	test('keeps a host dispatch behind a composition in front of the formula', async ({
+	test('a host edit behind the composition survives and keeps the inline node between', async ({
 		editor,
 		page,
 	}) => {
-		await seed(editor, [text('pre '), FORMULA, text(' post')]);
-		await placeCaret(editor, 4, 4);
+		await seed(editor, [text('pre '), formula('F'), text(' post')], 4);
+		const ime: ImeDriver = await imeDriver(page);
 
-		const cdp: CDPSession = await startComposition(page, 'x');
+		await ime.compose('x');
 		await hostInsert(page, 10, 'Z');
-		await cdp.send('Input.insertText', { text: 'x' });
+		await ime.commit('x');
 
-		await expectContent(editor, 'pre x[math_inline] postZ');
-		await expectCaret(page, 5);
+		await expectInlines(editor, ['pre x', 'math:F', ' postZ']);
 	});
 
-	test('keeps a host dispatch into a plain paragraph', async ({ editor, page }) => {
-		await seed(editor, [text('hello')]);
-		await caretAtEnd(editor, 5);
+	test('typing after the commit continues at the composed text', async ({ editor, page }) => {
+		await seed(editor, [text('pre post')], 8);
+		const ime: ImeDriver = await imeDriver(page);
 
-		const cdp: CDPSession = await startComposition(page, 'x');
+		await ime.compose('x');
 		await hostInsert(page, 0, 'Z');
-		await cdp.send('Input.insertText', { text: 'x' });
-
-		await expectContent(editor, 'Zhellox');
+		await ime.commit('x');
 		await page.keyboard.type('!');
-		await expectContent(editor, 'Zhellox!');
-		expect(await editor.content.locator('[data-block-id="p"]').evaluate((p) => p.textContent)).toBe(
-			'Zhellox!',
-		);
+
+		await expectInlines(editor, ['Zpre postx!']);
 	});
 
-	test('keeps content a host sets with the same block id', async ({ editor, page }) => {
-		await seed(editor, [text('hello')]);
-		await caretAtEnd(editor, 5);
+	test('setJSON with the same block id during a composition keeps the new content', async ({
+		editor,
+		page,
+	}) => {
+		await seed(editor, [text('old text')], 8);
+		const ime: ImeDriver = await imeDriver(page);
 
-		const cdp: CDPSession = await startComposition(page, 'x');
-		await seed(editor, [text('bye')]);
-		await cdp.send('Input.insertText', { text: 'x' });
+		await ime.compose('x');
+		await editor.setJSON({
+			children: [{ id: BLOCK, type: 'paragraph', children: [text('NEW CONTENT')] }],
+		});
+		await ime.commit('x');
 
-		await expectContent(editor, 'byex');
-		expect(await editor.content.locator('[data-block-id="p"]').evaluate((p) => p.textContent)).toBe(
-			'byex',
-		);
+		const [content] = await modelInlines(editor);
+		expect(content?.replace('x', '')).toBe('NEW CONTENT');
+		await expectInlines(editor, [content ?? '']);
 	});
 
-	test('keeps text pasted while composing', async ({ editor, page }) => {
-		await seed(editor, [text('hello')]);
-		await caretAtEnd(editor, 5);
+	test('undo after the commit removes the composed text and keeps the host edit', async ({
+		editor,
+		page,
+	}) => {
+		await seed(editor, [text('pre '), formula('F'), text(' post')], 10);
+		await page.waitForTimeout(600);
+		const ime: ImeDriver = await imeDriver(page);
 
-		const cdp: CDPSession = await startComposition(page, 'x');
-		await editor.pasteText('P');
-		await cdp.send('Input.insertText', { text: 'x' });
+		await ime.compose('x');
+		await hostInsert(page, 0, 'Z');
+		await ime.commit('x');
+		await page.keyboard.press('Control+z');
 
-		await expectContent(editor, 'helloxP');
+		await expectInlines(editor, ['Zpre ', 'math:F', ' post']);
+	});
+});
+
+test.describe('IME deletions next to identical inline nodes (#261)', () => {
+	test('an IME replacement that deletes a hard break keeps the formula after it', async ({
+		editor,
+		page,
+	}) => {
+		// "a" [break] | [formula F] "y": the IME recomposes the break and clears it.
+		await seed(editor, [text('a'), hardBreak(), formula('F'), text('y')], 2);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('q', { start: 1, end: 2 });
+		await ime.compose('');
+
+		await expectInlines(editor, ['a', 'math:F', 'y']);
+	});
+
+	test('a composing backspace between two formulas removes the one before the caret', async ({
+		editor,
+	}) => {
+		// Android Gboard sequence; synthetic events have no default action, so the
+		// browser's DOM edit is applied by hand.
+		await seed(editor, [text('x'), formula('A'), formula('B'), text('z')], 2);
+
+		await editor.content.evaluate((content: HTMLElement) => {
+			const composing: InputEventInit = {
+				isComposing: true,
+				bubbles: true,
+				cancelable: false,
+				composed: true,
+			};
+			content.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+			content.dispatchEvent(
+				new InputEvent('beforeinput', { ...composing, inputType: 'deleteContentBackward' }),
+			);
+			content.querySelector('p > [contenteditable="false"]')?.remove();
+			content.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }));
+		});
+
+		await expectInlines(editor, ['x', 'math:B', 'z']);
 	});
 });

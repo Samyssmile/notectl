@@ -24,7 +24,11 @@ import type { NodeView } from './NodeView.js';
 import { destroyAllNodeViews } from './NodeViewOwnership.js';
 import type { NodeViewRegistry } from './NodeViewRegistry.js';
 import { type ReconcileOptions, reconcile, rerenderLeafContent } from './Reconciler.js';
-import { readCompositionSnapshot } from './RenderedBlockText.js';
+import {
+	type InlineNodeOrigins,
+	captureInlineNodeOrigins,
+	readCompositionSnapshot,
+} from './RenderedBlockText.js';
 import { domRangeToState, syncSelectionToDOM } from './SelectionSync.js';
 
 export type StateChangeCallback = (
@@ -65,6 +69,8 @@ export class EditorView {
 	private readonly callbackExecutor: PluginCallbackExecutor;
 	private readonly nodeViews = new Map<string, NodeView>();
 	private decorations: DecorationSet = DecorationSet.empty;
+	/** Inline node elements of the block captured when the last composition started. */
+	private compositionOrigins: InlineNodeOrigins | undefined;
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
 	private readonly isReadonlyBypassed: () => boolean;
@@ -276,9 +282,17 @@ export class EditorView {
 		return domRangeToState(this.contentElement, range);
 	}
 
+	/**
+	 * Records which inline node elements block `blockId` renders when a
+	 * composition starts, so the commit can tell them apart (#261).
+	 */
+	captureCompositionBlock(blockId: BlockId): void {
+		this.compositionOrigins = captureInlineNodeOrigins(this.contentElement, blockId);
+	}
+
 	/** Reads browser-owned composition text and caret without updating the model. */
 	readCompositionSnapshot(blockId: BlockId): CompositionSnapshot | null {
-		return readCompositionSnapshot(this.contentElement, blockId);
+		return readCompositionSnapshot(this.contentElement, blockId, this.compositionOrigins);
 	}
 
 	/**

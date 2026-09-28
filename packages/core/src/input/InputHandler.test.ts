@@ -613,6 +613,7 @@ describe('InputHandler', () => {
 					rendered === undefined
 						? undefined
 						: {
+								captureBlock: vi.fn(),
 								readBlock: () => ({ text: rendered, caretOffset: null }),
 								restoreBlock: vi.fn(),
 							},

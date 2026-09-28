@@ -17,6 +17,39 @@ import {
 } from './InlineContentDOM.js';
 import { getSelection, readDOMSelectionEndpoints } from './SelectionSync.js';
 
+/** Model offset each inline node element rendered at when its block was captured. */
+export type InlineNodeOrigins = WeakMap<Element, number>;
+
+/** One DOM node of a block's inline content, with the text it contributes. */
+interface RenderedUnit {
+	readonly node: Node;
+	/** Raw text: the text node's data, or one placeholder for an inline node element. */
+	readonly data: string;
+	/** Whether the node lies inside the IME cursor wrapper, whose zero-width space is not content. */
+	readonly inWrapper: boolean;
+}
+
+/**
+ * Records the model offset of every inline node element block `blockId`
+ * renders. Capture it when a composition starts, while the DOM still mirrors
+ * the model, so {@link readCompositionSnapshot} can later tell which inline
+ * nodes survived: to the text diff they are otherwise identical placeholders.
+ */
+export function captureInlineNodeOrigins(
+	container: HTMLElement,
+	blockId: BlockId,
+): InlineNodeOrigins {
+	const origins: InlineNodeOrigins = new WeakMap();
+	const contentRoot: Element | null = findContentRoot(container, blockId);
+	if (!contentRoot) return origins;
+	let offset = 0;
+	for (const unit of renderedUnits(contentRoot)) {
+		if (unit.node instanceof Element) origins.set(unit.node, offset);
+		offset += contentText(unit).length;
+	}
+	return origins;
+}
+
 /**
  * Returns the rendered inline content of block `blockId`: text nodes verbatim,
  * one {@link INLINE_NODE_PLACEHOLDER} per inline node element, nothing for view
@@ -27,16 +60,23 @@ import { getSelection, readDOMSelectionEndpoints } from './SelectionSync.js';
  * Indices into the result are model offsets as long as the DOM still mirrors
  * the model. After a composition they are offsets of the edited text.
  *
+ * @param origins - Inline node offsets captured when the composition started;
+ *   when given, the snapshot reports where each surviving inline node came from.
  * @returns The rendered text and collapsed caret, or `null` when no element renders the block.
  */
 export function readCompositionSnapshot(
 	container: HTMLElement,
 	blockId: BlockId,
+	origins?: InlineNodeOrigins,
 ): CompositionSnapshot | null {
-	const blockEl = container.querySelector(`[data-block-id="${blockId}"]`);
-	if (!blockEl) return null;
-	const contentRoot = resolveContentRoot(blockEl);
-	return readInlineContent(contentRoot, rangeBeforeCaret(container, contentRoot));
+	const contentRoot: Element | null = findContentRoot(container, blockId);
+	if (!contentRoot) return null;
+	return readInlineContent(contentRoot, rangeBeforeCaret(container, contentRoot), origins);
+}
+
+function findContentRoot(container: HTMLElement, blockId: BlockId): Element | null {
+	const blockEl: Element | null = container.querySelector(`[data-block-id="${blockId}"]`);
+	return blockEl ? resolveContentRoot(blockEl) : null;
 }
 
 /** Returns the prefix ending at a collapsed caret inside this block's content. */
@@ -58,24 +98,44 @@ function rangeBeforeCaret(container: HTMLElement, contentRoot: Element): Range |
 	return range;
 }
 
-/** Captures text and caret in one walk, including IME wrappers but excluding their placeholder. */
-function readInlineContent(contentRoot: Element, beforeCaret: Range | null): CompositionSnapshot {
-	const walker: TreeWalker = createInlineContentWalker(contentRoot, { includeCursorWrapper: true });
+/** Captures text, caret and inline node origins in one walk. */
+function readInlineContent(
+	contentRoot: Element,
+	beforeCaret: Range | null,
+	origins: InlineNodeOrigins | undefined,
+): CompositionSnapshot {
 	let text = '';
-	let caretOffset = beforeCaret ? 0 : null;
-	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		const data =
-			node.nodeType === Node.TEXT_NODE ? (node.textContent ?? '') : INLINE_NODE_PLACEHOLDER;
-		const inWrapper = isInCursorWrapper(node, contentRoot);
+	let caretOffset: number | null = beforeCaret ? 0 : null;
+	const inlineNodeOrigins: Map<number, number> | undefined = origins ? new Map() : undefined;
+	for (const unit of renderedUnits(contentRoot)) {
+		const { node, data } = unit;
 		if (beforeCaret?.isPointInRange(node, 0)) {
-			const prefix =
+			const prefix: string =
 				beforeCaret.endContainer === node ? data.slice(0, beforeCaret.endOffset) : data;
-			caretOffset =
-				text.length + (inWrapper ? prefix.replaceAll(ZERO_WIDTH_SPACE, '') : prefix).length;
+			caretOffset = text.length + contentText({ ...unit, data: prefix }).length;
 		}
-		text += inWrapper ? data.replaceAll(ZERO_WIDTH_SPACE, '') : data;
+		const origin: number | undefined = node instanceof Element ? origins?.get(node) : undefined;
+		if (origin !== undefined) inlineNodeOrigins?.set(text.length, origin);
+		text += contentText(unit);
 	}
-	return { text, caretOffset };
+	return inlineNodeOrigins ? { text, caretOffset, inlineNodeOrigins } : { text, caretOffset };
+}
+
+/** Walks the text nodes and inline node elements of a block's content, including IME wrappers. */
+function* renderedUnits(contentRoot: Element): Generator<RenderedUnit> {
+	const walker: TreeWalker = createInlineContentWalker(contentRoot, { includeCursorWrapper: true });
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		yield {
+			node,
+			data: node.nodeType === Node.TEXT_NODE ? (node.textContent ?? '') : INLINE_NODE_PLACEHOLDER,
+			inWrapper: isInCursorWrapper(node, contentRoot),
+		};
+	}
+}
+
+/** The text a unit contributes to the block: its data without the cursor wrapper's placeholder. */
+function contentText(unit: RenderedUnit): string {
+	return unit.inWrapper ? unit.data.replaceAll(ZERO_WIDTH_SPACE, '') : unit.data;
 }
 
 /** Whether `node` lies inside the IME cursor wrapper below `root`. */

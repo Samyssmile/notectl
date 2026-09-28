@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { commitComposition, createCompositionBase } from '../commands/CompositionCommands.js';
+import { commitComposedText } from '../commands/CompositionCommands.js';
 import {
 	DecorationSet,
 	inline as inlineDeco,
@@ -18,9 +18,10 @@ import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import { type BlockId, blockId, inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
+import { Mapping } from '../state/Mapping.js';
 import { createBlockElement } from './DomUtils.js';
 import { reconcile } from './Reconciler.js';
-import { readCompositionSnapshot } from './RenderedBlockText.js';
+import { captureInlineNodeOrigins, readCompositionSnapshot } from './RenderedBlockText.js';
 
 const PH: string = INLINE_NODE_PLACEHOLDER;
 
@@ -161,14 +162,65 @@ describe('readCompositionSnapshot text', () => {
 			.filter((block) => isLeafBlock(block))
 			.map((block) => block.id);
 		for (const id of leafIds) {
-			const rendered: string | null = readCompositionSnapshot(container, id)?.text ?? null;
+			const baseline: BlockNode | undefined = state.getBlock(id);
+			const origins = captureInlineNodeOrigins(container, id);
+			const rendered = readCompositionSnapshot(container, id, origins);
 			expect(rendered, id).not.toBeNull();
-			const snapshot = { text: rendered ?? '', caretOffset: null };
-			const base = createCompositionBase(state, id, 0);
-			expect(base, id).not.toBeNull();
-			// A fallback insertion of the composed text would show up as a transaction.
-			expect(commitComposition(state, 'unused', base, snapshot), id).toBeNull();
+			if (!baseline || !rendered) continue;
+			const commit = { blockId: id, baseline, from: 0, to: 0, rendered, mapping: Mapping.empty };
+			expect(commitComposedText(state, commit), id).toEqual({ kind: 'commit', tr: null });
 		}
+	});
+});
+
+describe('readCompositionSnapshot inline node origins', () => {
+	const TWO_FORMULAS =
+		'<p data-block-id="b1">x<span contenteditable="false">A</span>' +
+		'<span contenteditable="false">B</span>z</p>';
+
+	it('reports the offset each surviving inline node rendered at when it was captured', () => {
+		const container: HTMLElement = containerWith(TWO_FORMULAS);
+		const origins = captureInlineNodeOrigins(container, blockId('b1'));
+
+		container.querySelector('[contenteditable="false"]')?.remove();
+		const snapshot = readCompositionSnapshot(container, blockId('b1'), origins);
+
+		expect(snapshot?.text).toBe(`x${PH}z`);
+		expect(snapshot?.inlineNodeOrigins).toEqual(new Map([[1, 2]]));
+	});
+
+	it('captures offsets without the cursor wrapper placeholder', () => {
+		const container: HTMLElement = containerWith(
+			'<p data-block-id="b1">a<span data-cursor-wrapper="">\u200b</span>' +
+				'<span contenteditable="false">F</span></p>',
+		);
+		const origins = captureInlineNodeOrigins(container, blockId('b1'));
+
+		const snapshot = readCompositionSnapshot(container, blockId('b1'), origins);
+
+		expect(snapshot?.inlineNodeOrigins).toEqual(new Map([[1, 1]]));
+	});
+
+	it('leaves out inline node elements the capture did not see', () => {
+		const container: HTMLElement = containerWith(TWO_FORMULAS);
+		const origins = captureInlineNodeOrigins(container, blockId('b1'));
+
+		container.querySelector('p')?.append(document.createElement('br'));
+		container.querySelector('p > br')?.setAttribute('contenteditable', 'false');
+		const snapshot = readCompositionSnapshot(container, blockId('b1'), origins);
+
+		expect(snapshot?.inlineNodeOrigins).toEqual(
+			new Map([
+				[1, 1],
+				[2, 2],
+			]),
+		);
+	});
+
+	it('reports no inline node origins without a capture', () => {
+		const snapshot = readCompositionSnapshot(containerWith(TWO_FORMULAS), blockId('b1'));
+
+		expect(snapshot?.inlineNodeOrigins).toBeUndefined();
 	});
 });
 
