@@ -9,6 +9,7 @@ import {
 } from '../model/Document.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
+import { markType } from '../model/TypeBrands.js';
 import { AlignmentPlugin } from '../plugins/alignment/AlignmentPlugin.js';
 import { BlockquotePlugin } from '../plugins/blockquote/BlockquotePlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
@@ -20,6 +21,7 @@ import { TextFormattingPlugin } from '../plugins/text-formatting/TextFormattingP
 import { EditorState } from '../state/EditorState.js';
 import { assertDefined, pluginHarness } from '../test/TestUtils.js';
 import { parseHTMLToDocument } from './DocumentParser.js';
+import { serializeDocumentToHTML } from './DocumentSerializer.js';
 import { parseMarkdownToDocument } from './MarkdownParser.js';
 
 /** Use the editor's actual specs, including plugin-owned marks and attributes. */
@@ -170,5 +172,122 @@ describe('formatting on transparent HTML wrappers (#223)', () => {
 				{ type: 'link', attrs: { href: '/guide' } },
 			]);
 		}
+	});
+});
+
+describe('line breaks in wrapped inline runs (#262)', () => {
+	/** Gmail and Outlook web compose HTML: a `<br>` run beside child `<div>`s. */
+	const GMAIL =
+		'<div dir="ltr">Hi Anna,<br><br>see below.<div><br></div><div>Best,</div><div>Bob</div></div>';
+
+	function texts(blocks: readonly BlockNode[]): string[] {
+		return blocks.map((block) => getBlockText(block));
+	}
+
+	it('pastes a line-broken run beside wrapped blocks as separate paragraphs', () => {
+		const pasted: readonly string[] = texts(paste(GMAIL).children);
+
+		expect(pasted.filter((text) => text.includes('\n'))).toEqual([]);
+		expect(pasted.slice(0, 3)).toEqual(['Hi Anna,', '', 'see below.']);
+		expect(pasted.slice(-2)).toEqual(['Best,', 'Bob']);
+	});
+
+	it('keeps the pasted line breaks through an HTML round trip', () => {
+		const pasted = paste(GMAIL);
+
+		const reloaded = parseHTMLToDocument(serializeDocumentToHTML(pasted, registry), registry);
+
+		expect(texts(reloaded.children)).toEqual(texts(pasted.children));
+	});
+
+	it('splits a top-level run beside a block at its line breaks', () => {
+		expect(texts(paste('a<br>b<p>c</p>').children)).toEqual(['a', 'b', 'c']);
+	});
+
+	it('keeps marks on both sides of the split', () => {
+		const pasted = paste('<div><b>one<br>two</b><p>three</p></div>');
+		const bold = { type: markType('bold') };
+
+		const firstTwo = pasted.children.slice(0, 2).map((block) => getInlineChildren(block));
+
+		expect(firstTwo).toEqual([
+			[expect.objectContaining({ text: 'one', marks: [bold] })],
+			[expect.objectContaining({ text: 'two', marks: [bold] })],
+		]);
+	});
+});
+
+describe('deeply wrapped long inline runs (#263)', () => {
+	const DEPTH = 40;
+	const WIDTH = 400;
+	const WIDE_AT_DEPTH: string = `${'<span>'.repeat(DEPTH)}${'<b>x</b>'.repeat(WIDTH)}<p>p</p>${'</span>'.repeat(DEPTH)}`;
+
+	/** Counts how often parse rules for the wrappers and the run's elements are evaluated. */
+	function countingRegistry(): {
+		readonly registry: SchemaRegistry;
+		readonly wrapperMarkChecks: () => number;
+		readonly runBlockChecks: () => number;
+	} {
+		const counting = new SchemaRegistry();
+		registerBuiltinSpecs(counting);
+		let wrapperMarkChecks = 0;
+		let runBlockChecks = 0;
+		counting.registerMarkSpec({
+			type: 'probe_mark',
+			toDOM: () => document.createElement('span'),
+			sanitize: { tags: ['span', 'b'] },
+			parseHTML: [
+				{
+					tag: 'span',
+					getAttrs: () => {
+						wrapperMarkChecks++;
+						return false;
+					},
+				},
+			],
+		});
+		counting.registerNodeSpec({
+			type: 'probe_block',
+			group: 'block',
+			toDOM: () => document.createElement('div'),
+			parseHTML: [
+				{
+					tag: 'b',
+					getAttrs: () => {
+						runBlockChecks++;
+						return false;
+					},
+				},
+			],
+		});
+		return {
+			registry: counting,
+			wrapperMarkChecks: () => wrapperMarkChecks,
+			runBlockChecks: () => runBlockChecks,
+		};
+	}
+
+	it('imports the run and the block behind the wrappers', () => {
+		const { registry: counting } = countingRegistry();
+
+		const doc = parseHTMLToDocument(WIDE_AT_DEPTH, counting);
+
+		expect(doc.children.map((block) => getBlockText(block))).toEqual(['x'.repeat(WIDTH), 'p']);
+	});
+
+	it('evaluates each wrapper once instead of once per inline node', () => {
+		const { registry: counting, wrapperMarkChecks } = countingRegistry();
+
+		parseHTMLToDocument(WIDE_AT_DEPTH, counting);
+
+		expect(wrapperMarkChecks()).toBeLessThanOrEqual(2 * DEPTH);
+	});
+
+	it('scans the inline run a bounded number of times instead of once per wrapper level', () => {
+		const { registry: counting, runBlockChecks } = countingRegistry();
+
+		parseHTMLToDocument(WIDE_AT_DEPTH, counting);
+
+		expect(runBlockChecks()).toBeLessThanOrEqual(4 * WIDTH);
 	});
 });

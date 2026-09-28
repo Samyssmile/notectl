@@ -2,7 +2,8 @@ import type { Mark } from '../model/Document.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import { markType } from '../model/TypeBrands.js';
 
-type ParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
+/** Parse rules with the node, mark or inline type they produce, in priority order. */
+export type ParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
 
 /** Structural tags handled by the document parser independently of schema rules. */
 const BLOCK_TAGS: ReadonlySet<string> = new Set(['p', 'div', 'ul', 'ol', 'table', 'blockquote']);
@@ -66,12 +67,32 @@ export function hasHTMLBlockDescendants(
 	inlineRules: ParseRules,
 	blockTags: ReadonlySet<string> = BLOCK_TAGS,
 ): boolean {
-	if (matchHTMLParseRule(element, inlineRules)) return false;
-	return Array.from(element.children).some((child) => {
-		const el = child as HTMLElement;
-		return (
-			isHTMLBlockElement(el, blockRules, inlineRules, blockTags) ||
-			hasHTMLBlockDescendants(el, blockRules, inlineRules, blockTags)
-		);
-	});
+	return createBlockDescendantCheck(blockRules, inlineRules, blockTags)(element);
+}
+
+/**
+ * Creates a {@link hasHTMLBlockDescendants} check that remembers every
+ * element's answer. Parsers ask it for each level of nested wrappers, so
+ * without the memo a deep wrapper chain rescans the same subtree at every
+ * level (#263). Use one check per parse, while the DOM does not change.
+ */
+export function createBlockDescendantCheck(
+	blockRules: ParseRules,
+	inlineRules: ParseRules,
+	blockTags: ReadonlySet<string> = BLOCK_TAGS,
+): (element: HTMLElement) => boolean {
+	const known = new WeakMap<Element, boolean>();
+	const check = (element: HTMLElement): boolean => {
+		const cached: boolean | undefined = known.get(element);
+		if (cached !== undefined) return cached;
+		const result: boolean =
+			!matchHTMLParseRule(element, inlineRules) &&
+			Array.from(element.children).some((child) => {
+				const el = child as HTMLElement;
+				return isHTMLBlockElement(el, blockRules, inlineRules, blockTags) || check(el);
+			});
+		known.set(element, result);
+		return result;
+	};
+	return check;
 }

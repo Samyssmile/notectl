@@ -17,7 +17,7 @@ import type { InlineTypeName, NodeTypeName } from '../model/TypeBrands.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
 import { readElementAlignment } from '../serialization/AlignmentHTML.js';
 import {
-	hasHTMLBlockDescendants,
+	createBlockDescendantCheck,
 	isHTMLBlockElement,
 	matchHTMLParseRule,
 	parseHTMLMarks,
@@ -120,6 +120,12 @@ export class HTMLParser {
 		readonly type: string;
 	}[];
 	private readonly blockTagHandlers: ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]>;
+	/**
+	 * Whether an element contains block-level descendants, remembered per element
+	 * so nested wrappers do not rescan their subtree at every level (#263). An
+	 * instance parses one clipboard fragment, whose element structure is fixed.
+	 */
+	private readonly containsBlockDescendants: (el: HTMLElement) => boolean;
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
@@ -127,6 +133,11 @@ export class HTMLParser {
 		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
 		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
 		this.inlineParseRules = options.schemaRegistry?.getInlineParseRules() ?? [];
+		this.containsBlockDescendants = createBlockDescendantCheck(
+			this.blockParseRules,
+			this.inlineParseRules,
+			BLOCK_ELEMENTS,
+		);
 		this.blockTagHandlers = this.buildBlockTagHandlers();
 	}
 
@@ -565,11 +576,6 @@ export class HTMLParser {
 		return input?.hasAttribute('checked') ?? false;
 	}
 
-	/** Checks whether an element contains any block-level descendants. */
-	private containsBlockDescendants(el: HTMLElement): boolean {
-		return hasHTMLBlockDescendants(el, this.blockParseRules, this.inlineParseRules, BLOCK_ELEMENTS);
-	}
-
 	/** Parses a container element, prepending inherited marks. */
 	private parseContainerWithMarks(
 		container: HTMLElement,
@@ -603,7 +609,18 @@ export class HTMLParser {
 	 * at `<br>` boundaries.
 	 */
 	private parseBlockWithLineBreaks(element: HTMLElement, blockType: NodeTypeName): SliceBlock[] {
-		const segments: readonly ContentSegment[] = this.parseInlineChildren(element, []);
+		return this.splitAtLineBreaks(this.parseInlineChildren(element, []), blockType);
+	}
+
+	/**
+	 * Turns an inline run into blocks of `blockType`, one per line: a `<br>`
+	 * arrives as a `\n` and must not stay in block text, where it would render
+	 * as a break but be lost as whitespace after an HTML round trip (#262).
+	 */
+	private splitAtLineBreaks(
+		segments: readonly ContentSegment[],
+		blockType: NodeTypeName,
+	): SliceBlock[] {
 		const hasLineBreak: boolean = segments.some(
 			(s: ContentSegment) => s.kind === 'text' && s.text.includes('\n'),
 		);
@@ -658,9 +675,8 @@ export class HTMLParser {
 		);
 		if (isBlank) return;
 
-		blocks.push({
-			type: this.resolveBlockType(nodeType('paragraph')),
-			segments: normalized,
-		});
+		blocks.push(
+			...this.splitAtLineBreaks(normalized, this.resolveBlockType(nodeType('paragraph'))),
+		);
 	}
 }

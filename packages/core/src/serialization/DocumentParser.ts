@@ -28,12 +28,8 @@ import { type InlineTypeName, inlineType, nodeType } from '../model/TypeBrands.j
 import { readElementAlignment } from './AlignmentHTML.js';
 import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_DIRECTIONS } from './DocumentSerializer.js';
-import {
-	hasHTMLBlockDescendants,
-	isHTMLBlockElement,
-	matchHTMLParseRule,
-	parseHTMLMarks,
-} from './HTMLParseRules.js';
+import { isHTMLBlockElement, matchHTMLParseRule, parseHTMLMarks } from './HTMLParseRules.js';
+import { type HTMLParseSession, createHTMLParseSession } from './HTMLParseSession.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
 import {
@@ -97,12 +93,11 @@ export function parseHTMLToDocument(
 	// not leave stray newlines and indentation inside block text content.
 	normalizeHTMLWhitespace(root);
 
-	const blockRules = registry?.getBlockParseRules() ?? [];
+	const session: HTMLParseSession = createHTMLParseSession(registry);
 	const blocks: BlockNode[] = [];
-	const adoptedIds = new Set<string>();
 
 	for (const child of Array.from(root.childNodes)) {
-		parseChildNode(child, blocks, blockRules, adoptedIds, registry);
+		parseChildNode(child, blocks, session);
 	}
 
 	if (blocks.length === 0) return createDocument();
@@ -118,13 +113,8 @@ export function parseHTMLToDocument(
  * lists, tables, block parse rules (headings, blockquotes, code blocks, images, hr),
  * and fallback paragraphs. Used by both top-level parsing and table cell content parsing.
  */
-function parseChildNode(
-	child: ChildNode,
-	blocks: BlockNode[],
-	blockRules: readonly { readonly rule: ParseRule; readonly type: string }[],
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
-): void {
+function parseChildNode(child: ChildNode, blocks: BlockNode[], session: HTMLParseSession): void {
+	const { adoptedIds, registry } = session;
 	if (child.nodeType === Node.ELEMENT_NODE) {
 		const el = child as HTMLElement;
 		const tag: string = el.tagName.toLowerCase();
@@ -135,43 +125,40 @@ function parseChildNode(
 			const listDir: string | null = el.getAttribute('dir');
 			const parentDir: string | undefined =
 				listDir && VALID_DIRECTIONS.has(listDir) ? listDir : undefined;
-			parseListElement(el, listType, 0, blocks, adoptedIds, registry, parentDir);
+			parseListElement(el, listType, 0, blocks, session, parentDir);
 			return;
 		}
 
 		// Tables produce nested block structure: table > table_row > table_cell > paragraph
 		if (tag === 'table') {
-			parseTableElement(el, blocks, adoptedIds, registry);
+			parseTableElement(el, blocks, session);
 			return;
 		}
 
 		// Blockquotes are container blocks (issue #136): parse their children
 		// recursively into block nodes instead of flattening to inline content.
 		if (tag === 'blockquote') {
-			parseBlockquoteElement(el, blocks, adoptedIds, registry);
+			parseBlockquoteElement(el, blocks, session);
 			return;
 		}
 
 		// Try block parse rules
-		const match = matchHTMLParseRule(el, blockRules);
+		const match = matchHTMLParseRule(el, session.blockRules);
 
 		// A paragraph cannot hold blocks. An element that resolves to `paragraph`
 		// (the generic `<div>` rule or the fallback below) but wraps block-level
 		// children is a transparent wrapper, the shape web pages, Google Docs and
 		// Word put around their content: its children become sibling blocks
 		// instead of being flattened into one inline run (#223).
-		if (
-			(match?.type ?? 'paragraph') === 'paragraph' &&
-			hasHTMLBlockDescendants(el, blockRules, registry?.getInlineParseRules() ?? [])
-		) {
-			parseWrapperElement(el, blocks, blockRules, adoptedIds, registry);
+		if ((match?.type ?? 'paragraph') === 'paragraph' && session.hasBlockDescendants(el)) {
+			parseWrapperElement(el, blocks, session);
 			return;
 		}
 
 		const spec = match ? registry?.getNodeSpec(match.type) : undefined;
 		const children: (TextNode | InlineNode)[] = spec?.isVoid
 			? [createTextNode('')]
-			: parseElementToInlineContent(el, registry);
+			: parseElementToInlineContent(el, session);
 		const attrs: Record<string, string | number | boolean> = {
 			...(match?.attrs as Record<string, string | number | boolean> | undefined),
 		};
@@ -202,8 +189,7 @@ function parseListElement(
 	listType: string,
 	depth: number,
 	blocks: BlockNode[],
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 	parentDir?: string,
 ): void {
 	for (const child of Array.from(listEl.children)) {
@@ -233,7 +219,7 @@ function parseListElement(
 				attrs.dir = effectiveDir;
 			}
 
-			blocks.push(parseListItemBlock(li, attrs, adoptedIds, checkbox, registry));
+			blocks.push(parseListItemBlock(li, attrs, checkbox, session));
 
 			// Check for nested lists inside this <li>
 			for (const liChild of Array.from(li.children)) {
@@ -243,15 +229,7 @@ function parseListElement(
 					const nestedDir: string | null = liChild.getAttribute('dir');
 					const nestedEffectiveDir: string | undefined =
 						nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : effectiveDir;
-					parseListElement(
-						liChild,
-						nestedType,
-						depth + 1,
-						blocks,
-						adoptedIds,
-						registry,
-						nestedEffectiveDir,
-					);
+					parseListElement(liChild, nestedType, depth + 1, blocks, session, nestedEffectiveDir);
 				}
 			}
 		} else if (tag === 'ul' || tag === 'ol') {
@@ -260,15 +238,7 @@ function parseListElement(
 			const nestedDir: string | null = child.getAttribute('dir');
 			const nestedEffectiveDir: string | undefined =
 				nestedDir && VALID_DIRECTIONS.has(nestedDir) ? nestedDir : parentDir;
-			parseListElement(
-				child,
-				nestedType,
-				depth + 1,
-				blocks,
-				adoptedIds,
-				registry,
-				nestedEffectiveDir,
-			);
+			parseListElement(child, nestedType, depth + 1, blocks, session, nestedEffectiveDir);
 		}
 	}
 }
@@ -285,24 +255,22 @@ function parseListElement(
 function parseListItemBlock(
 	li: HTMLElement,
 	attrs: Record<string, string | number | boolean>,
-	adoptedIds: Set<string>,
 	checkbox: HTMLInputElement | null,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 ): BlockNode {
+	const { adoptedIds } = session;
 	const htmlId: string | undefined = extractHTMLId(li);
-	const blockRules = registry?.getBlockParseRules() ?? [];
-	const inlineRules = registry?.getInlineParseRules() ?? [];
 	const isHoistedList = (node: ChildNode): boolean => {
 		if (node.nodeType !== Node.ELEMENT_NODE) return false;
 		const tag: string = (node as Element).tagName.toLowerCase();
 		return tag === 'ul' || tag === 'ol';
 	};
 	const hasBlockContent: boolean = Array.from(li.childNodes).some(
-		(node) => !isHoistedList(node) && isBlockLevelChild(node, blockRules, inlineRules),
+		(node) => !isHoistedList(node) && isBlockLevelChild(node, session),
 	);
 
 	if (!hasBlockContent) {
-		const inlineContent = parseElementToInlineContent(li, registry, true);
+		const inlineContent = parseElementToInlineContent(li, session, true);
 		return createBlockNode(
 			nodeType('list_item'),
 			inlineContent,
@@ -313,13 +281,7 @@ function parseListItemBlock(
 	}
 
 	const skip = (node: ChildNode): boolean => isHoistedList(node) || node === checkbox;
-	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
-		li,
-		blockRules,
-		adoptedIds,
-		registry,
-		skip,
-	);
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(li, session, skip);
 
 	// A lone attribute-less paragraph is the leaf shape in disguise.
 	const only: BlockNode | undefined = innerBlocks.length === 1 ? innerBlocks[0] : undefined;
@@ -357,12 +319,8 @@ function parseListItemBlock(
  * table > table_row > table_cell > paragraph.
  * Handles `<thead>`, `<tbody>`, `<tfoot>` transparently.
  */
-function parseTableElement(
-	tableEl: Element,
-	blocks: BlockNode[],
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
-): void {
+function parseTableElement(tableEl: Element, blocks: BlockNode[], session: HTMLParseSession): void {
+	const { adoptedIds, registry } = session;
 	const rows: BlockNode[] = [];
 	const columnWidthsPx: readonly (number | null)[] | undefined =
 		extractTableColumnWidthsPx(tableEl);
@@ -380,7 +338,7 @@ function parseTableElement(
 			if (cellTag !== 'td' && cellTag !== 'th') continue;
 
 			const cellEl: HTMLElement = cellChild as HTMLElement;
-			const cellContent: BlockNode[] = parseTableCellContent(cellEl, adoptedIds, registry);
+			const cellContent: BlockNode[] = parseTableCellContent(cellEl, session);
 			const cellAttrs: Record<string, string | number | boolean> = {};
 			extractCellSpanAttrs(cellEl, cellAttrs);
 			if (cellsAlign) extractAlignment(cellEl, cellAttrs, registry);
@@ -545,16 +503,9 @@ function extractCellSpanAttrs(
 function parseBlockquoteElement(
 	el: HTMLElement,
 	blocks: BlockNode[],
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 ): void {
-	const blockRules = registry?.getBlockParseRules() ?? [];
-	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
-		el,
-		blockRules,
-		adoptedIds,
-		registry,
-	);
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(el, session);
 
 	// Empty or whitespace-only blockquote: keep a single empty paragraph so the
 	// container always holds editable content.
@@ -564,14 +515,14 @@ function parseBlockquoteElement(
 
 	// Preserve direction/alignment on the container so the HTML round-trip is stable.
 	const attrs: Record<string, string | number | boolean> = {};
-	extractAlignment(el, attrs, registry);
+	extractAlignment(el, attrs, session.registry);
 	extractDirection(el, attrs);
 
 	blocks.push(
 		createBlockNode(
 			nodeType('blockquote'),
 			innerBlocks,
-			adoptBlockId(el, adoptedIds),
+			adoptBlockId(el, session.adoptedIds),
 			Object.keys(attrs).length > 0 ? attrs : undefined,
 			extractHTMLId(el),
 		),
@@ -579,18 +530,8 @@ function parseBlockquoteElement(
 }
 
 /** Parses a table cell's content into blocks, supporting all block types (lists, quotes, etc.). */
-function parseTableCellContent(
-	cellEl: HTMLElement,
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
-): BlockNode[] {
-	const blockRules = registry?.getBlockParseRules() ?? [];
-	const cellBlocks: BlockNode[] = parseBlockContainerChildren(
-		cellEl,
-		blockRules,
-		adoptedIds,
-		registry,
-	);
+function parseTableCellContent(cellEl: HTMLElement, session: HTMLParseSession): BlockNode[] {
+	const cellBlocks: BlockNode[] = parseBlockContainerChildren(cellEl, session);
 
 	// No blocks produced: treat the cell as one empty paragraph.
 	if (cellBlocks.length === 0) {
@@ -599,9 +540,6 @@ function parseTableCellContent(
 
 	return cellBlocks;
 }
-
-type BlockParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
-type InlineParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
 
 /**
  * Parses the children of a block container (blockquote, table cell, multi-block
@@ -614,19 +552,16 @@ type InlineParseRules = readonly { readonly rule: ParseRule; readonly type: stri
  */
 function parseBlockContainerChildren(
 	el: HTMLElement,
-	blockRules: BlockParseRules,
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 	skip?: (node: ChildNode) => boolean,
 ): BlockNode[] {
 	const blocks: BlockNode[] = [];
-	const inlineRules = registry?.getInlineParseRules() ?? [];
 	let inlineRun: ChildNode[] = [];
 
 	const flushInlineRun = (): void => {
 		if (inlineRunHasContent(inlineRun)) {
 			blocks.push(
-				createBlockNode(nodeType('paragraph'), parseNodesToInlineContent(inlineRun, registry)),
+				createBlockNode(nodeType('paragraph'), parseNodesToInlineContent(inlineRun, session)),
 			);
 		}
 		inlineRun = [];
@@ -634,9 +569,9 @@ function parseBlockContainerChildren(
 
 	for (const child of Array.from(el.childNodes)) {
 		if (skip?.(child)) continue;
-		if (isBlockLevelChild(child, blockRules, inlineRules)) {
+		if (isBlockLevelChild(child, session)) {
 			flushInlineRun();
-			parseChildNode(child, blocks, blockRules, adoptedIds, registry);
+			parseChildNode(child, blocks, session);
 		} else {
 			inlineRun.push(child);
 		}
@@ -650,16 +585,12 @@ function parseBlockContainerChildren(
  * Both blocks and transparent wrappers around blocks end an inline run.
  * Ordinary inline elements and atomic inline nodes stay inside that run.
  */
-function isBlockLevelChild(
-	node: ChildNode,
-	blockRules: BlockParseRules,
-	inlineRules: InlineParseRules,
-): boolean {
+function isBlockLevelChild(node: ChildNode, session: HTMLParseSession): boolean {
 	if (node.nodeType !== Node.ELEMENT_NODE) return false;
 	const el = node as HTMLElement;
 	return (
-		isHTMLBlockElement(el, blockRules, inlineRules) ||
-		hasHTMLBlockDescendants(el, blockRules, inlineRules)
+		isHTMLBlockElement(el, session.blockRules, session.inlineRules) ||
+		session.hasBlockDescendants(el)
 	);
 }
 
@@ -674,22 +605,15 @@ function isBlockLevelChild(
 function parseWrapperElement(
 	el: HTMLElement,
 	blocks: BlockNode[],
-	blockRules: BlockParseRules,
-	adoptedIds: Set<string>,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 ): void {
 	const inherited: Record<string, string | number | boolean> = {};
-	extractAlignment(el, inherited, registry);
+	extractAlignment(el, inherited, session.registry);
 	extractDirection(el, inherited);
 
-	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
-		el,
-		blockRules,
-		adoptedIds,
-		registry,
-	);
+	const innerBlocks: BlockNode[] = parseBlockContainerChildren(el, session);
 	for (const block of innerBlocks) {
-		blocks.push(inheritBlockAttrs(block, inherited, registry));
+		blocks.push(inheritBlockAttrs(block, inherited, session.registry));
 	}
 }
 
@@ -732,10 +656,10 @@ function inlineRunHasContent(nodes: readonly ChildNode[]): boolean {
  */
 function parseElementToInlineContent(
 	el: HTMLElement,
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 	skipNestedLists?: boolean,
 ): (TextNode | InlineNode)[] {
-	return parseNodesToInlineContent([el], registry, skipNestedLists);
+	return parseNodesToInlineContent([el], session, skipNestedLists);
 }
 
 /**
@@ -746,19 +670,17 @@ function parseElementToInlineContent(
  */
 function parseNodesToInlineContent(
 	nodes: readonly ChildNode[],
-	registry?: SchemaRegistry,
+	session: HTMLParseSession,
 	skipNestedLists?: boolean,
 ): (TextNode | InlineNode)[] {
 	const result: (TextNode | InlineNode)[] = [];
-	const markRules = registry?.getMarkParseRules() ?? [];
-	const inlineRules = registry?.getInlineParseRules() ?? [];
 	for (const node of nodes) {
 		walkElement(
 			node,
-			parseAncestorMarks(node, markRules),
+			session.ancestorMarks(node),
 			result,
-			markRules,
-			inlineRules,
+			session.markRules,
+			session.inlineRules,
 			skipNestedLists,
 		);
 	}
@@ -778,7 +700,7 @@ function parseNodesToInlineContent(
  */
 function walkElement(
 	node: Node,
-	currentMarks: Mark[],
+	currentMarks: readonly Mark[],
 	result: (TextNode | InlineNode)[],
 	markRules: readonly { readonly rule: ParseRule; readonly type: string }[],
 	inlineRules: readonly { readonly rule: ParseRule; readonly type: string }[],
@@ -820,15 +742,6 @@ function walkElement(
 	for (const child of Array.from(el.childNodes)) {
 		walkElement(child, marks, result, markRules, inlineRules, skipNestedLists);
 	}
-}
-
-/** Resolves wrapper formatting without cloning or modifying the parsed block tree. */
-function parseAncestorMarks(
-	node: Node,
-	markRules: readonly { readonly rule: ParseRule; readonly type: string }[],
-): Mark[] {
-	const parent: HTMLElement | null = node.parentElement;
-	return parent ? parseHTMLMarks(parent, parseAncestorMarks(parent, markRules), markRules) : [];
 }
 
 /** Extracts a validated `dir` attribute or inline `direction` style from an element. */
