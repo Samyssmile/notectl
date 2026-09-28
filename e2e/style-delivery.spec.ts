@@ -57,6 +57,30 @@ test.describe('Compiled stylesheet delivery', () => {
 		await expect(page.locator('#outside-editor')).toHaveCSS('display', 'block');
 	});
 
+	test('direction-dependent styles follow dir, not the page language (#259)', async ({
+		editor,
+		page,
+	}) => {
+		await editor.setContentHTML(
+			'<blockquote dir="rtl"><p>שלום עולם</p></blockquote>' +
+				'<blockquote dir="ltr"><p>Hello world</p></blockquote>',
+		);
+		const rtlQuote = editor.content.locator('blockquote[dir="rtl"]');
+		const ltrQuote = editor.content.locator('blockquote[dir="ltr"]');
+
+		for (const lang of ['en', 'ar']) {
+			await page.evaluate((value: string) => {
+				document.documentElement.lang = value;
+			}, lang);
+			await expect(rtlQuote).toHaveCSS('border-right-width', '3px');
+			await expect(rtlQuote).toHaveCSS('border-left-width', '0px');
+			await expect(rtlQuote).toHaveCSS('padding-right', '16px');
+			await expect(ltrQuote).toHaveCSS('border-left-width', '3px');
+			await expect(ltrQuote).toHaveCSS('border-right-width', '0px');
+			await expect(ltrQuote).toHaveCSS('padding-left', '16px');
+		}
+	});
+
 	test('reduced motion removes toolbar transitions', async ({ editor, page }) => {
 		await page.emulateMedia({ reducedMotion: 'no-preference' });
 		await expect(editor.markButton('bold')).not.toHaveCSS('transition-duration', '0s');

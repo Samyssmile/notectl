@@ -15,7 +15,8 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
  * entry as if all locales loaded at once.
  */
 const ENTRY_BUDGETS = [
-	// #256: measured 105.64 KB with deferred IME breaks and a shared text/caret snapshot.
+	// #256/#259: measured 105.20 KB with deferred IME breaks, a shared text/caret snapshot and
+	// logical properties shipped as authored.
 	['Core', 'src/index.ts', 106],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
@@ -101,6 +102,27 @@ function printResult(name, bytes, limitKilobytes) {
 	return passed;
 }
 
+/**
+ * Lightning CSS emulates logical properties and `:dir()` for old targets with a list of
+ * right-to-left languages that starts at `:lang(ae`. That list follows the page language
+ * instead of `dir` (#259), so no shipped ESM or UMD file may contain it.
+ */
+const RTL_LANGUAGE_EMULATION = ':lang(ae';
+
+async function verifyDirectionStylesFollowDir(files) {
+	const offenders = [];
+	for (const file of files) {
+		const code = await readFile(resolve(DIST_DIR, file), 'utf8');
+		if (code.includes(RTL_LANGUAGE_EMULATION)) offenders.push(file);
+	}
+	if (offenders.length > 0) {
+		throw new Error(
+			`Direction-dependent CSS was lowered to :lang() selectors in ${offenders.join(', ')} (#259).`,
+		);
+	}
+	console.log('✓ Direction-dependent styles follow dir in ESM and UMD');
+}
+
 async function verifyAutomaticRegistrationSurvivesTreeShaking() {
 	const result = await bundleWithEsbuild({
 		bundle: true,
@@ -176,6 +198,10 @@ async function main() {
 	const umdBytes = gzipSync(await readFile(resolve(DIST_DIR, 'notectl-core.umd.js'))).byteLength;
 	passed = printResult('UMD (single-file)', umdBytes, UMD_BUDGET_KB) && passed;
 	await verifyAutomaticRegistrationSurvivesTreeShaking();
+	await verifyDirectionStylesFollowDir([
+		...stats.chunks.map((chunk) => chunk.file),
+		'notectl-core.umd.js',
+	]);
 
 	if (!passed) {
 		console.error('\nBundle budget exceeded. Reduce the relevant graph or update an intentional baseline.');

@@ -221,6 +221,7 @@
 	"devDependencies": {
 		"esbuild": "^0.28.1",
 		"happy-dom": "^20.11.1",
+		"lightningcss": "^1.33.0",
 		"rollup-plugin-visualizer": "^7.0.1",
 		"terser": "^5.49.2",
 		"vite": "^8.2.0",

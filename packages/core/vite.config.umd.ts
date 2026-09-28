@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { stripEmbeddedFontSourcesFromMaps } from './scripts/BundleStatsPlugin.js';
-import { CSS_BUILD_OPTIONS } from './scripts/CSSBuildOptions.js';
+import { CSS_BUILD_OPTIONS, CSS_OPTIONS } from './scripts/CSSBuildOptions.js';
 
 /**
  * Separate UMD build for CDN / script-tag consumers.
@@ -9,6 +9,7 @@ import { CSS_BUILD_OPTIONS } from './scripts/CSSBuildOptions.js';
  */
 export default defineConfig({
 	plugins: [stripEmbeddedFontSourcesFromMaps()],
+	css: CSS_OPTIONS,
 	build: {
 		...CSS_BUILD_OPTIONS,
 		lib: {

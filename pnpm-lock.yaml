@@ -156,6 +156,9 @@ importers:
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
+      lightningcss:
+        specifier: ^1.33.0
+        version: 1.33.0
       rollup-plugin-visualizer:
         specifier: ^7.0.1
         version: 7.0.1(rolldown@1.2.8)(rollup@4.62.4)

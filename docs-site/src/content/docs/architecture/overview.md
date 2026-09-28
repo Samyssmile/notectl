@@ -181,6 +181,13 @@ Static editor and plugin styles live in `.css` files and are imported with Vite'
 consumers do not need a separate CSS import. Both ESM and UMD use the same CSS
 build options, targeting Chrome 67, Firefox 63, Safari 12.1, and Edge 79 as listed
 in the installation requirements. JavaScript build targets are configured separately.
+Logical properties such as `border-inline-start` and the `inset` shorthand are
+excluded from that lowering and ship as authored, as they did before the pipeline
+change. For those targets Lightning CSS could only emulate them with `:lang()`
+selectors, so direction-dependent styling would follow the page language instead of
+`dir`. Browsers that predate these properties ignore them, as in earlier releases.
+`pnpm size:check` fails if such an emulation, for example from a `:dir()` selector,
+reaches the build output.
 
 At runtime, the editor adopts its base and theme stylesheets in the Shadow DOM.
 Plugins continue to register their styles through `PluginContext.registerStyleSheet()`.
