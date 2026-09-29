@@ -18,6 +18,8 @@ interface Harness {
 	readonly getState: () => EditorState;
 	readonly readBlock: Mock<(id: BlockId) => CompositionSnapshot | null>;
 	readonly restoreBlock: Mock<(id: BlockId) => void>;
+	/** Applies `tr` while composing, reporting it to the controller as the view does. */
+	applyMeanwhile(tr: Transaction): void;
 	text(id?: string): string;
 }
 
@@ -28,6 +30,8 @@ interface HarnessOptions {
 	readonly withDOM?: boolean;
 	readonly caretOffset?: number | null;
 	readonly readOnly?: boolean;
+	/** Simulates middleware that drops the commit transaction. */
+	readonly dropCommits?: boolean;
 }
 
 function helloState(): EditorState {
@@ -43,7 +47,7 @@ function harness(options: HarnessOptions = {}): Harness {
 	let state: EditorState = options.state ?? helloState();
 	const tracker = new CompositionTracker();
 	const dispatch = vi.fn((tr: Transaction) => {
-		state = state.apply(tr);
+		if (!options.dropCommits) state = state.apply(tr);
 	});
 	const readBlock = vi.fn((_id: BlockId) =>
 		options.rendered == null
@@ -66,6 +70,11 @@ function harness(options: HarnessOptions = {}): Harness {
 		dispatch,
 		readBlock,
 		restoreBlock,
+		applyMeanwhile: (tr) => {
+			const oldState: EditorState = state;
+			state = state.apply(tr);
+			controller.onStateChange(oldState, state, tr);
+		},
 		text: (id = 'b1') => {
 			const block = state.getBlock(blockId(id));
 			return block ? getBlockText(block) : '';
@@ -195,6 +204,40 @@ describe('CompositionController', () => {
 		expect(h.text()).toBe(rendered);
 		expect(h.getState().selection).toEqual(createCollapsedSelection(B1, rendered.length));
 		if (rendered === 'cat') expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('places the commit through edits applied while composing (#260)', () => {
+		const h = harness({ rendered: 'hellowo', caretOffset: 7 });
+
+		h.controller.start();
+		h.applyMeanwhile(h.getState().transaction('api').insertText(B1, 0, 'Z', []).build());
+		h.controller.end('wo');
+
+		expect(h.text()).toBe('Zhellowo');
+		expect(h.getState().selection).toEqual(createCollapsedSelection(B1, 8));
+		expect(h.restoreBlock).not.toHaveBeenCalled();
+	});
+
+	it('re-renders the composition block when the commit lands in another block', () => {
+		const h = harness({ rendered: 'hellowo', caretOffset: 7 });
+
+		h.controller.start();
+		h.applyMeanwhile(h.getState().transaction('api').splitBlock(B1, 2, blockId('b3')).build());
+		h.controller.end('wo');
+
+		expect([h.text(), h.text('b3')]).toEqual(['he', 'llowo']);
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('re-renders the composition block when the commit is not applied', () => {
+		const h = harness({ rendered: 'hellowo', dropCommits: true });
+
+		h.controller.start();
+		h.controller.end('wo');
+
+		expect(h.dispatch).toHaveBeenCalledOnce();
+		expect(h.text()).toBe('hello');
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
 	});
 
 	it('changes nothing in read-only mode', () => {

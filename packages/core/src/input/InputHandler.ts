@@ -375,6 +375,11 @@ export class InputHandler {
 		}
 	}
 
+	/** Lets an open composition follow a transaction applied while composing. */
+	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
+		this.composition.onStateChange(oldState, state, tr);
+	}
+
 	destroy(): void {
 		this.pendingBreaks = [];
 		this.element.removeEventListener('beforeinput', this.handleBeforeInput);

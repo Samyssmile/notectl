@@ -328,7 +328,7 @@ interface CompositionState {
 }
 ```
 
-The `CompositionTracker` implements this interface. During composition, the editor defers DOM reconciliation to avoid interfering with the IME. When the composition ends, the editor reads the text the browser rendered for the composition block and applies the difference to the document, so deletions and word recomposition performed by the IME are kept.
+The `CompositionTracker` implements this interface. During composition, the editor defers DOM reconciliation to avoid interfering with the IME. When the composition ends, the editor compares the text the browser rendered for the composition block with the block as it was when the composition started, and applies the difference to the current document, so deletions and word recomposition performed by the IME are kept. Changes made to the document while the composition was open, such as a `dispatch` from the host application, a paste or `setJSON()`, are kept as well.
 
 ---
 

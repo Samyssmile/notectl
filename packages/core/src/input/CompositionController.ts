@@ -5,21 +5,22 @@
  * While composing, the browser owns the composition block's DOM: the model is
  * not updated, the reconciler skips the block, and composing deletions are
  * left to the browser (#230). When the composition ends, the block's rendered
- * text is the source of truth. The controller diffs it against the model and
- * dispatches the difference, so every browser edit is adopted: the composed
- * text, deletions reaching committed text in front of the composition start
- * (#257), and recomposition of an existing word.
+ * text is the source of truth for the browser's edits: the composed text,
+ * deletions reaching committed text in front of the composition start
+ * (#257), and recomposition of an existing word. The controller follows every
+ * transaction applied while composing, so those edits are placed into the
+ * current document without reverting changes made meanwhile (#260).
  */
 
-import { insertTextCommand } from '../commands/Commands.js';
-import { commitComposedText } from '../commands/CompositionCommands.js';
-import type { CompositionSnapshot } from '../model/CompositionState.js';
 import {
-	type Selection,
-	createCollapsedSelection,
-	isTextSelection,
-	selectionsEqual,
-} from '../model/Selection.js';
+	type CompositionBase,
+	commitComposition,
+	createCompositionBase,
+	mapCompositionBase,
+} from '../commands/CompositionCommands.js';
+import type { CompositionSnapshot } from '../model/CompositionState.js';
+import type { BlockNode } from '../model/Document.js';
+import { type Selection, isTextSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -49,15 +50,9 @@ export interface CompositionControllerOptions {
 	readonly compositionDOM?: CompositionDOM;
 }
 
-/** Where a composition started: a block and the start offset of the selection it replaces. */
-interface CompositionAnchor {
-	readonly blockId: BlockId;
-	readonly from: number;
-}
-
 export class CompositionController {
 	private readonly options: CompositionControllerOptions;
-	private anchor: CompositionAnchor | null = null;
+	private base: CompositionBase | null = null;
 	private commitHandled = false;
 
 	constructor(options: CompositionControllerOptions) {
@@ -66,16 +61,26 @@ export class CompositionController {
 
 	/**
 	 * Starts tracking a composition at the current selection. Compositions on
-	 * non-text selections are not tracked. Only single-block selections record
-	 * an anchor for the rendered-text commit.
+	 * non-text selections are not tracked. Only a selection inside one leaf
+	 * block records a base for the rendered-text commit.
 	 */
 	start(): void {
-		this.anchor = null;
-		const selection = this.options.getState().selection;
+		this.base = null;
+		const state: EditorState = this.options.getState();
+		const selection = state.selection;
 		if (!isTextSelection(selection)) return;
 		this.commitHandled = false;
 		this.options.tracker.start(selection.anchor.blockId);
-		this.anchor = singleBlockAnchor(selection);
+		this.base = singleBlockBase(state, selection);
+	}
+
+	/**
+	 * Follows a transaction applied while composing, so the commit can place
+	 * the browser's edit in the changed document.
+	 */
+	onStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
+		if (!this.base) return;
+		this.base = mapCompositionBase(this.base, oldState, newState, tr);
 	}
 
 	/**
@@ -87,62 +92,49 @@ export class CompositionController {
 	}
 
 	/**
-	 * Ends the composition and makes the model adopt its result. When nothing
-	 * is dispatched, the composition block is re-rendered from the model so no
-	 * browser-owned DOM outlives the composition.
+	 * Ends the composition and makes the model adopt its result. Unless the
+	 * commit changed the composition block, which re-renders it, the block is
+	 * re-rendered from the model so no browser-owned DOM outlives the
+	 * composition.
 	 *
 	 * @param composedText - The `compositionend` data, used only when the
-	 *   rendered text cannot be read.
+	 *   rendered edit cannot be read or placed.
 	 */
 	end(composedText: string): void {
-		const anchor: CompositionAnchor | null = this.anchor;
-		this.anchor = null;
+		const base: CompositionBase | null = this.base;
+		this.base = null;
 		this.options.tracker.end();
 		if (this.options.isReadOnly()) return;
 
 		if (this.commitHandled) {
 			this.commitHandled = false;
-			this.restore(anchor);
+			this.restore(base);
 			return;
 		}
 
-		const tr: Transaction | null = this.buildCommit(anchor, composedText);
-		if (tr) {
-			this.options.dispatch(tr);
-			if (tr.steps.length > 0) return;
-		}
-		this.restore(anchor);
+		const blockBefore: BlockNode | undefined = base ? this.compositionBlock(base) : undefined;
+		const tr: Transaction | null = this.buildCommit(base, composedText);
+		if (tr) this.options.dispatch(tr);
+		if (base && this.compositionBlock(base) === blockBefore) this.restore(base);
 	}
 
-	private buildCommit(anchor: CompositionAnchor | null, composedText: string): Transaction | null {
-		const state: EditorState = this.options.getState();
-		const rendered = anchor
-			? (this.options.compositionDOM?.readBlock(anchor.blockId) ?? null)
-			: null;
-		if (anchor && rendered !== null) {
-			const tr = commitComposedText(state, anchor.blockId, rendered.text, anchor.from);
-			const caret = rendered.caretOffset;
-			if (caret === null) return tr;
-			// A minimal text diff can stop before an unchanged suffix of the
-			// composed word. Its insertion endpoint is not the final IME caret.
-			const selection = createCollapsedSelection(anchor.blockId, caret);
-			if (tr) return { ...tr, selectionAfter: selection };
-			return selectionsEqual(state.selection, selection)
-				? null
-				: state.transaction('input').setSelection(selection).build();
-		}
-		// Without readable DOM, assume the composition inserted its text at the caret.
-		return composedText ? insertTextCommand(state, composedText, 'input') : null;
+	private buildCommit(base: CompositionBase | null, composedText: string): Transaction | null {
+		const rendered = base ? (this.options.compositionDOM?.readBlock(base.blockId) ?? null) : null;
+		return commitComposition(this.options.getState(), composedText, base, rendered);
 	}
 
-	private restore(anchor: CompositionAnchor | null): void {
-		if (anchor) this.options.compositionDOM?.restoreBlock(anchor.blockId);
+	private compositionBlock(base: CompositionBase): BlockNode | undefined {
+		return this.options.getState().getBlock(base.blockId);
+	}
+
+	private restore(base: CompositionBase | null): void {
+		if (base) this.options.compositionDOM?.restoreBlock(base.blockId);
 	}
 }
 
-/** The anchor of a selection inside one block, or `null` for a multi-block selection. */
-function singleBlockAnchor(selection: Selection): CompositionAnchor | null {
+/** The base of a selection inside one leaf block, or `null` for any other selection. */
+function singleBlockBase(state: EditorState, selection: Selection): CompositionBase | null {
 	const { anchor, head } = selection;
 	if (anchor.blockId !== head.blockId) return null;
-	return { blockId: anchor.blockId, from: Math.min(anchor.offset, head.offset) };
+	return createCompositionBase(state, anchor.blockId, Math.min(anchor.offset, head.offset));
 }

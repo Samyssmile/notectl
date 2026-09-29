@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { commitComposedText } from '../commands/CompositionCommands.js';
+import { commitComposition, createCompositionBase } from '../commands/CompositionCommands.js';
 import {
 	DecorationSet,
 	inline as inlineDeco,
@@ -163,7 +163,11 @@ describe('readCompositionSnapshot text', () => {
 		for (const id of leafIds) {
 			const rendered: string | null = readCompositionSnapshot(container, id)?.text ?? null;
 			expect(rendered, id).not.toBeNull();
-			expect(commitComposedText(state, id, rendered ?? '', 0), id).toBeNull();
+			const snapshot = { text: rendered ?? '', caretOffset: null };
+			const base = createCompositionBase(state, id, 0);
+			expect(base, id).not.toBeNull();
+			// A fallback insertion of the composed text would show up as a transaction.
+			expect(commitComposition(state, 'unused', base, snapshot), id).toBeNull();
 		}
 	});
 });

@@ -126,8 +126,12 @@ export class InputManager {
 		});
 	}
 
-	/** Maps pending async input operations through every committed transaction. */
+	/**
+	 * Maps pending async input operations, such as an async paste or an open
+	 * IME composition, through every committed transaction.
+	 */
 	onStateChange(oldState: EditorState, state: EditorState, tr: Transaction): void {
+		this.inputHandler.onStateChange(oldState, state, tr);
 		this.pasteHandler.onStateChange(oldState, state, tr);
 	}
 
