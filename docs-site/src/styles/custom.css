@@ -6,12 +6,15 @@
 	--sl-color-accent-high: #e3f2fd;
 	--sl-font: "Inter", system-ui, -apple-system, sans-serif;
 	--sl-font-mono: "Fira Code", ui-monospace, monospace;
+	--sl-color-banner-bg: var(--sl-color-accent);
+	--sl-color-banner-text: #ffffff;
 }
 
 :root[data-theme="dark"] {
 	--sl-color-accent-low: #0d47a130;
 	--sl-color-accent: #42a5f5;
 	--sl-color-accent-high: #0d47a1;
+	--sl-color-banner-bg: var(--sl-color-accent-high);
 }
 
 /* Hero section adjustments */
