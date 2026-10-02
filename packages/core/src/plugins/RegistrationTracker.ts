@@ -67,6 +67,9 @@ export class RegistrationTracker {
 		for (const type of reg.inlineNodeSpecs) {
 			this.deps.schemaRegistry.removeInlineNodeSpec(type);
 		}
+		for (const classNames of reg.alignmentClassNames) {
+			this.deps.schemaRegistry.removeAlignmentClassNames(classNames);
+		}
 
 		for (const type of reg.nodeViews) this.deps.nodeViewRegistry.removeNodeView(type);
 		for (const keymap of reg.keymaps) this.deps.keymapRegistry.removeKeymap(keymap);

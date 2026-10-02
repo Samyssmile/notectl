@@ -4,9 +4,11 @@
  * Uses logical values (`start`/`end`) instead of physical (`left`/`right`)
  * for correct behavior with RTL text direction. Patches NodeSpecs to render
  * the `align` attribute via inline `text-align` style and provides toggle
- * commands, keyboard shortcuts, and a toolbar dropdown.
+ * commands, keyboard shortcuts, and a toolbar dropdown. Optional application
+ * CSS classes carry the alignment in class-based HTML export and import.
  */
 
+import type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
 import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import type { BlockNode } from '../../model/Document.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -36,6 +38,17 @@ export interface AlignmentConfig {
 	readonly alignableTypes: readonly string[];
 	/** Per-type default alignment (e.g. `{ image: 'center' }`). Falls back to `'start'`. */
 	readonly defaults: Readonly<Record<string, BlockAlignment>>;
+	/**
+	 * Your own CSS class per alignment in HTML content, e.g. `{ center: 'align-center' }`.
+	 * Class-based export (`getContentHTML({ cssMode: 'classes' })`) writes these classes
+	 * and HTML import (`setContentHTML()`) recognizes them, so content round-trips with
+	 * your stylesheet. Alignments without a class keep `notectl-align-*`; mapping `start`
+	 * gives start-aligned blocks its class, except inside an alignable table cell, whose
+	 * alignment they inherit as in the editor. Inline-style export and the editor's own
+	 * rendering are unaffected. Invalid names make editor initialization fail with a
+	 * `TypeError` that explains the fix.
+	 */
+	readonly classNames?: AlignmentClassNames;
 	readonly locale?: AlignmentLocale;
 }
 
@@ -86,6 +99,7 @@ export class AlignmentPlugin implements Plugin {
 
 		this.alignableTypes = new Set(this.config.alignableTypes);
 		this.patchNodeSpecs(context);
+		this.registerClassNames(context);
 		this.registerCommands(context);
 		this.registerKeymaps(context);
 		this.registerToolbarItem(context);
@@ -105,6 +119,17 @@ export class AlignmentPlugin implements Plugin {
 			getDefault: (type) => this.config.defaults[type] ?? 'start',
 			applyToDOM: applyAlignment,
 		});
+	}
+
+	/**
+	 * Makes the configured classes the alignment vocabulary of HTML export and
+	 * import. The registry validates them, so a misconfiguration fails `init()`.
+	 */
+	private registerClassNames(context: PluginContext): void {
+		const classNames: AlignmentClassNames | undefined = this.config.classNames;
+		if (classNames && Object.keys(classNames).length > 0) {
+			context.registerAlignmentClassNames(classNames);
+		}
 	}
 
 	// --- Commands ---

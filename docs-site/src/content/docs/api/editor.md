@@ -193,7 +193,11 @@ const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
 
 Identical style combinations are deduplicated — multiple elements with the same styles share a single class name and CSS rule.
 
-See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for integration examples.
+Block alignment is written as `notectl-align-*` classes, or as your own classes when the
+[AlignmentPlugin](/notectl/plugins/alignment/#custom-css-classes) is configured with `classNames`.
+`setContentHTML()` recognizes configured classes without a `styleMap`.
+
+See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles) for integration examples.
 
 #### Clean HTML Output (`includeBlockIds`)
 

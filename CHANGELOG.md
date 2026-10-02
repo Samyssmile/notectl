@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Your own CSS classes for block alignment (#270, #269).** `new AlignmentPlugin({ classNames: { center: 'align-center', end: 'align-end' } })` makes class-based export (`getContentHTML({ cssMode: 'classes' })`) write `<p class="align-center">` instead of `notectl-align-center`, so stored content follows the naming of an existing CMS or design system stylesheet. Configured once, the classes apply to every HTML boundary: `setContentHTML()` and pasted images and tables recognize them without a `styleMap`, the returned `css` and `styleMap` use the same names as `html`, and `serializeDocumentToCSS()` and `parseHTMLToDocument()` from `@notectl/core/html` use the classes registered on the `SchemaRegistry` they receive. The document keeps storing the semantic `align` value, alignments without a class keep their `notectl-align-*` name, and the default inline-style export is unchanged. Mapping `start` gives every start-aligned block that class, so the export never depends on editing history; blocks inside an alignable table cell inherit the cell's alignment instead, as they do in the editor. An invalid configuration makes editor initialization (`createEditor()`, `init()`) fail with a `TypeError` that explains the fix (for example `left` points to the logical `start`). Classes are carried by the `SchemaRegistry` (`registerAlignmentClassNames`, also on `PluginContext`), so each editor instance keeps its own and presets and the Angular `plugins` input need no extra wiring. Alignment rules for both directions now live in one module, `serialization/AlignmentHTML.ts`, and class names for alignment no longer depend on the order in which declarations are first used. Covered by `AlignmentClassNames.test.ts`, `AlignmentHTML.test.ts`, `AlignmentClassExport.test.ts`, registry and plugin lifecycle tests, and `e2e/alignment-classes.spec.ts`, which also renders exported right-to-left content and table cells with an application stylesheet.
+
+### Changed
+
+- **Bundle budgets raised for alignment classes (#270).** Core to 107 KB (measured 106.54 KB, previously 105.62 KB) and the Markdown codec to 30.5 KB (measured 29.82 KB), whose HTML registry includes the same validation. All other budgets are unchanged.
+
+### Fixed
+
+- **Start-aligned images and videos keep their alignment through HTML round-trips.** Images and videos are centered by default, but the serializer treated `start` as every block's default and left it out, so `setContentHTML(getContentHTML())` turned start-aligned images and videos into centered ones in both export modes. The serializer now writes an alignment whenever it differs from the browser default or from the block's own default (`style="text-align: start"` or `notectl-align-start` on the `<figure>`). An image or video without an `align` attribute is exported centered, as the editor shows it.
+- **Table cell alignment survives HTML import.** The parser read only `colspan` and `rowspan` from `<td>` and `<th>`, so a cell's `text-align` style or alignment class was dropped on import. Cells now take their alignment like every other block whose spec declares `align`.
+
 ## [2.3.10] - 2026-09-28
 
 ### Changed

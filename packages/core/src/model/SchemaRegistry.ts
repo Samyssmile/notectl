@@ -5,6 +5,7 @@
  * Model-only — no imports from input/, plugins/, or view/ layers.
  */
 
+import { type AlignmentClassNames, validateAlignmentClassNames } from './AlignmentClassNames.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
@@ -17,12 +18,19 @@ const DEFAULT_PARSE_PRIORITY = 50;
 /** Declarative transformation applied after a target NodeSpec is registered. */
 export type NodeSpecExtension = (spec: NodeSpec) => NodeSpec;
 
+/** A registration keeps its source object as the identity key for removal. */
+interface AlignmentClassNamesEntry {
+	readonly source: AlignmentClassNames;
+	readonly classNames: AlignmentClassNames;
+}
+
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
 	private readonly _nodeSpecExtensions = new Map<string, NodeSpecExtension[]>();
 	private _finalizedNodeSpecs: Map<string, NodeSpec> | null = null;
 	private readonly _markSpecs = new Map<string, MarkSpec>();
 	private readonly _inlineNodeSpecs = new Map<string, InlineNodeSpec>();
+	private _alignmentClassNames: AlignmentClassNamesEntry | null = null;
 
 	// --- NodeSpec ---
 
@@ -133,6 +141,33 @@ export class SchemaRegistry {
 		return [...this._inlineNodeSpecs.keys()];
 	}
 
+	// --- Alignment Class Names ---
+
+	/**
+	 * Registers application-defined CSS class names for block alignment. HTML
+	 * export in class mode writes them and HTML import maps them back to the
+	 * alignment. Throws when the names are invalid or already registered.
+	 */
+	registerAlignmentClassNames(classNames: AlignmentClassNames): void {
+		if (this._alignmentClassNames) {
+			throw new Error('Alignment class names are already registered.');
+		}
+		this._alignmentClassNames = {
+			source: classNames,
+			classNames: validateAlignmentClassNames(classNames),
+		};
+	}
+
+	/** Returns the registered alignment class names, or `undefined` when none are registered. */
+	getAlignmentClassNames(): AlignmentClassNames | undefined {
+		return this._alignmentClassNames?.classNames;
+	}
+
+	/** Removes alignment class names registered with the same `classNames` object. */
+	removeAlignmentClassNames(classNames: AlignmentClassNames): void {
+		if (this._alignmentClassNames?.source === classNames) this._alignmentClassNames = null;
+	}
+
 	// --- Parse Rules & Sanitize Config ---
 
 	/** Returns all NodeSpec parseHTML rules, sorted by priority descending. */
@@ -160,14 +195,14 @@ export class SchemaRegistry {
 		];
 	}
 
-	/** Returns all allowed HTML attributes from base defaults + all spec sanitize configs. */
+	/**
+	 * Returns all allowed HTML attributes from base defaults + all spec sanitize configs.
+	 * Registered alignment class names add `class`, which carries them in HTML.
+	 */
 	getAllowedAttrs(): string[] {
-		return [
-			...this.collectSanitizeValues(
-				new Set(['style', 'dir', 'id']),
-				(spec) => spec.sanitize?.attrs,
-			),
-		];
+		const base = new Set<string>(['style', 'dir', 'id']);
+		if (this.hasAlignmentClassNames()) base.add('class');
+		return [...this.collectSanitizeValues(base, (spec) => spec.sanitize?.attrs)];
 	}
 
 	/** Returns registry-owned, per-tag element validators for one sanitize operation. */
@@ -251,6 +286,11 @@ export class SchemaRegistry {
 		this._finalizedNodeSpecs = null;
 	}
 
+	private hasAlignmentClassNames(): boolean {
+		const classNames: AlignmentClassNames | undefined = this.getAlignmentClassNames();
+		return classNames !== undefined && Object.keys(classNames).length > 0;
+	}
+
 	// --- Bulk ---
 
 	clear(): void {
@@ -259,5 +299,6 @@ export class SchemaRegistry {
 		this._finalizedNodeSpecs = null;
 		this._markSpecs.clear();
 		this._inlineNodeSpecs.clear();
+		this._alignmentClassNames = null;
 	}
 }

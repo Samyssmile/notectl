@@ -188,17 +188,83 @@ describe('SchemaRegistry', () => {
 		});
 	});
 
+	describe('alignment class names', () => {
+		it('has none until registered', () => {
+			expect(new SchemaRegistry().getAlignmentClassNames()).toBeUndefined();
+		});
+
+		it('registers validated alignment class names', () => {
+			const registry = new SchemaRegistry();
+
+			registry.registerAlignmentClassNames({ center: 'align-center', end: undefined });
+
+			expect(registry.getAlignmentClassNames()).toEqual({ center: 'align-center' });
+		});
+
+		it('rejects invalid class names', () => {
+			const registry = new SchemaRegistry();
+
+			expect(() => registry.registerAlignmentClassNames({ center: 'align center' })).toThrow(
+				TypeError,
+			);
+			expect(registry.getAlignmentClassNames()).toBeUndefined();
+		});
+
+		it('throws on a second registration', () => {
+			const registry = new SchemaRegistry();
+			registry.registerAlignmentClassNames({ center: 'align-center' });
+
+			expect(() => registry.registerAlignmentClassNames({ end: 'align-end' })).toThrow(
+				'Alignment class names are already registered.',
+			);
+		});
+
+		it('removes only the registration made with the same object', () => {
+			const registry = new SchemaRegistry();
+			const classNames = { center: 'align-center' };
+			registry.registerAlignmentClassNames(classNames);
+
+			registry.removeAlignmentClassNames({ center: 'align-center' });
+			expect(registry.getAlignmentClassNames()).toEqual(classNames);
+
+			registry.removeAlignmentClassNames(classNames);
+			expect(registry.getAlignmentClassNames()).toBeUndefined();
+		});
+
+		it('allows the class attribute through sanitization while classes are registered', () => {
+			const registry = new SchemaRegistry();
+			const classNames = { center: 'align-center' };
+			expect(registry.getAllowedAttrs()).not.toContain('class');
+
+			registry.registerAlignmentClassNames(classNames);
+			expect(registry.getAllowedAttrs()).toContain('class');
+
+			registry.removeAlignmentClassNames(classNames);
+			expect(registry.getAllowedAttrs()).not.toContain('class');
+		});
+
+		it('does not allow the class attribute for an empty registration', () => {
+			const registry = new SchemaRegistry();
+
+			registry.registerAlignmentClassNames({});
+
+			expect(registry.getAllowedAttrs()).not.toContain('class');
+		});
+	});
+
 	describe('clear', () => {
 		it('clears all spec registrations', () => {
 			const registry = new SchemaRegistry();
 			registry.registerNodeSpec(makeNodeSpec('heading'));
 			registry.registerMarkSpec(makeMarkSpec('bold'));
+			registry.registerAlignmentClassNames({ center: 'align-center' });
 
 			registry.clear();
 
 			expect(registry.getNodeTypes()).toEqual([]);
 			expect(registry.getMarkTypes()).toEqual([]);
 			expect(registry.getInlineNodeTypes()).toEqual([]);
+			expect(registry.getAlignmentClassNames()).toBeUndefined();
 		});
 	});
 });

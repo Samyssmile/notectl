@@ -85,6 +85,7 @@ function createRegistry(): SchemaRegistry {
 		getMarkTypes: () => [...markSpecs.keys()],
 		getInlineNodeSpec: (t: string) => inlineNodeSpecs.get(t),
 		getNodeSpec: (t: string) => nodeSpecs.get(t),
+		getAlignmentClassNames: () => undefined,
 	} as unknown as SchemaRegistry;
 }
 

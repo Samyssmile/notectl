@@ -17,9 +17,10 @@ export type {
 export {
 	serializeDocumentToHTML,
 	serializeDocumentToCSS,
-	VALID_ALIGNMENTS,
 	VALID_DIRECTIONS,
 } from './DocumentSerializer.js';
+
+export { VALID_ALIGNMENTS } from './AlignmentHTML.js';
 
 export { parseHTMLToDocument, type ParseHTMLOptions } from './DocumentParser.js';
 

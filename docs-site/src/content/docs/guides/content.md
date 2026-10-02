@@ -109,6 +109,11 @@ Example output:
 
 Semantic marks (`<strong>`, `<em>`, `<u>`, `<s>`) are unaffected — they always use HTML elements. Only dynamic style marks (text color, highlight, font size, font family) and block alignment are converted to classes.
 
+Alignment can use your application's own class names (for example `align-center`) instead of
+`notectl-align-*`. Configure them once with the
+[AlignmentPlugin `classNames` option](/notectl/plugins/alignment/#custom-css-classes); export,
+`setContentHTML()` and the returned `css` and `styleMap` then all use them.
+
 Identical style combinations are deduplicated: if multiple text spans share the same color and font size, they share a single CSS class.
 
 The `pretty` option works with class mode:
@@ -117,7 +122,7 @@ The `pretty` option works with class mode:
 const { html, css } = await editor.getContentHTML({ cssMode: 'classes', pretty: true });
 ```
 
-See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export) for how to integrate the generated CSS into your page.
+See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles) for how to integrate the generated CSS into your page.
 
 ### Plain Text
 

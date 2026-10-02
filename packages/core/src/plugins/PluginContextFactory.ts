@@ -4,6 +4,7 @@
  * following SRP — extracted from PluginManager.createContext().
  */
 
+import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import type { CompositionState } from '../model/CompositionState.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
@@ -68,6 +69,7 @@ export interface PluginRegistrations {
 	nodeSpecExtensions: { readonly type: string; readonly extension: NodeSpecExtension }[];
 	markSpecs: string[];
 	inlineNodeSpecs: string[];
+	alignmentClassNames: AlignmentClassNames[];
 	nodeViews: string[];
 	keymaps: Keymap[];
 	inputRules: InputRule[];
@@ -126,6 +128,7 @@ export function createEmptyRegistrations(): PluginRegistrations {
 		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
+		alignmentClassNames: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
@@ -253,7 +256,11 @@ function createSchemaRegistrar(
 	reg: PluginRegistrations,
 ): Pick<
 	PluginContext,
-	'registerNodeSpec' | 'registerNodeSpecExtension' | 'registerMarkSpec' | 'registerInlineNodeSpec'
+	| 'registerNodeSpec'
+	| 'registerNodeSpecExtension'
+	| 'registerMarkSpec'
+	| 'registerInlineNodeSpec'
+	| 'registerAlignmentClassNames'
 > {
 	return {
 		registerNodeSpec: (spec) => {
@@ -290,6 +297,10 @@ function createSchemaRegistrar(
 				guardInlineNodeSpec(spec, deps.pluginId, deps.callbackExecutor),
 			);
 			reg.inlineNodeSpecs.push(spec.type);
+		},
+		registerAlignmentClassNames: (classNames) => {
+			deps.schemaRegistry.registerAlignmentClassNames(classNames);
+			reg.alignmentClassNames.push(classNames);
 		},
 	};
 }
