@@ -120,9 +120,10 @@ await editor.setContentHTML(html); // no styleMap needed: the alignment is resto
 
 ### Start Alignment
 
-`start` is the default alignment and browsers render it without any CSS, so notectl leaves it out
-of the HTML. Map `start` only when your stylesheet needs it explicitly, for example because your
-content area is justified by default:
+`start` is the default alignment for text blocks and normally needs no alignment markup. An
+explicit `start` still exports when it overrides an aligned container or a different block default,
+such as a centered image. Map `start` when your stylesheet needs a named class, for example because
+your content area is justified by default:
 
 ```ts
 new AlignmentPlugin({
@@ -240,5 +241,7 @@ The plugin patches existing node specs to add an `align` attribute:
 |-----------|------|---------|-----------|
 | `align` | `string` | `'start'` | `style="text-align: center"`, or in class mode `class="notectl-align-center"` / your class |
 
-When alignment is `'start'` (the default), nothing is added to keep the HTML clean, unless the
-block's own default differs (images are centered) or `start` has a [custom class](#start-alignment).
+When alignment is `'start'`, the export normally omits alignment markup. It still writes an alignment
+when the block's own default differs (images are centered), an explicit `start` overrides an aligned
+container, or `start` has a [custom class](#start-alignment) outside an aligned container. Blocks
+without their own alignment continue to inherit aligned containers.

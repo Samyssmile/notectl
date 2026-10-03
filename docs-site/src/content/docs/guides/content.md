@@ -84,13 +84,15 @@ internal identity contract intact.
 For environments with strict Content Security Policy where inline `style` attributes are blocked, use the `cssMode: 'classes'` option. Instead of inline styles, dynamic marks and alignment are emitted as CSS class names:
 
 ```ts
-const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
+const { html, css, styleMap } = await editor.getContentHTML({ cssMode: 'classes' });
 ```
 
-This returns a `ContentCSSResult` object with two fields:
+This returns a `ContentCSSResult` object with three fields:
 
 - **`html`** — The HTML with `class="..."` attributes instead of `style="..."`
 - **`css`** — A stylesheet containing only the CSS rules used in the document
+- **`styleMap`** — A `ReadonlyMap<string, string>` from exported class names to CSS declarations.
+  Pass it to `setContentHTML(html, { styleMap })` to preserve class-based formatting on re-import.
 
 Example output:
 
