@@ -24,7 +24,7 @@ import {
 	serializeDocumentToCSS,
 	serializeDocumentToHTML,
 } from '../../serialization/DocumentSerializer.js';
-import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { HeadingPlugin } from '../heading/HeadingPlugin.js';
 import { ImagePlugin } from '../image/ImagePlugin.js';
 import { ListPlugin } from '../list/ListPlugin.js';
@@ -220,7 +220,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 			);
 		});
 
-		it('leaves start-aligned blocks in an aligned table cell to the cell, as the editor shows them', async () => {
+		it('lets implicit defaults inherit a table cell while explicit start overrides it', async () => {
 			const registry: SchemaRegistry = await registryWith(WITH_START);
 			const doc: Document = createDocument([
 				table('center', [
@@ -237,7 +237,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 
 			expect(classesOf(html, 'td')).toContain('align-center');
 			expect(query(html, 'td').innerHTML).toBe(
-				'<p>unaligned</p><p>set back to start</p><h2>heading</h2>' +
+				'<p>unaligned</p><p class="align-start">set back to start</p><h2>heading</h2>' +
 					'<p class="align-end">own alignment</p>' +
 					'<figure class="align-start"><img src="photo.png" alt="Photo"></figure>',
 			);
@@ -356,6 +356,33 @@ describe('AlignmentPlugin classNames in HTML', () => {
 	});
 
 	describe('round trip', () => {
+		it.each([WITH_START, undefined])(
+			'preserves explicit start and implicit inheritance inside an aligned cell (%j)',
+			async (classNames: AlignmentClassNames | undefined) => {
+				const registry: SchemaRegistry = await registryWith(classNames);
+				const doc: Document = createDocument([
+					table('center', [paragraph('a', 'inherited'), paragraph('b', 'explicit', 'start')]),
+				]);
+
+				const inline: string = serializeDocumentToHTML(doc, registry);
+				const classes: ContentCSSResult = serializeDocumentToCSS(doc, registry);
+
+				for (const html of [inline, classes.html]) {
+					const imported: Document = parseHTMLToDocument(html, registry);
+					const tableBlock: BlockNode | undefined = imported.children[0];
+					assertDefined(tableBlock);
+					const row: BlockNode | undefined = getBlockChildren(tableBlock)[0];
+					assertDefined(row);
+					const cell: BlockNode | undefined = getBlockChildren(row)[0];
+					assertDefined(cell);
+					expect(getBlockChildren(cell).map((block) => block.attrs?.align)).toEqual([
+						undefined,
+						'start',
+					]);
+				}
+			},
+		);
+
 		it('reproduces the class-based HTML through import and export', async () => {
 			const registry: SchemaRegistry = await registryWith(WITH_START);
 			const doc: Document = createDocument([

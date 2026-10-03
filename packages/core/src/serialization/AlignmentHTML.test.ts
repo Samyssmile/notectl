@@ -176,14 +176,20 @@ describe('resolveExportAlignment', () => {
 
 	describe('inside a container that writes an alignment', () => {
 		it.each(BLOCK_ALIGNMENTS)(
-			'leaves a block that is start by default to the inherited %s, even with a start class',
+			'leaves an implicit default to the inherited %s, even with a start class',
 			(inherited: BlockAlignment) => {
 				const options: AlignmentExportOptions = { classNames: CLASS_NAMES, inherited };
 
 				expect(resolveExportAlignment(block(), spec('start'), options)).toBeUndefined();
-				expect(resolveExportAlignment(block('start'), spec('start'), options)).toBeUndefined();
+				expect(resolveExportAlignment(block('start'), spec('start'), options)).toBe('start');
 			},
 		);
+
+		it('exports explicit start against an inherited alignment without configured classes', () => {
+			expect(resolveExportAlignment(block('start'), spec('start'), { inherited: 'center' })).toBe(
+				'start',
+			);
+		});
 
 		it('still exports an alignment of its own', () => {
 			const options: AlignmentExportOptions = { classNames: CLASS_NAMES, inherited: 'center' };

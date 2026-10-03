@@ -43,8 +43,8 @@ export interface AlignmentConfig {
 	 * Class-based export (`getContentHTML({ cssMode: 'classes' })`) writes these classes
 	 * and HTML import (`setContentHTML()`) recognizes them, so content round-trips with
 	 * your stylesheet. Alignments without a class keep `notectl-align-*`; mapping `start`
-	 * gives start-aligned blocks its class, except inside an alignable table cell, whose
-	 * alignment they inherit as in the editor. Inline-style export and the editor's own
+	 * gives start-aligned blocks its class. Blocks without their own alignment inherit an
+	 * aligned container; an explicit `start` overrides it. Inline-style export and the editor's own
 	 * rendering are unaffected. Invalid names make editor initialization fail with a
 	 * `TypeError` that explains the fix.
 	 */
@@ -212,9 +212,10 @@ export class AlignmentPlugin implements Plugin {
 				const patchedSteps = tr.steps.map((step) => {
 					if (step.type !== 'setBlockType') return step;
 					if (!this.alignableTypes.has(step.nodeType)) return step;
+					if (step.attrs?.align !== undefined) return step;
 
 					const prevAlign = step.previousAttrs?.align;
-					if (!prevAlign || prevAlign === 'start') return step;
+					if (!prevAlign) return step;
 
 					// Carry forward align into new attrs
 					patched = true;
@@ -279,7 +280,7 @@ export class AlignmentPlugin implements Plugin {
 
 function applyAlignment(el: HTMLElement, node: BlockNode): void {
 	const align = node.attrs?.align;
-	if (typeof align === 'string' && align !== 'start') {
+	if (typeof align === 'string') {
 		setStyleProperty(el, 'textAlign', align);
 	}
 }

@@ -268,6 +268,95 @@ describe('PasteCommand', () => {
 	});
 
 	describe('undo', () => {
+		it('restores block formatting and text after an aligned paragraph paste', () => {
+			const state = stateBuilder()
+				.paragraph('Before', 'p', { attrs: { align: 'end', dir: 'rtl' } })
+				.cursor('p', 6)
+				.build();
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						attrs: { align: 'center' },
+						segments: [{ kind: 'text', text: ' pasted', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const pasted = state.apply(tr);
+
+			expect(pasted.doc.children[0]?.attrs).toEqual({ align: 'center', dir: 'rtl' });
+			expect(getBlockText(pasted.doc.children[0])).toBe('Before pasted');
+			expect(pasted.apply(invertTransaction(tr)).doc).toEqual(state.doc);
+		});
+
+		it('preserves heading type and direction at both boundaries of an aligned paste', () => {
+			const state = stateBuilder()
+				.block('heading', 'AB', 'h', { attrs: { level: 2, dir: 'rtl' } })
+				.cursor('h', 1)
+				.schema(['paragraph', 'heading'], [])
+				.build();
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						attrs: { align: 'center' },
+						segments: [{ kind: 'text', text: 'First', marks: [] }],
+					},
+					{
+						type: nt('paragraph'),
+						attrs: { align: 'end' },
+						segments: [{ kind: 'text', text: 'Last', marks: [] }],
+					},
+				],
+			};
+
+			const tr = pasteSlice(state, slice);
+			const pasted = state.apply(tr);
+
+			expect(pasted.doc.children.map((block) => block.type)).toEqual(['heading', 'heading']);
+			expect(pasted.doc.children.map((block) => block.attrs)).toEqual([
+				{ level: 2, dir: 'rtl', align: 'center' },
+				{ level: 2, dir: 'rtl', align: 'end' },
+			]);
+			expect(pasted.apply(invertTransaction(tr)).doc).toEqual(state.doc);
+		});
+
+		it('does not apply paragraph alignment to a destination that does not support it', () => {
+			const spec: NodeSpec = {
+				type: 'code_block',
+				attrs: { language: { default: '' } },
+				toDOM: () => document.createElement('pre'),
+			};
+			const state = EditorState.create({
+				doc: createDocument([
+					createBlockNode(nt('code_block'), [createTextNode('A')], 'code', { language: 'ts' }),
+				]),
+				selection: createCollapsedSelection('code', 1),
+				schema: {
+					nodeTypes: ['paragraph', 'code_block'],
+					markTypes: [],
+					getNodeSpec: (type: string) => (type === 'code_block' ? spec : undefined),
+				},
+			});
+			const slice: ContentSlice = {
+				blocks: [
+					{
+						type: nt('paragraph'),
+						attrs: { align: 'center' },
+						segments: [{ kind: 'text', text: 'B', marks: [] }],
+					},
+				],
+			};
+
+			const pasted = state.apply(pasteSlice(state, slice));
+
+			expect(pasted.doc.children[0]?.type).toBe('code_block');
+			expect(pasted.doc.children[0]?.attrs).toEqual({ language: 'ts' });
+			expect(getBlockText(pasted.doc.children[0])).toBe('AB');
+		});
+
 		it('inline paste is invertible', () => {
 			const state = createState([{ type: 'paragraph', text: 'Hello', id: 'b1' }], 'b1', 5);
 			const slice: ContentSlice = {

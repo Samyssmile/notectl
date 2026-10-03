@@ -3,6 +3,8 @@
  * Works on DOM nodes (not strings), is schema-aware, and produces immutable output.
  */
 
+import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
+import type { BlockAlignment } from '../model/BlockAlignment.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import type { ContentSegment, InlineNode, Mark } from '../model/Document.js';
 import { createInlineNode, inlineSegment, markSetsEqual, textSegment } from '../model/Document.js';
@@ -13,6 +15,7 @@ import { isMarkAllowed, isNodeTypeAllowed } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import type { InlineTypeName, NodeTypeName } from '../model/TypeBrands.js';
 import { inlineType, markType, nodeType } from '../model/TypeBrands.js';
+import { readElementAlignment } from '../serialization/AlignmentHTML.js';
 import {
 	hasHTMLBlockDescendants,
 	isHTMLBlockElement,
@@ -103,6 +106,7 @@ const FALLBACK_MARK_MAP: ReadonlyMap<string, FallbackMarkDef> = new Map([
 
 export class HTMLParser {
 	private readonly schema: Schema;
+	private readonly alignmentClassNames: AlignmentClassNames | undefined;
 	private readonly blockParseRules: readonly {
 		readonly rule: ParseRule;
 		readonly type: string;
@@ -119,6 +123,7 @@ export class HTMLParser {
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
+		this.alignmentClassNames = options.schemaRegistry?.getAlignmentClassNames();
 		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
 		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
 		this.inlineParseRules = options.schemaRegistry?.getInlineParseRules() ?? [];
@@ -223,14 +228,34 @@ export class HTMLParser {
 
 	private parseBlockElement(element: HTMLElement): SliceBlock[] {
 		const headingMatch: RegExpExecArray | null = HEADING_PATTERN.exec(element.tagName);
-		if (headingMatch) {
-			return this.parseHeading(element, Number(headingMatch[1]));
-		}
-
 		const handler = this.blockTagHandlers.get(element.tagName);
-		if (handler) return handler(element);
+		const blocks: SliceBlock[] = headingMatch
+			? this.parseHeading(element, Number(headingMatch[1]))
+			: handler
+				? handler(element)
+				: this.parseUnknownBlock(element);
+		return this.applyElementAlignment(blocks, element);
+	}
 
-		return this.parseUnknownBlock(element);
+	/** Reads the same alignment vocabulary as HTML import, preserving child overrides in wrappers. */
+	private applyElementAlignment(
+		blocks: SliceBlock[],
+		element: HTMLElement,
+		inherit?: boolean,
+	): SliceBlock[] {
+		const alignment: BlockAlignment | undefined = readElementAlignment(
+			element,
+			this.alignmentClassNames,
+		);
+		if (!alignment) return blocks;
+		const inherited: boolean = inherit ?? this.containsBlockDescendants(element);
+		return blocks.map((block: SliceBlock): SliceBlock => {
+			if (this.schema.getNodeSpec && !this.schema.getNodeSpec(block.type)?.attrs?.align) {
+				return block;
+			}
+			if (inherited && block.attrs?.align !== undefined) return block;
+			return { ...block, attrs: { ...block.attrs, align: alignment } };
+		});
 	}
 
 	private parseHeading(element: HTMLElement, level: number): SliceBlock[] {
@@ -551,9 +576,10 @@ export class HTMLParser {
 		inheritedMarks: readonly Mark[],
 	): SliceBlock[] {
 		const innerBlocks: SliceBlock[] = this.parseContainer(container);
-		if (inheritedMarks.length === 0) return innerBlocks;
+		const alignedBlocks: SliceBlock[] = this.applyElementAlignment(innerBlocks, container, true);
+		if (inheritedMarks.length === 0) return alignedBlocks;
 
-		return innerBlocks.map(
+		return alignedBlocks.map(
 			(block: SliceBlock): SliceBlock => ({
 				...block,
 				segments: this.prependMarks(block.segments, inheritedMarks),

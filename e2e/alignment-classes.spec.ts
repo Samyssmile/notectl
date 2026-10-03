@@ -125,6 +125,42 @@ test.describe('Alignment CSS classes (#270)', () => {
 		expect(html).toContain('<figure class="align-end">');
 	});
 
+	for (const source of [
+		'<p class="align-center">Single paragraph</p>',
+		'<h2 class="align-end">Heading</h2><p class="align-center">Paragraph</p>',
+		'<p class="align-center">First</p><p class="align-justify">Middle</p>' +
+			'<p class="align-end">Last</p>',
+	]) {
+		test(`preserves pasted block alignment: ${source}`, async ({ editor, page }) => {
+			await editor.focus();
+
+			await editor.pasteHTML(source);
+			const first: ClassExport = await exportClasses(page);
+			await editor.setContentHTML(first.html);
+			const second: ClassExport = await exportClasses(page);
+
+			expect(first.html).toBe(source);
+			expect(second).toEqual(first);
+			await expect(editor.content.locator('p').first()).toHaveCSS('text-align', 'center');
+		});
+	}
+
+	test('preserves a heading when pasting an aligned paragraph into it', async ({
+		editor,
+		page,
+	}) => {
+		await editor.setContentHTML('<h2 class="align-end">Title</h2>');
+		await editor.content.locator('h2').click();
+		await page.keyboard.press('End');
+
+		await editor.pasteHTML('<p class="align-center">!</p>');
+
+		await expect(editor.content.locator('h2')).toHaveCount(1);
+		await expect(editor.content.locator('p')).toHaveCount(0);
+		await expect(editor.content.locator('h2')).toHaveCSS('text-align', 'center');
+		expect((await exportClasses(page)).html).toBe('<h2 class="align-center">Title!</h2>');
+	});
+
 	test('publishes the blocks of an aligned table cell as the editor shows them', async ({
 		editor,
 		page,
@@ -141,6 +177,39 @@ test.describe('Alignment CSS classes (#270)', () => {
 		expect(shown).toBe('center');
 		expect(await publishedTextAlign(page, html, 'td p')).toBe(shown);
 	});
+
+	for (const direction of ['ltr', 'rtl'] as const) {
+		test(`keeps explicit start in an aligned table cell (${direction})`, async ({
+			editor,
+			page,
+		}) => {
+			await page.evaluate((dir: string) => {
+				document.documentElement.dir = dir;
+			}, direction);
+			await editor.setContentHTML(
+				'<table><tr><td class="align-center"><p class="align-end">Cell text</p></td></tr></table>',
+			);
+			await editor.content.locator('td p').click();
+
+			await page.keyboard.press('Control+Shift+L');
+			const first: ClassExport = await exportClasses(page);
+
+			await expect(editor.content.locator('td p')).toHaveCSS('text-align', 'start');
+			await expect(editor.content.locator('td p')).toHaveCSS('direction', direction);
+			expect(first.html).toContain('<p class="align-start">Cell text</p>');
+			expect(first.html).not.toContain('align-end');
+			expect(await publishedTextAlign(page, first.html, 'td p')).toBe('start');
+			await editor.setContentHTML(first.html);
+			await expect(editor.content.locator('td p')).toHaveCSS('text-align', 'start');
+			expect(await exportClasses(page)).toEqual(first);
+
+			await editor.content.locator('td p').click();
+			await page.keyboard.press('Control+Shift+E');
+			const afterCenter: ClassExport = await exportClasses(page);
+			expect(afterCenter.html).toContain('<p class="align-center">Cell text</p>');
+			expect(afterCenter.html).not.toContain('align-start');
+		});
+	}
 
 	test('renders exported content with the application stylesheet in right-to-left pages', async ({
 		editor,

@@ -93,9 +93,9 @@ export interface AlignmentExportOptions {
  * the HTML needs no alignment markup. A block's effective alignment is its own
  * `align` attribute, or the default its spec declares (images are centered).
  * Markup is needed when that alignment differs from the browser default or from
- * the block's own default (so import restores it). Otherwise the block inherits
- * the alignment of its container, as it does in the editor: a registered
- * `start` class marks it only where no ancestor writes an alignment.
+ * the block's own default (so import restores it). An implicit `start` inherits
+ * an aligned container, while an explicit `start` overrides it. A registered
+ * `start` class also marks implicit defaults outside aligned containers.
  */
 export function resolveExportAlignment(
 	block: BlockNode,
@@ -104,10 +104,12 @@ export function resolveExportAlignment(
 ): BlockAlignment | undefined {
 	const specDefault: BlockAlignment =
 		normalizeAlignment(spec?.attrs?.align?.default) ?? BROWSER_DEFAULT_ALIGNMENT;
+	const explicit: BlockAlignment | undefined = normalizeAlignment(block.attrs?.align);
 	const alignment: BlockAlignment | undefined =
-		normalizeAlignment(block.attrs?.align) ?? (spec?.attrs?.align ? specDefault : undefined);
+		explicit ?? (spec?.attrs?.align ? specDefault : undefined);
 	if (!alignment) return undefined;
 	if (alignment !== BROWSER_DEFAULT_ALIGNMENT || alignment !== specDefault) return alignment;
+	if (explicit && options.inherited !== undefined) return alignment;
 
 	const pinnedByClass: boolean =
 		options.classNames?.start !== undefined && options.inherited === undefined;

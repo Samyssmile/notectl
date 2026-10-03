@@ -91,7 +91,9 @@ createFullPreset({ alignment: { classNames: { center: 'align-center' } } });
 Every HTML boundary of the editor then uses your classes:
 
 ```ts
-const { html, css, styleMap } = await editor.getContentHTML({ cssMode: 'classes' });
+const { html, css, styleMap } = await editor.getContentHTML({
+  cssMode: 'classes', includeBlockIds: false,
+});
 // html:     <p class="align-center">Centered text</p>
 // css:      .align-center { text-align: center; }
 // styleMap: Map { 'align-center' => 'text-align: center' }
@@ -102,11 +104,15 @@ await editor.setContentHTML(html); // no styleMap needed: the alignment is resto
 - **Export** (`getContentHTML({ cssMode: 'classes' })`) writes your class instead of
   `notectl-align-*`. The returned `css` and `styleMap` contain the same class names as `html`, so
   the result renders on its own and re-imports anywhere through the `styleMap`.
-- **Import** (`setContentHTML()`, and pasted images and tables) recognizes your classes directly.
+- **Import and paste** recognize your classes directly, including paragraphs, headings, images
+  and table cells. A pasted paragraph's explicit alignment applies to the destination when it
+  supports alignment, preserving its block type and unrelated attributes such as text direction.
+  Unformatted inline paste keeps the destination's formatting.
   Content with notectl's default classes still imports and is written with your classes on the
   next export, which makes switching an existing store over a matter of re-saving.
-- **The document stays semantic.** The editor stores `align: 'center'`, never a class name. Changing
-  `classNames` later changes only the next export.
+- **The document stays semantic.** The editor stores `align: 'center'`, never a class name.
+  `classNames` is initialization configuration. Recreating the editor with another mapping changes
+  the exported names without changing the semantic alignment stored in your JSON document.
 - **Alignments without a class** keep notectl's default names, so you can map only the ones your
   stylesheet knows.
 - **Inline export is unchanged.** The default `getContentHTML()` keeps writing
@@ -124,18 +130,21 @@ new AlignmentPlugin({
 });
 ```
 
-With a `start` class, every start-aligned block that supports alignment gets that class, whether
-it was aligned to start explicitly or never aligned at all. Blocks that look the same in the editor
-are exported the same, independent of how they were edited. Setting a centered block back to start
-replaces `align-center` with `align-start`.
+With a `start` class, start-aligned blocks outside an aligned container get that class, whether
+they were aligned to start explicitly or never aligned at all. Setting a centered block back to
+start replaces `align-center` with `align-start`.
 
-Blocks inside an alignable table cell are the exception, because the cell carries the alignment.
-`start` is the default, so a start-aligned paragraph in a centered cell is shown centered in the
-editor. The export keeps it that way: the paragraph gets no class and inherits the cell's class in
-your HTML.
+Inside an aligned container, such as a centered table cell, blocks **without their own alignment**
+inherit the container's alignment in both the editor and the exported HTML. An **explicit** `start`,
+whether imported or set with `alignStart`, overrides the container and keeps its class on export.
+Without a configured `start` class, export writes `notectl-align-start` in class mode or an inline
+`text-align: start` in inline mode so that the override also survives re-import.
 
 ```html
-<td class="… align-center"><p>Centered by the cell, in the editor and in your HTML</p></td>
+<td class="… align-center">
+  <p>Centered by the cell</p>
+  <p class="align-start">Explicitly start-aligned</p>
+</td>
 ```
 
 ### Right-to-Left Content

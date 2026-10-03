@@ -85,7 +85,7 @@ describe('AlignmentPlugin', () => {
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 		});
 
-		it('paragraph toDOM does not set style for start alignment', async () => {
+		it('paragraph toDOM renders explicit start so it overrides inherited alignment', async () => {
 			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getNodeSpec('paragraph');
 
@@ -94,7 +94,7 @@ describe('AlignmentPlugin', () => {
 					align: 'start',
 				}),
 			);
-			expect(el?.style.textAlign).toBe('');
+			expect(el?.style.textAlign).toBe('start');
 		});
 
 		it('heading toDOM renders text-align style and correct tag', async () => {
@@ -623,7 +623,7 @@ describe('AlignmentPlugin', () => {
 			expect(block?.attrs?.align).toBe('end');
 		});
 
-		it('does not interfere when block has start alignment', async () => {
+		it('preserves explicit start when changing the block type', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
@@ -642,6 +642,7 @@ describe('AlignmentPlugin', () => {
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('heading');
 			expect(block?.attrs?.level).toBe(2);
+			expect(block?.attrs?.align).toBe('start');
 		});
 
 		it('does not interfere when block has no align attr', async () => {
