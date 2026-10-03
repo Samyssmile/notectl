@@ -21,9 +21,6 @@ export default defineConfig({
 				},
 			],
 			customCss: ['./src/styles/custom.css'],
-			components: {
-				Banner: './src/components/Banner.astro',
-			},
 			editLink: {
 				baseUrl: 'https://github.com/samyssmile/notectl/edit/main/docs-site/',
 			},
