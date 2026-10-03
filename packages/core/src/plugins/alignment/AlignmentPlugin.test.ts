@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
 import { createBlockNode, createTextNode, getBlockChildren } from '../../model/Document.js';
 import {
 	expectCommandRegistered,
@@ -84,7 +85,7 @@ describe('AlignmentPlugin', () => {
 			expect(el?.getAttribute('data-block-id')).toBe('test');
 		});
 
-		it('paragraph toDOM does not set style for start alignment', async () => {
+		it('paragraph toDOM renders explicit start so it overrides inherited alignment', async () => {
 			const h = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const spec = h.getNodeSpec('paragraph');
 
@@ -93,7 +94,7 @@ describe('AlignmentPlugin', () => {
 					align: 'start',
 				}),
 			);
-			expect(el?.style.textAlign).toBe('');
+			expect(el?.style.textAlign).toBe('start');
 		});
 
 		it('heading toDOM renders text-align style and correct tag', async () => {
@@ -622,7 +623,7 @@ describe('AlignmentPlugin', () => {
 			expect(block?.attrs?.align).toBe('end');
 		});
 
-		it('does not interfere when block has start alignment', async () => {
+		it('preserves explicit start when changing the block type', async () => {
 			const state = makeState([
 				{
 					type: 'paragraph',
@@ -641,6 +642,7 @@ describe('AlignmentPlugin', () => {
 			const block = h.getState().doc.children[0];
 			expect(block?.type).toBe('heading');
 			expect(block?.attrs?.level).toBe(2);
+			expect(block?.attrs?.align).toBe('start');
 		});
 
 		it('does not interfere when block has no align attr', async () => {
@@ -764,6 +766,62 @@ describe('AlignmentPlugin', () => {
 
 			h.executeCommand('alignCenter');
 			expectToolbarActive(h, 'alignment', true);
+		});
+	});
+
+	describe('classNames', () => {
+		it('registers the configured classes for HTML export and import', async () => {
+			const h = await pluginHarness(
+				new AlignmentPlugin({ classNames: { center: 'align-center', end: 'align-end' } }),
+				undefined,
+				HARNESS_OPTIONS,
+			);
+
+			expect(h.pm.schemaRegistry.getAlignmentClassNames()).toEqual({
+				center: 'align-center',
+				end: 'align-end',
+			});
+		});
+
+		it('registers nothing without classes', async () => {
+			const withoutOption = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
+			const withEmptyOption = await pluginHarness(
+				new AlignmentPlugin({ classNames: {} }),
+				undefined,
+				HARNESS_OPTIONS,
+			);
+
+			expect(withoutOption.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
+			expect(withEmptyOption.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
+		});
+
+		it('fails initialization with an explanation for invalid classes', async () => {
+			const plugin = new AlignmentPlugin({ classNames: { center: 'align center' } });
+
+			await expect(pluginHarness(plugin, undefined, HARNESS_OPTIONS)).rejects.toThrow(
+				'Invalid class name "align center" for "center":',
+			);
+		});
+
+		it('points physical alignments to their logical equivalent', async () => {
+			const classNames = { right: 'align-right' } as unknown as AlignmentClassNames;
+			const plugin = new AlignmentPlugin({ classNames });
+
+			await expect(pluginHarness(plugin, undefined, HARNESS_OPTIONS)).rejects.toThrow(
+				'Alignment is logical: "end" is right in left-to-right text.',
+			);
+		});
+
+		it('removes the classes when the editor is destroyed', async () => {
+			const h = await pluginHarness(
+				new AlignmentPlugin({ classNames: { center: 'align-center' } }),
+				undefined,
+				HARNESS_OPTIONS,
+			);
+
+			await h.pm.destroy();
+
+			expect(h.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
 		});
 	});
 });

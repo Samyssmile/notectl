@@ -3,6 +3,7 @@
  */
 
 import type { DecorationSet } from '../decorations/Decoration.js';
+import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
@@ -118,6 +119,11 @@ export interface PluginContext {
 	/** Declares a composable extension that is finalized after all plugin specs exist. */
 	registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
 	registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
+	/**
+	 * Declares application-defined CSS class names for block alignment. HTML
+	 * export in class mode writes them and HTML import recognizes them.
+	 */
+	registerAlignmentClassNames(classNames: AlignmentClassNames): void;
 	registerNodeView(type: string, factory: NodeViewFactory): void;
 	registerKeymap(keymap: Keymap, options?: KeymapOptions): void;
 	registerInputRule(rule: InputRule): void;

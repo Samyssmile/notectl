@@ -5,14 +5,11 @@
 
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import { segmentsLength } from '../model/ContentSlice.js';
-import {
-	createBlockNode,
-	createTextNode,
-	generateBlockId,
-	segmentsToInlineChildren,
-} from '../model/Document.js';
+import type { BlockAttrValue, BlockAttrs, BlockNode } from '../model/Document.js';
+import { createBlockNode, generateBlockId, segmentsToInlineChildren } from '../model/Document.js';
 import type { ContentSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
+import type { NodeSpec } from '../model/NodeSpec.js';
 import type { GapCursorSelection, Selection } from '../model/Selection.js';
 import {
 	createCollapsedSelection,
@@ -20,7 +17,7 @@ import {
 	isGapCursor,
 	isNodeSelection,
 } from '../model/Selection.js';
-import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
+import type { BlockId } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
@@ -48,7 +45,7 @@ export function pasteSlice(state: EditorState, slice: ContentSlice): Transaction
 	}
 
 	if (slice.blocks.length === 1 && firstBlock.type === nodeType('paragraph')) {
-		return pasteInline(state, firstBlock.segments);
+		return pasteInline(state, firstBlock);
 	}
 	if (slice.blocks.length === 1) {
 		return pasteSingleBlock(state, firstBlock);
@@ -122,16 +119,17 @@ function insertSegmentsAt(
 }
 
 /** Case 1: single paragraph — insert segments into current block. */
-function pasteInline(state: EditorState, segments: readonly ContentSegment[]): Transaction {
+function pasteInline(state: EditorState, block: SliceBlock): Transaction {
 	const sel = state.selection;
 	if (isNodeSelection(sel)) {
 		return state.transaction('paste').setSelection(sel).build();
 	}
 	if (isGapCursor(sel)) {
-		return pasteInlineAtGap(state, sel, segments);
+		return pasteBlocksAtGap(state, sel, [block]);
 	}
 	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
-	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, segments);
+	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, block.segments);
+	applyParagraphAttrs(state, builder, insertBlockId, block.attrs);
 	builder.setSelection(createCollapsedSelection(insertBlockId, endOffset));
 
 	return builder.build();
@@ -204,9 +202,11 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	const tailBlockId = generateBlockId();
 	builder.splitBlock(blockId, firstEnd, tailBlockId);
 
-	// 3. Change the prefix block type if the first slice is not a paragraph.
+	// 3. A paragraph keeps the target's type and applies only its explicit, supported attributes.
 	if (firstSlice.type !== nodeType('paragraph')) {
 		builder.setBlockType(blockId, firstSlice.type, firstSlice.attrs);
+	} else {
+		applyParagraphAttrs(state, builder, blockId, firstSlice.attrs);
 	}
 
 	// 4. Insert middle blocks between first and tail
@@ -228,12 +228,37 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	// 6. Change tail block type if needed
 	if (lastSlice.type !== nodeType('paragraph')) {
 		builder.setBlockType(tailBlockId, lastSlice.type, lastSlice.attrs);
+	} else {
+		applyParagraphAttrs(state, builder, tailBlockId, lastSlice.attrs);
 	}
 
 	// 7. Set cursor to end of inserted content
 	builder.setSelection(createCollapsedSelection(tailBlockId, segmentsLength(lastSlice.segments)));
 
 	return builder.build();
+}
+
+/** Keeps the destination's type and unrelated attributes when a paragraph carries formatting. */
+function applyParagraphAttrs(
+	state: EditorState,
+	builder: TransactionBuilder,
+	blockId: BlockId,
+	attrs: BlockAttrs | undefined,
+): void {
+	if (!attrs || Object.keys(attrs).length === 0) return;
+	// Resolve against the pending edits: deletion and splitting can create a new landing block.
+	const workingState: EditorState = state.apply(builder.build());
+	const block: BlockNode | undefined = workingState.getBlock(blockId);
+	const path: readonly BlockId[] | undefined = workingState.getNodePath(blockId);
+	if (!block || !path) return;
+	const spec: NodeSpec | undefined = state.schema.getNodeSpec?.(block.type);
+	const accepted: Record<string, BlockAttrValue> = {};
+	for (const [name, value] of Object.entries(attrs)) {
+		if (!spec || spec.attrs?.[name]) accepted[name] = value;
+	}
+	if (Object.keys(accepted).length > 0) {
+		builder.setNodeAttr(path, { ...block.attrs, ...accepted });
+	}
 }
 
 // --- GapCursor Paste Helpers ---
@@ -257,31 +282,6 @@ function gapInsertIndex(
 
 	const insertIndex: number = sel.side === 'before' ? index : index + 1;
 	return { parentPath, insertIndex };
-}
-
-/** Pastes inline segments (single paragraph) at a GapCursor position. */
-function pasteInlineAtGap(
-	state: EditorState,
-	sel: GapCursorSelection,
-	segments: readonly ContentSegment[],
-): Transaction {
-	const gap = gapInsertIndex(state, sel);
-	if (!gap) {
-		return state.transaction('paste').setSelection(sel).build();
-	}
-
-	const newId: BlockId = generateBlockId();
-	const builder: TransactionBuilder = state.transaction('paste');
-
-	builder.insertNode(
-		gap.parentPath,
-		gap.insertIndex,
-		createBlockNode(nodeType('paragraph') as NodeTypeName, [createTextNode('')], newId),
-	);
-	const endOffset: number = insertSegmentsAt(builder, newId, 0, segments);
-	builder.setSelection(createCollapsedSelection(newId, endOffset));
-
-	return builder.build();
 }
 
 /** Pastes one or more blocks at a GapCursor position. */

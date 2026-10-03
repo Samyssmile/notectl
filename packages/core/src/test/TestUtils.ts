@@ -499,6 +499,7 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerNodeSpec: vi.fn(),
 		registerNodeSpecExtension: vi.fn(),
 		registerMarkSpec: vi.fn(),
+		registerAlignmentClassNames: vi.fn(),
 		registerNodeView: vi.fn(),
 		registerKeymap: vi.fn(),
 		registerInputRule: vi.fn(),

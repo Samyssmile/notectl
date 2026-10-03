@@ -939,6 +939,7 @@ describe('PluginManager', () => {
 			const pm = new PluginManager();
 			const destroy = vi.fn();
 			const markdown = { id: 'rollback-markdown' };
+			const alignmentClassNames = { center: 'align-center' };
 			pm.schemaRegistry.registerNodeSpec({
 				type: 'extension_target',
 				toDOM: () => document.createElement('div'),
@@ -954,6 +955,7 @@ describe('PluginManager', () => {
 							toDOM: () => document.createElement('div'),
 						});
 						ctx.registerMarkdownSyntax(markdown);
+						ctx.registerAlignmentClassNames(alignmentClassNames);
 						ctx.registerNodeSpecExtension('extension_target', (spec) => ({
 							...spec,
 							attrs: { extended: { default: true } },
@@ -978,6 +980,7 @@ describe('PluginManager', () => {
 			expect(pm.schemaRegistry.getNodeSpec('rolled_back_node')).toBeUndefined();
 			expect(pm.schemaRegistry.getNodeSpec('extension_target')?.attrs).toBeUndefined();
 			expect(pm.markdownSyntaxRegistry.getExtensions()).toEqual([]);
+			expect(pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
 		});
 
 		it('retries cleanly after onBeforeReady rollback without duplicate Markdown syntax', async () => {
@@ -988,6 +991,7 @@ describe('PluginManager', () => {
 					id: 'retryable',
 					init: vi.fn((ctx) => {
 						ctx.registerMarkdownSyntax({ id: 'retry-markdown' });
+						ctx.registerAlignmentClassNames({ center: 'align-center' });
 					}),
 				}),
 			);
@@ -1005,6 +1009,7 @@ describe('PluginManager', () => {
 			expect(pm.markdownSyntaxRegistry.getExtensions().map((extension) => extension.id)).toEqual([
 				'retry-markdown',
 			]);
+			expect(pm.schemaRegistry.getAlignmentClassNames()).toEqual({ center: 'align-center' });
 		});
 
 		it('rolls back a cancelled initialization so retry starts from an empty registry', async () => {

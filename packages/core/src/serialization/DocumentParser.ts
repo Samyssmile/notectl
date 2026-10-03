@@ -3,6 +3,7 @@
  * Pure functions — no class state, no DOM mutation beyond a temporary `<template>`.
  */
 
+import type { BlockAlignment } from '../model/BlockAlignment.js';
 import { hoistDisallowedBlocks } from '../model/ContentModel.js';
 import type {
 	BlockAttrValue,
@@ -24,8 +25,9 @@ import { SAFE_URI_REGEXP, normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { ParseRule } from '../model/ParseRule.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type InlineTypeName, inlineType, nodeType } from '../model/TypeBrands.js';
+import { readElementAlignment } from './AlignmentHTML.js';
 import { adoptBlockId } from './BlockIdHTML.js';
-import { VALID_ALIGNMENTS, VALID_DIRECTIONS } from './DocumentSerializer.js';
+import { VALID_DIRECTIONS } from './DocumentSerializer.js';
 import {
 	hasHTMLBlockDescendants,
 	isHTMLBlockElement,
@@ -175,7 +177,7 @@ function parseChildNode(
 		};
 		// Known block types only accept declared attributes. The paragraph
 		// fallback retains the permissive behavior of registry-free import.
-		if (!match || spec?.attrs?.align) extractAlignment(el, attrs);
+		if (!match || spec?.attrs?.align) extractAlignment(el, attrs, registry);
 		if (!match || spec?.attrs?.dir) extractDirection(el, attrs);
 		blocks.push(
 			createBlockNode(
@@ -364,6 +366,8 @@ function parseTableElement(
 	const rows: BlockNode[] = [];
 	const columnWidthsPx: readonly (number | null)[] | undefined =
 		extractTableColumnWidthsPx(tableEl);
+	// Like every other block, a cell takes alignment only when its spec declares it.
+	const cellsAlign: boolean = !registry || !!registry.getNodeSpec('table_cell')?.attrs?.align;
 
 	// Collect <tr> elements, handling <thead>/<tbody>/<tfoot> wrappers
 	const rowElements: Element[] = collectTableRows(tableEl);
@@ -379,6 +383,7 @@ function parseTableElement(
 			const cellContent: BlockNode[] = parseTableCellContent(cellEl, adoptedIds, registry);
 			const cellAttrs: Record<string, string | number | boolean> = {};
 			extractCellSpanAttrs(cellEl, cellAttrs);
+			if (cellsAlign) extractAlignment(cellEl, cellAttrs, registry);
 			const cellBlock: BlockNode = createBlockNode(
 				nodeType('table_cell'),
 				cellContent,
@@ -559,7 +564,7 @@ function parseBlockquoteElement(
 
 	// Preserve direction/alignment on the container so the HTML round-trip is stable.
 	const attrs: Record<string, string | number | boolean> = {};
-	extractAlignment(el, attrs);
+	extractAlignment(el, attrs, registry);
 	extractDirection(el, attrs);
 
 	blocks.push(
@@ -674,7 +679,7 @@ function parseWrapperElement(
 	registry?: SchemaRegistry,
 ): void {
 	const inherited: Record<string, string | number | boolean> = {};
-	extractAlignment(el, inherited);
+	extractAlignment(el, inherited, registry);
 	extractDirection(el, inherited);
 
 	const innerBlocks: BlockNode[] = parseBlockContainerChildren(
@@ -846,31 +851,21 @@ function extractHTMLId(el: HTMLElement): string | undefined {
 	return normalizeHTMLId(el.getAttribute('id'));
 }
 
-/** Legacy physical → logical alignment mapping for backward-compatible parsing. */
-const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', right: 'end' };
-
-/** Extracts validated `text-align` from an element's style or class and adds it to attrs. */
-function extractAlignment(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
-	// Check inline style first (works for both normal and rehydrated HTML)
-	let align: string = el.style?.textAlign ?? '';
-	const mappedAlign: string | undefined = LEGACY_ALIGNMENT_MAP[align];
-	if (mappedAlign) align = mappedAlign;
-	if (align && VALID_ALIGNMENTS.has(align)) {
-		attrs.align = align;
-		return;
-	}
-
-	// Check for notectl-align-* class names (from class-based HTML)
-	for (const cls of Array.from(el.classList)) {
-		const match: RegExpMatchArray | null = cls.match(/^notectl-align-(\w+)$/);
-		let alignValue: string | undefined = match?.[1];
-		const mappedAlignValue: string | undefined = LEGACY_ALIGNMENT_MAP[alignValue ?? ''];
-		if (mappedAlignValue) alignValue = mappedAlignValue;
-		if (alignValue && VALID_ALIGNMENTS.has(alignValue)) {
-			attrs.align = alignValue;
-			return;
-		}
-	}
+/**
+ * Adds the element's validated alignment to attrs: an inline `text-align`
+ * (also produced by `styleMap` rehydration), an alignment class registered by
+ * the application, or one of notectl's `notectl-align-*` classes.
+ */
+function extractAlignment(
+	el: HTMLElement,
+	attrs: Record<string, string | number | boolean>,
+	registry?: SchemaRegistry,
+): void {
+	const align: BlockAlignment | undefined = readElementAlignment(
+		el,
+		registry?.getAlignmentClassNames(),
+	);
+	if (align) attrs.align = align;
 }
 
 /**

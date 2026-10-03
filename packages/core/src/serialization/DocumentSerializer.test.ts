@@ -42,6 +42,7 @@ function createTableRegistry(): SchemaRegistry {
 		getMarkTypes: () => [],
 		getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
 		getAllowedAttrs: () => ['style', 'colspan', 'rowspan', 'id'],
+		getAlignmentClassNames: () => undefined,
 	} as unknown as SchemaRegistry;
 }
 
@@ -109,6 +110,7 @@ describe('serializeDocumentToHTML', () => {
 			getMarkTypes: () => [],
 			getAllowedTags: () => ['p'],
 			getAllowedAttrs: () => ['id'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 		const doc = createDocument([
 			createBlockNode(
@@ -137,6 +139,7 @@ describe('serializeDocumentToHTML', () => {
 			getMarkTypes: () => [],
 			getAllowedTags: () => ['p'],
 			getAllowedAttrs: () => ['id', 'title'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 		const doc = createDocument([
 			createBlockNode(
@@ -340,6 +343,7 @@ describe('serializeDocumentToHTML', () => {
 			getMarkTypes: () => [],
 			getAllowedTags: () => ['figure', 'img'],
 			getAllowedAttrs: () => ['style', 'src'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 
 		const doc = createDocument([
@@ -366,6 +370,7 @@ describe('serializeDocumentToHTML', () => {
 			getMarkTypes: () => [],
 			getAllowedTags: () => ['p', 'br'],
 			getAllowedAttrs: () => ['style', 'title'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 
 		const doc = createDocument([
@@ -487,6 +492,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [...markSpecs.keys()],
 				getAllowedTags: () => ['p', 'br', 'span'],
 				getAllowedAttrs: () => ['style'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -607,6 +613,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [...markSpecs.keys()],
 				getAllowedTags: () => ['p', 'br', 'a', 'img'],
 				getAllowedAttrs: () => ['href', 'src', 'alt'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -669,6 +676,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [...markSpecs.keys()],
 				getAllowedTags: () => ['p', 'br', 'strong', 'em'],
 				getAllowedAttrs: () => ['style'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -709,6 +717,7 @@ describe('serializeDocumentToHTML', () => {
 				...registry,
 				getInlineNodeSpec: (type: string) => (type === 'hard_break' ? inlineSpec : undefined),
 				getAllowedTags: () => ['p', 'br', 'strong', 'em'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 
 			const boldMark: Mark = { type: markType('bold') };
@@ -772,6 +781,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [...markSpecs.keys()],
 				getAllowedTags: () => ['p', 'br', 'span', 'strong'],
 				getAllowedAttrs: () => ['style'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -882,6 +892,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
 				getAllowedAttrs: () => ['style', 'colspan', 'rowspan'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -1021,6 +1032,7 @@ describe('serializeDocumentToHTML', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li', 'input'],
 				getAllowedAttrs: () => ['style', 'role', 'aria-checked', 'type', 'disabled', 'checked'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -1222,6 +1234,7 @@ function createListDirRegistry(): SchemaRegistry {
 		getMarkTypes: () => [],
 		getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li'],
 		getAllowedAttrs: () => ['style', 'dir'],
+		getAlignmentClassNames: () => undefined,
 	} as unknown as SchemaRegistry;
 }
 
@@ -1270,6 +1283,7 @@ describe('serializeDocumentToCSS', () => {
 			getMarkTypes: () => [...markSpecs.keys()],
 			getAllowedTags: () => ['p', 'br', 'span', 'strong'],
 			getAllowedAttrs: () => ['style'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1484,6 +1498,7 @@ describe('serializeDocumentToCSS', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['p', 'br', 'table', 'tbody', 'tr', 'td'],
 				getAllowedAttrs: () => ['style', 'class', 'colspan', 'rowspan'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 		}
 
@@ -1555,6 +1570,7 @@ describe('serializeDocumentToCSS', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['pre', 'code'],
 				getAllowedAttrs: () => ['style', 'class'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 
 			const doc = createDocument([
@@ -1598,6 +1614,7 @@ describe('serializeDocumentToCSS', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['div'],
 				getAllowedAttrs: () => ['style', 'class'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 
 			const doc = createDocument([
@@ -1631,6 +1648,7 @@ describe('serializeDocumentToCSS', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['div'],
 				getAllowedAttrs: () => ['style', 'class'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 
 			const doc = createDocument([
@@ -1663,6 +1681,7 @@ describe('serializeDocumentToCSS', () => {
 				getMarkTypes: () => [],
 				getAllowedTags: () => ['figure', 'img'],
 				getAllowedAttrs: () => ['style', 'class', 'src', 'alt'],
+				getAlignmentClassNames: () => undefined,
 			} as unknown as SchemaRegistry;
 
 			const doc = createDocument([
@@ -1749,6 +1768,7 @@ describe('includeBlockIds option', () => {
 			getMarkTypes: () => [],
 			getAllowedTags: () => ['p', 'br'],
 			getAllowedAttrs: () => ['style', ...extraAttrs, 'data-block-id'],
+			getAlignmentClassNames: () => undefined,
 		} as unknown as SchemaRegistry;
 	}
 

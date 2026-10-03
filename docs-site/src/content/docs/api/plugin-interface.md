@@ -56,6 +56,7 @@ interface PluginContext {
   registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
   registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
   registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
+  registerAlignmentClassNames(classNames: AlignmentClassNames): void;
   registerNodeView(type: string, factory: NodeViewFactory): void;
   getSchemaRegistry(): SchemaRegistry;
 

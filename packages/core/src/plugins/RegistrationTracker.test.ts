@@ -17,6 +17,7 @@ function makeDeps(): RegistrationCleanupDeps {
 			removeNodeSpecExtension: vi.fn(),
 			removeMarkSpec: vi.fn(),
 			removeInlineNodeSpec: vi.fn(),
+			removeAlignmentClassNames: vi.fn(),
 		} as never,
 		keymapRegistry: { removeKeymap: vi.fn() } as never,
 		inputRuleRegistry: { removeInputRule: vi.fn() } as never,
@@ -40,6 +41,7 @@ function makeRegistrations(overrides?: Partial<PluginRegistrations>): PluginRegi
 		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
+		alignmentClassNames: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
@@ -88,6 +90,17 @@ describe('RegistrationTracker', () => {
 		expect(deps.schemaRegistry.removeNodeSpec).toHaveBeenCalledWith('heading');
 		expect(deps.schemaRegistry.removeMarkSpec).toHaveBeenCalledWith('bold');
 		expect(deps.schemaRegistry.removeInlineNodeSpec).toHaveBeenCalledWith('emoji');
+	});
+
+	it('cleans up alignment class names by identity', () => {
+		const deps = makeDeps();
+		const tracker = new RegistrationTracker(deps);
+		const classNames = { center: 'align-center' };
+		tracker.track('p1', makeRegistrations({ alignmentClassNames: [classNames] }));
+
+		tracker.cleanup('p1');
+
+		expect(deps.schemaRegistry.removeAlignmentClassNames).toHaveBeenCalledWith(classNames);
 	});
 
 	it('cleans up schema and Markdown extensions by identity', () => {

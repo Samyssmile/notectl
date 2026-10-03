@@ -25,6 +25,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'spellcheck-replacement',
 		'cut-paste-block-types',
 		'table-cut-paste',
+		'alignment-classes',
 		'image-cut-paste',
 		'table-editing',
 		'table-deletion',

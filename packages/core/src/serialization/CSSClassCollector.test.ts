@@ -79,26 +79,41 @@ describe('CSSClassCollector', () => {
 		});
 	});
 
-	describe('getAlignmentClassName', () => {
-		it('returns semantic alignment class name', () => {
-			const collector = new CSSClassCollector();
-			const cls: string = collector.getAlignmentClassName('center');
-			expect(cls).toBe('notectl-align-center');
+	describe('semantic class names', () => {
+		const SEMANTIC: ReadonlyMap<string, string> = new Map([
+			['text-align: center', 'align-center'],
+			['text-align: end', 'notectl-align-end'],
+		]);
+
+		it('uses the semantic name for its declarations instead of a hash', () => {
+			const collector = new CSSClassCollector(SEMANTIC);
+			expect(collector.getClassName('text-align: center')).toBe('align-center');
+			expect(collector.getClassName('text-align: end')).toBe('notectl-align-end');
 		});
 
-		it('deduplicates same alignment', () => {
-			const collector = new CSSClassCollector();
-			const cls1: string = collector.getAlignmentClassName('end');
-			const cls2: string = collector.getAlignmentClassName('end');
-			expect(cls1).toBe(cls2);
+		it('matches declarations after normalization', () => {
+			const collector = new CSSClassCollector(new Map([['  text-align: center ; ', 'centered']]));
+			expect(collector.getClassName('text-align: center;')).toBe('centered');
 		});
 
-		it('returns different classes for different alignments', () => {
-			const collector = new CSSClassCollector();
-			const cls1: string = collector.getAlignmentClassName('center');
-			const cls2: string = collector.getAlignmentClassName('end');
-			expect(cls1).toBe('notectl-align-center');
-			expect(cls2).toBe('notectl-align-end');
+		it('keeps hashing declarations without a semantic name', () => {
+			const collector = new CSSClassCollector(SEMANTIC);
+			expect(collector.getClassName('color: red')).toMatch(/^notectl-s-[a-z0-9]+$/);
+		});
+
+		it('names declarations independently of the order they are first used in', () => {
+			const collector = new CSSClassCollector(SEMANTIC);
+			const styleFirst: string = collector.getClassName('text-align: center');
+			collector.getClassName('color: red');
+			expect(collector.getClassName('text-align: center')).toBe(styleFirst);
+			expect(styleFirst).toBe('align-center');
+		});
+
+		it('emits only the semantic names that were used', () => {
+			const collector = new CSSClassCollector(SEMANTIC);
+			collector.getClassName('text-align: center');
+			expect(collector.toCSS()).toBe('.align-center { text-align: center; }');
+			expect([...collector.toStyleMap()]).toEqual([['align-center', 'text-align: center']]);
 		});
 	});
 
@@ -124,17 +139,12 @@ describe('CSSClassCollector', () => {
 			expect(css).toContain(`.${cls2} { font-size: 14px; }`);
 		});
 
-		it('produces alignment rules', () => {
-			const collector = new CSSClassCollector();
-			collector.getAlignmentClassName('center');
-			const css: string = collector.toCSS();
-			expect(css).toBe('.notectl-align-center { text-align: center; }');
-		});
-
-		it('produces combined style and alignment rules', () => {
-			const collector = new CSSClassCollector();
+		it('produces combined hashed and semantic rules', () => {
+			const collector = new CSSClassCollector(
+				new Map([['text-align: center', 'notectl-align-center']]),
+			);
 			const cls: string = collector.getClassName('color: red');
-			collector.getAlignmentClassName('center');
+			collector.getClassName('text-align: center');
 			const css: string = collector.toCSS();
 			expect(css).toContain(`.${cls} { color: red; }`);
 			expect(css).toContain('.notectl-align-center { text-align: center; }');
@@ -163,9 +173,11 @@ describe('CSSClassCollector', () => {
 			expect(map.get(cls)).toBe('color: red');
 		});
 
-		it('includes alignment classes in the map', () => {
-			const collector = new CSSClassCollector();
-			collector.getAlignmentClassName('center');
+		it('includes semantic classes in the map', () => {
+			const collector = new CSSClassCollector(
+				new Map([['text-align: center', 'notectl-align-center']]),
+			);
+			collector.getClassName('text-align: center');
 			const map: ReadonlyMap<string, string> = collector.toStyleMap();
 			expect(map.get('notectl-align-center')).toBe('text-align: center');
 		});

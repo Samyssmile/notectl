@@ -3,7 +3,9 @@
  * Pure functions — operates on Document/SchemaRegistry, no class state.
  */
 
+import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import { isNodeOfType } from '../model/AttrRegistry.js';
+import type { BlockAlignment } from '../model/BlockAlignment.js';
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
 	getBlockChildren,
@@ -14,8 +16,13 @@ import {
 	markSetsEqual,
 } from '../model/Document.js';
 import { SAFE_URI_REGEXP, escapeAttr, escapeHTML, normalizeHTMLId } from '../model/HTMLUtils.js';
-import type { HTMLExportContext } from '../model/NodeSpec.js';
+import type { HTMLExportContext, NodeSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import {
+	alignmentDeclaration,
+	alignmentSemanticClassNames,
+	resolveExportAlignment,
+} from './AlignmentHTML.js';
 import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
@@ -35,13 +42,11 @@ interface SerializerContext {
 	readonly exportCtx?: HTMLExportContext;
 	/** Resolved from {@link SerializeOptions.includeBlockIds}; defaults to `true`. */
 	readonly includeBlockIds: boolean;
+	/** Application alignment classes; set in class mode only, inline mode keeps styles. */
+	readonly alignmentClassNames?: AlignmentClassNames;
+	/** Alignment the blocks being serialized inherit from the nearest ancestor that writes one. */
+	readonly inheritedAlignment?: BlockAlignment;
 }
-
-/** Known-safe alignment values accepted by the serializer (defense-in-depth). */
-export const VALID_ALIGNMENTS: ReadonlySet<string> = new Set(['start', 'center', 'end', 'justify']);
-
-/** Legacy physical → logical alignment mapping (mirrors DocumentParser). */
-const LEGACY_ALIGNMENT_MAP: Readonly<Record<string, string>> = { left: 'start', right: 'end' };
 
 /** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
 export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
@@ -280,9 +285,16 @@ export function serializeDocumentToCSS(
 	options?: SerializeOptions,
 ): ContentCSSResult {
 	const includeBlockIds: boolean = options?.includeBlockIds !== false;
-	const collector = new CSSClassCollector();
+	const alignmentClassNames: AlignmentClassNames | undefined = registry?.getAlignmentClassNames();
+	const collector = new CSSClassCollector(alignmentSemanticClassNames(alignmentClassNames));
 	const exportCtx: HTMLExportContext = createClassExportContext(collector);
-	const ctx: SerializerContext = { registry, collector, exportCtx, includeBlockIds };
+	const ctx: SerializerContext = {
+		registry,
+		collector,
+		exportCtx,
+		includeBlockIds,
+		alignmentClassNames,
+	};
 	const html: string = serializeBlocks(doc.children, ctx);
 
 	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
@@ -429,10 +441,14 @@ function stripTrailingLiClose(html: string): string {
 
 /** Serializes a single block to HTML using its NodeSpec. */
 function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
+	const spec: NodeSpec | undefined = ctx.registry?.getNodeSpec(block.type);
+	const alignment: BlockAlignment | undefined = resolveExportAlignment(block, spec, {
+		classNames: ctx.alignmentClassNames,
+		inherited: ctx.inheritedAlignment,
+	});
 	const content: string = isLeafBlock(block)
 		? serializeInlineContent(block, ctx)
-		: serializeBlocks(getBlockChildren(block), ctx);
-	const spec = ctx.registry?.getNodeSpec(block.type);
+		: serializeBlocks(getBlockChildren(block), inheritAlignment(ctx, alignment));
 
 	let html: string;
 	if (spec?.toHTML) {
@@ -460,22 +476,7 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	// over a NodeSpec-provided `id` so serialization can never emit duplicates.
 	html = setHTMLIdOnFirstTag(html, block.htmlId);
 
-	// Inject alignment into the first opening tag (validated against allowlist).
-	const rawAlign: string | undefined = (block.attrs as Record<string, unknown>)?.align as
-		| string
-		| undefined;
-	const align: string | undefined = rawAlign
-		? (LEGACY_ALIGNMENT_MAP[rawAlign] ?? rawAlign)
-		: undefined;
-	if (align && align !== 'start' && VALID_ALIGNMENTS.has(align)) {
-		const safeAlign: string = escapeAttr(align);
-		if (ctx.collector) {
-			const className: string = ctx.collector.getAlignmentClassName(align);
-			html = injectAttrIntoFirstTag(html, 'class', escapeAttr(className));
-		} else {
-			html = injectAttrIntoFirstTag(html, 'style', `text-align: ${safeAlign}`);
-		}
-	}
+	html = injectAlignment(html, alignment, ctx);
 
 	// Defense-in-depth: inject dir into the first opening tag if not already present.
 	// NodeSpec toHTML may already inject it; this ensures it survives even without a plugin.
@@ -489,6 +490,31 @@ function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	}
 
 	return html;
+}
+
+/** The context for a block's children: they inherit the alignment the block writes. */
+function inheritAlignment(
+	ctx: SerializerContext,
+	alignment: BlockAlignment | undefined,
+): SerializerContext {
+	return alignment ? { ...ctx, inheritedAlignment: alignment } : ctx;
+}
+
+/**
+ * Writes the block's resolved alignment into the first opening tag: a class in
+ * class mode, an inline `text-align` otherwise. `resolveExportAlignment` returns
+ * only valid alignments; the class name is escaped as defense-in-depth.
+ */
+function injectAlignment(
+	html: string,
+	alignment: BlockAlignment | undefined,
+	ctx: SerializerContext,
+): string {
+	if (!alignment) return html;
+	const declaration: string = alignmentDeclaration(alignment);
+	return ctx.collector
+		? injectAttrIntoFirstTag(html, 'class', escapeAttr(ctx.collector.getClassName(declaration)))
+		: injectAttrIntoFirstTag(html, 'style', declaration);
 }
 
 /** Serializes inline children (TextNode + InlineNode) of a block. */

@@ -17,12 +17,15 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
 const ENTRY_BUDGETS = [
 	// #256/#259: measured 105.20 KB with deferred IME breaks, a shared text/caret snapshot and
 	// logical properties shipped as authored.
-	['Core', 'src/index.ts', 106],
+	// #270: measured 106.81 KB with application alignment classes (validated registry
+	// vocabulary and alignment rules shared by HTML export, import and paste).
+	['Core', 'src/index.ts', 107],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	['HTML codec', 'src/html.ts', 13],
 	// #223: measured 29.09 KB; v2.3.8 already exceeded the old 29 KB budget at 29.07 KB.
-	['Markdown codec', 'src/markdown.ts', 29.5],
+	// #270: measured 29.89 KB; the codec's SchemaRegistry validates alignment classes.
+	['Markdown codec', 'src/markdown.ts', 30.5],
 	['Fonts (compatibility barrel)', 'src/fonts.ts', 555],
 	['Fonts (starter)', 'src/fonts/starter.ts', 255],
 	['Fonts (math)', 'src/fonts/math.ts', 300],

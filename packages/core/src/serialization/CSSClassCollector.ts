@@ -51,13 +51,27 @@ function fnv1aHash(input: string): string {
  * Used during a single serialization pass, then produces the collected stylesheet.
  *
  * Class names are deterministic: the same declarations always produce the same
- * class name, regardless of encounter order across documents.
+ * class name, regardless of encounter order across documents. Declarations with
+ * a semantic name (alignment: `notectl-align-center` or an application class)
+ * always use it; all others get a content-hashed `notectl-s-*` name.
  */
 export class CSSClassCollector {
-	/** Maps normalized declarations → class name. */
+	/** Maps normalized declarations → class name, for the declarations used so far. */
 	private readonly classMap: Map<string, string> = new Map();
 	/** Tracks used hashes to handle the (extremely rare) collision case. */
 	private readonly usedHashes: Set<string> = new Set();
+	/** Maps normalized declarations → semantic class name. */
+	private readonly semanticClassNames: ReadonlyMap<string, string>;
+
+	/** @param semanticClassNames Class names for specific declarations, keyed by declarations. */
+	constructor(semanticClassNames: ReadonlyMap<string, string> = new Map()) {
+		this.semanticClassNames = new Map(
+			[...semanticClassNames].map(([declarations, className]) => [
+				normalizeDeclarations(declarations),
+				className,
+			]),
+		);
+	}
 
 	/**
 	 * Returns the class name for the given CSS declarations.
@@ -68,34 +82,8 @@ export class CSSClassCollector {
 		const existing: string | undefined = this.classMap.get(normalized);
 		if (existing) return existing;
 
-		let hash: string = fnv1aHash(normalized);
-		let suffix = 0;
-		// Collision handling: append suffix counter if the hash is already in use
-		// for a different declarations string
-		while (this.usedHashes.has(hash)) {
-			suffix++;
-			hash = fnv1aHash(normalized + String(suffix));
-		}
-
-		const className: string = `${CLASS_PREFIX}${hash}`;
-		this.usedHashes.add(hash);
-		this.classMap.set(normalized, className);
-		return className;
-	}
-
-	/**
-	 * Returns the semantic alignment class name for a given alignment value.
-	 * Unlike style classes, alignment classes use descriptive names.
-	 */
-	getAlignmentClassName(alignment: string): string {
-		// Key by the normalized declaration so the "one declaration → one class"
-		// invariant is shared with getClassName(); if a style class for the same
-		// declaration already exists, reuse it rather than minting a second name.
-		const normalized: string = normalizeDeclarations(`text-align: ${alignment}`);
-		const existing: string | undefined = this.classMap.get(normalized);
-		if (existing) return existing;
-
-		const className = `notectl-align-${alignment}`;
+		const className: string =
+			this.semanticClassNames.get(normalized) ?? this.createHashedClassName(normalized);
 		this.classMap.set(normalized, className);
 		return className;
 	}
@@ -121,5 +109,18 @@ export class CSSClassCollector {
 			map.set(className, declarations);
 		}
 		return map;
+	}
+
+	private createHashedClassName(normalized: string): string {
+		let hash: string = fnv1aHash(normalized);
+		let suffix = 0;
+		// Collision handling: append suffix counter if the hash is already in use
+		// for a different declarations string
+		while (this.usedHashes.has(hash)) {
+			suffix++;
+			hash = fnv1aHash(normalized + String(suffix));
+		}
+		this.usedHashes.add(hash);
+		return `${CLASS_PREFIX}${hash}`;
 	}
 }
