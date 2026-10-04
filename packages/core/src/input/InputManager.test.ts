@@ -52,7 +52,7 @@ function harness(initial: EditorState): Harness {
 		undo: vi.fn(),
 		redo: vi.fn(),
 		isReadOnly: () => false,
-		compositionDOM: { readBlock: () => rendered, restoreBlock: vi.fn() },
+		compositionDOM: { captureBlock: vi.fn(), readBlock: () => rendered, restoreBlock: vi.fn() },
 	});
 	return {
 		dispatch,
@@ -140,14 +140,15 @@ describe('InputManager: document changes during an IME composition', () => {
 		expect(h.state().selection).toEqual(createCollapsedSelection(B1, 5));
 	});
 
-	it('keeps text pasted at the model caret while composing', () => {
+	it('keeps text pasted at the model caret in front of the composed text', () => {
 		const h = harness(helloState());
 
 		h.startComposition();
 		h.dispatch(insertTextCommand(h.state(), 'P', 'paste'));
 		h.compose({ text: 'hellowo', caretOffset: 7 }, 'wo');
 
-		expect(content(h.state())).toBe('hellowoP');
+		expect(content(h.state())).toBe('helloPwo');
+		expect(h.state().selection).toEqual(createCollapsedSelection(B1, 8));
 	});
 
 	it('keeps content a host set for the composition block while composing', () => {
