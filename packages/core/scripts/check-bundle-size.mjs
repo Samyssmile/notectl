@@ -15,11 +15,9 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
  * entry as if all locales loaded at once.
  */
 const ENTRY_BUDGETS = [
-	// #256/#259: measured 105.20 KB with deferred IME breaks, a shared text/caret snapshot and
-	// logical properties shipped as authored.
-	// #270: measured 106.81 KB with application alignment classes (validated registry
-	// vocabulary and alignment rules shared by HTML export, import and paste).
-	['Core', 'src/index.ts', 107],
+	// #260-#265, #270: measured 107.92 KB with the IME composition rebase, container protection,
+	// dropped-composition handling, the per-parse HTML session and application alignment classes.
+	['Core', 'src/index.ts', 108],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	['HTML codec', 'src/html.ts', 13],

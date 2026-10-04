@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Bundle budgets raised for alignment classes (#270).** Core to 107 KB (measured 106.81 KB, previously 105.62 KB) and the Markdown codec to 30.5 KB (measured 29.89 KB), whose HTML registry includes the same validation. All other budgets are unchanged.
+- **Bundle budgets raised for alignment classes (#270).** Core to 108 KB (measured 107.92 KB, previously 106.77 KB) and the Markdown codec to 30.5 KB (measured 30.04 KB), whose HTML registry includes the same validation. All other budgets are unchanged.
 
 ### Fixed
 
@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Core bundle budget updated to 106 KB for the IME fixes.** The measured core download is 105.20 KB; all other bundle limits remain unchanged.
+- **Core bundle budget updated to 107 KB for the IME and HTML paste fixes.** The measured core download is 106.77 KB; all other bundle limits remain unchanged.
 - **Smaller core bundle through compiled static stylesheets.** Static editor and plugin styles now use Vite's CSS pipeline in both ESM and UMD builds, with explicit CSS targets matching the documented browser minimums. Styles remain embedded in JavaScript and are registered through the existing Shadow DOM and plugin APIs; consumers need no additional CSS imports. CSS logical properties such as `border-inline-start` ship as authored instead of being lowered for the older targets, so blockquote borders, table controls, resize handles and the placeholder keep following `dir` rather than the page language (#259). Existing bundle budgets are unchanged.
 
 ### Fixed
