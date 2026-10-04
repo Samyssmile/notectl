@@ -25,8 +25,8 @@ import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
 import {
 	type ClassDeclarationResolver,
 	createClassDeclarationResolver,
-	rehydrateStyleClasses,
 } from '../serialization/StyleClassHTML.js';
+import { rehydrateStyles } from '../serialization/StyleRehydration.js';
 
 /**
  * Whether the `<br>`s of an inline run split it into paragraphs, as for `<p>`
@@ -154,9 +154,9 @@ export class HTMLParser {
 
 	/** Parses an HTML fragment and returns a ContentSlice. */
 	parse(container: DocumentFragment | HTMLElement): ContentSlice {
-		// Classes the editor knows (style classes, notectl alignment) become the
-		// inline styles that block and mark rules read, as in HTML import.
-		rehydrateStyleClasses(container, this.classDeclarations);
+		// Inline styles and the classes the editor knows (style classes, notectl
+		// alignment) become readable through the CSSOM, as in HTML import.
+		rehydrateStyles(container, this.classDeclarations);
 		// Collapse insignificant HTML whitespace (newlines/indentation from source
 		// formatting or a browser's clipboard serializer) before walking the tree,
 		// so wrapped text stays a single block instead of splitting at every `\n`.

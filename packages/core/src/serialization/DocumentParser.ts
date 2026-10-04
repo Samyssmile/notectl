@@ -32,7 +32,8 @@ import { isHTMLBlockElement, matchHTMLParseRule, parseHTMLMarks } from './HTMLPa
 import { type HTMLParseSession, createHTMLParseSession } from './HTMLParseSession.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
-import { createClassDeclarationResolver, rehydrateStyleClasses } from './StyleClassHTML.js';
+import { createClassDeclarationResolver } from './StyleClassHTML.js';
+import { rehydrateStyles } from './StyleRehydration.js';
 import {
 	MAX_SERIALIZED_TABLE_COLUMNS,
 	TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
@@ -86,8 +87,8 @@ export function parseHTMLToDocument(
 	);
 	const root: DocumentFragment = template.content;
 
-	// Rehydrate class-based HTML: classes become the inline styles parse rules read.
-	rehydrateStyleClasses(root, createClassDeclarationResolver(registry, options?.styleMap));
+	// Make inline styles and classes readable through the CSSOM, where parse rules read them.
+	rehydrateStyles(root, createClassDeclarationResolver(registry, options?.styleMap));
 
 	// Collapse insignificant HTML whitespace so source-formatted/indented input does
 	// not leave stray newlines and indentation inside block text content.
