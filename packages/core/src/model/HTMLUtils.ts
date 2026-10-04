@@ -2,6 +2,8 @@
  * HTML string escaping and formatting utilities shared across serialization and parsing.
  */
 
+import type { HTMLExportContext } from './NodeSpec.js';
+
 /**
  * URI scheme regex for DOMPurify that extends the default allowlist with `blob:` and `data:`.
  * `blob:` is needed to preserve same-origin blob URLs (e.g. uploaded images) through
@@ -21,6 +23,39 @@ export function escapeHTML(text: string): string {
 
 /** Escapes a value for safe interpolation into an HTML attribute (double-quoted). */
 export const escapeAttr: (value: string) => string = escapeHTML;
+
+// --- CSS in HTML ---
+// Declarations stay raw CSS everywhere in notectl (mark specs, node specs,
+// class-based export, `styleMap`); they are HTML-escaped only where they become
+// a `style` attribute.
+
+/** Characters that end a CSS declaration or rule, or a `<style>` element. */
+const CSS_VALUE_BREAKOUT: RegExp = /[;{}<>]/;
+
+/**
+ * Returns `true` when `value` is one non-empty CSS value that cannot end its
+ * declaration or rule, so it is safe in a `style` attribute and in exported CSS.
+ */
+export function isSafeCSSValue(value: string): boolean {
+	return value.trim() !== '' && !CSS_VALUE_BREAKOUT.test(value);
+}
+
+/** Writes raw CSS declarations as an escaped ` style="…"` attribute, or `''` when empty. */
+export function inlineStyleAttr(declarations: string): string {
+	return declarations ? ` style="${escapeAttr(declarations)}"` : '';
+}
+
+/** Export context of inline-style HTML: every declaration becomes a `style` attribute. */
+export const INLINE_STYLE_EXPORT_CONTEXT: HTMLExportContext = { styleAttr: inlineStyleAttr };
+
+/**
+ * Writes raw CSS declarations through the export context, which yields a
+ * `style` or `class` attribute depending on the export mode. Without a context
+ * (clipboard and other inline-only callers) the declarations become a `style`.
+ */
+export function styleAttribute(declarations: string, ctx?: HTMLExportContext): string {
+	return (ctx ?? INLINE_STYLE_EXPORT_CONTEXT).styleAttr(declarations);
+}
 
 /** ASCII whitespace forbidden in a conforming HTML `id` value. */
 const HTML_ID_WHITESPACE: RegExp = /[\t\n\f\r ]/;

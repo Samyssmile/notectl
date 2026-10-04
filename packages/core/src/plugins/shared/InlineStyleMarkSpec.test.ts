@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Mark } from '../../model/Document.js';
 import { markType } from '../../model/TypeBrands.js';
-import { createInlineStyleMarkSpec } from './InlineStyleMarkSpec.js';
+import { createInlineStyleMarkSpec, styleDeclaration } from './InlineStyleMarkSpec.js';
 
 function mark(attrs: Record<string, string>): Mark {
 	return { type: markType('test'), attrs };
@@ -15,6 +15,12 @@ const colorSpec = createInlineStyleMarkSpec({
 	cssProperty: 'background-color',
 	validate: (v) => v === 'red' || v === 'blue',
 	validateOnParse: true,
+});
+
+describe('styleDeclaration', () => {
+	it('joins property and value into one raw declaration', () => {
+		expect(styleDeclaration('color', '#e03131')).toBe('color: #e03131');
+	});
 });
 
 describe('createInlineStyleMarkSpec', () => {
@@ -38,6 +44,31 @@ describe('createInlineStyleMarkSpec', () => {
 			'<span style="background-color: blue">x</span>',
 		);
 		expect(colorSpec.toHTMLString?.(mark({ color: 'bad' }), 'x')).toBe('x');
+	});
+
+	it('exports raw CSS and escapes it only where it writes a style attribute', () => {
+		const familySpec = createInlineStyleMarkSpec({
+			type: 'test',
+			rank: 1,
+			valueAttr: 'family',
+			domStyleProperty: 'fontFamily',
+			cssProperty: 'font-family',
+			validate: () => true,
+		});
+		const family: Mark = { type: markType('test'), attrs: { family: '"Inter", sans-serif' } };
+
+		expect(familySpec.toHTMLStyle?.(family)).toBe('font-family: "Inter", sans-serif');
+		expect(familySpec.toHTMLString?.(family, 'x')).toBe(
+			'<span style="font-family: &quot;Inter&quot;, sans-serif">x</span>',
+		);
+		const declarations: string[] = [];
+		familySpec.toHTMLString?.(family, 'x', {
+			styleAttr: (value: string) => {
+				declarations.push(value);
+				return ' class="font"';
+			},
+		});
+		expect(declarations).toEqual(['font-family: "Inter", sans-serif']);
 	});
 
 	it('parses a matching span and rejects invalid values when validateOnParse is set', () => {

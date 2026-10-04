@@ -11,7 +11,7 @@
 
 import type { InlineNode, Mark, TextNode } from '../../model/Document.js';
 import { createTextNode, isInlineNode, markSetsEqual } from '../../model/Document.js';
-import type { HTMLExportContext } from '../../model/NodeSpec.js';
+import { INLINE_STYLE_EXPORT_CONTEXT } from '../../model/HTMLUtils.js';
 import { serializeMarksToHTML } from '../MarkSerializer.js';
 import { type SerContext, exportContext } from './MarkdownContext.js';
 import {
@@ -21,11 +21,6 @@ import {
 	wrapCodeSpan,
 } from './MarkdownEscape.js';
 import { resolveMarkdownHTMLRegistry } from './MarkdownHTMLRegistry.js';
-
-/** Inline HTML export context (inline-style mode) for HTML-fallback marks. */
-const INLINE_HTML_CTX: HTMLExportContext = {
-	styleAttr: (declarations: string) => (declarations ? ` style="${declarations}"` : ''),
-};
 
 /** Whether a mark is serialized as a Markdown delimiter (vs. HTML fallback / code). */
 function isStackMark(mark: Mark, gfm: boolean): boolean {
@@ -128,7 +123,7 @@ function renderTextContent(node: TextNode, ctx: SerContext): string {
 			fallbackMarks,
 			resolveMarkdownHTMLRegistry(ctx.registry),
 			ctx.markOrder,
-			INLINE_HTML_CTX,
+			INLINE_STYLE_EXPORT_CONTEXT,
 		);
 	}
 	// htmlFallback off: keep text, drop styling.

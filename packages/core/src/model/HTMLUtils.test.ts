@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+	INLINE_STYLE_EXPORT_CONTEXT,
 	SAFE_URI_REGEXP,
 	escapeAttr,
 	escapeHTML,
 	formatHTML,
 	fragmentIdentifiers,
+	inlineStyleAttr,
+	isSafeCSSValue,
 	normalizeHTMLId,
 	sanitizeHref,
+	styleAttribute,
 } from './HTMLUtils.js';
+import type { HTMLExportContext } from './NodeSpec.js';
 
 /**
  * Wall-clock ceiling for the ReDoS-resistance checks below. Catastrophic
@@ -283,4 +288,51 @@ describe('escapeAttr', () => {
 	it('handles all special characters together', () => {
 		expect(escapeAttr('"&<>')).toBe('&quot;&amp;&lt;&gt;');
 	});
+});
+
+describe('inlineStyleAttr', () => {
+	it('writes declarations as a style attribute', () => {
+		expect(inlineStyleAttr('color: red')).toBe(' style="color: red"');
+	});
+
+	it('escapes declarations for the double-quoted attribute', () => {
+		expect(inlineStyleAttr('font-family: "Inter", sans-serif')).toBe(
+			' style="font-family: &quot;Inter&quot;, sans-serif"',
+		);
+	});
+
+	it('writes nothing for empty declarations', () => {
+		expect(inlineStyleAttr('')).toBe('');
+	});
+});
+
+describe('styleAttribute', () => {
+	it('writes through the export context when there is one', () => {
+		const ctx: HTMLExportContext = {
+			styleAttr: (declarations) => ` class="${declarations.length}"`,
+		};
+
+		expect(styleAttribute('color: red', ctx)).toBe(' class="10"');
+	});
+
+	it('falls back to an inline style without an export context', () => {
+		expect(styleAttribute('color: red')).toBe(' style="color: red"');
+		expect(INLINE_STYLE_EXPORT_CONTEXT.styleAttr('color: red')).toBe(' style="color: red"');
+	});
+});
+
+describe('isSafeCSSValue', () => {
+	it.each(['#1e1e1e', 'rgb(30, 30, 30)', "'Fira Code', monospace", '18px'])(
+		'accepts the single value %s',
+		(value: string) => {
+			expect(isSafeCSSValue(value)).toBe(true);
+		},
+	);
+
+	it.each(['', '  ', 'red; position: fixed', 'red } body { display: none', 'red</style>'])(
+		'rejects %j, which is empty or can end its declaration or rule',
+		(value: string) => {
+			expect(isSafeCSSValue(value)).toBe(false);
+		},
+	);
 });

@@ -17,6 +17,7 @@ import {
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
 import type { ContentCSSResult } from '../../serialization/ContentHTMLTypes.js';
+import { parseHTMLToDocument } from '../../serialization/DocumentParser.js';
 import {
 	serializeDocumentToCSS,
 	serializeDocumentToHTML,
@@ -164,6 +165,50 @@ describe('style export without application style classes', () => {
 				`<p><span style="font-family: ${FIRA_CODE_FAMILY}">Font</span></p>`,
 				'<p style="text-align: center">Centered</p>',
 			].join(''),
+		);
+	});
+});
+
+describe('style export of values with double quotes', () => {
+	const QUOTED_FAMILY = '"Inter", sans-serif';
+
+	it('writes raw CSS into the css and styleMap of class-based export', async () => {
+		const registry: SchemaRegistry = await createRegistry();
+		const doc: Document = createDocument([
+			paragraph('p', 'Inter', [mark('font', { family: QUOTED_FAMILY })]),
+		]);
+
+		const { css, styleMap }: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
+
+		expect([...styleMap.values()]).toEqual([`font-family: ${QUOTED_FAMILY}`]);
+		expect(css).toContain(`{ font-family: ${QUOTED_FAMILY}; }`);
+	});
+
+	it('restores the font from class-based HTML through its styleMap', async () => {
+		const registry: SchemaRegistry = await createRegistry();
+		const doc: Document = createDocument([
+			paragraph('p', 'Inter', [mark('font', { family: QUOTED_FAMILY })]),
+		]);
+		const { html, styleMap }: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
+
+		const imported: Document = parseHTMLToDocument(html, registry, { styleMap });
+
+		const text = imported.children[0]?.children[0];
+		expect(text && 'marks' in text ? text.marks : []).toEqual([
+			{ type: 'font', attrs: { family: expect.stringMatching(/^'?Inter'?, sans-serif$/) } },
+		]);
+	});
+
+	it('escapes the quotes only in the style attribute of inline export', async () => {
+		const registry: SchemaRegistry = await createRegistry();
+		const doc: Document = createDocument([
+			paragraph('p', 'Inter', [mark('font', { family: QUOTED_FAMILY })]),
+		]);
+
+		const html: string = serializeDocumentToHTML(doc, registry, NO_IDS);
+
+		expect(html).toBe(
+			'<p><span style="font-family: &quot;Inter&quot;, sans-serif">Inter</span></p>',
 		);
 	});
 });

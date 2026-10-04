@@ -30,9 +30,11 @@ export interface MarkSpec<T extends string = string> {
 	 */
 	readonly toMarkdown?: (mark: Mark, content: string, ctx: MarkdownExportContext) => string | null;
 	/**
-	 * Returns a CSS style declaration for this mark (e.g. `"color: red"`).
-	 * When defined, the serializer merges all `toHTMLStyle` results into a single
-	 * `<span style="...">` instead of nesting separate wrappers per mark.
+	 * Returns a raw CSS declaration for this mark (e.g. `"color: red"`), not
+	 * HTML-escaped: the serializer escapes it where it writes a `style` attribute
+	 * and uses it as-is in class-based CSS. When defined, the serializer merges all
+	 * `toHTMLStyle` results into a single `<span style="...">` instead of nesting
+	 * separate wrappers per mark.
 	 */
 	readonly toHTMLStyle?: (mark: Mark) => string | null;
 	/** Rules for matching HTML elements to this mark type during parsing. */

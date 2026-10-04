@@ -9,7 +9,7 @@
 
 import { addDeleteSelectionSteps } from '../../commands/Commands.js';
 import type { BlockNode } from '../../model/Document.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
+import { escapeHTML, isSafeCSSValue, styleAttribute } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -45,10 +45,10 @@ export function registerCodeBlockNodeSpec(context: PluginContext): void {
 		},
 		toHTML(node, content, ctx?: HTMLExportContext) {
 			const lang: string = escapeHTML((node.attrs?.language as string) ?? '');
-			const bg: string = escapeHTML((node.attrs?.backgroundColor as string) ?? '');
+			const bg: string = String(node.attrs?.backgroundColor ?? '');
 			const langClass: string = lang ? ` class="language-${lang}"` : '';
-			const bgAttr: string = bg
-				? (ctx?.styleAttr(`background-color: ${bg}`) ?? ` style="background-color: ${bg}"`)
+			const bgAttr: string = isSafeCSSValue(bg)
+				? styleAttribute(`background-color: ${bg}`, ctx)
 				: '';
 			return `<pre dir="ltr"${bgAttr}><code${langClass}>${content || ''}</code></pre>`;
 		},

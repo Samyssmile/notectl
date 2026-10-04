@@ -10,7 +10,7 @@ import { DecorationSet as DecorationSetClass } from '../../decorations/Decoratio
 import TABLE_CSS from '../../editor/styles/table.css?inline';
 import type { BlockAttrValue, BlockAttrs, BlockNode } from '../../model/Document.js';
 import { getBlockChildren } from '../../model/Document.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
+import { escapeHTML, styleAttribute } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { isTextSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
@@ -269,7 +269,7 @@ export class TablePlugin implements Plugin {
 				const grid = createTableGrid(node);
 				const widths = readTableColumnWidthsPx(node, grid.columnCount);
 				const style: string = buildTableStyle(borderColor, widths, config.minColumnWidthPx);
-				const attr: string = ctx?.styleAttr(style) ?? ` style="${style}"`;
+				const attr: string = styleAttribute(style, ctx);
 				const columns: string = widths
 					.map((width) =>
 						width === null
@@ -339,7 +339,7 @@ export class TablePlugin implements Plugin {
 			toHTML(node, content, ctx?: HTMLExportContext) {
 				const colspan: number = (node.attrs?.colspan as number) ?? 1;
 				const rowspan: number = (node.attrs?.rowspan as number) ?? 1;
-				const styleAttr: string = ctx?.styleAttr(CELL_STYLE) ?? ` style="${CELL_STYLE}"`;
+				const styleAttr: string = styleAttribute(CELL_STYLE, ctx);
 				const attrs: string[] = [styleAttr];
 				if (colspan > 1) attrs.push(` colspan="${colspan}"`);
 				if (rowspan > 1) attrs.push(` rowspan="${rowspan}"`);

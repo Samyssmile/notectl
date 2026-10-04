@@ -5,7 +5,7 @@
  */
 
 import type { Mark } from '../model/Document.js';
-import { escapeHTML } from '../model/HTMLUtils.js';
+import { escapeHTML, styleAttribute } from '../model/HTMLUtils.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -101,7 +101,7 @@ function inlineStyleSpanWrapper(
 	exportCtx: HTMLExportContext | undefined,
 ): (html: string, declarations: string) => string {
 	return (html, declarations) => {
-		const attr: string = exportCtx ? exportCtx.styleAttr(declarations) : ` style="${declarations}"`;
+		const attr: string = styleAttribute(declarations, exportCtx);
 		return attr ? `<span${attr}>${html}</span>` : html;
 	};
 }

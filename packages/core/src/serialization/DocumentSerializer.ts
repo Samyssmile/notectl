@@ -15,7 +15,12 @@ import {
 	isTextNode,
 	markSetsEqual,
 } from '../model/Document.js';
-import { SAFE_URI_REGEXP, escapeAttr, escapeHTML } from '../model/HTMLUtils.js';
+import {
+	INLINE_STYLE_EXPORT_CONTEXT,
+	SAFE_URI_REGEXP,
+	escapeAttr,
+	escapeHTML,
+} from '../model/HTMLUtils.js';
 import type { HTMLExportContext, NodeSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
@@ -56,16 +61,6 @@ interface SerializerContext {
 /** Known-safe direction values (defense-in-depth). `auto` is excluded — it's the default. */
 export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
 
-/** Creates an HTMLExportContext for inline style mode. */
-function createInlineExportContext(): HTMLExportContext {
-	return {
-		styleAttr(declarations: string): string {
-			if (!declarations) return '';
-			return ` style="${declarations}"`;
-		},
-	};
-}
-
 /** Creates an HTMLExportContext for CSS class mode. */
 function createClassExportContext(collector: CSSClassCollector): HTMLExportContext {
 	return {
@@ -101,7 +96,7 @@ export function serializeDocumentToHTML(
 	options?: SerializeOptions,
 ): string {
 	const includeBlockIds: boolean = options?.includeBlockIds !== false;
-	const exportCtx: HTMLExportContext = createInlineExportContext();
+	const exportCtx: HTMLExportContext = INLINE_STYLE_EXPORT_CONTEXT;
 	const ctx: SerializerContext = { registry, exportCtx, includeBlockIds };
 	const html: string = serializeBlocks(doc.children, ctx);
 
@@ -359,7 +354,7 @@ function injectAlignment(
 	const declaration: string = alignmentDeclaration(alignment);
 	return ctx.collector
 		? injectAttrIntoFirstTag(html, 'class', escapeAttr(ctx.collector.getClassName(declaration)))
-		: injectAttrIntoFirstTag(html, 'style', declaration);
+		: injectAttrIntoFirstTag(html, 'style', escapeAttr(declaration));
 }
 
 /** Serializes inline children (TextNode + InlineNode) of a block. */

@@ -103,6 +103,35 @@ describe('CodeBlockPlugin', () => {
 			expect(el.querySelector('code')?.getAttribute('part')).toBe('code-block-content');
 		});
 
+		it('toHTML exports a valid background color through the export context', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('x')], 'test', {
+				language: '',
+				backgroundColor: '#1e1e1e',
+			});
+
+			expect(spec.toHTML?.(node, 'x')).toBe(
+				'<pre dir="ltr" style="background-color: #1e1e1e"><code>x</code></pre>',
+			);
+			expect(spec.toHTML?.(node, 'x', { styleAttr: () => ' class="bg"' })).toBe(
+				'<pre dir="ltr" class="bg"><code>x</code></pre>',
+			);
+		});
+
+		it('toHTML drops a background color that is not a CSS color', async () => {
+			const h = await pluginHarness(new CodeBlockPlugin());
+			const spec = h.getNodeSpec('code_block');
+			assertDefined(spec);
+			const node = createBlockNode('code_block', [createTextNode('x')], 'test', {
+				language: '',
+				backgroundColor: 'red; } body { display: none',
+			});
+
+			expect(spec.toHTML?.(node, 'x')).toBe('<pre dir="ltr"><code>x</code></pre>');
+		});
+
 		it('parseHTML matches <pre> tags', async () => {
 			const h = await pluginHarness(new CodeBlockPlugin());
 			const spec = h.getNodeSpec('code_block');

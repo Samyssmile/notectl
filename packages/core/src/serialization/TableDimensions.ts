@@ -7,6 +7,7 @@
  * Arbitrary CSS expressions never cross into document attributes.
  */
 
+import { styleAttribute } from '../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import {
 	MAX_TABLE_DIMENSION_PX,
@@ -122,8 +123,7 @@ export function serializeTableDimensionAttrs(
 	const dimension: number | undefined = normalizeSerializedTableDimensionPx(value);
 	if (dimension === undefined) return '';
 	const declarations = `${cssProperty}: ${String(dimension)}px`;
-	const styleAttribute: string = ctx?.styleAttr(declarations) ?? ` style="${declarations}"`;
-	return ` ${metadataAttribute}="${String(dimension)}"${styleAttribute}`;
+	return ` ${metadataAttribute}="${String(dimension)}"${styleAttribute(declarations, ctx)}`;
 }
 
 function parseDecimal(raw: string | null, allowPx: boolean): number | undefined {

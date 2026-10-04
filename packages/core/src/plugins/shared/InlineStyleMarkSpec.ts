@@ -6,7 +6,7 @@
  */
 
 import type { Mark } from '../../model/Document.js';
-import { escapeHTML } from '../../model/HTMLUtils.js';
+import { styleAttribute } from '../../model/HTMLUtils.js';
 import type { MarkSpec } from '../../model/MarkSpec.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
@@ -30,6 +30,11 @@ export interface InlineStyleMarkConfig {
 	readonly transformParsed?: (value: string) => string;
 }
 
+/** The raw CSS declaration a style mark exports for `value`, e.g. `color: #e03131`. */
+export function styleDeclaration(cssProperty: string, value: string): string {
+	return `${cssProperty}: ${value}`;
+}
+
 /** Builds a MarkSpec for a single-CSS-property inline mark. */
 export function createInlineStyleMarkSpec(config: InlineStyleMarkConfig): MarkSpec {
 	const {
@@ -44,6 +49,10 @@ export function createInlineStyleMarkSpec(config: InlineStyleMarkConfig): MarkSp
 	} = config;
 
 	const readValue = (mark: Mark): string => String(mark.attrs?.[valueAttr] ?? '');
+	const exportDeclaration = (mark: Mark): string | null => {
+		const value: string = readValue(mark);
+		return value && validate(value) ? styleDeclaration(cssProperty, value) : null;
+	};
 
 	return {
 		type,
@@ -58,17 +67,10 @@ export function createInlineStyleMarkSpec(config: InlineStyleMarkConfig): MarkSp
 			return span;
 		},
 		toHTMLString: (mark: Mark, content: string, ctx?: HTMLExportContext) => {
-			const value: string = readValue(mark);
-			if (!value || !validate(value)) return content;
-			const decl: string = `${cssProperty}: ${escapeHTML(value)}`;
-			const attr: string = ctx?.styleAttr(decl) ?? ` style="${decl}"`;
-			return `<span${attr}>${content}</span>`;
+			const declaration: string | null = exportDeclaration(mark);
+			return declaration ? `<span${styleAttribute(declaration, ctx)}>${content}</span>` : content;
 		},
-		toHTMLStyle: (mark: Mark) => {
-			const value: string = readValue(mark);
-			if (!value || !validate(value)) return null;
-			return `${cssProperty}: ${escapeHTML(value)}`;
-		},
+		toHTMLStyle: exportDeclaration,
 		parseHTML: [
 			{
 				tag: 'span',

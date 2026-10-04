@@ -7,7 +7,7 @@
  * authority. No plugin or view module is imported here.
  */
 
-import { escapeAttr, sanitizeHref } from '../../model/HTMLUtils.js';
+import { escapeAttr, sanitizeHref, styleAttribute } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { SchemaRegistry } from '../../model/SchemaRegistry.js';
 import {
@@ -237,7 +237,7 @@ function tableDimensionStyle(widths: readonly (number | null)[], ctx?: HTMLExpor
 	const declarations: string = allExplicit
 		? `width: ${String(minimumWidthPx)}px; min-width: ${String(minimumWidthPx)}px; table-layout: fixed`
 		: `width: 100%; min-width: ${String(minimumWidthPx)}px; table-layout: fixed`;
-	return ctx?.styleAttr(declarations) ?? ` style="${declarations}"`;
+	return styleAttribute(declarations, ctx);
 }
 
 function imageAttrs(image: HTMLImageElement): Record<string, string | number | boolean> {

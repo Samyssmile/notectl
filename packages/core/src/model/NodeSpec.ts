@@ -40,7 +40,8 @@ export interface ContentRule {
  */
 export interface HTMLExportContext {
 	/**
-	 * Returns an attribute fragment for the given CSS declarations.
+	 * Returns an attribute fragment for the given CSS declarations. Pass raw CSS,
+	 * not HTML-escaped text: the context escapes it for the attribute it writes.
 	 * - Inline mode: `' style="color: red"'`
 	 * - Class mode: `' class="notectl-s-a3f2k9"'`
 	 * - Empty/falsy input: `''`
