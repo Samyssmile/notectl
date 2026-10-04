@@ -5,11 +5,17 @@
  * share this one step, so they read styles alike on every page.
  */
 
-import { type CSSDeclaration, parseDeclaration, splitDeclarations } from '../model/StyleClass.js';
+import { splitDeclarations } from '../model/StyleClass.js';
 import { type ClassDeclarationResolver, rehydrateStyleClasses } from './StyleClassHTML.js';
 
-/** `!important` at the end of a declaration, which the CSSOM takes as its priority. */
-const IMPORTANT_PRIORITY: RegExp = /\s*!\s*important\s*$/i;
+/**
+ * The most declarations rehydrated on one element, from its `style` attribute
+ * and from its classes each. Formatting needs far fewer. Input with more is not
+ * formatting, and Chromium applies many distinct custom properties through the
+ * CSSOM in superlinear time, so such an element keeps those styles unapplied
+ * (#274).
+ */
+export const MAX_REHYDRATED_DECLARATIONS = 256;
 
 /**
  * Rehydrates the styles of parsed content HTML in cascade order: first each
@@ -18,7 +24,7 @@ const IMPORTANT_PRIORITY: RegExp = /\s*!\s*important\s*$/i;
  */
 export function rehydrateStyles(root: ParentNode, resolveClass: ClassDeclarationResolver): void {
 	restoreInlineStyles(root);
-	rehydrateStyleClasses(root, resolveClass);
+	rehydrateStyleClasses(root, resolveClass, MAX_REHYDRATED_DECLARATIONS);
 }
 
 /**
@@ -26,33 +32,23 @@ export function rehydrateStyles(root: ParentNode, resolveClass: ClassDeclaration
  * CSP (`style-src-attr 'none'`) Chromium keeps the attribute text but leaves
  * `el.style` empty, even in inert template content (#272), while CSSOM writes
  * stay allowed. Without such a policy the CSSOM already holds the declarations,
- * and the element is left as it is.
+ * so only an attribute the browser rejected entirely is parsed again, which
+ * yields no declarations either. Afterwards the attribute holds the browser's
+ * serialization, so code that needs the raw text reads it before this step.
  */
 function restoreInlineStyles(root: ParentNode): void {
 	for (const element of Array.from(root.querySelectorAll('[style]'))) {
 		const style: CSSStyleDeclaration | undefined = inlineStyleOf(element);
 		if (!style || style.length > 0) continue;
-		// Split the whole text first: the browser writes the CSSOM back into the attribute.
-		const declarations: string[] = splitDeclarations(element.getAttribute('style') ?? '');
-		for (const declaration of declarations) restoreDeclaration(style, declaration);
+		const text: string = element.getAttribute('style') ?? '';
+		if (splitDeclarations(text).length > MAX_REHYDRATED_DECLARATIONS) continue;
+		// One write through the browser's own CSS parser, which reads priorities,
+		// shorthands and comments as it reads the attribute on a page without a CSP.
+		style.cssText = text;
 	}
 }
 
 /** The CSSOM declaration of an element, unless its namespace has none. */
 function inlineStyleOf(element: Element): CSSStyleDeclaration | undefined {
 	return (element as Partial<ElementCSSInlineStyle>).style;
-}
-
-/**
- * Writes one declaration through the CSSOM. As in CSS, a later declaration
- * replaces an earlier one unless only the earlier one is `!important`.
- */
-function restoreDeclaration(style: CSSStyleDeclaration, declaration: string): void {
-	const important: boolean = IMPORTANT_PRIORITY.test(declaration);
-	const parsed: CSSDeclaration | undefined = parseDeclaration(
-		declaration.replace(IMPORTANT_PRIORITY, ''),
-	);
-	if (!parsed) return;
-	if (!important && style.getPropertyPriority(parsed.property) === 'important') return;
-	style.setProperty(parsed.property, parsed.value, important ? 'important' : '');
 }

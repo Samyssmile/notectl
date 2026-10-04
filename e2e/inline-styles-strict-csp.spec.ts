@@ -191,6 +191,46 @@ test.describe('Inline styles under a strict CSP (#272)', () => {
 		});
 	});
 
+	test('reads comments in a style attribute as the browser does', async ({ page }) => {
+		await openEditor(page);
+
+		const doc: JsonNode = await importHTML(
+			page,
+			'<p><span style="/* brand */ color: #e03131">Commented</span></p>',
+		);
+
+		expect(marksOf(doc, 'Commented')).toEqual([{ type: 'textColor', attrs: { color: '#e03131' } }]);
+	});
+
+	test('keeps an important declaration over a later shorthand, as the browser does', async ({
+		page,
+	}) => {
+		await openEditor(page);
+
+		const doc: JsonNode = await pasteHTML(
+			page,
+			'<p><span style="font-weight: 700 !important; font: 400 16px serif">Bold</span> text</p>',
+		);
+
+		expect(marksOf(doc, 'Bold')).toEqual([{ type: 'bold' }]);
+	});
+
+	test('imports and pastes an element with thousands of declarations without freezing (#274)', async ({
+		page,
+	}) => {
+		await openEditor(page);
+		const flood: string = Array.from({ length: 40_000 }, (_, i: number) => `--x${i}: 1`).join('; ');
+		const html: string = `<p><span style="${flood}">Flood</span> <span style="color: #e03131">Red</span></p>`;
+
+		const started: number = Date.now();
+		const imported: JsonNode = await importHTML(page, html);
+		await pasteHTML(page, html);
+		const elapsedMs: number = Date.now() - started;
+
+		expect(marksOf(imported, 'Red')).toEqual([{ type: 'textColor', attrs: { color: '#e03131' } }]);
+		expect(elapsedMs).toBeLessThan(2_000);
+	});
+
 	test('marks an imported palette color as selected in the picker (#273)', async ({ page }) => {
 		await openEditor(page);
 		await importHTML(page, '<p><span style="color: #1971c2">Picked</span></p>');

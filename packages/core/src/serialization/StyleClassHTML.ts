@@ -86,15 +86,42 @@ export function createClassDeclarationResolver(
  * to the element's inline style, so parse rules read them like any inline
  * style. A property the element already sets inline wins over a class, and the
  * first listed class wins over later ones. The classes stay on the element, so
- * other parse rules can still read them.
+ * other parse rules can still read them. An element whose classes stand for
+ * more than `maxDeclarations` declarations in total is left as it is.
  */
-export function rehydrateStyleClasses(root: ParentNode, resolve: ClassDeclarationResolver): void {
+export function rehydrateStyleClasses(
+	root: ParentNode,
+	resolve: ClassDeclarationResolver,
+	maxDeclarations: number,
+): void {
 	for (const element of Array.from(root.querySelectorAll('[class]'))) {
-		for (const className of Array.from(element.classList)) {
-			const declarations: string | undefined = resolve(className);
-			if (declarations) addMissingDeclarations(element, declarations);
-		}
+		const declarations: readonly string[] | undefined = classDeclarations(
+			element,
+			resolve,
+			maxDeclarations,
+		);
+		if (declarations) addMissingDeclarations(element, declarations);
 	}
+}
+
+/**
+ * The declarations of an element's classes, first listed class first, or
+ * `undefined` when they are more than `max`.
+ */
+function classDeclarations(
+	element: Element,
+	resolve: ClassDeclarationResolver,
+	max: number,
+): readonly string[] | undefined {
+	const declarations: string[] = [];
+	for (const className of Array.from(element.classList)) {
+		const resolved: string | undefined = resolve(className);
+		if (!resolved) continue;
+		const parts: readonly string[] = splitDeclarations(resolved);
+		if (declarations.length + parts.length > max) return undefined;
+		declarations.push(...parts);
+	}
+	return declarations;
 }
 
 /**
@@ -103,10 +130,10 @@ export function rehydrateStyleClasses(root: ParentNode, resolve: ClassDeclaratio
  * CSSOM writes. The browser serializes the result back into the attribute, so
  * parsers that read the raw attribute (table border color) still find it.
  */
-function addMissingDeclarations(element: Element, declarations: string): void {
+function addMissingDeclarations(element: Element, declarations: readonly string[]): void {
 	const style: CSSStyleDeclaration | undefined = (element as Partial<ElementCSSInlineStyle>).style;
 	if (!style) return;
-	for (const declaration of splitDeclarations(declarations)) {
+	for (const declaration of declarations) {
 		const parsed: CSSDeclaration | undefined = parseDeclaration(declaration);
 		if (!parsed || style.getPropertyValue(parsed.property)) continue;
 		style.setProperty(parsed.property, parsed.value);

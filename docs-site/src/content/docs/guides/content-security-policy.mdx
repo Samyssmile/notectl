@@ -345,7 +345,7 @@ Without the `styleMap`, class-based HTML can still be imported, but generated `n
 
 `setContentHTML()` and paste keep the formatting of inline `style` attributes on CSP-strict pages, too. HTML saved with the default `cssMode: 'inline'` round-trips, and content pasted from Word, Google Docs or other websites keeps its colors, fonts, sizes, alignment and bold text.
 
-Under `style-src-attr 'none'`, Chromium does not apply the `style` attributes of parsed HTML, not even inside the parser's inert template, but it keeps their text. Before reading formatting, notectl applies that text through the CSSOM, which a CSP does not restrict. Firefox applies the attributes itself, so nothing changes there.
+Under `style-src-attr 'none'`, Chromium does not apply the `style` attributes of parsed HTML, not even inside the parser's inert template, but it keeps their text. Before reading formatting, notectl applies that text through the CSSOM, which a CSP does not restrict, and the browser's own CSS parser reads it as it would without the policy. An element with more than 256 declarations in its `style` attribute keeps them unapplied: such input is not formatting, and applying it could freeze the page. Firefox applies the attributes itself, so nothing changes there.
 
 ### Which Serialization Mode Should I Use?
 

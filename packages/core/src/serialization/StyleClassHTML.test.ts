@@ -10,6 +10,7 @@ import {
 	createStyleClassLookup,
 	rehydrateStyleClasses,
 } from './StyleClassHTML.js';
+import { MAX_REHYDRATED_DECLARATIONS } from './StyleRehydration.js';
 
 const TEXT_RED: StyleClass = { className: 'text-red', declaration: 'color: #e03131' };
 
@@ -113,7 +114,11 @@ describe('rehydrateStyleClasses', () => {
 	it('adds the declarations of known classes and keeps every class on the element', () => {
 		const root: DocumentFragment = fragment('<span class="intro text-red">x</span>');
 
-		rehydrateStyleClasses(root, resolverOf({ 'text-red': 'color: #e03131' }));
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ 'text-red': 'color: #e03131' }),
+			MAX_REHYDRATED_DECLARATIONS,
+		);
 
 		const el: HTMLElement = firstElement(root);
 		expect(el.style.color).toBe('#e03131');
@@ -123,7 +128,11 @@ describe('rehydrateStyleClasses', () => {
 	it('adds every declaration of a class that stands for several', () => {
 		const root: DocumentFragment = fragment('<span class="notectl-s-x">x</span>');
 
-		rehydrateStyleClasses(root, resolverOf({ 'notectl-s-x': 'color: red; font-size: 18px' }));
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ 'notectl-s-x': 'color: red; font-size: 18px' }),
+			MAX_REHYDRATED_DECLARATIONS,
+		);
 
 		const el: HTMLElement = firstElement(root);
 		expect([el.style.color, el.style.fontSize]).toEqual(['red', '18px']);
@@ -137,6 +146,7 @@ describe('rehydrateStyleClasses', () => {
 		rehydrateStyleClasses(
 			root,
 			resolverOf({ 'text-red': 'color: #e03131', big: 'color: green; font-size: 18px' }),
+			MAX_REHYDRATED_DECLARATIONS,
 		);
 
 		const el: HTMLElement = firstElement(root);
@@ -146,7 +156,11 @@ describe('rehydrateStyleClasses', () => {
 	it('lets an inline shorthand win over a class for one of its longhands', () => {
 		const root: DocumentFragment = fragment('<span class="mark" style="background: red">x</span>');
 
-		rehydrateStyleClasses(root, resolverOf({ mark: 'background-color: yellow' }));
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ mark: 'background-color: yellow' }),
+			MAX_REHYDRATED_DECLARATIONS,
+		);
 
 		expect(firstElement(root).style.backgroundColor).toBe('red');
 	});
@@ -157,6 +171,7 @@ describe('rehydrateStyleClasses', () => {
 		rehydrateStyleClasses(
 			root,
 			resolverOf({ 'align-start': 'text-align: start', 'notectl-align-end': 'text-align: end' }),
+			MAX_REHYDRATED_DECLARATIONS,
 		);
 
 		expect(firstElement(root).style.textAlign).toBe('start');
@@ -167,7 +182,7 @@ describe('rehydrateStyleClasses', () => {
 			'<table class="framed" style="--ntbl-bc: #ABCDEF;"><tr><td>x</td></tr></table>',
 		);
 
-		rehydrateStyleClasses(root, resolverOf({ framed: 'width: 100%' }));
+		rehydrateStyleClasses(root, resolverOf({ framed: 'width: 100%' }), MAX_REHYDRATED_DECLARATIONS);
 
 		const style: string = firstElement(root).getAttribute('style') ?? '';
 		expect(style).toMatch(/--ntbl-bc:\s*#ABCDEF/);
@@ -180,6 +195,7 @@ describe('rehydrateStyleClasses', () => {
 		rehydrateStyleClasses(
 			root,
 			resolverOf({ pattern: 'background-image: url(data:image/png;base64,AAAA); color: red' }),
+			MAX_REHYDRATED_DECLARATIONS,
 		);
 
 		const el: HTMLElement = firstElement(root);
@@ -190,7 +206,11 @@ describe('rehydrateStyleClasses', () => {
 	it('skips declarations that are not safe', () => {
 		const root: DocumentFragment = fragment('<span class="evil">x</span>');
 
-		rehydrateStyleClasses(root, resolverOf({ evil: 'color: red } p { color: blue' }));
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ evil: 'color: red } p { color: blue' }),
+			MAX_REHYDRATED_DECLARATIONS,
+		);
 
 		expect(firstElement(root).hasAttribute('style')).toBe(false);
 	});
@@ -200,7 +220,11 @@ describe('rehydrateStyleClasses', () => {
 			'<p><strong><span class="text-red">x</span></strong></p>',
 		);
 
-		rehydrateStyleClasses(root, resolverOf({ 'text-red': 'color: #e03131' }));
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ 'text-red': 'color: #e03131' }),
+			MAX_REHYDRATED_DECLARATIONS,
+		);
 
 		expect(root.querySelector('span')?.style.color).toBe('#e03131');
 	});
