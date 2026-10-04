@@ -716,4 +716,45 @@ test.describe('Formula plugin', () => {
 		await expect(input).toHaveValue('\\int_{}^{}');
 		await expect(input).toBeFocused();
 	});
+
+	test('activates the Cancel and Insert buttons with the keyboard only (#171)', async ({
+		editor,
+		page,
+	}) => {
+		const input = page.locator('.notectl-formula-editor__input');
+		const formulas = editor.content.locator('.notectl-math');
+		// The text of the truly-focused button, piercing shadow boundaries.
+		const focusedButton = (): Promise<string | null> =>
+			page.evaluate(() => {
+				let el: Element | null = document.activeElement;
+				while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+				return el instanceof HTMLButtonElement ? el.textContent : null;
+			});
+		const tabToButton = async (label: string): Promise<void> => {
+			for (let steps = 0; (await focusedButton()) !== label; steps++) {
+				expect(steps, `${label} must be reachable with Tab`).toBeLessThan(8);
+				await page.keyboard.press('Tab');
+			}
+		};
+
+		await editor.focus();
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		await expect(input).toBeFocused();
+		await page.keyboard.type('y');
+		await tabToButton('Cancel');
+		await page.keyboard.press('Enter');
+
+		await expect(input).toBeHidden();
+		await expect(formulas).toHaveCount(0);
+
+		await editor.root.locator('[aria-label="Insert formula"]').click();
+		await expect(input).toBeFocused();
+		await page.keyboard.type('x^2');
+		await tabToButton('Insert');
+		await page.keyboard.press(' ');
+
+		await expect(input).toBeHidden();
+		await expect(formulas).toHaveCount(1);
+		await expect(formulas.locator('annotation')).toHaveText('x^2');
+	});
 });
