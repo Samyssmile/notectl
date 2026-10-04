@@ -18,6 +18,7 @@ const START_EDITOR = `(async () => {
 			new NotectlCore.TextColorPlugin({ colors: ['#e03131', '#1971c2'] }),
 			new NotectlCore.AlignmentPlugin(),
 			new NotectlCore.TablePlugin(),
+			new NotectlCore.BlockquotePlugin(),
 		]],
 	});
 	document.body.appendChild(editor);
@@ -133,6 +134,30 @@ test.describe('Inline styles under a strict CSP (#272)', () => {
 
 		expect(marksOf(doc, 'Pasted')).toEqual([{ type: 'textColor', attrs: { color: '#1971c2' } }]);
 		expect(marksOf(doc, ' text')).toEqual([]);
+	});
+
+	test('pastes inline styles inside a quote, which the document parser reads', async ({ page }) => {
+		await openEditor(page);
+
+		const doc: JsonNode = await pasteHTML(
+			page,
+			'<blockquote><p style="text-align: center"><span style="color: #e03131">Quoted</span></p>' +
+				'</blockquote>',
+		);
+
+		const quote: JsonNode | undefined = doc.children?.find(
+			(block: JsonNode) => block.type === 'blockquote',
+		);
+		expect(quote?.children?.[0]?.attrs?.align).toBe('center');
+		expect(marksOf(doc, 'Quoted')).toEqual([{ type: 'textColor', attrs: { color: '#e03131' } }]);
+	});
+
+	test('pastes the color of a legacy font element', async ({ page }) => {
+		await openEditor(page);
+
+		const doc: JsonNode = await pasteHTML(page, '<p><font color="#1971c2">Legacy</font> text</p>');
+
+		expect(marksOf(doc, 'Legacy')).toEqual([{ type: 'textColor', attrs: { color: '#1971c2' } }]);
 	});
 
 	test('pastes Google Docs HTML with only its bold text bold', async ({ page }) => {
