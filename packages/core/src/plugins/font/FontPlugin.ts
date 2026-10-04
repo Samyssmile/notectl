@@ -147,7 +147,8 @@ export class FontPlugin implements Plugin {
 	// --- Schema ---
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec(createInlineStyleMarkSpec(FONT_MARK));
+		const knownValues: readonly string[] = this.config.fonts.map((font) => font.family);
+		context.registerMarkSpec(createInlineStyleMarkSpec({ ...FONT_MARK, knownValues }));
 	}
 
 	private registerStyleClasses(context: PluginContext): void {

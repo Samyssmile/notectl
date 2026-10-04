@@ -98,4 +98,33 @@ describe('createInlineStyleMarkSpec', () => {
 		// validate is ignored on parse; transformParsed is applied to the raw value.
 		expect(rule && 'getAttrs' in rule && rule.getAttrs?.(el)).toEqual({ family: 'ARIAL' });
 	});
+
+	describe('known values', () => {
+		const knownFamilySpec = createInlineStyleMarkSpec({
+			type: 'test',
+			rank: 1,
+			valueAttr: 'family',
+			domStyleProperty: 'fontFamily',
+			cssProperty: 'font-family',
+			validate: () => true,
+			transformParsed: (v) => v.toUpperCase(),
+			knownValues: ['Georgia, serif', "'Inter', sans-serif"],
+		});
+
+		function parseFamily(family: string): unknown {
+			const rule = knownFamilySpec.parseHTML?.[0];
+			const el: HTMLElement = document.createElement('span');
+			el.style.setProperty('font-family', family);
+			return rule && 'getAttrs' in rule && rule.getAttrs?.(el);
+		}
+
+		it('stores a value the browser reads like a known value in the known spelling', () => {
+			expect(parseFamily('"Inter", sans-serif')).toEqual({ family: "'Inter', sans-serif" });
+			expect(parseFamily('Inter, sans-serif')).toEqual({ family: "'Inter', sans-serif" });
+		});
+
+		it('stores other values as transformParsed returns them', () => {
+			expect(parseFamily('Arial, sans-serif')).toEqual({ family: 'ARIAL, SANS-SERIF' });
+		});
+	});
 });

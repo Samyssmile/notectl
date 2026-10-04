@@ -419,6 +419,45 @@ describe('FontPlugin', () => {
 		});
 	});
 
+	describe('imported font families (#273)', () => {
+		/** Parses a span whose family the browser read back as `family`. */
+		async function parseImportedFamily(family: string): Promise<unknown> {
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }));
+			const span: HTMLElement = document.createElement('span');
+			span.style.setProperty('font-family', family);
+			return h.getMarkSpec('font')?.parseHTML?.[0]?.getAttrs?.(span);
+		}
+
+		it('stores a configured family in its configured spelling', async () => {
+			// Chromium reads `'Mono', monospace` back without quotes, Firefox with double quotes.
+			expect(await parseImportedFamily('Mono, monospace')).toEqual({
+				family: "'Mono', monospace",
+			});
+			expect(await parseImportedFamily('"Mono", monospace')).toEqual({
+				family: "'Mono', monospace",
+			});
+		});
+
+		it('marks the imported font as selected in the picker', async () => {
+			const attrs = (await parseImportedFamily('Mono, monospace')) as Record<string, string>;
+			const state = stateBuilder()
+				.paragraph('imported', 'b1', { marks: [{ type: 'font', attrs }] })
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['font'])
+				.build();
+			const h = await pluginHarness(new FontPlugin({ fonts: [TEST_FONT, MONO_FONT] }), state);
+			const container: HTMLDivElement = document.createElement('div');
+
+			h.getToolbarItem('font')?.renderPopup?.(
+				container,
+				mockPluginContext({ getState: () => state }),
+			);
+
+			const selected: NodeListOf<Element> = container.querySelectorAll('[aria-selected="true"]');
+			expect(Array.from(selected, (item: Element) => item.textContent)).toEqual(['✓Mono']);
+		});
+	});
+
 	describe('resolveFontName', () => {
 		it('strips double quotes from unrecognized font family', async () => {
 			const state = stateBuilder()

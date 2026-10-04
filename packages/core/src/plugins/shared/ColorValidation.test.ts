@@ -5,6 +5,7 @@ import {
 	isValidCSSFontFamily,
 	isValidCSSFontSize,
 	isValidHexColor,
+	knownColors,
 	resolveColors,
 } from './ColorValidation.js';
 
@@ -278,5 +279,23 @@ describe('hexColorKey', () => {
 		expect(() => hexColorKey(key)).toThrow(
 			new TypeError(`"${key}" is not a hex color; use keys such as "#e03131".`),
 		);
+	});
+});
+
+describe('knownColors', () => {
+	it('lists the palette, then the colors of styleClasses keys like the palette', () => {
+		expect(knownColors(['#e03131', '#1971c2'], { '#5F3DC4': 'text-brand' })).toEqual([
+			'#e03131',
+			'#1971c2',
+			'#5f3dc4',
+		]);
+	});
+
+	it('leaves keys that are not hex colors to the styleClasses validation', () => {
+		expect(knownColors(['#e03131'], { red: 'text-red' })).toEqual(['#e03131']);
+	});
+
+	it('lists the palette without styleClasses', () => {
+		expect(knownColors(['#e03131'], undefined)).toEqual(['#e03131']);
 	});
 });

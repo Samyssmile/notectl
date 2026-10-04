@@ -3,6 +3,8 @@
  * for style-based mark plugins (TextColor, Highlight, Font, FontSize).
  */
 
+import type { StyleClassNames } from '../../model/StyleClass.js';
+
 const HEX_COLOR_PATTERN: RegExp = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** Returns `true` when the value is a valid `#RGB` or `#RRGGBB` hex color. */
@@ -19,6 +21,21 @@ export function hexColorKey(key: string): string {
 		throw new TypeError(`"${key}" is not a hex color; use keys such as "#e03131".`);
 	}
 	return key.toLowerCase();
+}
+
+/**
+ * The colors a color plugin stores in its own spelling: its palette, then the
+ * colors its `styleClasses` option maps, lowercased like the palette. Keys
+ * that are not hex colors are left to the `styleClasses` validation.
+ */
+export function knownColors(
+	palette: readonly string[],
+	styleClasses: StyleClassNames<string> | undefined,
+): readonly string[] {
+	const classColors: readonly string[] = Object.keys(styleClasses ?? {})
+		.filter(isValidHexColor)
+		.map(hexColorKey);
+	return [...palette, ...classColors];
 }
 
 // --- CSS Color Validation (broad format support for paste / API input) ---

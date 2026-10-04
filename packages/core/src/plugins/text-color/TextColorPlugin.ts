@@ -9,7 +9,12 @@ import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
-import { hexColorKey, isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
+import {
+	hexColorKey,
+	isValidCSSColor,
+	knownColors,
+	resolveColors,
+} from '../shared/ColorValidation.js';
 import {
 	type InlineStyleMarkConfig,
 	createInlineStyleMarkSpec,
@@ -97,7 +102,8 @@ export class TextColorPlugin implements Plugin {
 	}
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec(createInlineStyleMarkSpec(TEXT_COLOR_MARK));
+		const knownValues: readonly string[] = knownColors(this.colors, this.config.styleClasses);
+		context.registerMarkSpec(createInlineStyleMarkSpec({ ...TEXT_COLOR_MARK, knownValues }));
 	}
 
 	private registerStyleClasses(context: PluginContext): void {

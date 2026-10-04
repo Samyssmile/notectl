@@ -14,6 +14,7 @@ import {
 	splitDeclarations,
 } from '../model/StyleClass.js';
 import { defaultAlignmentDeclaration } from './AlignmentHTML.js';
+import { type CSSValueCanonicalizer, createCSSValueCanonicalizer } from './CSSValueEquivalence.js';
 
 /** Finds the style class that stands for one declaration during an export. */
 export type StyleClassLookup = (declaration: string) => StyleClass | undefined;
@@ -32,13 +33,9 @@ export type DeclarationCanonicalizer = (declaration: CSSDeclaration) => string;
  * A value the engine rejects is compared as written.
  */
 export function createCSSOMCanonicalizer(): DeclarationCanonicalizer {
-	let scratch: CSSStyleDeclaration | undefined;
-	return ({ property, value }: CSSDeclaration): string => {
-		scratch ??= document.createElement('span').style;
-		scratch.cssText = '';
-		scratch.setProperty(property, value);
-		return formatDeclaration({ property, value: scratch.getPropertyValue(property) || value });
-	};
+	const canonicalValue: CSSValueCanonicalizer = createCSSValueCanonicalizer();
+	return ({ property, value }: CSSDeclaration): string =>
+		formatDeclaration({ property, value: canonicalValue(property, value) });
 }
 
 /**

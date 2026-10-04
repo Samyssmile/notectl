@@ -2,13 +2,17 @@
  * Factory for inline marks that carry a single CSS style declaration (text
  * color, highlight, font family, font size). These marks share the same DOM
  * rendering, HTML import/export, and `<span>`-based parse shape and differ only
- * in the attribute name, CSS property, and validation.
+ * in the attribute name, CSS property, validation, and the plugin's own values.
  */
 
 import type { Mark } from '../../model/Document.js';
 import { styleAttribute } from '../../model/HTMLUtils.js';
 import type { MarkSpec } from '../../model/MarkSpec.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
+import {
+	type KnownValueLookup,
+	createKnownValueLookup,
+} from '../../serialization/CSSValueEquivalence.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 
 export interface InlineStyleMarkConfig {
@@ -28,6 +32,14 @@ export interface InlineStyleMarkConfig {
 	readonly validateOnParse?: boolean;
 	/** Optional transform applied to a parsed value (e.g. CSS quote normalization). */
 	readonly transformParsed?: (value: string) => string;
+	/**
+	 * The plugin's own spellings of values, such as its palette. HTML import and
+	 * paste store a parsed value that the browser reads the same as one of them
+	 * in that spelling, so `#e03131` read back as `rgb(224, 49, 49)` stays
+	 * `#e03131`: pickers mark it as selected, and an HTML round trip keeps the
+	 * document unchanged. Other values are stored as parsed.
+	 */
+	readonly knownValues?: readonly string[];
 }
 
 /** The raw CSS declaration a style mark exports for `value`, e.g. `color: #e03131`. */
@@ -46,9 +58,13 @@ export function createInlineStyleMarkSpec(config: InlineStyleMarkConfig): MarkSp
 		validate,
 		validateOnParse,
 		transformParsed,
+		knownValues = [],
 	} = config;
 
 	const readValue = (mark: Mark): string => String(mark.attrs?.[valueAttr] ?? '');
+	const knownSpelling: KnownValueLookup = createKnownValueLookup(cssProperty, knownValues);
+	const storedValue = (parsed: string): string =>
+		knownSpelling(parsed) ?? (transformParsed ? transformParsed(parsed) : parsed);
 	const exportDeclaration = (mark: Mark): string | null => {
 		const value: string = readValue(mark);
 		return value && validate(value) ? styleDeclaration(cssProperty, value) : null;
@@ -79,8 +95,7 @@ export function createInlineStyleMarkSpec(config: InlineStyleMarkConfig): MarkSp
 						(el.style as unknown as Record<string, string>)[domStyleProperty] ?? '';
 					if (!raw) return false;
 					if (validateOnParse && !validate(raw)) return false;
-					const value: string = transformParsed ? transformParsed(raw) : raw;
-					return { [valueAttr]: value };
+					return { [valueAttr]: storedValue(raw) };
 				},
 			},
 		],
