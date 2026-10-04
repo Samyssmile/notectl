@@ -14,6 +14,10 @@ interface NotectlEditorElement extends HTMLElement {
 		}[];
 	};
 	getContentHTML(): Promise<string>;
+	getContentHTML(options: {
+		cssMode: 'classes';
+		includeBlockIds: false;
+	}): Promise<{ html: string; css: string; styleMap: ReadonlyMap<string, string> }>;
 	setContentHTML(html: string): Promise<void>;
 	setJSON(doc: unknown): void;
 	getState(): unknown;
@@ -30,6 +34,13 @@ interface NotectlEditorElement extends HTMLElement {
 }
 
 type ClipboardPayload = Record<string, string>;
+
+/** Class-based HTML export, with the styleMap as entries so it crosses `page.evaluate`. */
+export interface ClassExport {
+	readonly html: string;
+	readonly css: string;
+	readonly styleMap: readonly (readonly [string, string])[];
+}
 
 type El = NotectlEditorElement;
 const SEL = 'notectl-editor';
@@ -350,6 +361,15 @@ export class EditorPage {
 		return this.page.evaluate(() =>
 			(document.querySelector('notectl-editor') as unknown as El).getContentHTML(),
 		);
+	}
+
+	/** Clean class-based export (`cssMode: 'classes'`, no block ids). */
+	async getContentClasses(): Promise<ClassExport> {
+		return this.page.evaluate(async () => {
+			const el = document.querySelector('notectl-editor') as unknown as El;
+			const result = await el.getContentHTML({ cssMode: 'classes', includeBlockIds: false });
+			return { html: result.html, css: result.css, styleMap: [...result.styleMap] };
+		});
 	}
 
 	async setContentHTML(html: string): Promise<void> {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from './fixtures/editor-page';
+import { type ClassExport, expect, test } from './fixtures/editor-page';
 
 /**
  * Application-defined alignment classes (#270): configured once on the
@@ -20,26 +20,6 @@ const APP_STYLESHEET = `
 	.align-center { text-align: center; }
 	.align-end { text-align: end; }
 `;
-
-interface ClassExport {
-	readonly html: string;
-	readonly css: string;
-	readonly styleMap: readonly (readonly [string, string])[];
-}
-
-async function exportClasses(page: Page): Promise<ClassExport> {
-	return page.evaluate(async () => {
-		const el = document.querySelector('notectl-editor') as unknown as {
-			getContentHTML(options: unknown): Promise<{
-				html: string;
-				css: string;
-				styleMap: ReadonlyMap<string, string>;
-			}>;
-		};
-		const result = await el.getContentHTML({ cssMode: 'classes', includeBlockIds: false });
-		return { html: result.html, css: result.css, styleMap: [...result.styleMap] };
-	});
-}
 
 async function blockAlignments(page: Page): Promise<unknown[]> {
 	return page.evaluate(() => {
@@ -102,9 +82,9 @@ test.describe('Alignment CSS classes (#270)', () => {
 		await editor.content.locator('p').click();
 
 		await page.keyboard.press('Control+Shift+R');
-		const afterEnd: ClassExport = await exportClasses(page);
+		const afterEnd: ClassExport = await editor.getContentClasses();
 		await page.keyboard.press('Control+Shift+L');
-		const afterStart: ClassExport = await exportClasses(page);
+		const afterStart: ClassExport = await editor.getContentClasses();
 
 		expect(afterEnd.html).toBe('<p class="align-end">Aligned text</p>');
 		expect(afterEnd.css).toBe('.align-end { text-align: end; }');
@@ -121,7 +101,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 		);
 
 		await expect(editor.content.locator('figure')).toHaveCount(1);
-		const { html } = await exportClasses(page);
+		const { html } = await editor.getContentClasses();
 		expect(html).toContain('<figure class="align-end">');
 	});
 
@@ -135,9 +115,9 @@ test.describe('Alignment CSS classes (#270)', () => {
 			await editor.focus();
 
 			await editor.pasteHTML(source);
-			const first: ClassExport = await exportClasses(page);
+			const first: ClassExport = await editor.getContentClasses();
 			await editor.setContentHTML(first.html);
-			const second: ClassExport = await exportClasses(page);
+			const second: ClassExport = await editor.getContentClasses();
 
 			expect(first.html).toBe(source);
 			expect(second).toEqual(first);
@@ -158,7 +138,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 		await expect(editor.content.locator('h2')).toHaveCount(1);
 		await expect(editor.content.locator('p')).toHaveCount(0);
 		await expect(editor.content.locator('h2')).toHaveCSS('text-align', 'center');
-		expect((await exportClasses(page)).html).toBe('<h2 class="align-center">Title!</h2>');
+		expect((await editor.getContentClasses()).html).toBe('<h2 class="align-center">Title!</h2>');
 	});
 
 	test('publishes the blocks of an aligned table cell as the editor shows them', async ({
@@ -172,7 +152,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 			.locator('td p')
 			.evaluate((paragraph: Element) => getComputedStyle(paragraph).textAlign);
 
-		const { html } = await exportClasses(page);
+		const { html } = await editor.getContentClasses();
 
 		expect(shown).toBe('center');
 		expect(await publishedTextAlign(page, html, 'td p')).toBe(shown);
@@ -192,7 +172,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 			await editor.content.locator('td p').click();
 
 			await page.keyboard.press('Control+Shift+L');
-			const first: ClassExport = await exportClasses(page);
+			const first: ClassExport = await editor.getContentClasses();
 
 			await expect(editor.content.locator('td p')).toHaveCSS('text-align', 'start');
 			await expect(editor.content.locator('td p')).toHaveCSS('direction', direction);
@@ -201,11 +181,11 @@ test.describe('Alignment CSS classes (#270)', () => {
 			expect(await publishedTextAlign(page, first.html, 'td p')).toBe('start');
 			await editor.setContentHTML(first.html);
 			await expect(editor.content.locator('td p')).toHaveCSS('text-align', 'start');
-			expect(await exportClasses(page)).toEqual(first);
+			expect(await editor.getContentClasses()).toEqual(first);
 
 			await editor.content.locator('td p').click();
 			await page.keyboard.press('Control+Shift+E');
-			const afterCenter: ClassExport = await exportClasses(page);
+			const afterCenter: ClassExport = await editor.getContentClasses();
 			expect(afterCenter.html).toContain('<p class="align-center">Cell text</p>');
 			expect(afterCenter.html).not.toContain('align-start');
 		});
@@ -218,7 +198,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 		await editor.setContentHTML(
 			'<p class="align-start">بداية</p><p class="align-end">نهاية</p><p>افتراضي</p>',
 		);
-		const { html } = await exportClasses(page);
+		const { html } = await editor.getContentClasses();
 
 		const gaps = await page.evaluate(
 			({ content, stylesheet }) => {

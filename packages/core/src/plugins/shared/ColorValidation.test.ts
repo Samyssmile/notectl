@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	hexColorKey,
 	isValidCSSColor,
 	isValidCSSFontFamily,
 	isValidCSSFontSize,
@@ -264,5 +265,18 @@ describe('ColorValidation', () => {
 		it('rejects number without unit', () => {
 			expect(isValidCSSFontSize('16')).toBe(false);
 		});
+	});
+});
+
+describe('hexColorKey', () => {
+	it('lowercases a hex color key like the palette', () => {
+		expect(hexColorKey('#E03131')).toBe('#e03131');
+		expect(hexColorKey('#F00')).toBe('#f00');
+	});
+
+	it.each(['red', 'rgb(224, 49, 49)', '#e0313', ''])('rejects %j', (key: string) => {
+		expect(() => hexColorKey(key)).toThrow(
+			new TypeError(`"${key}" is not a hex color; use keys such as "#e03131".`),
+		);
 	});
 });
