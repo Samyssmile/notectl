@@ -48,22 +48,26 @@ when your change is already present), because the snapshot is rebuilt whenever r
 See [Extending Another Plugin's NodeSpec](/notectl/api/plugin-interface/#extending-another-plugins-nodespec)
 for the plugin-facing API.
 
-### Alignment Class Names
+### Style Classes
+
+A style class is an application CSS class that stands for exactly one CSS declaration:
+`{ className: 'text-red', declaration: 'color: #e03131' }`.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `registerAlignmentClassNames` | `(classNames: AlignmentClassNames) => void` | Register application CSS classes for block alignment. Validates the names; throws when invalid or already registered |
-| `getAlignmentClassNames` | `() => AlignmentClassNames \| undefined` | The registered classes, if any |
-| `removeAlignmentClassNames` | `(classNames: AlignmentClassNames) => void` | Remove the registration made with the same object |
+| `registerStyleClass` | `(styleClass: StyleClass) => void` | Register a class for one declaration. Throws a `TypeError` when the class is invalid, already stands for another declaration, or the declaration already has another class. Registering the same pair again is counted |
+| `removeStyleClass` | `(styleClass: StyleClass) => void` | Remove one registration of the pair; the class stays while others registered it too |
+| `getStyleClass` | `(className: string) => StyleClass \| undefined` | The style class with this name, if any |
+| `getStyleClasses` | `() => readonly StyleClass[]` | All style classes in registration order |
 
-Class-based HTML export writes the registered classes and HTML import maps them back to the
-`align` attribute. While classes are registered, `getAllowedAttrs()` includes `class`. Plugins
-register through `PluginContext.registerAlignmentClassNames()`, which the
-[AlignmentPlugin](/notectl/plugins/alignment/#custom-css-classes) does for its `classNames` option;
-the registration is removed automatically when the plugin is destroyed. `serializeDocumentToCSS()`
-and `parseHTMLToDocument()` from `@notectl/core/html` use the classes registered on the registry you
-pass them: the one a plugin receives from `context.getSchemaRegistry()`, or your own registry after
-`registerAlignmentClassNames()`.
+Class-based HTML export writes the registered class wherever it would write the declaration, and
+HTML import and paste read the class back as the declaration. While classes are registered,
+`getAllowedAttrs()` includes `class`. Plugins register through `PluginContext.registerStyleClass()`,
+which the formatting plugins do for their `styleClasses` option; the registration is removed
+automatically when the plugin is destroyed. `serializeDocumentToCSS()` and `parseHTMLToDocument()`
+from `@notectl/core/html` use the classes registered on the registry you pass them: the one a plugin
+receives from `context.getSchemaRegistry()`, or your own registry after `registerStyleClass()`. See
+[Custom CSS Classes](/notectl/guides/custom-css-classes/).
 
 ### Mark Spec Methods
 

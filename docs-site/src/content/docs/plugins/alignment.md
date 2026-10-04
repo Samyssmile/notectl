@@ -28,13 +28,13 @@ interface AlignmentConfig {
   /** Per-type default alignment. E.g. { image: 'center' } */
   readonly defaults: Readonly<Record<string, BlockAlignment>>;
   /** Your own CSS class per alignment in HTML content. See "Custom CSS Classes". */
-  readonly classNames?: AlignmentClassNames;
+  readonly styleClasses?: StyleClassNames<BlockAlignment>;
   /** Custom locale strings. */
   readonly locale?: AlignmentLocale;
 }
 
 type BlockAlignment = 'start' | 'center' | 'end' | 'justify';
-type AlignmentClassNames = Readonly<Partial<Record<BlockAlignment, string>>>;
+type StyleClassNames<K> = Readonly<Partial<Record<K, string>>>;
 ```
 
 ### Logical Values and RTL Support
@@ -71,13 +71,14 @@ new AlignmentPlugin({
 By default, [class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes alignment as `notectl-align-center` and similar classes. If your application already has
 classes for alignment, for example from a CMS, a design system or a previous editor, configure
-them once with `classNames`:
+them once with `styleClasses`. Colors, highlights, font sizes and fonts have the same option; see
+[Custom CSS Classes](/notectl/guides/custom-css-classes/) for the whole picture.
 
 ```ts
 import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
 
 new AlignmentPlugin({
-  classNames: {
+  styleClasses: {
     center: 'align-center',
     end: 'align-end',
     justify: 'align-justify',
@@ -85,7 +86,7 @@ new AlignmentPlugin({
 });
 
 // With the full preset:
-createFullPreset({ alignment: { classNames: { center: 'align-center' } } });
+createFullPreset({ alignment: { styleClasses: { center: 'align-center' } } });
 ```
 
 Every HTML boundary of the editor then uses your classes:
@@ -111,7 +112,7 @@ await editor.setContentHTML(html); // no styleMap needed: the alignment is resto
   Content with notectl's default classes still imports and is written with your classes on the
   next export, which makes switching an existing store over a matter of re-saving.
 - **The document stays semantic.** The editor stores `align: 'center'`, never a class name.
-  `classNames` is initialization configuration. Recreating the editor with another mapping changes
+  `styleClasses` is initialization configuration. Recreating the editor with another mapping changes
   the exported names without changing the semantic alignment stored in your JSON document.
 - **Alignments without a class** keep notectl's default names, so you can map only the ones your
   stylesheet knows.
@@ -127,7 +128,7 @@ your content area is justified by default:
 
 ```ts
 new AlignmentPlugin({
-  classNames: { start: 'align-start', center: 'align-center', end: 'align-end' },
+  styleClasses: { start: 'align-start', center: 'align-center', end: 'align-end' },
 });
 ```
 
@@ -190,8 +191,8 @@ for a complete example.
 
 ### Rules for Class Names
 
-The editor checks `classNames` when it initializes. An invalid configuration makes `createEditor()`
-(or `init()`) reject with a `TypeError` that names the problem and the fix:
+The editor checks `styleClasses` when it initializes. An invalid configuration makes
+`createEditor()` (or `init()`) reject with a `TypeError` that names the problem and the fix:
 
 - Keys are `start`, `center`, `end` and `justify`.
 - Each value is one CSS class name of letters, digits, `-` and `_` that does not start with a digit.
@@ -199,8 +200,8 @@ The editor checks `classNames` when it initializes. An invalid configuration mak
 - The prefix `notectl-` is reserved for the classes notectl generates.
 - Each alignment needs its own class; otherwise import could not tell them apart.
 
-Custom classes cover block alignment. Text colors, highlights, fonts and font sizes keep their
-generated `notectl-s-*` classes in class-based export.
+The [Custom CSS Classes](/notectl/guides/custom-css-classes/#import-rules) guide describes how
+import resolves conflicting classes and inline styles.
 
 ## Commands
 

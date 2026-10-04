@@ -187,15 +187,16 @@ When `cssMode: 'classes'` is set, dynamic marks (text color, highlight, font siz
 
 ```ts
 const { html, css } = await editor.getContentHTML({ cssMode: 'classes' });
-// html: '<p class="notectl-align-center"><strong><span class="notectl-s0">Hello</span></strong></p>'
-// css:  '.notectl-s0 { color: #ff0000; }\n.notectl-align-center { text-align: center; }'
+// html: '<p class="notectl-align-center"><strong><span class="notectl-s-1k9x2m">Hello</span></strong></p>'
+// css:  '.notectl-s-1k9x2m { color: #ff0000; }\n.notectl-align-center { text-align: center; }'
 ```
 
 Identical style combinations are deduplicated — multiple elements with the same styles share a single class name and CSS rule.
 
-Block alignment is written as `notectl-align-*` classes, or as your own classes when the
-[AlignmentPlugin](/notectl/plugins/alignment/#custom-css-classes) is configured with `classNames`.
-`setContentHTML()` recognizes configured classes without a `styleMap`.
+Block alignment is written as `notectl-align-*` classes. Formatting plugins configured with
+`styleClasses` write your own classes instead; see
+[Custom CSS Classes](/notectl/guides/custom-css-classes/). `setContentHTML()` recognizes configured
+classes and `notectl-align-*` without a `styleMap`.
 
 See the [CSP guide](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles) for integration examples.
 

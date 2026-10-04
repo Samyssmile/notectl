@@ -28,6 +28,8 @@ interface FontSizeConfig {
   readonly sizes?: number[];
   /** Base font size (no mark applied). Default: 16 */
   readonly defaultSize?: number;
+  /** Your own CSS class per pixel size in class-based HTML. See "Custom CSS Classes". */
+  readonly styleClasses?: Readonly<Record<number, string>>;
   /** Custom locale strings. */
   readonly locale?: FontSizeLocale;
 }
@@ -40,6 +42,24 @@ When `sizes` is not specified:
 ```
 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64, 72, 96
 ```
+
+## Custom CSS Classes
+
+[Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
+writes font sizes as generated `notectl-s-*` classes. Map the sizes of your type scale to its
+classes with `styleClasses`, keyed by pixel size:
+
+```ts
+new FontSizePlugin({
+  sizes: [14, 18, 24],
+  styleClasses: { 14: 'text-sm', 18: 'text-lg', 24: 'text-xl' },
+});
+// Exported: <span class="text-lg">…</span>
+```
+
+Keys are whole pixel numbers; `'18px'` or `1.5` are rejected with an explanation. Text with a
+size and a color gets both classes (`class="text-red text-lg"`). Import and paste read the classes
+back without a `styleMap`. See [Custom CSS Classes](/notectl/guides/custom-css-classes/) for the rules shared by all formatting plugins.
 
 ## Commands
 

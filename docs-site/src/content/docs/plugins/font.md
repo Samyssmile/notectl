@@ -28,6 +28,8 @@ interface FontConfig {
   readonly fonts: FontDefinition[];
   /** Name of the default font. Selecting it removes the mark. */
   readonly defaultFont?: string;
+  /** Your own CSS class per font name in class-based HTML. See "Custom CSS Classes". */
+  readonly styleClasses?: Readonly<Record<string, string>>;
   /** Custom locale strings. */
   readonly locale?: FontLocale;
 }
@@ -54,6 +56,27 @@ interface FontFaceDescriptor {
   readonly display?: string;
 }
 ```
+
+## Custom CSS Classes
+
+[Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
+writes fonts as generated `notectl-s-*` classes. Map your fonts to the classes of your stylesheet
+with `styleClasses`, keyed by the font's `name`:
+
+```ts
+new FontPlugin({
+  fonts: [
+    { name: 'Inter', family: "'Inter', sans-serif" },
+    { name: 'Fira Code', family: "'Fira Code', monospace" },
+  ],
+  styleClasses: { Inter: 'font-sans', 'Fira Code': 'font-mono' },
+});
+// Exported: <span class="font-mono">…</span>
+```
+
+Keys must name fonts in `fonts`; an unknown name is rejected with the list of configured fonts.
+Browsers requote font names on import (`'Inter'` may come back as `Inter`), and the next export
+still finds your class. See [Custom CSS Classes](/notectl/guides/custom-css-classes/) for the rules shared by all formatting plugins.
 
 ## Starter Fonts
 

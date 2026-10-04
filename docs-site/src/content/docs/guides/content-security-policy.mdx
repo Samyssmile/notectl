@@ -223,36 +223,35 @@ This produces HTML with **zero** `style` attributes. All styling is expressed vi
 
 #### Using Your Own Class Names
 
-Alignment can use your application's classes instead of `notectl-align-*`, for example when
-stored content must follow the naming of a CMS or design system. Configure them once on the
-[AlignmentPlugin](/notectl/plugins/alignment/#custom-css-classes):
+Formatting can use your application's classes instead of notectl's generated names, for example
+when stored content must follow the naming of a CMS or design system. Every formatting plugin has a
+`styleClasses` option; see [Custom CSS Classes](/notectl/guides/custom-css-classes/):
 
 ```ts
-import { AlignmentPlugin } from '@notectl/core/plugins/alignment';
-
-new AlignmentPlugin({
-  classNames: { center: 'align-center', end: 'align-end', justify: 'align-justify' },
-});
-```
-
-Your existing stylesheet keeps styling the content. Write it with logical values so that
-right-to-left content aligns correctly:
-
-```css
-/* /assets/content.css: your application's stylesheet */
-.align-center  { text-align: center; }
-.align-end     { text-align: end; }
-.align-justify { text-align: justify; }
+new AlignmentPlugin({ styleClasses: { center: 'align-center' } });
+new TextColorPlugin({ styleClasses: { '#e03131': 'text-red' } });
+new FontSizePlugin({ styleClasses: { 18: 'text-lg' } });
 ```
 
 ```ts
 const { html } = await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false });
-// '<p class="align-center">Welcome</p>'
+// '<p class="align-center"><span class="text-red text-lg">Welcome</span></p>'
 await saveToBackend({ html });
 ```
 
+Your existing stylesheet keeps styling the content, with no inline styles and no generated classes
+for the formatting you mapped. Write alignment rules with logical values so that right-to-left
+content aligns correctly:
+
+```css
+/* /assets/content.css: your application's stylesheet */
+.align-center { text-align: center; }
+.text-red     { color: #e03131; }
+.text-lg      { font-size: 18px; }
+```
+
 ```html
-<!-- Rendering page: no inline styles, no generated alignment classes -->
+<!-- Rendering page -->
 <link rel="stylesheet" href="/assets/content.css">
 <article><!-- stored html --></article>
 ```
@@ -264,9 +263,9 @@ await editor.setContentHTML(saved.html);
 ```
 
 <Aside type="note">
-  Custom classes cover block alignment. Text colors, highlights, fonts and font sizes still use
-  generated `notectl-s-*` classes, so also deliver the returned `css` when content uses them. It
-  repeats your alignment rules with the same logical values, so both stylesheets agree.
+  Formatting without a class of yours keeps a generated `notectl-s-*` class, so also deliver the
+  returned `css` when content can contain such values. It repeats the declarations of your classes,
+  so both stylesheets agree.
 </Aside>
 
 #### Rendering on a CSP-Strict Page
@@ -336,7 +335,7 @@ const savedStyleMap = new Map(Object.entries(saved.styleMap));
 editor.setContentHTML(saved.html, { styleMap: savedStyleMap });
 ```
 
-Without the `styleMap`, class-based HTML can still be imported — but class-only styles (colors, fonts, etc.) will be lost since the class names have no meaning without their CSS declarations. The `styleMap` "rehydrates" classes back to inline styles before parsing. Alignment classes [you configure](#using-your-own-class-names) are the exception: they are recognized without a `styleMap`.
+Without the `styleMap`, class-based HTML can still be imported, but generated `notectl-s-*` classes (colors, fonts, etc.) will be lost since the class names have no meaning without their CSS declarations. The `styleMap` "rehydrates" classes back to inline styles before parsing; an inline style on the same element wins over a class. Classes [you configure](#using-your-own-class-names) and `notectl-align-*` are recognized without a `styleMap`.
 
 <Aside type="caution">
   If you only need to store and re-display content, you can use JSON (`getJSON()` / `setJSON()`) which preserves all data perfectly. The `styleMap` round-trip is specifically for scenarios where you store class-based HTML and need to re-import it into an editor.
@@ -348,7 +347,7 @@ Without the `styleMap`, class-based HTML can still be imported — but class-onl
 |----------|------|-------|
 | Storing HTML for email clients | `'inline'` (default) | Self-contained, widest compatibility |
 | Rendering on a CSP-strict page | `'classes'` | Zero inline styles, use `injectContentStyles` |
-| Rendering with your own alignment classes | `'classes'` + [`classNames`](#using-your-own-class-names) | Your stylesheet styles the content |
+| Rendering with your own CSS classes | `'classes'` + [`styleClasses`](#using-your-own-class-names) | Your stylesheet styles the content |
 | Clipboard copy/paste | Automatic | Always uses inline styles for cross-app compat |
 | Re-importing into the editor | `'classes'` + `styleMap` | Full round-trip preservation |
 | Storing editor state (lossless) | `getJSON()` / `setJSON()` | Best for editor-to-editor workflows |

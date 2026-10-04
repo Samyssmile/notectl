@@ -28,12 +28,31 @@ interface HighlightConfig {
    * When omitted, the full 50-color default palette is shown.
    */
   readonly colors?: readonly string[];
+  /** Your own CSS class per highlight color in class-based HTML. See "Custom CSS Classes". */
+  readonly styleClasses?: Readonly<Record<string, string>>;
   /** Custom locale strings. */
   readonly locale?: HighlightLocale;
 }
 ```
 
 Colors are validated on construction. Invalid hex values throw an `Error` with a descriptive message listing the offending values.
+
+## Custom CSS Classes
+
+[Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
+writes highlights as generated `notectl-s-*` classes. Map the highlight colors your stylesheet knows
+to its classes with `styleClasses`, keyed by hex color:
+
+```ts
+new HighlightPlugin({
+  colors: ['#fff3bf', '#d3f9d8'],
+  styleClasses: { '#fff3bf': 'mark-yellow', '#d3f9d8': 'mark-green' },
+});
+// Exported: <span class="mark-yellow">…</span>
+```
+
+Import and paste read the classes back without a `styleMap`; inline export keeps writing
+`style="background-color: …"`. See [Custom CSS Classes](/notectl/guides/custom-css-classes/) for the rules shared by all formatting plugins.
 
 ## Commands
 

@@ -56,7 +56,7 @@ interface PluginContext {
   registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
   registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
   registerInlineNodeSpec<T extends string>(spec: InlineNodeSpec<T>): void;
-  registerAlignmentClassNames(classNames: AlignmentClassNames): void;
+  registerStyleClass(styleClass: StyleClass): void;
   registerNodeView(type: string, factory: NodeViewFactory): void;
   getSchemaRegistry(): SchemaRegistry;
 
@@ -104,6 +104,17 @@ interface PluginContext {
 ```
 
 Plugins that need to show popups (dropdowns, color pickers, dialogs) should use the shared [Popup Framework](/notectl/api/popup-framework/) via `PopupServiceKey` rather than managing DOM elements directly.
+
+## Style Classes
+
+`registerStyleClass({ className, declaration })` lets content HTML use an application CSS class for
+one CSS declaration that the plugin exports, for example
+`{ className: 'text-red', declaration: 'color: #e03131' }`. Class-based export writes the class
+instead of a generated `notectl-s-*` name, and HTML import and paste read it back as the
+declaration. An invalid class, a class that already stands for another declaration, or a
+declaration that already has another class throws a `TypeError`. The registration is removed when
+the plugin is destroyed. The formatting plugins use it for their `styleClasses` option; see
+[Custom CSS Classes](/notectl/guides/custom-css-classes/).
 
 ## Extending Another Plugin's NodeSpec
 

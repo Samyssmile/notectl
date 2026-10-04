@@ -130,6 +130,27 @@ context.registerNodeSpecExtension('table_cell', (cellSpec) => {
 Return `spec` unchanged when your change is already applied; the schema can be rebuilt and the
 extension re-run. See [Extending Another Plugin's NodeSpec](/notectl/api/plugin-interface/#extending-another-plugins-nodespec).
 
+### Style Classes
+
+A mark that exports a CSS declaration through `toHTMLStyle()`, or a node that passes one to
+`ctx.styleAttr()` in `toHTML()`, gets a generated `notectl-s-*` class in class-based HTML export.
+Register a style class to let content HTML use an application class for that declaration instead:
+
+```ts
+context.registerStyleClass({ className: 'tracking-wide', declaration: 'letter-spacing: 0.1em' });
+```
+
+Export then writes `class="tracking-wide"`, and HTML import and paste turn the class back into
+`letter-spacing: 0.1em`, so your parse rule reads it like an inline style. Return raw CSS from
+`toHTMLStyle()` and pass raw CSS to `ctx.styleAttr()`; notectl escapes it where it writes a `style`
+attribute.
+
+To offer the same `styleClasses` option as the built-in formatting plugins, map each key to the
+declaration your export writes for it, with the same function, and register one class per entry.
+Validate the keys and throw a `TypeError` that explains the fix, so a misconfiguration fails
+`init()`. Registrations are removed when the plugin is destroyed. See
+[Custom CSS Classes](/notectl/guides/custom-css-classes/) for how import resolves classes.
+
 ### Keymaps
 
 Bind keyboard shortcuts:

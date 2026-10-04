@@ -99,22 +99,22 @@ Example output:
 ```html
 <!-- html -->
 <p class="notectl-align-center">
-  <strong><span class="notectl-s0">Hello World</span></strong>
+  <strong><span class="notectl-s-1k9x2m">Hello World</span></strong>
 </p>
 ```
 
 ```css
 /* css */
-.notectl-s0 { color: #ff0000; background-color: #fff176; }
+.notectl-s-1k9x2m { background-color: #fff176; color: #ff0000; }
 .notectl-align-center { text-align: center; }
 ```
 
 Semantic marks (`<strong>`, `<em>`, `<u>`, `<s>`) are unaffected — they always use HTML elements. Only dynamic style marks (text color, highlight, font size, font family) and block alignment are converted to classes.
 
-Alignment can use your application's own class names (for example `align-center`) instead of
-`notectl-align-*`. Configure them once with the
-[AlignmentPlugin `classNames` option](/notectl/plugins/alignment/#custom-css-classes); export,
-`setContentHTML()` and the returned `css` and `styleMap` then all use them.
+Formatting can use your application's own class names (for example `align-center` or
+`text-red`) instead of notectl's generated ones. Configure them with the `styleClasses` option of
+each formatting plugin, as described in [Custom CSS Classes](/notectl/guides/custom-css-classes/);
+export, `setContentHTML()`, paste and the returned `css` and `styleMap` then all use them.
 
 Identical style combinations are deduplicated: if multiple text spans share the same color and font size, they share a single CSS class.
 
