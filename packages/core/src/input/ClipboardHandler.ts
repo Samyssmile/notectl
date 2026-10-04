@@ -25,7 +25,7 @@ import {
 	selectionRange,
 } from '../model/Selection.js';
 import { isEventFromEditorContent } from '../platform/EditorEventBoundary.js';
-import { setHTMLIdOnFirstTag } from '../serialization/DocumentSerializer.js';
+import { setHTMLIdOnFirstTag } from '../serialization/FirstTagAttributes.js';
 import {
 	buildMarkOrder,
 	serializeDocumentToHTML,
