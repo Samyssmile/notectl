@@ -5,12 +5,13 @@
  * Model-only — no imports from input/, plugins/, or view/ layers.
  */
 
-import { type AlignmentClassNames, validateAlignmentClassNames } from './AlignmentClassNames.js';
 import type { InlineNodeSpec } from './InlineNodeSpec.js';
 import type { MarkSpec } from './MarkSpec.js';
 import type { NodeSpec } from './NodeSpec.js';
 import type { ParseRule } from './ParseRule.js';
 import type { ElementSanitizeValidator } from './SanitizeConfig.js';
+import type { StyleClass } from './StyleClass.js';
+import { StyleClassRegistry } from './StyleClassRegistry.js';
 
 /** Priority assigned to parse rules that do not declare an explicit `priority`. */
 const DEFAULT_PARSE_PRIORITY = 50;
@@ -18,19 +19,13 @@ const DEFAULT_PARSE_PRIORITY = 50;
 /** Declarative transformation applied after a target NodeSpec is registered. */
 export type NodeSpecExtension = (spec: NodeSpec) => NodeSpec;
 
-/** A registration keeps its source object as the identity key for removal. */
-interface AlignmentClassNamesEntry {
-	readonly source: AlignmentClassNames;
-	readonly classNames: AlignmentClassNames;
-}
-
 export class SchemaRegistry {
 	private readonly _nodeSpecs = new Map<string, NodeSpec>();
 	private readonly _nodeSpecExtensions = new Map<string, NodeSpecExtension[]>();
 	private _finalizedNodeSpecs: Map<string, NodeSpec> | null = null;
 	private readonly _markSpecs = new Map<string, MarkSpec>();
 	private readonly _inlineNodeSpecs = new Map<string, InlineNodeSpec>();
-	private _alignmentClassNames: AlignmentClassNamesEntry | null = null;
+	private readonly _styleClasses = new StyleClassRegistry();
 
 	// --- NodeSpec ---
 
@@ -141,31 +136,32 @@ export class SchemaRegistry {
 		return [...this._inlineNodeSpecs.keys()];
 	}
 
-	// --- Alignment Class Names ---
+	// --- Style Classes ---
 
 	/**
-	 * Registers application-defined CSS class names for block alignment. HTML
-	 * export in class mode writes them and HTML import maps them back to the
-	 * alignment. Throws when the names are invalid or already registered.
+	 * Registers an application CSS class for one CSS declaration (#269).
+	 * Class-based HTML export writes the class wherever it would write the
+	 * declaration, and HTML import and paste read the class back as the
+	 * declaration. Throws a `TypeError` when the class is invalid or contradicts a
+	 * registered one; registering the same pair again is counted.
 	 */
-	registerAlignmentClassNames(classNames: AlignmentClassNames): void {
-		if (this._alignmentClassNames) {
-			throw new Error('Alignment class names are already registered.');
-		}
-		this._alignmentClassNames = {
-			source: classNames,
-			classNames: validateAlignmentClassNames(classNames),
-		};
+	registerStyleClass(styleClass: StyleClass): void {
+		this._styleClasses.register(styleClass);
 	}
 
-	/** Returns the registered alignment class names, or `undefined` when none are registered. */
-	getAlignmentClassNames(): AlignmentClassNames | undefined {
-		return this._alignmentClassNames?.classNames;
+	/** Removes one registration of `styleClass`; the class stays while others registered it too. */
+	removeStyleClass(styleClass: StyleClass): void {
+		this._styleClasses.remove(styleClass);
 	}
 
-	/** Removes alignment class names registered with the same `classNames` object. */
-	removeAlignmentClassNames(classNames: AlignmentClassNames): void {
-		if (this._alignmentClassNames?.source === classNames) this._alignmentClassNames = null;
+	/** Returns the style class with this class name, or `undefined`. */
+	getStyleClass(className: string): StyleClass | undefined {
+		return this._styleClasses.get(className);
+	}
+
+	/** Returns all style classes in registration order. */
+	getStyleClasses(): readonly StyleClass[] {
+		return this._styleClasses.list();
 	}
 
 	// --- Parse Rules & Sanitize Config ---
@@ -197,11 +193,11 @@ export class SchemaRegistry {
 
 	/**
 	 * Returns all allowed HTML attributes from base defaults + all spec sanitize configs.
-	 * Registered alignment class names add `class`, which carries them in HTML.
+	 * Registered style classes add `class`, which carries them in HTML.
 	 */
 	getAllowedAttrs(): string[] {
 		const base = new Set<string>(['style', 'dir', 'id']);
-		if (this.hasAlignmentClassNames()) base.add('class');
+		if (this._styleClasses.size > 0) base.add('class');
 		return [...this.collectSanitizeValues(base, (spec) => spec.sanitize?.attrs)];
 	}
 
@@ -286,11 +282,6 @@ export class SchemaRegistry {
 		this._finalizedNodeSpecs = null;
 	}
 
-	private hasAlignmentClassNames(): boolean {
-		const classNames: AlignmentClassNames | undefined = this.getAlignmentClassNames();
-		return classNames !== undefined && Object.keys(classNames).length > 0;
-	}
-
 	// --- Bulk ---
 
 	clear(): void {
@@ -299,6 +290,6 @@ export class SchemaRegistry {
 		this._finalizedNodeSpecs = null;
 		this._markSpecs.clear();
 		this._inlineNodeSpecs.clear();
-		this._alignmentClassNames = null;
+		this._styleClasses.clear();
 	}
 }

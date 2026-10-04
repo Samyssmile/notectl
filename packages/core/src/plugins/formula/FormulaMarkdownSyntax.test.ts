@@ -28,7 +28,8 @@ function formulaRegistry(): SchemaRegistry {
 		getNodeSpec: (t: string) => (t === 'math_display' ? display : undefined),
 		getMarkSpec: () => undefined,
 		getMarkTypes: () => [],
-		getAlignmentClassNames: () => undefined,
+		getStyleClass: () => undefined,
+		getStyleClasses: () => [],
 	} as unknown as SchemaRegistry;
 }
 

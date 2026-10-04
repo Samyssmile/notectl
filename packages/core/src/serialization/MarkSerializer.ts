@@ -5,7 +5,7 @@
  */
 
 import type { Mark } from '../model/Document.js';
-import { escapeHTML, styleAttribute } from '../model/HTMLUtils.js';
+import { escapeAttr, escapeHTML, styleAttribute } from '../model/HTMLUtils.js';
 import type { MarkSpec } from '../model/MarkSpec.js';
 import type { HTMLExportContext } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
@@ -110,8 +110,10 @@ function inlineStyleSpanWrapper(
 function classSpanWrapper(
 	collector: CSSClassCollector,
 ): (html: string, declarations: string) => string {
-	return (html, declarations) =>
-		`<span class="${collector.getClassName(declarations)}">${html}</span>`;
+	return (html, declarations) => {
+		const classNames: string = collector.getClassNames(declarations);
+		return classNames ? `<span class="${escapeAttr(classNames)}">${html}</span>` : html;
+	};
 }
 
 /**

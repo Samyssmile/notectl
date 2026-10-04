@@ -118,7 +118,7 @@ export type {
 } from './model/AttrRegistry.js';
 export { isNodeOfType, isMarkOfType, isInlineNodeOfType } from './model/AttrRegistry.js';
 export type { BlockAlignment } from './model/BlockAlignment.js';
-export type { AlignmentClassNames } from './model/AlignmentClassNames.js';
+export type { StyleClass, StyleClassNames } from './model/StyleClass.js';
 
 // --- NodeSpec & MarkSpec ---
 export type {

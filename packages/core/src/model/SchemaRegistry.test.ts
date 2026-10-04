@@ -188,66 +188,81 @@ describe('SchemaRegistry', () => {
 		});
 	});
 
-	describe('alignment class names', () => {
+	describe('style classes', () => {
+		const TEXT_RED = { className: 'text-red', declaration: 'color: #e03131' } as const;
+
 		it('has none until registered', () => {
-			expect(new SchemaRegistry().getAlignmentClassNames()).toBeUndefined();
-		});
-
-		it('registers validated alignment class names', () => {
 			const registry = new SchemaRegistry();
 
-			registry.registerAlignmentClassNames({ center: 'align-center', end: undefined });
-
-			expect(registry.getAlignmentClassNames()).toEqual({ center: 'align-center' });
+			expect(registry.getStyleClasses()).toEqual([]);
+			expect(registry.getStyleClass('text-red')).toBeUndefined();
 		});
 
-		it('rejects invalid class names', () => {
+		it('finds a registered class by its name, with a normalized declaration', () => {
 			const registry = new SchemaRegistry();
 
-			expect(() => registry.registerAlignmentClassNames({ center: 'align center' })).toThrow(
-				TypeError,
-			);
-			expect(registry.getAlignmentClassNames()).toBeUndefined();
+			registry.registerStyleClass({ className: 'text-red', declaration: ' Color :#e03131; ' });
+
+			expect(registry.getStyleClass('text-red')).toEqual(TEXT_RED);
+			expect(registry.getStyleClasses()).toEqual([TEXT_RED]);
 		});
 
-		it('throws on a second registration', () => {
+		it('rejects an invalid class without registering it', () => {
 			const registry = new SchemaRegistry();
-			registry.registerAlignmentClassNames({ center: 'align-center' });
 
-			expect(() => registry.registerAlignmentClassNames({ end: 'align-end' })).toThrow(
-				'Alignment class names are already registered.',
-			);
+			expect(() =>
+				registry.registerStyleClass({ className: 'text red', declaration: 'color: red' }),
+			).toThrow(TypeError);
+			expect(registry.getStyleClasses()).toEqual([]);
 		});
 
-		it('removes only the registration made with the same object', () => {
+		it('rejects a class name that already stands for another declaration', () => {
 			const registry = new SchemaRegistry();
-			const classNames = { center: 'align-center' };
-			registry.registerAlignmentClassNames(classNames);
+			registry.registerStyleClass(TEXT_RED);
 
-			registry.removeAlignmentClassNames({ center: 'align-center' });
-			expect(registry.getAlignmentClassNames()).toEqual(classNames);
+			expect(() =>
+				registry.registerStyleClass({ className: 'text-red', declaration: 'color: red' }),
+			).toThrow('Class "text-red" already stands for "color: #e03131"');
+		});
 
-			registry.removeAlignmentClassNames(classNames);
-			expect(registry.getAlignmentClassNames()).toBeUndefined();
+		it('rejects a second class for the same declaration', () => {
+			const registry = new SchemaRegistry();
+			registry.registerStyleClass(TEXT_RED);
+
+			expect(() =>
+				registry.registerStyleClass({ className: 'red', declaration: 'color: #e03131' }),
+			).toThrow('"color: #e03131" already has the class "text-red"');
+		});
+
+		it('counts the same pair registered twice, so each registrant removes its own', () => {
+			const registry = new SchemaRegistry();
+			registry.registerStyleClass(TEXT_RED);
+			registry.registerStyleClass({ ...TEXT_RED });
+
+			registry.removeStyleClass(TEXT_RED);
+			expect(registry.getStyleClass('text-red')).toEqual(TEXT_RED);
+
+			registry.removeStyleClass({ ...TEXT_RED });
+			expect(registry.getStyleClass('text-red')).toBeUndefined();
+		});
+
+		it('ignores the removal of a class that stands for another declaration', () => {
+			const registry = new SchemaRegistry();
+			registry.registerStyleClass(TEXT_RED);
+
+			registry.removeStyleClass({ className: 'text-red', declaration: 'color: red' });
+
+			expect(registry.getStyleClass('text-red')).toEqual(TEXT_RED);
 		});
 
 		it('allows the class attribute through sanitization while classes are registered', () => {
 			const registry = new SchemaRegistry();
-			const classNames = { center: 'align-center' };
 			expect(registry.getAllowedAttrs()).not.toContain('class');
 
-			registry.registerAlignmentClassNames(classNames);
+			registry.registerStyleClass(TEXT_RED);
 			expect(registry.getAllowedAttrs()).toContain('class');
 
-			registry.removeAlignmentClassNames(classNames);
-			expect(registry.getAllowedAttrs()).not.toContain('class');
-		});
-
-		it('does not allow the class attribute for an empty registration', () => {
-			const registry = new SchemaRegistry();
-
-			registry.registerAlignmentClassNames({});
-
+			registry.removeStyleClass(TEXT_RED);
 			expect(registry.getAllowedAttrs()).not.toContain('class');
 		});
 	});
@@ -257,14 +272,14 @@ describe('SchemaRegistry', () => {
 			const registry = new SchemaRegistry();
 			registry.registerNodeSpec(makeNodeSpec('heading'));
 			registry.registerMarkSpec(makeMarkSpec('bold'));
-			registry.registerAlignmentClassNames({ center: 'align-center' });
+			registry.registerStyleClass({ className: 'text-red', declaration: 'color: #e03131' });
 
 			registry.clear();
 
 			expect(registry.getNodeTypes()).toEqual([]);
 			expect(registry.getMarkTypes()).toEqual([]);
 			expect(registry.getInlineNodeTypes()).toEqual([]);
-			expect(registry.getAlignmentClassNames()).toBeUndefined();
+			expect(registry.getStyleClasses()).toEqual([]);
 		});
 	});
 });

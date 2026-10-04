@@ -3,9 +3,8 @@
  * Pure functions — operates on Document/SchemaRegistry, no class state.
  */
 
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import { isNodeOfType } from '../model/AttrRegistry.js';
-import type { BlockAlignment } from '../model/BlockAlignment.js';
+import { type BlockAlignment, alignmentDeclaration } from '../model/BlockAlignment.js';
 import type { BlockNode, Document, InlineNode, TextNode } from '../model/Document.js';
 import {
 	getBlockChildren,
@@ -23,11 +22,7 @@ import {
 } from '../model/HTMLUtils.js';
 import type { HTMLExportContext, NodeSpec } from '../model/NodeSpec.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import {
-	alignmentDeclaration,
-	alignmentSemanticClassNames,
-	resolveExportAlignment,
-} from './AlignmentHTML.js';
+import { defaultAlignmentClassName, resolveExportAlignment } from './AlignmentHTML.js';
 import { isSafeBlockId } from './BlockIdHTML.js';
 import { CSSClassCollector } from './CSSClassCollector.js';
 import type { ContentCSSResult, SerializeOptions } from './ContentHTMLTypes.js';
@@ -44,6 +39,7 @@ import {
 	serializeMarksToClassHTML,
 	serializeMarksToHTML,
 } from './MarkSerializer.js';
+import { type StyleClassLookup, createStyleClassLookup } from './StyleClassHTML.js';
 
 /** Internal context threaded through all serialization helpers. */
 interface SerializerContext {
@@ -52,8 +48,8 @@ interface SerializerContext {
 	readonly exportCtx?: HTMLExportContext;
 	/** Resolved from {@link SerializeOptions.includeBlockIds}; defaults to `true`. */
 	readonly includeBlockIds: boolean;
-	/** Application alignment classes; set in class mode only, inline mode keeps styles. */
-	readonly alignmentClassNames?: AlignmentClassNames;
+	/** Whether an application style class stands for `text-align: start`; class mode only. */
+	readonly startHasClass?: boolean;
 	/** Alignment the blocks being serialized inherit from the nearest ancestor that writes one. */
 	readonly inheritedAlignment?: BlockAlignment;
 }
@@ -65,9 +61,8 @@ export const VALID_DIRECTIONS: ReadonlySet<string> = new Set(['ltr', 'rtl']);
 function createClassExportContext(collector: CSSClassCollector): HTMLExportContext {
 	return {
 		styleAttr(declarations: string): string {
-			if (!declarations) return '';
-			const className: string = collector.getClassName(declarations);
-			return ` class="${className}"`;
+			const classNames: string = collector.getClassNames(declarations);
+			return classNames ? ` class="${escapeAttr(classNames)}"` : '';
 		},
 	};
 }
@@ -125,15 +120,15 @@ export function serializeDocumentToCSS(
 	options?: SerializeOptions,
 ): ContentCSSResult {
 	const includeBlockIds: boolean = options?.includeBlockIds !== false;
-	const alignmentClassNames: AlignmentClassNames | undefined = registry?.getAlignmentClassNames();
-	const collector = new CSSClassCollector(alignmentSemanticClassNames(alignmentClassNames));
+	const lookup: StyleClassLookup = createStyleClassLookup(registry?.getStyleClasses() ?? []);
+	const collector = new CSSClassCollector(lookup, defaultAlignmentClassName);
 	const exportCtx: HTMLExportContext = createClassExportContext(collector);
 	const ctx: SerializerContext = {
 		registry,
 		collector,
 		exportCtx,
 		includeBlockIds,
-		alignmentClassNames,
+		startHasClass: lookup(alignmentDeclaration('start')) !== undefined,
 	};
 	const html: string = serializeBlocks(doc.children, ctx);
 
@@ -283,7 +278,7 @@ function stripTrailingLiClose(html: string): string {
 function serializeBlock(block: BlockNode, ctx: SerializerContext): string {
 	const spec: NodeSpec | undefined = ctx.registry?.getNodeSpec(block.type);
 	const alignment: BlockAlignment | undefined = resolveExportAlignment(block, spec, {
-		classNames: ctx.alignmentClassNames,
+		startHasClass: ctx.startHasClass,
 		inherited: ctx.inheritedAlignment,
 	});
 	const content: string = isLeafBlock(block)
@@ -353,7 +348,7 @@ function injectAlignment(
 	if (!alignment) return html;
 	const declaration: string = alignmentDeclaration(alignment);
 	return ctx.collector
-		? injectAttrIntoFirstTag(html, 'class', escapeAttr(ctx.collector.getClassName(declaration)))
+		? injectAttrIntoFirstTag(html, 'class', escapeAttr(ctx.collector.getClassNames(declaration)))
 		: injectAttrIntoFirstTag(html, 'style', escapeAttr(declaration));
 }
 

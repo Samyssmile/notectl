@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
+import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import { createBlockNode, createTextNode, getBlockChildren } from '../../model/Document.js';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import {
 	expectCommandRegistered,
 	expectToolbarActive,
@@ -769,43 +770,51 @@ describe('AlignmentPlugin', () => {
 		});
 	});
 
-	describe('classNames', () => {
-		it('registers the configured classes for HTML export and import', async () => {
+	describe('styleClasses', () => {
+		it('registers the configured classes as style classes of the alignments', async () => {
 			const h = await pluginHarness(
-				new AlignmentPlugin({ classNames: { center: 'align-center', end: 'align-end' } }),
+				new AlignmentPlugin({ styleClasses: { center: 'align-center', end: 'align-end' } }),
 				undefined,
 				HARNESS_OPTIONS,
 			);
 
-			expect(h.pm.schemaRegistry.getAlignmentClassNames()).toEqual({
-				center: 'align-center',
-				end: 'align-end',
-			});
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([
+				{ className: 'align-center', declaration: 'text-align: center' },
+				{ className: 'align-end', declaration: 'text-align: end' },
+			]);
 		});
 
 		it('registers nothing without classes', async () => {
 			const withoutOption = await pluginHarness(new AlignmentPlugin(), undefined, HARNESS_OPTIONS);
 			const withEmptyOption = await pluginHarness(
-				new AlignmentPlugin({ classNames: {} }),
+				new AlignmentPlugin({ styleClasses: {} }),
 				undefined,
 				HARNESS_OPTIONS,
 			);
 
-			expect(withoutOption.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
-			expect(withEmptyOption.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
+			expect(withoutOption.pm.schemaRegistry.getStyleClasses()).toEqual([]);
+			expect(withEmptyOption.pm.schemaRegistry.getStyleClasses()).toEqual([]);
 		});
 
 		it('fails initialization with an explanation for invalid classes', async () => {
-			const plugin = new AlignmentPlugin({ classNames: { center: 'align center' } });
+			const plugin = new AlignmentPlugin({ styleClasses: { center: 'align center' } });
 
 			await expect(pluginHarness(plugin, undefined, HARNESS_OPTIONS)).rejects.toThrow(
-				'Invalid class name "align center" for "center":',
+				'AlignmentPlugin styleClasses: Invalid class name "align center" for "text-align: center":',
+			);
+		});
+
+		it('rejects one class for two alignments', async () => {
+			const plugin = new AlignmentPlugin({ styleClasses: { center: 'aligned', end: 'aligned' } });
+
+			await expect(pluginHarness(plugin, undefined, HARNESS_OPTIONS)).rejects.toThrow(
+				'Class "aligned" already stands for "text-align: center"',
 			);
 		});
 
 		it('points physical alignments to their logical equivalent', async () => {
-			const classNames = { right: 'align-right' } as unknown as AlignmentClassNames;
-			const plugin = new AlignmentPlugin({ classNames });
+			const styleClasses = { right: 'align-right' } as unknown as StyleClassNames<BlockAlignment>;
+			const plugin = new AlignmentPlugin({ styleClasses });
 
 			await expect(pluginHarness(plugin, undefined, HARNESS_OPTIONS)).rejects.toThrow(
 				'Alignment is logical: "end" is right in left-to-right text.',
@@ -814,14 +823,14 @@ describe('AlignmentPlugin', () => {
 
 		it('removes the classes when the editor is destroyed', async () => {
 			const h = await pluginHarness(
-				new AlignmentPlugin({ classNames: { center: 'align-center' } }),
+				new AlignmentPlugin({ styleClasses: { center: 'align-center' } }),
 				undefined,
 				HARNESS_OPTIONS,
 			);
 
 			await h.pm.destroy();
 
-			expect(h.pm.schemaRegistry.getAlignmentClassNames()).toBeUndefined();
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([]);
 		});
 	});
 });

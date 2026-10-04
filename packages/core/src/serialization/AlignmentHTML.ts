@@ -2,16 +2,18 @@
  * Shared rules for block alignment in HTML.
  *
  * Alignment is a logical block attribute (`start`, `center`, `end`, `justify`).
- * HTML carries it as an inline `text-align` style or, in class mode, as one CSS
- * class per alignment: the application's own class when one is registered
- * (#270), otherwise `notectl-align-<alignment>`. Serializer and parser must agree
- * on these shapes; this module is the single source of truth.
+ * HTML carries it as an inline `text-align` style or, in class mode, as a CSS
+ * class: an application style class registered for the declaration (#269),
+ * otherwise `notectl-align-<alignment>`. Import turns both kinds of class back
+ * into the inline style before parsing, so reading alignment means reading the
+ * inline style. Serializer and parser must agree on these shapes; this module is
+ * the single source of truth.
  */
 
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import {
 	BLOCK_ALIGNMENTS,
 	type BlockAlignment,
+	alignmentDeclaration,
 	isBlockAlignment,
 } from '../model/BlockAlignment.js';
 import type { BlockNode } from '../model/Document.js';
@@ -38,49 +40,46 @@ export function normalizeAlignment(value: unknown): BlockAlignment | undefined {
 	return typeof value === 'string' ? LEGACY_ALIGNMENTS.get(value) : undefined;
 }
 
-/** The CSS declaration that renders `alignment`. */
-export function alignmentDeclaration(alignment: BlockAlignment): string {
-	return `text-align: ${alignment}`;
+/** notectl's own class for alignment declarations, e.g. `notectl-align-center`. */
+const DEFAULT_CLASS_NAMES: ReadonlyMap<string, string> = new Map(
+	BLOCK_ALIGNMENTS.map((alignment: BlockAlignment) => [
+		alignmentDeclaration(alignment),
+		`${DEFAULT_CLASS_PREFIX}${alignment}`,
+	]),
+);
+
+/** notectl's own class for one `text-align` declaration, or `undefined` for anything else. */
+export function defaultAlignmentClassName(declaration: string): string | undefined {
+	return DEFAULT_CLASS_NAMES.get(declaration);
 }
 
 /**
- * Maps the declaration of every alignment to its class name: the registered
- * application class, or notectl's default `notectl-align-*` name.
+ * The declaration of one of notectl's own alignment classes, including the
+ * legacy physical names (`notectl-align-left` is `text-align: start`).
  */
-export function alignmentSemanticClassNames(
-	classNames?: AlignmentClassNames,
-): ReadonlyMap<string, string> {
-	return new Map(
-		BLOCK_ALIGNMENTS.map((alignment) => [
-			alignmentDeclaration(alignment),
-			classNames?.[alignment] ?? `${DEFAULT_CLASS_PREFIX}${alignment}`,
-		]),
+export function defaultAlignmentDeclaration(className: string): string | undefined {
+	if (!className.startsWith(DEFAULT_CLASS_PREFIX)) return undefined;
+	const alignment: BlockAlignment | undefined = normalizeAlignment(
+		className.slice(DEFAULT_CLASS_PREFIX.length),
 	);
+	return alignment ? alignmentDeclaration(alignment) : undefined;
 }
 
 /**
- * Reads an element's alignment. An inline `text-align` wins, as it does in CSS;
- * otherwise the first class naming an alignment decides: a registered class or
- * one of notectl's `notectl-align-*` classes.
+ * Reads an element's alignment from its inline `text-align`, which import
+ * also derives from alignment classes before parsing.
  */
-export function readElementAlignment(
-	el: HTMLElement,
-	classNames?: AlignmentClassNames,
-): BlockAlignment | undefined {
-	const fromStyle: BlockAlignment | undefined = normalizeAlignment(el.style?.textAlign);
-	if (fromStyle) return fromStyle;
-
-	for (const className of Array.from(el.classList)) {
-		const fromClass: BlockAlignment | undefined = alignmentOfClass(className, classNames);
-		if (fromClass) return fromClass;
-	}
-	return undefined;
+export function readElementAlignment(el: HTMLElement): BlockAlignment | undefined {
+	return normalizeAlignment(el.style?.textAlign);
 }
 
 /** Where a block sits in the exported HTML, as far as its alignment markup is concerned. */
 export interface AlignmentExportOptions {
-	/** Registered application classes; the serializer passes them in class mode only. */
-	readonly classNames?: AlignmentClassNames;
+	/**
+	 * Whether an application style class stands for `text-align: start`. The
+	 * serializer sets it in class mode only.
+	 */
+	readonly startHasClass?: boolean;
 	/**
 	 * The alignment the block inherits in the exported HTML from the nearest
 	 * ancestor that writes one, such as an aligned table cell.
@@ -111,19 +110,6 @@ export function resolveExportAlignment(
 	if (alignment !== BROWSER_DEFAULT_ALIGNMENT || alignment !== specDefault) return alignment;
 	if (explicit && options.inherited !== undefined) return alignment;
 
-	const pinnedByClass: boolean =
-		options.classNames?.start !== undefined && options.inherited === undefined;
+	const pinnedByClass: boolean = options.startHasClass === true && options.inherited === undefined;
 	return pinnedByClass ? alignment : undefined;
-}
-
-function alignmentOfClass(
-	className: string,
-	classNames: AlignmentClassNames | undefined,
-): BlockAlignment | undefined {
-	const registered: BlockAlignment | undefined = BLOCK_ALIGNMENTS.find(
-		(alignment) => classNames?.[alignment] === className,
-	);
-	if (registered) return registered;
-	if (!className.startsWith(DEFAULT_CLASS_PREFIX)) return undefined;
-	return normalizeAlignment(className.slice(DEFAULT_CLASS_PREFIX.length));
 }

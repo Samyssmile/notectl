@@ -13,3 +13,8 @@ export const BLOCK_ALIGNMENTS: readonly BlockAlignment[] = ['start', 'center', '
 export function isBlockAlignment(value: unknown): value is BlockAlignment {
 	return (BLOCK_ALIGNMENTS as readonly unknown[]).includes(value);
 }
+
+/** The CSS declaration that renders `alignment` in HTML, e.g. `text-align: center`. */
+export function alignmentDeclaration(alignment: BlockAlignment): string {
+	return `text-align: ${alignment}`;
+}

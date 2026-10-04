@@ -64,7 +64,8 @@ function createRegistry(): SchemaRegistry {
 		getMarkTypes: () => [...markSpecs.keys()],
 		getAllowedTags: () => ['p', 'br', 'strong', 'em', 'span'],
 		getAllowedAttrs: () => ['style'],
-		getAlignmentClassNames: () => undefined,
+		getStyleClass: () => undefined,
+		getStyleClasses: () => [],
 	} as unknown as SchemaRegistry;
 }
 

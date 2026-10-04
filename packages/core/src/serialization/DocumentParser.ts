@@ -32,6 +32,7 @@ import { isHTMLBlockElement, matchHTMLParseRule, parseHTMLMarks } from './HTMLPa
 import { type HTMLParseSession, createHTMLParseSession } from './HTMLParseSession.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
+import { createClassDeclarationResolver, rehydrateStyleClasses } from './StyleClassHTML.js';
 import {
 	MAX_SERIALIZED_TABLE_COLUMNS,
 	TABLE_COLUMN_WIDTH_DATA_ATTRIBUTE,
@@ -45,7 +46,8 @@ import {
 export interface ParseHTMLOptions {
 	/**
 	 * Style map from a previous `getContentHTML({ cssMode: 'classes' })` call.
-	 * Used to rehydrate class-based HTML back into styled content.
+	 * Used to rehydrate class-based HTML back into styled content. Registered
+	 * style classes and notectl's alignment classes need no style map.
 	 */
 	readonly styleMap?: ReadonlyMap<string, string>;
 }
@@ -84,10 +86,8 @@ export function parseHTMLToDocument(
 	);
 	const root: DocumentFragment = template.content;
 
-	// Rehydrate class-based HTML: convert notectl class names back to inline styles
-	if (options?.styleMap) {
-		rehydrateClasses(root, options.styleMap);
-	}
+	// Rehydrate class-based HTML: classes become the inline styles parse rules read.
+	rehydrateStyleClasses(root, createClassDeclarationResolver(registry, options?.styleMap));
 
 	// Collapse insignificant HTML whitespace so source-formatted/indented input does
 	// not leave stray newlines and indentation inside block text content.
@@ -164,7 +164,7 @@ function parseChildNode(child: ChildNode, blocks: BlockNode[], session: HTMLPars
 		};
 		// Known block types only accept declared attributes. The paragraph
 		// fallback retains the permissive behavior of registry-free import.
-		if (!match || spec?.attrs?.align) extractAlignment(el, attrs, registry);
+		if (!match || spec?.attrs?.align) extractAlignment(el, attrs);
 		if (!match || spec?.attrs?.dir) extractDirection(el, attrs);
 		blocks.push(
 			createBlockNode(
@@ -341,7 +341,7 @@ function parseTableElement(tableEl: Element, blocks: BlockNode[], session: HTMLP
 			const cellContent: BlockNode[] = parseTableCellContent(cellEl, session);
 			const cellAttrs: Record<string, string | number | boolean> = {};
 			extractCellSpanAttrs(cellEl, cellAttrs);
-			if (cellsAlign) extractAlignment(cellEl, cellAttrs, registry);
+			if (cellsAlign) extractAlignment(cellEl, cellAttrs);
 			const cellBlock: BlockNode = createBlockNode(
 				nodeType('table_cell'),
 				cellContent,
@@ -515,7 +515,7 @@ function parseBlockquoteElement(
 
 	// Preserve direction/alignment on the container so the HTML round-trip is stable.
 	const attrs: Record<string, string | number | boolean> = {};
-	extractAlignment(el, attrs, session.registry);
+	extractAlignment(el, attrs);
 	extractDirection(el, attrs);
 
 	blocks.push(
@@ -608,7 +608,7 @@ function parseWrapperElement(
 	session: HTMLParseSession,
 ): void {
 	const inherited: Record<string, string | number | boolean> = {};
-	extractAlignment(el, inherited, session.registry);
+	extractAlignment(el, inherited);
 	extractDirection(el, inherited);
 
 	const innerBlocks: BlockNode[] = parseBlockContainerChildren(el, session);
@@ -765,47 +765,10 @@ function extractHTMLId(el: HTMLElement): string | undefined {
 }
 
 /**
- * Adds the element's validated alignment to attrs: an inline `text-align`
- * (also produced by `styleMap` rehydration), an alignment class registered by
- * the application, or one of notectl's `notectl-align-*` classes.
+ * Adds the element's validated alignment to attrs: its inline `text-align`,
+ * which rehydration also derives from alignment classes.
  */
-function extractAlignment(
-	el: HTMLElement,
-	attrs: Record<string, string | number | boolean>,
-	registry?: SchemaRegistry,
-): void {
-	const align: BlockAlignment | undefined = readElementAlignment(
-		el,
-		registry?.getAlignmentClassNames(),
-	);
+function extractAlignment(el: HTMLElement, attrs: Record<string, string | number | boolean>): void {
+	const align: BlockAlignment | undefined = readElementAlignment(el);
 	if (align) attrs.align = align;
-}
-
-/**
- * Rehydrates class-based HTML by converting notectl class names back to inline styles.
- * This allows existing parse rules (which read inline styles) to work unchanged.
- */
-function rehydrateClasses(root: DocumentFragment, styleMap: ReadonlyMap<string, string>): void {
-	const elements: NodeListOf<Element> = root.querySelectorAll('[class]');
-	for (const el of Array.from(elements)) {
-		const htmlEl = el as HTMLElement;
-		const classes: string[] = Array.from(htmlEl.classList);
-		const toRemove: string[] = [];
-
-		for (const cls of classes) {
-			const declarations: string | undefined = styleMap.get(cls);
-			if (declarations) {
-				// Append declarations to existing inline style
-				const existing: string = htmlEl.getAttribute('style') ?? '';
-				const separator: string = existing && !existing.endsWith(';') ? '; ' : '';
-				htmlEl.setAttribute('style', existing + separator + declarations);
-				toRemove.push(cls);
-			}
-		}
-
-		// Remove rehydrated class names
-		for (const cls of toRemove) {
-			htmlEl.classList.remove(cls);
-		}
-	}
 }

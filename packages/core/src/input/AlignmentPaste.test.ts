@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
+import type { BlockAlignment } from '../model/BlockAlignment.js';
 import type { ContentSlice } from '../model/ContentSlice.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { StyleClassNames } from '../model/StyleClass.js';
 import { AlignmentPlugin } from '../plugins/alignment/AlignmentPlugin.js';
 import { HeadingPlugin } from '../plugins/heading/HeadingPlugin.js';
 import { serializeDocumentToCSS } from '../serialization/DocumentSerializer.js';
@@ -11,16 +12,16 @@ import { pluginHarness, stateBuilder } from '../test/TestUtils.js';
 import { HTMLParser } from './HTMLParser.js';
 import { PasteHTMLHandler } from './PasteHTMLHandler.js';
 
-const CLASS_NAMES: AlignmentClassNames = {
+const CLASS_NAMES: StyleClassNames<BlockAlignment> = {
 	start: 'align-start',
 	center: 'align-center',
 	end: 'align-end',
 	justify: 'align-justify',
 };
 
-async function harness(classNames?: AlignmentClassNames): Promise<PluginHarnessResult> {
+async function harness(classNames?: StyleClassNames<BlockAlignment>): Promise<PluginHarnessResult> {
 	return pluginHarness(
-		[new HeadingPlugin(), new AlignmentPlugin({ classNames })],
+		[new HeadingPlugin(), new AlignmentPlugin({ styleClasses: classNames })],
 		stateBuilder().paragraph('', 'p').cursor('p', 0).schema(['paragraph', 'heading'], []).build(),
 		{ builtinSpecs: true, useMiddleware: true },
 	);
@@ -78,7 +79,7 @@ describe('alignment in HTML paste (#270)', () => {
 		const h: PluginHarnessResult = await pluginHarness(
 			[
 				new HeadingPlugin(),
-				new AlignmentPlugin({ classNames: CLASS_NAMES, alignableTypes: ['heading'] }),
+				new AlignmentPlugin({ styleClasses: CLASS_NAMES, alignableTypes: ['heading'] }),
 			],
 			undefined,
 			{ builtinSpecs: true },
@@ -117,7 +118,7 @@ describe('alignment in HTML paste (#270)', () => {
 			.schema(['paragraph', 'heading'], [])
 			.build();
 		const h: PluginHarnessResult = await pluginHarness(
-			[new HeadingPlugin(), new AlignmentPlugin({ classNames: CLASS_NAMES })],
+			[new HeadingPlugin(), new AlignmentPlugin({ styleClasses: CLASS_NAMES })],
 			state,
 			{ builtinSpecs: true, useMiddleware: true },
 		);

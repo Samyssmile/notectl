@@ -17,13 +17,17 @@ const STATS_PATH = resolve(PACKAGE_ROOT, '.bundle-stats.json');
 const ENTRY_BUDGETS = [
 	// #260-#265, #270: measured 107.92 KB with the IME composition rebase, container protection,
 	// dropped-composition handling, the per-parse HTML session and application alignment classes.
-	['Core', 'src/index.ts', 108],
+	// #269: measured 108.72 KB; generic style classes (declaration parsing, CSSOM-keyed lookup,
+	// per-declaration class lists, shared rehydration for import and paste).
+	['Core', 'src/index.ts', 109],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
-	['HTML codec', 'src/html.ts', 13],
+	// #269: measured 13.49 KB; the parser and serializer carry the style class vocabulary.
+	['HTML codec', 'src/html.ts', 13.6],
 	// #223: measured 29.09 KB; v2.3.8 already exceeded the old 29 KB budget at 29.07 KB.
 	// #270: measured 29.89 KB; the codec's SchemaRegistry validates alignment classes.
-	['Markdown codec', 'src/markdown.ts', 30.5],
+	// #269: measured 30.80 KB; its registry and HTML parser include the generic style classes.
+	['Markdown codec', 'src/markdown.ts', 31],
 	['Fonts (compatibility barrel)', 'src/fonts.ts', 555],
 	['Fonts (starter)', 'src/fonts/starter.ts', 255],
 	['Fonts (math)', 'src/fonts/math.ts', 300],

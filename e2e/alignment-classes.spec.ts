@@ -76,7 +76,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 				[{ name: 'HeadingPlugin' }],
 				[{ name: 'ImagePlugin' }],
 				[{ name: 'TablePlugin' }],
-				[{ name: 'AlignmentPlugin', config: { classNames: CLASS_NAMES } }],
+				[{ name: 'AlignmentPlugin', config: { styleClasses: CLASS_NAMES } }],
 			],
 		});
 	});

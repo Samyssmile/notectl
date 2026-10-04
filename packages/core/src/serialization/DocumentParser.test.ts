@@ -216,7 +216,8 @@ function createTestRegistry(): SchemaRegistry {
 			'alt',
 			'id',
 		],
-		getAlignmentClassNames: () => undefined,
+		getStyleClass: () => undefined,
+		getStyleClasses: () => [],
 	} as unknown as SchemaRegistry;
 }
 
@@ -365,7 +366,8 @@ describe('parseHTMLToDocument', () => {
 				getInlineParseRules: () => [],
 				getAllowedTags: () => ['p', 'pre', 'code'],
 				getAllowedAttrs: () => ['class'],
-				getAlignmentClassNames: () => undefined,
+				getStyleClass: () => undefined,
+				getStyleClasses: () => [],
 			} as unknown as SchemaRegistry;
 
 			const doc = parseHTMLToDocument('<pre>  indented\n    deeper\n</pre>', registry);
@@ -560,7 +562,8 @@ describe('parseHTMLToDocument', () => {
 				getInlineParseRules: () => [],
 				getAllowedTags: () => ['p', 'pre', 'code'],
 				getAllowedAttrs: () => ['style', 'dir', 'class'],
-				getAlignmentClassNames: () => undefined,
+				getStyleClass: () => undefined,
+				getStyleClasses: () => [],
 			} as unknown as SchemaRegistry;
 
 			const doc = parseHTMLToDocument(
@@ -680,7 +683,8 @@ describe('parseHTMLToDocument', () => {
 					}
 					return undefined;
 				},
-				getAlignmentClassNames: () => undefined,
+				getStyleClass: () => undefined,
+				getStyleClasses: () => [],
 			} as unknown as SchemaRegistry);
 
 			const imported = parseHTMLToDocument(html, registry);
@@ -1235,7 +1239,8 @@ describe('full round-trip: serializeDocumentToCSS → parseHTMLToDocument', () =
 			getInlineParseRules: () => [],
 			getAllowedTags: () => ['p', 'br', 'span', 'strong'],
 			getAllowedAttrs: () => ['style', 'class'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1443,7 +1448,8 @@ describe('void block parsing', () => {
 			getInlineParseRules: () => [],
 			getAllowedTags: () => ['p', 'br', 'div', 'figure', 'img'],
 			getAllowedAttrs: () => ['style', 'dir', 'src', 'alt', 'width', 'height'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1542,7 +1548,8 @@ describe('table HTML parsing', () => {
 				'data-notectl-width-px',
 				'data-notectl-min-height-px',
 			],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1859,7 +1866,8 @@ describe('table HTML parsing', () => {
 				'rowspan',
 				'id',
 			],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -1993,7 +2001,8 @@ describe('table HTML parsing', () => {
 		const registry = {
 			...createTableRegistry(),
 			getAllowedAttrs: () => ['style', 'dir', 'colspan', 'rowspan'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 		const html = '<table><tr><td colspan="2" rowspan="3">Wide</td><td>B</td></tr></table>';
 		const doc = parseHTMLToDocument(html, registry);
@@ -2016,7 +2025,8 @@ describe('table HTML parsing', () => {
 		const registry = {
 			...createTableRegistry(),
 			getAllowedAttrs: () => ['colspan', 'rowspan'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 		const doc = parseHTMLToDocument(
 			'<table><tr><td colspan="2evil" rowspan="1001">A</td><td>B</td></tr></table>',
@@ -2059,7 +2069,8 @@ function createListParseRegistry(): SchemaRegistry {
 		getInlineParseRules: () => [],
 		getAllowedTags: () => ['p', 'br', 'ul', 'ol', 'li'],
 		getAllowedAttrs: () => ['style', 'dir'],
-		getAlignmentClassNames: () => undefined,
+		getStyleClass: () => undefined,
+		getStyleClasses: () => [],
 	} as unknown as SchemaRegistry;
 }
 
@@ -2109,7 +2120,8 @@ describe('blockquote mixed inline content (#141)', () => {
 				'th',
 			],
 			getAllowedAttrs: () => ['style', 'dir', 'href'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -2302,7 +2314,8 @@ describe('wrapper element unwrapping (#223)', () => {
 				'th',
 			],
 			getAllowedAttrs: () => ['style', 'dir', 'id', 'src'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry;
 	}
 
@@ -2434,7 +2447,8 @@ describe('wrapper element unwrapping (#223)', () => {
 				},
 			],
 			getAllowedTags: () => [...registry.getAllowedTags(), 'figure'],
-			getAlignmentClassNames: () => undefined,
+			getStyleClass: () => undefined,
+			getStyleClasses: () => [],
 		} as unknown as SchemaRegistry);
 
 		expect(outline(doc)).toEqual(['paragraph:a', 'image:']);

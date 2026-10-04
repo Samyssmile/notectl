@@ -1,8 +1,16 @@
 /**
- * CSSClassCollector: maps CSS declarations to unique class names during serialization.
- * Deduplicates identical declaration sets and produces a minimal stylesheet.
- * Uses content-hash (FNV-1a) for deterministic, document-order-independent class names.
+ * CSSClassCollector: maps CSS declarations to class names during class-based
+ * serialization and produces a minimal stylesheet for the classes it used.
+ *
+ * Each declaration that has an application style class (#269) gets that class.
+ * The remaining declarations of a set share one notectl class: notectl's own
+ * name when the set is a single alignment, otherwise a content-hashed
+ * `notectl-s-*` name (FNV-1a), deterministic and independent of encounter order.
  */
+
+import type { StyleClass } from '../model/StyleClass.js';
+import { splitDeclarations } from './CSSDeclarations.js';
+import type { StyleClassLookup } from './StyleClassHTML.js';
 
 /** Prefix for generated style class names (avoids collisions with user classes). */
 const CLASS_PREFIX = 'notectl-s-';
@@ -12,24 +20,13 @@ const HASH_BASE = 36;
 /** Pad length for consistent 6-char hashes. */
 const HASH_PAD_LENGTH = 6;
 
-/**
- * Normalizes a CSS declarations string by sorting individual declarations alphabetically.
- * This ensures `"color: red; font-size: 14px"` and `"font-size: 14px; color: red"` map
- * to the same class name.
- */
-function normalizeDeclarations(declarations: string): string {
-	return declarations
-		.split(';')
-		.map((d) => d.trim())
-		.filter((d) => d.length > 0)
-		.sort()
-		.join('; ');
-}
-
 /** FNV-1a 32-bit offset basis. */
 const FNV_OFFSET_BASIS = 0x811c9dc5;
 /** FNV-1a 32-bit prime. */
 const FNV_PRIME = 0x01000193;
+
+/** Characters that could end a CSS rule or a `<style>` element in exported CSS. */
+const CSS_RULE_BREAKOUT: RegExp = /[{}<>]/;
 
 /**
  * FNV-1a 32-bit hash function.
@@ -46,57 +43,58 @@ function fnv1aHash(input: string): string {
 	return unsigned.toString(HASH_BASE).padStart(HASH_PAD_LENGTH, '0');
 }
 
+/** Finds notectl's own class for a single remaining declaration, if it has one. */
+export type DefaultClassName = (declaration: string) => string | undefined;
+
 /**
- * Stateful collector that assigns CSS class names to unique declaration sets.
+ * Stateful collector that assigns CSS class names to declarations.
  * Used during a single serialization pass, then produces the collected stylesheet.
- *
- * Class names are deterministic: the same declarations always produce the same
- * class name, regardless of encounter order across documents. Declarations with
- * a semantic name (alignment: `notectl-align-center` or an application class)
- * always use it; all others get a content-hashed `notectl-s-*` name.
  */
 export class CSSClassCollector {
-	/** Maps normalized declarations → class name, for the declarations used so far. */
-	private readonly classMap: Map<string, string> = new Map();
+	/** Class name → declarations of every class used so far, in first-use order. */
+	private readonly rules: Map<string, string> = new Map();
+	/** Normalized declarations → hashed class name. */
+	private readonly hashedClassNames: Map<string, string> = new Map();
 	/** Tracks used hashes to handle the (extremely rare) collision case. */
 	private readonly usedHashes: Set<string> = new Set();
-	/** Maps normalized declarations → semantic class name. */
-	private readonly semanticClassNames: ReadonlyMap<string, string>;
-
-	/** @param semanticClassNames Class names for specific declarations, keyed by declarations. */
-	constructor(semanticClassNames: ReadonlyMap<string, string> = new Map()) {
-		this.semanticClassNames = new Map(
-			[...semanticClassNames].map(([declarations, className]) => [
-				normalizeDeclarations(declarations),
-				className,
-			]),
-		);
-	}
 
 	/**
-	 * Returns the class name for the given CSS declarations.
-	 * If the same (normalized) declarations were seen before, returns the existing class.
+	 * @param lookup Finds the application style class of one declaration.
+	 * @param defaultClassName notectl's own class for a single remaining declaration.
 	 */
-	getClassName(declarations: string): string {
-		const normalized: string = normalizeDeclarations(declarations);
-		const existing: string | undefined = this.classMap.get(normalized);
-		if (existing) return existing;
+	constructor(
+		private readonly lookup: StyleClassLookup = () => undefined,
+		private readonly defaultClassName: DefaultClassName = () => undefined,
+	) {}
 
-		const className: string =
-			this.semanticClassNames.get(normalized) ?? this.createHashedClassName(normalized);
-		this.classMap.set(normalized, className);
-		return className;
+	/**
+	 * Returns the space-separated class names for the given CSS declarations:
+	 * one application class per declaration that has one, then one notectl class
+	 * for the rest. Declarations that could break out of a CSS rule are left out.
+	 * Returns `''` when no declaration remains.
+	 */
+	getClassNames(declarations: string): string {
+		const classNames: string[] = [];
+		const unmapped: string[] = [];
+		for (const declaration of splitDeclarations(declarations).sort()) {
+			if (CSS_RULE_BREAKOUT.test(declaration)) continue;
+			const styleClass: StyleClass | undefined = this.lookup(declaration);
+			if (!styleClass) {
+				unmapped.push(declaration);
+				continue;
+			}
+			this.rules.set(styleClass.className, styleClass.declaration);
+			if (!classNames.includes(styleClass.className)) classNames.push(styleClass.className);
+		}
+		if (unmapped.length > 0) classNames.push(this.notectlClassName(unmapped.join('; ')));
+		return classNames.join(' ');
 	}
 
 	/** Produces CSS rules for all collected classes. Returns empty string if none collected. */
 	toCSS(): string {
-		if (this.classMap.size === 0) return '';
-
-		const rules: string[] = [];
-		for (const [declarations, className] of this.classMap) {
-			rules.push(`.${className} { ${declarations}; }`);
-		}
-		return rules.join('\n');
+		return [...this.rules]
+			.map(([className, declarations]) => `.${className} { ${declarations}; }`)
+			.join('\n');
 	}
 
 	/**
@@ -104,14 +102,19 @@ export class CSSClassCollector {
 	 * Used by `setContentHTML` to rehydrate class-based HTML.
 	 */
 	toStyleMap(): ReadonlyMap<string, string> {
-		const map = new Map<string, string>();
-		for (const [declarations, className] of this.classMap) {
-			map.set(className, declarations);
-		}
-		return map;
+		return new Map(this.rules);
 	}
 
-	private createHashedClassName(normalized: string): string {
+	private notectlClassName(normalized: string): string {
+		const className: string = this.defaultClassName(normalized) ?? this.hashedClassName(normalized);
+		if (!this.rules.has(className)) this.rules.set(className, normalized);
+		return className;
+	}
+
+	private hashedClassName(normalized: string): string {
+		const existing: string | undefined = this.hashedClassNames.get(normalized);
+		if (existing) return existing;
+
 		let hash: string = fnv1aHash(normalized);
 		let suffix = 0;
 		// Collision handling: append suffix counter if the hash is already in use
@@ -121,6 +124,8 @@ export class CSSClassCollector {
 			hash = fnv1aHash(normalized + String(suffix));
 		}
 		this.usedHashes.add(hash);
-		return `${CLASS_PREFIX}${hash}`;
+		const className = `${CLASS_PREFIX}${hash}`;
+		this.hashedClassNames.set(normalized, className);
+		return className;
 	}
 }

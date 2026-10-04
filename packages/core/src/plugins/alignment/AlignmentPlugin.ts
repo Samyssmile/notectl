@@ -8,9 +8,14 @@
  * CSS classes carry the alignment in class-based HTML export and import.
  */
 
-import type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
-import type { BlockAlignment } from '../../model/BlockAlignment.js';
+import {
+	BLOCK_ALIGNMENTS,
+	type BlockAlignment,
+	alignmentDeclaration,
+	isBlockAlignment,
+} from '../../model/BlockAlignment.js';
 import type { BlockNode } from '../../model/Document.js';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
@@ -23,6 +28,7 @@ import {
 	getSelectedBlockIds,
 	resolveLocale,
 } from '../shared/PluginHelpers.js';
+import { registerStyleClassNames } from '../shared/StyleClassNames.js';
 import {
 	ALIGNMENT_LOCALE_EN,
 	type AlignmentLocale,
@@ -41,14 +47,14 @@ export interface AlignmentConfig {
 	/**
 	 * Your own CSS class per alignment in HTML content, e.g. `{ center: 'align-center' }`.
 	 * Class-based export (`getContentHTML({ cssMode: 'classes' })`) writes these classes
-	 * and HTML import (`setContentHTML()`) recognizes them, so content round-trips with
-	 * your stylesheet. Alignments without a class keep `notectl-align-*`; mapping `start`
+	 * and HTML import and paste recognize them, so content round-trips with your
+	 * stylesheet. Alignments without a class keep `notectl-align-*`; mapping `start`
 	 * gives start-aligned blocks its class. Blocks without their own alignment inherit an
-	 * aligned container; an explicit `start` overrides it. Inline-style export and the editor's own
-	 * rendering are unaffected. Invalid names make editor initialization fail with a
-	 * `TypeError` that explains the fix.
+	 * aligned container; an explicit `start` overrides it. Inline-style export and the
+	 * editor's own rendering are unaffected. Invalid names make editor initialization
+	 * fail with a `TypeError` that explains the fix.
 	 */
-	readonly classNames?: AlignmentClassNames;
+	readonly styleClasses?: StyleClassNames<BlockAlignment>;
 	readonly locale?: AlignmentLocale;
 }
 
@@ -99,7 +105,7 @@ export class AlignmentPlugin implements Plugin {
 
 		this.alignableTypes = new Set(this.config.alignableTypes);
 		this.patchNodeSpecs(context);
-		this.registerClassNames(context);
+		this.registerStyleClasses(context);
 		this.registerCommands(context);
 		this.registerKeymaps(context);
 		this.registerToolbarItem(context);
@@ -122,14 +128,13 @@ export class AlignmentPlugin implements Plugin {
 	}
 
 	/**
-	 * Makes the configured classes the alignment vocabulary of HTML export and
-	 * import. The registry validates them, so a misconfiguration fails `init()`.
+	 * Registers the configured classes as style classes of the alignment
+	 * declarations. A misconfiguration fails `init()` with an explanation.
 	 */
-	private registerClassNames(context: PluginContext): void {
-		const classNames: AlignmentClassNames | undefined = this.config.classNames;
-		if (classNames && Object.keys(classNames).length > 0) {
-			context.registerAlignmentClassNames(classNames);
-		}
+	private registerStyleClasses(context: PluginContext): void {
+		registerStyleClassNames(context, 'AlignmentPlugin', this.config.styleClasses, (key) =>
+			alignmentDeclaration(toAlignment(key)),
+		);
 	}
 
 	// --- Commands ---
@@ -283,4 +288,20 @@ function applyAlignment(el: HTMLElement, node: BlockNode): void {
 	if (typeof align === 'string') {
 		setStyleProperty(el, 'textAlign', align);
 	}
+}
+
+/** Physical alignments people coming from other editors tend to reach for. */
+const PHYSICAL_ALIGNMENTS: ReadonlyMap<string, BlockAlignment> = new Map([
+	['left', 'start'],
+	['right', 'end'],
+]);
+
+/** Reads a `styleClasses` key as an alignment, explaining logical values for `left`/`right`. */
+function toAlignment(key: string): BlockAlignment {
+	if (isBlockAlignment(key)) return key;
+	const logical: BlockAlignment | undefined = PHYSICAL_ALIGNMENTS.get(key);
+	const hint: string = logical
+		? ` Alignment is logical: "${logical}" is ${key} in left-to-right text.`
+		: '';
+	throw new TypeError(`Unknown alignment "${key}"; use ${BLOCK_ALIGNMENTS.join(', ')}.${hint}`);
 }

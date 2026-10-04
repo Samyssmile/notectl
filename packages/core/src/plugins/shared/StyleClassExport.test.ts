@@ -1,8 +1,8 @@
 /**
- * Class-based HTML export of every style-producing plugin, exercised with the
- * real plugin schema. The baseline pins today's generated class names and
- * inline styles so application style classes (#269) cannot change the output
- * of editors that configure none.
+ * Class-based HTML export and import of every style-producing plugin with
+ * application style classes (#269), exercised with the real plugin schema. The
+ * baseline pins today's generated class names and inline styles, so style
+ * classes cannot change the output of editors that configure none.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -14,7 +14,9 @@ import {
 	createDocument,
 	createTextNode,
 } from '../../model/Document.js';
+import type { MarkSpec } from '../../model/MarkSpec.js';
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
+import type { StyleClass } from '../../model/StyleClass.js';
 import { blockId, markType, nodeType } from '../../model/TypeBrands.js';
 import type { ContentCSSResult } from '../../serialization/ContentHTMLTypes.js';
 import { parseHTMLToDocument } from '../../serialization/DocumentParser.js';
@@ -23,6 +25,7 @@ import {
 	serializeDocumentToHTML,
 } from '../../serialization/DocumentSerializer.js';
 import { pluginHarness } from '../../test/TestUtils.js';
+import type { Plugin, PluginContext } from '../Plugin.js';
 import { AlignmentPlugin } from '../alignment/AlignmentPlugin.js';
 import { CodeBlockPlugin } from '../code-block/CodeBlockPlugin.js';
 import { FontSizePlugin } from '../font-size/FontSizePlugin.js';
@@ -36,10 +39,29 @@ const NO_IDS = { includeBlockIds: false } as const;
 
 const FIRA_CODE_FAMILY = "'Fira Code', monospace";
 
+const TEXT_RED: StyleClass = { className: 'text-red', declaration: 'color: #e03131' };
+const TEXT_LG: StyleClass = { className: 'text-lg', declaration: 'font-size: 18px' };
+const MARK_YELLOW: StyleClass = {
+	className: 'mark-yellow',
+	declaration: 'background-color: #fff176',
+};
+const FONT_MONO: StyleClass = {
+	className: 'font-mono',
+	declaration: `font-family: ${FIRA_CODE_FAMILY}`,
+};
+const ALIGN_CENTER: StyleClass = { className: 'align-center', declaration: 'text-align: center' };
+const ALL_CLASSES: readonly StyleClass[] = [
+	TEXT_RED,
+	TEXT_LG,
+	MARK_YELLOW,
+	FONT_MONO,
+	ALIGN_CENTER,
+];
+
 // --- Helpers ---
 
-async function createRegistry(): Promise<SchemaRegistry> {
-	const plugins = [
+async function createRegistry(...extraPlugins: readonly Plugin[]): Promise<SchemaRegistry> {
+	const plugins: Plugin[] = [
 		new TextFormattingPlugin(),
 		new TextColorPlugin(),
 		new HighlightPlugin(),
@@ -48,6 +70,7 @@ async function createRegistry(): Promise<SchemaRegistry> {
 		new AlignmentPlugin(),
 		new TablePlugin(),
 		new CodeBlockPlugin(),
+		...extraPlugins,
 	];
 	const h = await pluginHarness(plugins, undefined, { builtinSpecs: true });
 	return h.pm.schemaRegistry;
@@ -86,6 +109,34 @@ function codeBlock(backgroundColor: string): BlockNode {
 		language: '',
 		backgroundColor,
 	});
+}
+
+/** An application plugin that only registers style classes, as the guide shows. */
+function appStyleClasses(...styleClasses: readonly StyleClass[]): Plugin {
+	return {
+		id: 'app-style-classes',
+		name: 'App style classes',
+		init(context: PluginContext): void {
+			for (const styleClass of styleClasses) context.registerStyleClass(styleClass);
+		},
+	};
+}
+
+/** A plugin with one mark type of its own, as third-party plugins add them. */
+function markPlugin(spec: MarkSpec, ...styleClasses: readonly StyleClass[]): Plugin {
+	return {
+		id: `mark-${spec.type}`,
+		name: spec.type,
+		init(context: PluginContext): void {
+			context.registerMarkSpec(spec);
+			for (const styleClass of styleClasses) context.registerStyleClass(styleClass);
+		},
+	};
+}
+
+function marksOf(doc: Document): readonly Mark[] {
+	const first = doc.children[0]?.children[0];
+	return first && 'marks' in first ? first.marks : [];
 }
 
 /** One block per style source: merged marks, each style mark alone, alignment. */
@@ -210,5 +261,165 @@ describe('style export of values with double quotes', () => {
 		expect(html).toBe(
 			'<p><span style="font-family: &quot;Inter&quot;, sans-serif">Inter</span></p>',
 		);
+	});
+});
+
+describe('application style classes', () => {
+	it('writes one application class per declaration, also in merged spans', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(...ALL_CLASSES));
+
+		const result: ContentCSSResult = serializeDocumentToCSS(styledDocument(), registry, NO_IDS);
+
+		expect(result.html).toBe(
+			[
+				'<p><strong><span class="text-red text-lg">Merged</span></strong></p>',
+				'<p><span class="text-red">Color</span></p>',
+				'<p><span class="text-lg">Size</span></p>',
+				'<p><span class="mark-yellow">Highlight</span></p>',
+				'<p><span class="font-mono">Font</span></p>',
+				'<p class="align-center">Centered</p>',
+			].join(''),
+		);
+		expect([...result.styleMap]).toEqual(
+			ALL_CLASSES.map((styleClass) => [styleClass.className, styleClass.declaration]),
+		);
+		expect(result.css.split('\n')).toEqual(
+			ALL_CLASSES.map((styleClass) => `.${styleClass.className} { ${styleClass.declaration}; }`),
+		);
+	});
+
+	it('gives the unmapped declarations of a span one generated class', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(TEXT_RED));
+		const doc: Document = createDocument([
+			paragraph('p', 'Mixed', [
+				mark('textColor', { color: '#e03131' }),
+				mark('fontSize', { size: '18px' }),
+			]),
+		]);
+
+		const { html, styleMap }: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
+
+		expect(html).toBe('<p><span class="text-red notectl-s-8ly2md">Mixed</span></p>');
+		expect([...styleMap]).toEqual([
+			['text-red', 'color: #e03131'],
+			['notectl-s-8ly2md', 'font-size: 18px'],
+		]);
+	});
+
+	it('writes a class wherever its declaration is exported', async () => {
+		const cellTop: StyleClass = { className: 'cell-top', declaration: 'vertical-align: top' };
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(MARK_YELLOW, cellTop));
+		const doc: Document = createDocument([oneCellTable(), codeBlock('#fff176')]);
+
+		const { html, styleMap }: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
+
+		expect(html).toContain('<pre dir="ltr" class="mark-yellow">');
+		const cellClasses: string = html.match(/<td class="([^"]+)">/)?.[1] ?? '';
+		const [mapped, generated] = cellClasses.split(' ');
+		expect(mapped).toBe('cell-top');
+		expect(styleMap.get(generated ?? '')).toBe(
+			'border: 1px solid var(--ntbl-bc, #d0d0d0); padding: 8px 12px',
+		);
+	});
+
+	it('imports the classes without a styleMap and reproduces the HTML', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(...ALL_CLASSES));
+		const first: ContentCSSResult = serializeDocumentToCSS(styledDocument(), registry, NO_IDS);
+
+		const imported: Document = parseHTMLToDocument(first.html, registry);
+		const second: ContentCSSResult = serializeDocumentToCSS(imported, registry, NO_IDS);
+
+		expect(second).toEqual(first);
+	});
+
+	it('keeps inline export free of application classes', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(...ALL_CLASSES));
+
+		const html: string = serializeDocumentToHTML(styledDocument(), registry, NO_IDS);
+
+		expect(html).toContain('<p><span style="color: #e03131">Color</span></p>');
+		expect(html).toContain('<p style="text-align: center">Centered</p>');
+		expect(html).not.toContain('class=');
+	});
+
+	it('ignores the classes in an editor without them', async () => {
+		const registry: SchemaRegistry = await createRegistry();
+
+		const imported: Document = parseHTMLToDocument(
+			'<p><span class="text-red">x</span></p>',
+			registry,
+		);
+
+		expect(marksOf(imported)).toEqual([]);
+	});
+
+	it('lets the styleMap of imported HTML describe its own classes', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(TEXT_RED));
+
+		const imported: Document = parseHTMLToDocument(
+			'<p><span class="text-red">x</span></p>',
+			registry,
+			{ styleMap: new Map([['text-red', 'color: blue']]) },
+		);
+
+		expect(marksOf(imported)).toEqual([{ type: 'textColor', attrs: { color: 'blue' } }]);
+	});
+
+	it('lets an inline style win over a class for the same property', async () => {
+		const registry: SchemaRegistry = await createRegistry(appStyleClasses(TEXT_RED));
+
+		const imported: Document = parseHTMLToDocument(
+			'<p><span class="text-red" style="color: blue">x</span></p>',
+			registry,
+		);
+
+		expect(marksOf(imported)).toEqual([{ type: 'textColor', attrs: { color: 'blue' } }]);
+	});
+
+	it('keeps a class readable for parse rules that look for it', async () => {
+		const brand: MarkSpec = {
+			type: 'brand',
+			toDOM: () => document.createElement('span'),
+			parseHTML: [
+				{ tag: 'span', getAttrs: (el) => (el.classList.contains('text-red') ? {} : false) },
+			],
+		};
+		const registry: SchemaRegistry = await createRegistry(
+			appStyleClasses(TEXT_RED),
+			markPlugin(brand),
+		);
+
+		const imported: Document = parseHTMLToDocument(
+			'<p><span class="text-red">x</span></p>',
+			registry,
+		);
+
+		expect(
+			marksOf(imported)
+				.map((m: Mark) => m.type)
+				.sort(),
+		).toEqual(['brand', 'textColor']);
+	});
+
+	it("gives a third-party plugin's style mark an application class", async () => {
+		const spaced: MarkSpec = {
+			type: 'spaced',
+			toDOM: () => document.createElement('span'),
+			toHTMLStyle: () => 'letter-spacing: 0.1em',
+			parseHTML: [
+				{ tag: 'span', getAttrs: (el) => (el.style.letterSpacing === '0.1em' ? {} : false) },
+			],
+		};
+		const registry: SchemaRegistry = await createRegistry(
+			markPlugin(spaced, { className: 'tracking-wide', declaration: 'letter-spacing: 0.1em' }),
+		);
+		const doc: Document = createDocument([paragraph('p', 'x', [mark('spaced')])]);
+
+		const { html }: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
+
+		expect(html).toBe('<p><span class="tracking-wide">x</span></p>');
+		expect(marksOf(parseHTMLToDocument(html, registry)).map((m: Mark) => m.type)).toEqual([
+			'spaced',
+		]);
 	});
 });

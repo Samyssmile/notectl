@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import '../../register.js';
 import { NotectlEditor } from '../../editor/NotectlEditor.js';
 import { Locale } from '../../i18n/Locale.js';
-import type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
+import type { BlockAlignment } from '../../model/BlockAlignment.js';
 import {
 	type BlockNode,
 	type Document,
@@ -17,6 +17,7 @@ import {
 	getBlockChildren,
 } from '../../model/Document.js';
 import type { SchemaRegistry } from '../../model/SchemaRegistry.js';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import { blockId, nodeType } from '../../model/TypeBrands.js';
 import type { ContentCSSResult } from '../../serialization/ContentHTMLTypes.js';
 import { parseHTMLToDocument } from '../../serialization/DocumentParser.js';
@@ -33,19 +34,19 @@ import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
 import { VideoPlugin } from '../video/VideoPlugin.js';
 import { AlignmentPlugin } from './AlignmentPlugin.js';
 
-const CLASS_NAMES: AlignmentClassNames = {
+const CLASS_NAMES: StyleClassNames<BlockAlignment> = {
 	center: 'align-center',
 	end: 'align-end',
 	justify: 'align-justify',
 };
 
-const WITH_START: AlignmentClassNames = { ...CLASS_NAMES, start: 'align-start' };
+const WITH_START: StyleClassNames<BlockAlignment> = { ...CLASS_NAMES, start: 'align-start' };
 
 const NO_IDS = { includeBlockIds: false } as const;
 
 // --- Helpers ---
 
-async function registryWith(classNames?: AlignmentClassNames): Promise<SchemaRegistry> {
+async function registryWith(classNames?: StyleClassNames<BlockAlignment>): Promise<SchemaRegistry> {
 	const plugins = [
 		new HeadingPlugin(),
 		new ImagePlugin(),
@@ -53,7 +54,7 @@ async function registryWith(classNames?: AlignmentClassNames): Promise<SchemaReg
 		new ListPlugin(),
 		new TextDirectionPlugin(),
 		new VideoPlugin(),
-		new AlignmentPlugin({ classNames }),
+		new AlignmentPlugin({ styleClasses: classNames }),
 	];
 	const h = await pluginHarness(plugins, undefined, { builtinSpecs: true });
 	return h.pm.schemaRegistry;
@@ -270,7 +271,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 				.cursor('p', 0)
 				.schema(['paragraph'], [])
 				.build();
-			const h = await pluginHarness(new AlignmentPlugin({ classNames: WITH_START }), state, {
+			const h = await pluginHarness(new AlignmentPlugin({ styleClasses: WITH_START }), state, {
 				builtinSpecs: true,
 			});
 
@@ -380,7 +381,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 	describe('round trip', () => {
 		it.each([WITH_START, undefined])(
 			'preserves explicit start and implicit inheritance inside an aligned cell (%j)',
-			async (classNames: AlignmentClassNames | undefined) => {
+			async (classNames: StyleClassNames<BlockAlignment> | undefined) => {
 				const registry: SchemaRegistry = await registryWith(classNames);
 				const doc: Document = createDocument([
 					table('center', [paragraph('a', 'inherited'), paragraph('b', 'explicit', 'start')]),
@@ -490,12 +491,18 @@ describe('AlignmentPlugin classNames in HTML', () => {
 			document.body.innerHTML = '';
 		});
 
-		async function createEditor(classNames: AlignmentClassNames): Promise<NotectlEditor> {
+		async function createEditor(
+			classNames: StyleClassNames<BlockAlignment>,
+		): Promise<NotectlEditor> {
 			const editor = new NotectlEditor();
 			document.body.appendChild(editor);
 			await editor.init({
 				locale: Locale.EN,
-				plugins: [new HeadingPlugin(), new ImagePlugin(), new AlignmentPlugin({ classNames })],
+				plugins: [
+					new HeadingPlugin(),
+					new ImagePlugin(),
+					new AlignmentPlugin({ styleClasses: classNames }),
+				],
 			});
 			await editor.whenReady();
 			return editor;

@@ -3,7 +3,6 @@
  * Works on DOM nodes (not strings), is schema-aware, and produces immutable output.
  */
 
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import type { BlockAlignment } from '../model/BlockAlignment.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import type { ContentSegment, InlineNode, Mark } from '../model/Document.js';
@@ -23,6 +22,11 @@ import {
 	parseHTMLMarks,
 } from '../serialization/HTMLParseRules.js';
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
+import {
+	type ClassDeclarationResolver,
+	createClassDeclarationResolver,
+	rehydrateStyleClasses,
+} from '../serialization/StyleClassHTML.js';
 
 /**
  * Whether the `<br>`s of an inline run split it into paragraphs, as for `<p>`
@@ -113,7 +117,7 @@ const FALLBACK_MARK_MAP: ReadonlyMap<string, FallbackMarkDef> = new Map([
 
 export class HTMLParser {
 	private readonly schema: Schema;
-	private readonly alignmentClassNames: AlignmentClassNames | undefined;
+	private readonly classDeclarations: ClassDeclarationResolver;
 	private readonly blockParseRules: readonly {
 		readonly rule: ParseRule;
 		readonly type: string;
@@ -136,7 +140,7 @@ export class HTMLParser {
 
 	constructor(options: HTMLParserOptions) {
 		this.schema = options.schema;
-		this.alignmentClassNames = options.schemaRegistry?.getAlignmentClassNames();
+		this.classDeclarations = createClassDeclarationResolver(options.schemaRegistry);
 		this.blockParseRules = options.schemaRegistry?.getBlockParseRules() ?? [];
 		this.markParseRules = options.schemaRegistry?.getMarkParseRules() ?? [];
 		this.inlineParseRules = options.schemaRegistry?.getInlineParseRules() ?? [];
@@ -150,6 +154,9 @@ export class HTMLParser {
 
 	/** Parses an HTML fragment and returns a ContentSlice. */
 	parse(container: DocumentFragment | HTMLElement): ContentSlice {
+		// Classes the editor knows (style classes, notectl alignment) become the
+		// inline styles that block and mark rules read, as in HTML import.
+		rehydrateStyleClasses(container, this.classDeclarations);
 		// Collapse insignificant HTML whitespace (newlines/indentation from source
 		// formatting or a browser's clipboard serializer) before walking the tree,
 		// so wrapped text stays a single block instead of splitting at every `\n`.
@@ -265,10 +272,7 @@ export class HTMLParser {
 		element: HTMLElement,
 		inherit?: boolean,
 	): SliceBlock[] {
-		const alignment: BlockAlignment | undefined = readElementAlignment(
-			element,
-			this.alignmentClassNames,
-		);
+		const alignment: BlockAlignment | undefined = readElementAlignment(element);
 		if (!alignment) return blocks;
 		const inherited: boolean = inherit ?? this.containsBlockDescendants(element);
 		return blocks.map((block: SliceBlock): SliceBlock => {

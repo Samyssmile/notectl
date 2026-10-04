@@ -4,7 +4,6 @@
  * following SRP — extracted from PluginManager.createContext().
  */
 
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import type { CompositionState } from '../model/CompositionState.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
@@ -23,6 +22,7 @@ import type { ParseRule } from '../model/ParseRule.js';
 import type { PasteInterceptorEntry } from '../model/PasteInterceptor.js';
 import type { PluginCallbackExecutor } from '../model/PluginCallbackExecutor.js';
 import type { NodeSpecExtension, SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { StyleClass } from '../model/StyleClass.js';
 import type { TextInputInterceptorEntry } from '../model/TextInputInterceptor.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -69,7 +69,7 @@ export interface PluginRegistrations {
 	nodeSpecExtensions: { readonly type: string; readonly extension: NodeSpecExtension }[];
 	markSpecs: string[];
 	inlineNodeSpecs: string[];
-	alignmentClassNames: AlignmentClassNames[];
+	styleClasses: StyleClass[];
 	nodeViews: string[];
 	keymaps: Keymap[];
 	inputRules: InputRule[];
@@ -128,7 +128,7 @@ export function createEmptyRegistrations(): PluginRegistrations {
 		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
-		alignmentClassNames: [],
+		styleClasses: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
@@ -260,7 +260,7 @@ function createSchemaRegistrar(
 	| 'registerNodeSpecExtension'
 	| 'registerMarkSpec'
 	| 'registerInlineNodeSpec'
-	| 'registerAlignmentClassNames'
+	| 'registerStyleClass'
 > {
 	return {
 		registerNodeSpec: (spec) => {
@@ -298,9 +298,9 @@ function createSchemaRegistrar(
 			);
 			reg.inlineNodeSpecs.push(spec.type);
 		},
-		registerAlignmentClassNames: (classNames) => {
-			deps.schemaRegistry.registerAlignmentClassNames(classNames);
-			reg.alignmentClassNames.push(classNames);
+		registerStyleClass: (styleClass) => {
+			deps.schemaRegistry.registerStyleClass(styleClass);
+			reg.styleClasses.push(styleClass);
 		},
 	};
 }

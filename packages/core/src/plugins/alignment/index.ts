@@ -3,7 +3,6 @@ export {
 	ALIGNMENT_ICONS,
 	type AlignmentConfig,
 } from './AlignmentPlugin.js';
-export type { AlignmentClassNames } from '../../model/AlignmentClassNames.js';
 
 export type { AlignmentLocale } from './AlignmentLocale.js';
 export {

@@ -3,7 +3,6 @@
  */
 
 import type { DecorationSet } from '../decorations/Decoration.js';
-import type { AlignmentClassNames } from '../model/AlignmentClassNames.js';
 import type { FileHandler } from '../model/FileHandlerRegistry.js';
 import type { FileHandlerRegistry } from '../model/FileHandlerRegistry.js';
 import type { InlineNodeSpec } from '../model/InlineNodeSpec.js';
@@ -15,6 +14,7 @@ import type { MarkSpec } from '../model/MarkSpec.js';
 import type { MarkdownSyntaxExtension } from '../model/MarkdownSyntaxRegistry.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
 import type { NodeSpecExtension, SchemaRegistry } from '../model/SchemaRegistry.js';
+import type { StyleClass } from '../model/StyleClass.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction } from '../state/Transaction.js';
 import type { NodeViewFactory } from '../view/NodeView.js';
@@ -120,10 +120,15 @@ export interface PluginContext {
 	registerNodeSpecExtension(type: string, extension: NodeSpecExtension): void;
 	registerMarkSpec<T extends string>(spec: MarkSpec<T>): void;
 	/**
-	 * Declares application-defined CSS class names for block alignment. HTML
-	 * export in class mode writes them and HTML import recognizes them.
+	 * Lets content HTML use an application CSS class for one CSS declaration that
+	 * this plugin exports, e.g. `{ className: 'text-red', declaration: 'color: #e03131' }`.
+	 * Class-based export writes the class instead of a generated `notectl-s-*`
+	 * name, and HTML import and paste read it back as the declaration, so the
+	 * plugin's parse rules see the same inline style. Throws a `TypeError` for an
+	 * invalid class or one that contradicts a registered class. Removed when the
+	 * plugin is destroyed.
 	 */
-	registerAlignmentClassNames(classNames: AlignmentClassNames): void;
+	registerStyleClass(styleClass: StyleClass): void;
 	registerNodeView(type: string, factory: NodeViewFactory): void;
 	registerKeymap(keymap: Keymap, options?: KeymapOptions): void;
 	registerInputRule(rule: InputRule): void;

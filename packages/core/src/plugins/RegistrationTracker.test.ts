@@ -17,7 +17,7 @@ function makeDeps(): RegistrationCleanupDeps {
 			removeNodeSpecExtension: vi.fn(),
 			removeMarkSpec: vi.fn(),
 			removeInlineNodeSpec: vi.fn(),
-			removeAlignmentClassNames: vi.fn(),
+			removeStyleClass: vi.fn(),
 		} as never,
 		keymapRegistry: { removeKeymap: vi.fn() } as never,
 		inputRuleRegistry: { removeInputRule: vi.fn() } as never,
@@ -41,7 +41,7 @@ function makeRegistrations(overrides?: Partial<PluginRegistrations>): PluginRegi
 		nodeSpecExtensions: [],
 		markSpecs: [],
 		inlineNodeSpecs: [],
-		alignmentClassNames: [],
+		styleClasses: [],
 		nodeViews: [],
 		keymaps: [],
 		inputRules: [],
@@ -92,15 +92,15 @@ describe('RegistrationTracker', () => {
 		expect(deps.schemaRegistry.removeInlineNodeSpec).toHaveBeenCalledWith('emoji');
 	});
 
-	it('cleans up alignment class names by identity', () => {
+	it('cleans up every registered style class', () => {
 		const deps = makeDeps();
 		const tracker = new RegistrationTracker(deps);
-		const classNames = { center: 'align-center' };
-		tracker.track('p1', makeRegistrations({ alignmentClassNames: [classNames] }));
+		const styleClass = { className: 'text-red', declaration: 'color: #e03131' };
+		tracker.track('p1', makeRegistrations({ styleClasses: [styleClass] }));
 
 		tracker.cleanup('p1');
 
-		expect(deps.schemaRegistry.removeAlignmentClassNames).toHaveBeenCalledWith(classNames);
+		expect(deps.schemaRegistry.removeStyleClass).toHaveBeenCalledWith(styleClass);
 	});
 
 	it('cleans up schema and Markdown extensions by identity', () => {
