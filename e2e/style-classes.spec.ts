@@ -197,7 +197,9 @@ test.describe('Application style classes (#269)', () => {
 });
 
 test.describe('Application style classes under a strict CSP (#269)', () => {
-	test('imports and exports classes on a page that blocks inline styles', async ({ page }) => {
+	test('imports, pastes and exports classes on a page that blocks inline styles', async ({
+		page,
+	}) => {
 		const source = '<p class="align-center"><span class="text-red text-lg">Strict</span></p>';
 		const violations: string[] = await openStrictCSPPage(
 			page,
@@ -216,21 +218,36 @@ test.describe('Application style classes under a strict CSP (#269)', () => {
 		);
 		await page.waitForFunction(() => 'notectlEditor' in window);
 
-		const html: string = await page.evaluate(async (content: string) => {
+		const exports: string[] = await page.evaluate(async (content: string) => {
 			const editor = (
 				window as unknown as {
-					notectlEditor: {
+					notectlEditor: HTMLElement & {
 						setContentHTML(value: string): Promise<void>;
 						getContentHTML(options: unknown): Promise<{ html: string }>;
 					};
 				}
 			).notectlEditor;
+			const exportClasses = async (): Promise<string> =>
+				(await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false })).html;
+
 			await editor.setContentHTML(content);
-			return (await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false })).html;
+			const imported: string = await exportClasses();
+
+			const data = new DataTransfer();
+			data.setData('text/html', '<p><span class="text-red">Pasted</span></p>');
+			data.setData('text/plain', '');
+			const paste = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+			Object.defineProperty(paste, 'clipboardData', { value: data });
+			editor.shadowRoot?.querySelector('.notectl-content')?.dispatchEvent(paste);
+			return [imported, await exportClasses()];
 		}, source);
 
-		expect(html).toBe(source);
-		await expect(page.locator('notectl-editor p')).toHaveCSS('text-align', 'center');
+		expect(exports[0]).toBe(source);
+		expect(exports[1]).toContain('<span class="text-red">Pasted</span>');
+		await expect(page.locator('notectl-editor p', { hasText: 'Strict' })).toHaveCSS(
+			'text-align',
+			'center',
+		);
 		expect(violations).toEqual([]);
 	});
 });
