@@ -8,8 +8,7 @@
  * `notectl-s-*` name (FNV-1a), deterministic and independent of encounter order.
  */
 
-import type { StyleClass } from '../model/StyleClass.js';
-import { splitDeclarations } from './CSSDeclarations.js';
+import { type StyleClass, breaksOutOfRule, splitDeclarations } from '../model/StyleClass.js';
 import type { StyleClassLookup } from './StyleClassHTML.js';
 
 /** Prefix for generated style class names (avoids collisions with user classes). */
@@ -24,9 +23,6 @@ const HASH_PAD_LENGTH = 6;
 const FNV_OFFSET_BASIS = 0x811c9dc5;
 /** FNV-1a 32-bit prime. */
 const FNV_PRIME = 0x01000193;
-
-/** Characters that could end a CSS rule or a `<style>` element in exported CSS. */
-const CSS_RULE_BREAKOUT: RegExp = /[{}<>]/;
 
 /**
  * FNV-1a 32-bit hash function.
@@ -77,7 +73,7 @@ export class CSSClassCollector {
 		const classNames: string[] = [];
 		const unmapped: string[] = [];
 		for (const declaration of splitDeclarations(declarations).sort()) {
-			if (CSS_RULE_BREAKOUT.test(declaration)) continue;
+			if (breaksOutOfRule(declaration)) continue;
 			const styleClass: StyleClass | undefined = this.lookup(declaration);
 			if (!styleClass) {
 				unmapped.push(declaration);

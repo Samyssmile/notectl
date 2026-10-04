@@ -1,7 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { NotectlEditor } from '../packages/core/src/editor/NotectlEditor';
 import { expect, test } from './fixtures/editor-page';
+import { openStrictCSPPage } from './fixtures/strict-csp-page';
 
 test.describe('Compiled stylesheet delivery', () => {
 	test('base, toolbar and plugin styles follow theme changes inside the shadow root', async ({
@@ -109,55 +108,17 @@ test.describe('Compiled stylesheet delivery', () => {
 	test('UMD renders embedded styles under strict CSP without an external stylesheet', async ({
 		page,
 	}) => {
-		const violations: string[] = [];
-		await page.exposeFunction('reportStyleViolation', (directive: string) => {
-			violations.push(directive);
-		});
-		const root = process.cwd();
-		const assets = new Map([
-			['/library.js', await readFile(resolve(root, 'packages/core/dist/notectl-core.umd.js'))],
-			[
-				'/purify.js',
-				await readFile(resolve(root, 'packages/core/node_modules/dompurify/dist/purify.min.js')),
-			],
-			[
-				'/start.js',
-				Buffer.from(`
-					document.addEventListener('securitypolicyviolation', event => {
-						window.reportStyleViolation(event.effectiveDirective);
-					});
-					(async () => {
-						const editor = await NotectlCore.createEditor({
-							locale: 'en',
-							toolbar: [[new NotectlCore.TextFormattingPlugin(), new NotectlCore.InlineCodePlugin()]]
-						});
-						document.body.appendChild(editor);
-						editor.setContentHTML('<p><code>UMD styles</code></p>');
-					})();
-				`),
-			],
-		]);
-		await page.route('https://notectl.test/**', async (route) => {
-			const pathname = new URL(route.request().url()).pathname;
-			if (pathname === '/') {
-				await route.fulfill({
-					contentType: 'text/html',
-					headers: {
-						'Content-Security-Policy':
-							"default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'none'",
-					},
-					body: '<!doctype html><html><head><title>UMD styles</title></head><body><script src="/purify.js"></script><script src="/library.js"></script><script src="/start.js"></script></body></html>',
+		const violations: string[] = await openStrictCSPPage(
+			page,
+			`(async () => {
+				const editor = await NotectlCore.createEditor({
+					locale: 'en',
+					toolbar: [[new NotectlCore.TextFormattingPlugin(), new NotectlCore.InlineCodePlugin()]]
 				});
-				return;
-			}
-			const body = assets.get(pathname);
-			if (!body) {
-				await route.abort();
-				return;
-			}
-			await route.fulfill({ contentType: 'text/javascript', body });
-		});
-		await page.goto('https://notectl.test/');
+				document.body.appendChild(editor);
+				editor.setContentHTML('<p><code>UMD styles</code></p>');
+			})();`,
+		);
 		const editor = page.locator('notectl-editor');
 		await expect(editor.locator('.notectl-editor')).toHaveCSS('display', 'flex');
 		await expect(editor.locator('[role="toolbar"]')).toHaveCSS('display', 'flex');

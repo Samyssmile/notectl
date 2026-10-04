@@ -11,9 +11,9 @@ import {
 	type StyleClass,
 	formatDeclaration,
 	parseDeclaration,
+	splitDeclarations,
 } from '../model/StyleClass.js';
 import { defaultAlignmentDeclaration } from './AlignmentHTML.js';
-import { splitDeclarations } from './CSSDeclarations.js';
 
 /** Finds the style class that stands for one declaration during an export. */
 export type StyleClassLookup = (declaration: string) => StyleClass | undefined;
@@ -100,22 +100,18 @@ export function rehydrateStyleClasses(root: ParentNode, resolve: ClassDeclaratio
 	}
 }
 
+/**
+ * Writes through the CSSOM: a strict CSP (`style-src-attr 'none'`) blocks
+ * `style` attributes, in Chromium even in inert template content, but not
+ * CSSOM writes. The browser serializes the result back into the attribute, so
+ * parsers that read the raw attribute (table border color) still find it.
+ */
 function addMissingDeclarations(element: Element, declarations: string): void {
 	const style: CSSStyleDeclaration | undefined = (element as Partial<ElementCSSInlineStyle>).style;
 	if (!style) return;
 	for (const declaration of splitDeclarations(declarations)) {
 		const parsed: CSSDeclaration | undefined = parseDeclaration(declaration);
 		if (!parsed || style.getPropertyValue(parsed.property)) continue;
-		appendInlineDeclaration(element, formatDeclaration(parsed));
+		style.setProperty(parsed.property, parsed.value);
 	}
-}
-
-/**
- * Appends to the `style` attribute as text: the table parser reads the raw
- * attribute, which a CSSOM write would re-serialize.
- */
-function appendInlineDeclaration(element: Element, declaration: string): void {
-	const existing: string = (element.getAttribute('style') ?? '').trim();
-	const separator: string = existing && !existing.endsWith(';') ? '; ' : existing ? ' ' : '';
-	element.setAttribute('style', `${existing}${separator}${declaration}`);
 }

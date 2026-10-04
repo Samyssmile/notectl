@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDeclaration, parseDeclaration } from './StyleClass.js';
+import { formatDeclaration, parseDeclaration, splitDeclarations } from './StyleClass.js';
 
 describe('parseDeclaration', () => {
 	it('splits a declaration into a lowercase property and a trimmed value', () => {
@@ -14,6 +14,13 @@ describe('parseDeclaration', () => {
 			property: '--Brand-Color',
 			value: '#E03131',
 		});
+	});
+
+	it('keeps a semicolon inside parentheses or quotes within the value', () => {
+		expect(parseDeclaration('background-image: url(data:image/png;base64,AAAA)')?.value).toBe(
+			'url(data:image/png;base64,AAAA)',
+		);
+		expect(parseDeclaration("font-family: 'A;B', serif")?.value).toBe("'A;B', serif");
 	});
 
 	it('keeps quotes and colons inside the value', () => {
@@ -51,5 +58,32 @@ describe('parseDeclaration', () => {
 describe('formatDeclaration', () => {
 	it('writes property and value as one declaration', () => {
 		expect(formatDeclaration({ property: 'color', value: '#e03131' })).toBe('color: #e03131');
+	});
+});
+
+describe('splitDeclarations', () => {
+	it('splits at semicolons and trims each declaration', () => {
+		expect(splitDeclarations(' color: red ;font-size: 18px; ')).toEqual([
+			'color: red',
+			'font-size: 18px',
+		]);
+	});
+
+	it('keeps a semicolon inside quotes within its declaration', () => {
+		expect(splitDeclarations(`font-family: 'A;B', "C;D"; color: red`)).toEqual([
+			`font-family: 'A;B', "C;D"`,
+			'color: red',
+		]);
+	});
+
+	it('keeps a semicolon inside parentheses within its declaration', () => {
+		expect(splitDeclarations('background: url(data:image/png;base64,AAAA); color: red')).toEqual([
+			'background: url(data:image/png;base64,AAAA)',
+			'color: red',
+		]);
+	});
+
+	it('returns nothing for an empty list', () => {
+		expect(splitDeclarations(' ; ; ')).toEqual([]);
 	});
 });

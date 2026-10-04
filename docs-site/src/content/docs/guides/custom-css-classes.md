@@ -76,7 +76,7 @@ A style class stands for exactly one CSS declaration, such as `text-red` for `co
 - **The returned `css` and `styleMap`** list your classes with the declarations they stand for,
   next to the generated ones, so the result renders on its own and re-imports anywhere.
 - **Import and paste** read your classes without a `styleMap`: `setContentHTML()`, pasted HTML and
-  HTML blocks in Markdown alike.
+  HTML blocks in Markdown alike, also on pages whose CSP blocks inline styles.
 - **The document stays semantic.** The editor stores a color, a size or an alignment, never a class
   name. Changing the mapping changes only the names of future exports.
 - **Values are compared as the browser reads them.** A browser reads an imported `#e03131` back as

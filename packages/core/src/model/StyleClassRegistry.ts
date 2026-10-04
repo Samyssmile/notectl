@@ -1,8 +1,9 @@
 /**
- * The style classes of one editor: one class per declaration and one
- * declaration per class. Registering the same pair again (for example from a
- * second plugin) is counted, so every registrant can remove its own
- * registration without taking the class from the others.
+ * The style classes of one editor and the rules they follow: one class per
+ * declaration and one declaration per class, each a plain CSS class name
+ * outside notectl's reserved prefix. Registering the same pair again (for
+ * example from a second plugin) is counted, so every registrant can remove its
+ * own registration without taking the class from the others.
  */
 
 import {

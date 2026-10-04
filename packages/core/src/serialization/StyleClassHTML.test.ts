@@ -116,7 +116,7 @@ describe('rehydrateStyleClasses', () => {
 		rehydrateStyleClasses(root, resolverOf({ 'text-red': 'color: #e03131' }));
 
 		const el: HTMLElement = firstElement(root);
-		expect(el.getAttribute('style')).toBe('color: #e03131');
+		expect(el.style.color).toBe('#e03131');
 		expect(el.className).toBe('intro text-red');
 	});
 
@@ -125,7 +125,8 @@ describe('rehydrateStyleClasses', () => {
 
 		rehydrateStyleClasses(root, resolverOf({ 'notectl-s-x': 'color: red; font-size: 18px' }));
 
-		expect(firstElement(root).getAttribute('style')).toBe('color: red; font-size: 18px');
+		const el: HTMLElement = firstElement(root);
+		expect([el.style.color, el.style.fontSize]).toEqual(['red', '18px']);
 	});
 
 	it('lets a property the element sets inline win over a class', () => {
@@ -138,7 +139,8 @@ describe('rehydrateStyleClasses', () => {
 			resolverOf({ 'text-red': 'color: #e03131', big: 'color: green; font-size: 18px' }),
 		);
 
-		expect(firstElement(root).getAttribute('style')).toBe('color: blue; font-size: 18px');
+		const el: HTMLElement = firstElement(root);
+		expect([el.style.color, el.style.fontSize]).toEqual(['blue', '18px']);
 	});
 
 	it('lets an inline shorthand win over a class for one of its longhands', () => {
@@ -160,14 +162,29 @@ describe('rehydrateStyleClasses', () => {
 		expect(firstElement(root).style.textAlign).toBe('start');
 	});
 
-	it('appends to the raw style text, which the table parser reads', () => {
+	it('keeps the raw style text readable for the table parser', () => {
 		const root: DocumentFragment = fragment(
 			'<table class="framed" style="--ntbl-bc: #ABCDEF;"><tr><td>x</td></tr></table>',
 		);
 
 		rehydrateStyleClasses(root, resolverOf({ framed: 'width: 100%' }));
 
-		expect(firstElement(root).getAttribute('style')).toBe('--ntbl-bc: #ABCDEF; width: 100%');
+		const style: string = firstElement(root).getAttribute('style') ?? '';
+		expect(style).toMatch(/--ntbl-bc:\s*#ABCDEF/);
+		expect(firstElement(root).style.width).toBe('100%');
+	});
+
+	it('keeps a semicolon inside parentheses within its declaration', () => {
+		const root: DocumentFragment = fragment('<p class="pattern">x</p>');
+
+		rehydrateStyleClasses(
+			root,
+			resolverOf({ pattern: 'background-image: url(data:image/png;base64,AAAA); color: red' }),
+		);
+
+		const el: HTMLElement = firstElement(root);
+		expect(el.style.backgroundImage).toContain('data:image/png;base64,AAAA');
+		expect(el.style.color).toBe('red');
 	});
 
 	it('skips declarations that are not safe', () => {
@@ -185,6 +202,6 @@ describe('rehydrateStyleClasses', () => {
 
 		rehydrateStyleClasses(root, resolverOf({ 'text-red': 'color: #e03131' }));
 
-		expect(root.querySelector('span')?.getAttribute('style')).toBe('color: #e03131');
+		expect(root.querySelector('span')?.style.color).toBe('#e03131');
 	});
 });

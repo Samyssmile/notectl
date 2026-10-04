@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { type ClassExport, expect, test } from './fixtures/editor-page';
+import { openStrictCSPPage } from './fixtures/strict-csp-page';
 
 /**
  * Application style classes (#269): each formatting plugin maps its own values
@@ -192,5 +193,44 @@ test.describe('Application style classes (#269)', () => {
 
 		await expect(editor.content.getByText('Blue')).toHaveCSS('color', 'rgb(25, 113, 194)');
 		expect((await editor.getContentClasses()).html).not.toContain('text-red');
+	});
+});
+
+test.describe('Application style classes under a strict CSP (#269)', () => {
+	test('imports and exports classes on a page that blocks inline styles', async ({ page }) => {
+		const source = '<p class="align-center"><span class="text-red text-lg">Strict</span></p>';
+		const violations: string[] = await openStrictCSPPage(
+			page,
+			`(async () => {
+				const editor = await NotectlCore.createEditor({
+					locale: 'en',
+					toolbar: [[
+						new NotectlCore.TextColorPlugin({ styleClasses: { '#e03131': 'text-red' } }),
+						new NotectlCore.FontSizePlugin({ styleClasses: { 18: 'text-lg' } }),
+						new NotectlCore.AlignmentPlugin({ styleClasses: { center: 'align-center' } }),
+					]],
+				});
+				document.body.appendChild(editor);
+				window.notectlEditor = editor;
+			})();`,
+		);
+		await page.waitForFunction(() => 'notectlEditor' in window);
+
+		const html: string = await page.evaluate(async (content: string) => {
+			const editor = (
+				window as unknown as {
+					notectlEditor: {
+						setContentHTML(value: string): Promise<void>;
+						getContentHTML(options: unknown): Promise<{ html: string }>;
+					};
+				}
+			).notectlEditor;
+			await editor.setContentHTML(content);
+			return (await editor.getContentHTML({ cssMode: 'classes', includeBlockIds: false })).html;
+		}, source);
+
+		expect(html).toBe(source);
+		await expect(page.locator('notectl-editor p')).toHaveCSS('text-align', 'center');
+		expect(violations).toEqual([]);
 	});
 });
