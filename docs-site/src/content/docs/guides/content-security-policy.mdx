@@ -341,6 +341,12 @@ Without the `styleMap`, class-based HTML can still be imported, but generated `n
   If you only need to store and re-display content, you can use JSON (`getJSON()` / `setJSON()`) which preserves all data perfectly. The `styleMap` round-trip is specifically for scenarios where you store class-based HTML and need to re-import it into an editor.
 </Aside>
 
+### Importing and Pasting Inline Styles
+
+`setContentHTML()` and paste keep the formatting of inline `style` attributes on CSP-strict pages, too. HTML saved with the default `cssMode: 'inline'` round-trips, and content pasted from Word, Google Docs or other websites keeps its colors, fonts, sizes, alignment and bold text.
+
+Under `style-src-attr 'none'`, Chromium does not apply the `style` attributes of parsed HTML, not even inside the parser's inert template, but it keeps their text. Before reading formatting, notectl applies that text through the CSSOM, which a CSP does not restrict. Firefox applies the attributes itself, so nothing changes there.
+
 ### Which Serialization Mode Should I Use?
 
 | Scenario | Mode | Notes |
@@ -406,6 +412,8 @@ This means something is writing an inline `style` attribute. notectl does not do
 
 - Third-party plugins that write inline styles directly via `el.style.x = ...`
 - Custom `NodeView` implementations that bypass the token-based style system
+
+Chromium also logs this message when you import or paste HTML that contains `style` attributes: it reports them while parsing the HTML, before notectl reads them. The formatting is not lost, because notectl [applies it through the CSSOM](#importing-and-pasting-inline-styles). To avoid the messages, store class-based HTML (`cssMode: 'classes'`) or JSON instead.
 
 <Aside type="caution">
   If you write custom plugins or node views, use `context.registerStyleSheet()` to inject CSS rules instead of direct `el.style` manipulation. The editor's token-based style system ensures all dynamic styles are CSP-compliant.

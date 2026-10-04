@@ -80,8 +80,9 @@ A style class stands for exactly one CSS declaration, such as `text-red` for `co
 - **The document stays semantic.** The editor stores a color, a size or an alignment, never a class
   name. Changing the mapping changes only the names of future exports.
 - **Values are compared as the browser reads them.** A browser reads an imported `#e03131` back as
-  `rgb(224, 49, 49)` and may requote font names. The next export still finds `text-red` and your
-  font class.
+  `rgb(224, 49, 49)` and may requote font names. Import stores such a value in your spelling when it
+  matches a palette color, a `styleClasses` key or a configured font, so the toolbar pickers select
+  it and the next export still finds `text-red` and your font class.
 - **Inline export and the editor are unchanged.** `getContentHTML()` without `cssMode: 'classes'`
   keeps writing `style` attributes, and the editor renders formatting itself, CSP-safe and without
   your stylesheet.

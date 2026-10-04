@@ -71,7 +71,9 @@ Color application is handled through the toolbar popup's click handlers — each
 
 ## Toolbar
 
-The text color button shows a **color swatch preview** reflecting the current text color. Clicking opens a grid picker with all available colors. The currently active color is highlighted with a visual indicator.
+The text color button shows a **color swatch preview** reflecting the current text color. Clicking opens a grid picker with all available colors. The currently active color is highlighted with a visual indicator and marked as selected for screen readers.
+
+This includes colors from imported or pasted HTML. Browsers read `#e03131` back as `rgb(224, 49, 49)`, so notectl stores an imported color that matches a palette color or a `styleClasses` key in your spelling, and the picker selects it.
 
 ## Mark Spec
 

@@ -103,6 +103,8 @@ import { STARTER_FONTS, FIRA_CODE, FIRA_SANS } from '@notectl/core/fonts/starter
 
 The font plugin renders as a **combobox-style selector**. The label updates to show the active font name at the cursor position. Clicking opens a font picker popup where each font name is rendered in its own typeface for instant preview.
 
+The picker also selects fonts from imported or pasted HTML. Browsers change the quotes of font family names (Chromium reads `'Inter', sans-serif` back as `Inter, sans-serif`), so notectl stores an imported family that matches one of your `fonts` in its configured spelling.
+
 ## Mark Spec
 
 | Mark | Attributes | Renders As |

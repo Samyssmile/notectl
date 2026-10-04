@@ -71,7 +71,9 @@ Highlight color application is handled through the toolbar popup's click handler
 The highlight button opens a **custom color picker popup** with:
 - A "None" button at the top to remove the highlight
 - A grid of 50 color swatches (10 columns x 5 rows)
-- The currently active highlight color is visually indicated
+- The currently active highlight color is visually indicated and marked as selected for screen readers
+
+This includes highlights from imported or pasted HTML. Browsers read `#fff3bf` back as `rgb(255, 243, 191)`, so notectl stores an imported highlight that matches a palette color or a `styleClasses` key in your spelling, and the picker selects it.
 
 ## Mark Spec
 
