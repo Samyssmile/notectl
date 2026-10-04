@@ -322,6 +322,28 @@ describe('AlignmentPlugin classNames in HTML', () => {
 			expect(doc.children.map((block) => block.attrs?.align)).toEqual(['center', 'center']);
 		});
 
+		it('reads a class on a bare image, where other editors put it', async () => {
+			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+
+			const doc: Document = parseHTMLToDocument(
+				'<img class="align-end" src="photo.png" alt="">',
+				registry,
+			);
+
+			expect(alignments(doc)).toEqual({ image: 'end' });
+		});
+
+		it('keeps an image inside a paragraph inline, so its class aligns nothing', async () => {
+			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+
+			const doc: Document = parseHTMLToDocument(
+				'<p><img class="align-end" src="photo.png" alt=""></p>',
+				registry,
+			);
+
+			expect(alignments(doc)).toEqual({ paragraph: undefined });
+		});
+
 		it('ignores the configured classes in an editor without them', async () => {
 			const registry: SchemaRegistry = await registryWith();
 
