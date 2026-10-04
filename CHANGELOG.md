@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Classes in imported HTML follow the CSS cascade.** When a `styleMap` or a style class sets a property that the element already sets inline, the inline style now wins, as it does in CSS; before, the class overrode it. Between two classes, the first listed wins. Classes stay on the element after import, so other parse rules can still read them.
 - **`MarkSpec.toHTMLStyle()` and `HTMLExportContext.styleAttr()` take raw CSS.** notectl now escapes declarations where it writes a `style` attribute. Inline HTML is unchanged; plugins that escaped declarations themselves should stop, or values containing `&`, `<`, `>` or `"` are escaped twice.
 - **Bundle budgets for application CSS classes (#269, #270).** Core to 109 KB (measured 108.73 KB, previously 106.77 KB with the 2.3.10 release), the HTML codec to 13.6 KB (13.50 KB), the Markdown codec to 31 KB (30.82 KB), the Alignment plugin to 2.7 KB (2.59 KB) and the Font plugin to 4.7 KB (4.54 KB). The parser, serializer and registry carry the style class vocabulary; the plugins share a small helper for their `styleClasses` option.
+- **Bundle budgets for inline styles under a strict CSP (#272).** Core to 109.5 KB (measured 109.19 KB), the HTML codec to 14.1 KB (13.95 KB) and the Markdown codec to 31.5 KB (31.28 KB): their HTML parser now applies `style` attributes that a strict CSP blocked.
 
 ### Fixed
 

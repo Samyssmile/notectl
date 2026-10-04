@@ -19,15 +19,18 @@ const ENTRY_BUDGETS = [
 	// dropped-composition handling, the per-parse HTML session and application alignment classes.
 	// #269: measured 108.73 KB; generic style classes (declaration parsing, CSSOM-keyed lookup,
 	// per-declaration class lists, shared rehydration for import and paste).
-	['Core', 'src/index.ts', 109],
+	// #272: measured 109.19 KB; rehydration also applies style attributes a strict CSP blocked.
+	['Core', 'src/index.ts', 109.5],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	// #269: measured 13.50 KB; the parser and serializer carry the style class vocabulary.
-	['HTML codec', 'src/html.ts', 13.6],
+	// #272: measured 13.95 KB; the parser applies style attributes a strict CSP blocked.
+	['HTML codec', 'src/html.ts', 14.1],
 	// #223: measured 29.09 KB; v2.3.8 already exceeded the old 29 KB budget at 29.07 KB.
 	// #270: measured 29.89 KB; the codec's SchemaRegistry validates alignment classes.
 	// #269: measured 30.82 KB; its registry and HTML parser include the generic style classes.
-	['Markdown codec', 'src/markdown.ts', 31],
+	// #272: measured 31.28 KB; its HTML parser applies style attributes a strict CSP blocked.
+	['Markdown codec', 'src/markdown.ts', 31.5],
 	['Fonts (compatibility barrel)', 'src/fonts.ts', 555],
 	['Fonts (starter)', 'src/fonts/starter.ts', 255],
 	['Fonts (math)', 'src/fonts/math.ts', 300],
