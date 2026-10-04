@@ -289,6 +289,11 @@ function rangeNodeSizes(state: EditorState): Set<string> | null {
 
 // --- State Queries ---
 
+/** The `fontSize` mark value of a pixel size, e.g. `18px`. */
+export function pixelFontSize(size: number): string {
+	return `${size}px`;
+}
+
 /** Returns the raw fontSize CSS value at the current selection, or null. */
 export function getActiveSize(state: EditorState): string | null {
 	const target = nodeFontSizeTarget(state);
@@ -369,7 +374,7 @@ export function stepFontSize(
 	if (next === defaultSize) {
 		return removeFontSize(context, state);
 	}
-	return applyFontSize(context, state, `${next}px`);
+	return applyFontSize(context, state, pixelFontSize(next));
 }
 
 /**
@@ -380,7 +385,7 @@ export function selectSize(context: PluginContext, size: number, defaultSize: nu
 	if (size === defaultSize) {
 		context.executeCommand('removeFontSize');
 	} else {
-		applyFontSize(context, context.getState(), `${size}px`);
+		applyFontSize(context, context.getState(), pixelFontSize(size));
 	}
 }
 

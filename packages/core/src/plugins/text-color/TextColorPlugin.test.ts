@@ -196,4 +196,46 @@ describe('TextColorPlugin', () => {
 			expect(swatches.length).toBe(70);
 		});
 	});
+
+	describe('styleClasses', () => {
+		it('registers a style class per color, also for colors outside the palette', async () => {
+			const h = await pluginHarness(
+				new TextColorPlugin({
+					colors: ['#e03131'],
+					styleClasses: { '#E03131': 'text-red', '#1971c2': 'text-blue' },
+				}),
+			);
+
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([
+				{ className: 'text-red', declaration: 'color: #e03131' },
+				{ className: 'text-blue', declaration: 'color: #1971c2' },
+			]);
+		});
+
+		it('fails initialization for a key that is not a hex color', async () => {
+			const plugin = new TextColorPlugin({ styleClasses: { red: 'text-red' } });
+
+			await expect(pluginHarness(plugin)).rejects.toThrow(
+				'TextColorPlugin styleClasses: "red" is not a hex color; use keys such as "#e03131".',
+			);
+		});
+
+		it('fails initialization for an invalid class name', async () => {
+			const plugin = new TextColorPlugin({ styleClasses: { '#e03131': 'text red' } });
+
+			await expect(pluginHarness(plugin)).rejects.toThrow(
+				'TextColorPlugin styleClasses: Invalid class name "text red" for "color: #e03131"',
+			);
+		});
+
+		it('removes its style classes when the editor is destroyed', async () => {
+			const h = await pluginHarness(
+				new TextColorPlugin({ styleClasses: { '#e03131': 'text-red' } }),
+			);
+
+			await h.pm.destroy();
+
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([]);
+		});
+	});
 });

@@ -11,14 +11,20 @@ import {
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
 import FONT_SELECT_CSS from '../../editor/styles/font-select.css?inline';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { getStyleNonceForNode, setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontFamily } from '../shared/ColorValidation.js';
-import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
+import {
+	type InlineStyleMarkConfig,
+	createInlineStyleMarkSpec,
+	styleDeclaration,
+} from '../shared/InlineStyleMarkSpec.js';
 import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import type { PopupCloseOptions } from '../shared/PopupManager.js';
+import { registerStyleClassNames } from '../shared/StyleClassNames.js';
 import { FONT_LOCALE_EN, type FontLocale, loadFontLocale } from './FontLocale.js';
 
 // --- Attribute Registry Augmentation ---
@@ -77,8 +83,30 @@ export interface FontConfig {
 	 * Defaults to the first font in the list.
 	 */
 	readonly defaultFont?: string;
+	/**
+	 * Your own CSS class per font in HTML content, keyed by font name, e.g.
+	 * `{ 'Fira Code': 'font-mono' }`. Class-based export (`getContentHTML({ cssMode: 'classes' })`)
+	 * writes these classes instead of generated `notectl-s-*` names, and HTML import
+	 * and paste recognize them, so content round-trips with your stylesheet. Keys must
+	 * name fonts in `fonts`. Invalid keys or class names make editor initialization
+	 * fail with a `TypeError` that explains the fix.
+	 */
+	readonly styleClasses?: StyleClassNames<string>;
 	readonly locale?: FontLocale;
 }
+
+/** The font mark: one `font-family` declaration per text run. */
+const FONT_MARK: InlineStyleMarkConfig = {
+	type: 'font',
+	rank: 6,
+	valueAttr: 'family',
+	domStyleProperty: 'fontFamily',
+	cssProperty: 'font-family',
+	validate: isValidCSSFontFamily,
+	// Browsers normalize CSS quotes to double-quotes; our internal
+	// convention uses single-quotes.
+	transformParsed: (family: string) => family.replace(/"/g, "'"),
+};
 
 // --- Plugin ---
 
@@ -102,6 +130,7 @@ export class FontPlugin implements Plugin {
 		context.registerStyleSheet(FONT_SELECT_CSS);
 		this.context = context;
 		this.registerMarkSpec(context);
+		this.registerStyleClasses(context);
 		this.registerCommands(context);
 		if (this.config.fonts.length > 0) {
 			this.registerToolbarItem(context);
@@ -118,19 +147,21 @@ export class FontPlugin implements Plugin {
 	// --- Schema ---
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec(
-			createInlineStyleMarkSpec({
-				type: 'font',
-				rank: 6,
-				valueAttr: 'family',
-				domStyleProperty: 'fontFamily',
-				cssProperty: 'font-family',
-				validate: isValidCSSFontFamily,
-				// Browsers normalize CSS quotes to double-quotes; our internal
-				// convention uses single-quotes.
-				transformParsed: (family) => family.replace(/"/g, "'"),
-			}),
+		context.registerMarkSpec(createInlineStyleMarkSpec(FONT_MARK));
+	}
+
+	private registerStyleClasses(context: PluginContext): void {
+		registerStyleClassNames(context, 'FontPlugin', this.config.styleClasses, (key: string) =>
+			styleDeclaration(FONT_MARK.cssProperty, this.familyOf(key)),
 		);
+	}
+
+	/** The family of a configured font name. Throws a `TypeError` for an unknown name. */
+	private familyOf(name: string): string {
+		const font: FontDefinition | undefined = this.config.fonts.find((f) => f.name === name);
+		if (font) return font.family;
+		const names: string = this.config.fonts.map((f) => `"${f.name}"`).join(', ') || 'none';
+		throw new TypeError(`"${name}" is not the name of a configured font; configured: ${names}.`);
 	}
 
 	// --- Commands ---

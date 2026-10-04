@@ -574,4 +574,27 @@ describe('FontPlugin', () => {
 			expect(document.querySelector('style[data-notectl-fonts]')).toBeNull();
 		});
 	});
+
+	describe('styleClasses', () => {
+		it('registers a style class per configured font name', async () => {
+			const h = await pluginHarness(
+				new FontPlugin({ fonts: [TEST_FONT, MONO_FONT], styleClasses: { Mono: 'font-mono' } }),
+			);
+
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([
+				{ className: 'font-mono', declaration: "font-family: 'Mono', monospace" },
+			]);
+		});
+
+		it('fails initialization for a name that is not a configured font', async () => {
+			const plugin = new FontPlugin({
+				fonts: [TEST_FONT, MONO_FONT],
+				styleClasses: { Inter: 'font-sans' },
+			});
+
+			await expect(pluginHarness(plugin)).rejects.toThrow(
+				'FontPlugin styleClasses: "Inter" is not the name of a configured font; configured: "Test Font", "Mono".',
+			);
+		});
+	});
 });

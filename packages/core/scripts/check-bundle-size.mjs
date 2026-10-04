@@ -48,8 +48,10 @@ const ENTRY_BUDGETS = [
 	['Plugin: Inline Code', 'src/plugins/inline-code/index.ts', 3],
 	['Plugin: Text Color', 'src/plugins/text-color/index.ts', 7.5],
 	['Plugin: Horizontal Rule', 'src/plugins/horizontal-rule/index.ts', 2],
-	['Plugin: Alignment', 'src/plugins/alignment/index.ts', 2.5],
-	['Plugin: Font', 'src/plugins/font/index.ts', 4.5],
+	// #269: the styleClasses option shares a small helper chunk with the other formatting plugins.
+	['Plugin: Alignment', 'src/plugins/alignment/index.ts', 2.7],
+	// #269: the styleClasses option (font name keys) and its shared helper chunk.
+	['Plugin: Font', 'src/plugins/font/index.ts', 4.7],
 	['Plugin: Font Size', 'src/plugins/font-size/index.ts', 6.5],
 	['Plugin: Highlight', 'src/plugins/highlight/index.ts', 7.5],
 	['Plugin: Super/Sub', 'src/plugins/super-sub/index.ts', 3],

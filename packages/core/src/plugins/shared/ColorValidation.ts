@@ -10,6 +10,17 @@ export function isValidHexColor(value: string): boolean {
 	return HEX_COLOR_PATTERN.test(value);
 }
 
+/**
+ * Reads a `styleClasses` key of a color plugin as a hex color, lowercased like
+ * the palette. Throws a `TypeError` for anything else.
+ */
+export function hexColorKey(key: string): string {
+	if (!isValidHexColor(key)) {
+		throw new TypeError(`"${key}" is not a hex color; use keys such as "#e03131".`);
+	}
+	return key.toLowerCase();
+}
+
 // --- CSS Color Validation (broad format support for paste / API input) ---
 
 /** Matches `rgb(r, g, b)` and `rgba(r, g, b, a)` with integer or percentage values. */

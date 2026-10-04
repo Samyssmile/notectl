@@ -403,4 +403,28 @@ describe('FontSizePlugin', () => {
 			expect(h.dispatch).not.toHaveBeenCalled();
 		});
 	});
+
+	describe('styleClasses', () => {
+		it('registers a style class per pixel size, also for sizes outside the presets', async () => {
+			const h = await pluginHarness(
+				new FontSizePlugin({ sizes: [14, 18], styleClasses: { 18: 'text-lg', 22: 'text-xl' } }),
+			);
+
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([
+				{ className: 'text-lg', declaration: 'font-size: 18px' },
+				{ className: 'text-xl', declaration: 'font-size: 22px' },
+			]);
+		});
+
+		it.each(['18px', '0', '1.5', 'large'])(
+			'fails initialization for the key %j, which is not a pixel size',
+			async (key: string) => {
+				const plugin = new FontSizePlugin({ styleClasses: { [key]: 'text-lg' } });
+
+				await expect(pluginHarness(plugin)).rejects.toThrow(
+					`FontSizePlugin styleClasses: "${key}" is not a font size; use whole pixel numbers such as 18.`,
+				);
+			},
+		);
+	});
 });

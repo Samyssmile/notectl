@@ -76,6 +76,23 @@ async function createRegistry(...extraPlugins: readonly Plugin[]): Promise<Schem
 	return h.pm.schemaRegistry;
 }
 
+/** The same classes as {@link ALL_CLASSES}, configured through each plugin's own option. */
+async function createRegistryWithPluginOptions(): Promise<SchemaRegistry> {
+	const plugins: Plugin[] = [
+		new TextFormattingPlugin(),
+		new TextColorPlugin({ styleClasses: { '#e03131': 'text-red' } }),
+		new HighlightPlugin({ styleClasses: { '#fff176': 'mark-yellow' } }),
+		new FontSizePlugin({ styleClasses: { 18: 'text-lg' } }),
+		new FontPlugin({
+			fonts: [{ name: 'Fira Code', family: FIRA_CODE_FAMILY }],
+			styleClasses: { 'Fira Code': 'font-mono' },
+		}),
+		new AlignmentPlugin({ styleClasses: { center: 'align-center' } }),
+	];
+	const h = await pluginHarness(plugins, undefined, { builtinSpecs: true });
+	return h.pm.schemaRegistry;
+}
+
 function mark(type: string, attrs?: Record<string, string>): Mark {
 	return attrs ? { type: markType(type), attrs } : { type: markType(type) };
 }
@@ -421,5 +438,30 @@ describe('application style classes', () => {
 		expect(marksOf(parseHTMLToDocument(html, registry)).map((m: Mark) => m.type)).toEqual([
 			'spaced',
 		]);
+	});
+});
+
+describe('styleClasses options of the formatting plugins', () => {
+	it('configure the same classes as a plugin that registers them', async () => {
+		const fromOptions: SchemaRegistry = await createRegistryWithPluginOptions();
+		const fromPlugin: SchemaRegistry = await createRegistry(appStyleClasses(...ALL_CLASSES));
+
+		const viaOptions: ContentCSSResult = serializeDocumentToCSS(
+			styledDocument(),
+			fromOptions,
+			NO_IDS,
+		);
+
+		expect(viaOptions).toEqual(serializeDocumentToCSS(styledDocument(), fromPlugin, NO_IDS));
+		expect(viaOptions.html).toContain('<span class="text-red text-lg">Merged</span>');
+	});
+
+	it('round-trip class-based HTML without a styleMap', async () => {
+		const registry: SchemaRegistry = await createRegistryWithPluginOptions();
+		const first: ContentCSSResult = serializeDocumentToCSS(styledDocument(), registry, NO_IDS);
+
+		const imported: Document = parseHTMLToDocument(first.html, registry);
+
+		expect(serializeDocumentToCSS(imported, registry, NO_IDS)).toEqual(first);
 	});
 });

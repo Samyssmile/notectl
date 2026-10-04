@@ -19,10 +19,7 @@ export function registerStyleClassNames(
 	styleClasses: StyleClassNames<PropertyKey> | undefined,
 	declarationFor: (key: string) => string,
 ): void {
-	if (styleClasses === undefined) return;
-	if (typeof styleClasses !== 'object' || styleClasses === null || Array.isArray(styleClasses)) {
-		throw new TypeError(`${owner}: styleClasses must map values to class names.`);
-	}
+	if (!styleClasses) return;
 	for (const [key, className] of Object.entries(styleClasses)) {
 		if (className === undefined) continue;
 		try {

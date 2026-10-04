@@ -4,13 +4,19 @@
  */
 
 import COLOR_PICKER_CSS from '../../editor/styles/color-picker.css?inline';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isColorMarkActive, removeColorMark } from '../shared/ColorMarkOperations.js';
 import { renderColorPickerPopup } from '../shared/ColorPickerPopup.js';
-import { isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
-import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
+import { hexColorKey, isValidCSSColor, resolveColors } from '../shared/ColorValidation.js';
+import {
+	type InlineStyleMarkConfig,
+	createInlineStyleMarkSpec,
+	styleDeclaration,
+} from '../shared/InlineStyleMarkSpec.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
+import { registerStyleClassNames } from '../shared/StyleClassNames.js';
 import {
 	HIGHLIGHT_LOCALE_EN,
 	type HighlightLocale,
@@ -36,8 +42,28 @@ export interface HighlightConfig {
 	 * When omitted, the full default palette is shown.
 	 */
 	readonly colors?: readonly string[];
+	/**
+	 * Your own CSS class per highlight color in HTML content, keyed by hex color, e.g.
+	 * `{ '#fff3bf': 'mark-yellow' }`. Class-based export (`getContentHTML({ cssMode: 'classes' })`)
+	 * writes these classes instead of generated `notectl-s-*` names, and HTML import
+	 * and paste recognize them, so content round-trips with your stylesheet. Colors
+	 * outside `colors` may have a class too. Invalid keys or class names make editor
+	 * initialization fail with a `TypeError` that explains the fix.
+	 */
+	readonly styleClasses?: StyleClassNames<string>;
 	readonly locale?: HighlightLocale;
 }
+
+/** The highlight mark: one `background-color` declaration per text run. */
+const HIGHLIGHT_MARK: InlineStyleMarkConfig = {
+	type: 'highlight',
+	rank: 4,
+	valueAttr: 'color',
+	domStyleProperty: 'backgroundColor',
+	cssProperty: 'background-color',
+	validate: isValidCSSColor,
+	validateOnParse: true,
+};
 
 // --- Plugin ---
 
@@ -65,21 +91,18 @@ export class HighlightPlugin implements Plugin {
 
 		context.registerStyleSheet(COLOR_PICKER_CSS);
 		this.registerMarkSpec(context);
+		this.registerStyleClasses(context);
 		this.registerCommands(context);
 		this.registerToolbarItem(context);
 	}
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec(
-			createInlineStyleMarkSpec({
-				type: 'highlight',
-				rank: 4,
-				valueAttr: 'color',
-				domStyleProperty: 'backgroundColor',
-				cssProperty: 'background-color',
-				validate: isValidCSSColor,
-				validateOnParse: true,
-			}),
+		context.registerMarkSpec(createInlineStyleMarkSpec(HIGHLIGHT_MARK));
+	}
+
+	private registerStyleClasses(context: PluginContext): void {
+		registerStyleClassNames(context, 'HighlightPlugin', this.config.styleClasses, (key: string) =>
+			styleDeclaration(HIGHLIGHT_MARK.cssProperty, hexColorKey(key)),
 		);
 	}
 

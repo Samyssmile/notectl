@@ -294,4 +294,24 @@ describe('HighlightPlugin', () => {
 			expectToolbarActive(h, 'highlight', true);
 		});
 	});
+
+	describe('styleClasses', () => {
+		it('registers a style class per highlight color', async () => {
+			const h = await pluginHarness(
+				new HighlightPlugin({ styleClasses: { '#FFF3BF': 'mark-yellow' } }),
+			);
+
+			expect(h.pm.schemaRegistry.getStyleClasses()).toEqual([
+				{ className: 'mark-yellow', declaration: 'background-color: #fff3bf' },
+			]);
+		});
+
+		it('fails initialization for a key that is not a hex color', async () => {
+			const plugin = new HighlightPlugin({ styleClasses: { yellow: 'mark-yellow' } });
+
+			await expect(pluginHarness(plugin)).rejects.toThrow(
+				'HighlightPlugin styleClasses: "yellow" is not a hex color; use keys such as "#e03131".',
+			);
+		});
+	});
 });

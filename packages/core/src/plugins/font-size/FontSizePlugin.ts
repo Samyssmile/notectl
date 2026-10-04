@@ -5,16 +5,23 @@
  */
 
 import FONT_SIZE_SELECT_CSS from '../../editor/styles/font-size-select.css?inline';
+import type { StyleClassNames } from '../../model/StyleClass.js';
 import type { EditorState } from '../../state/EditorState.js';
 import { setStyleProperty } from '../../style/StyleRuntime.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { isValidCSSFontSize } from '../shared/ColorValidation.js';
-import { createInlineStyleMarkSpec } from '../shared/InlineStyleMarkSpec.js';
+import {
+	type InlineStyleMarkConfig,
+	createInlineStyleMarkSpec,
+	styleDeclaration,
+} from '../shared/InlineStyleMarkSpec.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
+import { registerStyleClassNames } from '../shared/StyleClassNames.js';
 import { FONT_SIZE_LOCALE_EN, type FontSizeLocale, loadFontSizeLocale } from './FontSizeLocale.js';
 import {
 	getActiveSizeNumeric,
 	isFontSizeActive,
+	pixelFontSize,
 	removeFontSize,
 	stepFontSize,
 } from './FontSizeOperations.js';
@@ -53,8 +60,30 @@ export interface FontSizeConfig {
 	 * Defaults to 16.
 	 */
 	readonly defaultSize?: number;
+	/**
+	 * Your own CSS class per font size in HTML content, keyed by pixel size, e.g.
+	 * `{ 14: 'text-sm', 18: 'text-lg' }`. Class-based export (`getContentHTML({ cssMode: 'classes' })`)
+	 * writes these classes instead of generated `notectl-s-*` names, and HTML import
+	 * and paste recognize them, so content round-trips with your stylesheet. Sizes
+	 * outside `sizes` may have a class too. Invalid keys or class names make editor
+	 * initialization fail with a `TypeError` that explains the fix.
+	 */
+	readonly styleClasses?: StyleClassNames<number>;
 	readonly locale?: FontSizeLocale;
 }
+
+/** The font size mark: one `font-size` declaration per text run. */
+const FONT_SIZE_MARK: InlineStyleMarkConfig = {
+	type: 'fontSize',
+	rank: 4,
+	valueAttr: 'size',
+	domStyleProperty: 'fontSize',
+	cssProperty: 'font-size',
+	validate: isValidCSSFontSize,
+};
+
+/** A whole number of pixels without unit, as `styleClasses` keys are written. */
+const PIXEL_SIZE_KEY: RegExp = /^[1-9]\d*$/;
 
 // --- Plugin ---
 
@@ -84,6 +113,7 @@ export class FontSizePlugin implements Plugin {
 
 		context.registerStyleSheet(FONT_SIZE_SELECT_CSS);
 		this.registerMarkSpec(context);
+		this.registerStyleClasses(context);
 		this.registerCommands(context);
 		this.registerKeymaps(context);
 		this.registerToolbarItem(context);
@@ -97,15 +127,12 @@ export class FontSizePlugin implements Plugin {
 	// --- Schema ---
 
 	private registerMarkSpec(context: PluginContext): void {
-		context.registerMarkSpec(
-			createInlineStyleMarkSpec({
-				type: 'fontSize',
-				rank: 4,
-				valueAttr: 'size',
-				domStyleProperty: 'fontSize',
-				cssProperty: 'font-size',
-				validate: isValidCSSFontSize,
-			}),
+		context.registerMarkSpec(createInlineStyleMarkSpec(FONT_SIZE_MARK));
+	}
+
+	private registerStyleClasses(context: PluginContext): void {
+		registerStyleClassNames(context, 'FontSizePlugin', this.config.styleClasses, (key: string) =>
+			styleDeclaration(FONT_SIZE_MARK.cssProperty, pixelFontSize(pixelSizeKey(key))),
 		);
 	}
 
@@ -190,4 +217,12 @@ function resolveSizes(sizes: readonly number[] | undefined): readonly number[] {
 function resolveDefaultSize(size: number | undefined): number {
 	if (size === undefined) return DEFAULT_FONT_SIZE;
 	return Number.isInteger(size) && size > 0 ? size : DEFAULT_FONT_SIZE;
+}
+
+/** Reads a `styleClasses` key as a pixel size. Throws a `TypeError` for anything else. */
+function pixelSizeKey(key: string): number {
+	if (!PIXEL_SIZE_KEY.test(key)) {
+		throw new TypeError(`"${key}" is not a font size; use whole pixel numbers such as 18.`);
+	}
+	return Number(key);
 }
