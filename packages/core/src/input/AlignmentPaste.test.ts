@@ -12,16 +12,18 @@ import { pluginHarness, stateBuilder } from '../test/TestUtils.js';
 import { HTMLParser } from './HTMLParser.js';
 import { PasteHTMLHandler } from './PasteHTMLHandler.js';
 
-const CLASS_NAMES: StyleClassNames<BlockAlignment> = {
+const STYLE_CLASSES: StyleClassNames<BlockAlignment> = {
 	start: 'align-start',
 	center: 'align-center',
 	end: 'align-end',
 	justify: 'align-justify',
 };
 
-async function harness(classNames?: StyleClassNames<BlockAlignment>): Promise<PluginHarnessResult> {
+async function harness(
+	styleClasses?: StyleClassNames<BlockAlignment>,
+): Promise<PluginHarnessResult> {
 	return pluginHarness(
-		[new HeadingPlugin(), new AlignmentPlugin({ styleClasses: classNames })],
+		[new HeadingPlugin(), new AlignmentPlugin({ styleClasses })],
 		stateBuilder().paragraph('', 'p').cursor('p', 0).schema(['paragraph', 'heading'], []).build(),
 		{ builtinSpecs: true, useMiddleware: true },
 	);
@@ -36,7 +38,7 @@ function parse(html: string, registry: SchemaRegistry): ContentSlice {
 
 describe('alignment in HTML paste (#270)', () => {
 	it('reads configured classes on headings and every paragraph split by a line break', async () => {
-		const h: PluginHarnessResult = await harness(CLASS_NAMES);
+		const h: PluginHarnessResult = await harness(STYLE_CLASSES);
 
 		const slice: ContentSlice = parse(
 			'<h2 class="align-end">Title</h2><p class="align-center">One<br>Two</p>',
@@ -51,7 +53,7 @@ describe('alignment in HTML paste (#270)', () => {
 	});
 
 	it('inherits wrapper alignment while preserving child classes and inline styles', async () => {
-		const h: PluginHarnessResult = await harness(CLASS_NAMES);
+		const h: PluginHarnessResult = await harness(STYLE_CLASSES);
 
 		const slice: ContentSlice = parse(
 			'<div class="align-center"><span><p>Inherited</p>' +
@@ -79,7 +81,7 @@ describe('alignment in HTML paste (#270)', () => {
 		const h: PluginHarnessResult = await pluginHarness(
 			[
 				new HeadingPlugin(),
-				new AlignmentPlugin({ styleClasses: CLASS_NAMES, alignableTypes: ['heading'] }),
+				new AlignmentPlugin({ styleClasses: STYLE_CLASSES, alignableTypes: ['heading'] }),
 			],
 			undefined,
 			{ builtinSpecs: true },
@@ -99,7 +101,7 @@ describe('alignment in HTML paste (#270)', () => {
 		'<p class="align-center">First</p><p class="align-justify">Middle</p>' +
 			'<p class="align-end">Last</p>',
 	])('preserves the classes through the full paste/export pipeline: %s', async (html: string) => {
-		const h: PluginHarnessResult = await harness(CLASS_NAMES);
+		const h: PluginHarnessResult = await harness(STYLE_CLASSES);
 		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
 
 		expect(handler.pasteHTMLString(html)).toBe(true);
@@ -118,7 +120,7 @@ describe('alignment in HTML paste (#270)', () => {
 			.schema(['paragraph', 'heading'], [])
 			.build();
 		const h: PluginHarnessResult = await pluginHarness(
-			[new HeadingPlugin(), new AlignmentPlugin({ styleClasses: CLASS_NAMES })],
+			[new HeadingPlugin(), new AlignmentPlugin({ styleClasses: STYLE_CLASSES })],
 			state,
 			{ builtinSpecs: true, useMiddleware: true },
 		);

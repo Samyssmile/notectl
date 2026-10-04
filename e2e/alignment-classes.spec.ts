@@ -6,7 +6,7 @@ import { type ClassExport, expect, test } from './fixtures/editor-page';
  * AlignmentPlugin, used by class-based export, HTML import and paste.
  */
 
-const CLASS_NAMES = {
+const STYLE_CLASSES = {
 	start: 'align-start',
 	center: 'align-center',
 	end: 'align-end',
@@ -56,7 +56,7 @@ test.describe('Alignment CSS classes (#270)', () => {
 				[{ name: 'HeadingPlugin' }],
 				[{ name: 'ImagePlugin' }],
 				[{ name: 'TablePlugin' }],
-				[{ name: 'AlignmentPlugin', config: { styleClasses: CLASS_NAMES } }],
+				[{ name: 'AlignmentPlugin', config: { styleClasses: STYLE_CLASSES } }],
 			],
 		});
 	});

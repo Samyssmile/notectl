@@ -34,19 +34,21 @@ import { TextDirectionPlugin } from '../text-direction/TextDirectionPlugin.js';
 import { VideoPlugin } from '../video/VideoPlugin.js';
 import { AlignmentPlugin } from './AlignmentPlugin.js';
 
-const CLASS_NAMES: StyleClassNames<BlockAlignment> = {
+const STYLE_CLASSES: StyleClassNames<BlockAlignment> = {
 	center: 'align-center',
 	end: 'align-end',
 	justify: 'align-justify',
 };
 
-const WITH_START: StyleClassNames<BlockAlignment> = { ...CLASS_NAMES, start: 'align-start' };
+const WITH_START: StyleClassNames<BlockAlignment> = { ...STYLE_CLASSES, start: 'align-start' };
 
 const NO_IDS = { includeBlockIds: false } as const;
 
 // --- Helpers ---
 
-async function registryWith(classNames?: StyleClassNames<BlockAlignment>): Promise<SchemaRegistry> {
+async function registryWith(
+	styleClasses?: StyleClassNames<BlockAlignment>,
+): Promise<SchemaRegistry> {
 	const plugins = [
 		new HeadingPlugin(),
 		new ImagePlugin(),
@@ -54,7 +56,7 @@ async function registryWith(classNames?: StyleClassNames<BlockAlignment>): Promi
 		new ListPlugin(),
 		new TextDirectionPlugin(),
 		new VideoPlugin(),
-		new AlignmentPlugin({ styleClasses: classNames }),
+		new AlignmentPlugin({ styleClasses }),
 	];
 	const h = await pluginHarness(plugins, undefined, { builtinSpecs: true });
 	return h.pm.schemaRegistry;
@@ -140,10 +142,10 @@ function alignments(doc: Document): Record<string, unknown> {
 
 // --- Tests ---
 
-describe('AlignmentPlugin classNames in HTML', () => {
+describe('AlignmentPlugin styleClasses in HTML', () => {
 	describe('class-based export', () => {
 		it('writes the configured classes on paragraphs, headings, figures and table cells', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const doc: Document = createDocument([
 				paragraph('p', 'Centered', 'center'),
 				heading('h', 'End', 'end'),
@@ -162,7 +164,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('returns css and a styleMap describing exactly the classes in html', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const doc: Document = createDocument([
 				paragraph('a', 'a', 'center'),
 				paragraph('b', 'b', 'end'),
@@ -194,7 +196,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('omits start alignment when start has no class', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const doc: Document = createDocument([paragraph('a', 'a', 'start'), paragraph('b', 'b')]);
 
 			const result: ContentCSSResult = serializeDocumentToCSS(doc, registry, NO_IDS);
@@ -256,7 +258,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('writes the configured class on the figure of a video and reads it back', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const doc: Document = createDocument([video('v', 'end')]);
 
 			const { html } = serializeDocumentToCSS(doc, registry, NO_IDS);
@@ -283,7 +285,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('leaves the default inline-style export unchanged', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const doc: Document = createDocument([paragraph('p', 'Centered', 'center')]);
 
 			const html: string = serializeDocumentToHTML(doc, registry, NO_IDS);
@@ -294,7 +296,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 
 	describe('import', () => {
 		it('reads the configured classes without a styleMap', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const html: string =
 				'<p class="align-center">a</p><h2 class="align-end">b</h2>' +
 				'<figure class="align-end"><img src="photo.png" alt=""></figure>' +
@@ -313,7 +315,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('passes ancestor wrapper classes on to the wrapped blocks', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 
 			const doc: Document = parseHTMLToDocument(
 				'<div class="align-center"><p>a</p><h2>b</h2></div>',
@@ -324,7 +326,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('reads a class on a bare image, where other editors put it', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 
 			const doc: Document = parseHTMLToDocument(
 				'<img class="align-end" src="photo.png" alt="">',
@@ -335,7 +337,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('keeps an image inside a paragraph inline, so its class aligns nothing', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 
 			const doc: Document = parseHTMLToDocument(
 				'<p><img class="align-end" src="photo.png" alt=""></p>',
@@ -354,7 +356,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('reads existing notectl classes and re-exports them with the configured names', async () => {
-			const registry: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const registry: SchemaRegistry = await registryWith(STYLE_CLASSES);
 
 			const doc: Document = parseHTMLToDocument('<p class="notectl-align-center">a</p>', registry);
 			const { html } = serializeDocumentToCSS(doc, registry, NO_IDS);
@@ -381,8 +383,8 @@ describe('AlignmentPlugin classNames in HTML', () => {
 	describe('round trip', () => {
 		it.each([WITH_START, undefined])(
 			'preserves explicit start and implicit inheritance inside an aligned cell (%j)',
-			async (classNames: StyleClassNames<BlockAlignment> | undefined) => {
-				const registry: SchemaRegistry = await registryWith(classNames);
+			async (styleClasses: StyleClassNames<BlockAlignment> | undefined) => {
+				const registry: SchemaRegistry = await registryWith(styleClasses);
 				const doc: Document = createDocument([
 					table('center', [paragraph('a', 'inherited'), paragraph('b', 'explicit', 'start')]),
 				]);
@@ -423,7 +425,7 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		it('imports class-based HTML into an editor without the classes through its styleMap', async () => {
-			const exporting: SchemaRegistry = await registryWith(CLASS_NAMES);
+			const exporting: SchemaRegistry = await registryWith(STYLE_CLASSES);
 			const importing: SchemaRegistry = await registryWith();
 			const doc: Document = createDocument([
 				paragraph('p', 'Centered', 'center'),
@@ -492,24 +494,20 @@ describe('AlignmentPlugin classNames in HTML', () => {
 		});
 
 		async function createEditor(
-			classNames: StyleClassNames<BlockAlignment>,
+			styleClasses: StyleClassNames<BlockAlignment>,
 		): Promise<NotectlEditor> {
 			const editor = new NotectlEditor();
 			document.body.appendChild(editor);
 			await editor.init({
 				locale: Locale.EN,
-				plugins: [
-					new HeadingPlugin(),
-					new ImagePlugin(),
-					new AlignmentPlugin({ styleClasses: classNames }),
-				],
+				plugins: [new HeadingPlugin(), new ImagePlugin(), new AlignmentPlugin({ styleClasses })],
 			});
 			await editor.whenReady();
 			return editor;
 		}
 
 		it('round-trips class-based HTML without passing a styleMap', async () => {
-			const editor: NotectlEditor = await createEditor(CLASS_NAMES);
+			const editor: NotectlEditor = await createEditor(STYLE_CLASSES);
 			const source: string =
 				'<h2 class="align-center">Title</h2><p class="align-justify">Body</p>' +
 				'<figure class="align-end"><img src="photo.png" alt="Photo"></figure>';
