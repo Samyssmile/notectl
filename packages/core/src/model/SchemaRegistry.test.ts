@@ -265,6 +265,19 @@ describe('SchemaRegistry', () => {
 			registry.removeStyleClass(TEXT_RED);
 			expect(registry.getAllowedAttrs()).not.toContain('class');
 		});
+
+		it('allows the class attribute while a block type can be aligned', () => {
+			const registry = new SchemaRegistry();
+			registry.registerNodeSpec(makeNodeSpec('paragraph'));
+			expect(registry.getAllowedAttrs()).not.toContain('class');
+
+			registry.registerNodeSpecExtension('paragraph', (spec) => ({
+				...spec,
+				attrs: { ...spec.attrs, align: { default: 'start' } },
+			}));
+
+			expect(registry.getAllowedAttrs()).toContain('class');
+		});
 	});
 
 	describe('clear', () => {

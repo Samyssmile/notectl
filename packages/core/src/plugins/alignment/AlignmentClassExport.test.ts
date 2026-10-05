@@ -550,3 +550,49 @@ describe('AlignmentPlugin styleClasses in HTML', () => {
 		});
 	});
 });
+
+describe('notectl alignment classes in an editor whose other plugins allow no classes (#275)', () => {
+	it('round-trips class-based HTML without a styleMap', async () => {
+		const h = await pluginHarness(new AlignmentPlugin(), undefined, { builtinSpecs: true });
+		const registry: SchemaRegistry = h.pm.schemaRegistry;
+		const doc: Document = createDocument([
+			paragraph('p', 'Centered', 'center'),
+			paragraph('q', 'End', 'end'),
+		]);
+
+		const { html } = serializeDocumentToCSS(doc, registry, NO_IDS);
+		const imported: Document = parseHTMLToDocument(html, registry);
+
+		expect(html).toContain('class="notectl-align-center"');
+		expect(imported.children.map((block: BlockNode) => block.attrs?.align)).toEqual([
+			'center',
+			'end',
+		]);
+	});
+});
+
+describe('TinyMCE alignment classes on a standalone image', () => {
+	const TINYMCE: StyleClassNames<BlockAlignment> = { center: 'align-center', end: 'align-right' };
+	const LEFT_IMAGE: string = '<img class="align-left" src="https://example.com/a.png" alt="">';
+
+	it('aligns the image to start when start has the left class', async () => {
+		const registry: SchemaRegistry = await registryWith({ ...TINYMCE, start: 'align-left' });
+
+		const doc: Document = parseHTMLToDocument(LEFT_IMAGE, registry);
+
+		expect(doc.children[0]?.type).toBe('image');
+		expect(doc.children[0]?.attrs?.align).toBe('start');
+	});
+
+	it('leaves the image centered, its default, when start has no class', async () => {
+		const registry: SchemaRegistry = await registryWith(TINYMCE);
+
+		const doc: Document = parseHTMLToDocument(LEFT_IMAGE, registry);
+		const image: BlockNode | undefined = doc.children[0];
+
+		expect(image?.type).toBe('image');
+		expect(image?.attrs?.align ?? registry.getNodeSpec('image')?.attrs?.align?.default).toBe(
+			'center',
+		);
+	});
+});

@@ -130,4 +130,19 @@ describe('alignment in HTML paste (#270)', () => {
 
 		expect(h.getState().doc.children[0]?.attrs).toEqual({ level: 2, align: 'start' });
 	});
+
+	it('reads notectl alignment classes in an editor whose other plugins allow no classes (#275)', async () => {
+		const h: PluginHarnessResult = await pluginHarness(
+			new AlignmentPlugin(),
+			stateBuilder().paragraph('', 'p').cursor('p', 0).schema(['paragraph'], []).build(),
+			{ builtinSpecs: true, useMiddleware: true },
+		);
+		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
+
+		handler.pasteHTMLString(
+			'<p class="notectl-align-center">One</p><p class="notectl-align-end">Two</p>',
+		);
+
+		expect(h.getState().doc.children.map((block) => block.attrs?.align)).toEqual(['center', 'end']);
+	});
 });

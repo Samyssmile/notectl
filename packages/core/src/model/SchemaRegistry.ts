@@ -193,11 +193,11 @@ export class SchemaRegistry {
 
 	/**
 	 * Returns all allowed HTML attributes from base defaults + all spec sanitize configs.
-	 * Registered style classes add `class`, which carries them in HTML.
+	 * `class` is allowed while content HTML can carry classes that import reads back.
 	 */
 	getAllowedAttrs(): string[] {
 		const base = new Set<string>(['style', 'dir', 'id']);
-		if (this._styleClasses.size > 0) base.add('class');
+		if (this.readsClasses()) base.add('class');
 		return [...this.collectSanitizeValues(base, (spec) => spec.sanitize?.attrs)];
 	}
 
@@ -232,6 +232,19 @@ export class SchemaRegistry {
 			(a, b) =>
 				(b.rule.priority ?? DEFAULT_PARSE_PRIORITY) - (a.rule.priority ?? DEFAULT_PARSE_PRIORITY),
 		);
+	}
+
+	/**
+	 * Whether content HTML can carry classes that import reads back: registered
+	 * style classes, or the `notectl-align-*` classes class-based export writes
+	 * for every block type that declares `align` (#275).
+	 */
+	private readsClasses(): boolean {
+		if (this._styleClasses.size > 0) return true;
+		for (const spec of this.getFinalizedNodeSpecs().values()) {
+			if (spec.attrs?.align) return true;
+		}
+		return false;
 	}
 
 	private collectSanitizeValues(
