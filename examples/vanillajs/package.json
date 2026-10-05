@@ -1,6 +1,6 @@
 {
 	"name": "examples-vanillajs",
-	"version": "2.3.10",
+	"version": "2.4.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
