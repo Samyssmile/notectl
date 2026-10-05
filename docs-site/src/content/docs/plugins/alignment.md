@@ -68,6 +68,8 @@ new AlignmentPlugin({
 
 ## Custom CSS Classes
 
+Available from notectl 2.4.0.
+
 By default, [class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes alignment as `notectl-align-center` and similar classes. If your application already has
 classes for alignment, for example from a CMS, a design system or a previous editor, configure

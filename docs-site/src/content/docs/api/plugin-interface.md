@@ -107,6 +107,8 @@ Plugins that need to show popups (dropdowns, color pickers, dialogs) should use 
 
 ## Style Classes
 
+Available from notectl 2.4.0.
+
 `registerStyleClass({ className, declaration })` lets content HTML use an application CSS class for
 one CSS declaration that the plugin exports, for example
 `{ className: 'text-red', declaration: 'color: #e03131' }`. Class-based export writes the class

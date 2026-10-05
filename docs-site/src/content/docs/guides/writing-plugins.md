@@ -132,6 +132,8 @@ extension re-run. See [Extending Another Plugin's NodeSpec](/notectl/api/plugin-
 
 ### Style Classes
 
+Available from notectl 2.4.0.
+
 A mark that exports a CSS declaration through `toHTMLStyle()`, or a node that passes one to
 `ctx.styleAttr()` in `toHTML()`, gets a generated `notectl-s-*` class in class-based HTML export.
 Register a style class to let content HTML use an application class for that declaration instead:

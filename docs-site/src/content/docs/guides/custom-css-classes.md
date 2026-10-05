@@ -3,6 +3,10 @@ title: Custom CSS Classes
 description: Use your application's own CSS classes for alignment, colors, highlights, font sizes and fonts in exported HTML, and read them back on import and paste.
 ---
 
+:::note
+Custom CSS classes are available from notectl 2.4.0.
+:::
+
 [Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes formatting as CSS classes instead of inline styles. By default these are notectl's own
 names: `notectl-align-center` for alignment and content-hashed `notectl-s-*` names for colors,
@@ -74,11 +78,13 @@ A style class stands for exactly one CSS declaration, such as `text-red` for `co
   formats gets several classes (`class="text-red text-lg"`). Formatting without a class of yours
   keeps one generated class next to yours (`class="text-red notectl-s-g4x198"`).
 - **The returned `css` and `styleMap`** list your classes with the declarations they stand for,
-  next to the generated ones, so the result renders on its own and re-imports anywhere.
+  next to the generated ones, so the result renders on its own and also imports into an editor
+  that does not know your classes.
 - **Import and paste** read your classes without a `styleMap`: `setContentHTML()`, pasted HTML and
   HTML blocks in Markdown alike, also on pages whose CSP blocks inline styles.
 - **The document stays semantic.** The editor stores a color, a size or an alignment, never a class
-  name. Changing the mapping changes only the names of future exports.
+  name, so a changed mapping changes the class names of the next export. HTML you already stored
+  keeps the old names; see [Renaming a Class](#renaming-a-class).
 - **Values are compared as the browser reads them.** A browser reads an imported `#e03131` back as
   `rgb(224, 49, 49)` and may requote font names. Import stores such a value in your spelling when it
   matches a palette color, a `styleClasses` key or a configured font, so the toolbar pickers select
@@ -89,14 +95,18 @@ A style class stands for exactly one CSS declaration, such as `text-red` for `co
 
 ## Import Rules
 
-When imported HTML is ambiguous, notectl follows CSS where it can:
+When imported HTML is ambiguous, notectl resolves it like this:
 
 - **An inline style wins over a class** for the same property:
   `<span class="text-red" style="color: blue">` imports blue text.
-- **The first listed class wins** when two classes set the same property.
+- **The first listed class wins** when two classes set the same property. In CSS the rule that
+  comes later in your stylesheet would win, and notectl cannot see your stylesheet, so give an
+  element only one class per property.
 - **A `styleMap` describes the HTML it came with.** When you pass one to `setContentHTML()`, its
   entries win over your configured classes of the same name.
-- **Classes stay on the element** after import, so other plugins can still read them.
+- **Classes stay on the element while the HTML is parsed**, so the parse rules of other plugins can
+  still read them. The document itself keeps no classes: a class without a mapping does not appear
+  in the next export.
 - **Generated `notectl-s-*` classes need the `styleMap`** returned with the HTML. Your classes and
   `notectl-align-*` never do.
 
@@ -136,14 +146,30 @@ same color as a highlight class, the code block gets that class too.
 The editor checks every class when it initializes. An invalid configuration makes `createEditor()`
 (or `init()`) reject with a `TypeError` that names the plugin, the problem and the fix:
 
-- Each value is one CSS class name of letters, digits, `-` and `_` that does not start with a
-  digit. Selectors that need escaping (`md:text-center`) and lists of classes (`'a b'`) are not
-  supported.
+- Each value is one CSS class name of ASCII letters, digits, `-` and `_` that starts with a letter
+  or `_`, optionally after a single `-`. Selectors that need escaping (`md:text-center`) and lists of
+  classes (`'a b'`) are not supported.
 - The prefix `notectl-` is reserved for the classes notectl generates.
 - A class stands for one declaration, and a declaration has one class. Using `brand` for a text
   color and a highlight is rejected, because import could not tell them apart.
 - Keys must be values of the plugin: logical alignments, hex colors, whole pixel sizes or the names
   of configured fonts.
+
+## Renaming a Class
+
+Import reads the classes of your current configuration. HTML you stored with an older mapping keeps
+the old names, and a class the configuration no longer has imports as no formatting. To load such
+HTML, pass the old names with the declarations they stand for as a `styleMap`:
+
+```ts
+// Stored as text-red, now configured as brand-red.
+await editor.setContentHTML(storedHTML, {
+  styleMap: new Map([['text-red', 'color: #e03131']]),
+});
+```
+
+The next export writes the current names. The Angular component's `setContentHTML()` takes no
+`styleMap`, so replace the old class names in the stored HTML before you load it there.
 
 ## Classes for Other Plugins
 
@@ -173,15 +199,28 @@ option to your own plugin.
 ## Migrating Content From Other Editors
 
 Content written by other editors often uses classes for alignment, as TinyMCE's
-`formats: { aligncenter: { classes: 'align-center' } }` does. Map the same names and the content
-imports as it is:
+`formats: { aligncenter: { classes: 'align-center' } }` does. notectl's alignments are logical, so
+map TinyMCE's physical names to `start` and `end`:
 
+```ts
+new AlignmentPlugin({
+  styleClasses: { start: 'align-left', center: 'align-center', end: 'align-right' },
+});
+```
+
+- In left-to-right content, `start` and `end` are left and right. In right-to-left content they are
+  right and left, so physical class names do not describe them there.
+- With `start` mapped, export writes `align-left` on every start-aligned block, also where TinyMCE
+  wrote no class. Leaving `start` unmapped avoids that, but then a left-aligned standalone image
+  imports centered, because images are centered by default.
 - Classes on paragraphs, headings, table cells and image figures import directly.
 - A class on a wrapper such as `<div class="align-center">` aligns the blocks inside it.
 - A class on a standalone `<img class="align-center">` aligns the image.
 - An image inside a paragraph (`<p><img class="align-center"></p>`) stays an inline image of that
   paragraph, and its class aligns nothing. Align such paragraphs, or convert the content, before you
   import it.
+- Classes without a mapping, such as other TinyMCE formats, are not stored. The next export leaves
+  them out.
 
 ## Limits
 
@@ -192,3 +231,4 @@ imports as it is:
   on the next export.
 - **Structural styles** such as table borders and padding keep generated classes unless a plugin
   registers classes for their declarations.
+- **Code block backgrounds** are exported in both modes, but import does not read them back.

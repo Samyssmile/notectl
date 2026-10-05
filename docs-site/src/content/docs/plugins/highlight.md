@@ -39,6 +39,8 @@ Colors are validated on construction. Invalid hex values throw an `Error` with a
 
 ## Custom CSS Classes
 
+Available from notectl 2.4.0.
+
 [Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes highlights as generated `notectl-s-*` classes. Map the highlight colors your stylesheet knows
 to its classes with `styleClasses`, keyed by hex color:

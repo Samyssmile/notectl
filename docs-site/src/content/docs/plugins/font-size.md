@@ -45,6 +45,8 @@ When `sizes` is not specified:
 
 ## Custom CSS Classes
 
+Available from notectl 2.4.0.
+
 [Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes font sizes as generated `notectl-s-*` classes. Map the sizes of your type scale to its
 classes with `styleClasses`, keyed by pixel size:

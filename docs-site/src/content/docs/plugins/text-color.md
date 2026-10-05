@@ -36,6 +36,8 @@ Colors must be valid hex values (`#RGB` or `#RRGGBB`). Invalid values cause an e
 
 ## Custom CSS Classes
 
+Available from notectl 2.4.0.
+
 [Class-based HTML export](/notectl/guides/content-security-policy/#class-based-html-export-zero-inline-styles)
 writes text colors as generated `notectl-s-*` classes. Map the colors your stylesheet knows to its
 classes with `styleClasses`, keyed by hex color:

@@ -50,6 +50,8 @@ for the plugin-facing API.
 
 ### Style Classes
 
+Available from notectl 2.4.0.
+
 A style class is an application CSS class that stands for exactly one CSS declaration:
 `{ className: 'text-red', declaration: 'color: #e03131' }`.
 
@@ -61,8 +63,8 @@ A style class is an application CSS class that stands for exactly one CSS declar
 | `getStyleClasses` | `() => readonly StyleClass[]` | All style classes in registration order |
 
 Class-based HTML export writes the registered class wherever it would write the declaration, and
-HTML import and paste read the class back as the declaration. While classes are registered,
-`getAllowedAttrs()` includes `class`. Plugins register through `PluginContext.registerStyleClass()`,
+HTML import and paste read the class back as the declaration. While classes are registered, or a
+block type can be aligned (for `notectl-align-*`), `getAllowedAttrs()` includes `class`. Plugins register through `PluginContext.registerStyleClass()`,
 which the formatting plugins do for their `styleClasses` option; the registration is removed
 automatically when the plugin is destroyed. `serializeDocumentToCSS()` and `parseHTMLToDocument()`
 from `@notectl/core/html` use the classes registered on the registry you pass them: the one a plugin
