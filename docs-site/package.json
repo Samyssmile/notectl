@@ -14,6 +14,6 @@
 		"@astrojs/starlight": "^0.41.7",
 		"@notectl/core": "workspace:^",
 		"astro": "^7.2.8",
-		"sharp": "^0.35.4"
+		"sharp": "^0.35.5"
 	}
 }
