@@ -339,11 +339,12 @@ export class NotectlEditor extends HTMLElement {
 	/**
 	 * Replaces the document content from Markdown (CommonMark + GFM).
 	 *
-	 * Async and lazy like {@link getContentMarkdown}. Existing top-level block IDs
-	 * are reused in document order so `setContentMarkdown(getContentMarkdown())`
-	 * preserves block identity and keeps the caret stable for unchanged blocks
-	 * (ARCHITECTURE §9.2, D10). Raw HTML embedded in the Markdown is parsed back
-	 * via the HTML parser so superset features survive the round-trip.
+	 * Async and lazy like {@link getContentMarkdown}. Existing block IDs are
+	 * reused by path at every depth so `setContentMarkdown(getContentMarkdown())`
+	 * preserves block identity and keeps the caret stable for unchanged blocks,
+	 * also inside quotes, list items and table cells (ARCHITECTURE §9.2, D10).
+	 * Raw HTML embedded in the Markdown is parsed back via the HTML parser so
+	 * superset features survive the round-trip.
 	 */
 	async setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void> {
 		this.assertInitialized();

@@ -20,9 +20,9 @@ import {
 } from '../model/Document.js';
 import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { formatHTML, normalizeHTMLId } from '../model/HTMLUtils.js';
-import { schemaFromRegistry } from '../model/Schema.js';
+import { type Schema, schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import { type BlockId, nodeType } from '../model/TypeBrands.js';
+import { nodeType } from '../model/TypeBrands.js';
 import { parseHTMLToDocument } from '../serialization/DocumentParser.js';
 import {
 	serializeDocumentToCSS,
@@ -38,6 +38,7 @@ import type {
 	SetContentHTMLOptions,
 } from '../serialization/index.js';
 import { EditorState } from '../state/EditorState.js';
+import { reuseBlockIdsByPath } from './BlockIdentity.js';
 
 export { normalizeCompositeBlocks };
 
@@ -52,6 +53,11 @@ export function setEditorJSON(
 	registry: SchemaRegistry | undefined,
 	replaceState: (state: EditorState) => void,
 ): void {
+	replaceState(createEditorState(normalizeExternalDocument(doc, registry), registry));
+}
+
+/** Establishes the model invariants for a document that comes from outside the editor. */
+function normalizeExternalDocument(doc: Document, registry: SchemaRegistry | undefined): Document {
 	// Compatibility normalization must precede the strict model clone: persisted
 	// documents from before marks became mandatory can legitimately omit that
 	// field. Both passes are non-mutating; the clone then establishes ownership
@@ -59,13 +65,12 @@ export function setEditorJSON(
 	const withHTMLIds: Document = normalizeHTMLIds(doc);
 	const withMarks: Document = defaultMissingMarks(withHTMLIds);
 	const owned: Document = cloneDocument(withMarks);
-	const normalized: Document = registry ? normalizeCompositeBlocks(owned, registry) : owned;
-	const schema = registry ? schemaFromRegistry(registry) : undefined;
-	const state: EditorState = EditorState.create({
-		doc: normalized,
-		schema,
-	});
-	replaceState(state);
+	return registry ? normalizeCompositeBlocks(owned, registry) : owned;
+}
+
+function createEditorState(doc: Document, registry: SchemaRegistry | undefined): EditorState {
+	const schema: Schema | undefined = registry ? schemaFromRegistry(registry) : undefined;
+	return EditorState.create({ doc, schema });
 }
 
 /**
@@ -185,12 +190,13 @@ export async function getEditorContentMarkdown(
 /**
  * Replaces editor content from Markdown.
  *
- * Reuses existing top-level block IDs in document order (exactly as
- * {@link setEditorText}), so `setContentMarkdown(getContentMarkdown())`
- * preserves block identity and keeps the caret stable for unchanged blocks per
- * the round-trip identity contract (ARCHITECTURE §9.2, D10). Async + lazy: the
- * parser is reached only via dynamic `import()` to keep the engine code-split
- * out of the core bundle (D13).
+ * Reuses the existing block IDs by path at every depth, like
+ * {@link setEditorText}, so `setContentMarkdown(getContentMarkdown())`
+ * preserves block identity and keeps the caret stable for unchanged blocks,
+ * also inside quotes, list items and table cells, per the round-trip identity
+ * contract (ARCHITECTURE §9.2, D10). Async + lazy: the parser is reached only
+ * via dynamic `import()` to keep the engine code-split out of the core bundle
+ * (D13).
  */
 export async function setEditorContentMarkdown(
 	markdown: string,
@@ -201,16 +207,10 @@ export async function setEditorContentMarkdown(
 ): Promise<void> {
 	const { parseMarkdownToDocument } = await import('../serialization/MarkdownParser.js');
 	const parsed: Document = parseMarkdownToDocument(markdown, registry, options);
-
-	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
-	const reIdentified: readonly BlockNode[] = parsed.children.map((block, idx) => {
-		const existing: BlockId | undefined = existingIds[idx];
-		return existing
-			? createBlockNode(block.type, block.children, existing, block.attrs, block.htmlId)
-			: block;
-	});
-
-	setEditorJSON({ children: reIdentified }, registry, replaceState);
+	// Paths are matched on the normalized tree, the shape the current document has.
+	const normalized: Document = normalizeExternalDocument(parsed, registry);
+	const doc: Document = reuseBlockIdsByPath(normalized, currentState.doc);
+	replaceState(createEditorState(doc, registry));
 }
 
 /** Returns plain text content, descending into container blocks (e.g. blockquote). */
@@ -231,11 +231,12 @@ function blockTreeText(block: BlockNode): string {
 /**
  * Replaces editor content from plain text. Each `\n` becomes a paragraph.
  *
- * Existing top-level block IDs are reused in document order so that the
- * caret-preserving `replaceState()` keeps the cursor on the same block
- * across `setText(getText())` round-trips. Excess paragraphs receive
- * fresh IDs. When the new text is identical to the current text, the
- * call is a no-op — selection and history remain untouched.
+ * Existing block IDs are reused by path, which for these flat paragraphs
+ * means the top-level IDs in document order, so that the caret-preserving
+ * `replaceState()` keeps the cursor on the same block across
+ * `setText(getText())` round-trips. Excess paragraphs receive fresh IDs.
+ * When the new text is identical to the current text, the call is a
+ * no-op — selection and history remain untouched.
  */
 export function setEditorText(
 	value: string,
@@ -245,17 +246,11 @@ export function setEditorText(
 ): void {
 	if (value === getEditorText(currentState)) return;
 
-	const lines: readonly string[] = value.split('\n');
-	const existingIds: readonly BlockId[] = currentState.doc.children.map((b) => b.id);
-	const blocks: readonly BlockNode[] = lines.map((line, idx) =>
-		createBlockNode(nodeType('paragraph'), [createTextNode(line)], existingIds[idx]),
-	);
-	const schema = registry ? schemaFromRegistry(registry) : undefined;
-	const next: EditorState = EditorState.create({
-		doc: { children: blocks },
-		schema,
-	});
-	replaceState(next);
+	const paragraphs: readonly BlockNode[] = value
+		.split('\n')
+		.map((line) => createBlockNode(nodeType('paragraph'), [createTextNode(line)]));
+	const doc: Document = reuseBlockIdsByPath({ children: paragraphs }, currentState.doc);
+	replaceState(createEditorState(doc, registry));
 }
 
 /** Returns true if the document is empty (zero blocks, or a single empty paragraph). */

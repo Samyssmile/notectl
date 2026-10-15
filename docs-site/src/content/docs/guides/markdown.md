@@ -225,7 +225,7 @@ To turn off all of these at once, set [`markdown: false`](#editor-configuration)
 
 ## Round-trip identity
 
-`setContentMarkdown(await getContentMarkdown())` preserves block identity by reusing existing block IDs in document order. The caret stays stable across a read-write cycle for blocks whose content is unchanged.
+`setContentMarkdown(await getContentMarkdown())` preserves block identity by reusing existing block IDs by position, at every depth. The caret stays stable across a read-write cycle for blocks whose content is unchanged, also inside quotes, list items and table cells.
 
 ```ts
 // Safe round-trip: cursor position is preserved for unchanged blocks
@@ -241,7 +241,7 @@ The three screenshots below follow that exact round trip on one document: the ra
 
 ![The document re-exported with `getContentMarkdown()`, shown in a code block: identical to the original Markdown source](../../../assets/screenshots/markdown-export.png)
 
-Identity is matched by position, not by content. This is intentional: the cursor stays on the same block index when content is rewritten in place. Plugins that reference blocks by `BlockId` should not assume content stability across `setContentMarkdown` calls.
+Identity is matched by position, not by content: a block takes the ID of the block at the same place in the current document, and the blocks inside it, such as the paragraphs of a quote or a table cell, repeat the rule. This is intentional: the cursor stays on the same block when content is rewritten in place. Plugins that reference blocks by `BlockId` should not assume content stability across `setContentMarkdown` calls.
 
 Clean Markdown carries no internal block identity: notectl generates no `data-block-id` annotations
 in the Markdown output and recognizes none on import. This is separate from semantic
@@ -254,7 +254,7 @@ differs.
 |------|-----------------|
 | `getJSON` / `setJSON` | Block IDs in the JSON tree |
 | `getContentHTML` / `setContentHTML` | `data-block-id` attribute (unless opted out) |
-| `getContentMarkdown` / `setContentMarkdown` | Position order (IDs matched by index) |
+| `getContentMarkdown` / `setContentMarkdown` | Position (IDs matched by path, at every depth) |
 | `getText` / `setText` | Position order |
 
 ## Conformance

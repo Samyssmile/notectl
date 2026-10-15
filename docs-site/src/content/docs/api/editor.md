@@ -250,7 +250,7 @@ const gfm = await editor.getContentMarkdown({ flavor: 'gfm', bullet: '-' });
 
 ### `setContentMarkdown(markdown: string, options?: MarkdownParseOptions): Promise<void>`
 
-Parses Markdown and sets it as the editor content. Async and lazy like `getContentMarkdown`. Existing top-level block IDs are reused in document order, so `setContentMarkdown(await getContentMarkdown())` preserves block identity and keeps the caret stable for unchanged blocks (see [Round-Trip Identity](/notectl/guides/content/#round-trip-identity)).
+Parses Markdown and sets it as the editor content. Async and lazy like `getContentMarkdown`. Existing block IDs are reused by position at every depth, so `setContentMarkdown(await getContentMarkdown())` preserves block identity and keeps the caret stable for unchanged blocks, also inside quotes, list items and table cells (see [Round-Trip Identity](/notectl/guides/content/#round-trip-identity)).
 
 ```ts
 await editor.setContentMarkdown('# Title\n\nA **bold** paragraph.');

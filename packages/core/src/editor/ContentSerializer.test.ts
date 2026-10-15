@@ -90,6 +90,63 @@ describe('setEditorContentMarkdown', () => {
 		expect(getBlockText(result.doc.children[0] as never)).toBe('Hi');
 		expect(getBlockText(result.doc.children[1] as never)).toBe('body');
 	});
+
+	it('reuses block IDs by path inside containers (#280)', async () => {
+		const paragraph = (id: string, text: string): BlockNode =>
+			createBlockNode(nodeType('paragraph'), [createTextNode(text)], blockId(id));
+		const doc: Document = createDocument([
+			paragraph('intro', 'Intro'),
+			createBlockNode(
+				nodeType('blockquote'),
+				[
+					paragraph('quote-text', 'Quoted'),
+					createBlockNode(nodeType('blockquote'), [paragraph('deep', 'Deep')], blockId('inner')),
+				],
+				blockId('quote'),
+			),
+			createBlockNode(
+				nodeType('list_item'),
+				[paragraph('item-first', 'First'), paragraph('item-second', 'Second')],
+				blockId('item'),
+				{ listType: 'bullet', indent: 0, checked: false },
+			),
+		]);
+		const state: EditorState = EditorState.create({ doc });
+		const markdown: string = await getEditorContentMarkdown(state, undefined);
+
+		let next: EditorState | undefined;
+		await setEditorContentMarkdown(markdown, state, undefined, (s) => {
+			next = s;
+		});
+
+		expect(next?.doc).toEqual(state.doc);
+	});
+
+	it('never duplicates a block ID adopted from raw HTML (#280)', async () => {
+		const state: EditorState = EditorState.create({
+			doc: createDocument([
+				createBlockNode(nodeType('paragraph'), [createTextNode('Intro')], blockId('intro')),
+				createBlockNode(nodeType('paragraph'), [createTextNode('Body')], blockId('body')),
+			]),
+		});
+		const markdown: string = [
+			'Intro',
+			'Body',
+			'<p data-block-id="intro">Raw</p>',
+			'<p data-block-id="dup">One</p>',
+			'<p data-block-id="dup">Two</p>',
+		].join('\n\n');
+
+		let next: EditorState | undefined;
+		await setEditorContentMarkdown(markdown, state, undefined, (s) => {
+			next = s;
+		});
+
+		const ids: string[] = (next?.doc.children ?? []).map((b) => b.id as string);
+		expect(ids).toHaveLength(5);
+		expect(ids.slice(0, 2)).toEqual(['intro', 'body']);
+		expect(new Set(ids).size).toBe(ids.length);
+	});
 });
 
 describe('setEditorJSON', () => {

@@ -148,6 +148,17 @@ test.describe('Markdown — import', () => {
 		expect(text).toContain('_ underscore');
 	});
 
+	test('round trip keeps the caret inside a blockquote (#280)', async ({ editor, page }) => {
+		await setMarkdown(page, 'Intro\n\n> Quoted text\n');
+		await editor.content.getByText('Quoted text').click();
+		await editor.moveCursorToOffset(3);
+
+		await setMarkdown(page, await getMarkdown(page));
+		await page.keyboard.type('X', { delay: 10 });
+
+		expect(await getMarkdown(page)).toBe('Intro\n\n> QuoXted text\n');
+	});
+
 	test('round-trip getContentMarkdown(setContentMarkdown(md)) is stable', async ({
 		editor,
 		page,

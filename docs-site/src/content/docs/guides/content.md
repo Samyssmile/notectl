@@ -234,9 +234,10 @@ When an external owner (e.g. a form binding) reads the editor content and writes
 |---|---|
 | `getJSON` / `setJSON` | block IDs are part of the JSON shape |
 | `getContentHTML` / `setContentHTML` | `data-block-id` attribute on every block element (present unless you opt out with `includeBlockIds: false`) |
+| `getContentMarkdown` / `setContentMarkdown` | `setContentMarkdown` reuses existing block IDs by position at every depth, also inside quotes, list items and table cells |
 | `getText` / `setText` | `setText` reuses existing top-level block IDs in document order |
 
-Externally pasted HTML without `data-block-id` — including the output of [`getContentHTML({ includeBlockIds: false })`](#clean-export-html-includeblockids-false) — continues to receive fresh IDs, so external content imports behave as before. For `setText`, IDs are reused **by position**, not by content match — this is by design (the cursor stays on the same line index when text is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` calls.
+Externally pasted HTML without `data-block-id` — including the output of [`getContentHTML({ includeBlockIds: false })`](#clean-export-html-includeblockids-false) — continues to receive fresh IDs, so external content imports behave as before. For `setText` and `setContentMarkdown`, IDs are reused **by position**, not by content match: a block takes the ID of the block at the same place in the current document, and the blocks inside it repeat the rule. This is by design (the cursor stays on the same block when content is rewritten in place), but means plugins that reference blocks by `BlockId` should not assume content stability across `setText` or `setContentMarkdown` calls.
 
 Semantic fragment targets use a separate identity plane: `BlockNode.htmlId` round-trips as the
 ordinary HTML `id` attribute and remains present even in clean export. It belongs to document

@@ -381,7 +381,16 @@ form, RxJS pipe, …) round-trips the content on every keystroke (#103).
 |---|---|
 | `getJSON` / `setJSON` | block IDs are part of the JSON shape |
 | `getContentHTML` / `setContentHTML` | `data-block-id` attribute, emitted centrally by the serializer and adopted by the parser with format validation + uniqueness — present unless the caller opts out via `getContentHTML({ includeBlockIds: false })` |
-| `getText` / `setText` | `setText` reuses existing top-level block IDs in document order; new lines beyond the existing block count get fresh IDs |
+| `getContentMarkdown` / `setContentMarkdown` | position: `setContentMarkdown` reuses existing block IDs by path at every depth, so blocks inside quotes, list items and table cells keep theirs too |
+| `getText` / `setText` | position: `setText` reuses existing block IDs by path; its paragraphs are flat, so these are the top-level IDs in document order; new lines beyond the existing block count get fresh IDs |
+
+Formats without an ID carrier share one rule in `editor/BlockIdentity.ts`: a block takes the ID
+of the block at the same path in the current document, where a path counts block children only,
+and its children repeat the rule. The match runs on the normalized document, which has the shape
+of the current one. Reused IDs take precedence, and a block whose own ID is already held gets a
+fresh one, so the result never contains an ID twice. Top-level reuse alone is not enough: a caret
+in a quote, list item or table cell sits in a nested block, and selection validation moves a
+caret whose block ID vanished to the start of the document (#280).
 
 This internal identity is orthogonal to a block's optional semantic HTML target. `BlockNode.htmlId`
 is document content, renders as the block root's ordinary `id` attribute, and is used by links such
