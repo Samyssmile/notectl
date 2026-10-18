@@ -1394,4 +1394,72 @@ describe('HistoryManager', () => {
 			expect(getBlockText(undone?.state.doc.children[0])).toBe('BAhello');
 		});
 	});
+
+	describe('replay of a step that no longer fits the document', () => {
+		const paragraph = (text: string, id: string) =>
+			createBlockNode('paragraph', [createTextNode(text)], id);
+
+		function stateOf(...texts: readonly string[]): EditorState {
+			return EditorState.create({
+				doc: createDocument(texts.map((text, i) => paragraph(text, `b${i + 1}`))),
+				selection: createCollapsedSelection('b1', 0),
+			});
+		}
+
+		/** Applies a structural edit without recording it, so history and document disagree. */
+		function removeUnrecorded(state: EditorState, index: number): EditorState {
+			return state.apply(state.transaction('api').removeNode([], index).build());
+		}
+
+		it('undo abandons the group without throwing when a removed block is gone', () => {
+			let state: EditorState = stateOf('a');
+			const history = new HistoryManager();
+			const insert: Transaction = state
+				.transaction('input')
+				.insertNode([], 1, paragraph('new', 'n1'))
+				.build();
+			history.push(insert);
+			state = removeUnrecorded(state.apply(insert), 1);
+
+			const result: HistoryResult | null = history.undo(state);
+
+			expect(result).toBeNull();
+			expect(history.canUndo()).toBe(false);
+			expect(history.canRedo()).toBe(false);
+		});
+
+		it('redo abandons the group without throwing when a re-inserted block is gone', () => {
+			let state: EditorState = stateOf('a', 'b');
+			const history = new HistoryManager();
+			const remove: Transaction = state.transaction('input').removeNode([], 1).build();
+			history.push(remove);
+			state = state.apply(remove);
+			const undone: HistoryResult | null = history.undo(state);
+			assert(undone !== null, 'Expected the removal to be undone');
+			state = removeUnrecorded(undone.state, 1);
+
+			const result: HistoryResult | null = history.redo(state);
+
+			expect(result).toBeNull();
+			expect(history.canRedo()).toBe(false);
+			expect(history.canUndo()).toBe(false);
+		});
+
+		it('keeps older groups undoable after abandoning one', () => {
+			let state: EditorState = stateOf('a');
+			const history = new HistoryManager();
+			const typing: Transaction = makeInsertTr('b1', 1, 'x', 1000);
+			history.push(typing);
+			state = state.apply(typing);
+			const insert: Transaction = withTimestamp(
+				state.transaction('command').insertNode([], 1, paragraph('new', 'n1')).build(),
+				2000,
+			);
+			history.push(insert);
+			state = removeUnrecorded(state.apply(insert), 1);
+
+			expect(history.undo(state)).toBeNull();
+			expectReplayResult(history.undo(state), 'a');
+		});
+	});
 });

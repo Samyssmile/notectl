@@ -6,8 +6,9 @@
  * transactions (collaboration updates, agent edits, async plugin writes)
  * can land in the document without corrupting the user's undo/redo
  * history. When a step's coordinates cannot survive the rebase (host block
- * removed, range fully eaten by intervening edits), the entire group is
- * abandoned rather than partially applied.
+ * removed, range fully eaten by intervening edits) or the rebased step no
+ * longer fits the document (a structural position it addresses is gone), the
+ * entire group is abandoned rather than partially applied.
  *
  * Internally, an undo produces a *synthetic* transaction whose steps are
  * the rebased inverses of the original group's steps. The synthetic is
@@ -25,6 +26,7 @@ import { Mapping, type StepMap, invertStepMap, stepMapsEqual } from './Mapping.j
 import { mapSelection } from './SelectionMapping.js';
 import { applyStep, getStepMap, invertStep, mapStep } from './StepHandlers.js';
 import { deriveStoredMarksBefore } from './StepInversion.js';
+import { StructuralPositionError } from './StructuralPositions.js';
 import type { Step, Transaction } from './Transaction.js';
 import { finalizeTransaction } from './TransactionFinalizer.js';
 import { sealOwnedTransaction, snapshotSelection } from './TransactionSnapshot.js';
@@ -230,9 +232,12 @@ interface ReplayedGroup {
  * steps, frame-correctly rebased.
  *
  * Returns `null` when any inverse step cannot survive the rebase
- * ({@link mapStep} returned `null`); callers must abandon the entire group
- * rather than apply partial inverses, which would silently corrupt the
- * document.
+ * ({@link mapStep} returned `null`) or no longer fits the document (applying
+ * it raised a {@link StructuralPositionError}, e.g. after an edit that was not
+ * recorded through {@link HistoryManager.recordIntervening}). Callers must
+ * abandon the entire group rather than apply partial inverses, which would
+ * silently corrupt the document. The replay builds its documents purely, so
+ * abandoning it leaves nothing half-applied.
  *
  * ## Frame-walk
  *
@@ -276,10 +281,13 @@ function rebaseGroupForReplay(
 			const rebased: Step | null = mapStep(inverse, rebaseMapping, currentDoc);
 			if (rebased === null) return null;
 
+			const nextDoc: Document | null = applyReplayedStep(currentDoc, rebased);
+			if (nextDoc === null) return null;
+
 			const rebasedMap: StepMap = getStepMap(currentDoc, rebased);
 			rebasedSteps.push(rebased);
 			rebasedStepMaps.push(rebasedMap);
-			currentDoc = applyStep(currentDoc, rebased);
+			currentDoc = nextDoc;
 
 			rebaseMapping = extendRebaseChain(originalForwardMap, rebaseMapping, rebasedMap);
 		}
@@ -327,6 +335,20 @@ function rebaseGroupForReplay(
 	});
 
 	return { newState, transaction: finalTr };
+}
+
+/**
+ * Applies one rebased step of a replay, or returns `null` when the step
+ * addresses a structural position the document no longer has. Only that
+ * rejection is expected here; any other error is a bug and propagates.
+ */
+function applyReplayedStep(doc: Document, step: Step): Document | null {
+	try {
+		return applyStep(doc, step);
+	} catch (error: unknown) {
+		if (error instanceof StructuralPositionError) return null;
+		throw error;
+	}
 }
 
 /**

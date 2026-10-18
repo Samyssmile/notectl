@@ -7,13 +7,25 @@ import type { BlockId } from '../model/TypeBrands.js';
 
 type Operation = 'insertNode' | 'removeNode';
 
+/**
+ * Raised when a structural step addresses a position the document does not
+ * have. Replays of recorded steps (undo, redo) catch exactly this error to
+ * abandon a step that no longer fits; every other error is a bug and surfaces.
+ */
+export class StructuralPositionError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'StructuralPositionError';
+	}
+}
+
 function positionError(
 	operation: Operation,
 	parentPath: readonly BlockId[],
 	index: number,
 	reason: string,
-): Error {
-	return new Error(
+): StructuralPositionError {
+	return new StructuralPositionError(
 		`${operation} at parent path [${parentPath.join(', ')}], index ${index}: ${reason}`,
 	);
 }
