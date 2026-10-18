@@ -1027,6 +1027,7 @@ describe('EditorView file-drop plugin runtime', () => {
 		container.dispatchEvent(event);
 		expect(event.defaultPrevented).toBe(true);
 		expect(first).toHaveBeenCalledOnce();
+		expect(first).toHaveBeenCalledWith(file, null, 'drop');
 		expect(second).not.toHaveBeenCalled();
 
 		rejectFirst(new Error('upload unavailable'));

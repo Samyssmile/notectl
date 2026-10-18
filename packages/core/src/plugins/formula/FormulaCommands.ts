@@ -6,20 +6,21 @@
  */
 
 import { insertBlockObjectsOnOwnLines } from '../../commands/BlockInsertion.js';
-import { resolveInsertPoint } from '../../commands/CommandHelpers.js';
-import { addDeleteSelectionSteps } from '../../commands/Commands.js';
+import {
+	type ReplacementTarget,
+	resolveReplacementTarget,
+} from '../../commands/SelectionReplacement.js';
 import { createBlockNode, createInlineNode } from '../../model/Document.js';
 import {
 	createCollapsedSelection,
 	createNodeSelection,
-	isCollapsed,
+	isGapCursor,
 	isTextSelection,
 } from '../../model/Selection.js';
 import { type BlockId, inlineType, nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
-import { getSelectedBlockId } from '../shared/PluginHelpers.js';
 import type { FormulaLocale } from './FormulaLocale.js';
 import { DISPLAY_MATH_TYPE, type FormulaAttrs, INLINE_MATH_TYPE } from './FormulaTypes.js';
 import type { MathFieldResult } from './math-field/index.js';
@@ -38,35 +39,21 @@ export function buildInsertInlineFormulasTr(
 	state: EditorState,
 	formulas: readonly FormulaAttrs[],
 ): Transaction | null {
-	const sel = state.selection;
-	if (formulas.length === 0 || !isTextSelection(sel)) return null;
+	if (formulas.length === 0 || !isTextSelection(state.selection)) return null;
 
-	const builder = state.transaction('command');
+	const builder: TransactionBuilder = state.transaction('command');
+	const target: ReplacementTarget = resolveReplacementTarget(state, builder);
 
-	const landingId: BlockId | undefined = isCollapsed(sel)
-		? undefined
-		: addDeleteSelectionSteps(state, builder);
-
-	let targetId: BlockId;
-	let offset: number;
-	if (landingId) {
-		targetId = landingId;
-		offset = 0;
-	} else {
-		const insertPoint = resolveInsertPoint(sel, state.getBlockOrder());
-		targetId = insertPoint.blockId;
-		offset = insertPoint.offset;
-	}
-
+	let offset: number = target.offset;
 	for (const attrs of formulas) {
 		builder.insertInlineNode(
-			targetId,
+			target.blockId,
 			offset,
 			createInlineNode(inlineType(INLINE_MATH_TYPE), toNodeAttrs(attrs)),
 		);
 		offset += 1;
 	}
-	builder.setSelection(createCollapsedSelection(targetId, offset));
+	builder.setSelection(createCollapsedSelection(target.blockId, offset));
 
 	return builder.build();
 }
@@ -101,21 +88,23 @@ export function appendDisplayMathSteps(
 /**
  * Builds a transaction placing one or more display math blocks on their own
  * lines at the cursor, sharing a single trailing paragraph; the last block is
- * node-selected. Used both for a single display formula and for pasting a run of
- * standalone formulas where at least one is display (#159).
+ * node-selected. A range selection is replaced, as by the inline variant: it is
+ * deleted and the blocks follow the block that receives the range start. Used
+ * both for a single display formula and for pasting a run of standalone
+ * formulas where at least one is display (#159). Returns null at a gap cursor.
  */
 export function buildInsertDisplayFormulasTr(
 	state: EditorState,
 	formulas: readonly FormulaAttrs[],
 ): Transaction | null {
-	const anchorId: BlockId | undefined = getSelectedBlockId(state);
-	if (formulas.length === 0 || !anchorId) return null;
+	if (formulas.length === 0 || isGapCursor(state.selection)) return null;
 
 	const blocks = formulas.map((attrs) =>
 		createBlockNode(nodeType(DISPLAY_MATH_TYPE), [], undefined, toNodeAttrs(attrs)),
 	);
 	const builder: TransactionBuilder = state.transaction('command');
-	const trailing = insertBlockObjectsOnOwnLines(state, builder, anchorId, blocks);
+	const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+	const trailing = insertBlockObjectsOnOwnLines(target.state, builder, target.blockId, blocks);
 	if (!trailing) return null;
 
 	const last = blocks[blocks.length - 1];
@@ -124,7 +113,7 @@ export function buildInsertDisplayFormulasTr(
 	return builder.build();
 }
 
-/** Builds a transaction placing a display math block on its own line at the cursor. */
+/** Builds a transaction placing a display math block on its own line, replacing a range. */
 export function buildInsertDisplayMathTr(
 	state: EditorState,
 	attrs: FormulaAttrs,
@@ -140,7 +129,7 @@ export function insertInlineMath(context: PluginContext, attrs: FormulaAttrs): b
 	return true;
 }
 
-/** Inserts a display (block) math node on its own line after the current block. */
+/** Inserts a display (block) math node on its own line after the current block or range. */
 export function insertDisplayMath(context: PluginContext, attrs: FormulaAttrs): boolean {
 	const tr = buildInsertDisplayMathTr(context.getState(), attrs);
 	if (!tr) return false;

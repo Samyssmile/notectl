@@ -416,6 +416,7 @@ export class EditorViewEvents {
 			registry: this.deps.fileHandlerRegistry,
 			executor: this.callbackExecutor,
 			files,
+			source: 'drop',
 			getPosition: () => bookmark.position,
 			isActive: () => this.active && !this.deps.isReadOnly() && !bookmark.cancelled,
 		});

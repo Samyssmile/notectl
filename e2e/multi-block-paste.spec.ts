@@ -184,6 +184,25 @@ async function selectAcrossBlocks(
 		.toEqual({ anchor: { blockId: anchorId, offset: 1 }, head: { blockId: headId, offset: 1 } });
 }
 
+/** The document alone: a pasted node leaves a node selection, which has no text anchor. */
+async function docOf(editor: EditorPage): Promise<Snapshot['doc']> {
+	return (await editor.getJSON()) as Snapshot['doc'];
+}
+
+/** Like {@link replay}, for pastes that leave a node selection. */
+async function replayDocument(
+	editor: EditorPage,
+	before: Snapshot['doc'],
+	after: Snapshot['doc'],
+): Promise<void> {
+	for (let cycle = 0; cycle < 3; cycle++) {
+		await editor.page.keyboard.press('Control+z');
+		await expect.poll(() => docOf(editor)).toEqual(before);
+		await editor.page.keyboard.press('Control+Shift+z');
+		await expect.poll(() => docOf(editor)).toEqual(after);
+	}
+}
+
 const TABLE_HTML =
 	'<table><tbody><tr><td>X1</td><td>X2</td></tr><tr><td>Y1</td><td>Y2</td></tr></tbody></table>';
 
@@ -341,11 +360,6 @@ test.describe('copied block node paste (#267)', () => {
 		attrs: { src: 'https://example.com/photo.png', alt: 'Photo' },
 	});
 
-	/** The document alone: a pasted node leaves a node selection, which has no text anchor. */
-	async function docOf(editor: EditorPage): Promise<Snapshot['doc']> {
-		return (await editor.getJSON()) as Snapshot['doc'];
-	}
-
 	async function rootTypes(editor: EditorPage): Promise<string[]> {
 		return (await docOf(editor)).children.map((node) => `${node.type}:${textOf(node)}`);
 	}
@@ -367,12 +381,7 @@ test.describe('copied block node paste (#267)', () => {
 				range ? 'abd' : 'abcd',
 				'after',
 			]);
-			for (let cycle = 0; cycle < 3; cycle++) {
-				await editor.page.keyboard.press('Control+z');
-				await expect.poll(() => docOf(editor)).toEqual(before);
-				await editor.page.keyboard.press('Control+Shift+z');
-				await expect.poll(() => docOf(editor)).toEqual(after);
-			}
+			await replayDocument(editor, before, after);
 		});
 	}
 
@@ -387,4 +396,52 @@ test.describe('copied block node paste (#267)', () => {
 		await editor.page.keyboard.type('X');
 		await expect.poll(() => rootTypes(editor)).toEqual(['image:', 'paragraph:X']);
 	});
+});
+
+test.describe('image file and MathML paste over a backward range', () => {
+	/**
+	 * Bytes that never decode: a loaded image records its natural size as a
+	 * separate history step, which would hide whether the paste is one step.
+	 */
+	async function pasteImageFile(editor: EditorPage): Promise<void> {
+		await editor.content.evaluate((content) => {
+			const data = new DataTransfer();
+			data.items.add(new File(['not an image'], 'pasted.png', { type: 'image/png' }));
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'clipboardData', { value: data });
+			content.dispatchEvent(event);
+		});
+	}
+
+	const pastes = [
+		{ name: 'an image file', type: 'image', paste: pasteImageFile },
+		{
+			name: 'a display formula',
+			type: 'math_display',
+			// Math sources put plain text next to the MathML; paste interceptors need it.
+			paste: (editor: EditorPage) =>
+				editor.pasteClipboardData({
+					'text/html': '<math display="block"><mi>x</mi></math>',
+					'text/plain': 'x',
+				}),
+		},
+	] as const;
+
+	for (const { name, type, paste } of pastes) {
+		test(`${name} replaces the range after its start block as one undo step`, async ({
+			editor,
+		}) => {
+			const texts = ['aaaa', 'bbbb', 'cccc'];
+			await editor.setJSON({ children: texts.map((text, i) => paragraph(`p${i + 1}`, text)) });
+			await selectAcrossBlocks(editor, 'p3', 'p1');
+			const before = await docOf(editor);
+			await paste(editor);
+			await expect
+				.poll(async () =>
+					(await docOf(editor)).children.map((node) => (node.type === type ? type : textOf(node))),
+				)
+				.toEqual(['accc', type, '']);
+			await replayDocument(editor, before, await docOf(editor));
+		});
+	}
 });

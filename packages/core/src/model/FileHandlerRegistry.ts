@@ -6,8 +6,22 @@
 import type { PluginCallbackRegistration } from './PluginCallbackExecutor.js';
 import type { Position } from './Selection.js';
 
-/** Handler for a single file pasted or dropped into the editor. */
-export type FileHandler = (file: File, position: Position | null) => boolean | Promise<boolean>;
+/**
+ * How a file entered the editor. A `'paste'` is meant to replace the current
+ * selection, like every other paste; a `'drop'` targets the drop point.
+ */
+export type FileHandlerSource = 'paste' | 'drop';
+
+/**
+ * Handler for a single file pasted or dropped into the editor. `position` is the
+ * drop point in the document, or null for a paste and for a drop outside the
+ * editable content.
+ */
+export type FileHandler = (
+	file: File,
+	position: Position | null,
+	source: FileHandlerSource,
+) => boolean | Promise<boolean>;
 
 export interface FileHandlerEntry {
 	readonly pattern: string;

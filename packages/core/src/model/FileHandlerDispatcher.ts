@@ -1,6 +1,10 @@
 /** Shared sequential dispatcher for plugin-contributed paste/drop file handlers. */
 
-import type { FileHandlerEntry, FileHandlerRegistry } from './FileHandlerRegistry.js';
+import type {
+	FileHandlerEntry,
+	FileHandlerRegistry,
+	FileHandlerSource,
+} from './FileHandlerRegistry.js';
 import { PluginCallbackExecutor, type PluginCallbackOutcome } from './PluginCallbackExecutor.js';
 import type { Position } from './Selection.js';
 
@@ -14,6 +18,8 @@ export interface FileHandlerDispatchOptions {
 	readonly registry: FileHandlerRegistry;
 	readonly executor?: PluginCallbackExecutor;
 	readonly files: readonly File[];
+	/** Passed to every handler, so a paste can replace the selection and a drop cannot. */
+	readonly source: FileHandlerSource;
 	/** Re-evaluated before each handler so an async drop position can be mapped. */
 	readonly getPosition: () => Position | null;
 	readonly isActive?: () => boolean;
@@ -72,7 +78,7 @@ export function dispatchFilesToHandlers(
 					name: entry.name,
 					kind: 'file-handler',
 				},
-				() => entry.handler(file, options.getPosition()),
+				() => entry.handler(file, options.getPosition(), options.source),
 			);
 			if (outcome instanceof Promise) {
 				return outcome.then((settled) =>

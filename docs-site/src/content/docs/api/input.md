@@ -222,9 +222,12 @@ const registry = new FileHandlerRegistry();
 ### Types
 
 ```ts
+type FileHandlerSource = 'paste' | 'drop';
+
 type FileHandler = (
   file: File,
   position: Position | null,
+  source: FileHandlerSource,
 ) => boolean | Promise<boolean>;
 
 interface FileHandlerEntry {
@@ -243,12 +246,14 @@ Patterns support wildcards:
 | `text/plain` | Only `text/plain` |
 | `*/*` | Any MIME type |
 
+`position` is the drop point in the document. It is `null` for a paste, and also for a drop outside the editable content, so use `source` to tell a paste from a drop. A paste is expected to replace the current selection, like every other paste. A drop should not delete the selection.
+
 **Example:**
 
 ```ts
-registry.registerFileHandler('image/*', async (file, position) => {
+registry.registerFileHandler('image/*', async (file, position, source) => {
   const url = URL.createObjectURL(file);
-  // Insert image block at position
+  // 'paste': replace the selection. 'drop': insert at position.
   return true; // handled
 });
 ```

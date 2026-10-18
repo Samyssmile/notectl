@@ -131,8 +131,10 @@ Without a registered upload service, images are inserted as blob URLs (suitable 
 ## File Handling
 
 The plugin registers a file handler for `image/*` MIME types. This enables:
-- **Drag-and-drop**: Drop image files directly into the editor
-- **Paste**: Paste images from the clipboard
+- **Drag-and-drop**: Drop image files directly into the editor. A selection stays as it is.
+- **Paste**: Paste images from the clipboard. Like any other paste, a pasted image replaces a selected range: the range is deleted and the image goes on its own line after the block where the range started. One undo restores the text.
+
+Inserting an image from the toolbar does not delete a selected range; the image goes after the block that holds the selection.
 
 ## Custom Node View
 

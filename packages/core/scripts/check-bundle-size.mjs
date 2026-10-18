@@ -22,7 +22,9 @@ const ENTRY_BUDGETS = [
 	// #272: measured 109.19 KB; rehydration also applies style attributes a strict CSP blocked.
 	// #267: measured 109.75 KB; paste resolves targets after the selection deletion under the
 	// actual parent, and structural steps validate their positions.
-	['Core', 'src/index.ts', 110],
+	// #267 follow-ups: measured 110.07 KB; history replay drops steps that no longer fit,
+	// deletion keeps the shape of tables, and image file and MathML paste replace a range.
+	['Core', 'src/index.ts', 110.5],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	// #269: measured 13.50 KB; the parser and serializer carry the style class vocabulary.

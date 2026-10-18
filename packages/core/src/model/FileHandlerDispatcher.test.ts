@@ -1,12 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 import { dispatchFilesToHandlers } from './FileHandlerDispatcher.js';
 import { type FileHandler, FileHandlerRegistry } from './FileHandlerRegistry.js';
+import { blockId } from './TypeBrands.js';
 
 function imageFile(): File {
 	return new File(['image'], 'image.png', { type: 'image/png' });
 }
 
 describe('dispatchFilesToHandlers', () => {
+	it('passes the file, the current position and the source to each handler', () => {
+		const registry = new FileHandlerRegistry();
+		const handler = vi.fn(() => true);
+		registry.registerFileHandler('image/*', handler);
+		const file: File = imageFile();
+		const position = { blockId: blockId('b1'), offset: 2 };
+
+		dispatchFilesToHandlers({
+			registry,
+			files: [file],
+			source: 'drop',
+			getPosition: () => position,
+		});
+
+		expect(handler).toHaveBeenCalledWith(file, position, 'drop');
+	});
+
 	it('uses a stable handler snapshot when a synchronous handler unregisters itself', () => {
 		const registry = new FileHandlerRegistry();
 		const second = vi.fn(() => true);
@@ -20,6 +38,7 @@ describe('dispatchFilesToHandlers', () => {
 		const outcome = dispatchFilesToHandlers({
 			registry,
 			files: [imageFile()],
+			source: 'paste',
 			getPosition: () => null,
 		});
 
@@ -41,6 +60,7 @@ describe('dispatchFilesToHandlers', () => {
 		const outcome = dispatchFilesToHandlers({
 			registry,
 			files: [imageFile()],
+			source: 'paste',
 			getPosition: () => null,
 		});
 
@@ -60,6 +80,7 @@ describe('dispatchFilesToHandlers', () => {
 		const outcome = dispatchFilesToHandlers({
 			registry,
 			files: [imageFile()],
+			source: 'paste',
 			getPosition: () => null,
 			isActive: () => active,
 		});

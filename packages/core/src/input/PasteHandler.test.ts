@@ -107,7 +107,7 @@ describe('PasteHandler file paste', () => {
 		element.dispatchEvent(event);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -223,7 +223,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -248,7 +248,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(svgFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(svgFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -274,7 +274,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(csvFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(csvFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -347,7 +347,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 	});
 
 	it('falls back to plain text when preferred HTML and the deferred file are unhandled', () => {
@@ -462,7 +462,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -492,7 +492,7 @@ describe('PasteHandler file paste', () => {
 		);
 
 		expect(fileHandler).toHaveBeenCalledTimes(1);
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
@@ -1139,7 +1139,7 @@ describe('PasteHandler rich paste schema validation', () => {
 			}),
 		);
 
-		expect(fileHandler).toHaveBeenCalledWith(pngFile, null);
+		expect(fileHandler).toHaveBeenCalledWith(pngFile, null, 'paste');
 		expect(dispatch).not.toHaveBeenCalled();
 		expect(getBlockText(state.doc.children[0])).toBe('hello');
 	});

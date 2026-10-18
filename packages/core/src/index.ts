@@ -301,7 +301,11 @@ export type { InputManagerDeps } from './input/InputManager.js';
 // --- Focused Registries ---
 export { KeymapRegistry } from './model/KeymapRegistry.js';
 export { InputRuleRegistry } from './model/InputRuleRegistry.js';
-export type { FileHandler, FileHandlerEntry } from './model/FileHandlerRegistry.js';
+export type {
+	FileHandler,
+	FileHandlerEntry,
+	FileHandlerSource,
+} from './model/FileHandlerRegistry.js';
 export { FileHandlerRegistry } from './model/FileHandlerRegistry.js';
 export { NodeViewRegistry } from './view/NodeViewRegistry.js';
 

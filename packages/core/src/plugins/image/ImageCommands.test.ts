@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	type BlockNode,
 	createBlockNode,
@@ -6,10 +6,12 @@ import {
 	getBlockChildren,
 	getBlockText,
 } from '../../model/Document.js';
+import type { FileHandler, FileHandlerSource } from '../../model/FileHandlerRegistry.js';
 import { createCollapsedSelection, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import { EditorState } from '../../state/EditorState.js';
+import { HistoryManager } from '../../state/History.js';
 import { pluginHarness, stateBuilder } from '../../test/TestUtils.js';
 import { createTable } from '../table/TableHelpers.js';
 import { TablePlugin } from '../table/TablePlugin.js';
@@ -163,6 +165,95 @@ describe('ImageCommands', () => {
 				const imgBlock = getState().getBlock(sel.nodeId);
 				expect(imgBlock?.type).toBe('image');
 			}
+		});
+	});
+
+	describe('image file paste and drop', () => {
+		beforeEach(() => {
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:image');
+			vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+		});
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		/** Three paragraphs with a backward range from `cc|cc` to `aa|aa`. */
+		function backwardRangeState(): EditorState {
+			return stateBuilder()
+				.paragraph('aaaa', 'b1')
+				.paragraph('bbbb', 'b2')
+				.paragraph('cccc', 'b3')
+				.selection({ blockId: 'b3', offset: 2 }, { blockId: 'b1', offset: 2 })
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+		}
+
+		async function handleImageFile(state: EditorState, source: FileHandlerSource) {
+			const harness = await pluginHarness(new ImagePlugin(), state);
+			const handler: FileHandler | undefined =
+				harness.pm.fileHandlerRegistry.matchFileHandlers('image/png')[0];
+			if (!handler) throw new Error('Expected an image file handler');
+			const file = new File(['png'], 'image.png', { type: 'image/png' });
+			await handler(file, null, source);
+			return harness;
+		}
+
+		const summarize = (state: EditorState): string[] =>
+			state.doc.children.map((block) => `${block.type}:${getBlockText(block)}`);
+
+		it('replaces a backward range with the pasted image', async () => {
+			const { getState } = await handleImageFile(backwardRangeState(), 'paste');
+
+			expect(summarize(getState())).toEqual(['paragraph:aacc', 'image:', 'paragraph:']);
+			const sel = getState().selection;
+			expect(isNodeSelection(sel) && getState().getBlock(sel.nodeId)?.type).toBe('image');
+		});
+
+		it('undoes the replacing paste in one step', async () => {
+			const state: EditorState = backwardRangeState();
+			const { dispatch, getState } = await handleImageFile(state, 'paste');
+			expect(dispatch).toHaveBeenCalledOnce();
+			const history = new HistoryManager();
+			history.push(dispatch.mock.calls[0]?.[0]);
+
+			expect(history.undo(getState())?.state.doc).toEqual(state.doc);
+		});
+
+		it('consumes the empty block left by a range that covered a whole paragraph', async () => {
+			const state = stateBuilder()
+				.paragraph('abc', 'b1')
+				.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 3 })
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+
+			const { getState } = await handleImageFile(state, 'paste');
+
+			expect(summarize(getState())).toEqual(['image:', 'paragraph:']);
+		});
+
+		it('keeps the selected text when the image file is dropped', async () => {
+			const { getState } = await handleImageFile(backwardRangeState(), 'drop');
+
+			expect(summarize(getState())).toEqual([
+				'paragraph:aaaa',
+				'paragraph:bbbb',
+				'paragraph:cccc',
+				'image:',
+				'paragraph:',
+			]);
+		});
+
+		it('keeps the selected text when the insert command runs', async () => {
+			const state = stateBuilder()
+				.paragraph('Hello', 'b1')
+				.selection({ blockId: 'b1', offset: 1 }, { blockId: 'b1', offset: 4 })
+				.schema(IMAGE_SCHEMA_NODES, IMAGE_SCHEMA_MARKS)
+				.build();
+			const { pm, getState } = await pluginHarness(new ImagePlugin(), state);
+
+			pm.executeCommand('insertImage');
+
+			expect(summarize(getState())).toEqual(['paragraph:Hello', 'image:', 'paragraph:']);
 		});
 	});
 

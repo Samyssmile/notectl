@@ -3,29 +3,72 @@
  * Supports both root-level and nested contexts (e.g. images inside table cells).
  */
 
-import { insertBlockObjectOnOwnLine } from '../../commands/BlockInsertion.js';
+import {
+	findTableCellAncestor,
+	insertBlockObjectOnOwnLine,
+} from '../../commands/BlockInsertion.js';
 import { deleteNodeSelection } from '../../commands/NodeSelectionCommands.js';
+import {
+	type ReplacementTarget,
+	resolveReplacementTarget,
+} from '../../commands/SelectionReplacement.js';
 import type { BlockAttrs, BlockNode } from '../../model/Document.js';
 import { createBlockNode, getBlockChildren, isBlockNode } from '../../model/Document.js';
 import { createNodeSelection, isGapCursor, isNodeSelection } from '../../model/Selection.js';
 import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
+import type { TransactionBuilder } from '../../state/Transaction.js';
 import type { PluginContext } from '../Plugin.js';
 import type { ImageAttrs } from './ImageUpload.js';
+
+/** Attributes for a new image: a source plus any optional image attributes. */
+type ImageInsertAttrs = Partial<ImageAttrs> & { readonly src: string };
+
+/** Places a new image at the selection: {@link insertImage} or {@link pasteImage}. */
+export type ImagePlacement = (context: PluginContext, attrs: ImageInsertAttrs) => boolean;
 
 /**
  * Inserts an image block. When the cursor is inside a table cell,
  * the image is inserted as a child of the cell. Otherwise it is
  * inserted after the current block at document root.
  */
-export function insertImage(
-	context: PluginContext,
-	attrs: Partial<ImageAttrs> & { readonly src: string },
-): boolean {
+export function insertImage(context: PluginContext, attrs: ImageInsertAttrs): boolean {
 	const state = context.getState();
 	const sel = state.selection;
+	if (isGapCursor(sel)) return false;
 
+	const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
+	return placeImage(context, state, state.transaction('command'), anchorBlockId, attrs);
+}
+
+/**
+ * Pastes an image block. Unlike {@link insertImage}, a range selection is
+ * replaced, as by every other paste (#267): the range is deleted and the image
+ * is placed relative to the block that receives the range start, in the same
+ * transaction, so one undo restores both.
+ */
+export function pasteImage(context: PluginContext, attrs: ImageInsertAttrs): boolean {
+	const state = context.getState();
+	if (isGapCursor(state.selection)) return false;
+
+	const builder: TransactionBuilder = state.transaction('paste');
+	const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+	return placeImage(context, target.state, builder, target.blockId, attrs);
+}
+
+/**
+ * Adds the steps placing an image relative to `anchorBlockId` in `state` to
+ * `builder` and dispatches the transaction. Returns false, dispatching
+ * nothing, when the anchor cannot be resolved.
+ */
+function placeImage(
+	context: PluginContext,
+	state: EditorState,
+	builder: TransactionBuilder,
+	anchorBlockId: BlockId,
+	attrs: ImageInsertAttrs,
+): boolean {
 	const imageAttrs: BlockAttrs = {
 		src: attrs.src,
 		alt: attrs.alt ?? '',
@@ -34,55 +77,35 @@ export function insertImage(
 		...(attrs.height !== undefined ? { height: attrs.height } : {}),
 	};
 
-	if (isGapCursor(sel)) return false;
-
-	const anchorBlockId: BlockId = isNodeSelection(sel) ? sel.nodeId : sel.anchor.blockId;
-
-	// Check if we're inside a table cell
 	const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
-	if (cellId) {
-		return insertImageIntoCell(state, context, cellId, imageAttrs);
-	}
+	const placed: boolean = cellId
+		? insertImageIntoCell(state, builder, cellId, imageAttrs)
+		: insertImageAtRoot(state, builder, anchorBlockId, imageAttrs);
+	if (!placed) return false;
 
-	return insertImageAtRoot(state, context, anchorBlockId, imageAttrs);
-}
-
-/** Finds a table_cell ancestor for the given block (or the block itself). */
-function findTableCellAncestor(state: EditorState, bid: BlockId): BlockId | undefined {
-	const block: BlockNode | undefined = state.getBlock(bid);
-	if (block?.type === 'table_cell') return bid;
-
-	const path: BlockId[] | undefined = state.getNodePath(bid);
-	if (!path) return undefined;
-
-	for (const id of path) {
-		const node: BlockNode | undefined = state.getBlock(id);
-		if (node?.type === 'table_cell') return id;
-	}
-	return undefined;
+	context.dispatch(builder.build());
+	return true;
 }
 
 /** Inserts an image on its own line at document root, after the anchor block. */
 function insertImageAtRoot(
 	state: EditorState,
-	context: PluginContext,
+	builder: TransactionBuilder,
 	anchorBlockId: BlockId,
 	imageAttrs: BlockAttrs,
 ): boolean {
 	const imageBlock: BlockNode = createBlockNode(nodeType('image'), [], undefined, imageAttrs);
-	const builder = state.transaction('command');
 	const trailing = insertBlockObjectOnOwnLine(state, builder, anchorBlockId, imageBlock);
 	if (!trailing) return false;
 
 	builder.setSelection(createNodeSelection(imageBlock.id, []));
-	context.dispatch(builder.build());
 	return true;
 }
 
 /** Inserts an image as a child of a table cell. */
 function insertImageIntoCell(
 	state: EditorState,
-	context: PluginContext,
+	builder: TransactionBuilder,
 	cellId: BlockId,
 	imageAttrs: BlockAttrs,
 ): boolean {
@@ -95,7 +118,6 @@ function insertImageIntoCell(
 	const cell: BlockNode | undefined = state.getBlock(cellId);
 	if (!cell) return false;
 
-	const builder = state.transaction('command');
 	const blockChildren: readonly BlockNode[] = getBlockChildren(cell);
 	for (let i = blockChildren.length - 1; i >= 0; i--) {
 		// Find the raw index in children array
@@ -110,8 +132,6 @@ function insertImageIntoCell(
 	// Insert image at index 0 (before any text nodes)
 	builder.insertNode(cellPath, 0, imageBlock);
 	builder.setSelection(createNodeSelection(imageBlock.id, [...cellPath, imageBlock.id]));
-
-	context.dispatch(builder.build());
 	return true;
 }
 

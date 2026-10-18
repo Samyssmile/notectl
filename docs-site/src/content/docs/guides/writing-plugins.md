@@ -320,11 +320,11 @@ context.registerInlineNodeSpec({
 
 ### File Handlers
 
-Register handlers for drag-and-drop or paste of files:
+Register handlers for drag-and-drop or paste of files. `source` is `'paste'` or `'drop'`; `position` is the drop point, or `null` for a paste and for a drop outside the content:
 
 ```ts
-context.registerFileHandler('image/*', async (file, position) => {
-  // Process the matched file
+context.registerFileHandler('image/*', async (file, position, source) => {
+  // Process the matched file. A paste replaces the selection, a drop does not.
   return true; // Return true if handled
 });
 ```

@@ -17,7 +17,9 @@ import type { Plugin, PluginContext } from '../Plugin.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import {
+	type ImagePlacement,
 	insertImage,
+	pasteImage,
 	registerImageCommands,
 	resetImageSize,
 	resizeImageByDelta,
@@ -375,20 +377,22 @@ export class ImagePlugin implements Plugin {
 	}
 
 	private registerFileHandler(context: PluginContext): void {
-		context.registerFileHandler('image/*', async (file, _position) => {
+		context.registerFileHandler('image/*', async (file, _position, source) => {
 			if (!this.isAcceptedType(file.type)) return false;
-			this.handleFileInsert(context, file);
+			// A pasted file replaces a range selection like any other paste; a drop
+			// never deletes the selection.
+			this.handleFileInsert(context, file, source === 'paste' ? pasteImage : insertImage);
 			return true;
 		});
 	}
 
-	private handleFileInsert(context: PluginContext, file: File): void {
+	private handleFileInsert(context: PluginContext, file: File, place: ImagePlacement): void {
 		if (file.size > this.config.maxFileSize) return;
 
 		const blobUrl: string = URL.createObjectURL(file);
 		this.blobUrls.add(blobUrl);
 
-		const inserted: boolean = insertImage(context, { src: blobUrl });
+		const inserted: boolean = place(context, { src: blobUrl });
 		if (!inserted) {
 			URL.revokeObjectURL(blobUrl);
 			this.blobUrls.delete(blobUrl);
@@ -468,7 +472,7 @@ export class ImagePlugin implements Plugin {
 				renderImagePopup(container, ctx, {
 					acceptedTypes: this.config.acceptedTypes,
 					locale: this.locale,
-					onFileInsert: (c, file) => this.handleFileInsert(c, file),
+					onFileInsert: (c, file) => this.handleFileInsert(c, file, insertImage),
 					onClose,
 				});
 			},

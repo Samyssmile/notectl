@@ -190,6 +190,7 @@ export class PasteHandler {
 						registry: this.fileHandlerRegistry,
 						executor: this.callbackExecutor,
 						files: snapshot.files,
+						source: 'paste',
 						getPosition: () => null,
 						isActive: () => this.isBookmarkActive(bookmark),
 					})
@@ -273,6 +274,7 @@ export class PasteHandler {
 				registry,
 				executor: this.callbackExecutor,
 				files,
+				source: 'paste',
 				getPosition: () => null,
 				isActive: () => this.isBookmarkActive(bookmark),
 			});

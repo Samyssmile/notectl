@@ -85,6 +85,8 @@ Each formula stores MathML as the canonical attribute, with the LaTeX source emb
 
 Because MathML is the shared language of serious math producers, paste interop comes almost for free. Pasting from a KaTeX page, a MathJax page, a native-MathML source, or Microsoft Word with "Copy MathML" produces an editable, accessible formula. The paste path reads the raw clipboard HTML, extracts the `<math>`, sanitizes it, and reads the embedded LaTeX when present.
 
+A pasted or inserted formula replaces a selected range. An inline formula takes the place of the range. A display formula goes on its own line after the block where the range started, and the text around the range stays in that block.
+
 ## Accessibility
 
 - The stored MathML is the screen-reader surface. No extra configuration is needed.
