@@ -369,6 +369,10 @@ selection, sizing, insertion, deletion, rendering, import, and export consistent
 - A spanning cell's size control affects every logical axis it covers.
 - Inserting and deleting logical rows or columns updates dimension metadata in the same
   transaction.
+- Deleting a text range that starts or ends inside a table keeps the table's shape. The cell
+  where the range starts or ends keeps its unselected text, cells inside the range are cleared
+  to an empty paragraph, and cells outside the range are untouched. The table is removed only
+  when the range covers all of it.
 
 ## Commands
 

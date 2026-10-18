@@ -9,7 +9,8 @@
  * here is silent, and no repair pass runs on editing transactions.
  *
  * list_item (#194) and blockquote (#136) are both composite roots, so every
- * container case is exercised in both variants.
+ * container case is exercised in both variants. A table is a fixed-shape root:
+ * its covered cells are cleared, never removed, so rows keep equal cell counts.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -26,6 +27,7 @@ import {
 	isTextNode,
 } from '../model/Document.js';
 import { walkNodes } from '../model/NodeResolver.js';
+import type { ContentRule, NodeSpec } from '../model/NodeSpec.js';
 import type { Schema } from '../model/Schema.js';
 import {
 	createCollapsedSelection,
@@ -65,9 +67,25 @@ const trow = (id: string, cells: readonly BlockNode[]): BlockNode =>
 const grid = (id: string, rows: readonly BlockNode[]): BlockNode =>
 	createBlockNode('table', rows, blockId(id));
 
-const SCHEMA = {
+/** The content rules the container plugins register, which decide how trimming treats them. */
+const CONTENT_RULES: Readonly<Record<string, ContentRule>> = {
+	list_item: { allow: ['text', 'paragraph', 'blockquote'] },
+	blockquote: { allow: ['paragraph', 'list_item', 'blockquote'], min: 1 },
+	table: { allow: ['table_row'], min: 1 },
+	table_row: { allow: ['table_cell'], min: 0 },
+	table_cell: { allow: ['paragraph', 'list_item', 'blockquote'] },
+};
+
+function containerSpec(type: string): NodeSpec | undefined {
+	const content: ContentRule | undefined = CONTENT_RULES[type];
+	if (!content) return undefined;
+	return { type, content, toDOM: () => document.createElement('div') } as NodeSpec;
+}
+
+const SCHEMA: Schema = {
 	nodeTypes: ['paragraph', 'list_item', 'blockquote', 'table', 'table_row', 'table_cell'],
 	markTypes: [],
+	getNodeSpec: containerSpec,
 };
 
 /** Fails if any row of any table has a differing cell count (a ragged table). */
@@ -86,6 +104,7 @@ function stateOf(
 	blocks: readonly BlockNode[],
 	from: { id: string; offset: number },
 	to: { id: string; offset: number },
+	schema: Schema = SCHEMA,
 ): EditorState {
 	return EditorState.create({
 		doc: createDocument([...blocks]),
@@ -93,7 +112,7 @@ function stateOf(
 			{ blockId: blockId(from.id), offset: from.offset },
 			{ blockId: blockId(to.id), offset: to.offset },
 		),
-		schema: SCHEMA,
+		schema,
 	});
 }
 
@@ -415,39 +434,151 @@ describe('deleteCrossRootRange — depth-2 nesting', () => {
 	});
 });
 
-// --- structured containers (tables) are never trimmed into a ragged shape ---
+// --- fixed-shape containers (tables) are trimmed by clearing, never made ragged ---
 
-describe('deleteCrossRootRange — structured containers stay valid', () => {
-	it('removes a partially-selected table wholesale instead of leaving ragged rows', () => {
-		const table = grid('t1', [
-			trow('r0', [cell('A1', 'c00'), cell('B1', 'c01')]),
-			trow('r1', [cell('A2', 'c10'), cell('B2', 'c11')]),
+describe('deleteCrossRootRange — tables keep their shape', () => {
+	/** A 2x2 table: A1 B1 / A2 B2, cell ids c<row><col>, paragraph ids c<row><col>p. */
+	const table2x2 = (id: string): BlockNode =>
+		grid(id, [
+			trow(`${id}r0`, [cell('A1', `${id}c00`), cell('B1', `${id}c01`)]),
+			trow(`${id}r1`, [cell('A2', `${id}c10`), cell('B2', `${id}c11`)]),
 		]);
-		// Boundary lands in an interior cell (not the table's last leaf at full length).
+
+	function deleteAndRoundTrip(state: EditorState): EditorState {
+		const tr = deleteSelectionCommand(state);
+		if (!tr) throw new Error('expected a delete transaction');
+		const deleted: EditorState = expectHistoryRoundTrip(state, tr);
+		assertNoRaggedTable(deleted.doc);
+		return deleted;
+	}
+
+	function caretOf(state: EditorState): { id: string; offset: number } {
+		if (!isTextSelection(state.selection) || !isCollapsed(state.selection)) {
+			throw new Error('expected a collapsed text selection');
+		}
+		return { id: state.selection.anchor.blockId, offset: state.selection.anchor.offset };
+	}
+
+	it('keeps the boundary cell tail and every cell after it when the range ends inside', () => {
 		const state = stateOf(
-			[para('outside', 'p0'), table],
+			[para('outside', 'p0'), table2x2('t')],
 			{ id: 'p0', offset: 3 },
-			{ id: 'c01p', offset: 1 },
+			{ id: 'tc01p', offset: 1 },
 		);
-		const result = applyDelete(state).doc;
-		assertNoRaggedTable(result);
-		expect(renderDoc(result)).toBe('paragraph("out")');
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(renderDoc(deleted.doc)).toBe(
+			'paragraph("out"),table[' +
+				'table_row[table_cell[paragraph("")],table_cell[paragraph("1")]],' +
+				'table_row[table_cell[paragraph("A2")],table_cell[paragraph("B2")]]]',
+		);
+		expect(caretOf(deleted)).toEqual({ id: 'p0', offset: 3 });
 	});
 
-	it('removes a partially-selected from-table wholesale (reverse direction)', () => {
-		const table = grid('t1', [
-			trow('r0', [cell('A1', 'c00'), cell('B1', 'c01')]),
-			trow('r1', [cell('A2', 'c10'), cell('B2', 'c11')]),
-		]);
+	it('keeps every cell before the boundary and clears covered cells when the range starts inside', () => {
 		const state = stateOf(
-			[table, para('outside', 'p9')],
-			{ id: 'c01p', offset: 1 },
+			[table2x2('t'), para('outside', 'p9')],
+			{ id: 'tc01p', offset: 1 },
 			{ id: 'p9', offset: 3 },
 		);
-		const result = applyDelete(state).doc;
-		assertNoRaggedTable(result);
-		// From-table removed wholesale; "side" survives and hosts the caret.
-		expect(renderDoc(result)).toBe('paragraph("side")');
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[' +
+				'table_row[table_cell[paragraph("A1")],table_cell[paragraph("B")]],' +
+				'table_row[table_cell[paragraph("")],table_cell[paragraph("")]]],' +
+				'paragraph("side")',
+		);
+		expect(caretOf(deleted)).toEqual({ id: 'tc01p', offset: 1 });
+	});
+
+	it('trims both tables and removes the blocks between them', () => {
+		const state = stateOf(
+			[table2x2('a'), para('middle', 'mid'), table2x2('b')],
+			{ id: 'ac10p', offset: 1 },
+			{ id: 'bc00p', offset: 1 },
+		);
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[' +
+				'table_row[table_cell[paragraph("A1")],table_cell[paragraph("B1")]],' +
+				'table_row[table_cell[paragraph("A")],table_cell[paragraph("")]]],' +
+				'table[' +
+				'table_row[table_cell[paragraph("1")],table_cell[paragraph("B1")]],' +
+				'table_row[table_cell[paragraph("A2")],table_cell[paragraph("B2")]]]',
+		);
+	});
+
+	it('removes the table when the range covers it from its first to its last leaf', () => {
+		const toEnd = stateOf(
+			[para('outside', 'p0'), table2x2('t')],
+			{ id: 'p0', offset: 3 },
+			{ id: 'tc11p', offset: 'B2'.length },
+		);
+		const fromStart = stateOf(
+			[table2x2('t'), para('outside', 'p9')],
+			{ id: 'tc00p', offset: 0 },
+			{ id: 'p9', offset: 3 },
+		);
+
+		expect(renderDoc(deleteAndRoundTrip(toEnd).doc)).toBe('paragraph("out")');
+		expect(renderDoc(deleteAndRoundTrip(fromStart).doc)).toBe('paragraph("side")');
+	});
+
+	it('clears a covered cell with several blocks to one empty paragraph', () => {
+		const rich: BlockNode = createBlockNode(
+			'table_cell',
+			[para('one', 'r1'), quote('rq', [para('two', 'r2')])],
+			blockId('rich'),
+		);
+		const table: BlockNode = grid('t', [trow('r', [cell('A1', 'c0'), rich])]);
+		const state = stateOf(
+			[table, para('outside', 'p9')],
+			{ id: 'c0p', offset: 1 },
+			{ id: 'p9', offset: 3 },
+		);
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(renderDoc(deleted.doc)).toBe(
+			'table[table_row[table_cell[paragraph("A")],table_cell[paragraph("")]]],paragraph("side")',
+		);
+		expect(deleted.getBlock(blockId('rich'))?.type).toBe('table_cell');
+	});
+
+	it('leaves an already empty covered cell untouched', () => {
+		const table: BlockNode = grid('t', [trow('r', [cell('A1', 'c0'), cell('', 'c1')])]);
+		const state = stateOf(
+			[table, para('outside', 'p9')],
+			{ id: 'c0p', offset: 1 },
+			{ id: 'p9', offset: 3 },
+		);
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(deleted.getBlock(blockId('c1p'))).toEqual(state.getBlock(blockId('c1p')));
+	});
+
+	it('keeps a table rectangular when the schema has no content rules', () => {
+		const specless: Schema = { nodeTypes: SCHEMA.nodeTypes, markTypes: [] };
+		const state = stateOf(
+			[para('outside', 'p0'), table2x2('t')],
+			{ id: 'p0', offset: 3 },
+			{ id: 'tc10p', offset: 1 },
+			specless,
+		);
+
+		const deleted: EditorState = deleteAndRoundTrip(state);
+
+		expect(renderDoc(deleted.doc)).toBe(
+			'paragraph("out"),table[' +
+				'table_row[table_cell[paragraph("")],table_cell[paragraph("")]],' +
+				'table_row[table_cell[paragraph("2")],table_cell[paragraph("B2")]]]',
+		);
 	});
 });
 

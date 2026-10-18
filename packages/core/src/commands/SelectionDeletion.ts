@@ -7,8 +7,13 @@
  * A void block (image, horizontal rule) at either end of a range is wholly
  * selected — it has no partial content and cannot host the caret — so it is
  * removed outright and never merged into (#224).
+ *
+ * Containers keep their shape: a free-flowing container (blockquote, list
+ * item, table cell) loses the children a range covers, while a fixed-shape one
+ * (a table, a table row) keeps every child and only has its content cleared.
  */
 
+import { canContain } from '../model/ContentModel.js';
 import type { BlockNode } from '../model/Document.js';
 import {
 	createEmptyParagraph,
@@ -22,17 +27,8 @@ import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { isVoidBlock, sharesParent } from '../state/NavigationQueries.js';
 import type { TransactionBuilder } from '../state/Transaction.js';
+import { isEmptyParagraph } from './BlockInsertion.js';
 import { resolveSiblingContext } from './CommandHelpers.js';
-
-/**
- * Root container types whose children are free-flowing blocks and may be
- * removed individually when trimming a partially-selected root. Structured
- * containers (a `table`, whose rows must keep equal cell counts) are excluded:
- * trimming their children would leave a schema-invalid shape, so a
- * partially-selected one is removed wholesale instead — valid, if blunt, and
- * the behavior these containers already had before trimming existed.
- */
-const FLAT_BLOCK_CONTAINERS: ReadonlySet<string> = new Set(['blockquote', 'list_item']);
 
 /** A normalized text-selection range (document-order from/to positions). */
 export interface DeletionRange {
@@ -183,11 +179,13 @@ function isTextLeaf(state: EditorState, block: BlockNode): boolean {
  * composite/container root (a multi-block `list_item`, a `blockquote`, a
  * `table`) whose boundary sits *inside* it is trimmed, not wiped: the from-root
  * keeps everything before `range.from`, the to-root keeps everything after
- * `range.to`. A container is removed wholesale only when the boundary lands at
- * its very edge (offset 0 of its first leaf, or the end of its last leaf), so
- * the whole container is genuinely inside the selection. Root blocks strictly
- * between the endpoints are always removed, and a void root at either end is
- * always removed wholesale.
+ * `range.to`. Trimming keeps the shape of fixed-shape containers (see
+ * {@link hasFlowContent}): the covered cells of a table are cleared, never
+ * removed, so its rows keep equal cell counts. A container is removed wholesale
+ * only when the boundary lands at its very edge (offset 0 of its first leaf, or
+ * the end of its last leaf), so the whole container is genuinely inside the
+ * selection. Root blocks strictly between the endpoints are always removed, and
+ * a void root at either end is always removed wholesale.
  *
  * Returns the block hosting the caret when the from-root was removed wholesale
  * (its cursor block went with it): the surviving to-leaf, or a landing paragraph
@@ -211,23 +209,23 @@ export function deleteCrossRootRange(
 	const fromIsLeaf: boolean = isTextLeaf(state, fromRoot);
 	const toIsLeaf: boolean = isTextLeaf(state, toRoot);
 
-	// A non-leaf root is removed wholesale (rather than trimmed) when it is void
-	// or not a flat block container, or when the boundary sits at its very edge
-	// and so covers the whole container: the from-root's edge is offset 0 of its
-	// first leaf, the to-root's is the end of its last leaf.
+	// A non-text root is removed wholesale (rather than trimmed) when it is void,
+	// or when the boundary sits at its very edge and so covers the whole
+	// container: the from-root's edge is offset 0 of its first leaf, the
+	// to-root's is the end of its last leaf.
 	const fromAtStart: boolean =
 		range.from.offset === 0 && firstLeafId(fromRoot) === range.from.blockId;
 	const toAtEnd: boolean =
 		range.to.offset === getBlockLength(toLeaf) && lastLeafId(toRoot) === range.to.blockId;
-	const fromWholesale: boolean =
-		!fromIsLeaf && (!FLAT_BLOCK_CONTAINERS.has(fromRoot.type) || fromAtStart);
-	const toWholesale: boolean = !toIsLeaf && (!FLAT_BLOCK_CONTAINERS.has(toRoot.type) || toAtEnd);
+	const fromWholesale: boolean = !fromIsLeaf && (isLeafBlock(fromRoot) || fromAtStart);
+	const toWholesale: boolean = !toIsLeaf && (isLeafBlock(toRoot) || toAtEnd);
 
 	// --- from side: keep everything before range.from within the from-root ---
 	if (fromIsLeaf) {
 		deleteSelectedText(builder, fromRoot, range);
 	} else if (!fromWholesale) {
 		trimContainerTail(
+			state,
 			builder,
 			[fromRoot.id],
 			fromRoot,
@@ -242,6 +240,7 @@ export function deleteCrossRootRange(
 		deleteSelectedText(builder, toRoot, range);
 	} else if (!toWholesale) {
 		trimContainerHead(
+			state,
 			builder,
 			[toRoot.id],
 			toRoot,
@@ -302,12 +301,87 @@ function lastLeafId(block: BlockNode): BlockId {
 }
 
 /**
- * Trims a container to keep only content up to `(leafId, leafOffset)`, removing
- * every child after the boundary at each level and the boundary leaf's tail
- * text. `containerPath` is the path to (and including) `container`; `leafPath`
- * is the boundary leaf's full node path, used to descend to the boundary child.
+ * Whether a container's children are free-flowing blocks that a deletion may
+ * remove one by one. That holds when its content rule admits a paragraph
+ * (blockquote, list item, table cell), since an empty paragraph can always
+ * stand in for removed content. Any other container has a fixed shape (a
+ * table's rows, a row's cells, which must keep equal counts), so a deletion
+ * clears its covered children instead. Without a content rule the shape is
+ * unknown, and keeping it is the safe choice.
+ */
+function hasFlowContent(state: EditorState, container: BlockNode): boolean {
+	if (!state.schema.getNodeSpec?.(container.type)?.content) return false;
+	return canContain(state.schema, container.type, 'paragraph');
+}
+
+/**
+ * Deletes the children of `container` in `[from, to)`, last first so positional
+ * removals stay valid: a flow container removes them, a fixed-shape container
+ * clears them in place (see {@link hasFlowContent}).
+ */
+function deleteCoveredChildren(
+	state: EditorState,
+	builder: TransactionBuilder,
+	containerPath: readonly BlockId[],
+	container: BlockNode,
+	from: number,
+	to: number,
+): void {
+	const children: readonly BlockNode[] = getBlockChildren(container);
+	const removable: boolean = hasFlowContent(state, container);
+	for (let i = to - 1; i >= from; i--) {
+		const child: BlockNode | undefined = children[i];
+		if (!child) continue;
+		if (removable) builder.removeNode(containerPath, i);
+		else clearBlockContent(state, builder, [...containerPath, child.id], child);
+	}
+}
+
+/**
+ * Empties a fully covered block while keeping the block itself: a flow
+ * container ends up holding one empty paragraph (as a cut table cell does), a
+ * fixed-shape container clears each child, and a text leaf loses its text. A
+ * void leaf has no text (length 0), so it stays as it is.
+ */
+function clearBlockContent(
+	state: EditorState,
+	builder: TransactionBuilder,
+	path: readonly BlockId[],
+	block: BlockNode,
+): void {
+	if (isLeafBlock(block)) {
+		const length: number = getBlockLength(block);
+		if (length > 0) builder.deleteTextAt(block.id, 0, length);
+		return;
+	}
+
+	const children: readonly BlockNode[] = getBlockChildren(block);
+	if (!hasFlowContent(state, block)) {
+		deleteCoveredChildren(state, builder, path, block, 0, children.length);
+		return;
+	}
+	const only: BlockNode | undefined = children.length === 1 ? children[0] : undefined;
+	if (only && isEmptyParagraph(only)) return;
+	for (let i = children.length - 1; i >= 0; i--) builder.removeNode(path, i);
+	builder.insertNode(path, 0, createEmptyParagraph(generateBlockId()));
+}
+
+/** Index of the child of `container` on the path to the boundary leaf, or -1. */
+function boundaryChildIndex(container: BlockNode, leafPath: readonly string[]): number {
+	const pos: number = leafPath.indexOf(container.id);
+	const targetChildId: string | undefined = pos >= 0 ? leafPath[pos + 1] : undefined;
+	return getBlockChildren(container).findIndex((c) => c.id === targetChildId);
+}
+
+/**
+ * Trims a container to keep only content up to `(leafId, leafOffset)`, deleting
+ * every child after the boundary at each level (see {@link deleteCoveredChildren})
+ * and the boundary leaf's tail text. `containerPath` is the path to (and
+ * including) `container`; `leafPath` is the boundary leaf's full node path, used
+ * to descend to the boundary child.
  */
 function trimContainerTail(
+	state: EditorState,
 	builder: TransactionBuilder,
 	containerPath: readonly BlockId[],
 	container: BlockNode,
@@ -316,14 +390,10 @@ function trimContainerTail(
 	leafOffset: number,
 ): void {
 	const children: readonly BlockNode[] = getBlockChildren(container);
-	const pos: number = leafPath.indexOf(container.id);
-	const targetChildId: string | undefined = pos >= 0 ? leafPath[pos + 1] : undefined;
-	const boundaryIdx: number = children.findIndex((c) => c.id === targetChildId);
+	const boundaryIdx: number = boundaryChildIndex(container, leafPath);
 	if (boundaryIdx < 0) return;
 
-	for (let i = children.length - 1; i > boundaryIdx; i--) {
-		builder.removeNode(containerPath, i);
-	}
+	deleteCoveredChildren(state, builder, containerPath, container, boundaryIdx + 1, children.length);
 
 	const boundaryChild: BlockNode = children[boundaryIdx] as BlockNode;
 	if (boundaryChild.id === leafId) {
@@ -332,6 +402,7 @@ function trimContainerTail(
 		return;
 	}
 	trimContainerTail(
+		state,
 		builder,
 		[...containerPath, boundaryChild.id],
 		boundaryChild,
@@ -343,10 +414,11 @@ function trimContainerTail(
 
 /**
  * Trims a container to keep only content from `(leafId, leafOffset)` onward,
- * removing every child before the boundary at each level and the boundary
+ * deleting every child before the boundary at each level and the boundary
  * leaf's head text. Mirrors {@link trimContainerTail}.
  */
 function trimContainerHead(
+	state: EditorState,
 	builder: TransactionBuilder,
 	containerPath: readonly BlockId[],
 	container: BlockNode,
@@ -355,15 +427,11 @@ function trimContainerHead(
 	leafOffset: number,
 ): void {
 	const children: readonly BlockNode[] = getBlockChildren(container);
-	const pos: number = leafPath.indexOf(container.id);
-	const targetChildId: string | undefined = pos >= 0 ? leafPath[pos + 1] : undefined;
-	const boundaryIdx: number = children.findIndex((c) => c.id === targetChildId);
+	const boundaryIdx: number = boundaryChildIndex(container, leafPath);
 	if (boundaryIdx < 0) return;
 
-	// Descending so each removal stays valid; the boundary keeps its identity.
-	for (let i = boundaryIdx - 1; i >= 0; i--) {
-		builder.removeNode(containerPath, i);
-	}
+	// The boundary keeps its identity, so the descent below still finds it.
+	deleteCoveredChildren(state, builder, containerPath, container, 0, boundaryIdx);
 
 	const boundaryChild: BlockNode = children[boundaryIdx] as BlockNode;
 	if (boundaryChild.id === leafId) {
@@ -371,6 +439,7 @@ function trimContainerHead(
 		return;
 	}
 	trimContainerHead(
+		state,
 		builder,
 		[...containerPath, boundaryChild.id],
 		boundaryChild,
