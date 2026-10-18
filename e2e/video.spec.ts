@@ -13,7 +13,8 @@ async function insertVideo(
 ): Promise<void> {
 	await editor.markButton('video').click();
 	const urlInput = page.locator('notectl-editor input[aria-label="Video URL"]');
-	await urlInput.waitFor({ state: 'visible' });
+	// The form focuses its URL field on the next animation frame after opening.
+	await expect(urlInput).toBeFocused();
 	await urlInput.fill(url);
 	await page.locator('notectl-editor input[aria-label="Video title"]').fill(title);
 	await page.locator('notectl-editor button[aria-label="Insert video"]').click();
@@ -76,6 +77,7 @@ test.describe('Video embed', () => {
 		await embedBtn.click();
 
 		// The pre-filled insert form opens; supply the required accessible title.
+		await expect(page.locator('notectl-editor input[aria-label="Video URL"]')).toBeFocused();
 		const titleInput = page.locator('notectl-editor input[aria-label="Video title"]');
 		await titleInput.waitFor({ state: 'visible' });
 		await titleInput.fill(TITLE);
