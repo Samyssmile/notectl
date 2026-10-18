@@ -3,13 +3,14 @@
  * commands (table, image, horizontal rule, display formula).
  *
  * Provides context resolution (parent path, anchor index, empty detection)
- * for inserting blocks into the document tree — both at root level and
- * inside table cells — plus the shared primitive that drops a block-level
+ * for inserting blocks into the document tree — under the anchor's actual
+ * parent, escaping to the root when a container's content rule forbids a
+ * block — plus the shared primitive that drops a block-level
  * object onto its own line. Also contains pure helpers for block cloning,
  * recursive lookup, and attribute sanitization against a NodeSpec.
  */
 
-import { canContain } from '../model/ContentModel.js';
+import { type ContentSchema, canContain } from '../model/ContentModel.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import {
 	type BlockAttrArrayValue,
@@ -25,9 +26,9 @@ import {
 	createInlineNode,
 	generateBlockId,
 	getBlockLength,
-	getBlockText,
 	inlineSegment,
 	isBlockNode,
+	isLeafBlock,
 	segmentsToInlineChildren,
 	textSegment,
 } from '../model/Document.js';
@@ -55,6 +56,11 @@ export interface InsertionContext {
 	readonly isAnchorEmpty: boolean;
 }
 
+/** Paste context with the exact sibling slot, including gap cursors and root escape. */
+export interface PasteInsertionContext extends InsertionContext {
+	readonly insertIndex: number;
+}
+
 /**
  * Resolves an insertion context for root-level (or nested-parent-level) insertion.
  * Computes the parent path, anchor index among siblings, and whether the anchor is empty.
@@ -62,7 +68,7 @@ export interface InsertionContext {
 export function resolveRootInsertionContext(
 	state: EditorState,
 	anchorBlockId: BlockId,
-	schemaRegistry?: SchemaRegistry,
+	schemaRegistry?: ContentSchema,
 ): InsertionContext | undefined {
 	const path: readonly string[] | undefined = findNodePath(state.doc, anchorBlockId);
 	const parentPath: BlockId[] = extractParentPath(path);
@@ -75,28 +81,23 @@ export function resolveRootInsertionContext(
 	return { parentPath, anchorIndex, isAnchorEmpty };
 }
 
-/**
- * Resolves an insertion context within a table cell.
- * The parent path points to the cell itself; siblings are the cell's children.
- */
-export function resolveCellInsertionContext(
+/** Resolves actual siblings for a block paste, escaping forbidden nesting to the root. */
+export function resolveBlockPasteContext(
 	state: EditorState,
 	anchorBlockId: BlockId,
-	cellId: BlockId,
-	schemaRegistry?: SchemaRegistry,
-): InsertionContext | undefined {
-	const cellPath: BlockId[] | undefined = findNodePath(state.doc, cellId) as BlockId[] | undefined;
-	if (!cellPath) return undefined;
-
-	const cell: BlockNode | undefined = state.getBlock(cellId);
-	if (!cell) return undefined;
-
-	const anchorIndex: number = cell.children.findIndex(
-		(c) => isBlockNode(c) && c.id === anchorBlockId,
-	);
-
-	const isAnchorEmpty: boolean = isBlockEmpty(state, anchorBlockId, schemaRegistry);
-	return { parentPath: cellPath, anchorIndex, isAnchorEmpty };
+	blocks: readonly BlockNode[],
+	schema: ContentSchema = state.schema,
+	selection: EditorSelection = state.selection,
+): PasteInsertionContext | undefined {
+	const context = resolveRootInsertionContext(state, anchorBlockId, schema);
+	if (!context) return undefined;
+	const parent = state.getParent(anchorBlockId);
+	if (parent && blocks.some((block) => !canContain(schema, parent.type, block.type))) {
+		const escaped = resolveRootEscapeContext(state, anchorBlockId);
+		return escaped ? { ...escaped, insertIndex: escaped.anchorIndex + 1 } : undefined;
+	}
+	const insertBefore = isGapCursor(selection) && selection.side === 'before';
+	return { ...context, insertIndex: context.anchorIndex + (insertBefore ? 0 : 1) };
 }
 
 /**
@@ -128,52 +129,34 @@ export function resolveAnchorBlockId(selection: EditorSelection): BlockId {
 }
 
 /**
- * Inserts a block node after the anchor position, resolving cell vs root context.
+ * Inserts blocks beside the anchor under its actual parent, escaping to the root
+ * when the parent's schema forbids a pasted type.
  * Removes the anchor block if it is empty (matching standard paste behavior).
- * Returns true on success, false if context resolution fails.
+ * Returns the parent path the blocks now live under, so callers can address
+ * them (e.g. for a node selection), or undefined if context resolution fails.
  */
-export function insertBlockAfterAnchor(
+export function insertBlocksAfterAnchor(
 	state: EditorState,
 	builder: TransactionBuilder,
 	anchorBlockId: BlockId,
-	block: BlockNode,
+	blocks: readonly BlockNode[],
 	selection: EditorSelection,
 	schemaRegistry?: SchemaRegistry,
-): boolean {
-	const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
+): readonly BlockId[] | undefined {
+	if (blocks.length === 0) return undefined;
+	const ctx = resolveBlockPasteContext(state, anchorBlockId, blocks, schemaRegistry, selection);
+	if (!ctx) return undefined;
 
-	if (cellId) {
-		const ctx: InsertionContext | undefined = resolveCellInsertionContext(
-			state,
-			anchorBlockId,
-			cellId,
-			schemaRegistry,
-		);
-		if (!ctx) return false;
-
-		const insertIndex: number = ctx.anchorIndex + 1;
+	let insertIndex = ctx.insertIndex;
+	for (const block of blocks) {
 		builder.insertNode(ctx.parentPath, insertIndex, block);
-
-		if (ctx.isAnchorEmpty && ctx.anchorIndex >= 0) {
-			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
-		}
-	} else {
-		const ctx: InsertionContext | undefined = resolveRootInsertionContext(
-			state,
-			anchorBlockId,
-			schemaRegistry,
-		);
-		if (!ctx) return false;
-
-		const insertOffset: number = isGapCursor(selection) && selection.side === 'before' ? 0 : 1;
-		builder.insertNode(ctx.parentPath, ctx.anchorIndex + insertOffset, block);
-
-		if (ctx.isAnchorEmpty && !isGapCursor(selection)) {
-			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
-		}
+		insertIndex++;
+	}
+	if (ctx.isAnchorEmpty && !isGapCursor(selection)) {
+		builder.removeNode(ctx.parentPath, ctx.anchorIndex);
 	}
 
-	return true;
+	return ctx.parentPath;
 }
 
 /**
@@ -187,22 +170,6 @@ export function topLevelBlockIndex(state: EditorState, blockId: BlockId): number
 	const path: readonly string[] | undefined = findNodePath(state.doc, blockId);
 	const topId: BlockId = path && path.length > 0 ? (path[0] as BlockId) : blockId;
 	return state.doc.children.findIndex((b) => b.id === topId);
-}
-
-/**
- * True when a container of `containerType` may hold every block in `blocks`,
- * per its {@link import('../model/NodeSpec.js').NodeSpec} content rule. An
- * undefined `containerType` denotes the document root, which imposes no
- * restriction. Used to keep paste from creating schema-invalid nesting, such as
- * a `table` dropped into a `table_cell` (#166).
- */
-export function canContainerHoldBlocks(
-	registry: SchemaRegistry,
-	containerType: string | undefined,
-	blocks: readonly BlockNode[],
-): boolean {
-	if (!containerType) return true;
-	return blocks.every((block) => canContain(registry, containerType, block.type));
 }
 
 /**
@@ -240,8 +207,8 @@ export function isEmptyParagraph(block: BlockNode): boolean {
  * Only an empty *paragraph* is consumed — an empty heading or list item is
  * deliberate structure — and the emptiness test is inline-aware (see
  * {@link isEmptyParagraph}). This is intentionally stricter than
- * {@link insertBlockAfterAnchor}, which the paste pipeline uses with a text-only
- * emptiness notion.
+ * {@link insertBlocksAfterAnchor}, which also consumes empty text blocks of
+ * other types during paste.
  *
  * A void anchor (image, display formula) already owns a trailing empty paragraph
  * as its escape line. In that case the object is placed before that paragraph and
@@ -392,13 +359,13 @@ function isBlockAttrArray(value: unknown): value is readonly BlockAttrArrayValue
 function isBlockEmpty(
 	state: EditorState,
 	blockId: BlockId,
-	schemaRegistry?: SchemaRegistry,
+	schemaRegistry?: ContentSchema,
 ): boolean {
 	const block: BlockNode | undefined = state.getBlock(blockId);
 	if (!block) return false;
 
-	const spec = schemaRegistry?.getNodeSpec(block.type);
-	return !spec?.isVoid && getBlockText(block) === '';
+	const spec = (schemaRegistry ?? state.schema).getNodeSpec?.(block.type);
+	return !spec?.isVoid && isLeafBlock(block) && getBlockLength(block) === 0;
 }
 
 // --- Rich block creation ---

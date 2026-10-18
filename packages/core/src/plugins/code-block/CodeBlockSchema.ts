@@ -7,12 +7,15 @@
  * `registerCodeBlockCommands` / `registerCodeBlockKeymaps` pattern.
  */
 
-import { addDeleteSelectionSteps } from '../../commands/Commands.js';
+import {
+	type ReplacementTarget,
+	getReceivingBlock,
+	resolveReplacementTarget,
+} from '../../commands/SelectionReplacement.js';
 import type { BlockNode } from '../../model/Document.js';
 import { escapeHTML, isSafeCSSValue, styleAttribute } from '../../model/HTMLUtils.js';
 import type { HTMLExportContext } from '../../model/NodeSpec.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
-import type { BlockId } from '../../model/TypeBrands.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
@@ -153,26 +156,14 @@ export function registerCodeBlockPasteInterceptor(context: PluginContext): void 
 		state: EditorState,
 	): Transaction | null => {
 		if (!plainText) return null;
-		if (!isTextSelection(state.selection)) return null;
-
-		const block: BlockNode | undefined = state.getBlock(state.selection.anchor.blockId);
-		if (!block || block.type !== 'code_block') return null;
 
 		const builder = state.transaction('paste');
+		const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+		if (getReceivingBlock(target)?.type !== 'code_block') return null;
 
-		let insertBlockId: BlockId = state.selection.anchor.blockId;
-		let insertOffset: number = state.selection.anchor.offset;
-
-		if (!isCollapsed(state.selection)) {
-			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
-			if (landingId) {
-				insertBlockId = landingId;
-				insertOffset = 0;
-			}
-		}
-
-		builder.insertText(insertBlockId, insertOffset, plainText, []);
-		builder.setSelection(createCollapsedSelection(insertBlockId, insertOffset + plainText.length));
+		const { blockId, offset } = target;
+		builder.insertText(blockId, offset, plainText, []);
+		builder.setSelection(createCollapsedSelection(blockId, offset + plainText.length));
 
 		return builder.build();
 	};

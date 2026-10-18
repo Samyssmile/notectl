@@ -22,11 +22,12 @@ import {
 	getBlockText,
 	isBlockNode,
 } from '../model/Document.js';
-import { createCollapsedSelection } from '../model/Selection.js';
+import { createCollapsedSelection, createSelection } from '../model/Selection.js';
 import { blockId } from '../model/TypeBrands.js';
 import { ListPlugin } from '../plugins/list/ListPlugin.js';
 import { TablePlugin } from '../plugins/table/TablePlugin.js';
 import { EditorState } from '../state/EditorState.js';
+import { type Transaction, invertTransaction } from '../state/Transaction.js';
 import { pluginHarness } from '../test/TestUtils.js';
 import { PasteHTMLHandler } from './PasteHTMLHandler.js';
 
@@ -184,4 +185,77 @@ describe('issue #194 — pasting multi-block list items', () => {
 		expect(children.length).toBeGreaterThanOrEqual(2);
 		expect(children[0] ? getBlockText(children[0]) : '').toBe('intro');
 	});
+});
+
+describe('issue #267 — structural paste over a backward range', () => {
+	const texts: readonly string[] = ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee'];
+
+	/** Selects from the middle of the third paragraph back to the middle of the first. */
+	function backwardRangeState(count: number): EditorState {
+		const doc = createDocument(
+			texts
+				.slice(0, count)
+				.map((text, i) =>
+					createBlockNode('paragraph', [createTextNode(text)], blockId(`p${i + 1}`)),
+				),
+		);
+		return EditorState.create({
+			doc,
+			selection: createSelection(
+				{ blockId: blockId('p3'), offset: 1 },
+				{ blockId: blockId('p1'), offset: 1 },
+			),
+		});
+	}
+
+	it('replaces a block that the deletion leaves empty, like an empty caret block', async () => {
+		// Arrange
+		const state: EditorState = EditorState.create({
+			doc: createDocument([
+				createBlockNode('paragraph', [createTextNode('aaaa')], blockId('p1')),
+				createBlockNode('paragraph', [createTextNode('bbbb')], blockId('p2')),
+			]),
+			selection: createSelection(
+				{ blockId: blockId('p2'), offset: 4 },
+				{ blockId: blockId('p2'), offset: 0 },
+			),
+		});
+		const h = await pluginHarness(new TablePlugin(), state, { builtinSpecs: true });
+		const handler = new PasteHTMLHandler(h.getState, h.dispatch, h.pm.schemaRegistry, () => false);
+
+		// Act
+		handler.pasteHTMLString(PASTED_TABLE_HTML);
+
+		// Assert
+		expect(h.getState().doc.children.map((b) => b.type)).toEqual(['paragraph', 'table']);
+		expect(h.getState().getBlock(blockId('p2'))).toBeUndefined();
+	});
+
+	for (const count of [3, 5]) {
+		it(`inserts the table after the merged block of a ${count}-paragraph document`, async () => {
+			// Arrange
+			const state: EditorState = backwardRangeState(count);
+			const h = await pluginHarness(new TablePlugin(), state, { builtinSpecs: true });
+			const handler = new PasteHTMLHandler(
+				h.getState,
+				h.dispatch,
+				h.pm.schemaRegistry,
+				() => false,
+			);
+
+			// Act
+			handler.pasteHTMLString(PASTED_TABLE_HTML);
+
+			// Assert
+			expect(h.dispatch).toHaveBeenCalledTimes(1);
+			const children: readonly BlockNode[] = h.getState().doc.children;
+			expect(children.map((b) => (b.type === 'table' ? 'table' : getBlockText(b)))).toEqual([
+				'accc',
+				'table',
+				...texts.slice(3, count),
+			]);
+			const tr = h.dispatch.mock.calls[0]?.[0] as Transaction;
+			expect(h.getState().apply(invertTransaction(tr)).doc).toEqual(state.doc);
+		});
+	}
 });

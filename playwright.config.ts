@@ -26,6 +26,8 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'cut-paste-block-types',
 		'table-cut-paste',
 		'paste-into-table-cell',
+		'multi-block-paste',
+		'smart-paste',
 		'alignment-classes',
 		'style-classes',
 		'inline-styles-strict-csp',

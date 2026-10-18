@@ -139,7 +139,9 @@ export interface SetBlockTypeStep {
 
 export interface InsertNodeStep {
 	readonly type: 'insertNode';
+	/** Existing parent lineage, or [] for the document root. */
 	readonly parentPath: readonly BlockId[];
+	/** Exact insertion slot: an integer in 0 … parent.children.length. */
 	readonly index: number;
 	readonly node: BlockNode;
 }
@@ -148,6 +150,7 @@ export interface RemoveNodeStep {
 	readonly type: 'removeNode';
 	readonly parentPath: readonly BlockId[];
 	readonly index: number;
+	/** The block at index must still have this ID when the step is applied. */
 	readonly removedNode: BlockNode;
 }
 

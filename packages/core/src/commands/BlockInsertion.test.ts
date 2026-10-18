@@ -3,6 +3,7 @@ import {
 	type BlockNode,
 	createBlockNode,
 	createDocument,
+	createInlineNode,
 	createTextNode,
 	getBlockText,
 	isBlockNode,
@@ -11,16 +12,15 @@ import type { AttrSpec } from '../model/NodeSpec.js';
 import { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { createCollapsedSelection } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
-import { blockId, nodeType } from '../model/TypeBrands.js';
-import { TablePlugin } from '../plugins/table/TablePlugin.js';
+import { blockId, inlineType, nodeType } from '../model/TypeBrands.js';
 import { EditorState } from '../state/EditorState.js';
-import { pluginHarness, stateBuilder } from '../test/TestUtils.js';
+import { invertTransaction } from '../state/Transaction.js';
+import { stateBuilder } from '../test/TestUtils.js';
 import {
-	canContainerHoldBlocks,
 	cloneBlockWithNewIds,
 	findBlockRecursive,
 	findTableCellAncestor,
-	resolveCellInsertionContext,
+	insertBlocksAfterAnchor,
 	resolveRootEscapeContext,
 	resolveRootInsertionContext,
 	sanitizeAttrs,
@@ -72,50 +72,96 @@ describe('resolveRootInsertionContext', () => {
 	});
 });
 
-// --- resolveCellInsertionContext ---
+describe('insertBlocksAfterAnchor', () => {
+	for (const [label, makeState] of [
+		[
+			'an atomic inline-only paragraph',
+			() =>
+				stateBuilder()
+					.blockWithInlines(
+						'paragraph',
+						[createInlineNode(inlineType('formula'), { latex: 'x' })],
+						'anchor',
+					)
+					.cursor('anchor', 1)
+					.build(),
+		],
+		[
+			'a selected container',
+			() =>
+				stateBuilder()
+					.nestedBlock(
+						createBlockNode(
+							'blockquote',
+							[createBlockNode('paragraph', [createTextNode('keep')], blockId('child'))],
+							blockId('anchor'),
+						),
+					)
+					.nodeSelection('anchor', ['anchor'])
+					.build(),
+		],
+		[
+			'a selected void block using the state schema',
+			() =>
+				stateBuilder()
+					.voidBlock('image', 'anchor')
+					.nodeSelection('anchor', ['anchor'])
+					.schema(['image', 'paragraph'], [], (type) =>
+						type === 'image'
+							? { type: 'image', isVoid: true, toDOM: () => document.createElement('img') }
+							: undefined,
+					)
+					.build(),
+		],
+	] as const) {
+		it(`preserves ${label} when inserting beside it`, () => {
+			const state = makeState();
+			const builder = state.transaction('paste');
+			const inserted = createBlockNode('paragraph', [createTextNode('new')]);
 
-describe('resolveCellInsertionContext', () => {
-	it('resolves context for a block inside a table cell', () => {
-		const cellChild: BlockNode = createBlockNode(
-			nodeType('paragraph') as NodeTypeName,
-			[createTextNode('cell text')],
-			blockId('p1'),
-		);
-		const cell: BlockNode = createBlockNode(
-			nodeType('table_cell') as NodeTypeName,
-			[cellChild],
-			blockId('cell1'),
-		);
-		const row: BlockNode = createBlockNode(
-			nodeType('table_row') as NodeTypeName,
-			[cell],
-			blockId('row1'),
-		);
-		const table: BlockNode = createBlockNode(
-			nodeType('table') as NodeTypeName,
-			[row],
-			blockId('table1'),
-		);
+			expect(
+				insertBlocksAfterAnchor(state, builder, blockId('anchor'), [inserted], state.selection),
+			).toEqual([]);
 
-		const state = stateBuilder()
-			.nestedBlock(table)
-			.cursor('p1', 0)
-			.schema(['paragraph', 'table', 'table_row', 'table_cell'], [])
-			.build();
+			const tr = builder.build();
+			const after = state.apply(tr);
+			expect(after.doc.children).toEqual([...state.doc.children, inserted]);
+			expect(after.apply(invertTransaction(tr)).doc).toEqual(state.doc);
+		});
+	}
 
-		const ctx = resolveCellInsertionContext(state, blockId('p1'), blockId('cell1'));
-		expect(ctx).toBeDefined();
-		expect(ctx?.parentPath).toEqual([blockId('table1'), blockId('row1'), blockId('cell1')]);
-		expect(ctx?.anchorIndex).toBe(0);
-		expect(ctx?.isAnchorEmpty).toBe(false);
-	});
+	for (const allowed of [true, false]) {
+		it(`${allowed ? 'respects a gap before' : 'escapes after the root from a gap before'} a nested anchor`, () => {
+			const anchor = createBlockNode('paragraph', [createTextNode('keep')], blockId('anchor'));
+			const parent = createBlockNode('container', [anchor], blockId('container'));
+			const state = stateBuilder()
+				.nestedBlock(parent)
+				.gapCursor('anchor', 'before', ['container', 'anchor'])
+				.schema(['container', 'paragraph', 'code_block'], [], (type) =>
+					type === 'container'
+						? {
+								type,
+								content: { allow: allowed ? ['paragraph', 'code_block'] : ['paragraph'] },
+								toDOM: () => document.createElement('div'),
+							}
+						: undefined,
+				)
+				.build();
+			const inserted = createBlockNode('code_block', [createTextNode('code')]);
+			const builder = state.transaction('paste');
 
-	it('returns undefined for invalid cell ID', () => {
-		const state = stateBuilder().paragraph('Hello', 'b1').cursor('b1', 0).build();
+			expect(
+				insertBlocksAfterAnchor(state, builder, anchor.id, [inserted], state.selection),
+			).toEqual(allowed ? [parent.id] : []);
 
-		const ctx = resolveCellInsertionContext(state, blockId('b1'), blockId('nope'));
-		expect(ctx).toBeUndefined();
-	});
+			const tr = builder.build();
+			const after = state.apply(tr);
+			expect(after.doc.children).toEqual(
+				allowed ? [{ ...parent, children: [inserted, anchor] }] : [parent, inserted],
+			);
+			expect(after.apply(invertTransaction(tr)).doc).toEqual(state.doc);
+		});
+	}
 });
 
 // --- findTableCellAncestor ---
@@ -301,7 +347,7 @@ describe('sanitizeAttrs', () => {
 	});
 });
 
-// --- canContainerHoldBlocks ---
+// --- resolveRootEscapeContext ---
 
 function tableBlock(): BlockNode {
 	const cell: BlockNode = createBlockNode(
@@ -316,42 +362,6 @@ function tableBlock(): BlockNode {
 	);
 	return createBlockNode(nodeType('table') as NodeTypeName, [row], blockId('table1'));
 }
-
-describe('canContainerHoldBlocks', () => {
-	it('allows any block at the document root (undefined container)', async () => {
-		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
-		expect(canContainerHoldBlocks(h.pm.schemaRegistry, undefined, [tableBlock()])).toBe(true);
-	});
-
-	it('rejects a table inside a table cell (schema-invalid nesting)', async () => {
-		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
-		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [tableBlock()])).toBe(false);
-	});
-
-	it('allows a paragraph inside a table cell', async () => {
-		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
-		const para: BlockNode = createBlockNode(
-			nodeType('paragraph') as NodeTypeName,
-			[createTextNode('hi')],
-			blockId('pp'),
-		);
-		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [para])).toBe(true);
-	});
-
-	it('rejects the whole run when any block is disallowed', async () => {
-		const h = await pluginHarness(new TablePlugin(), undefined, { builtinSpecs: true });
-		const para: BlockNode = createBlockNode(
-			nodeType('paragraph') as NodeTypeName,
-			[createTextNode('hi')],
-			blockId('pp'),
-		);
-		expect(canContainerHoldBlocks(h.pm.schemaRegistry, 'table_cell', [para, tableBlock()])).toBe(
-			false,
-		);
-	});
-});
-
-// --- resolveRootEscapeContext ---
 
 describe('resolveRootEscapeContext', () => {
 	function stateWithTable(): EditorState {

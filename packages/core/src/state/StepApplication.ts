@@ -31,6 +31,7 @@ import {
 	sliceInlineContent,
 } from './InlineContentOps.js';
 import { isMoveNodeNoOp, resolveMoveNodeStep } from './Steps.js';
+import { requireRemovalTarget, validateInsertPosition } from './StructuralPositions.js';
 import type {
 	AddMarkStep,
 	DeleteTextStep,
@@ -235,6 +236,7 @@ export function applySetBlockType(doc: Document, step: SetBlockTypeStep): Docume
 // --- Structural Step Application ---
 
 export function applyInsertNode(doc: Document, step: InsertNodeStep): Document {
+	validateInsertPosition(doc, step.parentPath, step.index);
 	if (step.parentPath.length === 0) {
 		// Insert at document root
 		const newChildren: BlockNode[] = [...doc.children];
@@ -250,6 +252,7 @@ export function applyInsertNode(doc: Document, step: InsertNodeStep): Document {
 }
 
 export function applyRemoveNode(doc: Document, step: RemoveNodeStep): Document {
+	requireRemovalTarget(doc, step.parentPath, step.index, step.removedNode.id);
 	if (step.parentPath.length === 0) {
 		// Remove from document root
 		const newChildren: BlockNode[] = [...doc.children];

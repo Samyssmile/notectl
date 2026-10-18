@@ -3,6 +3,7 @@
  * Handles three strategies: inline paste, single-block paste, multi-block paste.
  */
 
+import { canContain } from '../model/ContentModel.js';
 import type { ContentSlice, SliceBlock } from '../model/ContentSlice.js';
 import { segmentsLength } from '../model/ContentSlice.js';
 import type { BlockAttrValue, BlockAttrs, BlockNode } from '../model/Document.js';
@@ -10,25 +11,15 @@ import { createBlockNode, generateBlockId, segmentsToInlineChildren } from '../m
 import type { ContentSegment } from '../model/Document.js';
 import { findNodePath } from '../model/NodeResolver.js';
 import type { NodeSpec } from '../model/NodeSpec.js';
-import type { GapCursorSelection, Selection } from '../model/Selection.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-} from '../model/Selection.js';
+import type { GapCursorSelection } from '../model/Selection.js';
+import { createCollapsedSelection, isGapCursor, isNodeSelection } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Transaction, TransactionBuilder } from '../state/Transaction.js';
-import type { InsertPoint } from './CommandHelpers.js';
-import {
-	extractParentPath,
-	findSiblingIndex,
-	getSiblings,
-	resolveInsertPoint,
-} from './CommandHelpers.js';
-import { addDeleteSelectionSteps } from './Commands.js';
+import { resolveRootEscapeContext, resolveRootInsertionContext } from './BlockInsertion.js';
+import { extractParentPath, findSiblingIndex, getSiblings } from './CommandHelpers.js';
+import { type ReplacementTarget, resolveReplacementTarget } from './SelectionReplacement.js';
 
 /**
  * Builds a transaction that pastes the given ContentSlice into the editor state.
@@ -53,31 +44,17 @@ export function pasteSlice(state: EditorState, slice: ContentSlice): Transaction
 	return pasteMultiBlock(state, slice);
 }
 
-interface PasteTarget {
+interface PasteTarget extends ReplacementTarget {
 	readonly builder: TransactionBuilder;
-	readonly landingId: BlockId | undefined;
-	readonly resolved: InsertPoint;
-	readonly insertBlockId: BlockId;
-	readonly insertOffset: number;
 }
 
 /**
  * Shared preamble for the text-selection paste strategies: opens a paste
  * builder, deletes any range selection, and resolves the insert position.
  */
-function resolvePasteTarget(state: EditorState, sel: Selection): PasteTarget {
+function resolvePasteTarget(state: EditorState): PasteTarget {
 	const builder: TransactionBuilder = state.transaction('paste');
-
-	let landingId: BlockId | undefined;
-	if (!isCollapsed(sel)) {
-		landingId = addDeleteSelectionSteps(state, builder);
-	}
-
-	const resolved: InsertPoint = resolveInsertPoint(sel, state.getBlockOrder());
-	const insertBlockId: BlockId = landingId ?? resolved.blockId;
-	const insertOffset: number = landingId ? 0 : resolved.offset;
-
-	return { builder, landingId, resolved, insertBlockId, insertOffset };
+	return { builder, ...resolveReplacementTarget(state, builder) };
 }
 
 /**
@@ -127,10 +104,10 @@ function pasteInline(state: EditorState, block: SliceBlock): Transaction {
 	if (isGapCursor(sel)) {
 		return pasteBlocksAtGap(state, sel, [block]);
 	}
-	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
-	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, block.segments);
-	applyParagraphAttrs(state, builder, insertBlockId, block.attrs);
-	builder.setSelection(createCollapsedSelection(insertBlockId, endOffset));
+	const { builder, blockId, offset } = resolvePasteTarget(state);
+	const endOffset: number = insertSegmentsAt(builder, blockId, offset, block.segments);
+	applyParagraphAttrs(state, builder, blockId, block.attrs);
+	builder.setSelection(createCollapsedSelection(blockId, endOffset));
 
 	return builder.build();
 }
@@ -144,11 +121,11 @@ function pasteSingleBlock(state: EditorState, block: SliceBlock): Transaction {
 	if (isGapCursor(sel)) {
 		return pasteBlocksAtGap(state, sel, [block]);
 	}
-	const { builder, insertBlockId, insertOffset } = resolvePasteTarget(state, sel);
+	const { builder, blockId, offset } = resolvePasteTarget(state);
 
-	builder.setBlockType(insertBlockId, block.type, block.attrs);
-	const endOffset: number = insertSegmentsAt(builder, insertBlockId, insertOffset, block.segments);
-	builder.setSelection(createCollapsedSelection(insertBlockId, endOffset));
+	builder.setBlockType(blockId, block.type, block.attrs);
+	const endOffset: number = insertSegmentsAt(builder, blockId, offset, block.segments);
+	builder.setSelection(createCollapsedSelection(blockId, endOffset));
 
 	return builder.build();
 }
@@ -162,32 +139,48 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	if (isGapCursor(sel)) {
 		return pasteBlocksAtGap(state, sel, slice.blocks);
 	}
-	const {
-		builder,
-		landingId,
-		resolved,
-		insertBlockId: blockId,
-		insertOffset: offset,
-	} = resolvePasteTarget(state, sel);
-	const blockOrder = state.getBlockOrder();
-
-	let blockIdx: number;
-	if (landingId) {
-		// The landing block sits in the from-block's root-level slot: either
-		// inserted there, or the to-leaf that slid into it after the deletion.
-		const fromPath = findNodePath(state.doc, resolved.blockId);
-		const rootId: string | undefined = fromPath?.[0];
-		blockIdx = rootId ? state.doc.children.findIndex((c) => c.id === rootId) : 0;
-	} else {
-		blockIdx = blockOrder.indexOf(blockId);
-	}
+	const { builder, blockId, offset, state: workingState } = resolvePasteTarget(state);
+	// Resolve the target's actual siblings in the document after the deletion,
+	// never from the flat leaf traversal order.
+	const context = resolveRootInsertionContext(workingState, blockId);
+	const target = workingState.getBlock(blockId);
+	if (!context || !target) return builder.build();
 
 	const firstSlice: SliceBlock | undefined = slice.blocks[0];
 	const lastSlice: SliceBlock | undefined = slice.blocks[slice.blocks.length - 1];
 	if (!firstSlice || !lastSlice) {
 		return builder.build();
 	}
-	const middleSlices: readonly SliceBlock[] = slice.blocks.slice(1, -1);
+	const middleSlices: readonly SliceBlock[] = slice.blocks.slice(1, -1).map((block) => {
+		if (block.type !== 'paragraph' || target.type !== 'list_item') return block;
+		return {
+			...block,
+			type: target.type,
+			attrs: { ...target.attrs, ...supportedParagraphAttrs(state, target.type, block.attrs) },
+		};
+	});
+
+	// Check the resulting boundary types as well as the middle blocks before
+	// modifying the target. If any type is forbidden, the original slice escapes
+	// intact after the outermost container (#166), without splitting its text.
+	const parent = workingState.getParent(blockId);
+	const resultTypes = [
+		firstSlice.type === 'paragraph' ? target.type : firstSlice.type,
+		...middleSlices.map((block) => block.type),
+		lastSlice.type === 'paragraph' ? target.type : lastSlice.type,
+	];
+	if (parent && resultTypes.some((type) => !canContain(state.schema, parent.type, type))) {
+		const escapeContext = resolveRootEscapeContext(workingState, blockId);
+		if (escapeContext) {
+			insertSliceBlocks(
+				builder,
+				escapeContext.parentPath,
+				escapeContext.anchorIndex + 1,
+				slice.blocks,
+			);
+		}
+		return builder.build();
+	}
 
 	// 1. Insert first slice's segments into current block
 	const firstEnd: number = insertSegmentsAt(builder, blockId, offset, firstSlice.segments);
@@ -210,7 +203,7 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 	}
 
 	// 4. Insert middle blocks between first and tail
-	let insertAt: number = blockIdx + 1;
+	let insertAt: number = context.anchorIndex + 1;
 	for (const mid of middleSlices) {
 		const newBlock = createBlockNode(
 			mid.type,
@@ -218,7 +211,7 @@ function pasteMultiBlock(state: EditorState, slice: ContentSlice): Transaction {
 			generateBlockId(),
 			mid.attrs,
 		);
-		builder.insertNode([], insertAt, newBlock);
+		builder.insertNode(context.parentPath, insertAt, newBlock);
 		insertAt++;
 	}
 
@@ -251,14 +244,24 @@ function applyParagraphAttrs(
 	const block: BlockNode | undefined = workingState.getBlock(blockId);
 	const path: readonly BlockId[] | undefined = workingState.getNodePath(blockId);
 	if (!block || !path) return;
-	const spec: NodeSpec | undefined = state.schema.getNodeSpec?.(block.type);
-	const accepted: Record<string, BlockAttrValue> = {};
-	for (const [name, value] of Object.entries(attrs)) {
-		if (!spec || spec.attrs?.[name]) accepted[name] = value;
-	}
+	const accepted = supportedParagraphAttrs(state, block.type, attrs);
 	if (Object.keys(accepted).length > 0) {
 		builder.setNodeAttr(path, { ...block.attrs, ...accepted });
 	}
+}
+
+/** Paragraph formatting applies only when supported by the destination type. */
+function supportedParagraphAttrs(
+	state: EditorState,
+	type: string,
+	attrs: BlockAttrs | undefined,
+): BlockAttrs {
+	const spec: NodeSpec | undefined = state.schema.getNodeSpec?.(type);
+	const accepted: Record<string, BlockAttrValue> = {};
+	for (const [name, value] of Object.entries(attrs ?? {})) {
+		if (!spec || spec.attrs?.[name]) accepted[name] = value;
+	}
+	return accepted;
 }
 
 // --- GapCursor Paste Helpers ---
@@ -296,7 +299,18 @@ function pasteBlocksAtGap(
 	}
 
 	const builder: TransactionBuilder = state.transaction('paste');
-	let insertAt: number = gap.insertIndex;
+	insertSliceBlocks(builder, gap.parentPath, gap.insertIndex, blocks);
+	return builder.build();
+}
+
+/** Inserts an intact slice at a resolved sibling position and selects its end. */
+function insertSliceBlocks(
+	builder: TransactionBuilder,
+	parentPath: readonly BlockId[],
+	insertIndex: number,
+	blocks: readonly SliceBlock[],
+): void {
+	let insertAt: number = insertIndex;
 	let lastBlockId: BlockId | undefined;
 	let lastLen = 0;
 
@@ -308,7 +322,7 @@ function pasteBlocksAtGap(
 			newId,
 			block.attrs,
 		);
-		builder.insertNode(gap.parentPath, insertAt, newBlock);
+		builder.insertNode(parentPath, insertAt, newBlock);
 		insertAt++;
 		lastBlockId = newId;
 		lastLen = segmentsLength(block.segments);
@@ -317,6 +331,4 @@ function pasteBlocksAtGap(
 	if (lastBlockId) {
 		builder.setSelection(createCollapsedSelection(lastBlockId, lastLen));
 	}
-
-	return builder.build();
 }

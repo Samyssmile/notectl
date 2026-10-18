@@ -86,6 +86,26 @@ builder.removeNode(parentPath, index)
 builder.setNodeAttr(path, attrs)
 ```
 
+`parentPath = []` addresses the document root. Otherwise it must name an existing
+parent through its complete path from the root. `insertNode` requires an integer
+index in `0 … parent.children.length`, inclusive; `removeNode` requires an existing
+block at that index. Negative, fractional, non-finite and out-of-range indices
+throw an error naming the operation, parent path and index. Positions are never
+clamped or silently ignored.
+
+Document-backed builders validate against their current working document,
+including preceding steps. A rejected operation leaves the document, steps and
+position maps unchanged, so the builder can still be used. Manual builders without
+a document check integer/nonnegative insertion indices immediately; the parent
+path and upper bound are checked when the transaction is applied. `removeNode`
+requires a document to capture the removed block.
+
+The same checks apply to `EditorState.apply()` and `applyStep()`, including steps
+created manually or changed by middleware. A removal also checks that the block
+at the recorded position has `removedNode.id`. A stale inverse therefore throws
+instead of silently removing a different block. Build positions against the
+current document, or map transactions before replaying them after other edits.
+
 ### InlineNode Operations
 
 ```ts

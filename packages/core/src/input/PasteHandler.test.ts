@@ -1893,10 +1893,8 @@ describe('PasteHandler cell schema guard (#166 sibling: internal copy paths)', (
 		const state: EditorState = getCurrent();
 		expect(state.doc.children).toHaveLength(1);
 		const cell = cellOf(state);
-		expect(cell?.children.map((c) => (isBlockNode(c) ? c.type : 'text'))).toEqual([
-			'paragraph',
-			'image',
-		]);
+		// The empty caret paragraph is replaced, as by every whole-block paste (#267).
+		expect(cell?.children.map((c) => (isBlockNode(c) ? c.type : 'text'))).toEqual(['image']);
 	});
 });
 

@@ -1,11 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getBlockText } from '../../model/Document.js';
+import {
+	createBlockNode,
+	createTextNode,
+	getBlockChildren,
+	getBlockText,
+} from '../../model/Document.js';
+import { blockId } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
-import { assertDefined, pluginHarness, stateBuilder } from '../../test/TestUtils.js';
+import { type Transaction, invertTransaction } from '../../state/Transaction.js';
+import {
+	type StateBuilder,
+	assertDefined,
+	pluginHarness,
+	stateBuilder,
+} from '../../test/TestUtils.js';
 import type { PasteInterceptorEntry } from '../PluginManager.js';
 import { CodeBlockPlugin } from '../code-block/CodeBlockPlugin.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
+import { ListPlugin } from '../list/ListPlugin.js';
+import { TablePlugin } from '../table/TablePlugin.js';
 import { SmartPastePlugin } from './SmartPastePlugin.js';
 import type { ContentDetector, DetectionResult } from './SmartPasteTypes.js';
 import { SMART_PASTE_SERVICE_KEY } from './SmartPasteTypes.js';
@@ -654,6 +667,213 @@ describe('SmartPastePlugin', () => {
 			expect(codeBlocks).toHaveLength(1);
 			expect(codeBlocks[0]?.attrs?.language).toBe('yaml');
 		});
+	});
+
+	describe('backward range selection (#267)', () => {
+		const texts: readonly string[] = ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee'];
+
+		/** Selects from the middle of the third paragraph back to the middle of the first. */
+		function backwardRangeState(count: number): EditorState {
+			const builder = stateBuilder();
+			texts.slice(0, count).forEach((text, i) => builder.paragraph(text, `p${i + 1}`));
+			return builder
+				.selection({ blockId: 'p3', offset: 1 }, { blockId: 'p1', offset: 1 })
+				.schema(['paragraph', 'code_block'], ['bold', 'italic'])
+				.build();
+		}
+
+		it('yields to the code block where a backward range starts in one', async () => {
+			// Arrange: the anchor sits in the paragraph after the code block.
+			const state: EditorState = stateBuilder()
+				.block('code_block', 'efgh', 'code')
+				.paragraph('ijkl', 'p2')
+				.selection({ blockId: 'p2', offset: 2 }, { blockId: 'code', offset: 1 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(SAMPLE_JSON, '', state);
+
+			// Assert
+			expect(tr).toBeNull();
+		});
+
+		it('formats code where a backward range from a code block starts in a paragraph', async () => {
+			// Arrange: the anchor sits in the code block after the paragraph.
+			const state: EditorState = stateBuilder()
+				.paragraph('abcd', 'p1')
+				.block('code_block', 'efgh', 'code')
+				.selection({ blockId: 'code', offset: 2 }, { blockId: 'p1', offset: 1 })
+				.schema(['paragraph', 'code_block'], [])
+				.build();
+			const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+				builtinSpecs: true,
+			});
+			const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+			// Act
+			const tr: Transaction | null = entry.interceptor(SAMPLE_JSON, '', state);
+
+			// Assert
+			assertDefined(tr);
+			const after: EditorState = state.apply(tr);
+			expect(after.doc.children.map((b) => `${b.type}:${getBlockText(b)}`)).toEqual([
+				'paragraph:agh',
+				`code_block:${FORMATTED_JSON}`,
+			]);
+		});
+
+		for (const [label, input, inserted] of [
+			['code', SAMPLE_JSON, ['code_block']],
+			['mixed', `hello\n\n${SAMPLE_JSON}`, ['paragraph:hello', 'code_block']],
+		] as const) {
+			for (const count of [3, 5]) {
+				it(`inserts ${label} content after the merged block of ${count} paragraphs`, async () => {
+					// Arrange
+					const state: EditorState = backwardRangeState(count);
+					const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+						builtinSpecs: true,
+					});
+					const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+					// Act
+					const tr: Transaction | null = entry.interceptor(input, '', state);
+
+					// Assert
+					assertDefined(tr);
+					const after: EditorState = state.apply(tr);
+					expect(
+						after.doc.children.map((b) =>
+							b.type === 'code_block' ? b.type : `${b.type}:${getBlockText(b)}`,
+						),
+					).toEqual([
+						'paragraph:accc',
+						...inserted,
+						...texts.slice(3, count).map((text) => `paragraph:${text}`),
+					]);
+					expect(after.apply(invertTransaction(tr)).doc).toEqual(state.doc);
+				});
+			}
+		}
+	});
+
+	describe('code block selected as a whole', () => {
+		for (const [label, select] of [
+			['a node selection on', (b: StateBuilder) => b.nodeSelection('code', ['code'])],
+			['a gap cursor after', (b: StateBuilder) => b.gapCursor('code', 'after', ['code'])],
+		] as const) {
+			it(`inserts code after the code block for ${label} it`, async () => {
+				// Arrange: the selected code block receives no text.
+				const state: EditorState = select(
+					stateBuilder()
+						.paragraph('abcd', 'p1')
+						.block('code_block', 'efgh', 'code')
+						.schema(['paragraph', 'code_block'], []),
+				).build();
+				const h = await pluginHarness([new CodeBlockPlugin(), new SmartPastePlugin()], state, {
+					builtinSpecs: true,
+				});
+				const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+				// Act
+				const tr: Transaction | null = entry.interceptor(SAMPLE_JSON, '', state);
+
+				// Assert
+				assertDefined(tr);
+				const after: EditorState = state.apply(tr);
+				expect(after.doc.children.map((b) => `${b.type}:${getBlockText(b)}`)).toEqual([
+					'paragraph:abcd',
+					'code_block:efgh',
+					`code_block:${FORMATTED_JSON}`,
+				]);
+			});
+		}
+	});
+
+	describe('container insertion (#267)', () => {
+		for (const [label, input, inserted] of [
+			['code', SAMPLE_JSON, [`code_block:${FORMATTED_JSON}`]],
+			['mixed', `hello\n\n${SAMPLE_JSON}`, ['paragraph:hello', `code_block:${FORMATTED_JSON}`]],
+		] as const) {
+			it(`keeps ${label} paste beside its paragraph in a list inside a table cell`, async () => {
+				const paragraph = (id: string, text: string) =>
+					createBlockNode('paragraph', [createTextNode(text)], blockId(id));
+				const item = createBlockNode(
+					'list_item',
+					[paragraph('p1', 'first'), paragraph('p2', 'target'), paragraph('p3', 'last')],
+					blockId('item'),
+					{ listType: 'bullet', indent: 0 },
+				);
+				const cell = createBlockNode('table_cell', [item], blockId('cell'));
+				const row = createBlockNode('table_row', [cell], blockId('row'));
+				const table = createBlockNode('table', [row], blockId('table'));
+				const state = stateBuilder().nestedBlock(table).cursor('p2', 3).build();
+				const h = await pluginHarness(
+					[new TablePlugin(), new ListPlugin(), new CodeBlockPlugin(), new SmartPastePlugin()],
+					state,
+					{ builtinSpecs: true },
+				);
+				const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+				const tr = entry.interceptor(input, '', state);
+
+				assertDefined(tr);
+				const after = state.apply(tr);
+				const afterItem = after.getBlock(item.id);
+				const afterCell = after.getBlock(cell.id);
+				assertDefined(afterItem);
+				assertDefined(afterCell);
+				expect(getBlockChildren(afterCell).map((block) => block.id)).toEqual([item.id]);
+				expect(
+					getBlockChildren(afterItem).map((block) => `${block.type}:${getBlockText(block)}`),
+				).toEqual(['paragraph:first', 'paragraph:target', ...inserted, 'paragraph:last']);
+				const undone = after.apply(invertTransaction(tr));
+				expect(undone.doc).toEqual(state.doc);
+				expect(undone.apply(tr).doc).toEqual(after.doc);
+			});
+
+			it(`escapes the whole ${label} paste when the parent forbids a code block`, async () => {
+				const paragraph = createBlockNode('paragraph', [createTextNode('')], blockId('p1'));
+				const container = createBlockNode('restricted', [paragraph], blockId('container'));
+				const state = stateBuilder().nestedBlock(container).cursor('p1', 0).build();
+				const h = await pluginHarness(
+					[
+						new CodeBlockPlugin(),
+						new SmartPastePlugin(),
+						{
+							id: 'restricted',
+							name: 'Restricted container',
+							init(context) {
+								context.registerNodeSpec({
+									type: 'restricted',
+									content: { allow: ['paragraph'], min: 1 },
+									toDOM: () => document.createElement('div'),
+								});
+							},
+						},
+					],
+					state,
+					{ builtinSpecs: true },
+				);
+				const entry = findSmartPasteEntry(h.pm.getPasteInterceptors());
+
+				const tr = entry.interceptor(input, '', state);
+
+				assertDefined(tr);
+				const after = state.apply(tr);
+				expect(after.getBlock(container.id)).toEqual(container);
+				expect(
+					after.doc.children.slice(1).map((block) => `${block.type}:${getBlockText(block)}`),
+				).toEqual(inserted);
+				const undone = after.apply(invertTransaction(tr));
+				expect(undone.doc).toEqual(state.doc);
+				expect(undone.apply(tr).doc).toEqual(after.doc);
+			});
+		}
 	});
 
 	describe('destroy', () => {

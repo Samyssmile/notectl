@@ -4,31 +4,23 @@
  * Mixed content (text + code) is split into separate blocks.
  */
 
+import { insertBlocksAfterAnchor } from '../../commands/BlockInsertion.js';
 import {
-	type InsertionContext,
-	findTableCellAncestor,
-	insertBlockAfterAnchor,
-	resolveAnchorBlockId,
-	resolveCellInsertionContext,
-	resolveRootInsertionContext,
-} from '../../commands/BlockInsertion.js';
-import { addDeleteSelectionSteps } from '../../commands/Commands.js';
+	type ReplacementTarget,
+	getReceivingBlock,
+	resolveReplacementTarget,
+} from '../../commands/SelectionReplacement.js';
 import {
 	type BlockNode,
 	createBlockNode,
 	createTextNode,
 	generateBlockId,
+	getBlockLength,
 } from '../../model/Document.js';
-import {
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isTextSelection,
-} from '../../model/Selection.js';
-import type { BlockId, NodeTypeName } from '../../model/TypeBrands.js';
+import { type EditorSelection, createCollapsedSelection } from '../../model/Selection.js';
 import { nodeType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
-import type { Transaction } from '../../state/Transaction.js';
+import type { Transaction, TransactionBuilder } from '../../state/Transaction.js';
 import type { PasteInterceptor, Plugin, PluginContext } from '../Plugin.js';
 import { LANGUAGE_REGISTRY_SERVICE_KEY } from '../language/LanguageTypes.js';
 import {
@@ -58,6 +50,13 @@ const BUILTIN_LANGUAGE_SUPPORTS = [
 	TYPESCRIPT_SUPPORT,
 	XML_SUPPORT,
 ] as const;
+
+/** A paste whose selection deletion is already recorded in `builder`. */
+interface ReplacementPaste {
+	readonly builder: TransactionBuilder;
+	readonly target: ReplacementTarget;
+	readonly selection: EditorSelection;
+}
 
 export class SmartPastePlugin implements Plugin {
 	readonly id = 'smart-paste';
@@ -128,35 +127,32 @@ export class SmartPastePlugin implements Plugin {
 		_html: string,
 		state: EditorState,
 	): Transaction | null => {
-		if (this.isCursorInCodeBlock(state)) return null;
-
 		const segments: readonly PasteSegment[] | null = splitAndClassify(plainText, this.detectors);
 		if (!segments) return null;
 
+		// Text that lands in a code block is pasted literally by the code block.
+		const builder: TransactionBuilder = state.transaction('paste');
+		const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+		if (getReceivingBlock(target)?.type === 'code_block') return null;
+
+		const paste: ReplacementPaste = { builder, target, selection: state.selection };
+
 		// Single code-only segment: use existing fast path
 		if (segments.length === 1 && segments[0]?.detection) {
-			return this.handleSingleCodeBlock(state, segments[0].detection);
+			return this.handleSingleCodeBlock(paste, segments[0].detection);
 		}
 
 		// Mixed content: create multiple blocks
-		return this.handleMixedContent(state, segments);
+		return this.handleMixedContent(paste, segments);
 	};
-
-	private isCursorInCodeBlock(state: EditorState): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-
-		const block: BlockNode | undefined = state.getBlock(sel.anchor.blockId);
-		return block?.type === 'code_block';
-	}
 
 	// --- Single Code Block (existing behavior) ---
 
 	private handleSingleCodeBlock(
-		state: EditorState,
+		paste: ReplacementPaste,
 		detection: DetectionResult,
 	): Transaction | null {
-		const tr: Transaction | null = this.buildCodeBlockTransaction(state, detection);
+		const tr: Transaction | null = this.buildCodeBlockTransaction(paste, detection);
 		if (tr && this.context) {
 			this.context.announce(this.locale.detectedAsCodeBlock(detection.language));
 		}
@@ -164,42 +160,29 @@ export class SmartPastePlugin implements Plugin {
 	}
 
 	private buildCodeBlockTransaction(
-		state: EditorState,
+		paste: ReplacementPaste,
 		detection: DetectionResult,
 	): Transaction | null {
-		const sel = state.selection;
-		const builder = state.transaction('paste');
-
-		// Delete selection if range-selected
-		let anchorBlockId: BlockId;
-		if (isTextSelection(sel) && !isCollapsed(sel)) {
-			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
-			anchorBlockId = landingId ?? sel.anchor.blockId;
-		} else {
-			anchorBlockId = resolveAnchorBlockId(sel);
-		}
+		const { builder, target, selection } = paste;
 
 		// Create the code block node
-		const newBlockId: BlockId = generateBlockId();
-		const codeBlock: BlockNode = createBlockNode(
-			nodeType('code_block') as NodeTypeName,
-			[createTextNode(detection.formattedText)],
-			newBlockId,
-			{ language: detection.language, backgroundColor: '' },
-		);
+		const codeBlock: BlockNode = this.createCodeBlockNode(detection);
 
-		// Insert at cursor (handles cell vs root, empty anchor removal)
-		const inserted: boolean = insertBlockAfterAnchor(
-			state,
-			builder,
-			anchorBlockId,
-			codeBlock,
-			sel,
-			this.context?.getSchemaRegistry(),
-		);
-		if (!inserted) return null;
+		// Insert at cursor (actual parent or root escape, empty anchor removal)
+		if (
+			!insertBlocksAfterAnchor(
+				target.state,
+				builder,
+				target.blockId,
+				[codeBlock],
+				selection,
+				this.context?.getSchemaRegistry(),
+			)
+		) {
+			return null;
+		}
 
-		builder.setSelection(createCollapsedSelection(newBlockId, detection.formattedText.length));
+		builder.setSelection(createCollapsedSelection(codeBlock.id, detection.formattedText.length));
 
 		return builder.build();
 	}
@@ -207,10 +190,10 @@ export class SmartPastePlugin implements Plugin {
 	// --- Mixed Content (multiple blocks) ---
 
 	private handleMixedContent(
-		state: EditorState,
+		paste: ReplacementPaste,
 		segments: readonly PasteSegment[],
 	): Transaction | null {
-		const tr: Transaction | null = this.buildMultiBlockTransaction(state, segments);
+		const tr: Transaction | null = this.buildMultiBlockTransaction(paste, segments);
 		if (tr && this.context) {
 			this.announceMixedContent(segments);
 		}
@@ -218,56 +201,32 @@ export class SmartPastePlugin implements Plugin {
 	}
 
 	private buildMultiBlockTransaction(
-		state: EditorState,
+		paste: ReplacementPaste,
 		segments: readonly PasteSegment[],
 	): Transaction | null {
-		const sel = state.selection;
-		const builder = state.transaction('paste');
-
-		let anchorBlockId: BlockId;
-		if (isTextSelection(sel) && !isCollapsed(sel)) {
-			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, builder);
-			anchorBlockId = landingId ?? sel.anchor.blockId;
-		} else {
-			anchorBlockId = resolveAnchorBlockId(sel);
-		}
-
-		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
-		const schemaRegistry = this.context?.getSchemaRegistry();
-
-		const ctx: InsertionContext | undefined = cellId
-			? resolveCellInsertionContext(state, anchorBlockId, cellId, schemaRegistry)
-			: resolveRootInsertionContext(state, anchorBlockId, schemaRegistry);
-		if (!ctx) return null;
-
-		const insertOffset: number = !cellId && isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		let insertIndex: number = ctx.anchorIndex + insertOffset;
-		let lastBlockId: BlockId | undefined;
-		let lastBlockTextLen = 0;
-
-		for (const segment of segments) {
-			const block: BlockNode = segment.detection
+		const { builder, selection } = paste;
+		const { state: working, blockId: anchorBlockId } = paste.target;
+		const blocks: readonly BlockNode[] = segments.map((segment) =>
+			segment.detection
 				? this.createCodeBlockNode(segment.detection)
-				: this.createParagraphNode(segment.text);
-
-			builder.insertNode(ctx.parentPath, insertIndex, block);
-			insertIndex++;
-			lastBlockId = block.id;
-			lastBlockTextLen = segment.detection
-				? segment.detection.formattedText.length
-				: segment.text.length;
+				: this.createParagraphNode(segment.text),
+		);
+		if (
+			!insertBlocksAfterAnchor(
+				working,
+				builder,
+				anchorBlockId,
+				blocks,
+				selection,
+				this.context?.getSchemaRegistry(),
+			)
+		) {
+			return null;
 		}
 
-		const shouldRemoveAnchor: boolean = cellId
-			? ctx.isAnchorEmpty && ctx.anchorIndex >= 0
-			: ctx.isAnchorEmpty && !isGapCursor(sel);
-
-		if (shouldRemoveAnchor) {
-			builder.removeNode(ctx.parentPath, ctx.anchorIndex);
-		}
-
-		if (lastBlockId) {
-			builder.setSelection(createCollapsedSelection(lastBlockId, lastBlockTextLen));
+		const lastBlock = blocks[blocks.length - 1];
+		if (lastBlock) {
+			builder.setSelection(createCollapsedSelection(lastBlock.id, getBlockLength(lastBlock)));
 		}
 
 		return builder.build();
@@ -275,7 +234,7 @@ export class SmartPastePlugin implements Plugin {
 
 	private createCodeBlockNode(detection: DetectionResult): BlockNode {
 		return createBlockNode(
-			nodeType('code_block') as NodeTypeName,
+			nodeType('code_block'),
 			[createTextNode(detection.formattedText)],
 			generateBlockId(),
 			{ language: detection.language, backgroundColor: '' },
@@ -283,11 +242,7 @@ export class SmartPastePlugin implements Plugin {
 	}
 
 	private createParagraphNode(text: string): BlockNode {
-		return createBlockNode(
-			nodeType('paragraph') as NodeTypeName,
-			[createTextNode(text)],
-			generateBlockId(),
-		);
+		return createBlockNode(nodeType('paragraph'), [createTextNode(text)], generateBlockId());
 	}
 
 	private announceMixedContent(segments: readonly PasteSegment[]): void {

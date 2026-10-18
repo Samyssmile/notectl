@@ -168,4 +168,51 @@ test.describe('Smart Paste — JSON', () => {
 		expect(text).toContain('"GlossEntry"');
 		expect(text).toContain('"SGML"');
 	});
+
+	test('pasting JSON on a code block selected as a whole adds a code block after it', async ({
+		editor,
+		page,
+	}) => {
+		await editor.setJSON({
+			children: [
+				{ id: 'p1', type: 'paragraph', children: [{ type: 'text', text: 'intro', marks: [] }] },
+				{
+					id: 'code',
+					type: 'code_block',
+					children: [{ type: 'text', text: 'let x = 1;', marks: [] }],
+				},
+			],
+		});
+		// Built-in navigation node-selects only void blocks, so select through the public API.
+		await page.evaluate(() => {
+			const el = document.querySelector('notectl-editor') as unknown as {
+				getState(): {
+					transaction(origin: string): {
+						setNodeSelection(id: string, path: readonly string[]): { build(): unknown };
+					};
+				};
+				dispatch(tr: unknown): void;
+			};
+			el.dispatch(el.getState().transaction('api').setNodeSelection('code', ['code']).build());
+		});
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					const el = document.querySelector('notectl-editor') as unknown as {
+						getState(): { selection: { type?: string; nodeId?: string } };
+					};
+					return el.getState().selection.nodeId;
+				}),
+			)
+			.toBe('code');
+
+		await editor.pasteText(SAMPLE_JSON);
+
+		await expect
+			.poll(async () => (await editor.getJSON()).children.map((b) => b.type))
+			.toEqual(['paragraph', 'code_block', 'code_block']);
+		const json = await editor.getJSON();
+		expect(json.children[1]?.children?.[0]?.text).toBe('let x = 1;');
+		expect(json.children[2]?.attrs?.language).toBe('json');
+	});
 });

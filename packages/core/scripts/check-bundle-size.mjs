@@ -20,7 +20,9 @@ const ENTRY_BUDGETS = [
 	// #269: measured 108.73 KB; generic style classes (declaration parsing, CSSOM-keyed lookup,
 	// per-declaration class lists, shared rehydration for import and paste).
 	// #272: measured 109.19 KB; rehydration also applies style attributes a strict CSP blocked.
-	['Core', 'src/index.ts', 109.5],
+	// #267: measured 109.75 KB; paste resolves targets after the selection deletion under the
+	// actual parent, and structural steps validate their positions.
+	['Core', 'src/index.ts', 110],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	// #269: measured 13.50 KB; the parser and serializer carry the style class vocabulary.

@@ -2,24 +2,23 @@
  * Handles paste of rich block data: internal clipboard (RichBlockData)
  * and application/x-notectl-block JSON.
  *
- * Resolves insertion context (root or table cell) and builds paste transactions.
+ * Resolves the insertion target through the shared selection replacement
+ * (SelectionReplacement) and builds paste transactions.
  */
 
 import {
-	type InsertionContext,
-	canContainerHoldBlocks,
 	createBlockFromRichData,
-	findTableCellAncestor,
+	insertBlocksAfterAnchor,
 	resolveAnchorBlockId,
-	resolveCellInsertionContext,
-	resolveRootEscapeContext,
-	resolveRootInsertionContext,
 	richBlocksToSlice,
 	sanitizeAttrs,
 	validateRichBlockData,
 } from '../commands/BlockInsertion.js';
-import { addDeleteSelectionSteps } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
+import {
+	type ReplacementTarget,
+	resolveReplacementTarget,
+} from '../commands/SelectionReplacement.js';
 import {
 	type BlockAttrs,
 	type BlockNode,
@@ -31,15 +30,16 @@ import { normalizeHTMLId } from '../model/HTMLUtils.js';
 import type { RichBlockData } from '../model/RichBlockData.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import {
+	type EditorSelection,
 	createCollapsedSelection,
 	createNodeSelection,
 	isCollapsed,
-	isGapCursor,
 	isTextSelection,
 } from '../model/Selection.js';
 import type { BlockId, NodeTypeName } from '../model/TypeBrands.js';
 import { nodeType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
+import type { TransactionBuilder } from '../state/Transaction.js';
 import type { DispatchFn, GetStateFn } from './InputHandler.js';
 
 export class PasteRichBlockHandler {
@@ -49,7 +49,13 @@ export class PasteRichBlockHandler {
 		private readonly schemaRegistry?: SchemaRegistry,
 	) {}
 
-	/** Handles paste of an internal block node from ClipboardHandler. */
+	/**
+	 * Handles paste of an internal block node from ClipboardHandler. Like every
+	 * whole-block paste, it replaces a range selection and lands beside the
+	 * receiving block under its actual parent, or after the outermost container
+	 * when that parent's content rule forbids the block (#166, #267). The pasted
+	 * block ends up node-selected.
+	 */
 	handleBlockPaste(json: string): void {
 		let parsed: { type?: string; htmlId?: unknown; attrs?: Record<string, unknown> };
 		try {
@@ -68,71 +74,32 @@ export class PasteRichBlockHandler {
 		const spec = this.schemaRegistry?.getNodeSpec(typeName);
 		if (this.schemaRegistry && !spec) return;
 
-		const state = this.getState();
-		const sel = state.selection;
-		const anchorBlockId: BlockId = resolveAnchorBlockId(sel);
-
-		const newBlockId: BlockId = generateBlockId();
 		const attrs: BlockAttrs | undefined = sanitizeAttrs(parsed.attrs, spec?.attrs) as
 			| BlockAttrs
 			| undefined;
 		const newBlock: BlockNode = createBlockNode(
 			nodeType(typeName) as NodeTypeName,
 			undefined,
-			newBlockId,
+			generateBlockId(),
 			attrs,
 			normalizeHTMLId(parsed.htmlId),
 		);
 
-		// Table cell: insert as last child, unless the cell's content rule forbids
-		// the block type (e.g. a math_display copied into a cell). When it does not
-		// fit, escape to the document root after the outer table rather than nesting
-		// schema-invalidly — mirrors the HTML paste guard (#166).
-		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
-		if (cellId) {
-			const cell: BlockNode | undefined = state.getBlock(cellId);
-			if (this.cellRejects(cell, [newBlock])) {
-				const escapeCtx = resolveRootEscapeContext(state, anchorBlockId);
-				if (!escapeCtx) return;
-				this.dispatchNodeInsert(state, escapeCtx.parentPath, escapeCtx.anchorIndex + 1, newBlock);
-				return;
-			}
+		const state: EditorState = this.getState();
+		const builder: TransactionBuilder = state.transaction('paste');
+		const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+		const parentPath: readonly BlockId[] | undefined = insertBlocksAfterAnchor(
+			target.state,
+			builder,
+			target.blockId,
+			[newBlock],
+			state.selection,
+			this.schemaRegistry,
+		);
+		if (!parentPath) return;
 
-			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
-			if (!ctx || !cell) return;
-			this.dispatchNodeInsert(state, ctx.parentPath, cell.children.length, newBlock);
-			return;
-		}
-
-		// Root: insert after anchor
-		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
-		if (!ctx) return;
-
-		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		this.dispatchNodeInsert(state, ctx.parentPath, ctx.anchorIndex + insertOffset, newBlock);
-	}
-
-	/** Inserts a single block at the position and node-selects it. */
-	private dispatchNodeInsert(
-		state: EditorState,
-		parentPath: readonly BlockId[],
-		index: number,
-		block: BlockNode,
-	): void {
-		const builder = state.transaction('paste');
-		builder.insertNode(parentPath, index, block);
-		builder.setSelection(createNodeSelection(block.id, [...parentPath, block.id]));
+		builder.setSelection(createNodeSelection(newBlock.id, [...parentPath, newBlock.id]));
 		this.dispatch(builder.build());
-	}
-
-	/**
-	 * True when the container's content rule forbids any of the given blocks, so
-	 * the paste must not nest them there. Undefined cell or absent registry cannot
-	 * be checked, so they are treated as accepting (graceful degradation).
-	 */
-	private cellRejects(cell: BlockNode | undefined, blocks: readonly BlockNode[]): boolean {
-		if (!cell || !this.schemaRegistry) return false;
-		return !canContainerHoldBlocks(this.schemaRegistry, cell.type, blocks);
 	}
 
 	/** Parses JSON and delegates to handleRichPaste (for HTML-embedded data). */
@@ -168,117 +135,66 @@ export class PasteRichBlockHandler {
 		);
 		if (!hasStructured && validatedBlocks.length <= 1) return false;
 
-		let state = initialState ?? this.getState();
+		const state: EditorState = initialState ?? this.getState();
 		const sel = state.selection;
 		const anchorBlockId: BlockId = resolveAnchorBlockId(sel);
 
-		// The canonical split-insert-merge paste strategy (PasteCommand) splits the
-		// caret block at the offset and merges the boundary fragments back in, which
-		// is what restores a cross-block cut/paste round-trip (#165). It only fits a
-		// collapsed caret in a NON-EMPTY block at the document root:
-		//  - an empty anchor has no content to split, so whole-block insertion below
-		//    (which removes the empty anchor and drops the clipboard blocks verbatim)
-		//    round-trips more faithfully and preserves their block types;
-		//  - the strategy inserts middle blocks at the document root keyed by flat
-		//    block order, so a nested anchor (table cell, blockquote) is out of reach;
-		//  - node selections and gap cursors have no text caret to split.
+		// Multiple text leaves share the slice strategy at a caret or range in any
+		// container. It owns deletion, insertion and selection in one transaction.
+		// Neutral paragraphs keep the receiving block's type even when it is empty
+		// (notably a list item). Semantic IDs and structural/void blocks retain
+		// whole-block insertion. Preserve the existing single-block root behavior.
 		const anchorBlock: BlockNode | undefined = state.getBlock(anchorBlockId);
 		const isRootChild: boolean = state.doc.children.some((c) => c.id === anchorBlockId);
 		const carriesHTMLId: boolean = validatedBlocks.some((block) => normalizeHTMLId(block.htmlId));
+		const textLeaves: boolean = validatedBlocks.every((block) => {
+			const spec =
+				this.schemaRegistry?.getNodeSpec(block.type) ?? state.schema.getNodeSpec?.(block.type);
+			return !spec?.isVoid && (!spec?.content || spec.content.allow.includes('text'));
+		});
 		const splitsAtCaret: boolean =
 			!carriesHTMLId &&
+			textLeaves &&
 			isTextSelection(sel) &&
-			isCollapsed(sel) &&
-			isRootChild &&
-			anchorBlock !== undefined &&
-			getBlockLength(anchorBlock) > 0;
+			(validatedBlocks.length > 1 ||
+				(isCollapsed(sel) &&
+					isRootChild &&
+					anchorBlock !== undefined &&
+					getBlockLength(anchorBlock) > 0));
 		if (splitsAtCaret) {
 			this.dispatch(pasteSlice(state, richBlocksToSlice(validatedBlocks)));
 			return true;
 		}
 
-		if (isTextSelection(sel) && !isCollapsed(sel)) {
-			const delBuilder = state.transaction('paste');
-			const landingId: BlockId | undefined = addDeleteSelectionSteps(state, delBuilder);
-			const delTr = delBuilder.build();
-			this.dispatch(delTr);
-			state = state.apply(delTr);
-			if (landingId) {
-				return this.resolveAndInsertRichBlocks(validatedBlocks, state, landingId);
-			}
-		}
-
-		return this.resolveAndInsertRichBlocks(validatedBlocks, state, anchorBlockId);
+		// Deletion and insertion share one transaction, so nothing is dispatched
+		// when the insertion cannot be resolved and the caller may fall back.
+		const builder: TransactionBuilder = state.transaction('paste');
+		const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+		return this.resolveAndInsertRichBlocks(validatedBlocks, builder, target, sel);
 	}
 
 	/**
-	 * Builds the validated clipboard blocks, resolves the insertion context
-	 * (cell or root), and inserts them. When the caret is in a table cell whose
-	 * content rule forbids one of the blocks (e.g. a copied code_block, which is a
-	 * leaf block not in the cell's allow-list), the whole run escapes to the
-	 * document root after the outer table instead of nesting schema-invalidly. This
-	 * mirrors the HTML paste guard (#166) for the internal-copy path.
+	 * Inserts validated clipboard blocks beside the caret under its actual parent.
+	 * If that parent forbids any block, the complete run escapes after the
+	 * outermost container, using the same context as HTML and Smart Paste (#166).
 	 *
 	 * Blocks built here are always leaf blocks (rich clipboard data carries inline
-	 * children only), so the trailing collapsed caret in {@link insertNodes} is
+	 * children only), so the trailing collapsed caret is
 	 * always valid.
 	 */
 	private resolveAndInsertRichBlocks(
 		blocks: readonly RichBlockData[],
-		state: EditorState,
-		anchorBlockId: BlockId,
+		builder: TransactionBuilder,
+		target: ReplacementTarget,
+		sel: EditorSelection,
 	): boolean {
 		const nodes: BlockNode[] = blocks.map(createBlockFromRichData);
-
-		const sel = state.selection;
-		const cellId: BlockId | undefined = findTableCellAncestor(state, anchorBlockId);
-
-		if (cellId) {
-			const cell: BlockNode | undefined = state.getBlock(cellId);
-			if (this.cellRejects(cell, nodes)) {
-				const escapeCtx: InsertionContext | undefined = resolveRootEscapeContext(
-					state,
-					anchorBlockId,
-				);
-				if (!escapeCtx) return false;
-				return this.insertNodes(nodes, state, escapeCtx, escapeCtx.anchorIndex + 1, false);
-			}
-
-			const ctx = resolveCellInsertionContext(state, anchorBlockId, cellId, this.schemaRegistry);
-			if (!ctx) return false;
-			const startIndex: number =
-				ctx.anchorIndex >= 0 ? ctx.anchorIndex + 1 : (cell?.children.length ?? 0);
-			return this.insertNodes(nodes, state, ctx, startIndex, true);
+		const { state, blockId: anchorBlockId } = target;
+		if (!insertBlocksAfterAnchor(state, builder, anchorBlockId, nodes, sel, this.schemaRegistry)) {
+			return false;
 		}
 
-		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
-		if (!ctx) return false;
-		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		return this.insertNodes(nodes, state, ctx, ctx.anchorIndex + insertOffset, !isGapCursor(sel));
-	}
-
-	/** Inserts pre-built block nodes at the resolved position. */
-	private insertNodes(
-		nodes: readonly BlockNode[],
-		state: EditorState,
-		context: InsertionContext,
-		startIndex: number,
-		removeEmptyAnchor: boolean,
-	): boolean {
-		const builder = state.transaction('paste');
-		let insertIndex: number = startIndex;
-		let lastBlock: BlockNode | undefined;
-
-		for (const node of nodes) {
-			builder.insertNode(context.parentPath, insertIndex, node);
-			insertIndex++;
-			lastBlock = node;
-		}
-
-		if (removeEmptyAnchor && context.isAnchorEmpty && context.anchorIndex >= 0) {
-			builder.removeNode(context.parentPath, context.anchorIndex);
-		}
-
+		const lastBlock = nodes[nodes.length - 1];
 		if (lastBlock) {
 			builder.setSelection(createCollapsedSelection(lastBlock.id, getBlockLength(lastBlock)));
 		}

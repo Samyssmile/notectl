@@ -52,6 +52,7 @@ import type {
 	Step,
 	TransactionOrigin,
 } from './Steps.js';
+import { requireRemovalTarget, validateInsertPosition } from './StructuralPositions.js';
 import type { Transaction } from './Transaction.js';
 import {
 	sealOwnedTransaction,
@@ -302,8 +303,13 @@ export class TransactionBuilder {
 		return this;
 	}
 
-	/** Inserts a node as a child of the parent at the given path and index. */
+	/**
+	 * Inserts at an exact child slot. Requires an integer in 0 … children.length
+	 * and an existing parent. Rejected steps leave the builder unchanged.
+	 * Without a document, parent and upper-bound validation happens on application.
+	 */
 	insertNode(parentPath: readonly BlockId[], index: number, node: BlockNode): this {
+		validateInsertPosition(this.workingDoc, parentPath, index);
 		const step: InsertNodeStep = {
 			type: 'insertNode',
 			parentPath,
@@ -314,16 +320,10 @@ export class TransactionBuilder {
 		return this;
 	}
 
-	/** Removes a node at the given index from the parent at the given path. */
+	/** Removes an existing block at an exact position, recording its identity for replay. */
 	removeNode(parentPath: readonly BlockId[], index: number): this {
 		const doc: Document = this.requireDoc('removeNode');
-
-		const removedNode = resolveChildAt(doc, parentPath, index);
-		if (!removedNode) {
-			throw new Error(
-				`Node at index ${index} not found under parent path [${parentPath.join(', ')}].`,
-			);
-		}
+		const removedNode = requireRemovalTarget(doc, parentPath, index);
 
 		const step: RemoveNodeStep = { type: 'removeNode', parentPath, index, removedNode };
 		this.appendStep(step);
@@ -525,27 +525,14 @@ export class TransactionBuilder {
 	/** Takes ownership of one step before it reaches working state or transaction history. */
 	private appendStep(step: Step): void {
 		const ownedStep = snapshotStep(step);
-		this.steps.push(ownedStep);
-		this.advanceDoc(ownedStep);
-	}
-
-	/**
-	 * Advances the working document by applying a step and records its
-	 * position-mapping. The map is computed against the pre-apply document
-	 * (the only state in which `removeNode` can enumerate descendants), so
-	 * the order is: getStepMap → applyStep.
-	 *
-	 * When no working document is available, falls back to the empty
-	 * document — all step types except `removeNode` produce a `StepMap`
-	 * that does not consult the document, and `removeNode` carries its
-	 * `removedNode` in the step payload, so the fallback is safe.
-	 */
-	private advanceDoc(step: Step): void {
 		const docBefore: Document = this.workingDoc ?? EMPTY_DOC;
-		this.stepMaps.push(snapshotStepMap(getStepMap(docBefore, step)));
-		if (this.workingDoc) {
-			this.workingDoc = applyStep(this.workingDoc, step);
-		}
+		// Apply before committing anything: a rejected step must not leave a step,
+		// map or changed working document behind. Mapping still uses the old doc.
+		const docAfter = this.workingDoc ? applyStep(this.workingDoc, ownedStep) : null;
+		const stepMap = snapshotStepMap(getStepMap(docBefore, ownedStep));
+		this.steps.push(ownedStep);
+		this.stepMaps.push(stepMap);
+		this.workingDoc = docAfter;
 	}
 }
 

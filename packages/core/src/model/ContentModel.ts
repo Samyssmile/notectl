@@ -11,22 +11,28 @@ import {
 	isBlockNode,
 	isLeafBlock,
 } from './Document.js';
+import type { NodeSpec } from './NodeSpec.js';
 import type { SchemaRegistry } from './SchemaRegistry.js';
 import { nodeType } from './TypeBrands.js';
+
+/** Content rules can be read from either a registry or an editor state's schema. */
+export interface ContentSchema {
+	readonly getNodeSpec?: (type: string) => NodeSpec | undefined;
+}
 
 /**
  * Checks if a parent node type can contain a child node type,
  * using the content rules and group system from NodeSpec.
  */
 export function canContain(
-	registry: SchemaRegistry,
+	registry: ContentSchema,
 	parentType: string,
 	childType: string,
 ): boolean {
-	const parentSpec = registry.getNodeSpec(parentType);
+	const parentSpec = registry.getNodeSpec?.(parentType);
 	if (!parentSpec?.content) return true; // No content rule = anything allowed
 
-	const childSpec = registry.getNodeSpec(childType);
+	const childSpec = registry.getNodeSpec?.(childType);
 	const childGroup = childSpec?.group;
 
 	for (const allowed of parentSpec.content.allow) {

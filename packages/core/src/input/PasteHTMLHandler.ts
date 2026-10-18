@@ -5,33 +5,23 @@
  */
 
 import {
-	type InsertionContext,
-	canContainerHoldBlocks,
 	cloneBlockWithNewIds,
 	findBlockRecursive,
-	resolveRootEscapeContext,
-	resolveRootInsertionContext,
+	resolveBlockPasteContext,
 } from '../commands/BlockInsertion.js';
-import {
-	addDeleteSelectionSteps,
-	findLastLeafBlockId,
-	insertTextCommand,
-} from '../commands/Commands.js';
+import { findLastLeafBlockId, insertTextCommand } from '../commands/Commands.js';
 import { pasteSlice } from '../commands/PasteCommand.js';
+import {
+	type ReplacementTarget,
+	resolveReplacementTarget,
+} from '../commands/SelectionReplacement.js';
 import { hasVisibleTextContent, plainTextSlice, sliceHasContent } from '../model/ContentSlice.js';
 import { type BlockNode, generateBlockId, getBlockText } from '../model/Document.js';
 import { normalizeCompositeBlocks } from '../model/DocumentNormalization.js';
 import { SAFE_URI_REGEXP } from '../model/HTMLUtils.js';
 import { schemaFromRegistry } from '../model/Schema.js';
 import type { SchemaRegistry } from '../model/SchemaRegistry.js';
-import {
-	type EditorSelection,
-	createCollapsedSelection,
-	isCollapsed,
-	isGapCursor,
-	isNodeSelection,
-	isTextSelection,
-} from '../model/Selection.js';
+import { type EditorSelection, createCollapsedSelection, isGapCursor } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { hasHTMLBlockDescendants } from '../serialization/HTMLParseRules.js';
 import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from '../serialization/HTMLSanitization.js';
@@ -317,39 +307,20 @@ export class PasteHTMLHandler {
 
 		const sel = state.selection;
 		const builder = state.transaction('paste');
+		const target: ReplacementTarget = resolveReplacementTarget(state, builder);
+		const working: EditorState = target.state;
+		const anchorBlockId: BlockId = target.blockId;
 
-		let landingId: BlockId | undefined;
-		if (isTextSelection(sel) && !isCollapsed(sel)) {
-			landingId = addDeleteSelectionSteps(state, builder);
-		}
-
-		const anchorBlockId: BlockId =
-			landingId ??
-			(isNodeSelection(sel) ? sel.nodeId : isGapCursor(sel) ? sel.blockId : sel.anchor.blockId);
-
-		const ctx = resolveRootInsertionContext(state, anchorBlockId, this.schemaRegistry);
-		if (!ctx) return false;
-
-		// Schema guard (#166): a container such as a table cell does not allow every
-		// block type. When the parsed blocks do not fit the target container, escape
-		// the insertion to the document root, placing them after the top-level
-		// ancestor (e.g. the outer table) rather than producing schema-invalid
-		// nesting like a table inside a table cell.
-		const containerId: BlockId | undefined = ctx.parentPath[ctx.parentPath.length - 1];
-		const containerType: string | undefined = containerId
-			? state.getBlock(containerId)?.type
-			: undefined;
-		const targetCtx: InsertionContext | undefined = canContainerHoldBlocks(
-			this.schemaRegistry,
-			containerType,
+		const targetCtx = resolveBlockPasteContext(
+			working,
+			anchorBlockId,
 			doc.children,
-		)
-			? ctx
-			: resolveRootEscapeContext(state, anchorBlockId);
+			this.schemaRegistry,
+			sel,
+		);
 		if (!targetCtx) return false;
 
-		const insertOffset: number = isGapCursor(sel) && sel.side === 'before' ? 0 : 1;
-		let insertIndex: number = targetCtx.anchorIndex + insertOffset;
+		let insertIndex: number = targetCtx.insertIndex;
 		let lastBlockId: BlockId | undefined;
 		let lastClonedRoot: BlockNode | undefined;
 
