@@ -1,6 +1,9 @@
 import type { LinkLocale } from '../LinkLocale.js';
 
 const locale: LinkLocale = {
+	openLink: 'Ouvrir le lien',
+	openLinkInNewTab: 'Ouvrir le lien dans un nouvel onglet',
+	closePreview: 'Fermer l’aperçu du lien',
 	label: 'Lien',
 	tooltip: (shortcut: string) => `Insérer un lien (${shortcut})`,
 	removeLink: 'Supprimer le lien',

@@ -41,6 +41,7 @@ const CROSS_BROWSER_SPECS: RegExp = new RegExp(
 		'dom-move',
 		'accessibility',
 		'toolbar-keyboard-access',
+		'link',
 		'style-delivery',
 	].join('|'),
 );
@@ -58,6 +59,7 @@ const ciOnlyProjects = [
 	},
 	{
 		name: 'firefox',
+		testIgnore: /touch/,
 		use: {
 			...devices['Desktop Firefox'],
 			baseURL: 'http://localhost:3000',

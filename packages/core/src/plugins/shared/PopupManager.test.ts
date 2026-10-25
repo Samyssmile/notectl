@@ -255,6 +255,25 @@ describe('PopupManager', () => {
 	});
 
 	describe('focus management', () => {
+		it('preserves editor focus when a non-modal preview disables autofocus', async () => {
+			const manager = createManager();
+			const editor: HTMLDivElement = document.createElement('div');
+			editor.tabIndex = 0;
+			document.body.append(editor);
+			editor.focus();
+			manager.open({
+				anchor: editor,
+				autoFocus: false,
+				content: (popup: HTMLElement): void => {
+					popup.append(document.createElement('button'));
+				},
+			});
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+			expect(document.activeElement).toBe(editor);
+			manager.destroy();
+			editor.remove();
+		});
+
 		it('restores focus to restoreFocusTo element on close', () => {
 			const manager = createManager();
 			const trigger: HTMLButtonElement = document.createElement('button');

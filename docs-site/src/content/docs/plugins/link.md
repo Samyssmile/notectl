@@ -34,9 +34,11 @@ interface LinkConfig {
 |---------|-------------|---------|
 | `toggleLink` | Add or remove a link on the selection | `boolean` |
 | `removeLink` | Remove link mark from selection | `boolean` |
+| `openLink` | Open the link at the current selection (also allowed in readonly mode) | `boolean` |
 | `setLink` | Reserved — link is applied via the toolbar popup | `false` |
 
-The toolbar button is only enabled when there is a text range selection (not a collapsed cursor).
+The toolbar button is enabled for a text range selection and for a collapsed cursor inside a link.
+For an existing link, its popup offers **Open link** and **Remove Link**.
 
 ```ts
 editor.executeCommand('toggleLink');
@@ -48,13 +50,32 @@ editor.executeCommand('removeLink');
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+K` / `Cmd+K` | Toggle link (opens URL popup if adding) |
+| `Ctrl+Enter` / `Cmd+Enter` | Open the link at the cursor |
+
+## Opening Links
+
+While editing, **Ctrl-click** (Windows/Linux) or **Cmd-click** (macOS) opens a link in a new tab.
+This explicit new-tab gesture takes precedence over `openInNewTab: false`.
+
+A normal click or touch tap on a link shows a compact preview with its destination and an
+**Open link** action. The editing caret stays in the text, so typing continues normally and closes
+the preview. Press **Tab** to focus its open action and **Enter** to follow the link, or **Escape**
+to dismiss it. The open action and `openLink` command respect `openInNewTab` (default: `true`).
+Double-clicking or selecting text does not activate the link.
+
+In **readonly mode**, links use normal browser behavior: a single click or tap opens the URL,
+the pointer cursor identifies links, and focused links can be activated with **Enter**. Browser
+modifier keys and context menus remain available. Changing readonly mode closes any open preview.
+
+Preview labels are localized. Existing custom `LinkLocale` objects remain compatible; the optional
+`openLink`, `openLinkInNewTab`, and `closePreview` strings fall back to English when omitted.
 
 ## Toolbar
 
 The link button opens a **custom popup** with:
 - A URL input field with placeholder text
 - An Apply button to confirm the link
-- When the cursor is inside an existing link: a "Remove" button to unlink the selection
+- When the cursor is inside an existing link: "Open link" and "Remove Link" actions
 
 ## Mark Spec
 
@@ -80,6 +101,7 @@ await editor.setContentHTML(`
 An unmodified left click resolves the target inside the same editor and scrolls it into view. Such
 links never receive `target="_blank"`, even when `openInNewTab` is enabled. The target is the
 semantic HTML `id`; the editor's internal `BlockNode.id` and `data-block-id` are not anchor names.
+While editing, Ctrl-/Cmd-click and the `openLink` command also resolve fragments inside this editor.
 
 HTML import and export preserve both sides of the link, including clean export with
 `includeBlockIds: false`. The PrintPlugin projects targets across its print shadow boundary so

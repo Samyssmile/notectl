@@ -32,6 +32,8 @@ export interface PopupConfig {
 	readonly className?: string;
 	readonly ariaRole?: 'menu' | 'listbox' | 'grid' | 'dialog';
 	readonly ariaLabel?: string;
+	/** Focus the first control on open. Disable for non-modal previews while editing. */
+	readonly autoFocus?: boolean;
 	readonly restoreFocusTo?: HTMLElement;
 	readonly onClose?: () => void;
 	readonly position?: PopupPosition;
@@ -153,7 +155,7 @@ export class PopupManager implements PopupServiceAPI {
 			entry.documentListenerAttached = true;
 		}, 0);
 
-		this.focusFirstItem(popup);
+		if (config.autoFocus !== false) this.focusFirstItem(popup);
 
 		return handle;
 	}
@@ -241,6 +243,7 @@ export class PopupManager implements PopupServiceAPI {
 
 	private focusFirstItem(popup: HTMLElement): void {
 		requestAnimationFrame(() => {
+			if (!popup.isConnected) return;
 			const firstFocusable: HTMLElement | null =
 				popup.querySelector('[role="menuitem"]') ??
 				popup.querySelector('[role="option"]') ??

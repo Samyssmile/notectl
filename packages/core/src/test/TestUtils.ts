@@ -500,6 +500,8 @@ export function mockPluginContext(overrides?: Partial<PluginContext>): PluginCon
 		registerNodeSpecExtension: vi.fn(),
 		registerMarkSpec: vi.fn(),
 		registerStyleClass: vi.fn(),
+		registerStyleSheet: vi.fn(),
+		isReadOnly: vi.fn(() => false),
 		registerNodeView: vi.fn(),
 		registerKeymap: vi.fn(),
 		registerInputRule: vi.fn(),

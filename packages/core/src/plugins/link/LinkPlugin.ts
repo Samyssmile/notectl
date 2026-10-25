@@ -1,24 +1,28 @@
 /**
  * LinkPlugin: registers a link mark type with href attribute,
- * toggle command, keyboard shortcut (Mod-K), and toolbar button
- * with a URL input popup.
+ * editing and navigation commands, keyboard shortcuts, and toolbar popup.
+ * Link gestures and the non-modal preview have their own lifecycle controller.
  */
 
 import {
 	applyAttributedMark,
+	getMarkAttrAtSelection,
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
+import { LINK_CSS } from '../../editor/styles/link.js';
 import type { BlockNode } from '../../model/Document.js';
 import { hasMark } from '../../model/Document.js';
-import { escapeHTML, fragmentIdentifiers, sanitizeHref } from '../../model/HTMLUtils.js';
+import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
+import { LinkInteractionController } from './LinkInteractionController.js';
 import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
+import { openLink, shouldOpenInNewTab } from './LinkNavigation.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -50,46 +54,6 @@ const LINK_RULE = /(?:^|[^!])(\[([^\]\uFFFC]+)\]\(([^)\s\uFFFC]+)(?:\s+"([^"\uFF
 /** `<scheme:...>` autolink. */
 const AUTOLINK_RULE = /(<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\s\uFFFC]+)>)$/;
 
-/** Fragment-only links stay in the current editor even when external links open in a new tab. */
-function shouldOpenInNewTab(href: string, openInNewTab: boolean): boolean {
-	return openInNewTab && !href.startsWith('#');
-}
-
-/** Finds the clicked anchor without interpolating user-controlled data into a CSS selector. */
-function findClickedAnchor(
-	container: HTMLElement,
-	target: EventTarget | null,
-): HTMLAnchorElement | null {
-	let element: Element | null =
-		target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
-
-	while (element && container.contains(element)) {
-		if (element instanceof HTMLAnchorElement) return element;
-		if (element === container) break;
-		element = element.parentElement;
-	}
-
-	return null;
-}
-
-/** Resolves an ID inside this editor by direct string comparison, never through a CSS selector. */
-function findFragmentTarget(
-	container: HTMLElement,
-	identifiers: readonly string[],
-): Element | null {
-	for (const identifier of identifiers) {
-		if (container.id === identifier) return container;
-
-		const descendants: HTMLCollectionOf<Element> = container.getElementsByTagName('*');
-		for (let index = 0; index < descendants.length; index++) {
-			const descendant: Element | null = descendants.item(index);
-			if (descendant?.id === identifier) return descendant;
-		}
-	}
-
-	return null;
-}
-
 // --- Plugin ---
 
 export class LinkPlugin implements Plugin {
@@ -98,9 +62,8 @@ export class LinkPlugin implements Plugin {
 	readonly priority = 25;
 
 	private readonly config: LinkConfig;
-	private locale!: LinkLocale;
-	private fragmentClickContainer: HTMLElement | null = null;
-	private fragmentClickHandler: ((event: MouseEvent) => void) | null = null;
+	private locale: LinkLocale = LINK_LOCALE_EN;
+	private interaction: LinkInteractionController | null = null;
 
 	constructor(config?: Partial<LinkConfig>) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
@@ -108,6 +71,7 @@ export class LinkPlugin implements Plugin {
 
 	async init(context: PluginContext): Promise<void> {
 		this.locale = await resolveLocale(context, this.config.locale, LINK_LOCALE_EN, loadLinkLocale);
+		context.registerStyleSheet(LINK_CSS);
 		this.registerMarkSpec(context);
 		this.registerCommands(context);
 		this.registerKeymap(context);
@@ -115,11 +79,25 @@ export class LinkPlugin implements Plugin {
 		if (this.config.inputRule !== false) {
 			this.registerInputRules(context);
 		}
-		this.installFragmentClickHandler(context);
+		this.interaction?.destroy();
+		this.interaction = new LinkInteractionController(
+			context,
+			this.locale,
+			this.config.openInNewTab,
+		);
 	}
 
 	destroy(): void {
-		this.removeFragmentClickHandler();
+		this.interaction?.destroy();
+		this.interaction = null;
+	}
+
+	onStateChange(oldState: EditorState, newState: EditorState): void {
+		if (oldState.doc !== newState.doc) this.interaction?.closePreview();
+	}
+
+	onReadOnlyChange(): void {
+		this.interaction?.closePreview();
 	}
 
 	/**
@@ -236,49 +214,19 @@ export class LinkPlugin implements Plugin {
 		});
 	}
 
-	private installFragmentClickHandler(context: PluginContext): void {
-		this.removeFragmentClickHandler();
-
-		const container: HTMLElement = context.getContainer();
-		const handler = (event: MouseEvent): void => {
-			if (
-				event.defaultPrevented ||
-				event.button !== 0 ||
-				event.metaKey ||
-				event.ctrlKey ||
-				event.shiftKey ||
-				event.altKey
-			) {
-				return;
-			}
-
-			const anchor: HTMLAnchorElement | null = findClickedAnchor(container, event.target);
-			if (!anchor) return;
-
-			const identifiers: readonly string[] = fragmentIdentifiers(anchor.getAttribute('href') ?? '');
-			if (identifiers.length === 0) return;
-
-			const target: Element | null = findFragmentTarget(container, identifiers);
-			if (!target) return;
-
-			event.preventDefault();
-			target.scrollIntoView();
-		};
-
-		this.fragmentClickContainer = container;
-		this.fragmentClickHandler = handler;
-		container.addEventListener('click', handler);
-	}
-
-	private removeFragmentClickHandler(): void {
-		if (this.fragmentClickContainer && this.fragmentClickHandler) {
-			this.fragmentClickContainer.removeEventListener('click', this.fragmentClickHandler);
-		}
-		this.fragmentClickContainer = null;
-		this.fragmentClickHandler = null;
-	}
-
 	private registerCommands(context: PluginContext): void {
+		context.registerCommand(
+			'openLink',
+			() => {
+				const href: string | null = getMarkAttrAtSelection(
+					context.getState(),
+					'link',
+					(mark) => mark.attrs.href,
+				);
+				return href !== null && openLink(context.getContainer(), href, this.config.openInNewTab);
+			},
+			{ readonlyAllowed: true },
+		);
 		context.registerCommand('toggleLink', () => {
 			const state = context.getState();
 			return this.toggleLink(context, state);
@@ -300,6 +248,10 @@ export class LinkPlugin implements Plugin {
 		context.registerKeymap({
 			'Mod-K': () => context.executeCommand('toggleLink'),
 		});
+		context.registerKeymap(
+			{ 'Mod-Enter': () => context.executeCommand('openLink') },
+			{ priority: 'navigation' },
+		);
 	}
 
 	private registerToolbarItem(context: PluginContext): void {
@@ -318,7 +270,7 @@ export class LinkPlugin implements Plugin {
 				this.renderLinkPopup(container, ctx, onClose);
 			},
 			isActive: (state) => this.isLinkActive(state),
-			isEnabled: (state) => !isCollapsed(state.selection),
+			isEnabled: (state) => !isCollapsed(state.selection) || this.isLinkActive(state),
 		});
 	}
 
@@ -406,6 +358,19 @@ export class LinkPlugin implements Plugin {
 		const isActive = this.isLinkActive(state);
 
 		if (isActive) {
+			const openBtn: HTMLButtonElement = document.createElement('button');
+			openBtn.type = 'button';
+			openBtn.className = 'notectl-link-popup__button';
+			openBtn.textContent = this.locale.openLink ?? LINK_LOCALE_EN.openLink;
+			openBtn.addEventListener('mousedown', (event: MouseEvent): void => {
+				event.preventDefault();
+				event.stopPropagation();
+			});
+			openBtn.addEventListener('click', (): void => {
+				context.executeCommand('openLink');
+				onClose();
+			});
+			container.appendChild(openBtn);
 			// Show remove link button
 			const removeBtn = document.createElement('button');
 			removeBtn.type = 'button';

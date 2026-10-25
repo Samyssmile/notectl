@@ -45,9 +45,14 @@ function makeState(
 	return builder.build();
 }
 
-async function initPluginWithContainer(container: HTMLElement): Promise<LinkPlugin> {
+async function initPluginWithContainer(
+	container: HTMLElement,
+	readonly = false,
+): Promise<LinkPlugin> {
 	const plugin = new LinkPlugin();
-	await plugin.init(mockPluginContext({ getContainer: () => container }));
+	await plugin.init(
+		mockPluginContext({ getContainer: () => container, isReadOnly: () => readonly }),
+	);
 	return plugin;
 }
 
@@ -366,7 +371,7 @@ describe('LinkPlugin', () => {
 			plugin.destroy();
 		});
 
-		it('does not intercept a normal link even when its fragment matches a local ID', async () => {
+		it('leaves readonly external links with a matching local fragment to the browser', async () => {
 			const container: HTMLDivElement = document.createElement('div');
 			const clickedChild: HTMLElement = appendLink(container, 'https://example.com/page#chapter-2');
 			const target: HTMLElement = document.createElement('section');
@@ -374,7 +379,7 @@ describe('LinkPlugin', () => {
 			const scrollIntoView = vi.fn();
 			target.scrollIntoView = scrollIntoView;
 			container.appendChild(target);
-			const plugin: LinkPlugin = await initPluginWithContainer(container);
+			const plugin: LinkPlugin = await initPluginWithContainer(container, true);
 
 			const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 			clickedChild.dispatchEvent(event);
@@ -557,6 +562,7 @@ describe('LinkPlugin', () => {
 		it('registers Mod-K keymap', async () => {
 			const h = await pluginHarness(new LinkPlugin());
 			expectKeyBinding(h, 'Mod-K');
+			expectKeyBinding(h, 'Mod-Enter');
 		});
 	});
 
@@ -584,6 +590,7 @@ describe('LinkPlugin', () => {
 
 			const h = await pluginHarness(new LinkPlugin(), state);
 			expectToolbarActive(h, 'link', true);
+			expectToolbarEnabled(h, 'link', true);
 		});
 
 		it('isActive returns false when cursor is not in linked text', async () => {
@@ -661,9 +668,10 @@ describe('LinkPlugin', () => {
 				vi.fn(),
 			);
 
-			const button = container.querySelector('button');
+			const button = container.querySelector('button[aria-label="Remove link"]');
 			expect(button).not.toBeNull();
 			expect(button?.textContent).toBe('Remove Link');
+			expect(container.textContent).toContain('Open link');
 		});
 
 		it('onClose called after programmatic Apply button click', async () => {

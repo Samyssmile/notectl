@@ -1,6 +1,9 @@
 import type { LinkLocale } from '../LinkLocale.js';
 
 const locale: LinkLocale = {
+	openLink: '打开链接',
+	openLinkInNewTab: '在新标签页中打开链接',
+	closePreview: '关闭链接预览',
 	label: '链接',
 	tooltip: (shortcut: string) => `插入链接 (${shortcut})`,
 	removeLink: '移除链接',
