@@ -34,7 +34,7 @@ interface LinkConfig {
 |---------|-------------|---------|
 | `toggleLink` | Add or remove a link on the selection | `boolean` |
 | `removeLink` | Remove link mark from selection | `boolean` |
-| `openLink` | Open the link at the current selection (also allowed in readonly mode) | `boolean` |
+| `openLink` | Open the link at the current selection; a new tab while editing, the configured target in readonly mode | `boolean` |
 | `setLink` | Reserved — link is applied via the toolbar popup | `false` |
 
 The toolbar button is enabled for a text range selection and for a collapsed cursor inside a link.
@@ -50,7 +50,10 @@ editor.executeCommand('removeLink');
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+K` / `Cmd+K` | Toggle link (opens URL popup if adding) |
-| `Ctrl+Enter` / `Cmd+Enter` | Open the link at the cursor |
+| `Alt+Enter` | Open the link at the cursor |
+
+`Alt+Enter` follows the Google Docs convention. It does not collide with `Ctrl+Enter`, which host
+applications often reserve for submitting a form and which the checklist plugin uses to toggle an item.
 
 ## Opening Links
 
@@ -58,17 +61,28 @@ While editing, **Ctrl-click** (Windows/Linux) or **Cmd-click** (macOS) opens a l
 This explicit new-tab gesture takes precedence over `openInNewTab: false`.
 
 A normal click or touch tap on a link shows a compact preview with its destination and an
-**Open link** action. The editing caret stays in the text, so typing continues normally and closes
-the preview. Press **Tab** to focus its open action and **Enter** to follow the link, or **Escape**
-to dismiss it. The open action and `openLink` command respect `openInNewTab` (default: `true`).
-Double-clicking or selecting text does not activate the link.
+**Open link in new tab** action. The editing caret stays in the text, so typing continues normally
+and closes the preview. Press **Tab** to focus its open action and **Enter** to follow the link, or
+**Escape** to dismiss it. Double-clicking or selecting text does not activate the link.
+
+![Link preview after clicking a link](../../../assets/screenshots/plugin-link-preview.png)
+
+The preview follows its link while the page or the editor scrolls, including the scroll a virtual
+keyboard causes right after a tap, and closes once the link leaves the editor's visible area. It
+takes no focus, so the editor announces it through its live region for screen reader users.
+
+**Every open action taken while editing targets a new tab**, so unsaved work stays in place: the
+preview, Ctrl-/Cmd-click, `Alt+Enter`, the toolbar's **Open link** button and the `openLink`
+command all ignore `openInNewTab: false`. The setting still governs rendered links, so readers in
+readonly mode follow it.
 
 In **readonly mode**, links use normal browser behavior: a single click or tap opens the URL,
 the pointer cursor identifies links, and focused links can be activated with **Enter**. Browser
 modifier keys and context menus remain available. Changing readonly mode closes any open preview.
 
 Preview labels are localized. Existing custom `LinkLocale` objects remain compatible; the optional
-`openLink`, `openLinkInNewTab`, and `closePreview` strings fall back to English when omitted.
+`openLink`, `openLinkInNewTab`, `closePreview`, and `previewOpened` strings fall back to English
+when omitted.
 
 ## Toolbar
 

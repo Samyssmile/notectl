@@ -80,11 +80,7 @@ export class LinkPlugin implements Plugin {
 			this.registerInputRules(context);
 		}
 		this.interaction?.destroy();
-		this.interaction = new LinkInteractionController(
-			context,
-			this.locale,
-			this.config.openInNewTab,
-		);
+		this.interaction = new LinkInteractionController(context, this.locale);
 	}
 
 	destroy(): void {
@@ -93,7 +89,11 @@ export class LinkPlugin implements Plugin {
 	}
 
 	onStateChange(oldState: EditorState, newState: EditorState): void {
-		if (oldState.doc !== newState.doc) this.interaction?.closePreview();
+		if (oldState.doc !== newState.doc) {
+			this.interaction?.closePreview();
+			return;
+		}
+		this.interaction?.restorePreviewAnnouncement();
 	}
 
 	onReadOnlyChange(): void {
@@ -223,7 +223,10 @@ export class LinkPlugin implements Plugin {
 					'link',
 					(mark) => mark.attrs.href,
 				);
-				return href !== null && openLink(context.getContainer(), href, this.config.openInNewTab);
+				if (href === null) return false;
+				// An author mid-edit keeps the editor; readers follow the configured target.
+				const newTab: boolean = context.isReadOnly() ? this.config.openInNewTab : true;
+				return openLink(context.getContainer(), href, newTab);
 			},
 			{ readonlyAllowed: true },
 		);
@@ -249,7 +252,7 @@ export class LinkPlugin implements Plugin {
 			'Mod-K': () => context.executeCommand('toggleLink'),
 		});
 		context.registerKeymap(
-			{ 'Mod-Enter': () => context.executeCommand('openLink') },
+			{ 'Alt-Enter': () => context.executeCommand('openLink') },
 			{ priority: 'navigation' },
 		);
 	}

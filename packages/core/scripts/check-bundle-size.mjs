@@ -48,9 +48,9 @@ const ENTRY_BUDGETS = [
 	['Plugin: Video', 'src/plugins/video/index.ts', 15],
 	['Plugin: Code Block', 'src/plugins/code-block/index.ts', 15],
 	['Plugin: Smart Paste', 'src/plugins/smart-paste/index.ts', 7],
-	// #284: measured 4.99 KB; modifier/keyboard navigation and an accessible touch preview.
-	// Keep the preview synchronous for the first tap; shared popup infrastructure stays in core.
-	['Plugin: Link', 'src/plugins/link/index.ts', 5.2],
+	// #284: measured 5.2 KB; modifier/keyboard navigation and an accessible touch preview that
+	// follows its link while scrolling. Shared popup infrastructure stays in core.
+	['Plugin: Link', 'src/plugins/link/index.ts', 5.5],
 	['Plugin: List', 'src/plugins/list/index.ts', 5.5],
 	['Plugin: Blockquote', 'src/plugins/blockquote/index.ts', 3],
 	['Plugin: Strikethrough', 'src/plugins/strikethrough/index.ts', 2],

@@ -4,6 +4,7 @@ const locale: LinkLocale = {
 	openLink: 'लिंक खोलें',
 	openLinkInNewTab: 'लिंक नए टैब में खोलें',
 	closePreview: 'लिंक पूर्वावलोकन बंद करें',
+	previewOpened: 'लिंक पूर्वावलोकन खुल गया। लिंक खोलने के लिए Tab दबाएँ या बंद करने के लिए Escape दबाएँ।',
 	label: 'लिंक',
 	tooltip: (shortcut: string) => `लिंक डालें (${shortcut})`,
 	removeLink: 'लिंक हटाएँ',

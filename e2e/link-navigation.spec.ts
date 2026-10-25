@@ -35,6 +35,7 @@ test.describe('Link navigation', () => {
 		const preview = page.locator('.notectl-link-preview');
 		await expect(preview).toBeVisible();
 		await expect(preview).toContainText(LINK_DESTINATION);
+		await expect(editor.announcer()).toContainText('Link preview opened');
 		await expect(editor.content).toBeFocused();
 		expect(page.context().pages()).toHaveLength(1);
 		await preview.screenshot({ path: testInfo.outputPath('link-preview.png') });
@@ -66,9 +67,9 @@ test.describe('Link navigation', () => {
 		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
 	});
 
-	test('Ctrl+Enter opens the link at the editing cursor', async ({ editor, page }) => {
+	test('Alt+Enter opens the link at the editing cursor', async ({ editor, page }) => {
 		await editor.selectRange(0, 10, 10);
-		await expectLinkPopup(page, () => page.keyboard.press('Control+Enter'));
+		await expectLinkPopup(page, () => page.keyboard.press('Alt+Enter'));
 	});
 
 	test('Escape dismisses the preview while keeping the editing caret focused', async ({
@@ -111,7 +112,7 @@ test.describe('Link navigation', () => {
 		await expect(page.locator('.notectl-link-preview')).toBeVisible();
 	});
 
-	test('same-tab setting applies to the preview; Ctrl-click still means new tab', async ({
+	test('editing always opens a new tab; a same-tab setting applies to readers', async ({
 		editor,
 		page,
 	}) => {
@@ -119,16 +120,38 @@ test.describe('Link navigation', () => {
 			toolbar: [[{ name: 'LinkPlugin', config: { openInNewTab: false } }]],
 		});
 		await editor.setContentHTML('<p><a href="/link-284-destination">Relative link</a></p>');
+		const link = editor.content.locator('a');
+		await expectLinkPopup(page, () => link.click({ modifiers: ['Control'] }));
+		await link.click();
 		await expectLinkPopup(page, () =>
-			editor.content.locator('a').click({ modifiers: ['Control'] }),
+			page
+				.locator('.notectl-link-preview')
+				.getByRole('link', { name: /Open link in new tab/ })
+				.click(),
 		);
-		await editor.content.locator('a').click();
-		await page
-			.locator('.notectl-link-preview')
-			.getByRole('link', { name: /Open link/ })
-			.click();
+		await editor.selectRange(0, 3, 3);
+		await expectLinkPopup(page, () => page.keyboard.press('Alt+Enter'));
+		await expect(page).not.toHaveURL(LINK_DESTINATION);
+
+		await editor.configure({ readonly: true });
+		await link.click();
 		await expect(page).toHaveURL(LINK_DESTINATION);
 		expect(page.context().pages()).toHaveLength(1);
+	});
+
+	test('the preview follows its link while the page scrolls', async ({ editor, page }) => {
+		await editor.setContentHTML(
+			`<p><a href="${LINK_DESTINATION}">Open destination</a></p>${'<p>Filler paragraph.</p>'.repeat(40)}`,
+		);
+		await editor.content.locator('a').click();
+		const preview = page.locator('.notectl-link-preview');
+		await expect(preview).toBeVisible();
+		const before = await preview.boundingBox();
+		await page.mouse.wheel(0, 120);
+		await expect(preview).toBeVisible();
+		await expect
+			.poll(async () => (await preview.boundingBox())?.y ?? Number.NaN)
+			.toBeLessThan((before?.y ?? 0) - 60);
 	});
 
 	test('initial readonly and a localized preview work without a toolbar', async ({ page }) => {

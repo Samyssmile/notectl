@@ -42,6 +42,18 @@ test.describe('Touch links', () => {
 		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
 	});
 
+	test('the preview survives the scroll that follows a tap', async ({ editor, page }) => {
+		await editor.setContentHTML(
+			`<p><a href="${LINK_DESTINATION}">Open destination</a></p>${'<p>Filler paragraph.</p>'.repeat(30)}`,
+		);
+		await editor.content.locator('a').tap();
+		const preview = page.locator('.notectl-link-preview');
+		await expect(preview).toBeVisible();
+		await page.evaluate(() => window.scrollBy(0, 48));
+		await expect(preview).toBeVisible();
+		await expectLinkPopup(page, () => preview.getByRole('link', { name: /Open link/ }).tap());
+	});
+
 	test('long addresses wrap within a narrow viewport', async ({ editor, page }) => {
 		await page.setViewportSize({ width: 320, height: 640 });
 		const href: string = `${LINK_DESTINATION}/${'long-path-'.repeat(35)}`;

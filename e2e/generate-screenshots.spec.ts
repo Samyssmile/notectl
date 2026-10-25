@@ -847,6 +847,14 @@ test.describe('Documentation screenshots', () => {
 		await shot(page, 'plugin-link.png');
 	});
 
+	test('plugin-link-preview', async ({ page }) => {
+		await setMinHeight(page, '200px');
+		await setEditorJSON(page, LINK_CONTENT);
+		await page.locator('notectl-editor .notectl-content a').first().click();
+		await page.locator('.notectl-link-preview').waitFor();
+		await shot(page, 'plugin-link-preview.png');
+	});
+
 	test('plugin-horizontal-rule', async ({ page }) => {
 		await setMinHeight(page, '120px');
 		await setEditorJSON(page, HR_CONTENT);

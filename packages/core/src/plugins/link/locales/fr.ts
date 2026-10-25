@@ -4,6 +4,8 @@ const locale: LinkLocale = {
 	openLink: 'Ouvrir le lien',
 	openLinkInNewTab: 'Ouvrir le lien dans un nouvel onglet',
 	closePreview: 'Fermer l’aperçu du lien',
+	previewOpened:
+		'Aperçu du lien ouvert. Appuyez sur Tab pour ouvrir le lien ou sur Échap pour le fermer.',
 	label: 'Lien',
 	tooltip: (shortcut: string) => `Insérer un lien (${shortcut})`,
 	removeLink: 'Supprimer le lien',

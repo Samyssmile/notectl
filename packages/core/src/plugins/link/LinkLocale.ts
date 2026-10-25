@@ -20,6 +20,8 @@ export interface LinkLocale {
 	readonly openLink?: string;
 	readonly openLinkInNewTab?: string;
 	readonly closePreview?: string;
+	/** Screen reader announcement when a click or tap opens the non-modal preview. */
+	readonly previewOpened?: string;
 }
 
 // --- Default English Locale ---
@@ -37,6 +39,7 @@ export const LINK_LOCALE_EN: Required<LinkLocale> = {
 	openLink: 'Open link',
 	openLinkInNewTab: 'Open link in new tab',
 	closePreview: 'Close link preview',
+	previewOpened: 'Link preview opened. Press Tab to open the link or Escape to dismiss.',
 };
 
 // --- Lazy Locale Loader ---

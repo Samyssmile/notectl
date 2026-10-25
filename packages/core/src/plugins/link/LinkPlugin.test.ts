@@ -559,10 +559,62 @@ describe('LinkPlugin', () => {
 	});
 
 	describe('keymap', () => {
-		it('registers Mod-K keymap', async () => {
+		it('registers Mod-K and Alt-Enter, leaving Mod-Enter to hosts and the checklist', async () => {
 			const h = await pluginHarness(new LinkPlugin());
 			expectKeyBinding(h, 'Mod-K');
-			expectKeyBinding(h, 'Mod-Enter');
+			expectKeyBinding(h, 'Alt-Enter');
+			expect(h.getKeymaps().some((keymap) => 'Mod-Enter' in keymap)).toBe(false);
+		});
+	});
+
+	describe('openLink command target', () => {
+		function linkedState() {
+			return stateBuilder()
+				.paragraph('Hello', 'b1', {
+					marks: [{ type: markType('link'), attrs: { href: '/page' } }],
+				})
+				.cursor('b1', 2)
+				.schema(['paragraph'], ['link'])
+				.build();
+		}
+
+		async function runOpenLink(readonly: boolean): Promise<HTMLAnchorElement[]> {
+			const container: HTMLDivElement = document.createElement('div');
+			document.body.append(container);
+			const state = linkedState();
+			const context = mockPluginContext({
+				getContainer: () => container,
+				getState: () => state,
+				isReadOnly: () => readonly,
+			});
+			const plugin: LinkPlugin = new LinkPlugin({ openInNewTab: false });
+			await plugin.init(context);
+			const activated: HTMLAnchorElement[] = [];
+			const spy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+				this: HTMLAnchorElement,
+			): void {
+				activated.push(this);
+			});
+			const registration = vi
+				.mocked(context.registerCommand)
+				.mock.calls.find(([name]) => name === 'openLink');
+			expect(registration?.[1]()).toBe(true);
+			spy.mockRestore();
+			plugin.destroy();
+			container.remove();
+			return activated;
+		}
+
+		it('opens in a new tab while editing even when rendered links stay in the same tab', async () => {
+			const activated: HTMLAnchorElement[] = await runOpenLink(false);
+			expect(activated).toHaveLength(1);
+			expect(activated[0]?.target).toBe('_blank');
+		});
+
+		it('follows the openInNewTab setting for readers in readonly mode', async () => {
+			const activated: HTMLAnchorElement[] = await runOpenLink(true);
+			expect(activated).toHaveLength(1);
+			expect(activated[0]?.target).toBe('');
 		});
 	});
 

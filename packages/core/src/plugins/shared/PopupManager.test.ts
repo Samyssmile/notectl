@@ -254,6 +254,35 @@ describe('PopupManager', () => {
 		});
 	});
 
+	describe('reposition', () => {
+		it('follows an anchor element that has moved', () => {
+			const manager = createManager();
+			const anchor: HTMLButtonElement = document.createElement('button');
+			document.body.append(anchor);
+			let top = 10;
+			vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(
+				() => new DOMRect(20, top, 80, 30),
+			);
+			const handle = manager.open({ anchor, content: () => {} });
+			const before: string = handle.getElement().style.top;
+
+			top = 210;
+			manager.reposition(handle);
+
+			expect(handle.getElement().style.top).not.toBe(before);
+			manager.destroy();
+			anchor.remove();
+		});
+
+		it('ignores a handle whose popup was already closed', () => {
+			const manager = createManager();
+			const handle = manager.open({ anchor: new DOMRect(0, 0, 10, 10), content: () => {} });
+			handle.close();
+			expect(() => manager.reposition(handle)).not.toThrow();
+			manager.destroy();
+		});
+	});
+
 	describe('focus management', () => {
 		it('preserves editor focus when a non-modal preview disables autofocus', async () => {
 			const manager = createManager();

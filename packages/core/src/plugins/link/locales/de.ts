@@ -4,6 +4,7 @@ const locale: LinkLocale = {
 	openLink: 'Link öffnen',
 	openLinkInNewTab: 'Link in neuem Tab öffnen',
 	closePreview: 'Linkvorschau schließen',
+	previewOpened: 'Linkvorschau geöffnet. Tab öffnet den Link, Escape schließt die Vorschau.',
 	label: 'Link',
 	tooltip: (shortcut: string) => `Link einfügen (${shortcut})`,
 	removeLink: 'Link entfernen',

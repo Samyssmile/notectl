@@ -141,12 +141,7 @@ export class PopupManager implements PopupServiceAPI {
 		// escapes any ancestor stacking context in the host page.
 		promoteToTopLayer(popup);
 
-		const anchorRect: DOMRect =
-			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
-		positionPopup(popup, anchorRect, {
-			position: config.position ?? 'below-start',
-			isRtl: this.isRtlContext(),
-		});
+		this.positionEntry(entry);
 
 		entry.listenerRegistrationTimer = setTimeout(() => {
 			entry.listenerRegistrationTimer = null;
@@ -226,6 +221,22 @@ export class PopupManager implements PopupServiceAPI {
 			document.removeEventListener('mousedown', entry.clickOutsideHandler);
 			entry.documentListenerAttached = false;
 		}
+	}
+
+	/** Re-anchors an open popup after its anchor moved, for example through scrolling or resizing. */
+	reposition(handle: PopupHandle): void {
+		const entry: PopupEntry | null = this.findEntryByHandle(handle);
+		if (entry) this.positionEntry(entry);
+	}
+
+	private positionEntry(entry: PopupEntry): void {
+		const config: PopupConfig = entry.config;
+		const anchorRect: DOMRect =
+			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
+		positionPopup(entry.element, anchorRect, {
+			position: config.position ?? 'below-start',
+			isRtl: this.isRtlContext(),
+		});
 	}
 
 	private findEntryByHandle(handle: PopupHandle): PopupEntry | null {

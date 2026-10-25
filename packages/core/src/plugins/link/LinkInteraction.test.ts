@@ -145,12 +145,75 @@ describe('link interactions', () => {
 		expect(f.activated).toHaveLength(0);
 	});
 
-	it('uses the same-tab setting for the preview action', async () => {
+	it('opens from the preview in a new tab even when rendered links use the same tab', async () => {
 		const f: Fixture = await fixture('/relative', false);
 		click(f.child);
 		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-preview a');
-		expect(link?.target).toBe('');
-		expect(link?.textContent).toBe('Open link/relative');
+		expect(link?.target).toBe('_blank');
+		expect(link?.textContent).toBe('Open link in new tab/relative');
+	});
+
+	it('announces the preview to screen readers because it takes no focus', async () => {
+		const f: Fixture = await fixture();
+		click(f.child);
+		expect(f.context.announce).toHaveBeenCalledWith(
+			'Link preview opened. Press Tab to open the link or Escape to dismiss.',
+		);
+		expect(f.context.announce).toHaveBeenCalledTimes(1);
+	});
+
+	it('repeats the announcement once when the selection sync after the click wiped it', async () => {
+		const f: Fixture = await fixture();
+		click(f.child);
+		const state = f.context.getState();
+		vi.mocked(f.context.hasAnnouncement).mockReturnValue(false);
+		f.plugin.onStateChange(state, state);
+		f.plugin.onStateChange(state, state);
+		expect(f.context.announce).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not repeat the announcement while the live region still holds it', async () => {
+		const f: Fixture = await fixture();
+		click(f.child);
+		const state = f.context.getState();
+		vi.mocked(f.context.hasAnnouncement).mockReturnValue(true);
+		f.plugin.onStateChange(state, state);
+		expect(f.context.announce).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not announce a preview that was dismissed before the selection sync', async () => {
+		const f: Fixture = await fixture();
+		click(f.child);
+		f.container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+		const state = f.context.getState();
+		f.plugin.onStateChange(state, state);
+		expect(f.context.announce).toHaveBeenCalledTimes(1);
+	});
+
+	it('follows its link through scrolling and resizing instead of closing', async () => {
+		const f: Fixture = await fixture();
+		click(f.child);
+		f.container.dispatchEvent(new Event('scroll'));
+		document.dispatchEvent(new Event('scroll'));
+		window.dispatchEvent(new Event('resize'));
+		expect(document.querySelector('.notectl-link-preview')).not.toBeNull();
+	});
+
+	it('closes once its link has scrolled out of the editor or left the document', async () => {
+		const f: Fixture = await fixture();
+		const anchor: HTMLAnchorElement = f.child.parentElement as HTMLAnchorElement;
+		click(f.child);
+		const rect = vi.spyOn(anchor, 'getBoundingClientRect');
+		rect.mockReturnValue(new DOMRect(0, -60, 100, 20));
+		document.dispatchEvent(new Event('scroll'));
+		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+
+		rect.mockRestore();
+		click(f.child);
+		expect(document.querySelector('.notectl-link-preview')).not.toBeNull();
+		anchor.remove();
+		document.dispatchEvent(new Event('scroll'));
+		expect(document.querySelector('.notectl-link-preview')).toBeNull();
 	});
 
 	it('allows Tab into the preview and Escape back to editing', async () => {

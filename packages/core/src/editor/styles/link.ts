@@ -17,7 +17,9 @@ export const LINK_CSS = `
 	background: var(--notectl-surface-overlay);
 	color: var(--notectl-fg);
 	box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
-	font: 14px/1.4 var(--notectl-font-family, sans-serif);
+	font: inherit;
+	font-size: 14px;
+	line-height: 1.4;
 }
 .notectl-link-preview__open {
 	display: flex;
