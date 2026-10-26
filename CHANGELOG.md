@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-10-26
+
+### Changed
+
+- **DOMPurify 3.4.17 closes three advisories in the editor's only runtime dependency.** `@notectl/core` now requires `dompurify` ^3.4.17. The release fixes a `SAFE_FOR_TEMPLATES` bypass through split template expressions in attached shadow root content (GHSA-cg2g-xh64-v4q7, critical), event handlers left armed on a subtree that an `IN_PLACE` hook detaches (GHSA-mrv2-3pqr-j5jr, high) and a skipped SMIL `attributeName=href` guard for the `application/xhtml+xml` parser media type (GHSA-c6gr-qvv4-5v3f, low). The editor sanitizes pasted and imported HTML with DOMPurify, so this is the one change in this release that reaches applications.
+
+- **Development dependencies refreshed against the open Dependabot alerts.** happy-dom 21.0.4 (GHSA-834v-8h66-3h79), vitest and `@vitest/mocker` 4.1.12 (GHSA-xp26-3454-mjgp, GHSA-qxg6-89mg-rqv8), vite 8.3.5, astro 7.4.2 with Starlight 0.41.11 (GHSA-mpr7-6m5w-76rw, GHSA-98hj-9722-w3j8), Playwright 1.64.1 and turbo 2.11.10. The Angular example and `@notectl/angular` now build against one framework version, 22.2.3, with CLI and build 22.2.4 and ng-packagr 22.2.5. That picks up the router fixes GHSA-62vg-58rm-qff7 and GHSA-57xq-rjx2-v5xh and removes the unmet peer warnings left by earlier partial updates. An in-range lockfile refresh moves the transitive fast-uri, undici, zod, postcss-selector-parser and http-cache-semantics packages to their patched releases. Only vite 8.3.0 stays in the lockfile, because `@angular/build` 22.2.4 pins it exactly; it is reached through the Angular example build alone and clears with the next Angular CLI patch. None of these packages ship in the published bundles.
+
+- **Unit tests keep iframe behaviour under happy-dom 21.** happy-dom 21 refuses to load iframe pages by default and reports every iframe with a `src` as a console error, which made the video embed and print suites noisy. The core vitest environment now lets an iframe get a frame, so `contentWindow` and the `load` event behave like in a browser, but disables child frame navigation, so no test fetches a page from the network.
+
+### Fixed
+
+- **CI: the Firefox project no longer treats a fixture as a test file.** The cross-browser spec list was matched as bare substrings, so `e2e/fixtures/link-navigation.ts`, which `link-navigation.spec.ts` and `touch-link.spec.ts` share, counted as a test file in the Firefox project and Playwright refused the import. This failed the E2E job on `main` for v2.4.1, while the local Chromium run, which does not use the list, stayed green. The pattern is now anchored to the `.spec.ts` suffix.
+
 ## [2.4.1] - 2026-10-25
 
 ### Added
