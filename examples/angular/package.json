@@ -15,7 +15,7 @@
     "@angular/core": "^22.1.0",
     "@angular/forms": "^22.1.0",
     "@angular/platform-browser": "^22.1.0",
-    "@angular/router": "^22.2.0",
+    "@angular/router": "^22.2.1",
     "@notectl/angular": "workspace:*",
     "@notectl/core": "workspace:*",
     "rxjs": "~7.8.2",

@@ -216,15 +216,15 @@
 		"build:analyze": "ANALYZE=true vite build"
 	},
 	"dependencies": {
-		"dompurify": "^3.4.16"
+		"dompurify": "^3.4.17"
 	},
 	"devDependencies": {
 		"esbuild": "^0.28.1",
-		"happy-dom": "^20.11.1",
+		"happy-dom": "^21.0.4",
 		"lightningcss": "^1.33.0",
 		"rollup-plugin-visualizer": "^7.0.1",
 		"terser": "^5.49.2",
-		"vite": "^8.2.0",
+		"vite": "^8.2.4",
 		"vite-plugin-dts": "^4.5.4",
 		"vitest": "^4.1.11"
 	}
