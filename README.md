@@ -56,7 +56,7 @@ npm install @notectl/core
 Requirements:
 
 - Modern browser with Custom Elements support
-- Node.js 18+ for build tooling
+- Node.js 22.23.4+ for build tooling (pinned in `.node-version`)
 - Angular 21+ if you use `@notectl/angular`
 
 ## Quick start
