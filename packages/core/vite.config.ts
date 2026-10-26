@@ -97,6 +97,19 @@ export default defineConfig({
 	test: {
 		css: { include: /\.css(?:\?|$)/ },
 		environment: 'happy-dom',
+		environmentOptions: {
+			happyDOM: {
+				settings: {
+					// happy-dom 21 refuses to load iframe pages by default and reports
+					// every refusal as a console error. Let iframes get a frame so
+					// contentWindow and the load event behave like in a browser, but
+					// keep child frames from navigating so no test ever fetches a
+					// page from the network.
+					enableIframePageLoading: true,
+					navigation: { disableChildFrameNavigation: true },
+				},
+			},
+		},
 		setupFiles: ['./vitest.setup.ts'],
 		include: ['src/**/*.test.ts'],
 		coverage: {

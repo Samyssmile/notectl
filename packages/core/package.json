@@ -216,16 +216,16 @@
 		"build:analyze": "ANALYZE=true vite build"
 	},
 	"dependencies": {
-		"dompurify": "^3.4.16"
+		"dompurify": "^3.4.17"
 	},
 	"devDependencies": {
-		"esbuild": "^0.28.1",
-		"happy-dom": "^20.11.1",
+		"esbuild": "^0.28.2",
+		"happy-dom": "^21.0.4",
 		"lightningcss": "^1.33.0",
-		"rollup-plugin-visualizer": "^7.0.1",
-		"terser": "^5.49.2",
-		"vite": "^8.2.0",
+		"rollup-plugin-visualizer": "^7.1.1",
+		"terser": "^5.51.2",
+		"vite": "^8.3.5",
 		"vite-plugin-dts": "^4.5.4",
-		"vitest": "^4.1.11"
+		"vitest": "^4.1.12"
 	}
 }
