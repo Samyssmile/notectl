@@ -7,43 +7,50 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Tests not listed here run only on Chromium — add a spec here when it
  * covers behaviour that diverges between Gecko and Blink.
+ *
+ * The pattern is anchored to the `.spec.ts` suffix so that helper modules
+ * under `e2e/fixtures/` whose name contains one of these words (for example
+ * `fixtures/link-navigation.ts`) are never treated as test files; Playwright
+ * refuses a spec that imports another test file.
  */
+const CROSS_BROWSER_SPEC_NAMES: readonly string[] = [
+	'basic-editing',
+	'arrow-navigation',
+	'movement-commands',
+	'goal-column',
+	'arrow-up-column',
+	'hard-break',
+	'input-rules',
+	'special-characters',
+	'code-block',
+	'click-below-content',
+	'marks',
+	'history',
+	'spellcheck-replacement',
+	'cut-paste-block-types',
+	'table-cut-paste',
+	'paste-into-table-cell',
+	'multi-block-paste',
+	'smart-paste',
+	'alignment-classes',
+	'style-classes',
+	'inline-styles-strict-csp',
+	'picker-state-after-import',
+	'image-cut-paste',
+	'table-editing',
+	'table-deletion',
+	'list-in-table',
+	'checklist',
+	'tab-key',
+	'dom-move',
+	'accessibility',
+	'toolbar-keyboard-access',
+	'link',
+	'style-delivery',
+];
+
 const CROSS_BROWSER_SPECS: RegExp = new RegExp(
-	[
-		'basic-editing',
-		'arrow-navigation',
-		'movement-commands',
-		'goal-column',
-		'arrow-up-column',
-		'hard-break',
-		'input-rules',
-		'special-characters',
-		'code-block',
-		'click-below-content',
-		'marks',
-		'history',
-		'spellcheck-replacement',
-		'cut-paste-block-types',
-		'table-cut-paste',
-		'paste-into-table-cell',
-		'multi-block-paste',
-		'smart-paste',
-		'alignment-classes',
-		'style-classes',
-		'inline-styles-strict-csp',
-		'picker-state-after-import',
-		'image-cut-paste',
-		'table-editing',
-		'table-deletion',
-		'list-in-table',
-		'checklist',
-		'tab-key',
-		'dom-move',
-		'accessibility',
-		'toolbar-keyboard-access',
-		'link',
-		'style-delivery',
-	].join('|'),
+	`(?:${CROSS_BROWSER_SPEC_NAMES.join('|')})[^/]*\\.spec\\.ts$`,
 );
 
 const isCI: boolean = !!process.env.CI;
