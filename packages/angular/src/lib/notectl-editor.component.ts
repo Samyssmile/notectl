@@ -24,6 +24,7 @@ import type {
 	PaperSize,
 	Plugin,
 	PluginConfig,
+	ServiceKey,
 	StateChangeEvent,
 	Theme,
 	Transaction,
@@ -337,6 +338,11 @@ export class NotectlEditorComponent implements ControlValueAccessor {
 
 	executeCommand(name: string): boolean {
 		return this.editorRef?.executeCommand(name) ?? false;
+	}
+
+	/** Typed core services are available after whenReady() or the ready output. */
+	getService<T>(key: ServiceKey<T>): T | undefined {
+		return this.editorRef?.getService(key);
 	}
 
 	configurePlugin(pluginId: string, config: PluginConfig): void {

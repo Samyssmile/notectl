@@ -30,7 +30,7 @@ function openCustomPopup(
 	};
 	const trigger: HTMLButtonElement = document.createElement('button');
 	document.body.appendChild(trigger);
-	controller.toggle(trigger, item, {} as PluginContext);
+	controller.toggle(trigger, item, { getContainer: () => document.body } as PluginContext);
 	return controller;
 }
 

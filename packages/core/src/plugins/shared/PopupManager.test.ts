@@ -10,6 +10,105 @@ function createManager(): PopupManager {
 // --- Tests ---
 
 describe('PopupManager', () => {
+	it('cleans up when a live anchor throws during opening', () => {
+		const manager = createManager();
+		const onClose = vi.fn();
+		expect(() =>
+			manager.open({
+				anchor: {
+					getRect() {
+						throw new Error('bad anchor');
+					},
+				},
+				content() {},
+				onClose,
+			}),
+		).toThrow('bad anchor');
+		expect(manager.isOpen()).toBe(false);
+		expect(document.querySelector('.notectl-popup')).toBeNull();
+		expect(onClose).toHaveBeenCalledOnce();
+		manager.destroy();
+	});
+
+	it('notifies a parent once when child cleanup re-enters its close handle', () => {
+		const manager = createManager();
+		const onClose = vi.fn();
+		const parent = manager.open({ anchor: new DOMRect(), content() {}, onClose });
+		manager.open({ anchor: new DOMRect(), parent, content() {}, onClose: () => parent.close() });
+		parent.close();
+		expect(onClose).toHaveBeenCalledOnce();
+		expect(manager.isOpen()).toBe(false);
+		manager.destroy();
+	});
+	it('tracks a live anchor, closes when it disappears, and releases the subscription', () => {
+		const manager = createManager();
+		let rect: DOMRect | null = new DOMRect(10, 20, 50, 10);
+		let invalidate = (): void => {};
+		const unsubscribe = vi.fn();
+		const onClose = vi.fn();
+		const handle = manager.open({
+			anchor: {
+				getRect: () => rect,
+				subscribe(listener) {
+					invalidate = listener;
+					return unsubscribe;
+				},
+			},
+			content() {},
+			onClose,
+		});
+		const before = handle.getElement().style.top;
+		rect = new DOMRect(10, 80, 50, 10);
+		invalidate();
+		expect(handle.getElement().style.top).not.toBe(before);
+		rect = null;
+		invalidate();
+		expect(manager.isOpen()).toBe(false);
+		expect(unsubscribe).toHaveBeenCalledOnce();
+		expect(onClose).toHaveBeenCalledOnce();
+		handle.close();
+		handle.updatePosition();
+		manager.destroy();
+		expect(onClose).toHaveBeenCalledOnce();
+	});
+
+	it('closes descendants and calls their cleanup without closing independent popups', () => {
+		const manager = createManager();
+		const parent = manager.open({ anchor: new DOMRect(), content() {} });
+		const childClosed = vi.fn();
+		const child = manager.open({
+			anchor: new DOMRect(),
+			parent,
+			content() {},
+			onClose: childClosed,
+		});
+		const independent = manager.open({ anchor: new DOMRect(), content() {} });
+		parent.close();
+		expect(child.getElement().isConnected).toBe(false);
+		expect(childClosed).toHaveBeenCalledOnce();
+		expect(independent.getElement().isConnected).toBe(true);
+		manager.destroy();
+	});
+
+	it('cleans up an anchor that closes synchronously during subscription', () => {
+		const manager = createManager();
+		const unsubscribe = vi.fn();
+		let visible = true;
+		manager.open({
+			anchor: {
+				getRect: () => (visible ? new DOMRect() : null),
+				subscribe(listener) {
+					visible = false;
+					listener();
+					return unsubscribe;
+				},
+			},
+			content() {},
+		});
+		expect(manager.isOpen()).toBe(false);
+		expect(unsubscribe).toHaveBeenCalledOnce();
+		manager.destroy();
+	});
 	afterEach(() => {
 		// Clean up any popups left in the DOM
 		for (const el of document.querySelectorAll('.notectl-popup')) {

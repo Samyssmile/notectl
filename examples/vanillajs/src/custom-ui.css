@@ -1,0 +1,36 @@
+body {
+	font-family: system-ui, sans-serif;
+	margin: 2rem;
+}
+main {
+	max-width: 52rem;
+	margin-inline: auto;
+}
+section {
+	margin-block: 2rem;
+}
+#scroll-container {
+	max-height: 180px;
+	overflow: auto;
+	resize: horizontal;
+	width: 360px;
+}
+#external-editor {
+	padding-bottom: 120px;
+}
+.api-controls {
+	padding: 8px;
+	color: var(--notectl-fg, #222);
+	background: var(--notectl-toolbar-bg, #f5f5f5);
+}
+.api-controls button {
+	margin: 2px;
+}
+.api-controls output {
+	display: block;
+	overflow-wrap: anywhere;
+	font-size: 12px;
+}
+.api-controls button[aria-pressed="true"] {
+	outline: 2px solid var(--notectl-primary, #2762bd);
+}

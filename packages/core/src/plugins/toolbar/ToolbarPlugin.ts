@@ -1,3 +1,4 @@
+import TOOLBAR_CSS from '../../editor/styles/toolbar.css?inline';
 /**
  * Toolbar plugin: renders toolbar items registered by other plugins.
  * Acts as a pure rendering engine — has no knowledge of specific features.
@@ -5,15 +6,15 @@
  * Implements WAI-ARIA Toolbar pattern with roving tabindex.
  */
 
-import TOOLBAR_CSS from '../../editor/styles/toolbar.css?inline';
 import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Transaction } from '../../state/Transaction.js';
 import { ServiceKey } from '../Plugin.js';
 import type { Plugin, PluginConfig, PluginContext } from '../Plugin.js';
+import { type EditorUIService, EditorUIServiceKey } from '../editor-ui/EditorUI.js';
 import { applyRovingTabindex } from '../shared/KeyboardNav.js';
 import { resolveLocale } from '../shared/PluginHelpers.js';
-import { PopupManager, PopupServiceKey } from '../shared/PopupManager.js';
+import { type PopupServiceAPI, PopupServiceKey } from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import {
 	findFirstEnabled,
@@ -27,7 +28,6 @@ import {
 	type ToolbarOverflowBehavior as ToolbarOverflowBehaviorType,
 } from './ToolbarOverflowBehavior.js';
 import { ToolbarOverflowController } from './ToolbarOverflowController.js';
-import { ToolbarPopupController } from './ToolbarPopupController.js';
 import { createSeparator } from './ToolbarRenderers.js';
 import { ToolbarTooltip } from './ToolbarTooltip.js';
 
@@ -113,8 +113,9 @@ export class ToolbarPlugin implements Plugin {
 	private overflowBehavior: ToolbarOverflowBehaviorType;
 	private focusedIndex = 0;
 	private tooltip: ToolbarTooltip | null = null;
-	private popupController: ToolbarPopupController | null = null;
-	private popupManager: PopupManager | null = null;
+	private ui: EditorUIService | null = null;
+	private cleanups: (() => void)[] = [];
+	private popupManager: PopupServiceAPI | null = null;
 	private overflowController: ToolbarOverflowController | null = null;
 	private visibleElements: HTMLButtonElement[] = [];
 	private locale!: ToolbarLocale;
@@ -126,19 +127,16 @@ export class ToolbarPlugin implements Plugin {
 
 	async init(context: PluginContext): Promise<void> {
 		this.locale = await resolveLocale(context, undefined, TOOLBAR_LOCALE_EN, loadToolbarLocale);
-		context.registerStyleSheet(TOOLBAR_CSS);
 		this.context = context;
+		context.registerStyleSheet(TOOLBAR_CSS);
 
-		this.popupManager = new PopupManager(context.getContainer());
-		context.registerService(PopupServiceKey, this.popupManager);
-
-		this.popupController = new ToolbarPopupController(() => this.getActiveElement(), this.locale);
-		this.popupController.setPopupManager(this.popupManager);
-		this.tooltip = new ToolbarTooltip(() => this.popupController?.isOpen() ?? false);
+		this.ui = context.getService(EditorUIServiceKey) ?? null;
+		this.popupManager = context.getService(PopupServiceKey) ?? null;
+		this.tooltip = new ToolbarTooltip(() => this.ui?.isPopupOpen() ?? false);
 
 		context.registerService(ToolbarServiceKey, {
-			refresh: () => this.updateButtonStates(context.getState()),
-			closePopup: () => this.popupController?.close(),
+			refresh: () => this.ui?.refresh(),
+			closePopup: () => this.ui?.closePopup(),
 			focus: () => this.focus(),
 		});
 
@@ -178,14 +176,27 @@ export class ToolbarPlugin implements Plugin {
 
 	onReady(): void {
 		this.renderItems();
+		let ids = this.ui
+			?.getActions()
+			.map((action) => action.id)
+			.join('\0');
+		const unsubscribe = this.ui?.subscribeActions((actions) => {
+			const next = actions.map((action) => action.id).join('\0');
+			if (next !== ids) {
+				ids = next;
+				this.renderItems();
+			} else if (this.context) this.updateButtonStates(this.context.getState());
+		});
+		if (unsubscribe) this.cleanups.push(unsubscribe);
 	}
 
 	destroy(): void {
 		this.overflowController?.destroy();
 		this.overflowController = null;
-		this.popupController?.destroy();
-		this.popupController = null;
-		this.popupManager?.destroy();
+		for (const cleanup of this.cleanups) cleanup();
+		this.cleanups = [];
+		this.ui?.closePopup();
+		this.ui = null;
 		this.popupManager = null;
 		this.tooltip?.destroy();
 		this.tooltip = null;
@@ -199,6 +210,7 @@ export class ToolbarPlugin implements Plugin {
 	}
 
 	onStateChange(_oldState: EditorState, newState: EditorState, _tr: Transaction): void {
+		this.ui?.refresh();
 		this.updateButtonStates(newState);
 	}
 
@@ -242,6 +254,8 @@ export class ToolbarPlugin implements Plugin {
 
 		this.applyOverflowBehavior();
 		container.appendChild(this.toolbarElement);
+		const unregister = this.ui?.registerInteraction(this.toolbarElement);
+		if (unregister) this.cleanups.push(unregister);
 	}
 
 	/** Applies the current overflow behavior: creates/destroys the overflow controller and sets the data attribute. */
@@ -359,7 +373,7 @@ export class ToolbarPlugin implements Plugin {
 		if (index < 0) return false;
 
 		// A popup left open would swallow the focus ring behind it.
-		this.popupController?.close();
+		this.ui?.closePopup();
 		this.setRovingFocus(index);
 		return true;
 	}
@@ -433,7 +447,7 @@ export class ToolbarPlugin implements Plugin {
 			}
 			case 'Escape': {
 				// An open popup owns Escape first (it closes and refocuses its trigger).
-				if (this.popupController?.isOpen()) break;
+				if (this.ui?.isPopupOpen()) break;
 				e.preventDefault();
 				this.returnFocusToContent();
 				break;
@@ -445,9 +459,10 @@ export class ToolbarPlugin implements Plugin {
 	private activateButton(btn: HTMLButtonElement, item: ToolbarItem): void {
 		this.tooltip?.hide();
 		if (item.popupType && this.context) {
-			this.popupController?.toggle(btn, item, this.context);
+			if (this.ui?.isPopupOpen()) this.ui.closePopup();
+			else this.ui?.openAction(item.id, { anchor: btn, trigger: btn, restoreFocusTo: btn });
 		} else {
-			this.context?.executeCommand(item.command);
+			this.ui?.executeAction(item.id);
 		}
 	}
 
@@ -589,9 +604,11 @@ export class ToolbarPlugin implements Plugin {
 	// --- Button State Updates ---
 
 	private updateButtonStates(state: EditorState): void {
+		const actions = new Map(this.ui?.getActions().map((action) => [action.id, action]));
 		for (const btn of this.buttons) {
-			const active: boolean = btn.item.isActive?.(state) ?? false;
-			const enabled: boolean = btn.item.isEnabled?.(state) ?? true;
+			const action = actions.get(btn.item.id);
+			const active: boolean = action?.active ?? false;
+			const enabled: boolean = action?.enabled ?? false;
 			btn.element.setAttribute('aria-pressed', String(active));
 			btn.element.classList.toggle('notectl-toolbar-btn--active', active);
 			// Modifier part mirrors active state for ::part() targeting from outside the shadow root.
@@ -607,10 +624,10 @@ export class ToolbarPlugin implements Plugin {
 				btn.element.removeAttribute('aria-disabled');
 			}
 			if (btn.comboLabelEl && btn.item.popupType === 'combobox') {
-				btn.comboLabelEl.textContent = btn.item.getLabel(state);
+				btn.comboLabelEl.textContent = action?.value ?? '';
 			}
 			if (btn.item.getIcon) {
-				const newIcon: string = btn.item.getIcon(state);
+				const newIcon: string = action?.icon ?? '';
 				const iconEl: HTMLSpanElement | null = btn.element.querySelector(
 					'.notectl-toolbar-btn__icon',
 				);

@@ -223,7 +223,7 @@ export function domRangeToState(container: HTMLElement, range: AbstractRange): S
 }
 
 /** Converts a state position (blockId + offset) to a DOM position (node + offset). */
-function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition | null {
+export function statePositionToDOM(container: HTMLElement, pos: Position): DOMPosition | null {
 	// If path is available, navigate directly to the leaf block
 	let blockEl: Element | null = null;
 	if (pos.path && pos.path.length > 0) {

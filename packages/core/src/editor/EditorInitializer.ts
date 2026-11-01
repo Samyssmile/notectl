@@ -285,6 +285,7 @@ class EditorInitSession {
 			},
 			isReadOnly: () => this.deps.configController.isReadOnly,
 			isReadonlyBypassed: () => pm.isReadonlyBypassed(),
+			shouldSyncSelection: () => pm.shouldSyncSelection(),
 			compositionState: this.inputManager.compositionTracker,
 		});
 

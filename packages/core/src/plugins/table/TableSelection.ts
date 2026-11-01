@@ -7,31 +7,17 @@ import { createCollapsedSelection, isTextSelection } from '../../model/Selection
 import type { BlockId } from '../../model/TypeBrands.js';
 import { isEventFromEditorContent } from '../../platform/EditorEventBoundary.js';
 import type { EditorState } from '../../state/EditorState.js';
-import { ServiceKey } from '../Plugin.js';
 import type { PluginContext } from '../Plugin.js';
 import { type TableGrid, createTableGrid, expandTableGridRange } from './TableGrid.js';
 import { findTableContext, getFirstLeafInCell } from './TableHelpers.js';
 
-/** Rectangular range of cells within a table. */
-export interface CellRange {
-	readonly tableId: BlockId;
-	readonly fromRow: number;
-	readonly fromCol: number;
-	readonly toRow: number;
-	readonly toCol: number;
-}
-
-/** Service for managing multi-cell selection. */
-export interface TableSelectionService {
-	getSelectedRange(): CellRange | null;
-	setSelectedRange(range: CellRange | null): void;
-	/** Clears selection state without dispatching a transaction (for use in decorations). */
-	clearSelectionSilent(): void;
-	getSelectedCellIds(): readonly BlockId[];
-	isSelected(cellId: BlockId): boolean;
-}
-
-export const TableSelectionServiceKey = new ServiceKey<TableSelectionService>('tableSelection');
+export { TableSelectionServiceKey } from './TableSelectionTypes.js';
+export type { CellRange, TableSelectionService } from './TableSelectionTypes.js';
+import {
+	type CellRange,
+	type TableSelectionService,
+	TableSelectionServiceKey,
+} from './TableSelectionTypes.js';
 
 /** Creates and registers the TableSelectionService. */
 export function createTableSelectionService(context: PluginContext): TableSelectionService {

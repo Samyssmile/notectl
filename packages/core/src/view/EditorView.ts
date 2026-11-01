@@ -62,6 +62,7 @@ export interface EditorViewOptions {
 	compositionState?: CompositionState;
 	/** Shared plugin callback error boundary supplied by PluginManager. */
 	callbackExecutor?: PluginCallbackExecutor;
+	shouldSyncSelection?: () => boolean;
 }
 
 export class EditorView {
@@ -85,6 +86,7 @@ export class EditorView {
 	private readonly getDecorations?: (state: EditorState, tr?: Transaction) => DecorationSet;
 	private readonly isReadOnly: () => boolean;
 	private readonly isReadonlyBypassed: () => boolean;
+	private readonly shouldSyncSelection: () => boolean;
 	private readonly compositionState: CompositionState;
 	private readonly cursorWrapper: CursorWrapper;
 	private readonly navigation: EditorViewNavigation;
@@ -99,6 +101,7 @@ export class EditorView {
 		this.getDecorations = options.getDecorations;
 		this.isReadOnly = options.isReadOnly ?? (() => false);
 		this.isReadonlyBypassed = options.isReadonlyBypassed ?? (() => false);
+		this.shouldSyncSelection = options.shouldSyncSelection ?? (() => true);
 		this.compositionState = options.compositionState ?? {
 			isComposing: false,
 			activeBlockId: null,
@@ -142,7 +145,7 @@ export class EditorView {
 			...this.reconcileOptions(),
 			decorations: this.decorations,
 		});
-		syncSelectionToDOM(contentElement, this.state.selection);
+		if (this.shouldSyncSelection()) syncSelectionToDOM(contentElement, this.state.selection);
 	}
 
 	/** Returns the current editor state. */
@@ -333,7 +336,7 @@ export class EditorView {
 		} else {
 			rerenderLeafContent(this.contentElement, this.state, blockId, options);
 		}
-		if (!this.compositionState.isComposing) {
+		if (!this.compositionState.isComposing && this.shouldSyncSelection()) {
 			syncSelectionToDOM(this.contentElement, this.state.selection);
 		}
 	}
@@ -364,7 +367,7 @@ export class EditorView {
 				? (this.compositionState.activeBlockId ?? undefined)
 				: undefined,
 		});
-		if (!this.compositionState.isComposing && !skipSelectionSync) {
+		if (!this.compositionState.isComposing && !skipSelectionSync && this.shouldSyncSelection()) {
 			syncSelectionToDOM(this.contentElement, newState.selection);
 		}
 	}

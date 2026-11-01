@@ -51,6 +51,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Plugin Presets', slug: 'guides/presets' },
 						{ label: 'Toolbar Configuration', slug: 'guides/toolbar' },
+						{ label: 'Custom Editor Interfaces', slug: 'guides/custom-editor-ui' },
 						{ label: 'Custom Fonts', slug: 'guides/custom-fonts' },
 						{ label: 'Theming', slug: 'guides/styling' },
 						{ label: 'Working with Content', slug: 'guides/content' },

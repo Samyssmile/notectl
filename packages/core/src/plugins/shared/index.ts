@@ -45,6 +45,7 @@ export {
 	PopupManager,
 	PopupServiceKey,
 	type PopupCloseOptions,
+	type PopupAnchor,
 	type PopupConfig,
 	type PopupHandle,
 	type PopupServiceAPI,

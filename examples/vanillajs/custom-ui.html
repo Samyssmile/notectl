@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Custom editor UI API example</title>
+		<link rel="stylesheet" href="/src/custom-ui.css" />
+	</head>
+	<body>
+		<main>
+			<h1>Custom editor UI API example</h1>
+			<p>Two editors without the standard toolbar. Select text, apply an action, or open its popup.</p>
+			<section aria-label="External UI">
+				<h2>External controls</h2>
+				<div id="external-controls" class="api-controls"></div>
+				<div id="scroll-container"><div id="external-editor"></div></div>
+			</section>
+			<section aria-label="Plugin UI">
+				<h2>Plugin controls</h2>
+				<div id="plugin-editor"></div>
+			</section>
+		</main>
+		<script type="module" src="/src/custom-ui.ts"></script>
+	</body>
+</html>

@@ -7,18 +7,23 @@
 import { isRtlContext } from '../../platform/Platform.js';
 import type { PluginContext } from '../Plugin.js';
 import { findNextDropdownItem, navigateGrid } from '../shared/KeyboardNav.js';
-import type { PopupCloseOptions, PopupHandle, PopupManager } from '../shared/PopupManager.js';
+import type {
+	PopupCloseOptions,
+	PopupConfig,
+	PopupHandle,
+	PopupServiceAPI,
+} from '../shared/PopupManager.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 import { TOOLBAR_LOCALE_EN, type ToolbarLocale } from './ToolbarLocale.js';
 import { highlightCells, renderDropdown, renderGridPicker } from './ToolbarRenderers.js';
 
 export class ToolbarPopupController {
 	private activePopup: HTMLElement | null = null;
-	private activePopupButton: HTMLButtonElement | null = null;
+	private activePopupButton: HTMLElement | null = null;
 	private activeHandle: PopupHandle | null = null;
 	private readonly getActiveElement: () => Element | null;
 	private readonly locale: ToolbarLocale;
-	private popupManager: PopupManager | null = null;
+	private popupManager: PopupServiceAPI | null = null;
 
 	constructor(getActiveElement: () => Element | null, locale: ToolbarLocale = TOOLBAR_LOCALE_EN) {
 		this.getActiveElement = getActiveElement;
@@ -26,7 +31,7 @@ export class ToolbarPopupController {
 	}
 
 	/** Injects the PopupManager instance (called after service registration). */
-	setPopupManager(manager: PopupManager): void {
+	setPopupManager(manager: PopupServiceAPI): void {
 		this.popupManager = manager;
 	}
 
@@ -42,7 +47,7 @@ export class ToolbarPopupController {
 			return;
 		}
 
-		this.openViaManager(button, item, context);
+		this.open(item, context, { anchor: button, restoreFocusTo: button, trigger: button });
 	}
 
 	/** Closes the active popup and cleans up event listeners. */
@@ -65,7 +70,7 @@ export class ToolbarPopupController {
 
 	/** Closes popup and restores focus to the trigger button. */
 	closeAndRestoreFocus(): void {
-		const triggerBtn: HTMLButtonElement | null = this.activePopupButton;
+		const triggerBtn: HTMLElement | null = this.activePopupButton;
 		this.close();
 		triggerBtn?.focus();
 	}
@@ -76,28 +81,36 @@ export class ToolbarPopupController {
 
 	// --- PopupManager path ---
 
-	private openViaManager(
-		button: HTMLButtonElement,
+	open(
 		item: ToolbarItem,
 		context: PluginContext,
-	): void {
-		if (!this.popupManager) return;
+		options: {
+			readonly anchor: PopupConfig['anchor'];
+			readonly restoreFocusTo?: HTMLElement;
+			readonly trigger?: HTMLElement;
+			readonly onClose?: () => void;
+		},
+	): PopupHandle | null {
+		if (!this.popupManager) return null;
+		this.close();
+		const button = options.trigger;
 
-		this.activePopupButton = button;
-		button.classList.add('notectl-toolbar-btn--popup-open');
-		button.setAttribute('aria-expanded', 'true');
+		this.activePopupButton = button ?? null;
+		button?.classList.add('notectl-toolbar-btn--popup-open');
+		button?.setAttribute('aria-expanded', 'true');
 
-		this.activeHandle = this.popupManager.open({
-			anchor: button,
+		const handle = this.popupManager.open({
+			anchor: options.anchor,
 			className: 'notectl-toolbar-popup',
-			referenceNode: button,
-			restoreFocusTo: button,
+			referenceNode: context.getContainer(),
+			restoreFocusTo: options.restoreFocusTo ?? button ?? context.getContainer(),
 			position: 'below-start',
 			onClose: () => {
 				// Called when PopupManager closes the popup (click-outside, etc.)
 				this.activeHandle = null;
 				this.clearButtonState();
 				this.activePopup = null;
+				options.onClose?.();
 			},
 			content: (popup: HTMLElement, close: (options?: PopupCloseOptions) => void) => {
 				this.activePopup = popup;
@@ -105,6 +118,8 @@ export class ToolbarPopupController {
 				popup.addEventListener('keydown', (e: KeyboardEvent) => this.handlePopupKeydown(e));
 			},
 		});
+		this.activeHandle = this.activePopup ? handle : null;
+		return this.activeHandle;
 	}
 
 	// --- Shared rendering ---
@@ -154,7 +169,7 @@ export class ToolbarPopupController {
 	// --- Keyboard Navigation ---
 
 	private handlePopupKeydown(e: KeyboardEvent): void {
-		if (!this.activePopup) return;
+		if (!this.activePopup || e.defaultPrevented || e.isComposing) return;
 
 		if (e.key === 'Escape') {
 			e.preventDefault();
@@ -163,11 +178,17 @@ export class ToolbarPopupController {
 			return;
 		}
 
-		if (e.key === 'Tab') {
+		if (e.key === 'Tab' && !this.activePopup.querySelector('input, textarea, select')) {
 			e.preventDefault();
 			this.closeAndRestoreFocus();
 			return;
 		}
+		// Native text editing and feature-specific popup keyboard handlers own inputs.
+		if (
+			e.target instanceof HTMLElement &&
+			(e.target.matches('input, textarea, select') || e.target.isContentEditable)
+		)
+			return;
 
 		const menuItems: NodeListOf<Element> = this.activePopup.querySelectorAll('[role="menuitem"]');
 		if (menuItems.length > 0) {

@@ -798,7 +798,8 @@ describe('PluginManager', () => {
 			);
 			await pm.init(makePluginOptions());
 
-			expect(pm.getPluginStyleSheets()).toHaveLength(1);
+			// The editor-owned UI stylesheet is shared independently of ToolbarPlugin.
+			expect(pm.getPluginStyleSheets()).toHaveLength(2);
 			await pm.destroy();
 			expect(pm.getPluginStyleSheets()).toHaveLength(0);
 		});
@@ -825,7 +826,7 @@ describe('PluginManager', () => {
 			);
 			await pm.init(makePluginOptions());
 
-			expect(pm.getPluginStyleSheets()).toHaveLength(2);
+			expect(pm.getPluginStyleSheets()).toHaveLength(3);
 
 			// Destroy only removes sheets in reverse init order.
 			// After full destroy, all should be gone.

@@ -113,6 +113,7 @@ export interface ContextFactoryDeps {
 	invalidatePasteSort(): void;
 	invalidateTextInputSort(): void;
 	executeCommand(name: string): boolean;
+	onCommandsChanged?(): void;
 }
 
 /** Creates an empty registration tracker for a plugin. */
@@ -159,6 +160,7 @@ function createCommandRegistrar(
 	commands: Map<string, CommandEntry>,
 	reg: PluginRegistrations,
 	executeCommand: (name: string) => boolean,
+	onChanged?: () => void,
 ): Pick<PluginContext, 'registerCommand' | 'executeCommand'> {
 	return {
 		registerCommand: (name: string, handler: CommandHandler, options?: CommandOptions) => {
@@ -171,6 +173,7 @@ function createCommandRegistrar(
 			const readonlyAllowed: boolean = options?.readonlyAllowed ?? false;
 			commands.set(name, { name, handler, pluginId, readonlyAllowed });
 			reg.commands.push(name);
+			onChanged?.();
 		},
 		executeCommand,
 	};
@@ -647,7 +650,13 @@ export function createPluginContext(deps: ContextFactoryDeps): {
 		isReadOnly: deps.isReadOnly,
 		getEventBus: () => pluginEventBus,
 
-		...createCommandRegistrar(deps.pluginId, deps.commands, reg, deps.executeCommand),
+		...createCommandRegistrar(
+			deps.pluginId,
+			deps.commands,
+			reg,
+			deps.executeCommand,
+			deps.onCommandsChanged,
+		),
 		...createServiceRegistrar(deps.services, reg),
 		...createMiddlewareRegistrar(deps, reg),
 		...createSchemaRegistrar(deps, reg),

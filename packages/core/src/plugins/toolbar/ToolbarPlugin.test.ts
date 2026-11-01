@@ -46,6 +46,7 @@ function createFakePlugin(id: string, items: ToolbarItem[], opts?: { priority?: 
 		priority: opts?.priority ?? 100,
 		init(context) {
 			for (const item of items) {
+				context.registerCommand(item.command, () => true);
 				context.registerToolbarItem(item);
 			}
 		},

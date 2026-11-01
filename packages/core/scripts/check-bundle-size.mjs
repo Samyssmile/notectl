@@ -24,7 +24,10 @@ const ENTRY_BUDGETS = [
 	// actual parent, and structural steps validate their positions.
 	// #267 follow-ups: measured 110.07 KB; history replay drops steps that no longer fit,
 	// deletion keeps the shape of tables, and image file and MathML paste replace a range.
-	['Core', 'src/index.ts', 110.5],
+	// #288 foundation: editor-owned action, focus, popup and geometry services (~5 KB).
+	// No feature renderer or framework is pulled into core by the UI contracts entry.
+	['Core', 'src/index.ts', 115.5],
+	['UI contracts', 'src/ui.ts', 0.5],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
 	// #269: measured 13.50 KB; the parser and serializer carry the style class vocabulary.
@@ -190,7 +193,7 @@ async function main() {
 		const files = collectStaticClosure(entry.file, chunksByFile);
 		unionInto(allEntryFiles, files);
 		const isCoreExtension =
-			source.startsWith('src/plugins/') || source.startsWith('src/presets/');
+			source.startsWith('src/plugins/') || source.startsWith('src/presets/') || source === 'src/ui.ts';
 		const budgetedFiles = isCoreExtension
 			? new Set([...files].filter((file) => !coreFiles.has(file)))
 			: files;

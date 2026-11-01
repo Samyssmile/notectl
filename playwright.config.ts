@@ -47,6 +47,7 @@ const CROSS_BROWSER_SPEC_NAMES: readonly string[] = [
 	'toolbar-keyboard-access',
 	'link',
 	'style-delivery',
+	'custom-ui',
 ];
 
 const CROSS_BROWSER_SPECS: RegExp = new RegExp(
@@ -66,7 +67,7 @@ const ciOnlyProjects = [
 	},
 	{
 		name: 'firefox',
-		testIgnore: /touch/,
+		testIgnore: /touch|angular/,
 		use: {
 			...devices['Desktop Firefox'],
 			baseURL: 'http://localhost:3000',

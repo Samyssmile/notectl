@@ -8,6 +8,15 @@ import type { ToolbarItem } from './ToolbarItem.js';
 export class ToolbarRegistry {
 	private readonly _toolbarItems = new Map<string, ToolbarItem>();
 	private readonly _toolbarItemPluginMap = new Map<string, string[]>();
+	private readonly listeners = new Set<() => void>();
+
+	/** Observe registration changes. The returned function removes the listener. */
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
 
 	registerToolbarItem(item: ToolbarItem, pluginId?: string): void {
 		if (this._toolbarItems.has(item.id)) {
@@ -19,6 +28,7 @@ export class ToolbarRegistry {
 			ids.push(item.id);
 			this._toolbarItemPluginMap.set(pluginId, ids);
 		}
+		this.notify();
 	}
 
 	getToolbarItemsByPlugin(pluginId: string): ToolbarItem[] {
@@ -40,7 +50,7 @@ export class ToolbarRegistry {
 	}
 
 	removeToolbarItem(id: string): void {
-		this._toolbarItems.delete(id);
+		if (!this._toolbarItems.delete(id)) return;
 		for (const [pluginId, ids] of this._toolbarItemPluginMap) {
 			const idx = ids.indexOf(id);
 			if (idx !== -1) {
@@ -49,10 +59,16 @@ export class ToolbarRegistry {
 				break;
 			}
 		}
+		this.notify();
 	}
 
 	clear(): void {
 		this._toolbarItems.clear();
 		this._toolbarItemPluginMap.clear();
+		this.notify();
+	}
+
+	private notify(): void {
+		for (const listener of [...this.listeners]) listener();
 	}
 }

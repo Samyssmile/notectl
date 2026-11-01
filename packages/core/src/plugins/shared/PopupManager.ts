@@ -5,6 +5,8 @@
  */
 
 import { isRtlContext } from '../../platform/Platform.js';
+import type { ViewportRect } from '../../view/SelectionGeometry.js';
+import { consoleLogger } from '../Logger.js';
 import { ServiceKey } from '../Plugin.js';
 import {
 	type PopupPosition,
@@ -27,7 +29,7 @@ export interface PopupCloseOptions {
 }
 
 export interface PopupConfig {
-	readonly anchor: HTMLElement | DOMRect;
+	readonly anchor: HTMLElement | ViewportRect | PopupAnchor;
 	readonly content: (container: HTMLElement, close: (options?: PopupCloseOptions) => void) => void;
 	readonly className?: string;
 	readonly ariaRole?: 'menu' | 'listbox' | 'grid' | 'dialog';
@@ -44,6 +46,14 @@ export interface PopupConfig {
 export interface PopupHandle {
 	close(options?: PopupCloseOptions): void;
 	getElement(): HTMLElement;
+	/** Re-measures the anchor and applies viewport collision handling. */
+	updatePosition(): void;
+}
+
+/** A live viewport anchor. A null rectangle closes the popup without moving focus. */
+export interface PopupAnchor {
+	getRect(): ViewportRect | null;
+	subscribe?(listener: () => void): () => void;
 }
 
 export interface PopupServiceAPI {
@@ -51,6 +61,7 @@ export interface PopupServiceAPI {
 	close(): void;
 	closeAll(): void;
 	isOpen(): boolean;
+	reposition(handle: PopupHandle): void;
 }
 
 export const PopupServiceKey = new ServiceKey<PopupServiceAPI>('popup');
@@ -60,10 +71,12 @@ export const PopupServiceKey = new ServiceKey<PopupServiceAPI>('popup');
 interface PopupEntry {
 	readonly element: HTMLElement;
 	readonly config: PopupConfig;
-	readonly clickOutsideHandler: (e: MouseEvent) => void;
+	readonly clickOutsideHandler: (e: Event) => void;
 	readonly parent: PopupEntry | null;
 	listenerRegistrationTimer: ReturnType<typeof setTimeout> | null;
 	documentListenerAttached: boolean;
+	focusFrame: number | null;
+	readonly cleanups: (() => void)[];
 }
 
 // --- Manager ---
@@ -71,13 +84,18 @@ interface PopupEntry {
 export class PopupManager implements PopupServiceAPI {
 	private readonly stack: PopupEntry[] = [];
 	private readonly referenceNode: Node;
+	private destroyed = false;
 
-	constructor(referenceNode: Node) {
+	constructor(
+		referenceNode: Node,
+		private readonly registerInteraction?: (element: HTMLElement) => () => void,
+	) {
 		this.referenceNode = referenceNode;
 	}
 
 	/** Opens a popup with the given configuration. Returns a handle for closing it. */
 	open(config: PopupConfig): PopupHandle {
+		if (this.destroyed) throw new Error('Popup service has been destroyed.');
 		const popup: HTMLDivElement = document.createElement('div');
 		popup.className = config.className ? `notectl-popup ${config.className}` : 'notectl-popup';
 
@@ -96,9 +114,10 @@ export class PopupManager implements PopupServiceAPI {
 		const handle: PopupHandle = {
 			close: (options?: PopupCloseOptions) => this.closeEntry(entry, options),
 			getElement: () => popup,
+			updatePosition: () => this.reposition(handle),
 		};
 
-		const clickOutsideHandler = (e: MouseEvent): void => {
+		const clickOutsideHandler = (e: Event): void => {
 			const path: EventTarget[] = e.composedPath();
 			if (path.includes(popup)) return;
 
@@ -110,7 +129,7 @@ export class PopupManager implements PopupServiceAPI {
 			// Don't close if click is on the anchor element
 			if (config.anchor instanceof HTMLElement && path.includes(config.anchor)) return;
 
-			this.closeEntry(entry);
+			this.closeEntry(entry, { restoreFocusTo: null });
 		};
 
 		entry = {
@@ -120,14 +139,17 @@ export class PopupManager implements PopupServiceAPI {
 			parent: parentEntry,
 			listenerRegistrationTimer: null,
 			documentListenerAttached: false,
+			focusFrame: null,
+			cleanups: [],
 		};
 
 		this.stack.push(entry);
-
+		const unregister = this.registerInteraction?.(popup);
+		if (unregister) entry.cleanups.push(unregister);
 		try {
 			config.content(popup, (options?: PopupCloseOptions) => this.closeEntry(entry, options));
 		} catch (error) {
-			this.removeEntry(entry);
+			this.closeEntry(entry, { restoreFocusTo: null });
 			throw error;
 		}
 
@@ -135,24 +157,48 @@ export class PopupManager implements PopupServiceAPI {
 			return handle;
 		}
 
-		const refNode: Node = config.referenceNode ?? this.referenceNode;
-		appendToRoot(popup, refNode);
-		// Promote to the top layer before measuring/positioning so the popup
-		// escapes any ancestor stacking context in the host page.
-		promoteToTopLayer(popup);
+		// Feature handlers on this same container run first and may consume Escape
+		// or close with their own focus target before the default dismissal runs.
+		popup.addEventListener('keydown', (event) => {
+			if (event.key !== 'Escape' || event.isComposing || event.defaultPrevented) return;
+			if (this.stack.at(-1) !== entry) return;
+			event.preventDefault();
+			event.stopPropagation();
+			this.closeEntry(entry);
+		});
 
-		this.positionEntry(entry);
+		try {
+			const refNode: Node = config.referenceNode ?? this.referenceNode;
+			appendToRoot(popup, refNode);
+			// Promote to the top layer before measuring/positioning so the popup
+			// escapes any ancestor stacking context in the host page.
+			promoteToTopLayer(popup);
 
-		entry.listenerRegistrationTimer = setTimeout(() => {
-			entry.listenerRegistrationTimer = null;
-			if (!this.stack.includes(entry)) return;
-			document.addEventListener('mousedown', clickOutsideHandler);
-			entry.documentListenerAttached = true;
-		}, 0);
+			this.positionEntry(entry);
+			if (!this.stack.includes(entry)) return handle;
+			if ('getRect' in config.anchor && config.anchor.subscribe) {
+				const unsubscribe = config.anchor.subscribe(() => this.reposition(handle));
+				if (this.stack.includes(entry)) entry.cleanups.push(unsubscribe);
+				else unsubscribe();
+			}
+			if (!this.stack.includes(entry)) return handle;
+			this.observePosition(entry);
 
-		if (config.autoFocus !== false) this.focusFirstItem(popup);
+			entry.listenerRegistrationTimer = setTimeout(() => {
+				entry.listenerRegistrationTimer = null;
+				if (!this.stack.includes(entry)) return;
+				document.addEventListener('mousedown', clickOutsideHandler);
+				document.addEventListener('touchstart', clickOutsideHandler);
+				entry.documentListenerAttached = true;
+			}, 0);
 
-		return handle;
+			if (config.autoFocus !== false) this.focusFirstItem(entry);
+
+			return handle;
+		} catch (error) {
+			this.closeEntry(entry, { restoreFocusTo: null });
+			throw error;
+		}
 	}
 
 	/** Closes the topmost popup in the stack. */
@@ -180,7 +226,11 @@ export class PopupManager implements PopupServiceAPI {
 
 	/** Cleans up all popups and event listeners. */
 	destroy(): void {
-		this.closeAll();
+		this.destroyed = true;
+		while (this.stack.length) {
+			const entry = this.stack.at(-1);
+			if (entry) this.closeEntry(entry, { restoreFocusTo: null });
+		}
 	}
 
 	// --- Internal ---
@@ -189,22 +239,35 @@ export class PopupManager implements PopupServiceAPI {
 		const index: number = this.stack.indexOf(entry);
 		if (index === -1) return;
 
-		// Close all child popups first (anything above this entry in the stack)
-		while (this.stack.length > index + 1) {
-			const child: PopupEntry | undefined = this.stack[this.stack.length - 1];
-			if (child) {
+		// Only descendants belong to this popup; other root popups keep their lifecycle.
+		const descendants: PopupEntry[] = [];
+		for (const child of [...this.stack].reverse()) {
+			let parent = child.parent;
+			while (parent && parent !== entry) parent = parent.parent;
+			if (parent === entry) {
+				descendants.push(child);
 				this.removeEntry(child);
 			}
 		}
 
 		this.removeEntry(entry);
+		// Detach the complete group before callbacks may re-enter close().
+		for (const child of descendants) this.notifyClose(child);
 
 		if (options !== undefined && 'restoreFocusTo' in options) {
 			options.restoreFocusTo?.focus();
 		} else if (entry.config.restoreFocusTo) {
 			entry.config.restoreFocusTo.focus();
 		}
-		entry.config.onClose?.();
+		this.notifyClose(entry);
+	}
+
+	private notifyClose(entry: PopupEntry): void {
+		try {
+			entry.config.onClose?.();
+		} catch (error) {
+			consoleLogger.error('[PopupManager] onClose failed', error);
+		}
 	}
 
 	private removeEntry(entry: PopupEntry): void {
@@ -212,6 +275,14 @@ export class PopupManager implements PopupServiceAPI {
 		if (index === -1) return;
 
 		this.stack.splice(index, 1);
+		for (const cleanup of entry.cleanups) {
+			try {
+				cleanup();
+			} catch (error) {
+				consoleLogger.error('[PopupManager] cleanup failed', error);
+			}
+		}
+		if (entry.focusFrame !== null) cancelAnimationFrame(entry.focusFrame);
 		if (entry.listenerRegistrationTimer !== null) {
 			clearTimeout(entry.listenerRegistrationTimer);
 			entry.listenerRegistrationTimer = null;
@@ -219,6 +290,7 @@ export class PopupManager implements PopupServiceAPI {
 		entry.element.remove();
 		if (entry.documentListenerAttached) {
 			document.removeEventListener('mousedown', entry.clickOutsideHandler);
+			document.removeEventListener('touchstart', entry.clickOutsideHandler);
 			entry.documentListenerAttached = false;
 		}
 	}
@@ -231,8 +303,16 @@ export class PopupManager implements PopupServiceAPI {
 
 	private positionEntry(entry: PopupEntry): void {
 		const config: PopupConfig = entry.config;
-		const anchorRect: DOMRect =
-			config.anchor instanceof HTMLElement ? config.anchor.getBoundingClientRect() : config.anchor;
+		const anchorRect: ViewportRect | null =
+			config.anchor instanceof HTMLElement
+				? config.anchor.getBoundingClientRect()
+				: 'getRect' in config.anchor
+					? config.anchor.getRect()
+					: config.anchor;
+		if (!anchorRect) {
+			this.closeEntry(entry, { restoreFocusTo: null });
+			return;
+		}
 		positionPopup(entry.element, anchorRect, {
 			position: config.position ?? 'below-start',
 			isRtl: this.isRtlContext(),
@@ -252,8 +332,10 @@ export class PopupManager implements PopupServiceAPI {
 		return false;
 	}
 
-	private focusFirstItem(popup: HTMLElement): void {
-		requestAnimationFrame(() => {
+	private focusFirstItem(entry: PopupEntry): void {
+		const popup = entry.element;
+		entry.focusFrame = requestAnimationFrame(() => {
+			entry.focusFrame = null;
 			if (!popup.isConnected) return;
 			const firstFocusable: HTMLElement | null =
 				popup.querySelector('[role="menuitem"]') ??
@@ -265,6 +347,35 @@ export class PopupManager implements PopupServiceAPI {
 				popup.querySelector('input, textarea') ??
 				popup.querySelector('button');
 			firstFocusable?.focus();
+		});
+	}
+
+	private observePosition(entry: PopupEntry): void {
+		let frame: number | null = null;
+		const update = (): void => {
+			if (frame !== null) return;
+			frame = requestAnimationFrame(() => {
+				frame = null;
+				if (this.stack.includes(entry)) this.positionEntry(entry);
+			});
+		};
+		const listen = (target: EventTarget, name: string): void => {
+			target.addEventListener(name, update, true);
+			entry.cleanups.push(() => target.removeEventListener(name, update, true));
+		};
+		listen(window, 'resize');
+		listen(document, 'scroll');
+		listen(this.referenceNode.getRootNode(), 'scroll');
+		if (window.visualViewport) {
+			listen(window.visualViewport, 'resize');
+			listen(window.visualViewport, 'scroll');
+		}
+		const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+		resize?.observe(entry.element);
+		if (entry.config.anchor instanceof HTMLElement) resize?.observe(entry.config.anchor);
+		entry.cleanups.push(() => {
+			resize?.disconnect();
+			if (frame !== null) cancelAnimationFrame(frame);
 		});
 	}
 }

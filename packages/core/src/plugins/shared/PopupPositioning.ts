@@ -5,6 +5,7 @@
  */
 
 import { setStyleProperties } from '../../style/StyleRuntime.js';
+import type { ViewportRect } from '../../view/SelectionGeometry.js';
 
 // --- Types ---
 
@@ -78,7 +79,11 @@ export function measureContainingBlockOffset(popup: HTMLElement): ContainingBloc
  * Automatically compensates for ancestors that create a new containing
  * block (e.g. `transform`, `will-change: transform`).
  */
-export function positionPopup(popup: HTMLElement, anchor: DOMRect, options: PositionOptions): void {
+export function positionPopup(
+	popup: HTMLElement,
+	anchor: ViewportRect,
+	options: PositionOptions,
+): void {
 	const offset: number = options.offset ?? DEFAULT_OFFSET;
 	const vpWidth: number = window.innerWidth;
 	const vpHeight: number = window.innerHeight;

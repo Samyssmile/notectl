@@ -417,6 +417,40 @@ otherwise the caret will reset on round-trip.
 
 ## 10. Angular Integration Rules (`packages/angular`)
 
+### Editor UI services (#288 foundation)
+
+The editor owns `EditorUIServiceKey` and `PopupServiceKey` independently of `ToolbarPlugin`.
+Public contracts are exported through `@notectl/core/ui`; this entry imports no feature renderer
+or Angular code. `ToolbarItem` remains the only action definition. The standard toolbar and custom
+interfaces evaluate the same immutable action snapshots and execute through the existing command
+registry and transaction guards. Registration changes are observable. UI subscriptions isolate
+consumer exceptions, and all editor-owned resources participate in initialization rollback/destroy.
+
+`view/SelectionGeometry` maps the current model selection to immutable viewport rectangles.
+The DOM mapping remains internal. Unmeasurable collapsed ranges beside atomic inline nodes use
+the corresponding box edge, including mark wrappers. Computed CSS visibility suppresses geometry
+for hidden/collapsed editors and respects inheritance through shadow hosts.
+`SelectionObserver` lazily coalesces geometry notifications
+and disposes its listeners/observers when no consumers remain. Text endpoints preserve direction;
+node/gap selections and normalized table cell ranges have explicit geometric contracts. The table
+selection service key lives in a small types module so UI infrastructure does not import the table
+implementation. Application-only CSSOM/animation movement can request explicit invalidation.
+
+Focus ownership never stores a frozen selection bookmark. Transactions keep mapping the model
+selection while the view avoids overwriting a focused external control's browser selection.
+Returning to the editor writes the latest model selection. IME keeps ownership of composing DOM.
+The popup manager registers its own interaction roots, accepts live selection anchors and reuses
+the existing top-layer/CSP positioning path. Feature popup focus overrides remain compatible:
+container feature handlers run before default Escape dismissal and can prevent it or close with
+their own focus target.
+Popup styles are shared separately from standard-toolbar layout styles.
+
+This deliberately makes the shared UI service available in every initialized editor, including
+those without a toolbar. The initial implementation adds approximately 5 KB gzip to the core
+graph; the core budget is 115.5 KB, and the marginal public UI contract entry has a 0.5 KB budget.
+No bubble visibility policy or theme preset is included. The contracts and runnable, typechecked
+plugin/external/Angular examples are described in `guides/custom-editor-ui`.
+
 - The Angular package is an adapter layer, not a second editor engine.
 - `NotectlEditorComponent` proxies the Web Component API; no duplication of core logic.
 - Forms integration runs through `NotectlValueAccessorDirective`; content format via token (`json|html|text`).

@@ -246,6 +246,7 @@ export function createTableContextMenu(
 			const menuHandle: PopupHandle = {
 				close: () => close(),
 				getElement: () => menu,
+				updatePosition: () => popupManager.reposition(menuHandle),
 			};
 
 			subHandle = popupManager.open({

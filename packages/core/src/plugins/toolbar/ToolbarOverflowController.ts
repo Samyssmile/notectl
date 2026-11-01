@@ -2,14 +2,15 @@
  * ToolbarOverflowController: manages responsive toolbar overflow.
  * Uses ResizeObserver to detect when items exceed available width,
  * hides overflow items, and shows a "more" dropdown button.
- * Delegates popup lifecycle to PopupManager when available.
+ * Delegates popup lifecycle to PopupServiceAPI when available.
  */
 
 import { isRtlContext } from '../../platform/Platform.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { PluginContext } from '../Plugin.js';
+import { EditorUIServiceKey } from '../editor-ui/EditorUI.js';
 import { findNextDropdownItem } from '../shared/KeyboardNav.js';
-import type { PopupHandle, PopupManager } from '../shared/PopupManager.js';
+import type { PopupHandle, PopupServiceAPI } from '../shared/PopupManager.js';
 import { appendToRoot, positionPopup } from '../shared/PopupPositioning.js';
 import type { ToolbarItem } from './ToolbarItem.js';
 
@@ -34,7 +35,7 @@ export interface OverflowControllerConfig {
 	readonly onOverflowChange: OnOverflowChange;
 	readonly onItemActivated: OnItemActivated;
 	readonly getActiveElement: () => Element | null;
-	readonly popupManager?: PopupManager;
+	readonly popupManager?: PopupServiceAPI;
 }
 
 // --- Constants ---
@@ -60,7 +61,7 @@ export class ToolbarOverflowController {
 	private readonly onItemActivated: OnItemActivated;
 	private readonly getActiveElement: () => Element | null;
 	private readonly ariaLabel: string;
-	private readonly popupManager: PopupManager | null;
+	private readonly popupManager: PopupServiceAPI | null;
 
 	private entries: OverflowEntry[] = [];
 	private overflowButton: HTMLButtonElement | null = null;
@@ -206,7 +207,13 @@ export class ToolbarOverflowController {
 			if (!entry) continue;
 
 			const active: boolean = entry.item.isActive?.(state) ?? false;
-			const enabled: boolean = entry.item.isEnabled?.(state) ?? true;
+			const enabled: boolean =
+				this.context
+					.getService(EditorUIServiceKey)
+					?.getActions()
+					.find((a) => a.id === entry.item.id)?.enabled ??
+				entry.item.isEnabled?.(state) ??
+				true;
 			menuItem.classList.toggle('notectl-dropdown__item--active', active);
 			menuItem.disabled = !enabled;
 

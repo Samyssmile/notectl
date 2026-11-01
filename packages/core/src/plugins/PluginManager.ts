@@ -37,6 +37,7 @@ import { createPluginContext } from './PluginContextFactory.js';
 import { PluginLifecycle } from './PluginLifecycle.js';
 import { RegistrationTracker } from './RegistrationTracker.js';
 import { ServiceRegistry } from './ServiceRegistry.js';
+import { EditorUIRuntime } from './editor-ui/EditorUIRuntime.js';
 import { BlockTypePickerRegistry } from './heading/BlockTypePickerRegistry.js';
 import { ToolbarRegistry } from './toolbar/ToolbarRegistry.js';
 
@@ -91,6 +92,8 @@ export class PluginManager {
 	private readonly lifecycle: PluginLifecycle;
 	private readonly callbackExecutor: PluginCallbackExecutor;
 	private pendingDestroy: Promise<void> | null = null;
+	private ui: EditorUIRuntime | null = null;
+	private uiInit: Promise<void> | null = null;
 
 	constructor(options: PluginManagerOptions = {}) {
 		this.logger = options.logger ?? consoleLogger;
@@ -128,6 +131,8 @@ export class PluginManager {
 	// --- Plugin Registration ---
 
 	register(plugin: Plugin): void {
+		if (plugin.id === 'core-ui')
+			throw new Error('Plugin id "core-ui" is reserved for editor services.');
 		if (this.pendingDestroy) {
 			throw new Error(`Cannot register plugin "${plugin.id}" while destruction is in progress.`);
 		}
@@ -142,6 +147,7 @@ export class PluginManager {
 				new Error('Cannot initialize PluginManager while destruction is in progress.'),
 			);
 		}
+		if (this.uiInit) return this.uiInit;
 		const lifecycleOptions: PluginManagerInitOptions = {
 			...options,
 			onBeforeReady: async () => {
@@ -149,15 +155,31 @@ export class PluginManager {
 				// Materialize one coherent schema before any view/input consumer starts.
 				this.schemaRegistry.finalize();
 				await options.onBeforeReady?.();
+				if (!options.isCancelled?.()) await this.ui?.start();
 			},
 		};
-		return this.lifecycle.init(lifecycleOptions, (id, opts) => this.createContext(id, opts));
+		this.ui ??= new EditorUIRuntime(
+			this.createContext('core-ui', options),
+			(name) => this.canExecuteCommand(name),
+			this.logger,
+		);
+		this.uiInit = this.lifecycle
+			.init(lifecycleOptions, (id, opts) => this.createContext(id, opts))
+			.then(() => {
+				if (options.isCancelled?.()) this.disposeUI();
+			})
+			.catch((error: unknown) => {
+				this.disposeUI();
+				throw error;
+			});
+		return this.uiInit;
 	}
 
 	// --- State & Notifications ---
 
 	notifyStateChange(oldState: EditorState, newState: EditorState, tr: Transaction): void {
 		this.lifecycle.notifyStateChange(oldState, newState, tr);
+		this.ui?.refresh();
 	}
 
 	collectDecorations(state: EditorState, tr?: Transaction): DecorationSet {
@@ -204,6 +226,13 @@ export class PluginManager {
 
 	setReadOnly(readonly: boolean): void {
 		this.lifecycle.setReadOnly(readonly);
+		if (readonly) this.ui?.popups.closeAll();
+		this.ui?.refresh();
+	}
+
+	/** View port: never overwrite a focused UI input's browser selection. */
+	shouldSyncSelection(): boolean {
+		return this.ui?.interaction.shouldSyncSelection() ?? true;
 	}
 
 	// --- Introspection ---
@@ -249,6 +278,7 @@ export class PluginManager {
 
 	destroy(): Promise<void> {
 		if (this.pendingDestroy) return this.pendingDestroy;
+		this.ui?.destroy();
 
 		const operation = this.lifecycle.destroy().then(() => this.clearRegistries());
 		const tracked = operation.finally(() => {
@@ -259,6 +289,8 @@ export class PluginManager {
 	}
 
 	private clearRegistries(): void {
+		this.ui = null;
+		this.uiInit = null;
 		this.commandRegistry.clear();
 		this.serviceRegistry.clear();
 		this.middlewareChain.clear();
@@ -275,6 +307,13 @@ export class PluginManager {
 	}
 
 	// --- Private ---
+
+	private disposeUI(): void {
+		this.ui?.destroy();
+		this.ui = null;
+		this.uiInit = null;
+		this.registrationTracker.cleanup('core-ui');
+	}
 
 	private createContext(pluginId: string, options: PluginManagerInitOptions): PluginContext {
 		const getCompositionState: () => CompositionState =
@@ -311,6 +350,7 @@ export class PluginManager {
 			invalidatePasteSort: () => this.middlewareChain.invalidatePasteSort(),
 			invalidateTextInputSort: () => this.middlewareChain.invalidateTextInputSort(),
 			executeCommand: (name: string) => this.executeCommand(name),
+			onCommandsChanged: () => this.ui?.refresh(),
 		};
 
 		const { context, registrations } = createPluginContext(deps);

@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import type { EditorState, StateChangeEvent, Transaction } from '@notectl/core';
+import type { EditorState, ServiceKey, StateChangeEvent, Transaction } from '@notectl/core';
 import { type Observable, Subject } from 'rxjs';
 
 import type { NotectlEditorComponent } from './notectl-editor.component';
@@ -77,6 +77,11 @@ export class NotectlEditorService {
 		const editor: NotectlEditorComponent | null = this.editorRef();
 		if (!editor) return false;
 		return editor.executeCommand(name);
+	}
+
+	/** Proxies the registered editor's typed services without maintaining UI state. */
+	getService<T>(key: ServiceKey<T>): T | undefined {
+		return this.editorRef()?.getService(key);
 	}
 
 	/** Returns the current editor state, or `null` if no editor is registered. */
