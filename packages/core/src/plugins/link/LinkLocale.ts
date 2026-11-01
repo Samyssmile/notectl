@@ -7,6 +7,9 @@ import { type LocaleModuleMap, loadLocaleModule } from '../shared/LocaleLoader.j
 // --- Locale Interface ---
 
 export interface LinkLocale {
+	readonly editLink?: string;
+	readonly closeBubble?: string;
+	readonly bubbleOpened?: string;
 	readonly label: string;
 	readonly tooltip: (shortcut: string) => string;
 	readonly removeLink: string;
@@ -27,6 +30,9 @@ export interface LinkLocale {
 // --- Default English Locale ---
 
 export const LINK_LOCALE_EN: Required<LinkLocale> = {
+	editLink: 'Edit link',
+	closeBubble: 'Close link bubble',
+	bubbleOpened: 'Link bubble opened. Press Tab for link actions or Escape to dismiss.',
 	label: 'Link',
 	tooltip: (shortcut: string) => `Insert Link (${shortcut})`,
 	removeLink: 'Remove Link',

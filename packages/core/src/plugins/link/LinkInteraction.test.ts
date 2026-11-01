@@ -24,9 +24,15 @@ async function fixture(href = 'https://example.com', openInNewTab = true): Promi
 	anchor.append(child);
 	container.append(anchor);
 	document.body.append(container);
+	const state = stateBuilder()
+		.block('paragraph', 'Link', 'b1', { marks: [{ type: 'link', attrs: { href } }] })
+		.cursor('b1', 2)
+		.schema(['paragraph'], ['link'])
+		.build();
 	let readonly = false;
 	const context: PluginContext = mockPluginContext({
 		getContainer: () => container,
+		getState: () => state,
 		isReadOnly: () => readonly,
 	});
 	const plugin: LinkPlugin = new LinkPlugin({ openInNewTab });
@@ -78,7 +84,7 @@ describe('link interactions', () => {
 			expect(f.activated[0]?.getAttribute('href')).toBe('https://example.com');
 			expect(f.activated[0]?.target).toBe('_blank');
 			expect(f.context.dispatch).not.toHaveBeenCalled();
-			expect(document.querySelector('.notectl-link-preview')).toBeNull();
+			expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		},
 	);
 
@@ -95,7 +101,7 @@ describe('link interactions', () => {
 			expect(click(f.child, options).defaultPrevented).toBe(false);
 		}
 		expect(f.activated).toHaveLength(0);
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 	});
 
 	it.each([{ button: 1 }, { button: 2 }, { shiftKey: true }, { altKey: true }])(
@@ -119,7 +125,7 @@ describe('link interactions', () => {
 		f.child.parentElement?.setAttribute('contenteditable', 'false');
 		expect(click(f.child, { ctrlKey: true }).defaultPrevented).toBe(false);
 		expect(f.activated).toHaveLength(0);
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 	});
 
 	it.each(['', 'javascript:alert(1)'])('blocks unsafe/no-op anchors: %s', async (href) => {
@@ -129,14 +135,14 @@ describe('link interactions', () => {
 		f.setReadonly(false);
 		click(f.child, { ctrlKey: true });
 		expect(f.activated).toHaveLength(0);
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 	});
 
 	it('shows a native open action and URL without moving focus or editing the document', async () => {
 		const f: Fixture = await fixture();
 		f.container.focus();
 		click(f.child);
-		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-preview a');
+		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-bubble a');
 		expect(link?.textContent).toContain('Open link in new tab');
 		expect(link?.textContent).toContain('https://example.com');
 		expect(link?.rel).toBe('noopener noreferrer');
@@ -148,7 +154,7 @@ describe('link interactions', () => {
 	it('opens from the preview in a new tab even when rendered links use the same tab', async () => {
 		const f: Fixture = await fixture('/relative', false);
 		click(f.child);
-		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-preview a');
+		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-bubble a');
 		expect(link?.target).toBe('_blank');
 		expect(link?.textContent).toBe('Open link in new tab/relative');
 	});
@@ -157,7 +163,7 @@ describe('link interactions', () => {
 		const f: Fixture = await fixture();
 		click(f.child);
 		expect(f.context.announce).toHaveBeenCalledWith(
-			'Link preview opened. Press Tab to open the link or Escape to dismiss.',
+			'Link bubble opened. Press Tab for link actions or Escape to dismiss.',
 		);
 		expect(f.context.announce).toHaveBeenCalledTimes(1);
 	});
@@ -196,7 +202,7 @@ describe('link interactions', () => {
 		f.container.dispatchEvent(new Event('scroll'));
 		document.dispatchEvent(new Event('scroll'));
 		window.dispatchEvent(new Event('resize'));
-		expect(document.querySelector('.notectl-link-preview')).not.toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).not.toBeNull();
 	});
 
 	it('closes once its link has scrolled out of the editor or left the document', async () => {
@@ -206,14 +212,14 @@ describe('link interactions', () => {
 		const rect = vi.spyOn(anchor, 'getBoundingClientRect');
 		rect.mockReturnValue(new DOMRect(0, -60, 100, 20));
 		document.dispatchEvent(new Event('scroll'));
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 
 		rect.mockRestore();
 		click(f.child);
-		expect(document.querySelector('.notectl-link-preview')).not.toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).not.toBeNull();
 		anchor.remove();
 		document.dispatchEvent(new Event('scroll'));
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 	});
 
 	it('allows Tab into the preview and Escape back to editing', async () => {
@@ -222,17 +228,17 @@ describe('link interactions', () => {
 		const tab: KeyboardEvent = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
 		f.container.dispatchEvent(tab);
 		expect(tab.defaultPrevented).toBe(true);
-		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-preview a');
+		const link: HTMLAnchorElement | null = document.querySelector('.notectl-link-bubble a');
 		expect(document.activeElement).toBe(link);
 		link?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		expect(document.activeElement).toBe(f.container);
 	});
 
 	it('does not show a preview for double-click text selection', async () => {
 		const f: Fixture = await fixture();
 		click(f.child, { detail: 2 });
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 	});
 
 	it('consumes Escape only while a preview is open, preserving normal editor Escape afterwards', async () => {
@@ -244,7 +250,7 @@ describe('link interactions', () => {
 		});
 		f.container.dispatchEvent(dismiss);
 		expect(dismiss.defaultPrevented).toBe(true);
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		const exit: KeyboardEvent = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
 		f.container.dispatchEvent(exit);
 		expect(exit.defaultPrevented).toBe(false);
@@ -254,18 +260,40 @@ describe('link interactions', () => {
 		const f: Fixture = await fixture();
 		click(f.child);
 		f.container.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		click(f.child);
 		f.plugin.onStateChange(f.context.getState(), stateBuilder().paragraph('replacement').build());
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		click(f.child);
 		f.setReadonly(true);
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		f.setReadonly(false);
 		click(f.child);
 		f.plugin.destroy();
-		expect(document.querySelector('.notectl-link-preview')).toBeNull();
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
 		click(f.child, { ctrlKey: true });
 		expect(f.activated).toHaveLength(0);
+	});
+	it('waits for Chromium to collapse a previous selection before showing clicked-link actions', async () => {
+		const f: Fixture = await fixture();
+		const collapsed = f.context.getState();
+		const selection = collapsed.selection;
+		if ('type' in selection) throw new Error('Expected text selection');
+		const selected = collapsed.withSelection({
+			anchor: { ...selection.anchor, offset: 0 },
+			head: { ...selection.head, offset: 4 },
+		});
+		const getState = vi.spyOn(f.context, 'getState').mockReturnValue(selected);
+		const native = document.createRange();
+		native.selectNodeContents(f.child);
+		document.getSelection()?.removeAllRanges();
+		document.getSelection()?.addRange(native);
+		click(f.child);
+		expect(document.querySelector('.notectl-link-bubble')).toBeNull();
+		document.getSelection()?.removeAllRanges();
+		getState.mockReturnValue(collapsed);
+		f.plugin.onStateChange(selected, collapsed);
+		expect(document.querySelector('[aria-label="Edit link"]')).not.toBeNull();
+		expect(document.querySelector('.notectl-link-bubble input')).toBeNull();
 	});
 });

@@ -1,6 +1,9 @@
 import type { LinkLocale } from '../LinkLocale.js';
 
 const locale: LinkLocale = {
+	editLink: '编辑链接',
+	closeBubble: '关闭链接气泡',
+	bubbleOpened: '链接气泡已打开。按 Tab 访问操作，按 Escape 关闭。',
 	openLink: '打开链接',
 	openLinkInNewTab: '在新标签页中打开链接',
 	closePreview: '关闭链接预览',

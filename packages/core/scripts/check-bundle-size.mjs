@@ -48,9 +48,9 @@ const ENTRY_BUDGETS = [
 	['Plugin: Video', 'src/plugins/video/index.ts', 15],
 	['Plugin: Code Block', 'src/plugins/code-block/index.ts', 15],
 	['Plugin: Smart Paste', 'src/plugins/smart-paste/index.ts', 7],
-	// #284: measured 5.2 KB; modifier/keyboard navigation and an accessible touch preview that
-	// follows its link while scrolling. Shared popup infrastructure stays in core.
-	['Plugin: Link', 'src/plugins/link/index.ts', 5.5],
+	// #286: measured 6.93 KB; shared Open/Edit/Remove bubble, whole-link transactions,
+	// keyboard entry and standalone form styling. Shared popup infrastructure stays in core.
+	['Plugin: Link', 'src/plugins/link/index.ts', 7],
 	['Plugin: List', 'src/plugins/list/index.ts', 5.5],
 	['Plugin: Blockquote', 'src/plugins/blockquote/index.ts', 3],
 	['Plugin: Strikethrough', 'src/plugins/strikethrough/index.ts', 2],

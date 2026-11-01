@@ -851,7 +851,7 @@ test.describe('Documentation screenshots', () => {
 		await setMinHeight(page, '200px');
 		await setEditorJSON(page, LINK_CONTENT);
 		await page.locator('notectl-editor .notectl-content a').first().click();
-		await page.locator('.notectl-link-preview').waitFor();
+		await page.locator('.notectl-link-bubble').waitFor();
 		await shot(page, 'plugin-link-preview.png');
 	});
 

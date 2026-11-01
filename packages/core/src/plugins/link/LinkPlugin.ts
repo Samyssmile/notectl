@@ -1,28 +1,28 @@
 /**
  * LinkPlugin: registers a link mark type with href attribute,
  * editing and navigation commands, keyboard shortcuts, and toolbar popup.
- * Link gestures and the non-modal preview have their own lifecycle controller.
+ * Link gestures and the non-modal bubble have their own lifecycle controller.
  */
 
 import {
-	applyAttributedMark,
 	getMarkAttrAtSelection,
 	isAttributedMarkActive,
 	removeAttributedMark,
 } from '../../commands/AttributedMarkCommands.js';
 import { LINK_CSS } from '../../editor/styles/link.js';
 import type { BlockNode } from '../../model/Document.js';
-import { hasMark } from '../../model/Document.js';
 import { escapeHTML, sanitizeHref } from '../../model/HTMLUtils.js';
 import { createCollapsedSelection, isCollapsed, isTextSelection } from '../../model/Selection.js';
 import { markType } from '../../model/TypeBrands.js';
 import type { EditorState } from '../../state/EditorState.js';
 import type { Plugin, PluginContext } from '../Plugin.js';
 import { dispatchIfPresent, resolveLocale } from '../shared/PluginHelpers.js';
+import type { PopupCloseOptions } from '../shared/PopupManager.js';
 import { formatShortcut } from '../shared/ShortcutFormatting.js';
 import { LinkInteractionController } from './LinkInteractionController.js';
 import { LINK_LOCALE_EN, type LinkLocale, loadLinkLocale } from './LinkLocale.js';
 import { openLink, shouldOpenInNewTab } from './LinkNavigation.js';
+import { changeLink, resolveLinkRange } from './LinkRange.js';
 
 // --- Attribute Registry Augmentation ---
 
@@ -90,14 +90,15 @@ export class LinkPlugin implements Plugin {
 
 	onStateChange(oldState: EditorState, newState: EditorState): void {
 		if (oldState.doc !== newState.doc) {
-			this.interaction?.closePreview();
+			this.interaction?.dismissForDocument(newState);
 			return;
 		}
-		this.interaction?.restorePreviewAnnouncement();
+		this.interaction?.onSelectionChange(oldState, newState);
+		this.interaction?.restoreBubbleAnnouncement();
 	}
 
 	onReadOnlyChange(): void {
-		this.interaction?.closePreview();
+		this.interaction?.closeBubble();
 	}
 
 	/**
@@ -215,6 +216,7 @@ export class LinkPlugin implements Plugin {
 	}
 
 	private registerCommands(context: PluginContext): void {
+		context.registerCommand('showLinkBubble', () => this.interaction?.showAtSelection() ?? false);
 		context.registerCommand(
 			'openLink',
 			() => {
@@ -249,7 +251,7 @@ export class LinkPlugin implements Plugin {
 
 	private registerKeymap(context: PluginContext): void {
 		context.registerKeymap({
-			'Mod-K': () => context.executeCommand('toggleLink'),
+			'Mod-K': () => context.executeCommand('showLinkBubble'),
 		});
 		context.registerKeymap(
 			{ 'Alt-Enter': () => context.executeCommand('openLink') },
@@ -289,62 +291,13 @@ export class LinkPlugin implements Plugin {
 		return false;
 	}
 
-	private addLink(context: PluginContext, state: EditorState, href: string): boolean {
-		const sel = state.selection;
-		if (!isTextSelection(sel)) return false;
-		if (isCollapsed(sel)) return false;
-
-		const mark = { type: markType('link'), attrs: { href } };
-		return dispatchIfPresent(context, applyAttributedMark(state, mark));
-	}
-
 	private removeLink(context: PluginContext, state: EditorState): boolean {
 		const sel = state.selection;
 		if (!isTextSelection(sel)) return false;
 
-		if (isCollapsed(sel)) {
-			// Remove link from entire link span around cursor (plugin-specific extent scan)
-			const block = state.getBlock(sel.anchor.blockId);
-			if (!block) return false;
-
-			const textChildren: { pos: number; end: number; hasLink: boolean }[] = [];
-			let pos = 0;
-			for (const child of block.children) {
-				if (!('text' in child)) continue;
-				const end = pos + child.text.length;
-				textChildren.push({ pos, end, hasLink: hasMark(child.marks, markType('link')) });
-				pos = end;
-			}
-
-			const cursorIdx = textChildren.findIndex(
-				(c) => sel.anchor.offset >= c.pos && sel.anchor.offset <= c.end,
-			);
-			const cursorEntry = cursorIdx >= 0 ? textChildren[cursorIdx] : undefined;
-			if (cursorIdx === -1 || !cursorEntry?.hasLink) return false;
-
-			let startIdx = cursorIdx;
-			while (startIdx > 0 && textChildren[startIdx - 1]?.hasLink) {
-				startIdx--;
-			}
-
-			let endIdx = cursorIdx;
-			while (endIdx < textChildren.length - 1 && textChildren[endIdx + 1]?.hasLink) {
-				endIdx++;
-			}
-
-			const startEntry = textChildren[startIdx];
-			const endEntry = textChildren[endIdx];
-			if (!startEntry || !endEntry) return false;
-
-			const linkStart = startEntry.pos;
-			const linkEnd = endEntry.end;
-
-			const builder = state.transaction('command');
-			builder.removeMark(sel.anchor.blockId, linkStart, linkEnd, { type: markType('link') });
-			builder.setSelection(sel);
-			context.dispatch(builder.build());
-			return true;
-		}
+		const range: ReturnType<typeof resolveLinkRange> = resolveLinkRange(state);
+		if (range) return dispatchIfPresent(context, changeLink(state, range));
+		if (isCollapsed(sel)) return false;
 
 		// Range selection: delegate to shared helper
 		return dispatchIfPresent(context, removeAttributedMark(state, markType('link')));
@@ -353,108 +306,8 @@ export class LinkPlugin implements Plugin {
 	private renderLinkPopup(
 		container: HTMLElement,
 		context: PluginContext,
-		onClose: () => void,
+		onClose: (options?: PopupCloseOptions) => void,
 	): void {
-		container.classList.add('notectl-link-popup');
-
-		const state = context.getState();
-		const isActive = this.isLinkActive(state);
-
-		if (isActive) {
-			const openBtn: HTMLButtonElement = document.createElement('button');
-			openBtn.type = 'button';
-			openBtn.className = 'notectl-link-popup__button';
-			openBtn.textContent = this.locale.openLink ?? LINK_LOCALE_EN.openLink;
-			openBtn.addEventListener('mousedown', (event: MouseEvent): void => {
-				event.preventDefault();
-				event.stopPropagation();
-			});
-			openBtn.addEventListener('click', (): void => {
-				context.executeCommand('openLink');
-				onClose();
-			});
-			container.appendChild(openBtn);
-			// Show remove link button
-			const removeBtn = document.createElement('button');
-			removeBtn.type = 'button';
-			removeBtn.className = 'notectl-link-popup__button';
-			removeBtn.textContent = this.locale.removeLink;
-			removeBtn.setAttribute('aria-label', this.locale.removeLinkAria);
-			removeBtn.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-			});
-			removeBtn.addEventListener('click', () => {
-				context.executeCommand('removeLink');
-				onClose();
-				context.getContainer().focus();
-			});
-			container.appendChild(removeBtn);
-		} else {
-			// Show URL input
-			const input = document.createElement('input');
-			input.type = 'url';
-			input.className = 'notectl-link-popup__input';
-			input.placeholder = this.locale.urlPlaceholder;
-			input.setAttribute('aria-label', this.locale.urlAria);
-
-			const applyBtn = document.createElement('button');
-			applyBtn.type = 'button';
-			applyBtn.className = 'notectl-link-popup__button notectl-link-popup__button--apply';
-			applyBtn.textContent = this.locale.apply;
-			applyBtn.setAttribute('aria-label', this.locale.applyAria);
-
-			const errorMsg = document.createElement('div');
-			errorMsg.className = 'notectl-link-popup__error';
-			errorMsg.setAttribute('role', 'alert');
-			errorMsg.hidden = true;
-
-			const applyLink = (): void => {
-				const raw: string = input.value.trim();
-				if (raw === '') return;
-				const sanitized: string = sanitizeHref(raw);
-				if (sanitized === '') {
-					errorMsg.textContent = this.locale.invalidUrl;
-					errorMsg.hidden = false;
-					input.setAttribute('aria-invalid', 'true');
-					input.focus();
-					return;
-				}
-				errorMsg.hidden = true;
-				input.removeAttribute('aria-invalid');
-				this.addLink(context, context.getState(), sanitized);
-				onClose();
-				context.getContainer().focus();
-			};
-
-			applyBtn.addEventListener('mousedown', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-			});
-			applyBtn.addEventListener('click', () => {
-				applyLink();
-			});
-
-			input.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter') {
-					e.preventDefault();
-					applyLink();
-				}
-			});
-
-			input.addEventListener('input', () => {
-				if (!errorMsg.hidden) {
-					errorMsg.hidden = true;
-					input.removeAttribute('aria-invalid');
-				}
-			});
-
-			container.appendChild(input);
-			container.appendChild(applyBtn);
-			container.appendChild(errorMsg);
-
-			// Auto-focus input
-			requestAnimationFrame(() => input.focus());
-		}
+		this.interaction?.renderToolbar(container, context, onClose);
 	}
 }

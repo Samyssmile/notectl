@@ -1,6 +1,9 @@
 import type { LinkLocale } from '../LinkLocale.js';
 
 const locale: LinkLocale = {
+	editLink: 'تحرير الرابط',
+	closeBubble: 'إغلاق نافذة الرابط',
+	bubbleOpened: 'نافذة الرابط مفتوحة. اضغط Tab للإجراءات أو Escape للإغلاق.',
 	openLink: 'فتح الرابط',
 	openLinkInNewTab: 'فتح الرابط في علامة تبويب جديدة',
 	closePreview: 'إغلاق معاينة الرابط',

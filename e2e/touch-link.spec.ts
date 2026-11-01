@@ -14,7 +14,7 @@ test.describe('Touch links', () => {
 	test('tap shows a preview with an accessible open action', async ({ editor, page }, testInfo) => {
 		const before = await editor.getJSON();
 		await editor.content.locator('a').tap();
-		const preview = page.locator('.notectl-link-preview');
+		const preview = page.locator('.notectl-link-bubble');
 		await expect(preview).toBeVisible();
 		const box = await preview.boundingBox();
 		expect(box).not.toBeNull();
@@ -33,13 +33,13 @@ test.describe('Touch links', () => {
 	}) => {
 		await editor.content.locator('a').tap();
 		await editor.configure({ readonly: true });
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		await expectLinkPopup(page, () => editor.content.locator('a').tap());
 		await editor.configure({ readonly: false });
 		await editor.content.locator('a').tap();
-		await expect(page.locator('.notectl-link-preview')).toBeVisible();
-		await page.getByRole('button', { name: 'Close link preview' }).tap();
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toBeVisible();
+		await page.getByRole('button', { name: 'Close link bubble' }).tap();
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 	});
 
 	test('the preview survives the scroll that follows a tap', async ({ editor, page }) => {
@@ -47,7 +47,7 @@ test.describe('Touch links', () => {
 			`<p><a href="${LINK_DESTINATION}">Open destination</a></p>${'<p>Filler paragraph.</p>'.repeat(30)}`,
 		);
 		await editor.content.locator('a').tap();
-		const preview = page.locator('.notectl-link-preview');
+		const preview = page.locator('.notectl-link-bubble');
 		await expect(preview).toBeVisible();
 		await page.evaluate(() => window.scrollBy(0, 48));
 		await expect(preview).toBeVisible();
@@ -59,9 +59,9 @@ test.describe('Touch links', () => {
 		const href: string = `${LINK_DESTINATION}/${'long-path-'.repeat(35)}`;
 		await editor.setContentHTML(`<p><a href="${href}">Long address</a></p>`);
 		await editor.content.locator('a').tap();
-		const preview = page.locator('.notectl-link-preview');
+		const preview = page.locator('.notectl-link-bubble');
 		await expect(preview).toBeVisible();
-		await expect(preview.locator('.notectl-link-preview__url')).toHaveText(href);
+		await expect(preview.locator('.notectl-link-bubble__url')).toHaveText(href);
 		const box = await preview.boundingBox();
 		expect(box?.width).toBeLessThanOrEqual(312);
 	});
@@ -71,9 +71,23 @@ test.describe('Touch links', () => {
 		page,
 	}) => {
 		await editor.content.locator('a').tap();
-		await expect(page.locator('.notectl-link-preview')).toBeVisible();
+		await expect(page.locator('.notectl-link-bubble')).toBeVisible();
 		await page.locator('header').tap();
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		expect(page.context().pages()).toHaveLength(1);
+	});
+	test('touch actions have 44px targets and edit the link', async ({ editor, page }) => {
+		await editor.content.locator('a').tap();
+		const bubble = page.locator('.notectl-link-bubble');
+		for (const name of ['Edit link', 'Remove link', 'Close link bubble']) {
+			const box = await bubble.getByRole('button', { name, exact: true }).boundingBox();
+			expect(box?.height).toBeGreaterThanOrEqual(44);
+			expect(box?.width).toBeGreaterThanOrEqual(44);
+		}
+		await bubble.getByRole('button', { name: 'Edit link' }).tap();
+		await bubble.getByRole('textbox').fill('/updated');
+		await bubble.getByRole('button', { name: 'Apply link' }).tap();
+		await expect(editor.content.locator('a')).toHaveAttribute('href', '/updated');
+		await expect(bubble).toHaveCount(0);
 	});
 });

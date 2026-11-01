@@ -23,7 +23,7 @@ test.describe('Link navigation', () => {
 				editor.content.locator('a').click({ modifiers: [modifier] }),
 			);
 			expect(await editor.getJSON()).toEqual(before);
-			await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+			await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		});
 	}
 
@@ -32,10 +32,10 @@ test.describe('Link navigation', () => {
 		page,
 	}, testInfo) => {
 		await editor.content.locator('a').click();
-		const preview = page.locator('.notectl-link-preview');
+		const preview = page.locator('.notectl-link-bubble');
 		await expect(preview).toBeVisible();
 		await expect(preview).toContainText(LINK_DESTINATION);
-		await expect(editor.announcer()).toContainText('Link preview opened');
+		await expect(editor.announcer()).toContainText('Link bubble opened');
 		await expect(editor.content).toBeFocused();
 		expect(page.context().pages()).toHaveLength(1);
 		await preview.screenshot({ path: testInfo.outputPath('link-preview.png') });
@@ -47,10 +47,10 @@ test.describe('Link navigation', () => {
 	test('preview is reachable by Tab and activates through Enter', async ({ editor, page }) => {
 		await editor.content.locator('a').click();
 		await page.keyboard.press('Tab');
-		await expect(page.locator('.notectl-link-preview a')).toBeFocused();
+		await expect(page.locator('.notectl-link-bubble a')).toBeFocused();
 		await expectLinkPopup(page, () => page.keyboard.press('Enter'));
 		await page.keyboard.press('Escape');
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		await expect(editor.content).toBeFocused();
 	});
 
@@ -61,10 +61,10 @@ test.describe('Link navigation', () => {
 		await editor.content.locator('a').click();
 		await page.keyboard.press('Tab');
 		await page.keyboard.press('Tab');
-		await expect(page.getByRole('button', { name: 'Close link preview' })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Close link bubble' })).toBeFocused();
 		await page.keyboard.press('Escape');
 		await expect(editor.content).toBeFocused();
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 	});
 
 	test('Alt+Enter opens the link at the editing cursor', async ({ editor, page }) => {
@@ -78,7 +78,7 @@ test.describe('Link navigation', () => {
 	}) => {
 		await editor.content.locator('a').click();
 		await page.keyboard.press('Escape');
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		await expect(editor.content).toBeFocused();
 	});
 
@@ -89,7 +89,7 @@ test.describe('Link navigation', () => {
 		await expectLinkPopup(page, () =>
 			page
 				.locator('.notectl-link-popup')
-				.getByRole('button', { name: 'Open link', exact: true })
+				.getByRole('link', { name: /Open link/ })
 				.click(),
 		);
 	});
@@ -100,7 +100,7 @@ test.describe('Link navigation', () => {
 	}) => {
 		await editor.content.locator('a').click();
 		await editor.configure({ readonly: true });
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		const link = editor.content.locator('a');
 		await expect(link).toHaveCSS('cursor', 'pointer');
 		await expectLinkPopup(page, () => link.click());
@@ -109,7 +109,7 @@ test.describe('Link navigation', () => {
 		await expectLinkPopup(page, () => link.click({ modifiers: ['Control'] }));
 		await editor.configure({ readonly: false });
 		await link.click();
-		await expect(page.locator('.notectl-link-preview')).toBeVisible();
+		await expect(page.locator('.notectl-link-bubble')).toBeVisible();
 	});
 
 	test('editing always opens a new tab; a same-tab setting applies to readers', async ({
@@ -125,7 +125,7 @@ test.describe('Link navigation', () => {
 		await link.click();
 		await expectLinkPopup(page, () =>
 			page
-				.locator('.notectl-link-preview')
+				.locator('.notectl-link-bubble')
 				.getByRole('link', { name: /Open link in new tab/ })
 				.click(),
 		);
@@ -144,7 +144,7 @@ test.describe('Link navigation', () => {
 			`<p><a href="${LINK_DESTINATION}">Open destination</a></p>${'<p>Filler paragraph.</p>'.repeat(40)}`,
 		);
 		await editor.content.locator('a').click();
-		const preview = page.locator('.notectl-link-preview');
+		const preview = page.locator('.notectl-link-bubble');
 		await expect(preview).toBeVisible();
 		const before = await preview.boundingBox();
 		await page.mouse.wheel(0, 120);
@@ -177,7 +177,7 @@ test.describe('Link navigation', () => {
 			});
 		});
 		await link.click();
-		await expect(minimal.locator('.notectl-link-preview')).toBeVisible();
+		await expect(minimal.locator('.notectl-link-bubble')).toBeVisible();
 		await expectLinkPopup(page, () =>
 			minimal.getByRole('link', { name: /Link in neuem Tab öffnen/ }).click(),
 		);
@@ -213,7 +213,7 @@ test.describe('Link navigation', () => {
 
 	test('double-click selects text and does not open a preview', async ({ editor, page }) => {
 		await editor.content.locator('a').dblclick();
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		const selection = await page.evaluate(() => document.getSelection()?.toString());
 		expect(selection?.length).toBeGreaterThan(0);
 		expect(page.context().pages()).toHaveLength(1);
@@ -225,13 +225,13 @@ test.describe('Link navigation', () => {
 	}) => {
 		await editor.content.locator('a').click();
 		await editor.setContentHTML(`<p><a href="${LINK_DESTINATION}">Replacement</a></p>`);
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 		await editor.content.locator('a').click();
 		// Let the playground's scheduled stats refresh finish before destroying its editor.
 		await page.evaluate(
 			() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
 		);
 		await editor.destroy();
-		await expect(page.locator('.notectl-link-preview')).toHaveCount(0);
+		await expect(page.locator('.notectl-link-bubble')).toHaveCount(0);
 	});
 });
