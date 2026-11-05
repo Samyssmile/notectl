@@ -26,7 +26,9 @@ const ENTRY_BUDGETS = [
 	// deletion keeps the shape of tables, and image file and MathML paste replace a range.
 	// #288 foundation: editor-owned action, focus, popup and geometry services (~5 KB).
 	// No feature renderer or framework is pulled into core by the UI contracts entry.
-	['Core', 'src/index.ts', 115.5],
+	// #266: measured 116.10 KB; the IME conflict fallback maps the replaced range's content
+	// through the composition's edits, and commits follow a split into the new block.
+	['Core', 'src/index.ts', 116.5],
 	['UI contracts', 'src/ui.ts', 0.5],
 	['Presets (minimal)', 'src/presets/minimal.ts', 5],
 	['Presets (full)', 'src/presets/full.ts', 140],
