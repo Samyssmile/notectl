@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Build tooling requires Node.js 22.23.4.** astro 7.4 refuses older 22.x releases, and the GitHub runner image still ships 22.23.3, which failed the docs build and with it the Type Check and Unit Tests jobs on `main`. `.node-version` now pins 22.23.4 so CI and local version managers resolve the same release.
 
+### Fixed
+
+- **IME commits keep edits made while composing, including splits (#266).** When a commit could not carry the browser's edit over an edit the model received during the composition, it inserted the `compositionend` data at the unmapped model selection. Replacing a selected `hello` in `hello world` with `x` while a host inserted `Z` at offset 2 gave `xo world`, and a host split in front of the caret put the composed text into the first block. The fallback now replaces what is left of the composition's selection, mapped through the recorded transactions, so the example gives `xZ world` and the split keeps the composed text with the content behind it. It falls back to the current selection only when the document was replaced or the composition's position was deleted. A commit also follows a split made while composing: `hello world` with the caret at 11, a host `splitBlock` at 5 and a composed `x` now gives `hello` | ` worldx` instead of `hellox` | ` world`, and the composition block is re-rendered. The new `mapRangeContent` in `state/RangeMapping.ts` maps where a range's content survives a mapping. Covered by unit tests in `RangeMapping.test.ts`, `CompositionFallback.test.ts`, `CompositionCommands.test.ts` and `CompositionController.test.ts`, and by `e2e/ime-concurrent-edits.spec.ts` with a real Chromium IME.
+
 ## [2.4.2] - 2026-10-26
 
 ### Changed

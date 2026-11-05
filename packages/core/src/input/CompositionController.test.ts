@@ -295,6 +295,52 @@ describe('CompositionController', () => {
 		expect(h.text('b2')).toBe('WORLD');
 	});
 
+	it('keeps a host insertion inside the selection a conflicting composition replaced (#266)', () => {
+		const state: EditorState = stateBuilder()
+			.paragraph('hello world', 'b1')
+			.selection({ blockId: 'b1', offset: 0 }, { blockId: 'b1', offset: 5 })
+			.schema(['paragraph'], [])
+			.build();
+		const h = harness({ state, rendered: 'x world', caretOffset: 1 });
+
+		h.controller.start();
+		h.external(h.getState().transaction('api').insertText(B1, 2, 'Z', []).build());
+		h.controller.end('x');
+
+		expect(h.text()).toBe('xZ world');
+		expect(h.getState().selection).toEqual(createCollapsedSelection(B1, 1));
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('commits into the new block when a split moved the composition there (#266)', () => {
+		const state: EditorState = stateBuilder()
+			.paragraph('hello world', 'b1')
+			.cursor('b1', 11)
+			.schema(['paragraph'], [])
+			.build();
+		const h = harness({ state, rendered: 'hello worldx', caretOffset: 12 });
+
+		h.controller.start();
+		h.external(h.getState().transaction('api').splitBlock(B1, 5, blockId('b2')).build());
+		h.controller.end('x');
+
+		expect(h.text()).toBe('hello');
+		expect(h.text('b2')).toBe(' worldx');
+		expect(h.getState().selection).toEqual(createCollapsedSelection(blockId('b2'), 7));
+		// The commit did not change the composition block, so its DOM is rebuilt.
+		expect(h.restoreBlock).toHaveBeenCalledWith(B1);
+	});
+
+	it('inserts the composed text where the composition was without readable DOM (#266)', () => {
+		const h = harness({ withDOM: false });
+
+		h.controller.start();
+		h.external(h.getState().transaction('api').insertText(B1, 0, 'Z', []).build());
+		h.controller.end('wo');
+
+		expect(h.text()).toBe('Zhellowo');
+	});
+
 	it('reports a composition whose block was removed (#265)', () => {
 		const h = harness({ rendered: 'hellowo' });
 		const state: EditorState = h.getState();

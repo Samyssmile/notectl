@@ -4,8 +4,9 @@ import { type ImeDriver, imeDriver } from './fixtures/ime-driver';
 
 /**
  * IME commits next to other edits (#260), next to identical inline nodes
- * (#261), inside containers (#264), and after the browser dropped a
- * composition (#265).
+ * (#261), inside containers (#264), after the browser dropped a composition
+ * (#265), and next to edits they cannot be carried over or that split the
+ * composition block (#266).
  *
  * The composition block's DOM shows the block as it was when the composition
  * started, plus the browser's edits. A commit must keep edits the model
@@ -46,6 +47,7 @@ interface ModelEditor extends HTMLElement {
 
 interface TransactionBuilder {
 	insertText(block: string, offset: number, text: string, marks: readonly unknown[]): this;
+	splitBlock(block: string, offset: number, newBlock: string): this;
 	setSelection(selection: unknown): this;
 	build(): unknown;
 }
@@ -71,24 +73,29 @@ function paragraph(id: string, value: string): BlockJSON {
 	return { id, type: 'paragraph', children: [text(value)] };
 }
 
-/** Replaces the document with `blocks` and puts the caret into block `block` at `offset`. */
+/**
+ * Replaces the document with `blocks` and selects `[offset, head)` of block
+ * `block`, or puts the caret at `offset`.
+ */
 async function seedDoc(
 	editor: EditorPage,
 	blocks: readonly BlockJSON[],
 	block: string,
 	offset: number,
+	head: number = offset,
 ): Promise<void> {
 	await editor.setJSON({ children: blocks });
 	await editor.content.focus();
 	await editor.page.evaluate(
-		({ id, at }) => {
+		({ id, at, to }) => {
 			const el = document.querySelector('notectl-editor') as ModelEditor;
-			const position = { blockId: id, offset: at };
+			const anchor = { blockId: id, offset: at };
+			const headPosition = { blockId: id, offset: to };
 			el.dispatch(
-				el.getState().transaction('api').setSelection({ anchor: position, head: position }).build(),
+				el.getState().transaction('api').setSelection({ anchor, head: headPosition }).build(),
 			);
 		},
-		{ id: block, at: offset },
+		{ id: block, at: offset, to: head },
 	);
 }
 
@@ -109,6 +116,17 @@ async function hostInsert(page: Page, offset: number, value: string, block = BLO
 			el.dispatch(el.getState().transaction('api').insertText(id, at, insert, []).build());
 		},
 		{ id: block, at: offset, insert: value },
+	);
+}
+
+/** Splits block `block` at `offset` from outside the composition. */
+async function hostSplit(page: Page, offset: number, newBlock: string): Promise<void> {
+	await page.evaluate(
+		({ id, at, created }) => {
+			const el = document.querySelector('notectl-editor') as ModelEditor;
+			el.dispatch(el.getState().transaction('api').splitBlock(id, at, created).build());
+		},
+		{ id: BLOCK, at: offset, created: newBlock },
 	);
 }
 
@@ -406,5 +424,32 @@ test.describe('IME compositions the browser dropped (#265)', () => {
 		await page.keyboard.type('!');
 
 		await expectBlockText(editor, BLOCK, 'hellox!');
+	});
+});
+
+test.describe('IME commits next to edits they cannot be carried over (#266)', () => {
+	test('a replaced selection keeps a host edit made inside it', async ({ editor, page }) => {
+		await seedDoc(editor, [paragraph(BLOCK, 'hello world')], BLOCK, 0, 5);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('x');
+		await hostInsert(page, 2, 'Z');
+		await ime.commit('x');
+		await page.keyboard.type('!');
+
+		await expectBlockText(editor, BLOCK, 'x!Z world');
+	});
+
+	test('a composition behind a split commits into the new block', async ({ editor, page }) => {
+		await seedDoc(editor, [paragraph(BLOCK, 'hello world')], BLOCK, 11);
+		const ime: ImeDriver = await imeDriver(page);
+
+		await ime.compose('x');
+		await hostSplit(page, 5, 'tail');
+		await ime.commit('x');
+		await page.keyboard.type('!');
+
+		await expectBlockText(editor, BLOCK, 'hello');
+		await expectBlockText(editor, 'tail', ' worldx!');
 	});
 });

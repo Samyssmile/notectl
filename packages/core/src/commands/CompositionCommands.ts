@@ -11,37 +11,45 @@
  *
  * The rendered DOM shows the block as it was when the composition started,
  * plus the browser's edits. The difference is therefore taken against that
- * baseline and carried over edits applied to the model meanwhile (#260).
- * Inline nodes are told apart by where they rendered when the composition
- * started, so a deletion next to identical inline nodes removes the right one
- * (#261).
+ * baseline and carried over edits applied to the model meanwhile (#260), into
+ * another block when a split moved it there (#266). Inline nodes are told
+ * apart by where they rendered when the composition started, so a deletion
+ * next to identical inline nodes removes the right one (#261).
+ *
+ * When the browser's edit cannot be carried over, the caller falls back to
+ * `insertComposedText` from `CompositionFallback`.
  */
 
 import { getBlockOffsetText, getInlineNodeOffsets } from '../model/BlockOffsetText.js';
 import type { CompositionSnapshot } from '../model/CompositionState.js';
 import { type BlockNode, isLeafBlock } from '../model/Document.js';
 import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
-import { createCollapsedSelection, createSelection, selectionsEqual } from '../model/Selection.js';
+import {
+	type Position,
+	createCollapsedSelection,
+	createSelection,
+	selectionsEqual,
+} from '../model/Selection.js';
 import { type PositionEquality, type TextChange, findTextChange } from '../model/TextChange.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import type { Mapping } from '../state/Mapping.js';
 import type { Transaction } from '../state/Transaction.js';
 import { insertTextCommand } from './Commands.js';
-import { rebaseComposedCaret, rebaseComposedChange } from './CompositionRebase.js';
+import {
+	type RebasedTextChange,
+	rebaseComposedCaret,
+	rebaseComposedChange,
+} from './CompositionRebase.js';
 
 const NBSP = '\u00a0';
 
-/** A finished composition, described against the block it started in. */
-export interface CompositionCommit {
+/** Where a composition started, and how positions moved while it was open. */
+export interface CompositionRange {
 	readonly blockId: BlockId;
-	/** The composition block when the composition started. */
-	readonly baseline: BlockNode;
 	/** Start and end of the selection the composition replaced, in baseline offsets. */
 	readonly from: number;
 	readonly to: number;
-	/** What the view rendered for the block when the composition ended. */
-	readonly rendered: CompositionSnapshot;
 	/**
 	 * Mapping of the transactions applied while composing, or `null` when the
 	 * document was replaced and positions cannot be mapped.
@@ -49,13 +57,27 @@ export interface CompositionCommit {
 	readonly mapping: Mapping | null;
 }
 
+/** A finished composition, described against the block it started in. */
+export interface CompositionCommit extends CompositionRange {
+	/** The composition block when the composition started. */
+	readonly baseline: BlockNode;
+	/** What the view rendered for the block when the composition ended. */
+	readonly rendered: CompositionSnapshot;
+}
+
 /**
  * `commit` carries the transaction that adopts the composition, or `null` when
- * nothing changed. `conflict` means the browser's edit cannot be adopted
- * without overwriting other edits or inventing inline nodes.
+ * nothing changed, and the block that received the browser's edit, or `null`
+ * when there was none. That block is not the composition block when a split
+ * moved the edit into another block. `conflict` means the browser's edit
+ * cannot be adopted without overwriting other edits or inventing inline nodes.
  */
 export type CompositionCommitResult =
-	| { readonly kind: 'commit'; readonly tr: Transaction | null }
+	| {
+			readonly kind: 'commit';
+			readonly tr: Transaction | null;
+			readonly changedBlockId: BlockId | null;
+	  }
 	| { readonly kind: 'conflict' };
 
 const CONFLICT: CompositionCommitResult = { kind: 'conflict' };
@@ -76,8 +98,7 @@ export function commitComposedText(
 	state: EditorState,
 	commit: CompositionCommit,
 ): CompositionCommitResult {
-	const current: BlockNode | undefined = state.getBlock(commit.blockId);
-	if (!current || !isLeafBlock(current) || commit.mapping === null) return CONFLICT;
+	if (leafText(state, commit.blockId) === null || commit.mapping === null) return CONFLICT;
 
 	const baselineText: string = getBlockOffsetText(commit.baseline);
 	const change: TextChange | null = findTextChange(baselineText, commit.rendered.text, {
@@ -89,19 +110,15 @@ export function commitComposedText(
 	// means the rendered text no longer lines up with the model.
 	if (change && insertsInlineNode(change, commit.rendered)) return CONFLICT;
 
-	const target: TextChange | null = change
-		? rebaseComposedChange(
-				change,
-				commit.blockId,
-				baselineText,
-				getBlockOffsetText(current),
-				commit.mapping,
+	const target: RebasedTextChange | null = change
+		? rebaseComposedChange(change, commit.blockId, baselineText, commit.mapping, (id) =>
+				leafText(state, id),
 			)
 		: null;
 	if (change && !target) return CONFLICT;
 
-	const tr: Transaction | null = target ? applyChange(state, commit.blockId, target) : null;
-	const caret: number | null =
+	const tr: Transaction | null = target ? applyChange(state, target) : null;
+	const caret: Position | null =
 		commit.rendered.caretOffset === null
 			? null
 			: rebaseComposedCaret(
@@ -110,11 +127,22 @@ export function commitComposedText(
 					commit.mapping,
 					change && target ? { change, target } : null,
 				);
-	return { kind: 'commit', tr: withCaret(state, tr, commit.blockId, caret) };
+	return {
+		kind: 'commit',
+		tr: withCaret(state, tr, caret),
+		changedBlockId: target?.blockId ?? null,
+	};
 }
 
-/** Replaces `change.from..change.to` of block `blockId` with `change.text`. */
-function applyChange(state: EditorState, blockId: BlockId, change: TextChange): Transaction {
+/** Current text of leaf block `blockId`, or `null` when it is missing or no leaf. */
+function leafText(state: EditorState, blockId: BlockId): string | null {
+	const block: BlockNode | undefined = state.getBlock(blockId);
+	return block && isLeafBlock(block) ? getBlockOffsetText(block) : null;
+}
+
+/** Replaces `change.from..change.to` of block `change.blockId` with `change.text`. */
+function applyChange(state: EditorState, change: RebasedTextChange): Transaction {
+	const { blockId } = change;
 	const text: string = change.text.replaceAll(NBSP, ' ');
 	if (text.length > 0) {
 		const target: EditorState = state.withSelection(
@@ -137,11 +165,10 @@ function applyChange(state: EditorState, blockId: BlockId, change: TextChange): 
 function withCaret(
 	state: EditorState,
 	tr: Transaction | null,
-	blockId: BlockId,
-	caret: number | null,
+	caret: Position | null,
 ): Transaction | null {
 	if (caret === null) return tr;
-	const selection = createCollapsedSelection(blockId, caret);
+	const selection = createCollapsedSelection(caret.blockId, caret.offset);
 	if (tr) return { ...tr, selectionAfter: selection };
 	if (selectionsEqual(state.selection, selection)) return null;
 	return state.transaction('input').setSelection(selection).build();

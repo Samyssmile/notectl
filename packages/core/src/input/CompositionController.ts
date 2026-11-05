@@ -10,14 +10,17 @@
  * browser edit is adopted: the composed text, deletions reaching committed
  * text in front of the composition start (#257), and recomposition of an
  * existing word. Transactions applied while composing are recorded, so the
- * browser's edit is carried over them instead of reverting them (#260).
+ * browser's edit is carried over them instead of reverting them (#260), and a
+ * commit that cannot carry it over still keeps them (#266).
  */
 
 import { insertTextCommand } from '../commands/Commands.js';
 import {
 	type CompositionCommitResult,
+	type CompositionRange,
 	commitComposedText,
 } from '../commands/CompositionCommands.js';
+import { insertComposedText } from '../commands/CompositionFallback.js';
 import { getBlockOffsetText } from '../model/BlockOffsetText.js';
 import type { CompositionSnapshot } from '../model/CompositionState.js';
 import { type BlockNode, isLeafBlock } from '../model/Document.js';
@@ -165,23 +168,30 @@ export class CompositionController {
 
 	private buildCommit(anchor: CompositionAnchor | null, composedText: string): CommitPlan {
 		const state: EditorState = this.options.getState();
-		const rendered = anchor
-			? (this.options.compositionDOM?.readBlock(anchor.blockId) ?? null)
-			: null;
-		if (anchor && rendered !== null) {
-			const result: CompositionCommitResult = commitComposedText(state, {
-				...anchor,
-				rendered,
-				mapping: this.stepMaps ? Mapping.from(this.stepMaps) : null,
-			});
-			if (result.kind === 'commit') return { tr: result.tr, restore: false };
-			// The browser's edit cannot be adopted without overwriting other edits:
-			// keep them, insert the composed text at the caret, and rebuild the
-			// block's DOM, which still shows the browser's version.
-			return { tr: insertAtCaret(state, composedText), restore: true };
+		if (!anchor) return { tr: insertAtCaret(state, composedText), restore: false };
+		const composition: CompositionAnchor & CompositionRange = {
+			...anchor,
+			mapping: this.stepMaps ? Mapping.from(this.stepMaps) : null,
+		};
+		const rendered: CompositionSnapshot | null =
+			this.options.compositionDOM?.readBlock(anchor.blockId) ?? null;
+		// Without readable DOM, assume the composition replaced its selection with its text.
+		if (rendered === null) {
+			return { tr: insertComposedText(state, composition, composedText), restore: false };
 		}
-		// Without readable DOM, assume the composition inserted its text at the caret.
-		return { tr: insertAtCaret(state, composedText), restore: false };
+		const result: CompositionCommitResult = commitComposedText(state, {
+			...composition,
+			rendered,
+		});
+		// A split can move the browser's edit into another block, which leaves
+		// the composition block's DOM showing the browser's version (#266).
+		if (result.kind === 'commit') {
+			return { tr: result.tr, restore: result.changedBlockId !== anchor.blockId };
+		}
+		// The browser's edit cannot be adopted without overwriting other edits:
+		// keep them, insert the composed text where the composition was, and
+		// rebuild the block's DOM, which still shows the browser's version.
+		return { tr: insertComposedText(state, composition, composedText), restore: true };
 	}
 
 	private restore(anchor: CompositionAnchor | null): void {

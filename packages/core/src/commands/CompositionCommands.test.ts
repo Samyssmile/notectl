@@ -12,7 +12,7 @@ import {
 	isTextNode,
 } from '../model/Document.js';
 import { INLINE_NODE_PLACEHOLDER } from '../model/InputRule.js';
-import { blockId, inlineType, markType } from '../model/TypeBrands.js';
+import { type BlockId, blockId, inlineType, markType } from '../model/TypeBrands.js';
 import type { EditorState } from '../state/EditorState.js';
 import { Mapping } from '../state/Mapping.js';
 import type { Transaction } from '../state/Transaction.js';
@@ -24,6 +24,7 @@ import {
 } from './CompositionCommands.js';
 
 const B1 = blockId('b1');
+const B2: BlockId = blockId('b2');
 const PH: string = INLINE_NODE_PLACEHOLDER;
 
 function helloState(): EditorState {
@@ -93,8 +94,8 @@ function commit(input: CommitInput): EditorState {
 	return state.apply(result.tr);
 }
 
-function text(state: EditorState): string {
-	const block = state.getBlock(B1);
+function text(state: EditorState, id: BlockId = B1): string {
+	const block = state.getBlock(id);
 	return block ? getBlockText(block) : '';
 }
 
@@ -108,6 +109,18 @@ function inlines(state: EditorState): string[] {
 
 function hostInsert(state: EditorState, offset: number, value: string): Transaction {
 	return state.transaction('api').insertText(B1, offset, value, []).build();
+}
+
+function hostSplit(state: EditorState, offset: number): Transaction {
+	return state.transaction('api').splitBlock(B1, offset, B2).build();
+}
+
+function paragraph(value: string, from: number, to: number = from): EditorState {
+	return stateBuilder()
+		.paragraph(value, 'b1')
+		.selection({ blockId: 'b1', offset: from }, { blockId: 'b1', offset: to })
+		.schema(['paragraph'], ['bold'])
+		.build();
 }
 
 describe('commitComposedText', () => {
@@ -142,7 +155,14 @@ describe('commitComposedText', () => {
 		expect(run({ start: helloState(), rendered: 'hello', from: 5 }).result).toEqual({
 			kind: 'commit',
 			tr: null,
+			changedBlockId: null,
 		});
+	});
+
+	it('reports the composition block as the block that received the change', () => {
+		const { result } = run({ start: helloState(), rendered: 'hellowo', from: 5 });
+
+		expect(result.kind === 'commit' ? result.changedBlockId : null).toBe(B1);
 	});
 
 	it('moves the caret to the rendered caret when the text is unchanged', () => {
@@ -373,21 +393,93 @@ describe('commitComposedText', () => {
 			expect(text(next)).toBe('abx cdZ');
 			expectCursorAt(next, 'b1', 7);
 		});
+	});
 
-		it('reports a conflict when a split moved the composed range to another block', () => {
-			// Rebasing across a split is a follow-up; until then the v2.3.7 fallback applies.
-			const start = stateBuilder()
-				.paragraph('hello world', 'b1')
-				.cursor('b1', 11)
-				.schema(['paragraph'], [])
-				.build();
-			const split = start.transaction('api').splitBlock(B1, 5, blockId('b2')).build();
-
-			const { result } = run({
+	describe('splits made while composing (#266)', () => {
+		it('commits into the new block when a split moved the composition there', () => {
+			const start = paragraph('hello world', 11);
+			const input: CommitInput = {
 				start,
 				rendered: { text: 'hello worldx', caretOffset: 12 },
 				from: 11,
-				during: [split],
+				during: [hostSplit(start, 5)],
+			};
+
+			const next = commit(input);
+
+			expect(run(input).result).toMatchObject({ kind: 'commit', changedBlockId: B2 });
+			expect(text(next)).toBe('hello');
+			expect(text(next, B2)).toBe(' worldx');
+			expectCursorAt(next, 'b2', 7);
+		});
+
+		it('replaces a recomposed word that a split moved into the new block', () => {
+			const start = paragraph('hello world', 6, 11);
+
+			const next = commit({
+				start,
+				rendered: { text: 'hello word', caretOffset: 10 },
+				from: 6,
+				to: 11,
+				during: [hostSplit(start, 5)],
+			});
+
+			expect(text(next)).toBe('hello');
+			expect(text(next, B2)).toBe(' word');
+			expectCursorAt(next, 'b2', 5);
+		});
+
+		it('keeps a change in front of a split in the composition block', () => {
+			const start = paragraph('ab cd', 1);
+
+			const next = commit({
+				start,
+				rendered: { text: 'axb cd', caretOffset: 2 },
+				from: 1,
+				during: [hostSplit(start, 3)],
+			});
+
+			expect(text(next)).toBe('axb ');
+			expect(text(next, B2)).toBe('cd');
+			expectCursorAt(next, 'b1', 2);
+		});
+
+		it('does not shift a caret behind a split by a change in front of it', () => {
+			const start = paragraph('ab cd', 1);
+
+			const next = commit({
+				start,
+				rendered: { text: 'axb cd', caretOffset: 6 },
+				from: 1,
+				during: [hostSplit(start, 3)],
+			});
+
+			expectCursorAt(next, 'b2', 2);
+		});
+
+		it('moves an unchanged caret behind a split into the new block', () => {
+			const start = paragraph('hello world', 11);
+
+			const next = commit({
+				start,
+				rendered: { text: 'hello world', caretOffset: 9 },
+				from: 11,
+				during: [hostSplit(start, 5)],
+			});
+
+			expect(text(next, B2)).toBe(' world');
+			expectCursorAt(next, 'b2', 4);
+		});
+
+		it('reports a conflict when a split cut the replaced range apart', () => {
+			const start = paragraph('hello world', 3, 8);
+
+			const { result } = run({
+				start,
+				rendered: { text: 'helxrld', caretOffset: 4 },
+				from: 3,
+				to: 8,
+				during: [hostSplit(start, 5)],
 			});
 
 			expect(result).toEqual({ kind: 'conflict' });
