@@ -168,7 +168,11 @@ describe('readCompositionSnapshot text', () => {
 			expect(rendered, id).not.toBeNull();
 			if (!baseline || !rendered) continue;
 			const commit = { blockId: id, baseline, from: 0, to: 0, rendered, mapping: Mapping.empty };
-			expect(commitComposedText(state, commit), id).toEqual({ kind: 'commit', tr: null });
+			expect(commitComposedText(state, commit), id).toEqual({
+				kind: 'commit',
+				tr: null,
+				changedBlockId: null,
+			});
 		}
 	});
 });

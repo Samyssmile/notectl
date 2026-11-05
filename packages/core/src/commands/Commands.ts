@@ -388,7 +388,8 @@ function clearDocument(state: EditorState): Transaction {
 	return builder.build();
 }
 
-function resolveActiveMarks(state: EditorState): readonly Mark[] {
+/** The marks text typed over the current selection receives. */
+export function resolveActiveMarks(state: EditorState): readonly Mark[] {
 	if (state.storedMarks) return state.storedMarks;
 
 	const sel = state.selection;
