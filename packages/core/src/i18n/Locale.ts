@@ -12,6 +12,7 @@ export const Locale = {
 	AR: 'ar',
 	HI: 'hi',
 	PT: 'pt',
+	NL: 'nl',
 	BROWSER: 'browser',
 } as const;
 

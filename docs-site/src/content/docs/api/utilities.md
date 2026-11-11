@@ -276,10 +276,11 @@ const Locale = {
   AR: 'ar',
   HI: 'hi',
   PT: 'pt',
+  NL: 'nl',
   BROWSER: 'browser',
 } as const;
 
-type Locale = 'en' | 'de' | 'es' | 'fr' | 'zh' | 'ru' | 'ar' | 'hi' | 'pt' | 'browser';
+type Locale = 'en' | 'de' | 'es' | 'fr' | 'zh' | 'ru' | 'ar' | 'hi' | 'pt' | 'nl' | 'browser';
 ```
 
 Use `Locale.BROWSER` to auto-detect from `navigator.language`.

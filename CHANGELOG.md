@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Dutch (`nl`) locale.** Every plugin that ships translations now bundles a Dutch locale alongside German, Spanish, French, Chinese, Russian, Arabic, Hindi and Portuguese, bringing the total to 10 languages. `Locale.NL` resolves `nl`, and `LocaleService` / `navigator.language` detection (`Locale.BROWSER`) pick it up automatically. Covered by the existing locale coverage tests in `EditorLocale.test.ts`, `FormulaLocale.test.ts`, `TableLocale.test.ts` and `VideoLocale.test.ts`.
+
 ### Changed
 
 - **Build tooling requires Node.js 22.23.4.** astro 7.4 refuses older 22.x releases, and the GitHub runner image still ships 22.23.3, which failed the docs build and with it the Type Check and Unit Tests jobs on `main`. `.node-version` now pins 22.23.4 so CI and local version managers resolve the same release.
