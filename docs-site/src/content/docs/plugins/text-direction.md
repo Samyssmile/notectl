@@ -96,7 +96,7 @@ interface TextDirectionService {
 
 ## Internationalization
 
-Ships with translations for 9 languages:
+Ships with translations for 10 languages:
 
 | Language | Loader |
 |----------|--------|
@@ -106,6 +106,7 @@ Ships with translations for 9 languages:
 | Spanish | `loadTextDirectionLocale('es')` |
 | French | `loadTextDirectionLocale('fr')` |
 | Hindi | `loadTextDirectionLocale('hi')` |
+| Dutch | `loadTextDirectionLocale('nl')` |
 | Portuguese | `loadTextDirectionLocale('pt')` |
 | Russian | `loadTextDirectionLocale('ru')` |
 | Chinese | `loadTextDirectionLocale('zh')` |

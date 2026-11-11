@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VIDEO_LOCALE_EN, type VideoLocale, loadVideoLocale } from './VideoLocale.js';
 
-const LOCALES: readonly string[] = ['de', 'es', 'fr', 'zh', 'ru', 'ar', 'hi', 'pt'];
+const LOCALES: readonly string[] = ['de', 'es', 'fr', 'zh', 'ru', 'ar', 'hi', 'pt', 'nl'];
 
 describe('loadVideoLocale', () => {
 	it('returns the English locale for "en" without a dynamic import', async () => {

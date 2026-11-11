@@ -68,4 +68,4 @@ When [`TextDirectionPlugin`](/notectl/plugins/text-direction/) is also registere
 
 ## Internationalization
 
-Ships with translations for 9 languages (`ar`, `de`, `en`, `es`, `fr`, `hi`, `pt`, `ru`, `zh`). Custom locales can be provided via the `locale` config option.
+Ships with translations for 10 languages (`ar`, `de`, `en`, `es`, `fr`, `hi`, `nl`, `pt`, `ru`, `zh`). Custom locales can be provided via the `locale` config option.
