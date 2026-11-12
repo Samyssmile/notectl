@@ -80,7 +80,8 @@ const ENTRY_BUDGETS = [
 	['Full (kitchen sink)', 'src/full.ts', 800],
 ];
 
-const DEFERRED_BUDGET_KB = 70;
+// #290: room for a further UI language (nl measured 74.50 KB with all locale alternatives).
+const DEFERRED_BUDGET_KB = 80;
 const UMD_BUDGET_KB = 805;
 
 function collectStaticClosure(startFile, chunksByFile) {
