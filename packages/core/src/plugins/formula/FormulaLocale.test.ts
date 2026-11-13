@@ -5,6 +5,7 @@ import deLocale from './locales/de.js';
 import esLocale from './locales/es.js';
 import frLocale from './locales/fr.js';
 import hiLocale from './locales/hi.js';
+import nlLocale from './locales/nl.js';
 import ptLocale from './locales/pt.js';
 import ruLocale from './locales/ru.js';
 import zhLocale from './locales/zh.js';
@@ -19,6 +20,7 @@ const ALL_LOCALES: ReadonlyArray<readonly [string, FormulaLocale]> = [
 	['RU', ruLocale],
 	['AR', arLocale],
 	['HI', hiLocale],
+	['NL', nlLocale],
 ];
 
 const STRING_KEYS: ReadonlyArray<keyof FormulaLocale> = [

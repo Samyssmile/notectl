@@ -107,7 +107,7 @@ Runtime style management:
 Internationalization support:
 
 - **`LocaleService`** — Locale resolution and management
-- **`Locale`** — Supported locale constants (9 languages)
+- **`Locale`** — Supported locale constants (10 languages)
 
 ### Platform (`platform/`)
 
