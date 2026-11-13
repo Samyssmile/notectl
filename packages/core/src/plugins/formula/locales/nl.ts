@@ -10,7 +10,7 @@ const locale: FormulaLocale = {
 	insertButton: 'Invoegen',
 	updateButton: 'Bijwerken',
 	cancelButton: 'Annuleren',
-	displayToggle: 'Weergave (blok)vergelijking',
+	displayToggle: 'Weergeven als blokformule',
 	sizeLabel: 'Grootte',
 	sizeDefault: 'Standaard',
 	altLabel: 'Beschrijving',
