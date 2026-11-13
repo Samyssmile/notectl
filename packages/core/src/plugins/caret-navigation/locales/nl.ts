@@ -1,7 +1,7 @@
 import type { CaretNavigationLocale } from '../CaretNavigationLocale.js';
 
 const locale: CaretNavigationLocale = {
-	paragraph: 'Paragraaf',
+	paragraph: 'Alinea',
 	heading1: 'Kop 1',
 	heading2: 'Kop 2',
 	heading3: 'Kop 3',

@@ -71,7 +71,8 @@ const locale: TableLocale = {
 
 	insertTable: 'Tabel invoegen',
 
-	tableAriaLabel: (rows: number, cols: number) => `Tabel met ${rows} rijen en ${cols} kolommen`,
+	tableAriaLabel: (rows: number, cols: number) =>
+		`Tabel met ${rows} ${rows === 1 ? 'rij' : 'rijen'} en ${cols} ${cols === 1 ? 'kolom' : 'kolommen'}`,
 	tableAriaDescription: 'Rechtsklikken of Shift+F10 voor tabelacties',
 };
 

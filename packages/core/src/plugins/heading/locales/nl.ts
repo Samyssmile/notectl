@@ -1,7 +1,7 @@
 import type { HeadingLocale } from '../HeadingLocale.js';
 
 const locale: HeadingLocale = {
-	paragraph: 'Paragraaf',
+	paragraph: 'Alinea',
 	title: 'Titel',
 	subtitle: 'Subtitel',
 	heading1: 'Kop 1',
