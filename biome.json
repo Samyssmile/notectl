@@ -38,6 +38,7 @@
 			"**/node_modules/**",
 			"**/*.d.ts",
 			"**/.turbo/**",
+			"**/.cache/**",
 			"**/.claude/**",
 			"**/.claude-flow/**",
 			"**/.vscode/**",
