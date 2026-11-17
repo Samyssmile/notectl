@@ -160,7 +160,7 @@ The inline code button (`</>` icon) renders in the **format** toolbar group with
 
 ## Internationalization
 
-8 locales are bundled: English (default), German, Spanish, French, Chinese, Russian, Arabic, Hindi, and Portuguese. Locales are lazy-loaded based on the editor's language setting.
+10 locales are bundled: English (default), German, Spanish, French, Chinese, Russian, Arabic, Hindi, Portuguese, and Dutch. Locales are lazy-loaded based on the editor's language setting.
 
 ```ts
 import type { InlineCodeLocale } from '@notectl/core/plugins/inline-code';

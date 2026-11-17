@@ -268,7 +268,7 @@ Plugins may patch existing NodeSpecs via `getSchemaRegistry()` (e.g., AlignmentP
 - Default is `browser` (`navigator.language`-based), fallback English.
 
 Current locale keys:
-`en`, `de`, `es`, `fr`, `zh`, `ru`, `ar`, `hi`, `pt`, `browser`.
+`en`, `de`, `es`, `fr`, `zh`, `ru`, `ar`, `hi`, `pt`, `nl`, `browser`.
 
 ### 7.2 Plugin Locale Resolution (Pattern)
 

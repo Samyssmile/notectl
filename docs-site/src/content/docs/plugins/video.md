@@ -287,7 +287,7 @@ Keep this in sync with the `embedHostnames` of any custom providers you add.
 
 ## Localization
 
-Nine locales ship out of the box: `en`, `de`, `es`, `fr`, `zh`, `ru`, `ar`, `hi`, `pt`. The locale is resolved automatically from the browser language unless overridden.
+Ten locales ship out of the box: `en`, `de`, `es`, `fr`, `zh`, `ru`, `ar`, `hi`, `pt`, `nl`. The locale is resolved automatically from the browser language unless overridden.
 
 To use a specific locale, import the English default and pass a dynamically loaded locale:
 

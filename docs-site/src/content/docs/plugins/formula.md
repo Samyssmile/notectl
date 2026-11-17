@@ -139,7 +139,7 @@ interface FormulaPluginConfig {
 
 ### Internationalization
 
-Every user-facing string (toolbar label and tooltip, the editor popup, palette group names, and live-region announcements) is translatable. The plugin ships translations for Arabic, German, English, Spanish, French, Hindi, Portuguese, Russian, and Chinese, chosen automatically from the editor's language. Pass a custom `locale` to override individual strings.
+Every user-facing string (toolbar label and tooltip, the editor popup, palette group names, and live-region announcements) is translatable. The plugin ships translations for Arabic, German, English, Spanish, French, Hindi, Dutch, Portuguese, Russian, and Chinese, chosen automatically from the editor's language. Pass a custom `locale` to override individual strings.
 
 ## Architecture note
 
