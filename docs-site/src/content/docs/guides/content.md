@@ -168,6 +168,17 @@ Links and text formatting on a transparent wrapper are preserved on its imported
 Registered inline nodes remain atomic: their internal markup is not unwrapped, and an inline
 formula inside a `<div>` stays in the paragraph's text flow when pasted.
 
+Pasted `<br>` elements inside headings, list items and standalone inline runs become
+`hard_break` nodes when `HardBreakPlugin` is registered, so HTML save/reload preserves the
+line breaks. Without that plugin, those lines become separate blocks of the same type.
+Pasted `<p>` and inline-only `<div>` content continues to split into paragraphs at `<br>`.
+
+Pasted or imported `<pre>` content becomes a `code_block` when `CodeBlockPlugin` is registered.
+Literal newlines, indentation, empty lines and `<br>` line breaks are preserved as code text;
+syntax-highlighting markup does not become text formatting. Without a code-block parse rule,
+`<pre>` falls back to one paragraph per line, including empty lines. Use `CodeBlockPlugin`
+when indentation and spacing must survive HTML save/reload too.
+
 Inline formatting maps:
 
 | HTML | Mark / Inline Type |

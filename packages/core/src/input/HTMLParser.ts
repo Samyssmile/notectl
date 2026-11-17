@@ -22,16 +22,22 @@ import {
 	parseHTMLMarks,
 } from '../serialization/HTMLParseRules.js';
 import { normalizeHTMLWhitespace } from '../serialization/HTMLWhitespace.js';
+import { readPreformattedText } from '../serialization/PreformattedText.js';
 import {
 	type ClassDeclarationResolver,
 	createClassDeclarationResolver,
 } from '../serialization/StyleClassHTML.js';
 import { rehydrateStyles } from '../serialization/StyleRehydration.js';
+import {
+	materializeLineBreaks,
+	splitAtLineBreaks,
+	withoutTrailingLineBreak,
+} from './HTMLLineBreaks.js';
 
 /**
  * Whether the `<br>`s of an inline run split it into paragraphs, as for `<p>`
- * and `<div>` content including inline wrappers inside a `<div>`, or stay in
- * the text, as they did before #223 in the other container paths.
+ * and `<div>` content including inline wrappers inside a `<div>`, or remain
+ * inside their block. Significant newlines are materialized before insertion.
  */
 type LineBreaks = 'split' | 'keep';
 
@@ -174,7 +180,7 @@ export class HTMLParser {
 			};
 		}
 
-		return { blocks };
+		return { blocks: blocks.flatMap((block) => materializeLineBreaks(block, this.schema)) };
 	}
 
 	private buildBlockTagHandlers(): ReadonlyMap<string, (el: HTMLElement) => SliceBlock[]> {
@@ -204,15 +210,7 @@ export class HTMLParser {
 					},
 				],
 			],
-			[
-				'PRE',
-				(el: HTMLElement) => [
-					{
-						type: this.resolveBlockType(nodeType('paragraph')),
-						segments: this.ensureSegments(this.parsePreContent(el)),
-					},
-				],
-			],
+			['PRE', (el: HTMLElement) => this.parsePreElement(el)],
 			['TABLE', parseTable],
 			['THEAD', parseTable],
 			['TBODY', parseTable],
@@ -465,10 +463,14 @@ export class HTMLParser {
 			: null;
 	}
 
-	private parsePreContent(element: HTMLElement): ContentSegment[] {
-		const text: string = element.textContent ?? '';
-		if (!text) return [];
-		return [textSegment(text)];
+	private parsePreElement(element: HTMLElement): SliceBlock[] {
+		const type: NodeTypeName = this.resolveBlockType(nodeType('code_block'));
+		const segments: readonly ContentSegment[] = [textSegment(readPreformattedText(element))];
+		if (type === 'code_block') {
+			const match = this.matchBlockRule(element);
+			return [{ type, attrs: match?.type === type ? match.attrs : undefined, segments }];
+		}
+		return splitAtLineBreaks({ type, segments });
 	}
 
 	private parseTableAsParagraphs(element: HTMLElement): SliceBlock[] {
@@ -602,10 +604,13 @@ export class HTMLParser {
 		if (inheritedMarks.length === 0) return alignedBlocks;
 
 		return alignedBlocks.map(
-			(block: SliceBlock): SliceBlock => ({
-				...block,
-				segments: this.prependMarks(block.segments, inheritedMarks),
-			}),
+			(block: SliceBlock): SliceBlock =>
+				block.type === 'code_block'
+					? block
+					: {
+							...block,
+							segments: this.prependMarks(block.segments, inheritedMarks),
+						},
 		);
 	}
 
@@ -625,61 +630,10 @@ export class HTMLParser {
 	 * at `<br>` boundaries.
 	 */
 	private parseBlockWithLineBreaks(element: HTMLElement, blockType: NodeTypeName): SliceBlock[] {
-		return this.splitAtLineBreaks(this.parseInlineChildren(element, []), blockType);
-	}
-
-	/**
-	 * Turns an inline run into blocks of `blockType`, one per line: a `<br>`
-	 * arrives as a `\n` and must not stay in block text, where it would render
-	 * as a break but be lost as whitespace after an HTML round trip (#262).
-	 */
-	private splitAtLineBreaks(
-		segments: readonly ContentSegment[],
-		blockType: NodeTypeName,
-	): SliceBlock[] {
-		const hasLineBreak: boolean = segments.some(
-			(s: ContentSegment) => s.kind === 'text' && s.text.includes('\n'),
-		);
-
-		if (!hasLineBreak) {
-			return [
-				{
-					type: blockType,
-					segments: this.ensureSegments(segments),
-				},
-			];
-		}
-
-		const blocks: SliceBlock[] = [];
-		let current: ContentSegment[] = [];
-
-		for (const segment of segments) {
-			if (segment.kind === 'inline') {
-				current.push(segment);
-				continue;
-			}
-			const parts: readonly string[] = segment.text.split('\n');
-			for (let i = 0; i < parts.length; i++) {
-				if (i > 0) {
-					blocks.push({
-						type: blockType,
-						segments: this.ensureSegments(this.normalizeSegments(current)),
-					});
-					current = [];
-				}
-				const part: string = parts[i] ?? '';
-				if (part) {
-					current.push(textSegment(part, segment.marks));
-				}
-			}
-		}
-
-		blocks.push({
+		return splitAtLineBreaks({
 			type: blockType,
-			segments: this.ensureSegments(this.normalizeSegments(current)),
+			segments: this.parseInlineChildren(element, []),
 		});
-
-		return blocks;
 	}
 
 	private flushPendingSegments(
@@ -689,9 +643,9 @@ export class HTMLParser {
 	): void {
 		const normalized: ContentSegment[] = this.normalizeSegments(segments);
 		if (normalized.length === 0) return;
-		// Skip whitespace-only runs, but keep anything that carries an inline node.
+		// Ignore source whitespace, but explicit breaks and inline nodes are content.
 		const isBlank: boolean = normalized.every(
-			(s: ContentSegment) => s.kind === 'text' && s.text.trim() === '',
+			(s: ContentSegment) => s.kind === 'text' && s.text.trim() === '' && !s.text.includes('\n'),
 		);
 		if (isBlank) return;
 
@@ -701,15 +655,8 @@ export class HTMLParser {
 			return;
 		}
 		// A run always ends at a block boundary, where a final `<br>` renders no empty line.
-		blocks.push(...this.splitAtLineBreaks(withoutTrailingLineBreak(normalized), paragraph));
+		blocks.push(
+			...splitAtLineBreaks({ type: paragraph, segments: withoutTrailingLineBreak(normalized) }),
+		);
 	}
-}
-
-/** `segments` without the one line break that may end them. */
-function withoutTrailingLineBreak(segments: readonly ContentSegment[]): readonly ContentSegment[] {
-	const last: ContentSegment | undefined = segments.at(-1);
-	if (last?.kind !== 'text' || !last.text.endsWith('\n')) return segments;
-	const text: string = last.text.slice(0, -1);
-	const head: readonly ContentSegment[] = segments.slice(0, -1);
-	return text ? [...head, textSegment(text, last.marks)] : head;
 }

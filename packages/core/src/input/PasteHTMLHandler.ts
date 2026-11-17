@@ -24,7 +24,10 @@ import type { SchemaRegistry } from '../model/SchemaRegistry.js';
 import { type EditorSelection, createCollapsedSelection, isGapCursor } from '../model/Selection.js';
 import type { BlockId } from '../model/TypeBrands.js';
 import { hasHTMLBlockDescendants } from '../serialization/HTMLParseRules.js';
-import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from '../serialization/HTMLSanitization.js';
+import {
+	preserveHTMLIdSanitizeConfig,
+	sanitizeHTMLFragment,
+} from '../serialization/HTMLSanitization.js';
 import { parseHTMLToDocument } from '../serialization/index.js';
 import type { EditorState } from '../state/EditorState.js';
 import { HTMLParser } from './HTMLParser.js';
@@ -115,7 +118,7 @@ export class PasteHTMLHandler {
 		// `<annotation>` (and its `encoding` attr), which carry a formula's LaTeX
 		// source. Without this they are stripped here before the registry-aware
 		// passes run, dropping the annotation and leaving the formula uneditable.
-		const preSanitized: string = sanitizeHTML(
+		const preSanitized: DocumentFragment = sanitizeHTMLFragment(
 			html,
 			{
 				FORBID_TAGS: PRE_SANITIZE_FORBID,
@@ -129,17 +132,19 @@ export class PasteHTMLHandler {
 		const richJson: string | undefined = this.extractRichData(preSanitized);
 		if (richJson && this.tryRichPasteFromJson(richJson, state)) return true;
 
-		const preTemplate: HTMLTemplateElement = document.createElement('template');
-		preTemplate.innerHTML = preSanitized;
-		normalizeLegacyHTML(preTemplate.content);
-		const normalizedHTML: string = preTemplate.innerHTML;
+		normalizeLegacyHTML(preSanitized);
 
-		const allowedTags: string[] = this.schemaRegistry
-			? this.schemaRegistry.getAllowedTags()
-			: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span'];
+		// Keep pre until parsing even without CodeBlockPlugin: its significant
+		// newlines must become paragraphs before normal HTML whitespace collapses.
+		const allowedTags: string[] = [
+			...(this.schemaRegistry
+				? this.schemaRegistry.getAllowedTags()
+				: ['strong', 'em', 'u', 'b', 'i', 'p', 'br', 'div', 'span']),
+			'pre',
+		];
 		const allowedAttrs: string[] = this.schemaRegistry ? this.schemaRegistry.getAllowedAttrs() : [];
-		const sanitized: string = sanitizeHTML(
-			normalizedHTML,
+		const sanitized: DocumentFragment = sanitizeHTMLFragment(
+			preSanitized,
 			{
 				ALLOWED_TAGS: allowedTags,
 				ALLOWED_ATTR: allowedAttrs,
@@ -150,10 +155,7 @@ export class PasteHTMLHandler {
 		);
 
 		if (this.schemaRegistry) {
-			const template: HTMLTemplateElement = document.createElement('template');
-			template.innerHTML = sanitized;
-
-			if (this.requiresDocumentParser(sanitized, template.content)) {
+			if (this.requiresDocumentParser(sanitized)) {
 				return this.handleDocumentPaste(sanitized, state);
 			}
 
@@ -162,28 +164,28 @@ export class PasteHTMLHandler {
 				schema,
 				schemaRegistry: this.schemaRegistry,
 			});
-			// `<br>`-only markup deliberately parses into empty split blocks (blank
-			// lines), so a line break is a content signal even when every block ends
+			// `<br>` and preformatted newlines can produce only empty split blocks
+			// (blank lines), so they are content signals even when every block ends
 			// up empty. Without any signal, dispatching would consume a range
 			// selection while inserting nothing, ahead of the caller's fallback to
 			// another clipboard flavor (#216).
-			const hasLineBreak: boolean = template.content.querySelector('br') !== null;
-			const slice = parser.parse(template.content);
+			const hasLineBreak: boolean =
+				sanitized.querySelector('br') !== null ||
+				Array.from(sanitized.querySelectorAll('pre')).some((el) => el.textContent?.includes('\n'));
+			const slice = parser.parse(sanitized);
 			if (!sliceHasContent(slice) && !hasLineBreak) return false;
 			this.dispatch(pasteSlice(state, slice));
 			return true;
 		}
-		const text: string = this.extractTextFromHTML(sanitized);
+		const text: string = sanitized.textContent ?? '';
 		if (!hasVisibleTextContent(text)) return false;
 		this.dispatch(insertTextCommand(state, text, 'paste'));
 		return true;
 	}
 
 	/** Extracts embedded rich block JSON from HTML (data-notectl-rich). */
-	private extractRichData(html: string): string | undefined {
-		const template: HTMLTemplateElement = document.createElement('template');
-		template.innerHTML = html;
-		const richEl: Element | null = template.content.querySelector('[data-notectl-rich]');
+	private extractRichData(fragment: DocumentFragment): string | undefined {
+		const richEl: Element | null = fragment.querySelector('[data-notectl-rich]');
 		const encoded: string | null | undefined = richEl?.getAttribute('data-notectl-rich');
 		if (!encoded) return undefined;
 		return this.decodeHTMLEntities(encoded);
@@ -203,18 +205,18 @@ export class PasteHTMLHandler {
 	 * Checks whether HTML requires the DocumentParser (tables, blockquotes,
 	 * multi-block list items, void blocks).
 	 */
-	private requiresDocumentParser(html: string, container: DocumentFragment): boolean {
+	private requiresDocumentParser(container: DocumentFragment): boolean {
 		if (this.containsModelledBlockID(container)) return true;
-		if (/<table[\s>]/i.test(html)) return true;
+		if (container.querySelector('table')) return true;
 		// Blockquotes are container blocks (#136): the flat HTMLParser/slice path
 		// cannot represent their nested block children, so route them through the
 		// container-aware DocumentParser to preserve nesting (and to wrap inline
 		// content in a paragraph rather than producing an invalid flat blockquote).
-		if (/<blockquote[\s>]/i.test(html)) return true;
+		if (container.querySelector('blockquote')) return true;
 		// Multi-block list items are containers too (#194): the slice path would
 		// silently flatten a second paragraph or a nested code block into the
 		// item's inline text.
-		if (/<li[\s>]/i.test(html) && this.containsMultiBlockListItem(container)) return true;
+		if (container.querySelector('li') && this.containsMultiBlockListItem(container)) return true;
 		return this.containsVoidBlockElements(container);
 	}
 
@@ -298,7 +300,7 @@ export class PasteHTMLHandler {
 	 * Handles paste of HTML requiring the DocumentParser (tables, void blocks).
 	 * Returns whether a transaction was dispatched.
 	 */
-	private handleDocumentPaste(html: string, state: EditorState): boolean {
+	private handleDocumentPaste(html: DocumentFragment, state: EditorState): boolean {
 		if (!this.schemaRegistry) return false;
 
 		const parsed = parseHTMLToDocument(html, this.schemaRegistry);
@@ -345,12 +347,6 @@ export class PasteHTMLHandler {
 
 		this.dispatch(builder.build());
 		return true;
-	}
-
-	private extractTextFromHTML(html: string): string {
-		const template: HTMLTemplateElement = document.createElement('template');
-		template.innerHTML = html;
-		return template.content.textContent ?? '';
 	}
 
 	private stateAtSelection(selection?: EditorSelection): EditorState {

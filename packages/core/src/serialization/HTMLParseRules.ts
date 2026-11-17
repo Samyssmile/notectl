@@ -6,7 +6,15 @@ import { markType } from '../model/TypeBrands.js';
 export type ParseRules = readonly { readonly rule: ParseRule; readonly type: string }[];
 
 /** Structural tags handled by the document parser independently of schema rules. */
-const BLOCK_TAGS: ReadonlySet<string> = new Set(['p', 'div', 'ul', 'ol', 'table', 'blockquote']);
+const BLOCK_TAGS: ReadonlySet<string> = new Set([
+	'p',
+	'div',
+	'ul',
+	'ol',
+	'table',
+	'blockquote',
+	'pre',
+]);
 
 /** Returns the first accepting rule in priority order, including its parsed attributes. */
 export function matchHTMLParseRule(

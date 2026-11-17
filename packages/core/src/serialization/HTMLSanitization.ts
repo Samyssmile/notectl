@@ -34,6 +34,23 @@ export function preserveHTMLIdSanitizeConfig(
  * plugin policy into that invocation.
  */
 export function sanitizeHTML(html: string, config: Config, registry?: SchemaRegistry): string {
+	return createSanitizer(registry).sanitize(html, config);
+}
+
+/**
+ * Keeps sanitized input as DOM instead of serializing and reparsing it. Each
+ * HTML parse discards a leading newline in `<pre>`, so import/paste must only
+ * parse the original string once. Subsequent sanitization can consume the DOM.
+ */
+export function sanitizeHTMLFragment(
+	html: string | DocumentFragment,
+	config: Config,
+	registry?: SchemaRegistry,
+): DocumentFragment {
+	return createSanitizer(registry).sanitize(html, { ...config, RETURN_DOM_FRAGMENT: true });
+}
+
+function createSanitizer(registry?: SchemaRegistry): DOMPurify {
 	const sanitizer: DOMPurify = createDOMPurify(window);
 	const validators: ReadonlyMap<string, readonly ElementSanitizeValidator[]> | undefined =
 		registry?.getElementSanitizeValidators?.();
@@ -60,5 +77,5 @@ export function sanitizeHTML(html: string, config: Config, registry?: SchemaRegi
 		});
 	}
 
-	return sanitizer.sanitize(html, config);
+	return sanitizer;
 }

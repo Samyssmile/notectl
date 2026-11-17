@@ -186,10 +186,23 @@ describe('HTMLParser', () => {
 		});
 
 		it('preserves whitespace inside <pre> blocks (issue #137)', () => {
-			const slice = parseHTML('<pre>  indented\n    deeper\n</pre>');
+			const slice = parseHTML(
+				'<pre>  indented\n    deeper\n</pre>',
+				createTestSchema({ nodeTypes: ['paragraph', 'code_block'] }),
+			);
 			expect(slice.blocks).toHaveLength(1);
+			expect(slice.blocks[0]?.type).toBe('code_block');
 			expect(slice.blocks[0]?.segments).toEqual([
 				{ kind: 'text', text: '  indented\n    deeper\n', marks: [] },
+			]);
+		});
+
+		it('splits preformatted lines without a code block schema, keeping indentation (#268)', () => {
+			const slice = parseHTML('<pre>  indented\n    deeper\n</pre>');
+			expect(slice.blocks.map((block) => block.segments)).toEqual([
+				[{ kind: 'text', text: '  indented', marks: [] }],
+				[{ kind: 'text', text: '    deeper', marks: [] }],
+				[{ kind: 'text', text: '', marks: [] }],
 			]);
 		});
 

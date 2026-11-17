@@ -1,6 +1,6 @@
 /**
- * DocumentParser: converts sanitized HTML strings into immutable Document instances.
- * Pure functions — no class state, no DOM mutation beyond a temporary `<template>`.
+ * DocumentParser: converts sanitized HTML into immutable Document instances.
+ * Pure functions — no class state, no DOM mutation beyond a disposable fragment.
  */
 
 import type { BlockAlignment } from '../model/BlockAlignment.js';
@@ -30,8 +30,9 @@ import { adoptBlockId } from './BlockIdHTML.js';
 import { VALID_DIRECTIONS } from './DocumentSerializer.js';
 import { isHTMLBlockElement, matchHTMLParseRule, parseHTMLMarks } from './HTMLParseRules.js';
 import { type HTMLParseSession, createHTMLParseSession } from './HTMLParseSession.js';
-import { preserveHTMLIdSanitizeConfig, sanitizeHTML } from './HTMLSanitization.js';
+import { preserveHTMLIdSanitizeConfig, sanitizeHTMLFragment } from './HTMLSanitization.js';
 import { normalizeHTMLWhitespace } from './HTMLWhitespace.js';
+import { readPreformattedText } from './PreformattedText.js';
 import { createClassDeclarationResolver } from './StyleClassHTML.js';
 import { rehydrateStyles } from './StyleRehydration.js';
 import {
@@ -53,13 +54,18 @@ export interface ParseHTMLOptions {
 	readonly styleMap?: ReadonlyMap<string, string>;
 }
 
-/** Parses an HTML string into a Document, applying sanitization and schema parse rules. */
+/** Parses HTML into a Document, applying sanitization and schema parse rules. */
 export function parseHTMLToDocument(
-	html: string,
+	html: string | DocumentFragment,
 	registry?: SchemaRegistry,
 	options?: ParseHTMLOptions,
 ): Document {
-	const allowedTags: string[] = registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span'];
+	// Pre remains visible to the parser even without a code spec, so the fallback
+	// can split significant lines rather than collapse them during sanitization.
+	const allowedTags: string[] = [
+		...(registry ? registry.getAllowedTags() : ['p', 'br', 'div', 'span']),
+		'pre',
+	];
 	const allowedAttrs: string[] = registry ? registry.getAllowedAttrs() : ['style', 'dir', 'id'];
 
 	// `data-block-id` carries block identity across `setContentHTML(getContentHTML())`.
@@ -74,8 +80,7 @@ export function parseHTMLToDocument(
 		allowedAttrs.push('class');
 	}
 
-	const template = document.createElement('template');
-	template.innerHTML = sanitizeHTML(
+	const root: DocumentFragment = sanitizeHTMLFragment(
 		html,
 		{
 			ALLOWED_TAGS: allowedTags,
@@ -85,7 +90,6 @@ export function parseHTMLToDocument(
 		},
 		registry,
 	);
-	const root: DocumentFragment = template.content;
 
 	// Make inline styles and classes readable through the CSSOM, where parse rules read them.
 	rehydrateStyles(root, createClassDeclarationResolver(registry, options?.styleMap));
@@ -145,6 +149,10 @@ function parseChildNode(child: ChildNode, blocks: BlockNode[], session: HTMLPars
 
 		// Try block parse rules
 		const match = matchHTMLParseRule(el, session.blockRules);
+		if (tag === 'pre' && !match) {
+			parsePreformattedFallback(el, blocks, session);
+			return;
+		}
 
 		// A paragraph cannot hold blocks. An element that resolves to `paragraph`
 		// (the generic `<div>` rule or the fallback below) but wraps block-level
@@ -159,7 +167,9 @@ function parseChildNode(child: ChildNode, blocks: BlockNode[], session: HTMLPars
 		const spec = match ? registry?.getNodeSpec(match.type) : undefined;
 		const children: (TextNode | InlineNode)[] = spec?.isVoid
 			? [createTextNode('')]
-			: parseElementToInlineContent(el, session);
+			: match?.type === 'code_block'
+				? [createTextNode(readPreformattedText(el))]
+				: parseElementToInlineContent(el, session);
 		const attrs: Record<string, string | number | boolean> = {
 			...(match?.attrs as Record<string, string | number | boolean> | undefined),
 		};
@@ -178,6 +188,28 @@ function parseChildNode(child: ChildNode, blocks: BlockNode[], session: HTMLPars
 		);
 	} else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
 		blocks.push(createBlockNode(nodeType('paragraph'), [createTextNode(child.textContent.trim())]));
+	}
+}
+
+/** A schema without code blocks keeps each preformatted line as a paragraph. */
+function parsePreformattedFallback(
+	el: HTMLElement,
+	blocks: BlockNode[],
+	session: HTMLParseSession,
+): void {
+	const attrs: Record<string, string | number | boolean> = {};
+	extractAlignment(el, attrs);
+	extractDirection(el, attrs);
+	for (const [index, line] of readPreformattedText(el).split('\n').entries()) {
+		blocks.push(
+			createBlockNode(
+				nodeType('paragraph'),
+				[createTextNode(line)],
+				index === 0 ? adoptBlockId(el, session.adoptedIds) : undefined,
+				Object.keys(attrs).length > 0 ? attrs : undefined,
+				index === 0 ? extractHTMLId(el) : undefined,
+			),
+		);
 	}
 }
 
